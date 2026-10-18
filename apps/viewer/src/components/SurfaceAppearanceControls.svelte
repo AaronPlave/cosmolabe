@@ -9,7 +9,11 @@
     void vs.frameTick;
     return getRenderer()?.getBodyMesh(bodyName);
   });
-  let datum = $derived(bodyMesh?.surfaceAppearanceDatum);
+  let datum = $derived.by(() => {
+    // Cube capability arrives asynchronously with product metadata.
+    void vs.frameTick;
+    return bodyMesh?.surfaceAppearanceDatum;
+  });
   // Keyed by body in BodyInfoPanel; edits remain on the renderer when closed.
   let settings = $derived.by((): SurfaceAppearanceSettings => {
     void appearancePick.revision;
@@ -95,7 +99,7 @@
         <p class="ui-meta text-text-muted mt-2">Loaded terrain mesh only; coarse tiles give coarse relief. Tile debug colors take precedence.</p>
       </div>
     {:else}
-      <p class="ui-meta text-text-muted">Relief styles require quantized-mesh terrain with a supported elevation reference. Cube-sphere terrain, including MoonFall, is not supported yet.</p>
+      <p class="ui-meta text-text-muted">Relief styles require known planetary terrain with a validated elevation reference. Product metadata may still be loading; generic 3D Tiles are unsupported.</p>
     {/if}
   </section>
 {/if}

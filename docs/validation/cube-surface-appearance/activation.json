@@ -1,0 +1,2158 @@
+[
+  {
+    "name": "nac",
+    "catalog": "test-catalogs/experiments/moon-terrain-cube-imagery-nac",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 4,
+      "settled": 4,
+      "loaded": 4,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 2244.300000011921
+    },
+    "views": {},
+    "errors": [],
+    "activationProfile": {
+      "normal": [
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 1.249166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.720874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.718249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 1.028833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.752374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.781833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.731125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.91475,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.713749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.619416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 1.17425,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.706749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.705374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 1.009375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.71125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.683249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.735625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.775166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.725125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.712291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.73425,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.821041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.829249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.604708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.726416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.685874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.715,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.62325,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.625624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.818499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "activation": [
+        {
+          "cpuMs": 60,
+          "gpuMs": 0.842125,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 7.199999988079071,
+            "maxTileMs": 7.199999988079071
+          }
+        },
+        {
+          "cpuMs": 36.099999994039536,
+          "gpuMs": 0.772583,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 6.0999999940395355,
+            "maxTileMs": 6.0999999940395355
+          }
+        },
+        {
+          "cpuMs": 59,
+          "gpuMs": 0.686374,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.199999988079071,
+            "maxTileMs": 3.399999976158142
+          }
+        },
+        {
+          "cpuMs": 28.799999982118607,
+          "gpuMs": 0.675749,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 6.199999988079071,
+            "maxTileMs": 6.0999999940395355
+          }
+        },
+        {
+          "cpuMs": 27.599999994039536,
+          "gpuMs": 0.577291,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.199999988079071,
+            "maxTileMs": 3.199999988079071
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.577999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "active": [
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.653499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.10000002384185791,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.685541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.550083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.677,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.744416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.682999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.544166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.567583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.651499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.744041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7000000178813934,
+          "gpuMs": 0.706124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.541708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.10000002384185791,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.571583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.664874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.647,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 1.066791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.552125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.669333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.733416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.790624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.2000000178813934,
+          "gpuMs": 0.5505,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.199999988079071,
+          "gpuMs": 0.732375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.678625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.399999976158142,
+          "gpuMs": 0.548166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.569333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.399999976158142,
+          "gpuMs": 0.653875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7000000178813934,
+          "gpuMs": 0.670958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.199999988079071,
+          "gpuMs": 0.635291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.678999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.732875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "disabled": [
+        {
+          "cpuMs": 41.599999994039536,
+          "gpuMs": 0.760083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.300000011920929,
+          "gpuMs": 0.830833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.721708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.2999999821186066,
+          "gpuMs": 0.345874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.2000000178813934,
+          "gpuMs": 0.261749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.0999999940395355,
+          "gpuMs": 0.308999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.312166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.336874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.300000011920929,
+          "gpuMs": 0.236833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.348708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.258874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.338249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.2999999821186066,
+          "gpuMs": 0.235499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.410875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.600000023841858,
+          "gpuMs": 0.374875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.361208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.273458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.294625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5999999940395355,
+          "gpuMs": 0.358333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.457083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.338,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.4000000059604645,
+          "gpuMs": 0.472249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.587249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.622666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.300000011920929,
+          "gpuMs": 0.338749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.300000011920929,
+          "gpuMs": 0.747749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.399999976158142,
+          "gpuMs": 0.920374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.706083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.2999999821186066,
+          "gpuMs": 0.615916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.399999976158142,
+          "gpuMs": 0.618749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "gpuTimerAvailable": true
+    }
+  },
+  {
+    "name": "moonfall",
+    "catalog": "test-catalogs/moonfall-shackleton",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 8,
+      "settled": 8,
+      "loaded": 8,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 2194
+    },
+    "views": {},
+    "errors": [],
+    "activationProfile": {
+      "normal": [
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 3.647416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.399999976158142,
+          "gpuMs": 3.421125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2999999821186066,
+          "gpuMs": 3.452916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 2.892749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.5,
+          "gpuMs": 2.788124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 2.493249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.953958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.100000023841858,
+          "gpuMs": 1.0865,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 1.114124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.199999988079071,
+          "gpuMs": 1.10225,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 1.033374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.4000000059604645,
+          "gpuMs": 1.335125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 0.927374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.899999976158142,
+          "gpuMs": 0.887124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.9000000059604645,
+          "gpuMs": 0.956375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.889,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.800000011920929,
+          "gpuMs": 0.892124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.883583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.976666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.895083,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.997124,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.83375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.800000011920929,
+          "gpuMs": 0.941874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.920874,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.89125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.930374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7000000178813934,
+          "gpuMs": 0.95225,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.931375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.927625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.947833,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "activation": [
+        {
+          "cpuMs": 61.400000005960464,
+          "gpuMs": 1.281041,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 7.0999999940395355,
+            "maxTileMs": 7
+          }
+        },
+        {
+          "cpuMs": 25.5,
+          "gpuMs": 1.408041,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 7.4000000059604645,
+            "maxTileMs": 7.199999988079071
+          }
+        },
+        {
+          "cpuMs": 20.799999982118607,
+          "gpuMs": 1.367999,
+          "preparation": {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 6.4000000059604645,
+            "maxTileMs": 6.4000000059604645
+          }
+        },
+        {
+          "cpuMs": 13.099999994039536,
+          "gpuMs": 1.222749,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.799999982118607,
+            "maxTileMs": 3.4000000059604645
+          }
+        },
+        {
+          "cpuMs": 15.200000017881393,
+          "gpuMs": 1.484666,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.699999988079071,
+            "maxTileMs": 3.4000000059604645
+          }
+        },
+        {
+          "cpuMs": 13,
+          "gpuMs": 1.203333,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 5.199999988079071,
+            "maxTileMs": 3.4000000059604645
+          }
+        },
+        {
+          "cpuMs": 19.400000005960464,
+          "gpuMs": 1.530916,
+          "preparation": {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5,
+            "maxTileMs": 1.9000000059604645
+          }
+        },
+        {
+          "cpuMs": 8.300000011920929,
+          "gpuMs": 1.420999,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.199999988079071,
+            "maxTileMs": 2.199999988079071
+          }
+        },
+        {
+          "cpuMs": 10.099999994039536,
+          "gpuMs": 1.875874,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.299999982118607,
+            "maxTileMs": 2.2999999821186066
+          }
+        },
+        {
+          "cpuMs": 21.80000001192093,
+          "gpuMs": 1.540041,
+          "preparation": {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.9000000059604645,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 27.400000005960464,
+          "gpuMs": 2.690624,
+          "preparation": {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.699999988079071,
+            "maxTileMs": 1.9000000059604645
+          }
+        },
+        {
+          "cpuMs": 23.799999982118607,
+          "gpuMs": 6.467083,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2.100000023841858
+          }
+        },
+        {
+          "cpuMs": 15.900000005960464,
+          "gpuMs": 1.140791,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.200000017881393,
+            "maxTileMs": 2.100000023841858
+          }
+        },
+        {
+          "cpuMs": 19.700000017881393,
+          "gpuMs": 1.172791,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 19.19999998807907,
+          "gpuMs": 1.208499,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 24.900000005960464,
+          "gpuMs": 1.30125,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 22,
+          "gpuMs": 2.64575,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 23.099999994039536,
+          "gpuMs": 2.533041,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 22.30000001192093,
+          "gpuMs": 2.437624,
+          "preparation": {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.699999988079071,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 10.200000017881393,
+          "gpuMs": 2.724916,
+          "preparation": {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.700000017881393,
+            "maxTileMs": 1.9000000059604645
+          }
+        },
+        {
+          "cpuMs": 11.400000005960464,
+          "gpuMs": 2.371624,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 20.19999998807907,
+          "gpuMs": 2.378416,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2.0999999940395355
+          }
+        },
+        {
+          "cpuMs": 10.700000017881393,
+          "gpuMs": 2.825541,
+          "preparation": {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2
+          }
+        },
+        {
+          "cpuMs": 2.399999976158142,
+          "gpuMs": 2.387291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "active": [
+        {
+          "cpuMs": 2.300000011920929,
+          "gpuMs": 3.170333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.4000000059604645,
+          "gpuMs": 2.910624,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.300000011920929,
+          "gpuMs": 0.923666,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.5,
+          "gpuMs": 1.02225,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.4000000059604645,
+          "gpuMs": 1.019375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.975625,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.936041,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.925541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 1.093875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 1.190499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.300000011920929,
+          "gpuMs": 1.126875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.300000011920929,
+          "gpuMs": 1.032791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 1.236749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 1.130541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 1.115,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 1.134374,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2999999821186066,
+          "gpuMs": 1.367916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 1.37675,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 1.413916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 1.370916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.10000002384185791,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.199999988079071,
+          "gpuMs": 1.371708,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 2.210875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.4000000059604645,
+          "gpuMs": 2.435208,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 2.092749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.899999976158142,
+          "gpuMs": 2.783333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 2.614291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 2.444166,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 2.356583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.300000011920929,
+          "gpuMs": 2.430499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0.09999999403953552,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.5,
+          "gpuMs": 2.363999,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "disabled": [
+        {
+          "cpuMs": 43.80000001192093,
+          "gpuMs": 2.928875,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 3.730916,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.100000023841858,
+          "gpuMs": 3.699791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.9000000059604645,
+          "gpuMs": 2.668499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.800000011920929,
+          "gpuMs": 1.706749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.899999976158142,
+          "gpuMs": 2.077458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.800000011920929,
+          "gpuMs": 1.295499,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.199999988079071,
+          "gpuMs": 1.159375,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 1.341249,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.5,
+          "gpuMs": 0.876125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 1.024416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.903458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.913541,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.699999988079071,
+          "gpuMs": 0.900416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.789458,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.891,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.855291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 1.099749,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 0.8945,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.199999988079071,
+          "gpuMs": 0.841791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.833958,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.863583,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 0.83425,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.9000000059604645,
+          "gpuMs": 0.882125,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.9000000059604645,
+          "gpuMs": 0.811791,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.847333,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2,
+          "gpuMs": 0.86525,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.0999999940395355,
+          "gpuMs": 0.864416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 2.2000000178813934,
+          "gpuMs": 1.100416,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        },
+        {
+          "cpuMs": 1.7999999821186066,
+          "gpuMs": 0.827291,
+          "preparation": {
+            "meshes": 0,
+            "vertices": 0,
+            "elapsedMs": 0,
+            "maxTileMs": 0
+          }
+        }
+      ],
+      "gpuTimerAvailable": true
+    }
+  }
+]

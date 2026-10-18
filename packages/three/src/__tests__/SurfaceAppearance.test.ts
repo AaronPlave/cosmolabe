@@ -256,3 +256,50 @@ describe('surface appearance physical and material contracts', () => {
     expect(tileMesh.material.version).toBe(version);
   });
 });
+
+describe('cube surface/skirt topology', () => {
+  it('excludes ungrouped skirt triangles from relief normals and inherits edge corrections', () => {
+    const datum: TerrainDatum = { referenceShape: { kind: 'sphere', radiusKm: 1 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' };
+    const build = (skirt: boolean) => {
+      const g = new THREE.BufferGeometry();
+      const points = [new THREE.Vector3(1000, 0, 0), new THREE.Vector3(1000, 10, 0), new THREE.Vector3(1002, 0, 10)];
+      if (skirt) points.push(...points.map(p => p.clone().multiplyScalar(0.9).add(new THREE.Vector3(0, 0.0002, 0))));
+      g.setAttribute('position', new THREE.Float32BufferAttribute(points.flatMap(p => p.toArray()), 3));
+      g.setIndex(skirt ? [0, 1, 2, 0, 3, 1, 1, 3, 4, 1, 4, 2, 2, 4, 5] : [0, 1, 2]);
+      g.userData.surfaceTriangles = 1;
+      const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial());
+      const style = new SurfaceAppearance(datum); style.attach(mesh, new THREE.Matrix4());
+      style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+      return g;
+    };
+    const ground = build(false), skirt = build(true);
+    const a = ground.getAttribute('surfaceReliefNormal'), b = skirt.getAttribute('surfaceReliefNormal');
+    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) {
+      expect(b.getComponent(i, c)).toBeCloseTo(a.getComponent(i, c), 6);
+      expect(b.getComponent(i + 3, c)).toBeCloseTo(a.getComponent(i, c), 6);
+    }
+    expect([...skirt.getAttribute('surfaceGround').array]).toEqual([1, 1, 1, 0, 0, 0]);
+  });
+});
+
+it('reconciles cube LOD ownership independently of hidden source meshes and detached cached scenes', () => {
+  const style = new SurfaceAppearance(datum), coarse = mesh(), fine = mesh();
+  const group = new THREE.Group(), coarseScene = new THREE.Group(), fineScene = new THREE.Group();
+  coarseScene.add(coarse); fineScene.add(fine); group.add(coarseScene);
+  // CubeImageryLayer hides the source while drawing blocks. The scene owns visibility.
+  coarse.visible = false; fine.visible = false;
+  fine.geometry.getAttribute('position').setZ(2, 100);
+  style.attach(coarse, new THREE.Matrix4().makeTranslation(3396190, 0, 0), coarseScene);
+  style.attach(fine, new THREE.Matrix4().makeTranslation(3396190, 0, 0), fineScene);
+  style.set({ ...defaults, hillshade: true }); style.update(Infinity);
+  const baseline = coarse.geometry.getAttribute('surfaceReliefNormal').array.slice();
+  expect(fine.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
+  for (let i = 0; i < 3; i++) {
+    coarseScene.removeFromParent(); group.add(fineScene); style.update(Infinity);
+    expect(fine.geometry.hasAttribute('surfaceReliefNormal')).toBe(true);
+    fineScene.removeFromParent(); group.add(coarseScene); style.update(Infinity);
+    expect(coarse.geometry.getAttribute('surfaceReliefNormal').array).toEqual(baseline);
+  }
+  style.forget(fineScene); style.update(Infinity);
+  expect(coarse.geometry.getAttribute('surfaceReliefNormal').array).toEqual(baseline);
+});
