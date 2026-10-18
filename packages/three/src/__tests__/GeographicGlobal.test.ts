@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, it, expect } from 'vitest';
 import { parseGeographicGeoJson } from '@cosmolabe/core';
 import { GeographicIndex, geographicCell } from '../geographic/GeographicIndex.js';
@@ -46,13 +47,13 @@ describe('Natural Earth global countries', () => {
       const ids = new Set<number>();
       for (let page = 0; page < level.pages; page++) {
         const offset = (level.offset + page * level.size * height + cell) * 4;
-        expect(packed.detail!.cells[offset + 1]).toBeLessThanOrEqual(256);
+        assert.ok(packed.detail!.cells[offset + 1] <= 256);
         for (let j = 0; j < packed.detail!.cells[offset + 1]; j++) {
           const ref = (packed.detail!.cells[offset] + j) * 4;
           const id = packed.references[ref];
           ids.add(id);
           const chart = index.primitives[id].chart;
-          expect(packed.references[ref + 2]).toBe(chart === 'longitude-latitude' ? 0 : chart === 'north-polar' ? 1 : -1);
+          assert.equal(packed.references[ref + 2], chart === 'longitude-latitude' ? 0 : chart === 'north-polar' ? 1 : -1);
         }
       }
       fineCells.set(cell, ids);
@@ -65,10 +66,10 @@ describe('Natural Earth global countries', () => {
         const y = weights[0]*a[1]+weights[1]*b[1]+weights[2]*c[1];
         const lon = chart === 'longitude-latitude' ? ((x+180)%360+360)%360-180 : Math.atan2(y,x)*180/Math.PI;
         const lat = chart === 'longitude-latitude' ? y : (chart === 'north-polar' ? 1 : -1)*(90-Math.hypot(x,y));
-        expect(index.cells[geographicCell(lon,lat)].includes(id), `coarse primitive ${id}`).toBe(true);
+        assert.ok(index.cells[geographicCell(lon,lat)].includes(id), `coarse primitive ${id}`);
         const cellX = ((Math.floor((lon+180)/level.step[0])%level.size)+level.size)%level.size;
         const cellY = Math.max(0,Math.min(height-1,Math.floor((lat+90)/level.step[1])));
-        expect(fineCells.get(cellY*level.size+cellX)!.has(id), `fine primitive ${id}`).toBe(true);
+        assert.ok(fineCells.get(cellY*level.size+cellX)!.has(id), `fine primitive ${id}`);
       }
     }
   });
