@@ -156,7 +156,7 @@ describe('geographic surface index', () => {
     }
   });
 
-  it('retains the seam-aware coarse path when localized geometry crosses the longitude seam', () => {
+  it('retains a seam-aware global grid when localized geometry crosses the longitude seam', () => {
     const ring: GeoPosition[] = Array.from({ length: 160 }, (_, i) => {
       const angle = i / 160 * Math.PI * 2;
       const lon = 179.99 + 0.04 * Math.cos(angle);
@@ -166,7 +166,7 @@ describe('geographic surface index', () => {
     const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [ring] }])]);
     expect(index.diagnostics).toEqual([]);
     expect(index.features).toHaveLength(1);
-    expect(index.pack().detail).toBeUndefined();
+    expect(index.pack().detail?.levels[0]).toMatchObject({size: 256, height: 128});
     expect(pick(index, -179.999, 18.45)).toEqual(ref);
   });
 

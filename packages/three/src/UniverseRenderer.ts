@@ -4447,11 +4447,11 @@ export class UniverseRenderer {
       if (this.lastTapConsumed) { event.preventDefault(); event.stopImmediatePropagation(); }
       return;
     }
-    // Both point-picking tools must leave camera drags alone. Remember the
+    // Point-picking tools and geographic selection leave camera drags alone. Remember the
     // maximum excursion, including a drag that returns to its starting pixel.
     const press = this._pickPress;
     this._pickPress = null;
-    if ((this.pointerTool || this._probeActive || this.spatialInteraction?.picking()) && press &&
+    if ((this.pointerTool || this._probeActive || this.spatialInteraction?.picking() || this.geographicVectors.featureCount > 0) && press &&
       (press.dragged || (event.clientX - press.x) ** 2 + (event.clientY - press.y) ** 2 > 25)) {
       event.preventDefault(); event.stopImmediatePropagation();
       return;

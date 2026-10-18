@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS } from './GeographicIndex.js';
 
+const DETAIL_LEVELS = VECTOR_DETAIL_GRIDS.length + 1;
+const detailSlots = Array.from({ length: DETAIL_LEVELS });
+
 function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.length / 4))): THREE.DataTexture {
   const height = Math.max(1, Math.ceil(data.length / 4 / width));
   const padded = new Float32Array(width * height * 4);
@@ -34,10 +37,10 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorCellSize: { value: new THREE.Vector2(cells.image.width, cells.image.height) },
         vectorDetailCells: { value: detailCells },
         vectorDetailCellSize: { value: new THREE.Vector2(detailCells.image.width, detailCells.image.height) },
-        vectorDetailBounds: { value: VECTOR_DETAIL_GRIDS.map((_, i) => new THREE.Vector4(...(packed.detail?.levels[i]?.bounds ?? [0, 0, 0, 0]))) },
-        vectorDetailStep: { value: VECTOR_DETAIL_GRIDS.map((_, i) => new THREE.Vector2(...(packed.detail?.levels[i]?.step ?? [0, 0]))) },
-        vectorDetailGrid: { value: VECTOR_DETAIL_GRIDS.map((_, i) => {
-          const level = packed.detail?.levels[i]; return new THREE.Vector3(level?.size ?? 0, level?.offset ?? 0, level?.pages ?? 0);
+        vectorDetailBounds: { value: detailSlots.map((_, i) => new THREE.Vector4(...(packed.detail?.levels[i]?.bounds ?? [0, 0, 0, 0]))) },
+        vectorDetailStep: { value: detailSlots.map((_, i) => new THREE.Vector2(...(packed.detail?.levels[i]?.step ?? [0, 0]))) },
+        vectorDetailGrid: { value: detailSlots.map((_, i) => {
+          const level = packed.detail?.levels[i]; return new THREE.Vector4(level?.size ?? 0, level?.offset ?? 0, level?.pages ?? 0, level?.height ?? level?.size ?? 0);
         }) },
         vectorDisplacement: { value: new THREE.Vector3() },
         vectorDisplacementMap: { value: null }, vectorDisplacementTransform: { value: new THREE.Matrix3() },
@@ -77,9 +80,9 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform vec2 vectorCellSize;
         uniform sampler2D vectorDetailCells;
         uniform vec2 vectorDetailCellSize;
-        uniform vec4 vectorDetailBounds[${VECTOR_DETAIL_GRIDS.length}];
-        uniform vec2 vectorDetailStep[${VECTOR_DETAIL_GRIDS.length}];
-        uniform vec3 vectorDetailGrid[${VECTOR_DETAIL_GRIDS.length}];
+        uniform vec4 vectorDetailBounds[${DETAIL_LEVELS}];
+        uniform vec2 vectorDetailStep[${DETAIL_LEVELS}];
+        uniform vec4 vectorDetailGrid[${DETAIL_LEVELS}];
         varying vec3 vectorBody;
         vec4 vectorTexel(sampler2D tex, vec2 size, float i) {
           return texture2D(tex, (vec2(mod(i, size.x), floor(i / size.x)) + 0.5) / size);
@@ -117,13 +120,17 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           vec4 range = vec4(0.0);
           vec2 footprint = 4.5 * vectorPixelRatio * (abs(dx) + abs(dy));
           bool detailed = false;
-          for (int level = 0; level < ${VECTOR_DETAIL_GRIDS.length}; level++) {
+          for (int level = 0; level < ${DETAIL_LEVELS}; level++) {
             if (vectorDetailStep[level].x <= 0.0 || any(greaterThan(footprint, vectorDetailStep[level]))) continue;
-            vec3 grid = vectorDetailGrid[level];
+            vec4 grid = vectorDetailGrid[level];
             if (vectorPage >= grid.z) discard;
             vec2 detailCell = floor((ll - vectorDetailBounds[level].xy) / vectorDetailStep[level]);
-            if (any(lessThan(detailCell, vec2(0.0))) || any(greaterThanEqual(detailCell, vec2(grid.x)))) discard;
-            range = vectorTexel(vectorDetailCells, vectorDetailCellSize, grid.y + vectorPage * grid.x * grid.x + detailCell.y * grid.x + detailCell.x);
+            if (vectorDetailBounds[level].z - vectorDetailBounds[level].x == 360.0) {
+              detailCell.x = mod(detailCell.x, grid.x);
+              detailCell.y = clamp(detailCell.y, 0.0, grid.w - 1.0);
+            }
+            if (any(lessThan(detailCell, vec2(0.0))) || any(greaterThanEqual(detailCell, vec2(grid.x, grid.w)))) discard;
+            range = vectorTexel(vectorDetailCells, vectorDetailCellSize, grid.y + vectorPage * grid.x * grid.w + detailCell.y * grid.x + detailCell.x);
             detailed = true;
             break;
           }

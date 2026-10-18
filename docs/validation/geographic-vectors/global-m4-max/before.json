@@ -1,0 +1,400 @@
+{
+  "results": [
+    {
+      "name": "Earth orbit",
+      "visible": false,
+      "features": 0,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "indexes": [],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000273
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.20000001788139343,
+        "p95": 0.4000000059604645
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Earth orbit",
+      "visible": true,
+      "features": 177,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 6,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 1,
+        "offsetVertices": 0,
+        "textureBytes": 10256384
+      },
+      "indexes": [
+        {
+          "features": 177,
+          "primitives": 20149,
+          "references": 547526,
+          "pages": 6
+        }
+      ],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.30000001192092896,
+        "p95": 1.300000011920929
+      },
+      "pickCpuMs": {
+        "samples": 3,
+        "median": 0.19999998807907104,
+        "p95": 0.20000001788139343
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Europe and Africa",
+      "visible": false,
+      "features": 0,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "indexes": [],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.19999998807907104,
+        "p95": 0.4000000059604645
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Europe and Africa",
+      "visible": true,
+      "features": 177,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 6,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 1,
+        "offsetVertices": 0,
+        "textureBytes": 10256384
+      },
+      "indexes": [
+        {
+          "features": 177,
+          "primitives": 20149,
+          "references": 547526,
+          "pages": 6
+        }
+      ],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.699999999999818,
+        "p95": 33.400000000000546
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.30000001192092896,
+        "p95": 1
+      },
+      "pickCpuMs": {
+        "samples": 4,
+        "median": 0.09999999403953552,
+        "p95": 0.09999999403953552
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Pacific dateline",
+      "visible": false,
+      "features": 0,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "indexes": [],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.4000000059604645,
+        "p95": 0.5999999940395355
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Pacific dateline",
+      "visible": true,
+      "features": 177,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 6,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 1,
+        "offsetVertices": 0,
+        "textureBytes": 10256384
+      },
+      "indexes": [
+        {
+          "features": 177,
+          "primitives": 20149,
+          "references": 547526,
+          "pages": 6
+        }
+      ],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.5,
+        "p95": 1.199999988079071
+      },
+      "pickCpuMs": {
+        "samples": 3,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Antarctica",
+      "visible": false,
+      "features": 0,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "indexes": [],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.69999999999891,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.30000001192092896,
+        "p95": 0.5
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Antarctica",
+      "visible": true,
+      "features": 177,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 6,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 1,
+        "offsetVertices": 0,
+        "textureBytes": 10256384
+      },
+      "indexes": [
+        {
+          "features": 177,
+          "primitives": 20149,
+          "references": 547526,
+          "pages": 6
+        }
+      ],
+      "frameMs": {
+        "samples": 25,
+        "median": 50,
+        "p95": 50.100000000000364
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.4000000059604645,
+        "p95": 1.2000000178813934
+      },
+      "pickCpuMs": {
+        "samples": 8,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Rhine close",
+      "visible": false,
+      "features": 0,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "indexes": [],
+      "frameMs": {
+        "samples": 25,
+        "median": 16.69999999999891,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.10000002384185791,
+        "p95": 0.30000001192092896
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    },
+    {
+      "name": "Rhine close",
+      "visible": true,
+      "features": 177,
+      "diagnostics": [],
+      "metrics": {
+        "drawCalls": 6,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 1,
+        "offsetVertices": 0,
+        "textureBytes": 10256384
+      },
+      "indexes": [
+        {
+          "features": 177,
+          "primitives": 20149,
+          "references": 547526,
+          "pages": 6
+        }
+      ],
+      "frameMs": {
+        "samples": 25,
+        "median": 100,
+        "p95": 116.70000000000073
+      },
+      "renderCpuMs": {
+        "samples": 36,
+        "median": 0.4000000059604645,
+        "p95": 1.300000011920929
+      },
+      "pickCpuMs": {
+        "samples": 14,
+        "median": 0.09999999403953552,
+        "p95": 0.30000001192092896
+      },
+      "resolution": [
+        3840,
+        2160
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "gpuTimerAvailable": true
+    }
+  ],
+  "errors": []
+}

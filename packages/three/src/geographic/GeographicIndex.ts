@@ -24,6 +24,7 @@ export type VectorPrimitive = {
 };
 interface DetailLevel {
   size: number;
+  height?: number;
   offset: number;
   pages: number;
   bounds: readonly [number, number, number, number];
@@ -44,27 +45,50 @@ export function geographicCell(lon: number, lat: number): number {
   return y * VECTOR_GRID[0] + x;
 }
 
-function primitiveCells(p: VectorPrimitive): number[] {
+function primitiveCells(p: VectorPrimitive, grid: readonly [number, number] = VECTOR_GRID, padding = VECTOR_PADDING_DEG): number[] {
   const vertices = p.kind === 0 ? [p.a] : p.kind === 1 ? [p.a, p.b] : [p.a, p.b, p.c];
   let west = -180, east = 180, south = -90, north = 90;
   if (p.chart === 'longitude-latitude') {
-    west = Math.min(...vertices.map(p => p[0])) - VECTOR_PADDING_DEG;
-    east = Math.max(...vertices.map(p => p[0])) + VECTOR_PADDING_DEG;
-    south = Math.min(...vertices.map(p => p[1])) - VECTOR_PADDING_DEG;
-    north = Math.max(...vertices.map(p => p[1])) + VECTOR_PADDING_DEG;
+    west = Math.min(...vertices.map(p => p[0])) - padding;
+    east = Math.max(...vertices.map(p => p[0])) + padding;
+    south = Math.min(...vertices.map(p => p[1])) - padding;
+    north = Math.max(...vertices.map(p => p[1])) + padding;
   } else {
-    // Conservative cap bound also covers an interior pole. Projection has no seam.
-    const radius = Math.max(...vertices.map(p => Math.hypot(...p))) + VECTOR_PADDING_DEG;
-    if (p.chart === 'north-polar') south = 90 - radius;
-    else north = -90 + radius;
+    // A convex polar primitive occupies an angular wedge unless it contains
+    // the origin. Bound its actual radius and wedge, rather than repeating
+    // every Antarctic coastal segment across every longitude in the cap.
+    const cross = (a: GeographicXY, b: GeographicXY) => a[0] * b[1] - a[1] * b[0];
+    const signs = p.kind === 2 ? [cross(p.a, p.b), cross(p.b, p.c), cross(p.c, p.a)] : [];
+    const containsPole = signs.length > 0 && (signs.every(x => x >= 0) || signs.every(x => x <= 0));
+    let minRadius = Math.min(...vertices.map(v => Math.hypot(...v)));
+    const maxRadius = Math.max(...vertices.map(v => Math.hypot(...v)));
+    for (let i = 0; i < vertices.length; i++) {
+      const a = vertices[i], b = vertices[(i + 1) % vertices.length];
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / (dx * dx + dy * dy || 1)));
+      minRadius = Math.min(minRadius, Math.hypot(a[0] + t * dx, a[1] + t * dy));
+    }
+    if (containsPole) minRadius = 0;
+    if (p.chart === 'north-polar') { south = 90 - maxRadius - padding; north = 90 - minRadius + padding; }
+    else { south = -90 + minRadius - padding; north = -90 + maxRadius + padding; }
+    if (minRadius > padding) {
+      const angles = vertices.map(v => Math.atan2(v[1], v[0]) * 180 / Math.PI).sort((a, b) => a - b);
+      let gap = -1, start = 0;
+      for (let i = 0; i < angles.length; i++) {
+        const next = i + 1 < angles.length ? angles[i + 1] : angles[0] + 360;
+        if (next - angles[i] > gap) { gap = next - angles[i]; start = (i + 1) % angles.length; }
+      }
+      const angularPadding = Math.asin(Math.min(1, padding / minRadius)) * 180 / Math.PI;
+      west = angles[start] - Math.max(padding, angularPadding); east = angles[start] + 360 - gap + Math.max(padding, angularPadding);
+    }
   }
   const cells = new Set<number>();
-  const y0 = Math.max(0, Math.floor((south + 90) / 180 * VECTOR_GRID[1]));
-  const y1 = Math.min(VECTOR_GRID[1] - 1, Math.floor((north + 90) / 180 * VECTOR_GRID[1]));
-  const x0 = Math.floor((west + 180) / 360 * VECTOR_GRID[0]);
-  const x1 = Math.min(x0 + VECTOR_GRID[0] - 1, Math.floor((east + 180) / 360 * VECTOR_GRID[0]));
+  const y0 = Math.max(0, Math.floor((south + 90) / 180 * grid[1]));
+  const y1 = Math.min(grid[1] - 1, Math.floor((north + 90) / 180 * grid[1]));
+  const x0 = Math.floor((west + 180) / 360 * grid[0]);
+  const x1 = Math.min(x0 + grid[0] - 1, Math.floor((east + 180) / 360 * grid[0]));
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    cells.add(y * VECTOR_GRID[0] + ((x % VECTOR_GRID[0]) + VECTOR_GRID[0]) % VECTOR_GRID[0]);
+    cells.add(y * grid[0] + ((x % grid[0]) + grid[0]) % grid[0]);
   }
   return [...cells];
 }
@@ -167,19 +191,40 @@ export class GeographicIndex {
     return peak <= VECTOR_CELL_LIMIT ? 1 : peaks.reduce((n, count) => n + Math.ceil(count / VECTOR_CELL_LIMIT), 0);
   }
 
+  /** A padded global level for distributed data, including polar primitives.
+   * Selection uses the same derivative-footprint rule as the local levels. */
+  private globalGrid(): { grids: number[][][]; level: DetailLevel }[] {
+    const size = 256, height = 128;
+    const step: readonly [number, number] = [360 / size, 180 / height];
+    const bins: number[][] = Array.from({ length: size * height }, () => []);
+    let references = this.references;
+    for (const [id, p] of this.primitives.entries()) {
+      // One full cell covers the mark footprint admitted by the shader.
+      for (const cell of primitiveCells(p, [size, height], step[0])) {
+        if (++references > VECTOR_REFERENCE_LIMIT) return [];
+        bins[cell].push(id);
+      }
+    }
+    const grids = pageCells(bins, this.primitives);
+    if (grids.length > this.renderPages) return [];
+    return [{ grids, level: { size, height, offset: 0, pages: grids.length,
+      bounds: [-180, -90, 180, 90], step } }];
+  }
+
   /** Local grids retain every primitive and one cell of padding at each scale.
    * Derivatives select a grid whose padding covers the CSS-pixel mark; wide,
    * seam and polar views retain the bounded global fallback. */
   private detailGrids(): { grids: number[][][]; level: DetailLevel }[] {
     const result: { grids: number[][][]; level: DetailLevel }[] = [];
     const coarsePages = this.renderPages;
-    if (coarsePages <= 1 || this.primitives.some(p => p.chart !== 'longitude-latitude')) return result;
+    if (this.primitives.some(p => p.chart !== 'longitude-latitude')) return this.globalGrid();
     let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
     for (const p of this.primitives) for (const v of [p.a, p.b, p.c]) {
       west = Math.min(west, v[0]); east = Math.max(east, v[0]); south = Math.min(south, v[1]); north = Math.max(north, v[1]);
     }
     if (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
-      || west < -180 || east >= 180 || south < -80 || north > 80) return result;
+      || west < -180 || east >= 180 || south < -80 || north > 80) return this.globalGrid();
+    if (coarsePages <= 1) return result;
     let references = this.references, offset = 0;
     for (const size of VECTOR_DETAIL_GRIDS) {
       const dx = (east - west) / (size - 4), dy = (north - south) / (size - 4);
@@ -234,12 +279,12 @@ export class GeographicIndex {
     }));
     let packedDetail;
     if (details.length) {
-      const cells = new Float32Array(details.reduce((n, d) => n + d.grids.length * d.level.size ** 2, 0) * 4);
+      const cells = new Float32Array(details.reduce((n, d) => n + d.grids.length * d.level.size * (d.level.height ?? d.level.size), 0) * 4);
       for (const { grids, level } of details) grids.forEach((grid, page) => grid.forEach((ids, cell) => {
-        cells.set([offset, ids.length, 0, 0], (level.offset + page * level.size ** 2 + cell) * 4);
+        cells.set([offset, ids.length, 0, 0], (level.offset + page * level.size * (level.height ?? level.size) + cell) * 4);
         for (const id of ids) {
           const p = this.primitives[id];
-          references.set([id, p.kind, 0, primitiveAnchor(p)], 4 * offset++);
+          references.set([id, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1, primitiveAnchor(p)], 4 * offset++);
         }
       }));
       packedDetail = { cells, levels: details.map(d => d.level) };

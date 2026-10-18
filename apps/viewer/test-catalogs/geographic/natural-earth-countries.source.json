@@ -1,0 +1,24 @@
+{
+  "title": "Natural Earth 1:110m Admin 0 countries",
+  "version": "5.1.1",
+  "source": "https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/",
+  "archive": "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip",
+  "archiveSha256": "0f243aeac8ac6cf26f0417285b0bd33ac47f1b5bdb719fd3e0df37d03ea37110",
+  "fixtureSha256": "03bde95a34084c9c48bb4c496c1e490f810a4360b112cc46f4344a8e33d7a089",
+  "license": "Public domain: https://www.naturalearthdata.com/about/terms-of-use/",
+  "coordinates": "WGS84 geodetic longitude/latitude degrees, east-positive, no heights; a=6378.137 km, inverse flattening=298.257223563",
+  "converter": "scripts/prepare-natural-earth-countries.py; Python 3 and pyshp==2.3.1",
+  "features": 177,
+  "multipartFeatures": 29,
+  "polygons": 288,
+  "rings": 289,
+  "vertices": 10651,
+  "holes": 1,
+  "identity": "String form of source NE_ID, preserving ADMIN, NAME, ADM0_A3, ISO_A3",
+  "operations": [
+    "Read Shapefile Polygon parts with pyshp's GeoJSON ring grouping; preserve original coordinate doubles and source order.",
+    "Canonicalize longitude within 1e-10 degrees of either 180-degree endpoint to -180. Russia has two source coordinates at 180.00000000000006.",
+    "Antarctica's main exterior begins with A=(180,-84.71337999999997), (180,-90), (-179.99999999999994,-90), A=(-179.99999999999994,-84.71337999999997). Remove the zero-area map-cut closure A,pole,pole,A. All actual coastline coordinates and all eight polygon parts remain. The closed coastline winds around the pole and uses the existing polar projection.",
+    "No boundary simplification, rounding of ordinary coordinates, reprojection, buffering, hole filling, or feature omission. Select five source properties; no claim to enumerate all countries or territories beyond this generalized source."
+  ]
+}

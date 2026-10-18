@@ -11,6 +11,8 @@ reference-globe example with Mars and lunar viewpoints. Its features are clearly
 labelled synthetic validation fixtures. Loading them with a terrain-enabled
 catalog uses that body's displayed terrain automatically.
 
+For real global data, open [Natural Earth countries](http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-earth-countries). Its [global validation report](geographic-global-validation.md) records source conversion, full-globe correctness, 4K GPU benchmarks and reproduction commands.
+
 ## Open the validation scenes yourself
 
 The original `geographic-vectors.json` is a small reference-globe example. The
@@ -262,8 +264,9 @@ the bottleneck is the repeated fragment scans of the entire localized cluster.
 Localized non-polar batches now also pack six padded spatial grids, from 64 x
 64 down to 5 x 5. Fragment derivatives select a scale whose one-cell padding
 covers the CSS-pixel stroke/marker footprint. Close views test nearby primitives;
-zoomed-out views use coarser local bins and paging. The existing global index is
-retained for wider footprints and seam/polar cases. No source features or
+zoomed-out views use coarser local bins and paging. A bounded 256×128 global
+level accelerates distributed, seam and polar data; the coarse global index
+remains available when finer levels exceed their padding or storage bounds. No source features or
 polygon rings are simplified or removed. Every bin still scans at most 256
 candidates; the combined global/local references share the existing 1,000,000
 reference limit, and the 16-page/2,048-draw limits remain in force.
