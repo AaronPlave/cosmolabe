@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
+import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import {
   CompositeTrajectory,
@@ -2588,7 +2589,13 @@ export class UniverseRenderer {
     screenX: number,
     screenY: number,
     intent: PickIntent,
-    options: { labelSlopPx?: number; markerRadiusPx?: number; bodyMeshes?: boolean } = {},
+    options: {
+      labelSlopPx?: number;
+      markerRadiusPx?: number;
+      bodyMeshes?: boolean;
+      /** Visual tools can omit CPU terrain sampling and coverage requests. */
+      renderedOnly?: boolean;
+    } = {},
   ): SceneHit | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndcX = (screenX / rect.width) * 2 - 1;
@@ -2611,12 +2618,12 @@ export class UniverseRenderer {
         return bodyName ? { kind: 'entity', bodyName, via: 'mesh' } : null;
       },
       surface: () => {
-        const hit = this._discoverSurface(ndcX, ndcY);
+        const hit = this._discoverSurface(ndcX, ndcY, !options.renderedOnly);
         return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
       },
       'geographic-feature': () => {
         if (!this.geographicVectors.featureCount) return null;
-        const surface = this._discoverSurface(ndcX, ndcY);
+        const surface = this._discoverSurface(ndcX, ndcY, !options.renderedOnly);
         const feature = this.geographicVectors.pick(screenX, screenY, rect.width, rect.height, this.camera, this.bodyMeshes, surface);
         return feature ? { kind: 'geographic-feature', ...feature } : null;
       },
@@ -2715,7 +2722,7 @@ export class UniverseRenderer {
       if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
     }
     const visible = (hit: THREE.Intersection) => {
-      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible && !isDrawnCubeImagerySource(object)) return false;
       return true;
     };
     // Three raycasts cached hidden meshes too. A point pick must follow the
@@ -2823,7 +2830,7 @@ export class UniverseRenderer {
    * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
    * overlays are all candidates; overlays win because they draw on top.
    */
-  private _discoverSurface(ndcX: number, ndcY: number): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
+  private _discoverSurface(ndcX: number, ndcY: number, sampleTerrain = true): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
     // Reused: this runs every frame the pointer moves while probing.
     const raycaster = this._surfaceRaycaster;
     raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
@@ -2839,7 +2846,7 @@ export class UniverseRenderer {
       const center = hit.bm.getWorldPosition(new THREE.Vector3());
       const normal = hit.normal ?? hit.worldPoint.clone().sub(center).normalize();
       return pointerResolution(pixelSpanKm, normal.dot(raycaster.ray.direction), radiusKm, latDeg);
-    });
+    }, sampleTerrain);
     return point ? { point, cameraRangeKm, ray: hit } : null;
   }
 
@@ -2851,6 +2858,7 @@ export class UniverseRenderer {
   private _surfacePointFromHit(
     ray: SurfaceRayHit,
     resolutionAt: (radiusKm: number, latDeg: number) => PointerResolution,
+    sampleTerrain = true,
   ): SurfacePoint | null {
     const bm = ray.bm;
     const bodyCenter = new THREE.Vector3();
@@ -2883,7 +2891,7 @@ export class UniverseRenderer {
     // same place is its own record, and becomes the point's altitude only
     // when the terrain is the surface that was hit (an overlay hit sits over
     // the global terrain product, not on it).
-    const terrainSample = isDsk ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const terrainSample = isDsk || !sampleTerrain ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const resolution = resolutionAt(r, latDeg);
     // An irregular plate surface does not define a spherical altitude datum.
     const hit: SurfacePoint['hit'] = { heightKm: null, datum: null };

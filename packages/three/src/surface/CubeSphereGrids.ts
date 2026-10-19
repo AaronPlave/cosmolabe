@@ -22,7 +22,7 @@ export interface CubeGridManifest {
   format: 'cosmolabe-cube-height-grid-1';
   datum: TerrainDatum;
   source: TerrainSourceMetadata;
-  grid: { width: number; height: number; uri: string };
+  grid: { width: number; height: number; uri: string; encoding?: string };
   /**
    * `[min, max]` of every height in the product (km, padded outward): a
    * residency-independent bound, so a ray query can find terrain it has not

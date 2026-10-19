@@ -40,6 +40,17 @@ describe('appearance integration with shared surface discovery', () => {
     expect(cast.worldPoint.z).toBeCloseTo(1);
   });
 
+  it('can preview rendered geometry without CPU sampling or coverage requests', () => {
+    const { renderer } = fixture();
+    const discover = vi.fn(() => null);
+    Object.assign(renderer, { _discoverSurface: discover });
+    Object.assign(renderer.renderer.domElement, { getBoundingClientRect: () => ({ width: 800, height: 800 }) });
+    renderer.pickScene(400, 400, 'probe', { renderedOnly: true });
+    expect(discover).toHaveBeenLastCalledWith(0, 0, false);
+    renderer.pickScene(400, 400, 'probe');
+    expect(discover).toHaveBeenLastCalledWith(0, 0, true);
+  });
+
   it('owns clicks independently of measurements, and consumes misses before probe/selection', () => {
     const { renderer } = fixture();
     const pick = vi.fn();

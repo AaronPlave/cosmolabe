@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { CubeImageryLayer } from '../CubeImageryLayer.js';
+import { CubeImageryLayer, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
+import { injectAerialPerspectiveIntoShader } from '../AerialPerspective.js';
+import { injectShadowIntoShader, makeShadowUniforms } from '../EclipseShadow.js';
 import { cubeFaceToDirection, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
 import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress } from '../surface/CubeImagery.js';
 
@@ -71,7 +73,7 @@ function camera(altitudeM: number): THREE.PerspectiveCamera {
   return c;
 }
 
-async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLayer>[0]> = {}) {
+async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLayer>[0]> = {}, configure: (mesh: THREE.Mesh) => void = () => {}) {
   const loader = controlledLoader();
   const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', ...options }, { fetchManifest: async () => manifest(), loadTexture: loader.loadTexture });
   await layer.ready;
@@ -79,6 +81,7 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
   const address = directionToTexel(southPole, 3, 256, 4).address; // a coarse geometry tile at the pole
   const { scene, mesh } = geometryTile(address);
   tileSet.add(scene);
+  configure(mesh);
   layer.addTile(scene, scene, address);
   const pixelAngle = 2 * Math.tan(Math.PI / 6) / 800;
   const tick = (cam: THREE.Camera, frames = 1) => { for (let i = 0; i < frames; i++) layer.update(cam, tileSet.matrixWorld, pixelAngle, null); };
@@ -282,4 +285,123 @@ describe('CubeImageryLayer', () => {
     expect(blockTriangles()).toBe(all);
     layer.dispose();
   });
+});
+
+describe('cube imagery with shared surface appearance', () => {
+  it('clips the displayed fields, follows source visibility, rebuilds on field changes and restores imagery', async () => {
+    const { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE: defaults, surfaceTintHeightAtHit } = await import('../SurfaceAppearance.js');
+    const { layer, loader, scene, mesh, tick } = await setup();
+    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
+    layer.surfaceAppearance = style;
+    style.attach(mesh, mesh.matrix.clone(), scene);
+    const physical = ['position', 'normal'].map(n => mesh.geometry.getAttribute(n).array.slice());
+    const sourceIndex = mesh.geometry.index!.array.slice();
+    const compile = (m: THREE.Material) => {
+      const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} };
+      m.onBeforeCompile(shader as never, undefined as never); return shader;
+    };
+    style.set({ ...defaults, baseColor: 'elevation', hillshade: true }); style.update(Infinity);
+    // A large, deliberately nonlinear height field makes re-evaluation on the
+    // clipped sphere measurably different from interpolation on source triangles.
+    const height = mesh.geometry.getAttribute('surfaceHeightKm');
+    for (let i = 0; i < height.count; i++) height.setX(i, Math.sin(i) * 2);
+    const cam = camera(5_000);
+    tick(cam); await loader.settle();
+    const blocks = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block ')) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[];
+    expect(blocks().length).toBeGreaterThan(1);
+    const original = blocks()[0];
+    expect(mesh.visible).toBe(false);
+    expect(isDrawnCubeImagerySource(mesh)).toBe(true);
+    const { UniverseRenderer } = await import('../UniverseRenderer.js');
+    const body = Object.assign(new THREE.Group(), { body: { name: 'Moon' }, displayRadius: R,
+      mesh: new THREE.Mesh(), terrainTileGroup: scene.parent, getDskMeshes: () => [], getSurfaceOverlays: () => [] });
+    body.mesh.visible = false; body.add(body.terrainTileGroup!); body.updateMatrixWorld(true);
+    const picker = Object.assign(Object.create(UniverseRenderer.prototype), {
+      camera: cam, scaleFactor: 1, bodyMeshes: new Map([['Moon', body]]),
+      _surfaceRaycaster: new THREE.Raycaster(), _surfaceTileRaycaster: new THREE.Raycaster(),
+      renderer: { domElement: { clientWidth: 1600, clientHeight: 1000 } },
+    }) as InstanceType<typeof UniverseRenderer>;
+    cam.position.copy(mesh.position).normalize().multiplyScalar(R + 5000); cam.lookAt(mesh.position); cam.updateMatrixWorld(true);
+    expect(picker.pickSurfaceTintHeight(800, 500)?.heightKm).toBeDefined();
+    scene.visible = false;
+    expect(picker.pickSurfaceTintHeight(800, 500)).toBeNull();
+    scene.visible = true;
+    cam.copy(camera(5000)); cam.updateMatrixWorld(true);
+    for (const block of blocks()) {
+      const shader = compile(block.material);
+      expect(shader.vertexShader.match(/attribute float surfaceHeightKm;/g)).toHaveLength(1);
+      expect(shader.vertexShader.match(/attribute vec3 surfaceReliefNormal;/g)).toHaveLength(1);
+      expect(shader.fragmentShader).toContain('cubeImageryTexel = texture2D');
+      const p = block.geometry.getAttribute('position'), h = block.geometry.getAttribute('surfaceHeightKm');
+      // Locate every clipped vertex on the original geometry and compare the
+      // exact barycentric color field, including vertices newly added by clipping.
+      const sourceP = mesh.geometry.getAttribute('position'), sourceI = mesh.geometry.index!;
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), point = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        point.fromBufferAttribute(p, i); let expected: number | undefined;
+        for (let k = 0; k < sourceI.count; k += 3) {
+          const ia = sourceI.getX(k), ib = sourceI.getX(k + 1), ic = sourceI.getX(k + 2);
+          a.fromBufferAttribute(sourceP, ia); b.fromBufferAttribute(sourceP, ib); c.fromBufferAttribute(sourceP, ic);
+          const weights = THREE.Triangle.getBarycoord(point, a, b, c, new THREE.Vector3());
+          const plane = new THREE.Plane().setFromCoplanarPoints(a, b, c);
+          if (weights && Math.min(weights.x, weights.y, weights.z) > -1e-5 && Math.abs(plane.distanceToPoint(point)) < 0.05) {
+            expected = surfaceTintHeightAtHit({ object: mesh, point: mesh.localToWorld(point.clone()), distance: 0, face: { a: ia, b: ib, c: ic, normal: new THREE.Vector3(), materialIndex: 0 } }); break;
+          }
+        }
+        expect(expected).toBeDefined(); expect(h.getX(i)).toBeCloseTo(expected!, 3);
+      }
+    }
+    // Hidden source mesh still contributes while its imagery blocks draw.
+    style.update(Infinity); tick(cam); expect(blocks()[0]).toBe(original);
+    // Uniform edits keep clipped meshes and material wrappers stable.
+    style.set({ ...style.current, azimuthDeg: 90, imageryAmount: 0.8 });
+    style.update(Infinity); tick(cam); expect(blocks()[0]).toBe(original);
+    const requests = layer.stats.requests;
+    style.set({ ...defaults }); style.update(Infinity); tick(cam);
+    for (const block of blocks()) {
+      expect(block.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+      expect(compile(block.material).vertexShader).not.toContain('vSAHeight');
+    }
+    expect(layer.stats.requests).toBe(requests);
+    expect(['position', 'normal'].map(n => mesh.geometry.getAttribute(n).array)).toEqual(physical);
+    expect(mesh.geometry.index!.array).toEqual(sourceIndex);
+    style.set({ ...defaults, hillshade: true }); style.update(Infinity); tick(cam);
+    expect(compile(blocks()[0].material).vertexShader).toContain('surfaceReliefNormal');
+    layer.invalidateBlocks(); tick(cam);
+    expect(compile(blocks()[0].material).vertexShader.match(/attribute vec3 surfaceReliefNormal;/g)).toHaveLength(1);
+    layer.removeTile(scene); expect(isDrawnCubeImagerySource(mesh)).toBe(false); style.forget(scene); layer.dispose();
+  });
+});
+
+it('keeps dynamic upstream fade defines, uniforms and program keys on clipped styled materials', async () => {
+  const { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE: defaults } = await import('../SurfaceAppearance.js');
+  const fade = { value: 0.5 };
+  let upstreamKey = 'fade-0';
+  const { layer, mesh, scene, tick } = await setup({}, mesh => {
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    material.defines = { FEATURE_FADE: 0 };
+    material.onBeforeCompile = shader => {
+      shader.uniforms.fixtureFade = fade;
+      injectShadowIntoShader(shader, makeShadowUniforms());
+      injectAerialPerspectiveIntoShader(shader, {});
+    };
+    material.customProgramCacheKey = () => upstreamKey;
+  });
+  const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
+  layer.surfaceAppearance = style; style.attach(mesh, mesh.matrix.clone(), scene);
+  style.set({ ...defaults, baseColor: 'neutral', hillshade: true }); style.update(Infinity);
+  tick(camera(5000));
+  const block = scene.children.find(c => c.name.startsWith('cube-imagery-block ')) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+  expect(block).toBeDefined();
+  upstreamKey = 'fade-1'; (mesh.material as THREE.MeshStandardMaterial).defines!.FEATURE_FADE = 1;
+  tick(camera(5000));
+  expect(block.material.defines!.FEATURE_FADE).toBe(1);
+  expect(block.material.customProgramCacheKey()).toContain('fade-1');
+  const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} as Record<string, unknown> };
+  block.material.onBeforeCompile(shader as never, undefined as never);
+  expect(shader.uniforms.fixtureFade).toBe(fade);
+  expect(shader.fragmentShader).toContain('saShade');
+  expect(shader.fragmentShader).toContain('getShadowMask()');
+  expect(shader.fragmentShader.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(shader.fragmentShader.indexOf('AerialPerspectiveResult _ap'));
+  layer.dispose();
 });

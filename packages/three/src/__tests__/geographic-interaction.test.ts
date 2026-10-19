@@ -22,6 +22,16 @@ function harness(featureCount = 0) {
   return { renderer, internal, state };
 }
 
+describe('geographic and rendered-surface picking integration', () => {
+  it.each([false,true])('preserves body exclusion and renderedOnly=%s together', renderedOnly => {
+    const h = harness(1);
+    expect(h.renderer.pickScene(40,50,'select',{bodyMeshes:false,renderedOnly})).toBeNull();
+    expect(h.state._discoverSurface).toHaveBeenCalledWith(-0.9,5/6,!renderedOnly);
+    expect(h.state.geographicVectors.pick).toHaveBeenCalledOnce();
+    expect(h.state._discoverBodyMesh).not.toHaveBeenCalled();
+  });
+});
+
 describe('geographic hover and body fallback', () => {
   it.each([0, 1])('highlights the body mesh when %s vector batches miss, and clears on empty space', count => {
     const h = harness(count);

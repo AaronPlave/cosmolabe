@@ -21,7 +21,7 @@ export function startAppearancePick(bodyName: string, bound: 'minKm' | 'maxKm'):
     pick: (x, y) => { if (owner) handleAppearancePick(owner, x, y); },
     preview: (x, y) => {
       if (!owner) return;
-      const hit = owner.pickScene(x, y, 'probe');
+      const hit = owner.pickScene(x, y, 'probe', { renderedOnly: true });
       owner.setHoveredBody(null);
       owner.setSpatialSurfacePreview(hit?.kind === 'surface' && hit.point.bodyName === bodyName ? hit.point : null);
     },
