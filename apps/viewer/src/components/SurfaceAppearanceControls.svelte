@@ -9,7 +9,11 @@
     void vs.frameTick;
     return getRenderer()?.getBodyMesh(bodyName);
   });
-  let datum = $derived(bodyMesh?.surfaceAppearanceDatum);
+  let datum = $derived.by(() => {
+    // Cube capability arrives asynchronously with product metadata.
+    void vs.frameTick;
+    return bodyMesh?.surfaceAppearanceDatum;
+  });
   // Keyed by body in BodyInfoPanel; edits remain on the renderer when closed.
   let settings = $derived.by((): SurfaceAppearanceSettings => {
     void appearancePick.revision;
@@ -38,16 +42,14 @@
   <section class="mt-2 pt-2 border-t border-border" aria-label="Surface appearance">
     <div class="ui-section-label mb-1">Surface appearance</div>
     {#if datum}
-      {#if bodyMesh.surfaceAppearanceSupportsRelief}
-        <label class="control-row">
-          <span>Base color</span>
-          <select aria-label="Surface base color" value={settings.baseColor} onchange={e => { cancelAppearancePick(); update({ baseColor: e.currentTarget.value as SurfaceBaseColor }); }}>
-            <option value="imagery">Imagery</option>
-            <option value="elevation">Elevation colors</option>
-            <option value="neutral">Neutral gray</option>
-          </select>
-        </label>
-      {/if}
+      <label class="control-row">
+        <span>Base color</span>
+        <select aria-label="Surface base color" value={settings.baseColor} onchange={e => { cancelAppearancePick(); update({ baseColor: e.currentTarget.value as SurfaceBaseColor }); }}>
+          <option value="imagery">Imagery</option>
+          <option value="elevation">Elevation colors</option>
+          <option value="neutral">Neutral gray</option>
+        </select>
+      </label>
       <div>
         <label class="control-row">
           <span>Contours</span>
@@ -65,12 +67,10 @@
           </label>
           <p class="ui-meta text-text-muted my-1">Visual elevation bands with automatic spacing as you zoom. Loaded mesh only; no precise elevation labels.</p>
         {/if}
-        {#if bodyMesh.surfaceAppearanceSupportsRelief}
-          <label class="control-row">
-            <span>Hillshade effect</span>
-            <input type="checkbox" aria-label="Hillshade effect" checked={settings.hillshade} onchange={e => update({ hillshade: e.currentTarget.checked })} />
-          </label>
-        {/if}
+        <label class="control-row">
+          <span>Hillshade effect</span>
+          <input type="checkbox" aria-label="Hillshade effect" checked={settings.hillshade} onchange={e => update({ hillshade: e.currentTarget.checked })} />
+        </label>
         {#if settings.hillshade}
           <label class="control-row"><span>Azimuth <span class="ui-readout">{settings.azimuthDeg}°</span></span>
             <input aria-label="Light azimuth" type="range" min="0" max="360" step="5" value={settings.azimuthDeg} oninput={e => update({ azimuthDeg: +e.currentTarget.value })} />
@@ -115,7 +115,7 @@
         <p class="ui-meta text-text-muted mt-2">Loaded terrain mesh only; coarse tiles give coarse relief. Tile debug colors take precedence.</p>
       </div>
     {:else}
-      <p class="ui-meta text-text-muted">Surface styles require terrain with a supported elevation reference. Contours also support planetary cube-sphere terrain.</p>
+      <p class="ui-meta text-text-muted">Relief styles require known planetary terrain with a validated elevation reference. Product metadata may still be loading; generic 3D Tiles are unsupported.</p>
     {/if}
   </section>
 {/if}

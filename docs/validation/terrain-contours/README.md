@@ -4,8 +4,8 @@ This is an implementation and offline evaluation, **not final visual acceptance
 of #183**. The per-body **Surface appearance → Contours** toggle supports
 quantized-mesh terrain and the known planetary cube-sphere path used by current
 MoonFall catalogs. Color, opacity and relative density are available. Contours
-are off by default. Cube terrain exposes contours only; elevation tint and
-hillshade remain restricted to their previously supported quantized-mesh path.
+are off by default. Cube contours reuse the validated cube surface appearance
+capability on main (#263), preserving its elevation tint and hillshade controls.
 Generic 3D Tiles models do not acquire terrain-height styling.
 
 ## Upstream evaluation and decision
@@ -91,7 +91,7 @@ No hardware frame-time or performance claim is made from these results.
 
 The second harness loads an analytic lunar polar crater through `GLTFLoader`,
 including the production Y-up correction and primitive `surfaceTriangles`
-metadata. It uses `TerrainManager`'s actual cube-imagery callbacks and bitmap
+metadata. It uses `TerrainManager`'s validated cube-imagery integration and bitmap
 loader with routed local PNGs. This validates the current cube rendering path
 without fetching a terrain product. It does **not** replace MoonFall/LOLA source
 validation. See [contours](cube-contours.png), [disabled](cube-off.png), and the
@@ -99,9 +99,8 @@ validation. See [contours](cube-contours.png), [disabled](cube-off.png), and the
 
 The source must be prepared before imagery clips its triangles. Newly clipped
 vertices interpolate the source heights and skirt mask; recomputing height at
-those vertices would turn the coarse mesh's chord sag into false relief. Block
-creation attaches styling after imagery/lighting hooks, and block eviction
-forgets its style state. On/off rebuilds the attribute layout; color, opacity
+those vertices would turn the coarse mesh's chord sag into false relief. The existing derived-mesh lifecycle
+attaches styling after imagery/lighting hooks and forgets evicted blocks. On/off rebuilds the attribute layout; color, opacity
 and density changes still only update shared uniforms. CPU grids and physical
 geometry are unchanged.
 
@@ -114,8 +113,8 @@ with eclipse hooks enabled, and is not a hardware benchmark. The harness does
 not invoke the terrain streamer's geometry LOD/fade selection.
 
 The [viewer control check](ui-metrics.json) uses a local fixed-point Moon/Mars
-catalog with no terrain bytes and blocks outside requests. It passes: cube-only
-capability controls, contour toggling, density editing, per-body isolation,
+catalog with no terrain bytes and blocks outside requests. It passes: preserved cube tint/hillshade
+controls, contour toggling, density editing, per-body isolation,
 selection persistence, and collapsing the styling controls when disabled.
 [UI capture](controls.png) shows the cube controls in the actual Svelte viewer.
 Set `SURFACE_VIEWER_URL` if its dev server uses a different address.
@@ -125,10 +124,10 @@ height ownership with tint, deferred hidden tiles, per-body isolation, negative
 Mars heights, matching adjacent tile heights, lunar pole coordinates, origin
 shifts, and uniform-only style edits.
 
-All 617 renderer and surface-picking tests (53 files) pass with runtime network
-access, including the 17 surface appearance contract tests.
+All 627 renderer and surface-picking tests (53 files) pass with runtime network
+access, including the contour height, material and cube integration contracts.
 `npm run typecheck`, `npm run lint`, and `npm run lint:purity` pass. The whole
-repository test command also ran: 2,044 passed, 135 failed, 85 skipped, with
+repository test command also ran before integration with main: 2,044 passed, 135 failed, 85 skipped, with
 38 failed files and 8 reported errors. That run includes missing SPICE kernels
 (checked-in LFS pointers) and sandbox subprocess/loopback failures unrelated to
 this feature; it is **not** a green full-suite result. Re-running the 27

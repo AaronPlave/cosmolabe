@@ -53,7 +53,15 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
 type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> };
 interface NormalReference { attribute: THREE.BufferAttribute; index: number; normal: THREE.Vector3; weight: number; }
 interface NormalNode { references: Set<NormalReference>; }
-interface StyledMesh { matrix: THREE.Matrix4; materials: THREE.Material[]; ready: boolean; normalsActive?: boolean; normals?: Array<[string, NormalReference]>; }
+interface StyledMesh {
+  visibilityRoot?: THREE.Object3D;
+  derived?: boolean;
+  matrix: THREE.Matrix4;
+  materials: THREE.Material[];
+  ready: boolean;
+  normalsActive?: boolean;
+  normals?: Array<[string, NormalReference]>;
+}
 
 export function renderedHeightKm(point: THREE.Vector3, datum: TerrainDatum): number {
   if (datum.heightConvention === 'geodetic-normal') {
@@ -82,8 +90,7 @@ export function surfaceTintHeightAtHit(hit: THREE.Intersection): number | undefi
   return weights ? weights.x * height.getX(a) + weights.y * height.getX(b) + weights.z * height.getX(c) : undefined;
 }
 
-/** Styling only: quantized-mesh and known cube geometry use tile-local metres.
- * Attachment matrices map their local axes to the body-fixed Z-north frame.
+/** Styling only: known planetary geometry is in tile-local metres, ECEF Z north.
  * Position attributes, normals, geometry indices, LOD and physical sampling stay untouched.
  * No shader additions or extra attributes until a style is enabled. */
 export class SurfaceAppearance {
@@ -98,7 +105,7 @@ export class SurfaceAppearance {
     saUpScale: { value: new THREE.Vector3(1, 1, 1) },
   };
 
-  constructor(readonly datum: TerrainDatum, readonly supportsRelief = true) {
+  constructor(readonly datum: TerrainDatum) {
     if (datum.referenceShape.kind === 'ellipsoid') {
       const [a, b, c] = datum.referenceShape.radiiKm;
       this.uniforms.saUpScale.value.set(1, (a / b) ** 2, (a / c) ** 2);
@@ -111,7 +118,6 @@ export class SurfaceAppearance {
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
     this.settings = normalizeSurfaceAppearance(settings);
-    if (!this.supportsRelief) { this.settings.hillshade = false; this.settings.baseColor = 'imagery'; }
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
@@ -152,8 +158,9 @@ export class SurfaceAppearance {
     // Cached hidden parents must leave the shared field immediately; already
     // prepared children/parents rejoin on every visibility transition.
     if (this.active) for (const [mesh, entry] of this.meshes) {
-      let visible = true;
-      for (let object: THREE.Object3D | null = mesh; object; object = object.parent) {
+      if (entry.derived) continue;
+      let visible = !entry.visibilityRoot || !!entry.visibilityRoot.parent;
+      for (let object: THREE.Object3D | null = entry.visibilityRoot ?? mesh; object; object = object.parent) {
         if (!object.visible) { visible = false; break; }
       }
       if (this.settings.hillshade) this.setNormalContributions(entry, visible, touched);
@@ -175,27 +182,16 @@ export class SurfaceAppearance {
     return { meshes, vertices, elapsedMs: performance.now() - start, maxTileMs };
   }
 
-  /** Prepare the source before imagery clips its triangles. Derived vertices
-   * must interpolate its heights, not resample the curved datum at a chord. */
-  prepareForDerivedMesh(mesh: THREE.Mesh): void {
-    const entry = this.meshes.get(mesh);
-    if (!entry || !this.active || entry.ready) return;
-    if (this.needsHeights) this.prepareHeights(mesh, entry.matrix);
-    if (this.settings.contours) this.prepareGroundMask(mesh);
-    entry.ready = this.isPrepared(mesh);
-    if (entry.ready) entry.materials.forEach(m => { m.needsUpdate = true; });
-  }
-
   private key(): string {
     return this.active ? `_surface_v5_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
    * before its -PI/2 rotation, camera-relative origin and km-to-scene scaling. */
-  attach(mesh: THREE.Mesh, matrix: THREE.Matrix4): void {
+  attach(mesh: THREE.Mesh, matrix: THREE.Matrix4, visibilityRoot?: THREE.Object3D, derived = false): void {
     if (this.meshes.has(mesh)) return;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    const entry: StyledMesh = { matrix, materials, ready: false };
+    const entry: StyledMesh = { matrix, materials, ready: false, visibilityRoot, derived };
     this.meshes.set(mesh, entry);
     entry.ready = this.isPrepared(mesh);
     const localToBody = { value: matrix };
@@ -213,6 +209,20 @@ export class SurfaceAppearance {
       material.customProgramCacheKey = () => (defaultKey ? baseKey : previousKey()) + (entry.ready ? this.key() : '');
       if (this.active) material.needsUpdate = true;
     }
+  }
+
+  /** Imagery clips these attributes barycentrically on the original triangles.
+   * Never recompute heights or normals on the clipped topology. */
+  attachDerived(mesh: THREE.Mesh, source: THREE.Mesh): void {
+    const entry = this.meshes.get(source);
+    if (entry) this.attach(mesh, entry.matrix, entry.visibilityRoot, true);
+  }
+
+  private surfaceRange(geometry: THREE.BufferGeometry): { start: number; count: number } {
+    const triangles = geometry.userData.surfaceTriangles;
+    return Number.isSafeInteger(triangles) && triangles > 0
+      ? { start: 0, count: triangles * 3 }
+      : geometry.groups[0] ?? { start: 0, count: geometry.index?.count ?? geometry.getAttribute('position').count };
   }
 
   private setNormalContributions(entry: StyledMesh, active: boolean, touched: Set<NormalNode>): void {
@@ -257,11 +267,8 @@ export class SurfaceAppearance {
     const geometry = mesh.geometry;
     if (geometry.hasAttribute('surfaceGround')) return;
     const mask = new Float32Array(geometry.getAttribute('position').count);
-    const cubeTriangles = geometry.userData.surfaceTriangles;
-    const surface = Number.isInteger(cubeTriangles) && cubeTriangles >= 0
-      ? { start: 0, count: cubeTriangles * 3 } : geometry.groups[0];
-    if (!surface) mask.fill(1);
-    else for (let i = surface.start; i < surface.start + surface.count; i++) {
+    const surface = this.surfaceRange(geometry);
+    for (let i = surface.start; i < surface.start + surface.count; i++) {
       mask[geometry.index ? geometry.index.getX(i) : i] = 1;
     }
     // Skirts/bottom caps hide cracks; they are not terrain slopes. Avoid
@@ -292,9 +299,7 @@ export class SurfaceAppearance {
       point.multiplyScalar(factor > 0 ? 1 / factor : 0).toArray(reference, i * 3);
     }
     const edgeCounts = new Map<number, number>();
-    const surface = geometry.groups[0];
-    const start = surface?.start ?? 0;
-    const count = surface?.count ?? geometry.index?.count ?? positions.count;
+    const { start, count } = this.surfaceRange(geometry);
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), face = new THREE.Vector3();
     const ra = new THREE.Vector3(), rb = new THREE.Vector3(), rc = new THREE.Vector3(), referenceFace = new THREE.Vector3();
     const index = (i: number) => geometry.index ? geometry.index.getX(i) : i;
@@ -332,6 +337,7 @@ export class SurfaceAppearance {
     entry.normals = [];
     const normal = new THREE.Vector3();
     const groundKeys = new Set<string>();
+    const groundVertexKeys = new Map<number, string>();
     for (let i = 0; i < positions.count; i++) {
       if (!ground.getX(i)) continue;
       normal.set(sums[i * 3], sums[i * 3 + 1], sums[i * 3 + 2]);
@@ -343,8 +349,29 @@ export class SurfaceAppearance {
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
       const key = this.normalKey(point);
       groundKeys.add(key);
+      groundVertexKeys.set(i, key);
       const ref = { attribute, index: i, normal: normal.clone(), weight: weights[i] };
       entry.normals.push([key, ref]);
+    }
+    // The cube builder joins each lower skirt vertex to its original ground
+    // edge. Use that topology to survive float32 angular roundoff at key bins;
+    // a skirt is a displaced copy, not another terrain slope.
+    const skirtKeys = new Map<number, { key: string; distance: number }>();
+    if (Number.isSafeInteger(geometry.userData.surfaceTriangles) && geometry.index) {
+      for (let i = start + count; i < geometry.index.count; i += 3) {
+        const vertices = [index(i), index(i + 1), index(i + 2)];
+        for (const skirt of vertices) {
+          if (ground.getX(skirt)) continue;
+          a.fromArray(world, skirt * 3).normalize();
+          for (const top of vertices) {
+            const key = groundVertexKeys.get(top);
+            if (!key) continue;
+            b.fromArray(world, top * 3).normalize();
+            const distance = a.distanceToSquared(b);
+            if (distance < (skirtKeys.get(skirt)?.distance ?? Infinity)) skirtKeys.set(skirt, { key, distance });
+          }
+        }
+      }
     }
     // Duplicate skirt vertices inherit the corresponding ground normal. They
     // add no triangle contribution, so crack-hiding walls cannot bias slopes
@@ -352,7 +379,7 @@ export class SurfaceAppearance {
     for (let i = 0; i < positions.count; i++) {
       if (ground.getX(i)) continue;
       point.fromBufferAttribute(positions, i).applyMatrix4(entry.matrix);
-      const key = this.normalKey(point);
+      const key = skirtKeys.get(i)?.key ?? this.normalKey(point);
       if (!groundKeys.has(key)) continue;
       const ref = { attribute, index: i, normal: new THREE.Vector3(), weight: 0 };
       entry.normals.push([key, ref]);

@@ -21,7 +21,7 @@ const imagery = {
 };
 const grid = {
   format: 'cosmolabe-cube-height-grid-1', datum: { referenceShape: { kind: 'sphere', radiusKm: 1737.4 }, heightConvention: 'radial', verticalDatum: 'reference-sphere' },
-  source: { id: 'unused-test-cpu-grid', kind: 'height-grid', version: 'fixture' }, grid: { width: 2, height: 2, uri: 'heights/{face}/{level}/{x}/{y}.f32' },
+  source: { id: 'unused-test-cpu-grid', kind: 'height-grid', version: 'fixture' }, grid: { width: 2, height: 2, encoding: 'float32 little-endian, metres above the reference sphere', uri: 'heights/{face}/{level}/{x}/{y}.f32' },
   heightRangeKm: [-1, 1], maxLevel: 0, tiles: faces.map(f => [f, 0, 0, 0, 1]),
 };
 const png = new PNG({ width: 34, height: 34 });
@@ -86,17 +86,21 @@ try {
     const renderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true }); renderer.setSize(800, 600); document.body.append(renderer.domElement);
     const manager = new TerrainManager({ type: '3dtiles', url: '/contour-cube-fixture/tileset.json', datum: { heightConvention: 'radial', verticalDatum: 'reference-sphere' },
       cubeSphere: { cpuGrids: '/contour-cube-fixture/cpu-grids.json', imagery: { url: '/contour-cube-fixture/imagery.json', maxScreenTexelError: 0.05 } } }, R / 1000, renderer);
+    manager.tiles.rootTileset = { asset: { tilesetVersion: 'fixture', generator: 'scripts/terrain/dem.py cube-tile' } };
     manager.enableShadowReceiving(makeShadowUniforms());
     const layer = manager.cubeImageryLayer; await layer.ready;
+    for (let i = 0; !manager.surfaceAppearance && i < 200; i++) await new Promise(resolve => setTimeout(resolve, 25));
+    if (!manager.surfaceAppearance) throw new Error('Cube metadata did not enable styling');
     const group = manager.tiles.group; group.rotation.set(0, 0, 0); group.scale.setScalar(1); group.position.copy(center).negate(); group.add(loaded.scene);
     manager.customizeTileMaterial(loaded.scene, { content: { uri: 'nz/8/128/128.glb' } });
     layer.addTile(loaded.scene, loaded.scene, { face: 'nz', level: 8, x: 128, y: 128 });
+    manager.attachSurfaceStyle(loaded.scene);
     const scene = new THREE.Scene(); scene.add(group); scene.add(new THREE.AmbientLight(0xffffff, 2));
     const camera = new THREE.PerspectiveCamera(40, 800 / 600, 1, 1e6); camera.position.z = -30000; camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
     const gl = renderer.getContext(), captures = [];
     function render(name) {
-      group.updateMatrixWorld(true); layer.update(camera, group.matrixWorld, 2 * Math.tan(Math.PI / 9) / 600, renderer);
-      manager.surfaceStyle.update(Infinity); renderer.render(scene, camera);
+      group.updateMatrixWorld(true); manager.surfaceStyle.update(Infinity);
+      layer.update(camera, group.matrixWorld, 2 * Math.tan(Math.PI / 9) / 600, renderer); renderer.render(scene, camera);
       const pixels = new Uint8Array(800 * 600 * 4); gl.readPixels(0, 0, 800, 600, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       if (name) captures.push({ name, png: renderer.domElement.toDataURL() }); return pixels;
     }

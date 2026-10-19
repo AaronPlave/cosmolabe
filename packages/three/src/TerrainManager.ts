@@ -611,17 +611,14 @@ const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
-  private readonly surfaceStyle: SurfaceAppearance | null;
+  private surfaceStyle: SurfaceAppearance | null;
+  private readonly cubeScenes = new Set<THREE.Object3D>();
+  private readonly cubeStyleCandidate: boolean;
+  private cubeStyleHeightRange: readonly [number, number] | null = null;
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
-  get surfaceAppearanceSupportsRelief(): boolean { return this.surfaceStyle?.supportsRelief ?? false; }
-  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void {
-    // Rebuild derived geometry when its interpolated attribute layout changes.
-    // Color, density and opacity edits remain uniform-only.
-    if (!!settings.contours !== !!this.surfaceStyle?.current.contours) this.cubeImagery?.invalidateBlocks();
-    this.surfaceStyle?.set(settings);
-  }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.surfaceStyle?.set(settings); }
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
@@ -761,28 +758,23 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
-    // Generic tile types may contain authored models, baked imagery, or an unknown
+    // Other tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.
-    this.surfaceStyle = (config.type === 'quantized-mesh' || (config.type === '3dtiles' && !!config.cubeSphere)) &&
+    this.surfaceStyle = config.type === 'quantized-mesh' &&
       (datum.verticalDatum === 'ellipsoid' || datum.verticalDatum === 'reference-sphere')
       && (datum.heightConvention === 'radial' || rxKm === ryKm)
-      ? new SurfaceAppearance(datum, config.type === 'quantized-mesh') : null;
+      ? new SurfaceAppearance(datum) : null;
     // The sampler's own LRU drops tiles independently of the renderer's; the
     // seam/datum debug indexes must forget them too or they report neighbours
     // the sampler no longer holds.
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
+    this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery) {
-      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery, { meshLifecycle: {
-        added: (mesh, source) => {
-          if (this.isCubeSurface(source)) this.attachSurfaceStyle(mesh);
-        },
-        removing: mesh => this.surfaceStyle?.forget(mesh),
-        beforeSplit: mesh => this.surfaceStyle?.prepareForDerivedMesh(mesh),
-      } });
+      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
     }
     this.isImageryOnly = config.type === 'imagery';
@@ -1020,11 +1012,16 @@ export class TerrainManager {
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.loadedModels++;
       this.customizeTileMaterial(event.scene, event.tile);
-      if (this.cubeConfigured) this.applyCubeSkirts(event.scene);
+      if (this.cubeConfigured) {
+        this.cubeScenes.add(event.scene);
+        this.applyCubeSkirts(event.scene);
+      }
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
+      if (this.cubeConfigured) this.attachSurfaceStyle(event.scene);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
+      this.cubeScenes.delete(event.scene);
       if (event.scene) this.surfaceStyle?.forget(event.scene);
       this.cubeImagery?.removeTile(event.tile);
       const id = this.cpuTileId(event.tile);
@@ -1446,7 +1443,8 @@ export class TerrainManager {
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
       const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
-      if (a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
+      if (source.manifest.datum.verticalDatum !== datum.verticalDatum || source.manifest.datum.heightConvention !== datum.heightConvention ||
+        a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
         throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
       }
       const surface = new CubeGridSurface(source, 'body', 'body-fixed');
@@ -1457,7 +1455,20 @@ export class TerrainManager {
       // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
       this.onRootTileset((tileset) => {
         const version = (tileset as { asset?: { tilesetVersion?: string } }).asset?.tilesetVersion;
-        if (version === undefined || version === source.manifest.source.version || this.cube?.source !== source) return;
+        if (this.cube?.source !== source) return;
+        // Only the known builder's Z-north, body-fixed metre product is eligible.
+        // Config alone is insufficient: arbitrary 3D Tiles stay unsupported.
+        const asset = (tileset as { asset?: { generator?: string } }).asset;
+        if (this.cubeStyleCandidate && version && version === source.manifest.source.version &&
+          /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
+          datum.referenceShape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
+          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere') {
+          this.cubeStyleHeightRange = source.manifest.heightRangeKm;
+          this.surfaceStyle = new SurfaceAppearance(datum);
+          if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = this.surfaceStyle; }
+          for (const scene of this.cubeScenes) this.attachSurfaceStyle(scene);
+        }
+        if (version === undefined || version === source.manifest.source.version) return;
         this.cube = null;
         source.dispose();
         this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
@@ -2144,6 +2155,7 @@ export class TerrainManager {
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
     this.cubeImagery?.dispose();
+    this.cubeScenes.clear();
     if (this.terrainCam) {
       this.tiles.deleteCamera(this.terrainCam);
       this.terrainCam = null;
@@ -2365,9 +2377,13 @@ export class TerrainManager {
         return;
       }
 
-      // Blend vertex normals toward sphere normals for surface vertices only.
-      // (terrain tiles only — imagery-only tiles skip this via early return above)
-      this.blendSphereNormals(child, 0.6);
+      // Keep the cube builder's central-difference physical normals in ordinary
+      // imagery as well as styled mode. The 0.6 QM sphere blend flattens authored
+      // slopes; it also assumes the tile centre lives directly on the mesh,
+      // which is not a general glTF transform contract. This intentionally
+      // changes cube lighting relative to main, independently of style toggles.
+      // See docs/validation/cube-surface-appearance for main-vs-PR lit captures.
+      if (!this.cubeConfigured) this.blendSphereNormals(child, 0.6);
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
@@ -2390,31 +2406,40 @@ export class TerrainManager {
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);
     }
-    if (this.surfaceStyle && (!this.cubeConfigured || (!this.cubeImagery && cubeAddress(tile)))) {
-      scene.traverse(child => {
-        if (!isMesh(child)) return;
-        if (this.cubeConfigured && !this.isCubeSurface(child)) return;
-        this.attachSurfaceStyle(child);
-      });
-    }
+    if (!this.cubeConfigured) this.attachSurfaceStyle(scene);
   }
 
-  private isCubeSurface(mesh: THREE.Mesh): boolean {
-    const count = mesh.geometry.userData.surfaceTriangles;
-    return Number.isInteger(count) && count > 0 && count * 3 <= (mesh.geometry.index?.count ?? 0);
-  }
-
-  private attachSurfaceStyle(mesh: THREE.Mesh): void {
-    const matrix = new THREE.Matrix4();
-    // Keep the absolute ECEF tile center in float64. Exclude tiles.group's
-    // ECEF-to-globe rotation and every camera-relative/world transform.
-    let node: THREE.Object3D | null = mesh;
-    while (node && node !== this.tiles.group) {
-      if (node.matrixAutoUpdate) node.updateMatrix();
-      matrix.premultiply(node.matrix);
-      node = node.parent;
-    }
-    this.surfaceStyle?.attach(mesh, matrix);
+  private attachSurfaceStyle(scene: THREE.Object3D): void {
+    if (!this.surfaceStyle) return;
+    scene.traverse(child => {
+      if (!isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
+      const matrix = new THREE.Matrix4();
+      // Mesh local metres -> body-fixed Z north. Include glTF's Y-up
+      // conversion and all tile ancestors, exclude camera-relative tiles.group.
+      let node: THREE.Object3D | null = child;
+      while (node && node !== this.tiles.group) {
+        if (node.matrixAutoUpdate) node.updateMatrix();
+        matrix.premultiply(node.matrix);
+        node = node.parent;
+      }
+      if (this.cubeConfigured) {
+        const g = child.geometry, n = g.userData.surfaceTriangles;
+        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange) return;
+        const scale = new THREE.Vector3().setFromMatrixScale(matrix);
+        if ([scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) return;
+        const point = new THREE.Vector3(), positions = g.getAttribute('position');
+        const radius = this.surfaceStyle!.datum.referenceShape;
+        if (radius.kind !== 'sphere') return;
+        // Validate metre encoding against the product range on surface vertices;
+        // skirts intentionally extend below it. Allow 1 m for float32 offsets.
+        for (let i = 0; i < n * 3; i++) {
+          point.fromBufferAttribute(positions, g.index.getX(i)).applyMatrix4(matrix);
+          const height = point.length() * 0.001 - radius.radiusKm;
+          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
+        }
+      }
+      this.surfaceStyle!.attach(child, matrix, this.cubeConfigured ? scene : undefined);
+    });
   }
 
   /**

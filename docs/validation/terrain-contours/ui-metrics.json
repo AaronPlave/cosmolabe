@@ -3,7 +3,7 @@
   "errors": [],
   "checks": [
     "cube contour toggle",
-    "cube-only capability controls",
+    "cube tint/hillshade controls preserved",
     "density edit",
     "per-body isolation",
     "selection persistence",

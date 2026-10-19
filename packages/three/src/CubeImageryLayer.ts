@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
 import { cubeTileId } from './surface/CubeSphere.js';
 import {
@@ -126,11 +127,18 @@ interface MeshRecord {
   uniforms: Uniforms;
   /** The material's onBeforeCompile and program key before imagery was added, reused by block materials. */
   baseCompile: THREE.Material['onBeforeCompile'];
-  cacheKey: string;
+  cacheKey: () => string;
   radiusRangeKm: [number, number];
   blocks: Map<string, Block>;
+  styleAttributes?: Array<THREE.BufferAttribute | THREE.InterleavedBufferAttribute | undefined>;
+  styleVersions?: number[];
 }
 interface TileRecord { scene: THREE.Object3D; address: ImageryAddress; meshes: MeshRecord[] }
+
+// Picking uses the original triangles when clipped blocks replace their draw.
+// This tracks only the source's local draw visibility; ancestors still decide LOD visibility.
+const splitSources = new WeakSet<THREE.Object3D>();
+export function isDrawnCubeImagerySource(object: THREE.Object3D): boolean { return splitSources.has(object); }
 
 const CACHE_KEY = '_cubeimg_v1';
 const DEBUG_CODE: Record<CubeImageryDebug, number> = { none: 0, unlit: 1, level: 2 };
@@ -190,14 +198,9 @@ async function loadImageBitmapTexture(url: string, signal: AbortSignal): Promise
   return { texture, bytes: Math.round(bitmap.width * bitmap.height * 4 * 4 / 3), downloadBytes: blob.size };
 }
 
-/** Material styling follows both source meshes and imagery's clipped draws. */
-export interface CubeImageryMeshLifecycle {
-  added(mesh: THREE.Mesh, source: THREE.Mesh): void;
-  removing(mesh: THREE.Mesh): void;
-  beforeSplit(source: THREE.Mesh): void;
-}
-
 export class CubeImageryLayer {
+  /** Shared terrain styling; blocks retain interpolated source fields. */
+  surfaceAppearance: SurfaceAppearance | null = null;
   manifest: CubeImageryManifest | null = null;
   readonly ready: Promise<void>;
   private availability: CubeImageryAvailability | null = null;
@@ -208,7 +211,6 @@ export class CubeImageryLayer {
   private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly baseUrl: string;
-  private readonly meshLifecycle?: CubeImageryMeshLifecycle;
   private frame = 0;
   private anisotropy = 1;
   private disposed = false;
@@ -218,8 +220,7 @@ export class CubeImageryLayer {
     displayedLevels: {}, wantedLevels: {}, fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
   };
 
-  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; meshLifecycle?: CubeImageryMeshLifecycle } = {}) {
-    this.meshLifecycle = deps.meshLifecycle;
+  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader } = {}) {
     this.options = {
       maxScreenTexelError: config.maxScreenTexelError ?? 1.5,
       maxTextureBytes: config.maxTextureBytes ?? 160 * 2 ** 20,
@@ -303,11 +304,13 @@ export class CubeImageryLayer {
       const material = mesh.material;
       const baseCompile = material.onBeforeCompile;
       // Material.copy carries neither onBeforeCompile nor an own cache key, so block clones get both from here.
-      const cacheKey = (Object.hasOwn(material, 'customProgramCacheKey') ? material.customProgramCacheKey() : '') + CACHE_KEY;
+      const baseKey = material.customProgramCacheKey.bind(material);
+      const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
+      const snapshot = baseKey();
+      const cacheKey = () => (defaultKey ? snapshot : baseKey()) + CACHE_KEY;
       const uniforms = this.makeUniforms();
       this.attachImagery(material, baseCompile, cacheKey, uniforms);
       record.meshes.push({ mesh, material, uniforms, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000], blocks: new Map() });
-      this.meshLifecycle?.added(mesh, mesh);
     });
     this.tiles.set(key, record);
   }
@@ -322,8 +325,8 @@ export class CubeImageryLayer {
     const record = this.tiles.get(key);
     if (!record) return;
     for (const m of record.meshes) {
+      splitSources.delete(m.mesh);
       for (const id of [...m.blocks.keys()]) this.disposeBlock(m, id);
-      this.meshLifecycle?.removing(m.mesh);
     }
     this.tiles.delete(key);
   }
@@ -365,6 +368,17 @@ export class CubeImageryLayer {
       const culled = !record.scene.visible;
       const s = culled ? culledStats : stats;
       for (const m of record.meshes) {
+        // Reclip only when source style fields change (activation, visibility or
+        // LOD neighbours). Uniform-only edits do not rebuild geometry.
+        if (this.surfaceAppearance && (this.surfaceAppearance.active || m.styleAttributes)) {
+          const attributes = ['surfaceHeightKm', 'surfaceReliefNormal', 'surfaceGround'].map(n => m.mesh.geometry.getAttribute(n));
+          const versions = attributes.map(a => a instanceof THREE.BufferAttribute ? a.version : 0);
+          if (attributes.some((a, i) => a !== m.styleAttributes?.[i] || versions[i] !== m.styleVersions?.[i])) {
+            for (const id of [...m.blocks.keys()]) this.disposeBlock(m, id);
+            m.styleAttributes = attributes.some(Boolean) ? attributes : undefined;
+            m.styleVersions = versions;
+          }
+        }
         if (!useImagery) { this.unsplit(m); continue; }
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
           maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile,
@@ -378,11 +392,20 @@ export class CubeImageryLayer {
         }
         stats.splitTiles++;
         m.mesh.visible = false;
+        splitSources.add(m.mesh);
         const live = new Set<string>();
         for (const leaf of leaves) {
           const id = cubeTileId(leaf);
           live.add(id);
           const block = m.blocks.get(id) ?? this.buildBlock(record, m, leaf, id);
+          // Fade uniforms are shared with the source callback, but clones
+          // also need its current compile-time fade switch on every frame.
+          const sourceDefines = (m.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
+          const blockDefines = (block.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
+          if (sourceDefines && blockDefines && blockDefines.FEATURE_FADE !== sourceDefines.FEATURE_FADE) {
+            blockDefines.FEATURE_FADE = sourceDefines.FEATURE_FADE;
+            block.material.needsUpdate = true;
+          }
           block.mesh.visible = true;
           block.lastUsed = this.frame;
           this.show(record.address, leaf, block.uniforms, wanted, stats);
@@ -440,12 +463,12 @@ export class CubeImageryLayer {
     };
   }
 
-  private attachImagery(material: THREE.Material, baseCompile: THREE.Material['onBeforeCompile'], cacheKey: string, uniforms: Uniforms): void {
+  private attachImagery(material: THREE.Material, baseCompile: THREE.Material['onBeforeCompile'], cacheKey: () => string, uniforms: Uniforms): void {
     material.onBeforeCompile = (shader, renderer) => {
       baseCompile.call(material, shader, renderer);
       injectImagery(shader, uniforms);
     };
-    material.customProgramCacheKey = () => cacheKey;
+    material.customProgramCacheKey = cacheKey;
     material.needsUpdate = true;
   }
 
@@ -486,15 +509,15 @@ export class CubeImageryLayer {
   }
 
   private unsplit(m: MeshRecord): void {
+    splitSources.delete(m.mesh);
     m.mesh.visible = true;
     for (const block of m.blocks.values()) block.mesh.visible = false;
   }
 
   private buildBlock(record: TileRecord, m: MeshRecord, leaf: ImageryAddress, id: string): Block {
     const t0 = performance.now();
-    this.meshLifecycle?.beforeSplit(m.mesh);
     const g = m.mesh.geometry;
-    const names = ['position', 'normal', 'cubeImageryUvw', 'surfaceHeightKm', 'surfaceGround'].filter(n => g.getAttribute(n));
+    const names = ['position', 'normal', 'cubeImageryUvw', 'surfaceHeightKm', 'surfaceReliefNormal', 'surfaceGround'].filter(n => g.getAttribute(n));
     const attributes = names.map(n => { const a = g.getAttribute(n) as THREE.BufferAttribute; return { array: a.array, itemSize: a.itemSize }; });
     // Only what the tile draws: its draw range excludes skirts when they are hidden.
     const index = g.index ? g.index.array.subarray(g.drawRange.start, Math.min(g.index.count, g.drawRange.start + g.drawRange.count)) : null;
@@ -507,6 +530,7 @@ export class CubeImageryLayer {
     const uniforms = this.makeUniforms();
     this.attachImagery(material, m.baseCompile, m.cacheKey, uniforms);
     const mesh = new THREE.Mesh(geometry, material);
+    this.surfaceAppearance?.attachDerived(mesh, m.mesh);
     mesh.name = `cube-imagery-block ${id}`;
     m.mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
     mesh.frustumCulled = false;
@@ -518,7 +542,6 @@ export class CubeImageryLayer {
     // TilesGroup pushes world matrices to tile scenes only when the group moves or a
     // tile becomes visible, so a mesh added afterwards must compute its own once.
     mesh.updateMatrixWorld(true);
-    this.meshLifecycle?.added(mesh, m.mesh);
     const bytes = clipped.attributes.reduce((s, a) => s + a.byteLength, 0) + clipped.index.byteLength;
     const block: Block = { mesh, material, uniforms, lastUsed: this.frame, bytes };
     m.blocks.set(id, block);
@@ -529,7 +552,7 @@ export class CubeImageryLayer {
   private disposeBlock(m: MeshRecord, id: string): void {
     const block = m.blocks.get(id);
     if (!block) return;
-    this.meshLifecycle?.removing(block.mesh);
+    this.surfaceAppearance?.forget(block.mesh);
     block.mesh.removeFromParent();
     block.mesh.geometry.dispose();
     block.material.dispose();

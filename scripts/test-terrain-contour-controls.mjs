@@ -20,14 +20,25 @@ try {
   {name:'Moon view',type:'Viewpoint',center:'Moon',distance:2200,latitude:-85,longitude:0}
  ]};
  await page.route('**/contour-controls.json',r=>r.fulfill({json:catalog}));
- await page.route('**/control-fixture/**',r=>r.fulfill({status:404,body:'Offline UI fixture: no geometry'}));
+ const faces=['px','nx','py','ny','pz','nz'];
+ const datum={referenceShape:{kind:'sphere',radiusKm:1737.4},verticalDatum:'reference-sphere',heightConvention:'radial'};
+ const grid={format:'cosmolabe-cube-height-grid-1',datum,source:{id:'control-fixture',kind:'height-grid',version:'fixture'},
+  grid:{width:2,height:2,encoding:'float32 little-endian, metres above the reference sphere',uri:'heights/{face}/{level}/{x}/{y}.f32'},
+  heightRangeKm:[-1,1],maxLevel:0,tiles:faces.map(f=>[f,0,0,0,1])};
+ await page.route('**/control-fixture/**',r=>{
+  const url=r.request().url();
+  if(url.endsWith('cpu-grids.json')) return r.fulfill({json:grid});
+  if(url.endsWith('.f32')) return r.fulfill({body:Buffer.from(new Float32Array(4).buffer),contentType:'application/octet-stream'});
+  if(url.endsWith('tileset.json')) return r.fulfill({json:{asset:{version:'1.1',tilesetVersion:'fixture',generator:'scripts/terrain/dem.py cube-tile'},geometricError:0,root:{boundingVolume:{sphere:[0,0,0,1737400]},geometricError:0,children:[]}}});
+  return r.fulfill({status:404,body:'Offline UI fixture: no geometry'});
+ });
  await page.goto(`${base}/?catalog=contour-controls&test=1`,{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>window.__cosmolabe?.ready,{timeout:120000});
  await page.evaluate(()=>window.cosmo.select('Moon'));
  const contours=page.getByRole('checkbox',{name:'Contours',exact:true}); await contours.waitFor({timeout:20000});
  assert.equal(await contours.isChecked(),false);
- assert.equal(await page.getByLabel('Hillshade effect',{exact:true}).count(),0);
- assert.equal(await page.getByLabel('Surface base color',{exact:true}).count(),0);
+ assert.equal(await page.getByLabel('Hillshade effect',{exact:true}).count(),1);
+ assert.equal(await page.getByLabel('Surface base color',{exact:true}).count(),1);
  await contours.check();
  await page.getByLabel('Contour density',{exact:true}).fill('2');
  assert.equal(await page.evaluate(()=>window.renderer.getBodyMesh('Moon').surfaceAppearance.contours),true);
@@ -40,7 +51,7 @@ try {
  await page.screenshot({path:`${output}/contour-controls.png`});
  await page.getByRole('checkbox',{name:'Contours',exact:true}).uncheck();
  assert.equal(await page.getByLabel('Contour density',{exact:true}).count(),0);
- const report={passed:true,errors,checks:['cube contour toggle','cube-only capability controls','density edit','per-body isolation','selection persistence','disabled control collapse'],scope:'UI only, no terrain geometry'};
+ const report={passed:true,errors,checks:['cube contour toggle','cube tint/hillshade controls preserved','density edit','per-body isolation','selection persistence','disabled control collapse'],scope:'UI only, no terrain geometry'};
  await writeFile(`${output}/ui-metrics.json`,JSON.stringify(report,null,2));
  assert.deepEqual(errors,[]); console.log(JSON.stringify(report));
 } finally {await browser.close();}
