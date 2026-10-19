@@ -13,10 +13,11 @@
     "heightAttributesAfterDisable": 0
   },
   "Moon-synthetic-globe": {
-    "changedPixels": 8276,
-    "darkContourPixels": 8897,
+    "changedPixels": 5582,
+    "darkContourPixels": 6680,
     "restored": true,
     "heightAttributesAfterDisable": 0
   },
+  "skirtChangedPixels": 0,
   "errors": []
 }

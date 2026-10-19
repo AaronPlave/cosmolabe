@@ -30,6 +30,7 @@ function at(lat, lon, height) {
 const poses = {
   close: { eye: at(-89.07, 129.78, 6), target: at(-89.67, 129.78, -2.5), fov: 60 },
   far: { eye: at(-80, 20, 450), target: at(-90, 0, 0), fov: 50 },
+  pole: { eye: at(-85, 20, 2300), target: [0, 0, 0], fov: 50 },
   globe: { eye: at(-55, 20, 3500), target: [0, 0, 0], fov: 50 },
 };
 const result = { views: {} };

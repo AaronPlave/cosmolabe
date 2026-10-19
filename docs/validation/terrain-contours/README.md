@@ -58,6 +58,19 @@ views. Adaptive spacing and suppression of unresolved bands remain active at
 all distances. A static sphere without streamed terrain still has no contours;
 coarse loaded tiles can only supply coarse relief.
 
+There is no contour-count budget: the fragment shader evaluates the height
+field directly, without building a list of lines. The follow-up south-polar
+globe diagnostics found a second cause of apparent missing coverage: unbounded
+spacing chose 10 km minor intervals over a basin lying wholly between those
+levels. Automatic spacing now has a smooth upper limit, approaching 1 km minor
+intervals at default density. Close-up behavior is retained, and unresolved
+bands still fade rather than alias. Density continues to adjust these scales.
+
+Skirt masking now also rejects fragments where the interpolated ground mask
+varies. A simple `>= 0.999` test admitted a thin strip on skirt faces sharing
+their top edge with the ground, creating dashed tile outlines. Constant-mask
+ground triangles remain eligible; skirts still hide physical terrain cracks.
+
 Numeric elevation labels are feasible from the existing datum-aware heights.
 They are not blocked by missing DEM data. The current shader only draws lines,
 with two automatically blended contour intervals that vary with local screen
@@ -99,10 +112,14 @@ certify streaming LOD fades or moving-camera flicker.
 No shader errors; contours changed 2,733 Mars pixels and 12,449 synthetic polar
 pixels at the default view. On/off restored byte-identical original pixels on
 all fixtures, and no contour height attribute remained after disabling.
-The added analytic global lunar fixture changes 8,276 pixels at a globe-scale
-view beyond the old cutoff. With all incident light disabled, contours still
-change 3,267 Mars, 14,306 polar, and 8,897 global pixels. These are regression
+The strengthened analytic global lunar fixture changes 5,582 pixels at a
+globe-scale view. Its heights lie entirely inside one negative 10 km band,
+rather than crossing zero. With all incident light disabled, contours still
+change 3,267 Mars, 14,306 polar, and 6,680 global pixels. These are regression
 fixtures, not scientific lunar terrain.
+An isolated shared-edge skirt adds zero contour pixels. Serving the prior
+spacing/mask as a negative control yields only three changed globe pixels and
+728 unwanted skirt pixels, failing both strengthened regression criteria.
 The Mars fixture compiles and renders the real eclipse and aerial-perspective
 material hooks with a directional Sun light. Atmospheric optical strength is
 zero: this tests shader compatibility, not atmospheric transport accuracy.
@@ -127,7 +144,7 @@ geometry are unchanged.
 
 [Cube metrics](cube-metrics.json): four imagery blocks at level 9 all carried
 the height field; the split and unsplit images were byte-identical. Contours
-changed 9,498 pixels. Disabling restored the original pixels, the unlit imagery
+changed 9,512 pixels. Disabling restored the original pixels, the unlit imagery
 debug view was unchanged by contours, repeated zoom/toggle cycles released all
 height attributes, and there were no shader errors. This used SwiftShader,
 with eclipse hooks enabled, and is not a hardware benchmark. The harness does
@@ -167,6 +184,8 @@ Chromium reported **ANGLE Metal Renderer: Apple M4 Max** at 1440×1000.
 All eight initial assets loaded; no HTTP failures, page errors or shader errors
 were recorded. The [live metrics](live-metrics.json) record 122 visible tiles
 in the close view, 108 in the regional view, and 18 in the globe view.
+The added [south-polar globe view](moonfall-pole.png) has 21 visible tiles and
+specifically covers the reported missing-contour basin.
 
 - [Close view](moonfall-close.png): unlit lines remain visible in crater shadows.
 - [Regional view](moonfall-far.png): lines extend beyond the former distance cutoff.

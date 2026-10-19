@@ -32,7 +32,12 @@ float saContourLine(float height, float delta, float spacing) {
   // the existing fog/fade/debug hooks. No extra draw or depth offset.
   shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
 float saFootprint = max(length(dFdx(vSAContourPoint)), length(dFdy(vSAContourPoint)));
-float saTarget = max(0.000001, saFootprint * 1.75 / saContourDensity);
+// Keep automatic intervals useful for planetary relief at globe scale. An
+// unbounded horizontal footprint selects 10–100 km bands, skipping entire
+// basins whose loaded heights all lie between those levels. This smooth limit
+// retains close-up spacing and approaches 1 km minor lines at default density.
+float saScreenTarget = saFootprint * 1.75;
+float saTarget = max(0.000001, (saScreenTarget / (1.0 + saScreenTarget / 0.2)) / saContourDensity);
 float saLogStep = log(saTarget) / log(10.0);
 float saStep = pow(10.0, ceil(saLogStep));
 float saBlend = 1.0 - smoothstep(0.75, 1.0, fract(saLogStep));
@@ -42,7 +47,11 @@ float saLine = mix(saContourLine(vSAHeight, max(saDelta, 1e-8), saStep * 10.0),
 // Spacing already adapts to distance. An absolute footprint cutoff creates
 // a circular coverage boundary on otherwise valid, globally loaded terrain.
 float saFade = smoothstep(1e-8, 1e-7, saDelta);
+// Skirts share their top vertices with the ground. A value threshold alone
+// admits a thin, dashed strip at that edge. Ground triangles have a constant
+// mask; reject the varying mask on skirt faces, including their top edge.
+float saGround = step(0.999, vSAContourGround) * (1.0 - step(1e-6, fwidth(vSAContourGround)));
 outgoingLight = mix(outgoingLight, saContourColor,
-  saLine * saFade * saContourOpacity * step(0.999, vSAContourGround));
+  saLine * saFade * saContourOpacity * saGround);
 #include <opaque_fragment>`);
 }

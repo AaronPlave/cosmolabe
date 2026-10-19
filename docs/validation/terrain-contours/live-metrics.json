@@ -4,10 +4,10 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "terrain": {
         "update": {
-          "count": 248,
-          "lastMs": 0.4000000059604645,
-          "meanMs": 0.4049999999503295,
-          "maxMs": 0.5999999940395355
+          "count": 251,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.4749999997516473,
+          "maxMs": 2.300000011920929
         },
         "parse": {
           "count": 0,
@@ -57,16 +57,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 176,
+        "textures": 170,
         "pinnedTextures": 30,
-        "textureBytes": 65421312,
+        "textureBytes": 63191040,
         "maxTextureBytes": 167772160,
-        "requests": 176,
-        "bytes": 3672014,
+        "requests": 170,
+        "bytes": 3585813,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
-        "blockBuildMs": 357.70000010728836,
+        "blockBuildMs": 332.0999999642372,
         "inFlight": 0,
         "failedTiles": 0,
         "blockGeometryBytes": 9913628,
@@ -108,9 +108,9 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "terrain": {
         "update": {
-          "count": 523,
-          "lastMs": 0.3999999761581421,
-          "meanMs": 0.3100000016391277,
+          "count": 522,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.3058333324889342,
           "maxMs": 0.5
         },
         "parse": {
@@ -161,16 +161,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 303,
+        "textures": 297,
         "pinnedTextures": 30,
-        "textureBytes": 112628736,
+        "textureBytes": 110398464,
         "maxTextureBytes": 167772160,
-        "requests": 303,
-        "bytes": 7011754,
+        "requests": 297,
+        "bytes": 6925553,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
-        "blockBuildMs": 532.3000001907349,
+        "blockBuildMs": 535.3999999165535,
         "inFlight": 0,
         "failedTiles": 0,
         "blockGeometryBytes": 9883812,
@@ -196,17 +196,111 @@
         "queued": 0,
         "budgetLimited": false,
         "extraDraws": 84,
-        "updateMs": 0.29999998211860657
+        "updateMs": 0.5
       },
       "visible": 108
+    },
+    "pole": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 811,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.08416666636864344,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 21,
+          "visible": 21,
+          "drawn": 20,
+          "inCache": 318,
+          "cpu": 150
+        },
+        "network": {
+          "requests": 318,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 50836752,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 77326472,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 346,
+        "pinnedTextures": 30,
+        "textureBytes": 128612352,
+        "maxTextureBytes": 167772160,
+        "requests": 346,
+        "bytes": 8131024,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 648.1999998688698,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 7437440,
+        "tiles": 20,
+        "splitTiles": 20,
+        "blocks": 92,
+        "displayedLevels": {
+          "1": 16,
+          "2": 64,
+          "3": 12
+        },
+        "wantedLevels": {
+          "1": 16,
+          "2": 64,
+          "3": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 3,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 72,
+        "updateMs": 0.20000001788139343
+      },
+      "visible": 21
     },
     "globe": {
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "terrain": {
         "update": {
-          "count": 808,
-          "lastMs": 0,
-          "meanMs": 0.09666666835546493,
+          "count": 1098,
+          "lastMs": 0.10000002384185791,
+          "meanMs": 0.09166666616996129,
           "maxMs": 0.20000001788139343
         },
         "parse": {
@@ -231,7 +325,7 @@
           "visible": 18,
           "drawn": 17,
           "inCache": 318,
-          "cpu": 149
+          "cpu": 152
         },
         "network": {
           "requests": 318,
@@ -243,7 +337,7 @@
         "memory": {
           "cacheBytes": 50836752,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 75322296,
+          "geometryBytes": 74281776,
           "textureBytes": 0
         },
         "imagery": {
@@ -257,16 +351,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 332,
+        "textures": 346,
         "pinnedTextures": 30,
-        "textureBytes": 123408384,
+        "textureBytes": 128612352,
         "maxTextureBytes": 167772160,
-        "requests": 332,
-        "bytes": 7716560,
+        "requests": 346,
+        "bytes": 8131024,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
-        "blockBuildMs": 636.4000002145767,
+        "blockBuildMs": 717.7999998927116,
         "inFlight": 0,
         "failedTiles": 0,
         "blockGeometryBytes": 5540904,
@@ -301,7 +395,7 @@
     "failures": [],
     "stillPending": [],
     "timedOut": false,
-    "durationMs": 2938.399999976158
+    "durationMs": 2431.899999976158
   },
   "errors": [],
   "failures": []

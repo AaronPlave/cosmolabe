@@ -71,12 +71,14 @@ try {
       } else if (body === 'Moon-synthetic-globe') {
         // Analytic global relief, not lunar observations. At this camera scale
         // every ground pixel exceeds the former 0.5 km footprint cutoff.
+        // All heights also lie inside one 10 km band: a shallow negative basin
+        // must still have contours, rather than passing only at zero crossings.
         const geometry = new THREE.SphereGeometry(1737400, 256, 128), p = geometry.getAttribute('position');
         const direction = new THREE.Vector3();
         for (let i = 0; i < p.count; i++) {
           direction.fromBufferAttribute(p, i).normalize();
           const lon = Math.atan2(direction.y, direction.x), lat = Math.asin(direction.z);
-          const height = 6000 * Math.sin(8 * lon) * Math.cos(lat) + 3000 * Math.sin(12 * lat);
+          const height = -4500 + 600 * Math.sin(8 * lon) * Math.cos(lat) + 300 * Math.sin(12 * lat);
           p.setXYZ(i, direction.x * (1737400 + height), direction.y * (1737400 + height), direction.z * (1737400 + height));
         }
         geometry.computeVertexNormals();
@@ -157,6 +159,34 @@ try {
       }
       group.traverse(m => { if (m.isMesh) { m.geometry.dispose(); (Array.isArray(m.material) ? m.material : [m.material]).forEach(mat => mat.dispose()); } });
     }
+    // A skirt shares its top edge's ground vertices. Render only its faces,
+    // positioning that edge inside a pixel so a >= .999 interpolated mask
+    // admits a visible strip. The skirt must add no contour pixels at all.
+    const skirtGeometry = new THREE.BufferGeometry();
+    skirtGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
+      -100, 1000, 0, 100, 1000, 0, -100, 1000, 100, -100, -1000, 0, 100, -1000, 0,
+    ], 3));
+    skirtGeometry.setIndex([0, 1, 2, 0, 3, 1, 1, 3, 4]);
+    skirtGeometry.userData.surfaceTriangles = 1;
+    skirtGeometry.setDrawRange(3, 6);
+    skirtGeometry.computeVertexNormals();
+    const skirtMesh = new THREE.Mesh(skirtGeometry, new THREE.MeshStandardMaterial({ color: '#222222', side: THREE.DoubleSide }));
+    const skirtScene = new THREE.Scene(); skirtScene.add(skirtMesh, new THREE.AmbientLight(0xffffff, 2));
+    const skirtCamera = new THREE.OrthographicCamera(-110, 110, 1100, -1100, 0.1, 10000);
+    skirtCamera.position.z = 1000; skirtCamera.lookAt(0, 0, 0);
+    const skirtStyle = new SurfaceAppearance(moon);
+    skirtStyle.attach(skirtMesh, new THREE.Matrix4().makeTranslation(0, 1736400, 0));
+    function renderSkirt(enabled) {
+      skirtStyle.set({ ...defaults, contours: enabled, contourColor: '#ff0000', contourOpacity: 1 });
+      skirtStyle.update(Infinity); renderer.render(skirtScene, skirtCamera);
+      const pixels = new Uint8Array(800 * 600 * 4); gl.readPixels(0, 0, 800, 600, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      result.captures.push({ name: `skirt-${enabled ? 'on' : 'off'}`, png: renderer.domElement.toDataURL() });
+      return pixels;
+    }
+    const skirtOff = renderSkirt(false), skirtOn = renderSkirt(true);
+    result.skirtChangedPixels = 0;
+    for (let i = 0; i < skirtOff.length; i += 4) if (skirtOn[i] !== skirtOff[i] || skirtOn[i + 1] !== skirtOff[i + 1] || skirtOn[i + 2] !== skirtOff[i + 2]) result.skirtChangedPixels++;
+    skirtGeometry.dispose(); skirtMesh.material.dispose();
     texture.dispose(); renderer.dispose(); return result;
   }, existsSync('work/issue-183/wrapTopoLineMaterial.js'));
   for (const { name, png } of results.captures) await writeFile(`${output}/${name}.png`, Buffer.from(png.split(',')[1], 'base64'));
@@ -164,6 +194,7 @@ try {
   results.errors = errors;
   await writeFile(`${output}/metrics.json`, JSON.stringify(results, null, 2));
   assert.deepEqual(errors, []);
+  assert.equal(results.skirtChangedPixels, 0, 'Contours must never draw on skirts, including their shared top edge');
   for (const body of ['Mars', 'Moon-synthetic-pole', 'Moon-synthetic-globe']) {
     assert.ok(results[body].changedPixels > 100, JSON.stringify(results));
     assert.ok(results[body].darkContourPixels > 100, JSON.stringify(results));
