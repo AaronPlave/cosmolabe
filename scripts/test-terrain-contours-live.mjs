@@ -150,6 +150,27 @@ try {
       await page.waitForTimeout(1000);
       await page.screenshot({ path: `${output}/close-after-motion.png` });
     }
+    if (labels && name === 'close') {
+      result.lookDirection = await page.evaluate(async () => {
+        const r = window.renderer, camera = r.camera, controls = r.cameraController.controls;
+        const tm = r.getBodyMesh('Moon').terrainManager;
+        const initial = camera.position.clone(), target = controls.target.clone();
+        const outward = camera.up.clone().normalize(), distance = initial.distanceTo(target);
+        const intervals = [tm.surfaceStyle.contourIntervalKm];
+        const eyeDrift = [];
+        // Preserve eye position and change only the look target, as with
+        // looking above the horizon then returning to the same ground.
+        for (const look of [initial.clone().addScaledVector(outward, distance), target]) {
+          camera.position.copy(initial); controls.target.copy(look); camera.lookAt(look); camera.updateMatrixWorld(true);
+          const start = performance.now();
+          while (performance.now() - start < 1500) await new Promise(requestAnimationFrame);
+          intervals.push(tm.surfaceStyle.contourIntervalKm); eyeDrift.push(camera.position.distanceTo(initial));
+        }
+        return { intervals, eyeDrift };
+      });
+      assert.ok(result.lookDirection.intervals.every(v => v === result.lookDirection.intervals[0]), 'looking up and back changed the automatic interval');
+      assert.ok(result.lookDirection.eyeDrift.every(v => v < 1e-9), 'look-direction test moved the camera');
+    }
     console.log(name, result.views[name].gpu, result.views[name].visible, 'tiles');
   }
   await page.setViewportSize({ width: 390, height: 844 });

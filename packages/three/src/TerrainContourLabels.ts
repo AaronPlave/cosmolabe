@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { buildContourPaths, type ContourSegment, type ContourPath, type ContourEdge } from './ContourPaths.js';
+import { contourStations } from './ContourStations.js';
 import type { ScreenRect } from './EventCallout.js';
 
 export interface ContourAnchor {
@@ -54,6 +55,7 @@ interface Placement {
   anchor: ContourAnchor;
   segment: ContourSegment;
   t: number;
+  bodyPoint?: THREE.Vector3;
   tangentStart: PointReference;
   tangentEnd: PointReference;
 }
@@ -179,7 +181,7 @@ export class TerrainContourLabels {
       if (performance.now() - topologyStart >= 2) break;
     }
     if (!this.layoutJob && performance.now() >= this.nextLayout) {
-      this.layoutJob = this.layout(camera, width, height, obstacles);
+      this.layoutJob = this.layout(camera, width, height);
     }
     const layoutStart = performance.now();
     while (this.layoutJob) {
@@ -191,7 +193,11 @@ export class TerrainContourLabels {
     const selected = new Map<ContourSegment, Placement>();
     let drawn = 0;
     this.occlusionDeadline = performance.now() + 2;
-    for (const placement of this.placements) {
+    const ordered = [...this.placements].sort((a, b) => b.anchor.heightKm - a.anchor.heightKm
+      || (a.bodyPoint ?? a.anchor.point).x - (b.bodyPoint ?? b.anchor.point).x
+      || (a.bodyPoint ?? a.anchor.point).y - (b.bodyPoint ?? b.anchor.point).y
+      || (a.bodyPoint ?? a.anchor.point).z - (b.bodyPoint ?? b.anchor.point).z);
+    for (const placement of ordered) {
       if (!live.has(placement.mesh) || !live.has(placement.tangentStart.mesh) || !live.has(placement.tangentEnd.mesh)) continue;
       const screen = this.project(placement, camera, width, height);
       if (!screen) continue;
@@ -360,10 +366,11 @@ export class TerrainContourLabels {
     // Snapshot layout is in body coordinates; drawing uses world coordinates.
     const relativeDistance = distance / (frames ? reference : this.focusDistance);
     if (relativeDistance > 6) return;
-    const size = THREE.MathUtils.clamp(1 / Math.sqrt(Math.max(1, relativeDistance)), 0.86, 1);
+    const size = THREE.MathUtils.clamp(1 / Math.sqrt(Math.max(1, relativeDistance)), 10 / 14, 1);
     const depth = -this.point.clone().applyMatrix4(camera.matrixWorldInverse).z;
-    const worldPerPx = (camera as THREE.PerspectiveCamera).isPerspectiveCamera
-      ? 2 * depth / camera.projectionMatrix.elements[5] / height : 2 / camera.projectionMatrix.elements[5] / height;
+    const worldPerPx = ((camera as THREE.PerspectiveCamera).isPerspectiveCamera
+      ? 2 * depth / camera.projectionMatrix.elements[5] / height : 2 / camera.projectionMatrix.elements[5] / height)
+      * camera.matrixWorld.getMaxScaleOnAxis();
     this.gradient.copy(anchor.gradient).applyMatrix3(this.normalMatrix);
     if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) this.view.normalize();
     else this.view.setFromMatrixColumn(camera.matrixWorld, 2).normalize();
@@ -451,33 +458,46 @@ export class TerrainContourLabels {
     }
     const segment = center.edge.edge.segment;
     const previous = this.selected.get(segment);
-    if (previous && Math.abs(previous.t - center.t) < 1e-8) return previous;
+    if (previous && Math.abs(previous.t - center.t) < 1e-8) {
+      previous.tangentStart = before.reference; previous.tangentEnd = after.reference;
+      return previous;
+    }
     return { mesh: segment.mesh, segment, t: center.t,
       anchor: { point: center.reference.point, end: segment.start, normal: segment.normal, gradient: segment.gradient, heightKm: segment.heightKm },
       tangentStart: before.reference, tangentEnd: after.reference };
   }
 
-  private *layout(camera: THREE.Camera, width: number, height: number, obstacles: readonly ScreenRect[]): Generator<void, Placement[]> {
+  private *layout(camera: THREE.Camera, width: number, height: number): Generator<void, Placement[]> {
     // Snapshot in the body's frame. Body motion and floating-origin changes
     // during a cooperative layout cannot mix matrices from different frames.
     const inverse = this.group.matrixWorld.clone().invert(), frames = new Map<THREE.Mesh, THREE.Matrix4>();
     for (const mesh of this.caches.keys()) frames.set(mesh, new THREE.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
     camera = camera.clone(); camera.matrixWorld.premultiply(inverse); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
-    const selected = new Map(this.selected);
+    const firstFrame = frames.values().next().value as THREE.Matrix4 | undefined;
+    const metre = firstFrame?.getMaxScaleOnAxis() ?? 1;
+    let referenceDistance = this.focusDistance / this.group.matrixWorld.getMaxScaleOnAxis();
+    if (!Number.isFinite(referenceDistance)) {
+      const edge = this.paths[0]?.edges[0]?.segment, frame = edge && frames.get(edge.mesh);
+      if (edge && frame) referenceDistance = edge.start.clone().applyMatrix4(frame).distanceTo(new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld));
+    }
+    const worldPerPx = 2 * ((camera as THREE.PerspectiveCamera).isPerspectiveCamera
+      ? referenceDistance : camera.matrixWorld.getMaxScaleOnAxis()) / camera.projectionMatrix.elements[5] / height;
+    // 1/8 of the reveal spacing supplies stations for small readable loops.
+    // Larger levels remain preferred, with coordinates anchored at body origin.
+    const exponent = Math.max(0, Math.floor(Math.log2(worldPerPx * 100 / metre)) - 3);
     let work = 0;
     this.screenSources.clear();
-    const occupied: Box[] = [...obstacles], placements: Placement[] = [];
+    const placements: Placement[] = [];
     const processed = new Set<ContourSegment>();
-    // Retain existing anchors first. New paths are processed near the eye and
-    // view centre first, and published progressively instead of waiting for
-    // every distant contour to finish layout.
+    // Process nearby paths first, but choose their stations solely from body
+    // coordinates. Camera priority controls work order, never anchor position.
     const paths = this.paths.filter(path => path.edges.length && path.edges.every(e => frames.has(e.segment.mesh))).map(path => {
       const segment = path.edges[Math.floor(path.edges.length / 2)].segment;
       const point = segment.start.clone().applyMatrix4(frames.get(segment.mesh)!);
       const eye = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
       const distance = point.distanceTo(eye);
       point.project(camera);
-      return { path, priority: path.edges.some(e => selected.has(e.segment)) ? -1e9 : distance * (1 + Math.hypot(point.x, point.y)) };
+      return { path, priority: distance * (1 + Math.hypot(point.x, point.y)) };
     }).sort((a, b) => a.priority - b.priority);
     for (const { path } of paths) {
       for (const edge of path.edges) processed.add(edge.segment);
@@ -490,33 +510,35 @@ export class TerrainContourLabels {
       }
       if (run.edges.length) runs.push(run);
       const w = formatContourHeight(path.heightKm).length * 8.5 + 12;
-      const candidates: Array<{ run: Run; distance: number; priority: number }> = [];
-      for (const run of runs) {
-        for (const edge of run.edges) {
+      const candidates: Array<{ run: Run; distance: number; axis: number; level: number; index: number; point: THREE.Vector3 }> = [];
+      for (const run of runs) for (const edge of run.edges) {
+        if (++work % 128 === 0) yield;
+        const segment = edge.edge.segment, frame = frames.get(segment.mesh)!;
+        const a = (edge.edge.reverse ? segment.end : segment.start).clone().applyMatrix4(frame);
+        const b = (edge.edge.reverse ? segment.start : segment.end).clone().applyMatrix4(frame);
+        const normal = segment.normal.clone().applyMatrix3(new THREE.Matrix3().getNormalMatrix(frame)).normalize();
+        const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera;
+        const toLocal = (t: number) => perspective ? t * edge.depthA / ((1 - t) * edge.depthB + t * edge.depthA) : t;
+        for (const station of contourStations(a, b, normal, metre, exponent, toLocal(edge.screenStart), toLocal(edge.screenEnd))) {
           if (++work % 128 === 0) yield;
-          const previous = selected.get(edge.edge.segment);
-          if (!previous) continue;
-          const t = edge.edge.reverse ? 1 - previous.t : previous.t;
-          const s = (camera as THREE.PerspectiveCamera).isPerspectiveCamera
-            ? t * edge.depthB / ((1 - t) * edge.depthA + t * edge.depthB) : t;
-          const distance = edge.distance + (s - edge.screenStart) / (edge.screenEnd - edge.screenStart) * edge.length;
-          candidates.push({ run, distance, priority: -1e9 });
-        }
-        for (let offset = 0; offset < run.length / 2; offset += 24) for (const sign of offset === 0 ? [1] : [-1, 1]) {
-          if (++work % 128 === 0) yield;
-          const distance = run.length / 2 + sign * offset, at = this.at(run, distance, camera);
-          const eccentricity = Math.hypot((at.pixel.x - width / 2) / width, (at.pixel.y - height / 2) / height);
-          candidates.push({ run, distance, priority: (at.edge.depthA + at.edge.depthB) * (1 + eccentricity) });
+          const t = station.t;
+          const screenT = perspective ? t * edge.depthB / ((1 - t) * edge.depthA + t * edge.depthB) : t;
+          const distance = edge.distance + (screenT - edge.screenStart) / (edge.screenEnd - edge.screenStart) * edge.length;
+          candidates.push({ run, distance, ...station, point: a.clone().lerp(b, t) });
         }
       }
-      candidates.sort((a, b) => a.priority - b.priority);
+      // Stable corridor order is independent of camera position, source order,
+      // traversal direction and which label happened to finish first.
+      candidates.sort((a, b) => a.axis - b.axis || b.level - a.level || Math.abs(a.index) - Math.abs(b.index)
+        || a.point.x - b.point.x || a.point.y - b.point.y || a.point.z - b.point.z);
       for (const option of candidates) {
         if (++work % 128 === 0) yield;
         const placement = this.candidate(option.run, option.distance, w, camera);
         if (!placement) continue;
         const screen = this.project(placement, camera, width, height, frames);
-        if (!screen || occupied.some(box => overlaps(box, screen.box))) continue;
-        occupied.push(screen.box); placements.push(placement);
+        if (!screen) continue;
+        placement.bodyPoint = option.point;
+        placements.push(placement);
         this.placements = [...placements, ...this.placements.filter(p => !processed.has(p.segment))];
         break;
       }

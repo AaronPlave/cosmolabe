@@ -100,12 +100,33 @@ describe('terrain contour labels', () => {
     for (const sprite of visible) expect(Math.abs(parseInt(sprite.userData.text) % 500)).toBe(0);
     const anchors = () => labels.group.children.filter(s => s.visible).map(s => JSON.stringify([s.userData.text, s.position.toArray()])).sort();
     const initial = anchors();
+    // Parallel contours use a common terrain transect, rather than unrelated
+    // screen-centred positions selected as each path arrives.
+    for (const sprite of visible) expect(sprite.position.x).toBeCloseTo(0, 8);
+    labels.update(camera, 1200, 1000, [], settings);
+    labels.update(camera, 1200, 1000, [mesh], settings);
+    expect(anchors()).toEqual(initial);
     for (const x of [2, -2, 0]) {
       camera.position.x = x; camera.updateMatrixWorld();
       vi.mocked(performance.now).mockReturnValue(500 + x);
       labels.update(camera, 1200, 1000, [mesh], settings);
       expect(anchors()).toEqual(initial);
     }
+    const body = new THREE.Group(); body.add(mesh, labels.group, camera);
+    body.position.set(1e7, -2e7, 3e7); body.rotation.y = 0.7; body.scale.setScalar(2);
+    // Keep the physical camera unscaled and double its orthographic extent
+    // to preserve the same view while all terrain/body coordinates scale.
+    camera.scale.setScalar(0.5); camera.left *= 2; camera.right *= 2; camera.top *= 2; camera.bottom *= 2; camera.updateProjectionMatrix();
+    body.updateMatrixWorld(true); vi.mocked(performance.now).mockReturnValue(1000);
+    labels.update(camera, 1200, 1000, [mesh], settings);
+    const transformed = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
+    expect(transformed).toHaveLength(19);
+    for (const sprite of transformed) {
+      expect(sprite.position.x).toBeCloseTo(0, 5);
+      expect(sprite.position.y).toBeCloseTo(sprite.userData.heightKm / 0.01, 5);
+    }
+    body.position.set(0, 0, 0); body.rotation.set(0, 0, 0); body.scale.setScalar(1);
+    camera.scale.setScalar(1); camera.left /= 2; camera.right /= 2; camera.top /= 2; camera.bottom /= 2; camera.updateProjectionMatrix(); body.updateMatrixWorld(true);
     mesh.rotation.z = 0.4;
     labels.update(camera, 1200, 1000, [mesh], settings);
     const rotated = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
@@ -133,7 +154,8 @@ describe('terrain contour labels', () => {
     for (const sprite of visible) {
       expect(sprite.material.opacity).toBe(1); expect(sprite.material.color.getHexString()).toBe('fff8e8');
     }
-    expect(middle[0].scale.y / near[0].scale.y).toBeCloseTo(0.86);
+    expect(Math.min(...middle.map(s => s.scale.y)) / 26).toBeCloseTo(10 / 14);
+    for (const sprite of visible) expect(sprite.scale.y).toBeGreaterThanOrEqual(26 * 10 / 14);
     // Transparent/fading terrain can omit depth writes. It must still hide the
     // anchor rather than allowing a label to show through a foreground ridge.
     const ridge = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1000), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));

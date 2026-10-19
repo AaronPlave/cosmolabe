@@ -12,6 +12,12 @@ export function niceContourInterval(targetKm: number): number {
  * relief, and avoids different contour phases on neighbouring tiles. */
 export function automaticContourInterval(camera: THREE.Camera, width: number, height: number,
   sources: THREE.Mesh[], density: number, previous: number): number {
+  return estimateContourInterval(camera, width, height, sources, density, previous) ?? previous;
+}
+
+/** Undefined means no usable terrain is available in the sampling view. */
+export function estimateContourInterval(camera: THREE.Camera, width: number, height: number,
+  sources: THREE.Mesh[], density: number, previous: number): number | undefined {
   const gradients: Array<{ delta: number; weight: number }> = [], points = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   camera.updateWorldMatrix(true, false);
   for (const mesh of sources) {
@@ -37,7 +43,7 @@ export function automaticContourInterval(camera: THREE.Camera, width: number, he
       if (Number.isFinite(delta) && delta > 1e-8) gradients.push({ delta, weight: Math.min(determinant, width * height * 0.1) * stride });
     }
   }
-  if (!gradients.length) return previous;
+  if (!gradients.length) return;
   gradients.sort((a, b) => a.delta - b.delta);
   const threshold = gradients.reduce((sum, g) => sum + g.weight, 0) * 0.75;
   let sum = 0, delta = gradients[0].delta;

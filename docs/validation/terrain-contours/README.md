@@ -14,7 +14,8 @@ Switching interval modes preserves the label toggle. Automatic mode also exposes
 
 Every fifth contour is an emphasized index contour, following the
 [USGS index-contour convention](https://www.usgs.gov/ngp-standards-and-specifications/us-topo-cartographic-specifications-elevation).
-Each connected visible index path gets one label where a readable span fits.
+Each connected visible index path has one preferred terrain station where a
+readable span fits; collision and visibility can hide that label.
 Labels align to that span, remain upright, and show signed metres relative to
 the same body reference and height convention as the contour shader. Separate
 loops at the same elevation remain separate. There is no global label-count
@@ -24,8 +25,7 @@ occluded spans may have no readable label.
 Text is a straight word aligned along a locally smooth part of the contour;
 individual glyphs do not bend around sharp curves. Labels avoid one another,
 body names, callouts and viewer panels. Depth testing hides them behind terrain.
-Color follows the line color, and opacity increases relative to faint lines for
-legibility. Contours and labels are off by default.
+Text uses a light fill and black halo, independent of line color or opacity. Contours and labels are off by default.
 
 ## Elevation and rendering contracts
 
@@ -59,11 +59,21 @@ height reconstruction are not used.
 ## Automatic spacing and dense lines
 
 Automatic spacing uses one shared minor interval across all tiles and labels.
-It samples visible source triangles, estimates their projected elevation
-gradients, and chooses a screen-area-weighted 1–2–5 step, with hysteresis and
-Density adjustment. The automatic interval ranges from 1 m to 1 km. Weighting
-by screen area prevents tiny, distant horizon triangles from dominating the
-surface view. The actual interval updates at most every 250 ms.
+A virtual camera looks down toward the body centre from the actual eye, so
+pitch/heading do not alter the sampling view. Source triangle elevation
+gradients select a screen-area-weighted 1–2–5 step with hysteresis and Density
+adjustment. The automatic interval ranges from 1 m to 1 km.
+
+The selected interval is held across look-only moves and source-tile churn.
+It is reconsidered only after meaningful body-fixed travel (half the previous
+reference altitude, with a 100 m floor), a reference-altitude change of about
+25–33%, a projection/zoom change over 10%, viewport-height change or Density
+change. Reference altitude here is absolute height above/below the datum with
+a 100 m floor, used only as a travel/scale gate; it is not a ground-clearance
+measurement. Checks run at most every 250 ms. Empty reference views preserve
+the old interval without recording a new scale snapshot. The shader still
+filters subpixel bands locally at grazing angles without changing the base
+interval or shifting the underlying elevation levels.
 
 There is no line-count budget: fragments evaluate the height field directly.
 Earlier missing coverage had two causes: an absolute footprint cutoff, and
@@ -91,7 +101,7 @@ frame work with a 2 ms target; construction/layout yield every 128 operations. T
 per frame, not the number of admitted contours. Extraction excludes offscreen
 and back-facing triangles and unresolved index levels. View changes refresh
 that filtered extraction, reusing segment objects on unchanged triangles so
-existing label anchors retain priority. Nearby tiles and paths close to the
+matching source segments can reuse cached visibility checks. Nearby tiles and paths close to the
 look direction are processed first. Labels beyond six times the nearest visible
 surface distance are omitted; this is a relative distance gate, so globe views
 still support labels. The distance scale has 25% hysteresis. No elevation
@@ -101,19 +111,28 @@ Shared triangle endpoints and tile borders are stitched before labeling.
 Mixed-LOD dangling ends may join within three pixels, with equal elevations,
 compatible tangents and a 3D-distance check. Distinct loops and overlapping
 front/back hemispheres cannot merge simply because they share screen pixels.
-Visible path spans are projected, checked for enough room and low curvature,
-then placed with rotated text bounds and collision checks. Projection updates
-every frame; placement starts a new cooperative pass 250 ms after the last one
-finishes. Layout snapshots the camera and source matrices in the body frame,
-so body motion/floating-origin updates cannot mix coordinate frames during a
-pass. New labels publish path by path instead of waiting for the entire view.
-Existing anchors survive temporary occlusion and small camera moves; refinement
-can replace them when source triangles retire. Extraction refresh has a wider
-motion threshold to avoid constant work cancellation while navigating.
+Candidate positions are intersections with nested, body-fixed Cartesian
+transects at powers-of-two metre spacings. Coarse planes are a subset of finer
+planes; refining the reveal level adds stations without sliding the old ones.
+Planes nearly parallel to the ground are excluded. A fixed axis/hierarchy/
+coordinate order chooses among stations, independent of path traversal,
+triangle subdivision, source order, screen centre and placement history. This
+makes neighboring contours share terrain corridors rather than unrelated
+screen-centred anchors. Collision priority is also terrain-based. Crowding or
+a viewer panel hides the preferred station instead of moving it to a new spot.
+
+Visible spans must still have enough projected room and low curvature for the
+straight word. Tangents update with zoom so labels continue to follow their
+contours. Projection updates every frame; cooperative layout restarts 250 ms
+after the previous pass finishes and publishes progressively. Its camera and
+mesh snapshots share the body frame, including scale conversion, preserving
+positions under body transforms and floating-origin updates. Finer terrain
+LOD can move the underlying isohypse and its station intersection. This is
+terrain anchoring to loaded geometry, not a separate immutable global DEM.
 
 Labels use opaque warm-white semibold text with a black halo, independently of
 contour color and opacity (including zero line opacity). Text scales smoothly
-from 14 px to a minimum of about 12 px with relative distance. Rotated collision
+from 14 px to a minimum of 10 px with relative distance. Rotated collision
 bounds follow the actual scaled size.
 
 Glyph fragment depth follows the source triangle plane with a 0.15-pixel
@@ -145,7 +164,7 @@ SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contour-contr
 CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
 ```
 
-372 renderer tests across 37 files pass, with typecheck, lint and viewer
+374 renderer tests across 38 files pass, with typecheck, lint and viewer
 production build. Tests cover transformed/mixed-LOD border stitching, separate
 same-height loops, cooperative construction without path caps, automatic
 spacing/density/hysteresis, source visibility, skirts, cleanup, and rotated
@@ -167,11 +186,11 @@ blocks retain the style fields, split/unsplit pixels are identical, debug
 precedence and disabled restoration hold, and no unused height fields remain.
 See [cube contours](cube-contours.png) and [tilted cube](cube-tilted.png).
 
-The [label/depth regression](label-depth-metrics.json) preserves all 120/114 lit
+The [label/depth regression](label-depth-metrics.json) preserves all 107 lit
 glyph pixels with perspective/orthographic cameras and normal/log depth.
-A flat-billboard negative control retains only 58. Both ordinary foreground
+A flat-billboard negative control retains only 55. Both ordinary foreground
 occlusion and a non-depth-writing foreground plane leave zero text pixels;
-without the anchor LOS check, the latter exposes all 120/114 pixels. Changing
+without the anchor LOS check, the latter exposes all 107 pixels. Changing
 the contours to almost transparent black retains the same readable label pixels.
 Disabled contours leave zero text pixels. Its dense 10 m scalar-field fixture
 retains 57,344 contour pixels over 112 rows, below half the plane's area; the
@@ -189,7 +208,8 @@ local LOLA cube terrain and WAC/NAC imagery, 1440×1000 desktop and 390×844 mob
 viewport. All eight initial assets load; there are no HTTP/page/shader errors.
 The run checks automatic close/regional/polar/globe views, a fixed 10 m oblique
 view at approximately 22 km terrain altitude, camera motion, settled placement,
-and independent contour/label toggles.
+and independent contour/label toggles. Looking above the horizon and back
+keeps the automatic interval at 10 m with zero eye drift in both steps.
 
 - [Automatic surface labels](moonfall-labels-close.png)
 - [Dense 10 m contours and index labels](moonfall-labels-dense.png)
@@ -203,11 +223,11 @@ visible paths, not a global cap. Hidden labels retain their anchors for reuse.
 
 | View | Minor interval | Labels | Median CPU | P95 CPU | Maximum CPU |
 | --- | --- | --- | --- | --- | --- |
-| Surface, automatic | 100 m | 12 | 0.3 ms | 2.2 ms | 2.7 ms |
-| Oblique, fixed | 10 m | 97 | 2.1 ms | 3.6 ms | 6.2 ms |
-| Regional, automatic | 500 m | 26 | 0.2 ms | 2.2 ms | 2.6 ms |
-| Polar, automatic | 1000 m | 23 | 0.1 ms | 2.2 ms | 2.7 ms |
-| Globe, automatic | 1000 m | 20 | 0.1 ms | 2.1 ms | 3.3 ms |
+| Surface, automatic | 10 m | 36 | 0.6 ms | 3.7 ms | 4.5 ms |
+| Oblique, fixed | 10 m | 68 | 2.2 ms | 4.6 ms | 5.6 ms |
+| Regional, automatic | 500 m | 29 | 0.3 ms | 2.7 ms | 4.6 ms |
+| Polar, automatic | 1000 m | 28 | 0.2 ms | 2.9 ms | 4.6 ms |
+| Globe, automatic | 1000 m | 23 | 0.2 ms | 2.3 ms | 3.2 ms |
 
 An initial synchronous LOS pass peaked around 44 ms in the dense view; the
 cooperative cached version above avoids that burst. Individual mesh raycasts

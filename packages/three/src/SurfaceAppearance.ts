@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { injectTerrainContours } from './TerrainContours.js';
-import { automaticContourInterval } from './ContourIntervals.js';
+import { estimateContourInterval } from './ContourIntervals.js';
 import { bodyFixedToGeodetic, type TerrainDatum } from './TerrainSampler.js';
 
 export type SurfaceBaseColor = 'imagery' | 'elevation' | 'neutral';
@@ -105,6 +105,7 @@ export class SurfaceAppearance {
   private readonly normalNodes = new Map<string, NormalNode>();
   private autoContourIntervalKm = 0.1;
   private nextContourIntervalUpdate = 0;
+  private contourScale?: { eye: THREE.Vector3; altitude: number; projection: number; height: number; density: number };
   private readonly uniforms = {
     saLight: { value: new THREE.Vector3() }, saContrast: { value: 1 },
     saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
@@ -129,10 +130,33 @@ export class SurfaceAppearance {
 
   updateContourInterval(camera: THREE.Camera, width: number, height: number, sources: THREE.Mesh[]): void {
     if (!this.settings.contours || this.settings.contourIntervalKm || performance.now() < this.nextContourIntervalUpdate) return;
-    this.autoContourIntervalKm = automaticContourInterval(camera, width, height, sources,
-      this.settings.contourDensity ?? 1, this.autoContourIntervalKm);
-    this.uniforms.saContourIntervalKm.value = this.autoContourIntervalKm;
     this.nextContourIntervalUpdate = performance.now() + 250;
+    const source = sources.find(mesh => this.meshes.has(mesh));
+    if (!source) return;
+    source.updateWorldMatrix(true, false); camera.updateWorldMatrix(true, false);
+    const localToBody = this.meshes.get(source)!.matrix;
+    const bodyWorld = new THREE.Matrix4().multiplyMatrices(source.matrixWorld, localToBody.clone().invert());
+    const eyeWorld = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+    const eye = eyeWorld.clone().applyMatrix4(bodyWorld.clone().invert()).multiplyScalar(0.001);
+    const altitude = Math.max(0.1, Math.abs(renderedHeightKm(eye, this.datum)));
+    const projection = camera.projectionMatrix.elements[5], density = this.settings.contourDensity ?? 1;
+    const old = this.contourScale;
+    // Looking up/down and source-tile churn must not change the interval.
+    // Reconsider it only after meaningful travel or a change of map scale.
+    if (old && old.eye.distanceTo(eye) < Math.max(0.1, old.altitude * 0.5)
+      && altitude / old.altitude > 0.75 && altitude / old.altitude < 1.33
+      && Math.abs(old.projection / projection - 1) < 0.1 && old.height === height && old.density === density) return;
+    const samplingCamera = camera.clone();
+    samplingCamera.matrixAutoUpdate = true;
+    samplingCamera.position.copy(eyeWorld);
+    samplingCamera.up.set(0, 0, 1).transformDirection(bodyWorld);
+    samplingCamera.lookAt(new THREE.Vector3().setFromMatrixPosition(bodyWorld));
+    samplingCamera.updateMatrixWorld(true);
+    const interval = estimateContourInterval(samplingCamera, width, height, sources, density, this.autoContourIntervalKm);
+    if (interval === undefined) return; // Do not lock an empty/sky-only sample.
+    this.autoContourIntervalKm = interval;
+    this.contourScale = { eye, altitude, projection, height, density };
+    this.uniforms.saContourIntervalKm.value = interval;
   }
 
   /** Original terrain only. Cube imagery may hide its source mesh while drawing
