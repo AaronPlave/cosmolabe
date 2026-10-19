@@ -21,6 +21,7 @@
   });
   onDestroy(() => { if (appearancePick.bodyName === bodyName) cancelAppearancePick(); });
   let gradient = $derived(`linear-gradient(to right, ${ELEVATION_PALETTES[settings.palette].join(', ')})`);
+  let contourInterval = $derived.by(() => { void vs.frameTick; return bodyMesh?.surfaceContourIntervalKm; });
 
   function update(patch: Partial<SurfaceAppearanceSettings>) {
     bodyMesh?.setSurfaceAppearance({ ...settings, ...patch });
@@ -65,9 +66,9 @@
           <label class="control-row"><span>Interval</span>
             <select aria-label="Contour interval" value={settings.contourIntervalKm ?? 0} onchange={e => {
               const interval = +e.currentTarget.value;
-              update({ contourIntervalKm: interval, ...(interval === 0 ? { contourLabels: false } : {}) });
+              update({ contourIntervalKm: interval });
             }}>
-              <option value="0">Automatic</option>
+              <option value={0}>Automatic</option>
               {#each [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5] as interval}
                 <option value={interval}>{interval * 1000} m</option>
               {/each}
@@ -76,7 +77,6 @@
           <label class="control-row"><span>Elevation labels</span>
             <input aria-label="Contour elevation labels" type="checkbox" checked={settings.contourLabels ?? false} onchange={e => update({
               contourLabels: e.currentTarget.checked,
-              ...(e.currentTarget.checked && !settings.contourIntervalKm ? { contourIntervalKm: 1 } : {}),
             })} />
           </label>
           {#if !settings.contourIntervalKm}
@@ -84,7 +84,10 @@
             <input aria-label="Contour density" type="range" min="0.25" max="4" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
           </label>
           {/if}
-          <p class="ui-meta text-text-muted my-1">Unlit elevation lines. Labels use fixed intervals and show metres above the body reference {datum.referenceShape.kind}; negative values are below it.</p>
+          {#if contourInterval}
+            <p class="ui-readout text-text-muted my-1" aria-label="Resolved contour interval">Minor {Math.round(contourInterval * 1000)} m · index {Math.round(contourInterval * 5000)} m</p>
+          {/if}
+          <p class="ui-meta text-text-muted my-1">Every fifth line is an index contour. Labels follow index lines and show metres above the body reference {datum.referenceShape.kind}; negative values are below it. Automatic spacing adjusts as you zoom; crowded minor lines give way to coarser contours.</p>
         {/if}
         <label class="control-row">
           <span>Hillshade effect</span>

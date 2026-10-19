@@ -113,7 +113,8 @@ try {
       const camera = new THREE.PerspectiveCamera(40, 800 / 600, 0.01, size * 10);
       camera.position.copy(target).addScaledVector(up, size * 1.35); camera.lookAt(target); camera.updateMatrixWorld();
       function render(name, settings) {
-        style.set({ ...defaults, ...settings }); style.update(Infinity); renderer.render(scene, camera);
+        style.set({ ...defaults, ...settings }); style.update(Infinity);
+        style.updateContourInterval(camera, 800, 600, style.contourSources()); renderer.render(scene, camera);
         const pixels = new Uint8Array(800 * 600 * 4); gl.readPixels(0, 0, 800, 600, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
         result.captures.push({ name: `${body}-${name}`, png: renderer.domElement.toDataURL() });
         return pixels;

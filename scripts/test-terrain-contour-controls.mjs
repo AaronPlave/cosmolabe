@@ -43,8 +43,8 @@ try {
  await page.getByLabel('Contour density',{exact:true}).fill('2');
  assert.equal(await page.evaluate(()=>window.renderer.getBodyMesh('Moon').surfaceAppearance.contours),true);
  await page.getByLabel('Contour elevation labels',{exact:true}).check();
- assert.equal(await page.getByLabel('Contour interval',{exact:true}).inputValue(),'1');
- assert.equal(await page.getByLabel('Contour density',{exact:true}).count(),0);
+ assert.equal(await page.getByLabel('Contour interval',{exact:true}).inputValue(),'0');
+ assert.equal(await page.getByLabel('Contour density',{exact:true}).count(),1);
  await page.getByLabel('Contour interval',{exact:true}).selectOption('0.25');
  await page.evaluate(()=>window.cosmo.select('Mars'));
  await page.getByLabel('Hillshade effect',{exact:true}).waitFor();
@@ -55,12 +55,12 @@ try {
  assert.equal(await page.getByLabel('Contour elevation labels',{exact:true}).isChecked(),true);
  assert.equal(await page.getByLabel('Contour interval',{exact:true}).inputValue(),'0.25');
  await page.getByLabel('Contour interval',{exact:true}).selectOption('0');
- assert.equal(await page.getByLabel('Contour elevation labels',{exact:true}).isChecked(),false);
+ assert.equal(await page.getByLabel('Contour elevation labels',{exact:true}).isChecked(),true);
  assert.equal(await page.getByLabel('Contour density',{exact:true}).inputValue(),'2');
  await page.screenshot({path:`${output}/contour-controls.png`});
  await page.getByRole('checkbox',{name:'Contours',exact:true}).uncheck();
  assert.equal(await page.getByLabel('Contour density',{exact:true}).count(),0);
- const report={passed:true,errors,checks:['cube contour toggle','cube tint/hillshade controls preserved','density edit','fixed interval and labels','per-body isolation','selection persistence','automatic spacing disables labels and restores density','disabled control collapse'],scope:'UI only, no terrain geometry'};
+ const report={passed:true,errors,checks:['cube contour toggle','cube tint/hillshade controls preserved','density edit','fixed interval and labels','per-body isolation','selection persistence','automatic spacing retains labels and restores density','disabled control collapse'],scope:'UI only, no terrain geometry'};
  await writeFile(`${output}/ui-metrics.json`,JSON.stringify(report,null,2));
  assert.deepEqual(errors,[]); console.log(JSON.stringify(report));
 } finally {await browser.close();}

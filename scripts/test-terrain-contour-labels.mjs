@@ -60,7 +60,38 @@ try {
     }
     return result;
   });
-  console.log(JSON.stringify({ results, errors }, null, 2));
+  const coverage = await page.evaluate(async () => {
+    const THREE = await import('/node_modules/three/build/three.module.js');
+    const { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE: defaults } = await import('/packages/three/src/SurfaceAppearance.ts');
+    const renderer = new THREE.WebGLRenderer({ preserveDrawingBuffer: true }); renderer.setSize(512, 512);
+    document.body.append(renderer.domElement);
+    const scene = new THREE.Scene(), geometry = new THREE.PlaneGeometry(1000, 1000, 4, 4), p = geometry.getAttribute('position');
+    // Synthetic scalar field: 20 m of elevation change per screen pixel,
+    // with a fixed 10 m minor interval. No scientific source is represented.
+    geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getY(i) * 0.01), 1));
+    const material = new THREE.MeshStandardMaterial({ color: 0 }), mesh = new THREE.Mesh(geometry, material); scene.add(mesh);
+    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: 1 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
+    style.attach(mesh, new THREE.Matrix4()); style.set({ ...defaults, contours: true, contourIntervalKm: 0.01, contourColor: '#ffffff', contourOpacity: 1 }); style.update(Infinity);
+    const camera = new THREE.OrthographicCamera(-500, 500, 500, -500, 0.1, 10000); camera.position.z = 1000; camera.lookAt(0, 0, 0);
+    const count = () => {
+      renderer.render(scene, camera);
+      const data = new Uint8Array(512 * 512 * 4), gl = renderer.getContext(); gl.readPixels(0, 0, 512, 512, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      let pixels = 0, rows = 0;
+      for (let y = 0; y < 512; y++) { let row = false; for (let x = 0; x < 512; x++) if (data[(y * 512 + x) * 4] > 60) { pixels++; row = true; } if (row) rows++; }
+      return { pixels, rows };
+    };
+    const retained = count(), original = material.onBeforeCompile, key = material.customProgramCacheKey.bind(material);
+    material.onBeforeCompile = (shader, renderer) => {
+      original.call(material, shader, renderer);
+      shader.fragmentShader = shader.fragmentShader.replace('float saLine = max(saMinor, max(saMajor, saCoarse));', 'float saLine = saMinor;');
+    };
+    material.customProgramCacheKey = () => key() + '_single-band-control'; material.needsUpdate = true;
+    const singleBand = count();
+    style.set({ ...defaults }); const disabled = count();
+    geometry.dispose(); material.dispose(); renderer.dispose(); renderer.domElement.remove();
+    return { retained, singleBand, disabled };
+  });
+  console.log(JSON.stringify({ results, coverage, errors }, null, 2));
   for (const r of results) {
     assert.ok(r.labels > 0 && r.sloped > 80, 'must render real text');
     assert.ok(r.sloped >= r.unrestricted * 0.98, 'slope depth must preserve full glyphs');
@@ -68,5 +99,9 @@ try {
     assert.equal(r.occluded, 0, 'foreground terrain must hide labels');
     assert.equal(r.disabled, 0, 'disabling contours must hide labels');
   }
+  assert.ok(coverage.retained.pixels > 5000 && coverage.retained.rows > 30, 'dense intervals must retain a continuous index skeleton');
+  assert.ok(coverage.retained.pixels < 512 * 512 / 2, 'unresolved lines must not wash the entire slope with contour color');
+  assert.equal(coverage.singleBand.pixels, 0, 'the previous shared-band fade must fail this dense fixture');
+  assert.equal(coverage.disabled.pixels, 0);
   assert.deepEqual(errors, []);
 } finally { await browser.close(); await server.close(); }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { injectTerrainContours } from './TerrainContours.js';
+import { automaticContourInterval } from './ContourIntervals.js';
 import { bodyFixedToGeodetic, type TerrainDatum } from './TerrainSampler.js';
 
 export type SurfaceBaseColor = 'imagery' | 'elevation' | 'neutral';
@@ -102,6 +103,8 @@ export class SurfaceAppearance {
   private settings: SurfaceAppearanceSettings = { ...DEFAULT_SURFACE_APPEARANCE };
   private readonly meshes = new Map<THREE.Mesh, StyledMesh>();
   private readonly normalNodes = new Map<string, NormalNode>();
+  private autoContourIntervalKm = 0.1;
+  private nextContourIntervalUpdate = 0;
   private readonly uniforms = {
     saLight: { value: new THREE.Vector3() }, saContrast: { value: 1 },
     saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
@@ -121,6 +124,17 @@ export class SurfaceAppearance {
   get current(): SurfaceAppearanceSettings { return { ...this.settings }; }
   get active(): boolean { return !!this.settings.contours || this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
 
+  /** Actual interval shared by every tile shader and contour path labels. */
+  get contourIntervalKm(): number { return this.uniforms.saContourIntervalKm.value; }
+
+  updateContourInterval(camera: THREE.Camera, width: number, height: number, sources: THREE.Mesh[]): void {
+    if (!this.settings.contours || this.settings.contourIntervalKm || performance.now() < this.nextContourIntervalUpdate) return;
+    this.autoContourIntervalKm = automaticContourInterval(camera, width, height, sources,
+      this.settings.contourDensity ?? 1, this.autoContourIntervalKm);
+    this.uniforms.saContourIntervalKm.value = this.autoContourIntervalKm;
+    this.nextContourIntervalUpdate = performance.now() + 250;
+  }
+
   /** Original terrain only. Cube imagery may hide its source mesh while drawing
    * clipped children; the tile scene, rather than that mesh, owns visibility. */
   contourSources(): THREE.Mesh[] {
@@ -139,6 +153,7 @@ export class SurfaceAppearance {
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
     this.settings = normalizeSurfaceAppearance(settings);
+    this.nextContourIntervalUpdate = 0;
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
@@ -204,7 +219,7 @@ export class SurfaceAppearance {
   }
 
   private key(): string {
-    return this.active ? `_surface_v8_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
+    return this.active ? `_surface_v9_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -438,7 +453,7 @@ export class SurfaceAppearance {
     this.uniforms.saContourColor.value.set(s.contourColor ?? '#f2e6c9');
     this.uniforms.saContourOpacity.value = s.contourOpacity ?? 0.35;
     this.uniforms.saContourDensity.value = s.contourDensity ?? 1;
-    this.uniforms.saContourIntervalKm.value = s.contourIntervalKm ?? 0;
+    this.uniforms.saContourIntervalKm.value = s.contourIntervalKm || this.autoContourIntervalKm;
     this.uniforms.saContrast.value = s.contrast;
     this.uniforms.saImageryAmount.value = s.imageryAmount;
     this.uniforms.saRange.value.set(s.minKm, s.maxKm);

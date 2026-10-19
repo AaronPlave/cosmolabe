@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { contourAnchor, formatContourHeight, TerrainContourLabels } from '../TerrainContourLabels.js';
 import { DEFAULT_SURFACE_APPEARANCE as defaults, normalizeSurfaceAppearance, SurfaceAppearance } from '../SurfaceAppearance.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 const a = new THREE.Vector3(0, 0, 0), b = new THREE.Vector3(10, 0, 0), c = new THREE.Vector3(0, 10, 0);
 
@@ -83,5 +83,26 @@ describe('terrain contour labels', () => {
     expect(labels.group.visible).toBe(false);
     const texture = visible[0].material.map!, dispose = vi.spyOn(texture, 'dispose');
     labels.dispose(); expect(dispose).toHaveBeenCalledOnce(); expect(labels.group.children).toHaveLength(0);
+  });
+
+  it('labels each visible index path without a global count cap and follows its tangent', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ strokeText() {}, fillText() {} }) }) });
+    vi.spyOn(performance, 'now').mockReturnValue(0); // complete a static fixture without preparation yielding
+    const geometry = new THREE.PlaneGeometry(1200, 1000, 1, 40), p = geometry.getAttribute('position');
+    geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getY(i) * 0.01), 1));
+    const mesh = new THREE.Mesh(geometry), labels = new TerrainContourLabels();
+    const camera = new THREE.OrthographicCamera(-600, 600, 500, -500, 0.1, 10000); camera.position.z = 1000; camera.lookAt(0, 0, 0);
+    const settings = { ...defaults, contours: true, contourLabels: true, contourIntervalKm: 0.1 };
+    labels.update(camera, 1200, 1000, [mesh], settings);
+    const visible = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
+    expect(visible).toHaveLength(19);
+    expect(new Set(visible.map(s => s.userData.text)).size).toBe(19);
+    for (const sprite of visible) expect(Math.abs(parseInt(sprite.userData.text) % 500)).toBe(0);
+    mesh.rotation.z = 0.4;
+    labels.update(camera, 1200, 1000, [mesh], settings);
+    const rotated = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
+    expect(rotated.length).toBeGreaterThan(0);
+    for (const sprite of rotated) expect(sprite.material.rotation).toBeCloseTo(0.4, 6);
+    labels.dispose();
   });
 });

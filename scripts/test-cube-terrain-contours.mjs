@@ -100,6 +100,7 @@ try {
     const gl = renderer.getContext(), captures = [];
     function render(name) {
       group.updateMatrixWorld(true); manager.surfaceStyle.update(Infinity);
+      manager.surfaceStyle.updateContourInterval(camera, 800, 600, manager.surfaceStyle.contourSources());
       layer.update(camera, group.matrixWorld, 2 * Math.tan(Math.PI / 9) / 600, renderer); renderer.render(scene, camera);
       const pixels = new Uint8Array(800 * 600 * 4); gl.readPixels(0, 0, 800, 600, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       if (name) captures.push({ name, png: renderer.domElement.toDataURL() }); return pixels;

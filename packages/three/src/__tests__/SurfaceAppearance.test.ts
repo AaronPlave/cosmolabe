@@ -69,11 +69,11 @@ describe('surface appearance physical and material contracts', () => {
     style.update(Infinity);
     const shader = compile(tile.material), fs = shader.fragmentShader;
     expect(shader.uniforms).toHaveProperty('imagerySentinel');
-    expect(fs.indexOf('vec3 saTint')).toBeLessThan(fs.indexOf('float saFootprint'));
-    expect(fs.indexOf('#include <lights_physical_fragment>')).toBeLessThan(fs.indexOf('float saFootprint'));
+    expect(fs.indexOf('vec3 saTint')).toBeLessThan(fs.indexOf('float saDelta'));
+    expect(fs.indexOf('#include <lights_physical_fragment>')).toBeLessThan(fs.indexOf('float saDelta'));
     expect(fs.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(fs.indexOf('AerialPerspectiveResult _ap'));
-    expect(fs.indexOf('outgoingLight *= computeEclipseShadow()')).toBeLessThan(fs.indexOf('float saFootprint'));
-    expect(fs.indexOf('outgoingLight = outgoingLight * _ap.transmittance')).toBeLessThan(fs.indexOf('float saFootprint'));
+    expect(fs.indexOf('outgoingLight *= computeEclipseShadow()')).toBeLessThan(fs.indexOf('float saDelta'));
+    expect(fs.indexOf('outgoingLight = outgoingLight * _ap.transmittance')).toBeLessThan(fs.indexOf('float saDelta'));
     expect(fs.indexOf('outgoingLight = mix(outgoingLight, saContourColor')).toBeLessThan(fs.indexOf('#include <opaque_fragment>'));
     expect(shader.vertexShader.match(/attribute float surfaceHeightKm/g)).toHaveLength(1);
     // Styling settings on one body cannot bleed into another.

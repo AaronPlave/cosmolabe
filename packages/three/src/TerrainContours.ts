@@ -1,56 +1,40 @@
 /** Narrow adaptation of 3d-tiles-renderer v0.4.27's example
- * wrapTopoLineMaterial.js (NASA-AMMOS, Apache-2.0): derivative AA,
- * decade spacing, two blended scales and emphasized tenth lines.
- * Uses SurfaceAppearance's datum-aware heights in km, not upstream's
- * world-space ellipsoid conversion. No cartographic/grid component.
+ * wrapTopoLineMaterial.js (NASA-AMMOS, Apache-2.0): derivative antialiasing.
+ * Intervals and index contours are shared with the CPU path labels.
  */
 export function injectTerrainContours(shader: { vertexShader: string; fragmentShader: string }): void {
-  shader.vertexShader = `attribute float surfaceGround; uniform mat4 saContourLocalToBody;
-varying float vSAContourGround; varying vec3 vSAContourPoint;
-` + shader.vertexShader;
-  // Translation is deliberately excluded: derivatives need only the footprint,
-  // and retaining small tile-local values avoids globe/floating-origin jitter.
-  shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-vSAContourPoint = mat3(saContourLocalToBody) * position * 0.001;
-vSAContourGround = surfaceGround;`);
+  shader.vertexShader = 'attribute float surfaceGround; varying float vSAContourGround;\n' + shader.vertexShader;
+  shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSAContourGround = surfaceGround;');
   shader.fragmentShader = `
-varying float vSAContourGround; varying vec3 vSAContourPoint;
-uniform vec3 saContourColor; uniform float saContourOpacity, saContourDensity, saContourIntervalKm;
-float saContourLine(float height, float delta, float spacing) {
-  float index = floor(height / spacing + 0.5);
-  float major = 1.0 - step(0.5, abs(index - 10.0 * floor(index / 10.0 + 0.5)));
-  float distanceToLine = abs(height - index * spacing);
-  float width = mix(0.55, 1.0, major);
+varying float vSAContourGround;
+uniform vec3 saContourColor; uniform float saContourOpacity, saContourIntervalKm;
+float saContourLine(float height, float delta, float spacing, float width) {
+  float distanceToLine = abs(height - floor(height / spacing + 0.5) * spacing);
   float line = 1.0 - smoothstep(delta * max(0.0, width - 0.5), delta * (width + 0.5), distanceToLine);
-  // Fade unresolved bands and constant-height plateaus rather than tinting
-  // whole faces. smoothstep edges are ordered (unlike upstream's reversed AA).
-  return line * mix(0.5, 1.0, major) * (1.0 - smoothstep(spacing * 0.2, spacing * 0.5, delta));
+  // Finish fading before the AA support overlaps the entire period; otherwise
+  // wide index lines turn an unresolved slope into a solid color wash.
+  float limit = spacing / (2.0 * (width + 0.5));
+  return line * (1.0 - smoothstep(limit * 0.45, limit * 0.9, delta));
 }
 ` + shader.fragmentShader;
-  // An unlit map annotation over the displayed terrain radiance. Compose after
-  // Sun/hillshade, eclipse and aerial perspective, before output conversion and
-  // the existing fog/fade/debug hooks. No extra draw or depth offset.
+  // Unlit annotation after Sun/hillshade, eclipse and aerial perspective,
+  // before output conversion and the existing fog/fade/debug hooks.
   shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
-float saFootprint = max(length(dFdx(vSAContourPoint)), length(dFdy(vSAContourPoint)));
-// Keep automatic intervals useful for planetary relief at globe scale. An
-// unbounded horizontal footprint selects 10–100 km bands, skipping entire
-// basins whose loaded heights all lie between those levels. This smooth limit
-// retains close-up spacing and approaches 1 km minor lines at default density.
-float saScreenTarget = saFootprint * 1.75;
-float saTarget = max(0.000001, (saScreenTarget / (1.0 + saScreenTarget / 0.2)) / saContourDensity);
-float saLogStep = log(saTarget) / log(10.0);
-float saStep = pow(10.0, ceil(saLogStep));
-float saBlend = 1.0 - smoothstep(0.75, 1.0, fract(saLogStep));
-if (saContourIntervalKm > 0.0) { saStep = saContourIntervalKm; saBlend = 1.0; }
-float saDelta = length(vec2(dFdx(vSAHeight), dFdy(vSAHeight)));
-float saLine = mix(saContourLine(vSAHeight, max(saDelta, 1e-8), saStep * 10.0),
-                   saContourLine(vSAHeight, max(saDelta, 1e-8), saStep), saBlend);
-// Spacing already adapts to distance. An absolute footprint cutoff creates
-// a circular coverage boundary on otherwise valid, globally loaded terrain.
+float saDelta = max(length(vec2(dFdx(vSAHeight), dFdy(vSAHeight))), 1e-8);
+float saStep = max(saContourIntervalKm, 0.000001);
+float saMajorStep = saStep * 5.0;
+float saMinor = saContourLine(vSAHeight, saDelta, saStep, 0.55) * 0.55;
+float saMajor = saContourLine(vSAHeight, saDelta, saMajorStep, 1.0);
+// Filter minor and index lines independently. The old filter extinguished
+// both at dense intervals, creating islands of contour coverage on slopes.
+// Nested multiples of five retain a resolvable index skeleton at grazing
+// angles, without turning subpixel periodic lines into a solid terrain tint.
+float saCoarseStep = saMajorStep * pow(5.0, max(0.0, ceil(log(max(1.0, saDelta * 4.0 / saMajorStep)) / log(5.0))));
+float saCoarse = saContourLine(vSAHeight, saDelta, saCoarseStep, 1.0);
+float saLine = max(saMinor, max(saMajor, saCoarse));
 float saFade = smoothstep(1e-8, 1e-7, saDelta);
-// Skirts share their top vertices with the ground. A value threshold alone
-// admits a thin, dashed strip at that edge. Ground triangles have a constant
-// mask; reject the varying mask on skirt faces, including their top edge.
+// Skirts share top vertices with ground. Reject the varying mask on their
+// faces so a threshold alone cannot admit a dashed strip at the top edge.
 float saGround = step(0.999, vSAContourGround) * (1.0 - step(1e-6, fwidth(vSAContourGround)));
 outgoingLight = mix(outgoingLight, saContourColor,
   saLine * saFade * saContourOpacity * saGround);

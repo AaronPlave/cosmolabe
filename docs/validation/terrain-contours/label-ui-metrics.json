@@ -8,7 +8,7 @@
     "fixed interval and labels",
     "per-body isolation",
     "selection persistence",
-    "automatic spacing disables labels and restores density",
+    "automatic spacing retains labels and restores density",
     "disabled control collapse"
   ],
   "scope": "UI only, no terrain geometry"

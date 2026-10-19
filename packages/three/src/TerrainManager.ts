@@ -620,6 +620,7 @@ export class TerrainManager {
   private cubeStyleHeightRange: readonly [number, number] | null = null;
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
+  get surfaceContourIntervalKm(): number | null { return this.surfaceStyle?.contourIntervalKm ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
   setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.surfaceStyle?.set(settings); }
   readonly tiles: TilesRenderer;
@@ -1319,8 +1320,11 @@ export class TerrainManager {
     if (this.surfaceStyle) {
       const size = renderer.getSize(_bufferSize);
       const settings = this.surfaceStyle.current;
+      const sources = settings.contours ? this.surfaceStyle.contourSources() : [];
+      this.surfaceStyle.updateContourInterval(camera, size.x, size.y, sources);
       this.contourLabels.update(camera, size.x, size.y,
-        settings.contours && settings.contourLabels ? this.surfaceStyle.contourSources() : [], settings, this.debugMode === 'none', labelObstacles);
+        settings.contourLabels ? sources : [], { ...settings, contourIntervalKm: this.surfaceStyle.contourIntervalKm },
+        this.debugMode === 'none', labelObstacles);
     }
   }
 

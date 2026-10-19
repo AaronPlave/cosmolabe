@@ -119,7 +119,7 @@ describe('CubeImageryLayer', () => {
       material.onBeforeCompile(shader as never, undefined as never);
       expect(shader.fragmentShader).toContain('cubeImageryTexel');
       expect(shader.fragmentShader).toContain('saContourLine');
-      expect(shader.fragmentShader.indexOf('float saFootprint')).toBeGreaterThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor'));
+      expect(shader.fragmentShader.indexOf('float saDelta')).toBeGreaterThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor'));
     }
     style.set({ ...DEFAULT_SURFACE_APPEARANCE }); tick();
     expect(blocks().length).toBeGreaterThan(0);

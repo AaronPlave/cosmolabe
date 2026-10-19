@@ -3,43 +3,57 @@
     {
       "logarithmicDepthBuffer": false,
       "orthographic": false,
-      "labels": 7,
-      "sloped": 1343,
-      "unrestricted": 1343,
+      "labels": 1,
+      "sloped": 92,
+      "unrestricted": 92,
       "occluded": 0,
-      "flat": 937,
+      "flat": 50,
       "disabled": 0
     },
     {
       "logarithmicDepthBuffer": false,
       "orthographic": true,
-      "labels": 12,
-      "sloped": 2376,
-      "unrestricted": 2376,
+      "labels": 1,
+      "sloped": 94,
+      "unrestricted": 94,
       "occluded": 0,
-      "flat": 1492,
+      "flat": 50,
       "disabled": 0
     },
     {
       "logarithmicDepthBuffer": true,
       "orthographic": false,
-      "labels": 7,
-      "sloped": 1343,
-      "unrestricted": 1343,
+      "labels": 1,
+      "sloped": 92,
+      "unrestricted": 92,
       "occluded": 0,
-      "flat": 854,
+      "flat": 50,
       "disabled": 0
     },
     {
       "logarithmicDepthBuffer": true,
       "orthographic": true,
-      "labels": 12,
-      "sloped": 2376,
-      "unrestricted": 2376,
+      "labels": 1,
+      "sloped": 94,
+      "unrestricted": 94,
       "occluded": 0,
-      "flat": 1492,
+      "flat": 50,
       "disabled": 0
     }
   ],
+  "coverage": {
+    "retained": {
+      "pixels": 57344,
+      "rows": 112
+    },
+    "singleBand": {
+      "pixels": 0,
+      "rows": 0
+    },
+    "disabled": {
+      "pixels": 0,
+      "rows": 0
+    }
+  },
   "errors": []
 }
