@@ -1,0 +1,308 @@
+{
+  "views": {
+    "close": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 248,
+          "lastMs": 0.4000000059604645,
+          "meanMs": 0.4049999999503295,
+          "maxMs": 0.5999999940395355
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 141,
+          "visible": 122,
+          "drawn": 48,
+          "inCache": 236,
+          "cpu": 144
+        },
+        "network": {
+          "requests": 236,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 37727904,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 62065292,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 176,
+        "pinnedTextures": 30,
+        "textureBytes": 65421312,
+        "maxTextureBytes": 167772160,
+        "requests": 176,
+        "bytes": 3672014,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 357.70000010728836,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 9913628,
+        "tiles": 48,
+        "splitTiles": 27,
+        "blocks": 135,
+        "displayedLevels": {
+          "1": 2,
+          "3": 17,
+          "5": 1,
+          "6": 7,
+          "7": 21,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "wantedLevels": {
+          "3": 3,
+          "4": 3,
+          "5": 6,
+          "6": 14,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 87,
+        "updateMs": 0.5
+      },
+      "visible": 122
+    },
+    "far": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 523,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.3100000016391277,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 108,
+          "visible": 108,
+          "drawn": 34,
+          "inCache": 318,
+          "cpu": 147
+        },
+        "network": {
+          "requests": 318,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 50836752,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 80992764,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 303,
+        "pinnedTextures": 30,
+        "textureBytes": 112628736,
+        "maxTextureBytes": 167772160,
+        "requests": 303,
+        "bytes": 7011754,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 532.3000001907349,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 9883812,
+        "tiles": 34,
+        "splitTiles": 27,
+        "blocks": 118,
+        "displayedLevels": {
+          "2": 12,
+          "3": 39,
+          "4": 35,
+          "5": 32
+        },
+        "wantedLevels": {
+          "2": 12,
+          "3": 39,
+          "4": 35,
+          "5": 32
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 84,
+        "updateMs": 0.29999998211860657
+      },
+      "visible": 108
+    },
+    "globe": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 808,
+          "lastMs": 0,
+          "meanMs": 0.09666666835546493,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 18,
+          "visible": 18,
+          "drawn": 17,
+          "inCache": 318,
+          "cpu": 149
+        },
+        "network": {
+          "requests": 318,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 50836752,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 75322296,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 332,
+        "pinnedTextures": 30,
+        "textureBytes": 123408384,
+        "maxTextureBytes": 167772160,
+        "requests": 332,
+        "bytes": 7716560,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 636.4000002145767,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 5540904,
+        "tiles": 17,
+        "splitTiles": 15,
+        "blocks": 68,
+        "displayedLevels": {
+          "1": 39,
+          "2": 29
+        },
+        "wantedLevels": {
+          "1": 39,
+          "2": 29
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 2,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 51,
+        "updateMs": 0.19999998807907104
+      },
+      "visible": 18
+    }
+  },
+  "assets": {
+    "total": 8,
+    "settled": 8,
+    "loaded": 8,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 2938.399999976158
+  },
+  "errors": [],
+  "failures": []
+}

@@ -53,9 +53,9 @@ try {
       loader.skirtLength = 10;
       return loader.parse(await (await fetch(`/packages/three/src/__tests__/fixtures/marshub-${z}-${x}-${y}.terrain`)).arrayBuffer());
     }
-    for (const body of ['Mars', 'Moon-synthetic-pole']) {
+    for (const body of ['Mars', 'Moon-synthetic-pole', 'Moon-synthetic-globe']) {
       const scene = new THREE.Scene(), group = new THREE.Group(); scene.add(group);
-      scene.add(new THREE.AmbientLight(0xffffff, 2));
+      const ambient = new THREE.AmbientLight(0xffffff, 2); scene.add(ambient);
       const sun = new THREE.DirectionalLight(0xffffff, 0.3); sun.position.set(1e7, 1e7, -1e7); scene.add(sun);
       const shadows = makeShadowUniforms();
       // Compile the real eclipse/AP chain. Optical parameters stay disabled:
@@ -68,6 +68,20 @@ try {
         const parent = await marsTile(13, 11716, 4935); parents.push(parent);
         center = parent.position.clone(); up = center.clone().normalize();
         for (const x of [23432, 23433]) for (const y of [9870, 9871]) children.push(await marsTile(14, x, y));
+      } else if (body === 'Moon-synthetic-globe') {
+        // Analytic global relief, not lunar observations. At this camera scale
+        // every ground pixel exceeds the former 0.5 km footprint cutoff.
+        const geometry = new THREE.SphereGeometry(1737400, 256, 128), p = geometry.getAttribute('position');
+        const direction = new THREE.Vector3();
+        for (let i = 0; i < p.count; i++) {
+          direction.fromBufferAttribute(p, i).normalize();
+          const lon = Math.atan2(direction.y, direction.x), lat = Math.asin(direction.z);
+          const height = 6000 * Math.sin(8 * lon) * Math.cos(lat) + 3000 * Math.sin(12 * lat);
+          p.setXYZ(i, direction.x * (1737400 + height), direction.y * (1737400 + height), direction.z * (1737400 + height));
+        }
+        geometry.computeVertexNormals();
+        center = new THREE.Vector3(); up = new THREE.Vector3(0, 0, 1);
+        parents.push(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial()));
       } else {
         const geometry = new THREE.PlaneGeometry(10000, 10000, 80, 80), p = geometry.getAttribute('position');
         center = new THREE.Vector3(0, 0, -1737400); up = new THREE.Vector3(0, 0, -1);
@@ -106,6 +120,15 @@ try {
       let changed = 0; for (let i = 0; i < off.length; i += 4) if (Math.abs(off[i] - on[i]) > 2) changed++;
       result[body] = { changedPixels: changed };
       render('combined', { contours: true, baseColor: 'elevation', hillshade: true });
+      // On fully dark terrain the old diffuse-color injection produced no
+      // visible lines. An annotation must survive absence of incident light.
+      ambient.intensity = 0; sun.intensity = 0;
+      const dark = render('dark-off', {});
+      const darkContours = render('dark-contours', { contours: true, contourColor: '#ff0000', contourOpacity: 1 });
+      let darkChanged = 0;
+      for (let i = 0; i < dark.length; i += 4) if (darkContours[i] > dark[i] + 10) darkChanged++;
+      result[body].darkContourPixels = darkChanged;
+      ambient.intensity = 2; sun.intensity = 0.3;
       if (body === 'Mars') {
         parents.forEach(m => { m.visible = false; });
         children.forEach(m => { m.visible = true; }); render('children', { contours: true });
@@ -141,8 +164,9 @@ try {
   results.errors = errors;
   await writeFile(`${output}/metrics.json`, JSON.stringify(results, null, 2));
   assert.deepEqual(errors, []);
-  for (const body of ['Mars', 'Moon-synthetic-pole']) {
+  for (const body of ['Mars', 'Moon-synthetic-pole', 'Moon-synthetic-globe']) {
     assert.ok(results[body].changedPixels > 100, JSON.stringify(results));
+    assert.ok(results[body].darkContourPixels > 100, JSON.stringify(results));
     assert.ok(results[body].restored, `${body} disabled shader did not restore original pixels`);
     assert.equal(results[body].heightAttributesAfterDisable, 0);
   }

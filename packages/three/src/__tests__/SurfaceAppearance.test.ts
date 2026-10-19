@@ -54,7 +54,7 @@ describe('surface appearance physical and material contracts', () => {
     expect(compile(tile.material).fragmentShader).toContain('step(0.999, vSAContourGround)');
   });
 
-  it('composes contours after imagery and tint, before lighting and aerial perspective', () => {
+  it('composes unlit contours after terrain lighting, eclipse and aerial perspective', () => {
     const style = new SurfaceAppearance(datum), tile = mesh();
     tile.material.onBeforeCompile = shader => {
       shader.uniforms.imagerySentinel = { value: 1 };
@@ -67,8 +67,11 @@ describe('surface appearance physical and material contracts', () => {
     const shader = compile(tile.material), fs = shader.fragmentShader;
     expect(shader.uniforms).toHaveProperty('imagerySentinel');
     expect(fs.indexOf('vec3 saTint')).toBeLessThan(fs.indexOf('float saFootprint'));
-    expect(fs.indexOf('float saFootprint')).toBeLessThan(fs.indexOf('#include <lights_physical_fragment>'));
+    expect(fs.indexOf('#include <lights_physical_fragment>')).toBeLessThan(fs.indexOf('float saFootprint'));
     expect(fs.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(fs.indexOf('AerialPerspectiveResult _ap'));
+    expect(fs.indexOf('outgoingLight *= computeEclipseShadow()')).toBeLessThan(fs.indexOf('float saFootprint'));
+    expect(fs.indexOf('outgoingLight = outgoingLight * _ap.transmittance')).toBeLessThan(fs.indexOf('float saFootprint'));
+    expect(fs.indexOf('outgoingLight = mix(outgoingLight, saContourColor')).toBeLessThan(fs.indexOf('#include <opaque_fragment>'));
     expect(shader.vertexShader.match(/attribute float surfaceHeightKm/g)).toHaveLength(1);
     // Styling settings on one body cannot bleed into another.
     expect(new SurfaceAppearance(datum).current.contours).toBe(false);

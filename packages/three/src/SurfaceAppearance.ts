@@ -183,7 +183,7 @@ export class SurfaceAppearance {
   }
 
   private key(): string {
-    return this.active ? `_surface_v5_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
+    return this.active ? `_surface_v6_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,

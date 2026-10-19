@@ -27,9 +27,10 @@ float saContourLine(float height, float delta, float spacing) {
   return line * mix(0.5, 1.0, major) * (1.0 - smoothstep(spacing * 0.2, spacing * 0.5, delta));
 }
 ` + shader.fragmentShader;
-  // After imagery and optional elevation tint, before physical lighting,
-  // eclipse shadows and aerial perspective. No extra draw or depth offset.
-  shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
+  // An unlit map annotation over the displayed terrain radiance. Compose after
+  // Sun/hillshade, eclipse and aerial perspective, before output conversion and
+  // the existing fog/fade/debug hooks. No extra draw or depth offset.
+  shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
 float saFootprint = max(length(dFdx(vSAContourPoint)), length(dFdy(vSAContourPoint)));
 float saTarget = max(0.000001, saFootprint * 1.75 / saContourDensity);
 float saLogStep = log(saTarget) / log(10.0);
@@ -38,8 +39,10 @@ float saBlend = 1.0 - smoothstep(0.75, 1.0, fract(saLogStep));
 float saDelta = length(vec2(dFdx(vSAHeight), dFdy(vSAHeight)));
 float saLine = mix(saContourLine(vSAHeight, max(saDelta, 1e-8), saStep * 10.0),
                    saContourLine(vSAHeight, max(saDelta, 1e-8), saStep), saBlend);
-float saFade = (1.0 - smoothstep(0.35, 0.5, saTarget)) * smoothstep(1e-8, 1e-7, saDelta);
-diffuseColor.rgb = mix(diffuseColor.rgb, saContourColor,
+// Spacing already adapts to distance. An absolute footprint cutoff creates
+// a circular coverage boundary on otherwise valid, globally loaded terrain.
+float saFade = smoothstep(1e-8, 1e-7, saDelta);
+outgoingLight = mix(outgoingLight, saContourColor,
   saLine * saFade * saContourOpacity * step(0.999, vSAContourGround));
-#include <roughnessmap_fragment>`);
+#include <opaque_fragment>`);
 }

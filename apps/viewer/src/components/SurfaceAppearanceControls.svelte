@@ -65,7 +65,7 @@
           <label class="control-row"><span>Density</span>
             <input aria-label="Contour density" type="range" min="0.25" max="4" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
           </label>
-          <p class="ui-meta text-text-muted my-1">Visual elevation bands with automatic spacing as you zoom. Loaded mesh only; no precise elevation labels.</p>
+          <p class="ui-meta text-text-muted my-1">Unlit elevation lines with automatic spacing as you zoom. Heights follow the loaded mesh and body reference; numeric line labels are not yet available.</p>
         {/if}
         <label class="control-row">
           <span>Hillshade effect</span>
