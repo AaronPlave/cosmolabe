@@ -1,0 +1,2555 @@
+{
+  "results": [
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Earth orbit",
+      "visible": true,
+      "backend": "none",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 218,
+          "lastMs": 0,
+          "meanMs": 0.044166667262713115,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 219,
+          "lastMicros": 0,
+          "meanMicros": 0.9132419546989545
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.800000000000182
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.4000000059604645,
+        "p95": 0.5999999940395355
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.412083,
+        "p95": 0.496666
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 5
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Europe and Africa",
+      "visible": true,
+      "backend": "none",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 434,
+          "lastMs": 0,
+          "meanMs": 0.035833334426085155,
+          "maxMs": 0.19999998807907104
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 435,
+          "lastMicros": 0,
+          "meanMicros": 0.6896551998182275
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.4000000059604645,
+        "p95": 0.5
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.981083,
+        "p95": 0.984125
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 5
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Pacific dateline",
+      "visible": true,
+      "backend": "none",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 651,
+          "lastMs": 0,
+          "meanMs": 0.042499999453624086,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 652,
+          "lastMicros": 0,
+          "meanMicros": 0.6134969873662375
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5,
+        "p95": 0.6000000238418579
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.291499,
+        "p95": 1.563625
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 14,
+      "triangles": 60806,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Antarctica",
+      "visible": true,
+      "backend": "none",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 866,
+          "lastMs": 0,
+          "meanMs": 0.027500000347693763,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 867,
+          "lastMicros": 0,
+          "meanMicros": 0.8073818312384266
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.30000001192092896,
+        "p95": 0.4000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.176375,
+        "p95": 1.406791
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Rhine close",
+      "visible": true,
+      "backend": "none",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1082,
+          "lastMs": 0,
+          "meanMs": 0.023333333184321722,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1083,
+          "lastMicros": 0,
+          "meanMicros": 0.9233610616826615
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.29999998211860657,
+        "p95": 0.4000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.405583,
+        "p95": 1.406874
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Earth orbit",
+      "visible": false,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 215,
+          "lastMs": 0,
+          "meanMs": 0.025833333283662795,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 216,
+          "lastMicros": 0,
+          "meanMicros": 2.3148149527885296
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.800000000000182
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.4000000059604645,
+        "p95": 0.5
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.873166,
+        "p95": 0.9865
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 5
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Earth orbit",
+      "visible": true,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 14,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 2,
+        "offsetVertices": 0,
+        "textureBytes": 13504064
+      },
+      "terrain": {
+        "update": {
+          "count": 332,
+          "lastMs": 0,
+          "meanMs": 0.025833333283662795,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 344,
+          "lastMicros": 0,
+          "meanMicros": 1.7441861158193543
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5,
+        "p95": 0.9000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 5.011874,
+        "p95": 6.109374
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 18,
+      "triangles": 64802,
+      "totalTextures": 13
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Europe and Africa",
+      "visible": false,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 548,
+          "lastMs": 0,
+          "meanMs": 0.02583333452542623,
+          "maxMs": 0.19999998807907104
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 568,
+          "lastMicros": 0,
+          "meanMicros": 1.056338070144116
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.3999999761581421,
+        "p95": 0.5
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.991625,
+        "p95": 1.420666
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 5
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Europe and Africa",
+      "visible": true,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 14,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 2,
+        "offsetVertices": 0,
+        "textureBytes": 13503936
+      },
+      "terrain": {
+        "update": {
+          "count": 665,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.027500000099341074,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 696,
+          "lastMicros": 0,
+          "meanMicros": 0.8620689997727844
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5,
+        "p95": 0.7999999821186066
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 4.703249,
+        "p95": 6.194166
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 18,
+      "triangles": 64802,
+      "totalTextures": 13
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Pacific dateline",
+      "visible": false,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 882,
+          "lastMs": 0,
+          "meanMs": 0.0375,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 921,
+          "lastMicros": 0,
+          "meanMicros": 1.0857763947933168
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5,
+        "p95": 0.5999999940395355
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.791708,
+        "p95": 2.837375
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 14,
+      "triangles": 60806,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Pacific dateline",
+      "visible": true,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 12,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 2,
+        "offsetVertices": 0,
+        "textureBytes": 12910592
+      },
+      "terrain": {
+        "update": {
+          "count": 999,
+          "lastMs": 0,
+          "meanMs": 0.03416666810711225,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1049,
+          "lastMicros": 0,
+          "meanMicros": 0.9532889033409387
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.80000000000291
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5999999940395355,
+        "p95": 0.9000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 4.299624,
+        "p95": 7.72675
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 26,
+      "triangles": 109406,
+      "totalTextures": 15
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Antarctica",
+      "visible": false,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1215,
+          "lastMs": 0,
+          "meanMs": 0.029166668156782784,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1272,
+          "lastMicros": 0,
+          "meanMicros": 0.8647799163869342
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.30000001192092896,
+        "p95": 0.4000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.636333,
+        "p95": 1.207916
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Antarctica",
+      "visible": true,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 14,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 2,
+        "offsetVertices": 0,
+        "textureBytes": 14172160
+      },
+      "terrain": {
+        "update": {
+          "count": 1332,
+          "lastMs": 0,
+          "meanMs": 0.032499999304612476,
+          "maxMs": 0.19999998807907104
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1400,
+          "lastMicros": 0,
+          "meanMicros": 1.0000000255448478
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.4000000059604645,
+        "p95": 0.800000011920929
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 6.411416,
+        "p95": 7.638875
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 18,
+      "triangles": 64802,
+      "totalTextures": 19
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Rhine close",
+      "visible": false,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1546,
+          "lastMs": 0,
+          "meanMs": 0.03333333407839139,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1622,
+          "lastMicros": 0,
+          "meanMicros": 0.8631319579302015
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.30000001192092896,
+        "p95": 0.5
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.435083,
+        "p95": 1.474041
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 4,
+      "triangles": 8102,
+      "totalTextures": 11
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Rhine close",
+      "visible": true,
+      "backend": "vector",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 0,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 0,
+      "rasterCpuMs": 0,
+      "rasterTextures": 0,
+      "rasterTextureBytes": 0,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 14,
+        "drawPages": 6,
+        "batches": 1,
+        "surfaceMeshes": 2,
+        "offsetVertices": 0,
+        "textureBytes": 13504064
+      },
+      "terrain": {
+        "update": {
+          "count": 1662,
+          "lastMs": 0,
+          "meanMs": 0.03500000014901161,
+          "maxMs": 0.10000002384185791
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1749,
+          "lastMicros": 0,
+          "meanMicros": 0.8576329501442667
+        },
+        "tiles": {
+          "active": 2,
+          "visible": 2,
+          "drawn": 2,
+          "inCache": 2,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 2,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 2281176,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 184024,
+          "textureBytes": 2097152
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999709,
+        "p95": 33.29999999999927
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.4000000059604645,
+        "p95": 0.800000011920929
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 16.687333,
+        "p95": 16.967874
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 18,
+      "triangles": 64802,
+      "totalTextures": 19
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Earth orbit",
+      "visible": false,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 30,
+      "rasterCpuMs": 3.5000000596046448,
+      "rasterTextures": 30,
+      "rasterTextureBytes": 7864320,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 217,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.2249999982615312,
+          "maxMs": 0.5999999940395355
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 218,
+          "lastMicros": 0,
+          "meanMicros": 0.4587157056965959
+        },
+        "tiles": {
+          "active": 23,
+          "visible": 23,
+          "drawn": 23,
+          "inCache": 30,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 30,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 40058332,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 736732,
+          "textureBytes": 18350080
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.799999999999727
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.0999999940395355,
+        "p95": 1.9000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 0.935499,
+        "p95": 1.213125
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 25,
+      "triangles": 10246,
+      "totalTextures": 34
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Earth orbit",
+      "visible": true,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 30,
+      "rasterCpuMs": 3.5000000596046448,
+      "rasterTextures": 30,
+      "rasterTextureBytes": 7864320,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 337,
+          "lastMs": 0.20000001788139343,
+          "meanMs": 0.10833333383003871,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 338,
+          "lastMicros": 0,
+          "meanMicros": 0.2958580587037216
+        },
+        "tiles": {
+          "active": 23,
+          "visible": 23,
+          "drawn": 23,
+          "inCache": 30,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 30,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 40058332,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 736732,
+          "textureBytes": 18350080
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.699999999999818,
+        "p95": 16.800000000000182
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.5999999940395355,
+        "p95": 0.699999988079071
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.004458,
+        "p95": 1.128374
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 25,
+      "triangles": 10246,
+      "totalTextures": 34
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Europe and Africa",
+      "visible": false,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 74,
+      "rasterCpuMs": 5.900000095367432,
+      "rasterTextures": 74,
+      "rasterTextureBytes": 19398656,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 553,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.3175000021855036,
+          "maxMs": 0.9000000059604645
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 554,
+          "lastMicros": 0,
+          "meanMicros": 0.18050545819829947
+        },
+        "tiles": {
+          "active": 56,
+          "visible": 56,
+          "drawn": 56,
+          "inCache": 74,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 74,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 97996842,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1003562,
+          "textureBytes": 29884416
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.199999988079071,
+        "p95": 2.5999999940395355
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.174208,
+        "p95": 1.2575
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 58,
+      "triangles": 11950,
+      "totalTextures": 78
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Europe and Africa",
+      "visible": true,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 74,
+      "rasterCpuMs": 5.900000095367432,
+      "rasterTextures": 74,
+      "rasterTextureBytes": 19398656,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 673,
+          "lastMs": 0.10000002384185791,
+          "meanMs": 0.23333333432674408,
+          "maxMs": 0.9000000059604645
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 674,
+          "lastMicros": 0,
+          "meanMicros": 0.1483679878959316
+        },
+        "tiles": {
+          "active": 56,
+          "visible": 56,
+          "drawn": 56,
+          "inCache": 74,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 74,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 97996842,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1003562,
+          "textureBytes": 29884416
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 0.699999988079071,
+        "p95": 0.800000011920929
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.826374,
+        "p95": 1.911958
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 58,
+      "triangles": 11950,
+      "totalTextures": 78
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Pacific dateline",
+      "visible": false,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 138,
+      "rasterCpuMs": 8.600000083446503,
+      "rasterTextures": 138,
+      "rasterTextureBytes": 36175872,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 892,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.27999999970197675,
+          "maxMs": 0.4000000059604645
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 893,
+          "lastMicros": 0,
+          "meanMicros": 0.22396418575743945
+        },
+        "tiles": {
+          "active": 80,
+          "visible": 80,
+          "drawn": 80,
+          "inCache": 138,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 138,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 182154058,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1274698,
+          "textureBytes": 46661632
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999891,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.0999999940395355,
+        "p95": 1.300000011920929
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.510624,
+        "p95": 1.528875
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 91,
+      "triangles": 61534,
+      "totalTextures": 148
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Pacific dateline",
+      "visible": true,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 138,
+      "rasterCpuMs": 8.600000083446503,
+      "rasterTextures": 138,
+      "rasterTextureBytes": 36175872,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1012,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.2866666657229265,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1013,
+          "lastMicros": 0,
+          "meanMicros": 0.19743338389081286
+        },
+        "tiles": {
+          "active": 80,
+          "visible": 80,
+          "drawn": 80,
+          "inCache": 138,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 138,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 182154058,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1274698,
+          "textureBytes": 46661632
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.0999999940395355,
+        "p95": 1.2000000178813934
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.636,
+        "p95": 1.64675
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 91,
+      "triangles": 61534,
+      "totalTextures": 148
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Antarctica",
+      "visible": false,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 154,
+      "rasterCpuMs": 9.200000077486038,
+      "rasterTextures": 154,
+      "rasterTextureBytes": 40370176,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1228,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.40583333298563956,
+          "maxMs": 0.9000000059604645
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1229,
+          "lastMicros": 0,
+          "meanMicros": 0.4068348735595157
+        },
+        "tiles": {
+          "active": 80,
+          "visible": 80,
+          "drawn": 80,
+          "inCache": 154,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 154,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 203192112,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1341232,
+          "textureBytes": 50855936
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.300000011920929,
+        "p95": 2.2999999821186066
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.419791,
+        "p95": 1.853208
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 82,
+      "triangles": 12838,
+      "totalTextures": 164
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Antarctica",
+      "visible": true,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 154,
+      "rasterCpuMs": 9.200000077486038,
+      "rasterTextures": 154,
+      "rasterTextureBytes": 40370176,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1348,
+          "lastMs": 0.4000000059604645,
+          "meanMs": 0.4366666664679845,
+          "maxMs": 1.2000000178813934
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1349,
+          "lastMicros": 0,
+          "meanMicros": 0.4447739463633657
+        },
+        "tiles": {
+          "active": 80,
+          "visible": 80,
+          "drawn": 80,
+          "inCache": 154,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 154,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 203192112,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1341232,
+          "textureBytes": 50855936
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999709,
+        "p95": 16.799999999999272
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 1.2000000178813934,
+        "p95": 2.9000000059604645
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.442583,
+        "p95": 1.842249
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 82,
+      "triangles": 12838,
+      "totalTextures": 164
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Rhine close",
+      "visible": false,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 382,
+      "rasterCpuMs": 19.000000089406967,
+      "rasterTextures": 366,
+      "rasterTextureBytes": 95944704,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1564,
+          "lastMs": 1.0999999940395355,
+          "meanMs": 0.9400000010927518,
+          "maxMs": 1.300000011920929
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1565,
+          "lastMicros": 0,
+          "meanMicros": 0.38338661574708005
+        },
+        "tiles": {
+          "active": 275,
+          "visible": 275,
+          "drawn": 275,
+          "inCache": 366,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 382,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 481318852,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1595332,
+          "textureBytes": 106430464
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.69999999999709,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 3,
+        "p95": 3.399999976158142
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 2.036499,
+        "p95": 2.262249
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 277,
+      "triangles": 16896,
+      "totalTextures": 353
+    },
+    {
+      "catalog": "geographic-vectors-earth-overlay-comparison",
+      "view": "Rhine close",
+      "visible": true,
+      "backend": "raster",
+      "coordinateRepresentation": "source-cuts",
+      "imported": 177,
+      "rasterFeatures": 177,
+      "overlayResolution": 256,
+      "split": true,
+      "rasters": 382,
+      "rasterCpuMs": 19.000000089406967,
+      "rasterTextures": 366,
+      "rasterTextureBytes": 95944704,
+      "pendingRasters": 0,
+      "pendingRedraws": false,
+      "vector": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "terrain": {
+        "update": {
+          "count": 1684,
+          "lastMs": 1,
+          "meanMs": 0.9491666657229264,
+          "maxMs": 1.2999999821186066
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 1685,
+          "lastMicros": 99.99999403953552,
+          "meanMicros": 0.4747774728327901
+        },
+        "tiles": {
+          "active": 275,
+          "visible": 275,
+          "drawn": 275,
+          "inCache": 366,
+          "cpu": 0
+        },
+        "network": {
+          "requests": 382,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 481318852,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 1595332,
+          "textureBytes": 106430464
+        },
+        "imagery": {
+          "layers": 1,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "frameMs": {
+        "samples": 60,
+        "median": 16.700000000000728,
+        "p95": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 71,
+        "median": 2.300000011920929,
+        "p95": 2.800000011920929
+      },
+      "gpuFrameMs": {
+        "samples": 20,
+        "median": 1.863291,
+        "p95": 2.042999
+      },
+      "gpuDisjoint": false,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "resolution": [
+        3840,
+        2160
+      ],
+      "diagnostics": [],
+      "drawCalls": 277,
+      "triangles": 16896,
+      "totalTextures": 353
+    }
+  ],
+  "errors": []
+}

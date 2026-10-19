@@ -16,6 +16,7 @@ interface Batch {
   layers: GeographicLayer[];
   index: GeographicIndex;
   material: GeographicMaterial;
+  highlights: {id: number; selected: boolean; material: GeographicMaterial}[];
   placement: GeographicPlacement;
   datum: GeographicLayer['datum'];
   bodyName: string;
@@ -86,7 +87,7 @@ export class GeographicVectorLayer {
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
   get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number } {
     return { drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
-      textureBytes: this.batches.reduce((n, b) => n + b.material.textures.reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
+      textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   setVisible(layerId: string, visible: boolean): void {
     if (this.visibility.get(layerId) === visible) return;
@@ -98,14 +99,32 @@ export class GeographicVectorLayer {
     if (JSON.stringify(this.placements.get(layerId)) === JSON.stringify(placement)) return;
     this.placements.set(layerId, { ...placement }); this.dirty = true;
   }
-  setSelected(feature: GeographicFeatureRef | null): void { this.selected = feature; this.updateHighlights(); }
-  setHovered(feature: GeographicFeatureRef | null): void { this.hovered = feature; this.updateHighlights(); }
+  setSelected(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.selected, feature)) return; this.selected = feature; this.updateHighlights(); }
+  setHovered(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.hovered, feature)) return; this.hovered = feature; this.updateHighlights(); }
+
+  private drawMaterials(batch: Batch): GeographicMaterial[] { return [batch.material, ...batch.highlights.map(h => h.material)]; }
+  private drawPages(batch: Batch): number { return this.drawMaterials(batch).reduce((n, m) => n + m.pages, 0); }
 
   private updateHighlights(): void {
     for (const batch of this.batches) {
       const id = (feature: GeographicFeatureRef | null) => batch.index.features.findIndex(f => sameGeographicFeature(f, feature)) + 1;
       batch.material.uniforms.vectorSelected.value = id(this.selected) || -1;
       batch.material.uniforms.vectorHovered.value = id(this.hovered) || -1;
+      const selected = id(this.selected), hovered = id(this.hovered);
+      const hasStroke = (id: number) => batch.index.primitives.some(p => p.feature === id && p.kind === 1);
+      const wanted = [...(hovered && hovered !== selected ? [{id:hovered,selected:false}] : []), ...(selected ? [{id:selected,selected:true}] : [])].filter(h => hasStroke(h.id));
+      const old = batch.highlights;
+      batch.highlights = wanted.map(h => {
+        const cached = old.find(o => o.id === h.id && o.selected === h.selected);
+        if (cached) return cached;
+        const shape = batch.datum.referenceShape;
+        const material = new GeographicMaterial(batch.index.highlight(h.id), shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0], shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[2]);
+        material.uniforms.vectorHighlight.value = h.id;
+        material.uniforms.vectorSelected.value = h.selected ? h.id : -1;
+        material.uniforms.vectorHovered.value = h.selected ? -1 : h.id;
+        return {...h, material};
+      });
+      for (const h of old) if (!batch.highlights.includes(h)) h.material.dispose();
     }
   }
 
@@ -169,7 +188,7 @@ export class GeographicVectorLayer {
         continue;
       }
       const material = new GeographicMaterial(index, a, c);
-      const batch: Batch = { layers, index, material, placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false };
+      const batch: Batch = { layers, index, material, highlights: [], placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false };
       this.batches.push(batch);
     }
     this.updateHighlights(); this.dirty = false;
@@ -223,7 +242,7 @@ export class GeographicVectorLayer {
       for (const root of roots) root.traverseVisible(object => {
         if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BufferGeometry) sources.add(object);
       });
-      if (this.drawCalls + sources.size * batch.material.pages > VECTOR_FRAME_DRAW_LIMIT) {
+      if (this.drawCalls + sources.size * this.drawPages(batch) > VECTOR_FRAME_DRAW_LIMIT) {
         this.diagnose(batch, 'vector-draw-budget', `Frame would exceed ${VECTOR_FRAME_DRAW_LIMIT} vector surface draws. Remaining drawing and picking for this group are suppressed this frame; reduce visible layers or terrain detail.`);
         batch.suppressed = true;
         for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
@@ -234,16 +253,26 @@ export class GeographicVectorLayer {
         const localToBody = toBody.clone().multiply(object.matrixWorld);
         this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
       }
-      this.drawCalls += (this.scene.children.length - before) * batch.material.pages;
+      this.drawCalls += (this.scene.children.length - before) * this.drawPages(batch);
     }
     if (this.scene.children.length) {
-      const pages = Math.max(...this.batches.map(b => b.material.pages));
-      for (let page = 0; page < pages; page++) {
-        for (const batch of this.batches) {
-          batch.material.uniforms.vectorPage.value = page;
-          for (const proxy of batch.proxies.values()) proxy.mesh.visible = page < batch.material.pages;
+      const passes = Math.max(...this.batches.map(b => this.drawMaterials(b).length));
+      for (let pass = 0; pass < passes; pass++) {
+        const pages = Math.max(...this.batches.map(b => this.drawMaterials(b)[pass]?.pages ?? 0));
+        for (let page = 0; page < pages; page++) {
+          for (const batch of this.batches) {
+            const material = this.drawMaterials(batch)[pass];
+            if (material) {
+              material.uniforms.vectorPage.value = page;
+              material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
+            }
+            for (const proxy of batch.proxies.values()) {
+              proxy.mesh.visible = !!material && page < material.pages;
+              if (material) proxy.mesh.material = material;
+            }
+          }
+          renderer.render(this.scene, camera);
         }
-        renderer.render(this.scene, camera);
       }
       for (const batch of this.batches) for (const proxy of batch.proxies.values()) proxy.mesh.visible = true;
     }
@@ -295,16 +324,17 @@ export class GeographicVectorLayer {
       const owned = offset || !!ground;
       proxy = { mesh, sourceGeometry: geometry, localToBody: localToBody.clone(), worldMatrix: new THREE.Matrix4(), owned, seen: false };
       mesh.onBeforeRender = () => {
-        batch.material.uniforms.vectorLocalToBody.value.copy(proxy!.localToBody);
+        const material = mesh.material as GeographicMaterial;
+        material.uniforms.vectorLocalToBody.value.copy(proxy!.localToBody);
         const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
         const map = sourceMaterial.displacementMap;
-        batch.material.uniforms.vectorDisplacement.value.set(map ? 1 : 0, sourceMaterial.displacementScale ?? 0, sourceMaterial.displacementBias ?? 0);
-        batch.material.uniforms.vectorDisplacementMap.value = map ?? null;
+        material.uniforms.vectorDisplacement.value.set(map ? 1 : 0, sourceMaterial.displacementScale ?? 0, sourceMaterial.displacementBias ?? 0);
+        material.uniforms.vectorDisplacementMap.value = map ?? null;
         if (map) {
           if (map.matrixAutoUpdate) map.updateMatrix();
-          batch.material.uniforms.vectorDisplacementTransform.value.copy(map.matrix);
+          material.uniforms.vectorDisplacementTransform.value.copy(map.matrix);
         }
-        batch.material.uniformsNeedUpdate = true;
+        material.uniformsNeedUpdate = true;
       };
       batch.proxies.set(source, proxy); this.proxyCount++;
     }
@@ -391,6 +421,7 @@ export class GeographicVectorLayer {
     for (const batch of this.batches) {
       for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
       batch.material.dispose();
+      for (const h of batch.highlights) h.material.dispose();
     }
     this.batches = []; this.offsetVertices = 0; this.proxyCount = 0; this.drawCalls = 0;
   }

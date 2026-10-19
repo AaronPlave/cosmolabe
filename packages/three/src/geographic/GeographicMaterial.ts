@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS, VECTOR_PADDING_DEG } from './GeographicIndex.js';
 
 const DETAIL_LEVELS = VECTOR_DETAIL_GRIDS.length + 1;
 const detailSlots = Array.from({ length: DETAIL_LEVELS });
@@ -33,7 +33,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorLocalToBody: { value: new THREE.Matrix4() },
         vectorShape: { value: new THREE.Vector2(equatorialKm, polarKm) },
         vectorSelected: { value: -1 }, vectorHovered: { value: -1 },
-        vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 },
+        vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 }, vectorHighlight: { value: 0 },
         vectorCellSize: { value: new THREE.Vector2(cells.image.width, cells.image.height) },
         vectorDetailCells: { value: detailCells },
         vectorDetailCellSize: { value: new THREE.Vector2(detailCells.image.width, detailCells.image.height) },
@@ -77,6 +77,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform float vectorHovered;
         uniform float vectorPixelRatio;
         uniform float vectorPage;
+        uniform float vectorHighlight;
         uniform vec2 vectorCellSize;
         uniform sampler2D vectorDetailCells;
         uniform vec2 vectorDetailCellSize;
@@ -137,6 +138,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           if (!detailed) range = vectorTexel(vectorCells, vectorCellSize, vectorPage * ${VECTOR_GRID[0] * VECTOR_GRID[1]}.0 + cell.y * ${VECTOR_GRID[0]}.0 + cell.x);
           vec4 result = vec4(0.0);
           float bestRank = -1.0;
+          float bestCoverage = 0.0;
           for (int j = 0; j < ${VECTOR_CELL_LIMIT}; j++) {
             if (float(j) >= range.y) break;
             vec4 reference = vectorTexel(vectorReferences, vectorReferenceSize, range.x + float(j));
@@ -148,9 +150,14 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             // Most candidates in a padded cell are far outside this fragment's
             // few-pixel mark. Reject them before extra texture reads/matrix work.
             vec2 padding = 4.5 * vectorPixelRatio * (abs(jx) + abs(jy));
+            // A grazing footprint outside the index padding is unresolved.
+            // Partial MSAA coverage must not stretch a hidden stroke over it.
+            if (reference.y < 2.0 && any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
             if (reference.y < 2.0 && (any(lessThan(q, min(ab.xy, ab.zw) - padding)) || any(greaterThan(q, max(ab.xy, ab.zw) + padding)))) continue;
             if (abs(vectorCross(jx, jy)) < 1e-18) continue;
             vec4 identity = vectorTexel(vectorRecords, vectorRecordSize, id + 3.0);
+            // Separate sparse highlight passes follow every ordinary page.
+            if (vectorHighlight == 0.0 && reference.y == 1.0 && (identity.x == vectorSelected || identity.x == vectorHovered)) continue;
             float alpha = 0.0;
             if (reference.y == 2.0) {
               vec4 ck = vectorTexel(vectorRecords, vectorRecordSize, id + 1.0);
@@ -166,11 +173,14 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               alpha = 1.0 - smoothstep(radius - 0.5, radius + 0.5, distancePx);
             }
             float rank = 2.0 - reference.y;
-            if (alpha > 0.0 && rank > bestRank) {
+            // Union round segments at joints: an earlier segment's faint
+            // AA fringe must not mask the next segment's opaque coverage.
+            if (alpha > 0.0 && (rank > bestRank || (rank == bestRank && alpha > bestCoverage))) {
               vec4 style = vectorTexel(vectorRecords, vectorRecordSize, id + 2.0);
               vec3 color = identity.x == vectorSelected ? vec3(1.0, 0.78, 0.28) : (identity.x == vectorHovered ? vec3(1.0) : style.rgb);
               result = vec4(color, alpha * style.a);
               bestRank = rank;
+              bestCoverage = alpha;
             }
           }
           if (result.a == 0.0) discard;

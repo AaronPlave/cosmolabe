@@ -44,6 +44,18 @@ describe('planetary GeoJSON data', () => {
     expect(JSON.parse(JSON.stringify(layer))).toEqual(layer);
   });
 
+  it.each([-1,1])('preserves planar source cuts while normalizing a pole-%s cap for the globe', sign => {
+    const geometry = {type: 'Polygon', coordinates: [[[-180,sign*80],[-180,sign*90],[180,sign*90],[180,sign*80],[90,sign*70],[0,sign*75],[-90,sign*70],[-180,sign*80]]]};
+    const layer = parse(collection(feature(geometry,'cap')), {...spec,body:'Moon',coordinates:moon});
+    expect(layer.diagnostics).toEqual([]);
+    expect(layer.features).toHaveLength(1);
+    expect(layer.features[0].original.geometry).toEqual(geometry);
+    const normalized = layer.features[0].geometry;
+    if (normalized.type !== 'Polygon') throw new Error('Expected polygon');
+    expect(normalized.coordinates[0]).toHaveLength(5);
+    expect(normalized.coordinates[0].some(p => Math.abs(p.latDeg) === 90)).toBe(false);
+  });
+
   it('accepts lunar south-pole regions and holes across the longitude seam', () => {
     const layer = parse(JSON.stringify(southpole), { ...spec, body: 'Moon', coordinates: moon });
     expect(layer.skippedFeatures).toBe(0);

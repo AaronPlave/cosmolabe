@@ -4,7 +4,10 @@ Imported geographic layers draw automatically in the Three.js viewer. Points
 and multipoints use 7 CSS pixel circular marks; linework and every polygon ring
 use 2 CSS pixel strokes. Polygon fills are translucent and preserve holes.
 Selection uses a gold mark/stroke and hover uses white. Emphasis does not grow
-polygon fill silhouettes.
+polygon fill silhouettes. Round segments use their strongest coverage at joins.
+Shared source borders belong to both polygons: hovered and selected strokes draw
+in sparse passes after ordinary borders, so source/page order cannot hide a
+neighbor's highlight. These passes retain the existing draw budget.
 
 Open `apps/viewer/test-catalogs/geographic-vectors.json` for a self-contained
 reference-globe example with Mars and lunar viewpoints. Its features are clearly
@@ -12,6 +15,8 @@ labelled synthetic validation fixtures. Loading them with a terrain-enabled
 catalog uses that body's displayed terrain automatically.
 
 For real global data, open [Natural Earth countries](http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-earth-countries). Its [global validation report](geographic-global-validation.md) records source conversion, full-globe correctness, 4K GPU benchmarks and reproduction commands.
+
+For the alternative backend, open the [side-by-side comparison](http://127.0.0.1:5188/geographic-compare.html). Its [comparison report](geographic-backend-comparison.md) covers upstream `GeoJSONOverlay`, shared data, quality and GPU/memory tradeoffs. It is a development experiment; the ordinary viewer still uses interactive vectors.
 
 ## Open the validation scenes yourself
 
@@ -152,7 +157,7 @@ feature. The limits diagnose overload rather than silently dropping
 individual polygon rings.
 
 Hidden layers have no textures/proxies and trigger no geographic surface pick.
-Source changes rebuild immutable batches; highlights only update uniforms.
+Source changes rebuild immutable batches. Point highlights update uniforms. Stroke highlights cache at most two sparse indices built from already-admitted primitives, updating them only when the active feature changes. Their allocations and surface draws are counted in renderer metrics and the frame budget.
 Proxy eviction/teardown disposes vector-owned materials/textures and offset
 geometry, preserving the source terrain's buffers and material/shader ownership.
 The pass composes over existing imagery, elevation color, hillshade, atmospheric

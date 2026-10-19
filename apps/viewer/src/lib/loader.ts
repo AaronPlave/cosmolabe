@@ -777,6 +777,13 @@ function initScene(
   // Expose for console-based tuning during development.
   (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
 
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('geographic-comparison')) {
+    const sceneUniverse = universe;
+    void import('./geographic-overlay-comparison.js').then(({attachGeographicComparison}) => {
+      if (r === renderer && sceneUniverse) return attachGeographicComparison(r, sceneUniverse);
+    }).catch(error => console.error('Geographic comparison setup failed', error));
+  }
+
   // The script host, beside it. `cosmo` is a *binding* of the ViewerControl
   // contract, not the contract itself — an embedded app or a test holds an
   // instance from `createViewerControl()` directly, and nothing in the port

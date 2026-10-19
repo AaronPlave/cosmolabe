@@ -4,18 +4,15 @@ Open `http://127.0.0.1:5188/?catalog=test-catalogs/geographic-vectors-earth-coun
 
 ## Source and coordinate conversion
 
-Made with [Natural Earth 1:110m Admin 0 countries, version 5.1.1](https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/), [public domain](https://www.naturalearthdata.com/about/terms-of-use/). The fixture retains all **177 features, 29 multipart features, 288 polygon parts, 289 rings, and the Lesotho hole in South Africa**. Its 10,651 vertices are not simplified. This generalized dataset omits many small territories/islands by design; it is not a survey or a definitive list of countries. Natural Earth's default de facto boundary policy is retained.
+Made with [Natural Earth 1:110m Admin 0 countries, version 5.1.1](https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/), [public domain](https://www.naturalearthdata.com/about/terms-of-use/). The fixture retains all **177 features, 29 multipart features, 288 polygon parts, 289 rings, and the Lesotho hole in South Africa**. Its 10,654 source vertices are retained; normalized globe geometry has 10,651 after removing only the redundant polar map-cut closure. Coastlines are not simplified. This generalized dataset omits many small territories/islands by design; it is not a survey or a definitive list of countries. Natural Earth's default de facto boundary policy is retained.
 
 The source `.prj` declares WGS84 geographic degrees (a=6378.137 km, inverse flattening=298.257223563). The catalog declares east-positive longitude, planetographic latitude and WGS84 ellipsoid radii [6378.137,6378.137,6356.752314245] km, matching the actual Earth globe. There are no source heights. Drawing clamps to the displayed triangles; it does not implement absolute datum-height drawing or establish terrain/datum accuracy.
 
-Two representation issues must be addressed during Shapefile-to-GeoJSON conversion. These are recorded in [the source manifest](../apps/viewer/test-catalogs/geographic/natural-earth-countries.source.json):
+We evaluated [GeoJSON already published by the maintainer](https://github.com/nvkelso/natural-earth-vector/blob/9380cca83db5f9aef52d5e762765100745f84b27/geojson/ne_110m_admin_0_countries.geojson). Its six-decimal rounding creates repeated vertices or self-intersections rejected in USA, Somalia, Sudan, Antarctica and Somaliland. For this all-features correctness comparison the committed fixture retains the full-precision official release. GeoJSON is the ordinary viewer input; Python/pyshp are used only to reproduce the fixture, never by the application. Other valid published GeoJSON can be loaded directly without a converter.
 
-- Seam endpoints within 1e-10 degrees of ±180 are canonicalized to -180. Russia contains two source coordinates at 180.00000000000006, outside a strict longitude domain.
-- Antarctica's planar map cut closes its main coastline via A,pole,pole,A on the two sides of the ±180 seam. On the globe these two meridians coincide. Remove only that zero-area closing spike (three redundant vertices); the closed coastline then winds around the south pole and uses the existing polar chart. All actual coastline vertices and all eight Antarctic polygon parts remain.
+Antarctica's planar map cut closes its main coastline via A,pole,pole,A on the two sides of the ±180 seam. On the globe these meridians coincide. The shared importer removes only that zero-area closing spike (three redundant vertices) from normalized body-fixed geometry, preserving the full planar source in `Feature.original`. All coastline vertices and all eight Antarctic parts remain. Raster overlays consume the preserved planar representation; vectors use the normalized globe representation, from the same imported layer.
 
-The original planar closure is not an ordinary physical coastline or a valid nondegenerate polygon in the renderer's spherical topology. This is an explicit representation conversion, not a silent fix to source geography. No other geometry is repaired, rounded, buffered, or omitted. Source `NE_ID` becomes the stable string ID; `NAME`, `ADMIN`, `ADM0_A3`, `ISO_A3` and `NE_ID` properties remain. The importer adds its normal `string:` prefix to the feature identity.
-
-Reproduce the 439,236-byte fixture (SHA256 `03bde95a34084c9c48bb4c496c1e490f810a4360b112cc46f4344a8e33d7a089`):
+Reproduce the fixture (439,284 bytes, SHA256 `c49d510cea95f67d6ed22b311cb1a4b40895cf3928b7253b598b4bc427e8e5ed`):
 
 ```sh
 curl -fL https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip -o /tmp/ne-countries.zip
@@ -24,7 +21,7 @@ python3 -m venv /tmp/natural-earth-venv
 /tmp/natural-earth-venv/bin/python scripts/prepare-natural-earth-countries.py /tmp/ne-countries.zip
 ```
 
-The converter rejects an archive whose SHA256 differs from the pinned official release. It preserves source double precision, part order, and pyshp's exterior/hole grouping. Normal viewer loading and all tests use the committed fixture; third-party network access is not required.
+The script verifies the release hash. Operations and the rejected published GeoJSON's pinned hash are recorded in [the source manifest](../apps/viewer/test-catalogs/geographic/natural-earth-countries.source.json). Tests and viewer loading use the committed fixture without third-party network access.
 
 ## Findings and bounded fixes
 
@@ -34,7 +31,13 @@ The index now bounds polar primitives by their actual angular wedge and minimum/
 
 All references, including the optional global grid, share the existing one-million-reference limit. Finer indexing is skipped if it exceeds the storage limit or requires more draw pages. The 256-candidate loop, 100,000 primitives, 16 admitted pages/group and 2,048 surface draws/frame limits remain. No feature is removed to accelerate this fixture. There is no frame-by-frame rebuilding, per-country mesh, reduced coastline geometry or disabled picking.
 
-This dataset has **20,149 primitives**, **265,164 coarse references**, **647,200 total references**, six coarse draw pages and two fine pages. The globe submits six bounded draws/frame; unnecessary fine pages discard. Padded GPU texture allocation is **12,910,592 bytes**, versus 10,256,384 before refinement. These counts are invariant across the five views.
+This dataset has **20,149 primitives**, **265,164 coarse references**, **647,200 total references**, six coarse draw pages and two fine pages. The base globe submits six bounded draws/frame; unnecessary fine pages discard. Padded GPU texture allocation is **12,910,592 bytes**, versus 10,256,384 before refinement. These are base-index counts; active hover/selection adds at most two bounded sparse stroke indices and their passes.
+
+A footprint guard now rejects unresolved strokes/points whose screen footprint exceeds the six-degree coarse padding. This also prevents partial MSAA coverage at a grazing edge from leaking a hidden stroke onto a foreground pixel; fills and resolved marks remain available. CPU picking applies the same padding policy. The software occlusion test reproduces the original one-pixel leak and passes with the guard.
+
+The reported segmented border appearance and missing selected shared edges were renderer defects. A faint segment fringe could win before an adjoining segment's solid coverage; ordinary source/page order could cover a neighboring country's selected boundary. Equal-rank segments now union their strongest coverage. At most two sparse strokes-only views of the already-admitted index draw hover and selection after all ordinary pages. They share primitive objects and stable identities, need no parsing or triangulation, cache until the highlighted feature changes, and are included in GPU memory and the existing 2,048-draw frame budget. No additional features are admitted. The original 256-candidate and per-index storage/page bounds remain.
+
+The border GPU regression samples vertices and three interior positions per segment on Chad, Germany and the Rhine close-up in both selection and hover states. It projects onto the actual displayed reference-globe triangles rather than assuming their screen positions equal the analytic ellipsoid. All 944 sampled positions show the correct highlight. The angular border shape is the coarse Natural Earth source; no smoothing alters its geometry.
 
 The integration also exposed a camera-drag selection bug: the existing gesture guard covered probe/measurement tools, but ordinary geographic selection could run on mouse release. Active geographic layers now participate in that guard, including return-to-origin drags through the existing maximum-excursion tracking.
 
@@ -48,11 +51,11 @@ Final numerical results, pixel counts, interactions and screenshots live in [the
 
 | View | Frame median off/on (ms) | Frame p95 off/on (ms) | GPU median off/on (ms) | Render CPU median on (ms) |
 |---|---:|---:|---:|---:|
-| Earth orbit | 16.7 / 16.7 | 16.8 / 16.8 | 1.03 / 5.35 | 1.3 |
-| Europe and Africa | 16.7 / 16.7 | 16.8 / 16.8 | 1.03 / 5.59 | 0.8 |
-| Pacific dateline | 16.7 / 16.7 | 16.7 / 16.8 | 1.51 / 4.73 | 0.9 |
-| Antarctica | 16.7 / 16.7 | 16.8 / 16.8 | 1.35 / 5.99 | 1.2 |
-| Rhine close | 16.7 / 16.7 | 16.8 / 16.8 | 1.41 / 13.82 | 0.3 |
+| Earth orbit | 16.7 / 16.7 | 16.7 / 16.7 | 0.98 / 7.27 | 0.8 |
+| Europe and Africa | 16.7 / 16.7 | 16.7 / 16.8 | 1.04 / 6.99 | 0.9 |
+| Pacific dateline | 16.7 / 16.7 | 16.8 / 16.7 | 1.32 / 3.21 | 0.9 |
+| Antarctica | 16.7 / 16.7 | 16.8 / 16.7 | 1.32 / 6.03 | 0.6 |
+| Rhine close | 16.7 / 16.7 | 16.7 / 16.8 | 1.44 / 16.00 | 0.2 |
 
 All visible runs retain 177 features with no diagnostics; picking CPU p95 is at most 0.3 ms. Pixel comparisons confirm visible vector drawing at every timed view. GPU times measure the entire renderer, not vectors alone. The uncapped GPU measurements show why identical 60 Hz frame intervals do not imply equal render cost.
 
@@ -62,9 +65,9 @@ All visible runs retain 177 features with no diagnostics; picking CPU p95 is at 
 
 `scripts/test-geographic-global.mjs` loads the regular catalog without `?test=1` or a test-only scene. It checks visible pixel differences against each unmarked baseline, retained feature counts, diagnostics, actual hover/click selection and camera drags at each view. Untimed isolation checks preserve the Lesotho hole before/after South African selection, verify its fill really draws elsewhere, hide backside Australia completely, and rotate Earth's actual body frame plus the camera to verify France stays registered. The isolated checks temporarily filter the already-loaded layer and restore all features afterward; the timed runs use the complete dataset.
 
-The measured Jezero/Shackleton orbit-to-surface regression and the localized dense GPU/picking tests were rerun successfully; their fresh JSON results are included beside the Earth evidence. The full local unit suite has one previously observed unrelated CSPICE progress-timing failure (`gf-reporting.test.ts`); the changed-area tests, build, lint and type checks pass.
+The measured Jezero/Shackleton orbit-to-surface regression and the localized dense GPU/picking tests were rerun successfully; their fresh JSON results are included beside the Earth evidence. The final local full unit suite reports 2,266 passed, 7 skipped and one previously observed unrelated CSPICE progress-timing failure (`gf-reporting.test.ts`). Changed-area tests, build, lint and type checks pass. The final dense Jezero run retains 1,601 features: 16.7 ms median and p95 at detail; close median 16.7 ms with p95 33.4 ms.
 
-The CI smoke uses Chromium software WebGL at 1100×760 with the same rendering/interaction assertions and no timing threshold. Hardware profiling is separate. To run locally, start the viewer on 5188:
+The CI smoke uses Chromium software WebGL at 640×480 with the same rendering/interaction assertions and no timing threshold. Hardware profiling is separate. To run locally, start the viewer on 5188:
 
 ```sh
 DEV_DATA_MODE=local npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5188 --strictPort

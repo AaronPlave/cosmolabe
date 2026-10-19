@@ -116,7 +116,7 @@ export class GeographicIndex {
   readonly diagnostics: GeographicRenderDiagnostic[] = [];
   private references = 0;
 
-  constructor(layers: readonly GeographicLayer[]) {
+  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false) {
     for (const layer of layers) {
       if (layer.definition.display?.visible === false || layer.definition.display?.opacity === 0) continue;
       for (const feature of layer.features) this.addFeature(layer, feature);
@@ -179,6 +179,27 @@ export class GeographicIndex {
     }
   }
 
+  /** Bounded strokes-only view of this immutable index for at most two active
+   * highlights. Reuse the admitted primitives and identities, not GeoJSON parsing
+   * or triangulation. Sparse lookup avoids rescanning every country's candidates. */
+  highlight(feature: number): GeographicIndex {
+    const result = new GeographicIndex([], true);
+    result.features.push(...this.features);
+    const ids = new Map<number, number>();
+    this.primitives.forEach((p, id) => {
+      if (p.feature === feature && p.kind === 1) {
+        ids.set(id, result.primitives.length); result.primitives.push(p);
+      }
+    });
+    this.cells.forEach((cell, i) => {
+      for (const id of cell) {
+        const mapped = ids.get(id);
+        if (mapped !== undefined) { result.cells[i].push(mapped); result.references++; }
+      }
+    });
+    return result;
+  }
+
   get renderPages(): number {
     let peak = 0;
     const peaks = [0, 0, 0];
@@ -224,7 +245,7 @@ export class GeographicIndex {
     }
     if (east - west <= 1e-8 || north - south <= 1e-8 || east - west > 10 || north - south > 10
       || west < -180 || east >= 180 || south < -80 || north > 80) return this.globalGrid();
-    if (coarsePages <= 1) return result;
+    if (coarsePages <= 1) return this.fineSinglePage ? this.globalGrid() : result;
     let references = this.references, offset = 0;
     for (const size of VECTOR_DETAIL_GRIDS) {
       const dx = (east - west) / (size - 4), dy = (north - south) / (size - 4);
@@ -301,6 +322,7 @@ export class GeographicIndex {
       const x = projectGeographic({ lonDeg: position.lonDeg + dx[0], latDeg: position.latDeg + dx[1] }, p.chart, q[0]);
       const y = projectGeographic({ lonDeg: position.lonDeg + dy[0], latDeg: position.latDeg + dy[1] }, p.chart, q[0]);
       const jx = [x[0] - q[0], x[1] - q[1]], jy = [y[0] - q[0], y[1] - q[1]];
+      if (p.kind !== 2 && [0, 1].some(i => Math.max(4.5, radiusPx) * (Math.abs(jx[i]) + Math.abs(jy[i])) > VECTOR_PADDING_DEG)) continue;
       const determinant = jx[0] * jy[1] - jy[0] * jx[1];
       if (Math.abs(determinant) < 1e-18) continue;
       const pixel = (v: GeographicXY): GeographicXY => {

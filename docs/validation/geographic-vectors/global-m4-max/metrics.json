@@ -17,12 +17,12 @@
       "frameMs": {
         "samples": 60,
         "median": 16.699999999999818,
-        "p95": 16.799999999999272
+        "p95": 16.700000000000728
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.7999999821186066,
-        "p95": 1.4000000059604645
+        "median": 0.9000000059604645,
+        "p95": 1.5
       },
       "pickCpuMs": {
         "samples": 0,
@@ -36,8 +36,8 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 1.027541,
-        "p95": 1.811791
+        "median": 0.98475,
+        "p95": 1.118916
       },
       "gpuDisjoint": false
     },
@@ -47,12 +47,12 @@
       "features": 177,
       "diagnostics": [],
       "metrics": {
-        "drawCalls": 6,
+        "drawCalls": 7,
         "drawPages": 6,
         "batches": 1,
         "surfaceMeshes": 1,
         "offsetVertices": 0,
-        "textureBytes": 12910592
+        "textureBytes": 13504064
       },
       "indexes": [
         {
@@ -84,17 +84,17 @@
       "frameMs": {
         "samples": 60,
         "median": 16.699999999999818,
-        "p95": 16.800000000000182
+        "p95": 16.700000000000728
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 1.2999999821186066,
-        "p95": 3.7000000178813934
+        "median": 0.7999999821186066,
+        "p95": 3.5
       },
       "pickCpuMs": {
         "samples": 6,
         "median": 0.19999998807907104,
-        "p95": 0.30000001192092896
+        "p95": 0.3999999761581421
       },
       "resolution": [
         3840,
@@ -103,13 +103,13 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 5.345375,
-        "p95": 10.532666
+        "median": 7.269708,
+        "p95": 10.5005
       },
       "gpuDisjoint": false,
       "pixels": {
-        "changed": 382010,
-        "cyan": 83378
+        "changed": 378933,
+        "cyan": 82864
       },
       "interaction": {
         "screen": {
@@ -137,12 +137,12 @@
       "frameMs": {
         "samples": 60,
         "median": 16.69999999999891,
-        "p95": 16.799999999999272
+        "p95": 16.700000000000728
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.30000001192092896,
-        "p95": 0.5
+        "median": 0.5999999940395355,
+        "p95": 0.800000011920929
       },
       "pickCpuMs": {
         "samples": 0,
@@ -156,8 +156,8 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 1.0255,
-        "p95": 1.156458
+        "median": 1.042458,
+        "p95": 1.297874
       },
       "gpuDisjoint": false
     },
@@ -167,12 +167,12 @@
       "features": 177,
       "diagnostics": [],
       "metrics": {
-        "drawCalls": 6,
+        "drawCalls": 7,
         "drawPages": 6,
         "batches": 1,
         "surfaceMeshes": 1,
         "offsetVertices": 0,
-        "textureBytes": 12910592
+        "textureBytes": 13503936
       },
       "indexes": [
         {
@@ -204,16 +204,16 @@
       "frameMs": {
         "samples": 60,
         "median": 16.69999999999891,
-        "p95": 16.80000000000109
+        "p95": 16.799999999999272
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.7999999821186066,
-        "p95": 3.7999999821186066
+        "median": 0.9000000059604645,
+        "p95": 4.300000011920929
       },
       "pickCpuMs": {
         "samples": 6,
-        "median": 0.09999999403953552,
+        "median": 0.19999998807907104,
         "p95": 0.20000001788139343
       },
       "resolution": [
@@ -223,13 +223,13 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 5.587124,
-        "p95": 6.489208
+        "median": 6.994583,
+        "p95": 8.096124
       },
       "gpuDisjoint": false,
       "pixels": {
-        "changed": 1398685,
-        "cyan": 192566
+        "changed": 1394113,
+        "cyan": 187374
       },
       "interaction": {
         "screen": {
@@ -256,13 +256,13 @@
       "indexes": [],
       "frameMs": {
         "samples": 60,
-        "median": 16.69999999999709,
-        "p95": 16.700000000000728
+        "median": 16.700000000000728,
+        "p95": 16.799999999999272
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 1.2000000178813934,
-        "p95": 1.800000011920929
+        "median": 0.30000001192092896,
+        "p95": 1.2999999821186066
       },
       "pickCpuMs": {
         "samples": 0,
@@ -276,8 +276,8 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 1.512625,
-        "p95": 2.221749
+        "median": 1.322791,
+        "p95": 1.495125
       },
       "gpuDisjoint": false
     },
@@ -324,16 +324,16 @@
       "frameMs": {
         "samples": 60,
         "median": 16.700000000000728,
-        "p95": 16.80000000000291
+        "p95": 16.700000000000728
       },
       "renderCpuMs": {
         "samples": 71,
         "median": 0.9000000059604645,
-        "p95": 2.2999999821186066
+        "p95": 3.4000000059604645
       },
       "pickCpuMs": {
         "samples": 6,
-        "median": 0.09999999403953552,
+        "median": 0,
         "p95": 0.10000002384185791
       },
       "resolution": [
@@ -343,13 +343,13 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 4.72525,
-        "p95": 8.593124
+        "median": 3.210958,
+        "p95": 6.491166
       },
       "gpuDisjoint": false,
       "pixels": {
-        "changed": 248885,
-        "cyan": 34879
+        "changed": 247847,
+        "cyan": 34847
       },
       "interaction": {
         "screen": {
@@ -377,12 +377,12 @@
       "frameMs": {
         "samples": 60,
         "median": 16.700000000000728,
-        "p95": 16.80000000000291
+        "p95": 16.799999999999272
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.9000000059604645,
-        "p95": 1.0999999940395355
+        "median": 0.5999999940395355,
+        "p95": 1.199999988079071
       },
       "pickCpuMs": {
         "samples": 0,
@@ -396,8 +396,8 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 1.346583,
-        "p95": 2.214875
+        "median": 1.32175,
+        "p95": 1.403166
       },
       "gpuDisjoint": false
     },
@@ -444,17 +444,17 @@
       "frameMs": {
         "samples": 60,
         "median": 16.69999999999709,
-        "p95": 16.799999999999272
+        "p95": 16.700000000000728
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 1.199999988079071,
-        "p95": 3.699999988079071
+        "median": 0.5999999940395355,
+        "p95": 3.399999976158142
       },
       "pickCpuMs": {
         "samples": 6,
         "median": 0,
-        "p95": 0.09999999403953552
+        "p95": 0
       },
       "resolution": [
         3840,
@@ -463,13 +463,13 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 5.985,
-        "p95": 7.314083
+        "median": 6.025375,
+        "p95": 6.846833
       },
       "gpuDisjoint": false,
       "pixels": {
-        "changed": 1085550,
-        "cyan": 53190
+        "changed": 1083891,
+        "cyan": 52500
       },
       "interaction": {
         "screen": {
@@ -497,12 +497,12 @@
       "frameMs": {
         "samples": 60,
         "median": 16.69999999999709,
-        "p95": 16.799999999999272
+        "p95": 16.700000000004366
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.20000001788139343,
-        "p95": 0.30000001192092896
+        "median": 0.4000000059604645,
+        "p95": 0.9000000059604645
       },
       "pickCpuMs": {
         "samples": 0,
@@ -516,8 +516,8 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 1.405958,
-        "p95": 1.418875
+        "median": 1.439041,
+        "p95": 1.592249
       },
       "gpuDisjoint": false
     },
@@ -527,12 +527,12 @@
       "features": 177,
       "diagnostics": [],
       "metrics": {
-        "drawCalls": 6,
+        "drawCalls": 7,
         "drawPages": 6,
         "batches": 1,
         "surfaceMeshes": 1,
         "offsetVertices": 0,
-        "textureBytes": 12910592
+        "textureBytes": 13504064
       },
       "indexes": [
         {
@@ -564,17 +564,17 @@
       "frameMs": {
         "samples": 60,
         "median": 16.69999999999709,
-        "p95": 16.80000000000291
+        "p95": 16.799999999995634
       },
       "renderCpuMs": {
         "samples": 71,
-        "median": 0.30000001192092896,
-        "p95": 1.2000000178813934
+        "median": 0.19999998807907104,
+        "p95": 1
       },
       "pickCpuMs": {
         "samples": 6,
         "median": 0.09999999403953552,
-        "p95": 0.10000002384185791
+        "p95": 0.09999999403953552
       },
       "resolution": [
         3840,
@@ -583,13 +583,13 @@
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "gpuFrameMs": {
         "samples": 20,
-        "median": 13.824499,
-        "p95": 14.357999
+        "median": 16.002749,
+        "p95": 16.134583
       },
       "gpuDisjoint": false,
       "pixels": {
         "changed": 8294394,
-        "cyan": 15340
+        "cyan": 6560
       },
       "interaction": {
         "screen": {
@@ -610,6 +610,8 @@
         },
         "backside": {
           "changed": 0,
+          "backgroundChanges": 0,
+          "differences": [],
           "features": 1
         },
         "rotation": {

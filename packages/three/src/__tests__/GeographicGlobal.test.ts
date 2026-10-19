@@ -38,6 +38,21 @@ describe('Natural Earth global countries', () => {
       expect(actual, `${lon},${lat}`).toBe(name);
     }
   });
+  it('reuses admitted marks and stable IDs in bounded sparse highlights', () => {
+    const layer = parseGeographicGeoJson(JSON.stringify(countries), earthDefinition, {kind:'local-file',identity:'Natural Earth 5.1.1'});
+    const index = new GeographicIndex([layer]);
+    for (const name of ['France','Germany','Chad','Antarctica']) {
+      const id = layer.features.findIndex(f => f.properties?.NAME === name) + 1;
+      const highlight = index.highlight(id), packed = highlight.pack();
+      expect(highlight.primitives.length).toBeGreaterThan(0);
+      expect(highlight.primitives.every(p => p.feature === id && p.kind !== 2 && index.primitives.includes(p))).toBe(true);
+      expect(highlight.features).toEqual(index.features);
+      expect(highlight.renderPages).toBeLessThanOrEqual(index.renderPages);
+      expect(packed.references.length / 4).toBeLessThanOrEqual(1_000_000);
+      expect(packed.detail?.levels[0]).toMatchObject({size:256,height:128});
+    }
+  });
+
   it('keeps every primitive in conservative coarse and fine cells, including polar triangles', () => {
     const layer = parseGeographicGeoJson(JSON.stringify(countries), earthDefinition, { kind: 'local-file', identity: 'Natural Earth 5.1.1' });
     const index = new GeographicIndex([layer]), packed = index.pack();

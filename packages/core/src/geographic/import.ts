@@ -172,8 +172,24 @@ export function parseGeographicGeoJson(
   const line = (raw: unknown) => list(raw, 2, position);
   function polygon(raw: unknown): BodyFixedPosition[][] {
     const original = list(raw, 1, v => list(v, 4, position));
+    const sourceCoordinates = (raw as GeoPosition[][]).map(r => [...r]);
+    // A planar GeoJSON cap closes along both sides of the map cut via the
+    // pole. In body-fixed coordinates A,pole,pole,A is a zero-area spike.
+    // Normalize only that exact closure; the Feature.original stays intact
+    // for planar backends and provenance. Ordinary repeated vertices fail.
+    for (let r = 0; r < original.length; r++) {
+      const ring = original[r];
+      for (let i = 0; i + 3 < ring.length; i++) {
+        const [a,b,c,d] = ring.slice(i,i+4);
+        if (Math.abs(a.lonDeg) === 180 && a.lonDeg === d.lonDeg && a.latDeg === d.latDeg
+          && Math.abs(b.latDeg) === 90 && b.latDeg === c.latDeg && b.lonDeg === a.lonDeg && c.lonDeg === a.lonDeg
+          && [b,c,d].every(p => p.heightKm === a.heightKm)) {
+          ring.splice(i,3); sourceCoordinates[r].splice(i,3); break;
+        }
+      }
+    }
     // Validate in the original coordinate plane, before centric/graphic conversion.
-    const sourceRings = (raw as GeoPosition[][]).map(ring => ring.map(p => ({ lonDeg: p[0], latDeg: p[1] })));
+    const sourceRings = sourceCoordinates.map(ring => ring.map(p => ({ lonDeg: p[0], latDeg: p[1] })));
     const projection = geographicProjection(sourceRings[0]);
     const projected = projectGeographicRings(sourceRings, projection);
     const rings = original.map((ring, ringIndex) => {

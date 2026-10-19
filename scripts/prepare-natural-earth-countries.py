@@ -25,17 +25,8 @@ def normalize_ring(ring, identity):
     points = []
     for lon, lat in ring:
         if abs(abs(lon) - 180) < 1e-10:
-            lon = -180.0
+            lon = 180.0 if lon > 0 else -180.0
         points.append([lon, lat])
-    # A planar polar cap closes along both sides of the map cut, via the pole.
-    # On the globe this is a zero-area spike: A, pole, pole, A. Remove that
-    # artificial closure, retaining every actual coastline vertex. The resulting
-    # winding ring uses the renderer's existing polar chart.
-    for i in range(len(points) - 3):
-        if (points[i] == points[i + 3] and abs(points[i][0]) == 180
-                and abs(points[i + 1][1]) == 90 and points[i + 1] == points[i + 2]):
-            changes.append({'feature': identity, 'operation': 'remove zero-area map-cut closure', 'vertices': ring[i:i + 4]})
-            return points[:i] + points[i + 3:]
     return points
 
 features = []

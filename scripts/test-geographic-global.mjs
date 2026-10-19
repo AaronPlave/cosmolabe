@@ -11,7 +11,7 @@ const hardware=process.env.CL_GPU==='hardware';
 const browser=await chromium.launch({executablePath:process.env.CL_CHROMIUM??(hardware?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':chromium.executablePath()),args:hardware?['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist']:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const results=[],errors=[];
 try {
- const page=await browser.newPage({viewport:process.env.CL_SMOKE?{width:1100,height:760}:{width:1920,height:1080},deviceScaleFactor:hardware?2:1});
+ const page=await browser.newPage({viewport:process.env.CL_SMOKE?{width:640,height:480}:{width:1920,height:1080},deviceScaleFactor:hardware?2:1});
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(/Shader Error|VALIDATE_STATUS|ERROR: 0:/.test(m.text()))errors.push(m.text());});
  await page.goto(`${process.env.CL_VIEWER_URL??'http://127.0.0.1:5188/'}?catalog=test-catalogs/geographic-vectors-earth-countries`,{waitUntil:'domcontentloaded',timeout:60000});
@@ -37,8 +37,8 @@ try {
   for(const visible of [false,true]) {
    await page.evaluate(visible=>window.renderer.geographicVectors.setVisible('countries',visible),visible);
    await page.waitForTimeout(1200);
-   await page.mouse.move(960,540);
-   const result=await page.evaluate(async frames=>{
+   await page.mouse.move(page.viewportSize().width/2,page.viewportSize().height/2);
+   const result=await page.evaluate(async ({frames,warmup})=>{
     const r=window.renderer,cpu=[],picks=[],intervals=[];
     const gl=r.renderer.getContext(),ext=gl.getExtension('EXT_disjoint_timer_query_webgl2'),queries=[],gpuTimes=[];
     let disjoint=false;
@@ -58,7 +58,7 @@ try {
     };
     r.geographicVectors.pick=(...args)=>{const t=performance.now();const v=pick(...args);picks.push(performance.now()-t);return v;};
     let last=await new Promise(requestAnimationFrame);
-    for(let i=0;i<frames+10;i++){const t=await new Promise(requestAnimationFrame);if(i>=10)intervals.push(t-last);last=t;}
+    for(let i=0;i<frames+warmup;i++){const t=await new Promise(requestAnimationFrame);if(i>=warmup)intervals.push(t-last);last=t;}
     r.renderFrame=render;r.geographicVectors.pick=pick;
     const stats=a=>{a.sort((a,b)=>a-b);return{samples:a.length,median:a[Math.floor(a.length/2)]??0,p95:a[Math.floor(a.length*.95)]??0};};
     for(let i=0;i<20&&queries.length;i++){await new Promise(requestAnimationFrame);poll();}
@@ -67,7 +67,7 @@ try {
     return{features:r.geographicVectors.featureCount,diagnostics:r.geographicVectors.diagnostics,metrics:r.geographicVectors.metrics,
       indexes:r.geographicVectors.batches.map(b=>{const packed=b.index.pack();return{features:b.index.features.length,primitives:b.index.primitives.length,coarseReferences:b.index.cells.reduce((n,c)=>n+c.length,0),totalReferences:packed.references.length/4,detailLevels:packed.detail?.levels,pages:b.material.pages};}),
       frameMs:stats(intervals),renderCpuMs:stats(cpu),pickCpuMs:stats(picks),resolution:[gl.drawingBufferWidth,gl.drawingBufferHeight],gpu:debug&&gl.getParameter(debug.UNMASKED_RENDERER_WEBGL),gpuFrameMs:ext&&!disjoint&&gpuTimes.length?stats(gpuTimes):null,gpuDisjoint:disjoint};
-   },Number(process.env.CL_FRAMES??60));
+   },{frames:Number(process.env.CL_FRAMES??60),warmup:process.env.CL_SMOKE?0:10});
    results.push({name,visible,...result});console.log(JSON.stringify(results.at(-1)));
    assert.deepEqual(result.diagnostics,[]);assert.equal(result.features,visible?177:0);
    if(hardware){assert.doesNotMatch(result.gpu,/swiftshader|llvmpipe|software/i);assert.deepEqual(result.resolution,[3840,2160]);}
@@ -103,15 +103,17 @@ try {
   assert.equal(selected,target[2],`${name}: actual selection`);
   results.at(-1).interaction={screen,hit:hover,selected};
   for(const returnToOrigin of [false,true]) {
-    await page.mouse.move(960,540);await page.mouse.down();await page.mouse.move(1040,565,{steps:20});
-    if(returnToOrigin)await page.mouse.move(960,540,{steps:20});
+    const center={x:page.viewportSize().width/2,y:page.viewportSize().height/2};
+    const steps=process.env.CL_SMOKE?3:20;
+    await page.mouse.move(center.x,center.y);await page.mouse.down();await page.mouse.move(center.x+80,center.y+25,{steps});
+    if(returnToOrigin)await page.mouse.move(center.x,center.y,{steps});
     await page.mouse.up();
     assert.equal(await page.evaluate(()=>window.__globalIdentity(window.renderer.geographicVectors.selected)),target[2],`${name}: drag preserves selection (return=${returnToOrigin})`);
   }
   await page.evaluate(()=>window.renderer.geographicVectors.setSelected(null));
  }
  const geometryChecks=await page.evaluate(async root=>{
-   const r=window.renderer;r.stop();
+   const r=window.renderer;r.stop();r.timeController.pause();r.cameraController.controls.staticMoving=true;
    const THREE=await import('/node_modules/.vite/deps/three.js');
    const {FixedRotation}=await import(`/@fs/${root}/packages/core/src/index.ts`);
    const layer=r.universe.geographicLayers.get('countries'),all=layer.features;
@@ -131,8 +133,14 @@ try {
      hole={unselected:difference(sample(base,28.5,-29.5),sample(country,28.5,-29.5)),selected:difference(sample(base,28.5,-29.5),sample(selected,28.5,-29.5)),fill:difference(sample(base,27,-29),sample(country,27,-29)),pick:window.__globalIdentity(r.pickScene(window.__globalProject(28.5,-29.5).x,window.__globalProject(28.5,-29.5).y,'select',{labelSlopPx:0}))};
      r.geographicVectors.setSelected(null);r.applyNamedViewpoint('Earth orbit');r.renderFrame();
      load([]);const unmarked=read();load(all.filter(f=>f.properties.NAME==='Australia'));const hidden=read();
-     let changed=0;for(let i=0;i<hidden.length;i+=4)if(difference([...unmarked.slice(i,i+3)],[...hidden.slice(i,i+3)])>12)changed++;
-     backside={changed,features:r.geographicVectors.featureCount};
+     let changed=0,backgroundChanges=0;const differences=[];
+     const gl=r.renderer.getContext(),rect=r.renderer.domElement.getBoundingClientRect();
+     for(let i=0;i<hidden.length;i+=4)if(difference([...unmarked.slice(i,i+3)],[...hidden.slice(i,i+3)])>12){
+       const pixel=i/4,x=pixel%gl.drawingBufferWidth,y=Math.floor(pixel/gl.drawingBufferWidth);
+       const hit=r.pickScene(x/gl.drawingBufferWidth*rect.width,(gl.drawingBufferHeight-1-y)/gl.drawingBufferHeight*rect.height,'probe');
+       if(hit?.kind==='surface'&&hit.point.bodyName==='Earth') {changed++;if(differences.length<10)differences.push({x,y,before:[...unmarked.slice(i,i+4)],after:[...hidden.slice(i,i+4)],lat:hit.point.latDeg,lon:hit.point.lonDeg});}else backgroundChanges++;
+     }
+     backside={changed,backgroundChanges,differences,features:r.geographicVectors.featureCount};
      load(all);
      const body=r.universe.getBody('Earth'),original=body.rotation;
      const before=r.getBodyMesh('Earth').bodyToWorldQuaternion(new THREE.Quaternion());

@@ -20,6 +20,15 @@ const pick = (index: GeographicIndex, lon: number, lat: number) => index.pick({ 
 const ref = { bodyName: 'Moon', layerId: 'science', featureId: 'number:0' };
 
 describe('geographic surface index', () => {
+  it('omits unresolved grazing marks beyond the spatial padding while retaining fills', () => {
+    const index = new GeographicIndex([layer([
+      {type: 'Point', coordinates: [0,0]},
+      {type: 'LineString', coordinates: [[-1,0],[1,0]]},
+      {type: 'Polygon', coordinates: [[[-2,-2],[2,-2],[2,2],[-2,2],[-2,-2]]]},
+    ])]);
+    expect(pick(index,0,0)?.featureId).toBe('number:0');
+    expect(index.pick({lonDeg:0,latDeg:0},[2,0],[0,2])?.featureId).toBe('number:2');
+  });
   it('keeps polar point markers independent of the pole longitude', () => {
     for (const sign of [-1, 1]) {
       const index = new GeographicIndex([layer([{ type: 'Point', coordinates: [45, sign * 90] }])]);
@@ -230,6 +239,27 @@ describe('geographic renderer lifecycle and placement', () => {
     expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-render-budget', message: expect.stringContaining('391 render pages; limit is 16') }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('draws shared-border highlights after all ordinary pages and counts their draws', () => {
+    const h = harness(layer(Array.from({length: VECTOR_CELL_LIMIT + 1}, () => ({type: 'LineString', coordinates: [[-1,0],[1,0]]}))));
+    h.vectors.setSelected({...ref, featureId: `number:${VECTOR_CELL_LIMIT}`});
+    h.vectors.setHovered(ref);
+    const draws: {page: number; highlight: number}[] = [];
+    h.renderer.render = scene => {
+      for (const child of scene.children) if (child.visible) {
+        const material = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+        draws.push({page: material.uniforms.vectorPage.value, highlight: material.uniforms.vectorHighlight.value});
+      }
+    };
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    expect(draws).toEqual([
+      {page:0,highlight:0},{page:1,highlight:0},
+      {page:0,highlight:1},
+      {page:0,highlight:VECTOR_CELL_LIMIT+1},
+    ]);
+    expect(h.vectors.metrics.drawCalls).toBe(draws.length);
     h.vectors.dispose(); h.universe.dispose();
   });
 
