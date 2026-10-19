@@ -1256,6 +1256,7 @@ export class BodyMesh extends THREE.Object3D {
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
   get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
+  get surfaceAppearanceSupportsRelief(): boolean { return this.terrainManager?.surfaceAppearanceSupportsRelief ?? false; }
   setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
   /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
   get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }

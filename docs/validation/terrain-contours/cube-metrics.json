@@ -1,0 +1,15 @@
+{
+  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "surfaceTriangles": 2048,
+  "changedPixels": 9211,
+  "splitDifferencePixels": 0,
+  "blocks": 4,
+  "blocksWithHeights": 4,
+  "displayedLevels": {
+    "9": 4
+  },
+  "restored": true,
+  "debugUnchanged": true,
+  "remainingHeights": 0,
+  "errors": []
+}

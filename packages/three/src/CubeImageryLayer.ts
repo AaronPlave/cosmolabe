@@ -190,6 +190,13 @@ async function loadImageBitmapTexture(url: string, signal: AbortSignal): Promise
   return { texture, bytes: Math.round(bitmap.width * bitmap.height * 4 * 4 / 3), downloadBytes: blob.size };
 }
 
+/** Material styling follows both source meshes and imagery's clipped draws. */
+export interface CubeImageryMeshLifecycle {
+  added(mesh: THREE.Mesh, source: THREE.Mesh): void;
+  removing(mesh: THREE.Mesh): void;
+  beforeSplit(source: THREE.Mesh): void;
+}
+
 export class CubeImageryLayer {
   manifest: CubeImageryManifest | null = null;
   readonly ready: Promise<void>;
@@ -201,6 +208,7 @@ export class CubeImageryLayer {
   private readonly options: Required<Omit<CubeImageryConfig, 'url' | 'maxLevel'>> & { maxLevel: number | undefined };
   private readonly loadTexture: TextureLoader;
   private readonly baseUrl: string;
+  private readonly meshLifecycle?: CubeImageryMeshLifecycle;
   private frame = 0;
   private anisotropy = 1;
   private disposed = false;
@@ -210,7 +218,8 @@ export class CubeImageryLayer {
     displayedLevels: {}, wantedLevels: {}, fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
   };
 
-  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader } = {}) {
+  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; meshLifecycle?: CubeImageryMeshLifecycle } = {}) {
+    this.meshLifecycle = deps.meshLifecycle;
     this.options = {
       maxScreenTexelError: config.maxScreenTexelError ?? 1.5,
       maxTextureBytes: config.maxTextureBytes ?? 160 * 2 ** 20,
@@ -298,6 +307,7 @@ export class CubeImageryLayer {
       const uniforms = this.makeUniforms();
       this.attachImagery(material, baseCompile, cacheKey, uniforms);
       record.meshes.push({ mesh, material, uniforms, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000], blocks: new Map() });
+      this.meshLifecycle?.added(mesh, mesh);
     });
     this.tiles.set(key, record);
   }
@@ -311,7 +321,10 @@ export class CubeImageryLayer {
   removeTile(key: object): void {
     const record = this.tiles.get(key);
     if (!record) return;
-    for (const m of record.meshes) for (const id of [...m.blocks.keys()]) this.disposeBlock(m, id);
+    for (const m of record.meshes) {
+      for (const id of [...m.blocks.keys()]) this.disposeBlock(m, id);
+      this.meshLifecycle?.removing(m.mesh);
+    }
     this.tiles.delete(key);
   }
 
@@ -479,8 +492,9 @@ export class CubeImageryLayer {
 
   private buildBlock(record: TileRecord, m: MeshRecord, leaf: ImageryAddress, id: string): Block {
     const t0 = performance.now();
+    this.meshLifecycle?.beforeSplit(m.mesh);
     const g = m.mesh.geometry;
-    const names = ['position', 'normal', 'cubeImageryUvw'].filter(n => g.getAttribute(n));
+    const names = ['position', 'normal', 'cubeImageryUvw', 'surfaceHeightKm', 'surfaceGround'].filter(n => g.getAttribute(n));
     const attributes = names.map(n => { const a = g.getAttribute(n) as THREE.BufferAttribute; return { array: a.array, itemSize: a.itemSize }; });
     // Only what the tile draws: its draw range excludes skirts when they are hidden.
     const index = g.index ? g.index.array.subarray(g.drawRange.start, Math.min(g.index.count, g.drawRange.start + g.drawRange.count)) : null;
@@ -504,6 +518,7 @@ export class CubeImageryLayer {
     // TilesGroup pushes world matrices to tile scenes only when the group moves or a
     // tile becomes visible, so a mesh added afterwards must compute its own once.
     mesh.updateMatrixWorld(true);
+    this.meshLifecycle?.added(mesh, m.mesh);
     const bytes = clipped.attributes.reduce((s, a) => s + a.byteLength, 0) + clipped.index.byteLength;
     const block: Block = { mesh, material, uniforms, lastUsed: this.frame, bytes };
     m.blocks.set(id, block);
@@ -514,6 +529,7 @@ export class CubeImageryLayer {
   private disposeBlock(m: MeshRecord, id: string): void {
     const block = m.blocks.get(id);
     if (!block) return;
+    this.meshLifecycle?.removing(block.mesh);
     block.mesh.removeFromParent();
     block.mesh.geometry.dispose();
     block.material.dispose();

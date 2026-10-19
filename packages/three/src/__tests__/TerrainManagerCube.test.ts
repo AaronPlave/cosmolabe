@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TerrainManager } from '../TerrainManager.js';
+import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
 import type { CubeGridManifest } from '../surface/CubeSphereGrids.js';
 
 /**
@@ -47,6 +48,41 @@ const make = (radiusKm = R) => new TerrainManager(
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('TerrainManager with cube-sphere CPU grids', () => {
+  it('styles known cube meshes in body-fixed metres while excluding glTF skirts and world transforms', () => {
+    serve();
+    const tm = make();
+    const internals = tm as unknown as {
+      tiles: { group: THREE.Group };
+      surfaceStyle: SurfaceAppearance;
+      customizeTileMaterial(scene: THREE.Object3D, tile: object): void;
+    };
+    expect(tm.surfaceAppearanceSupportsRelief).toBe(false);
+    tm.setSurfaceAppearance({ ...DEFAULT_SURFACE_APPEARANCE, contours: true, hillshade: true, baseColor: 'elevation' });
+    expect(tm.surfaceAppearance).toMatchObject({ contours: true, hillshade: false, baseColor: 'imagery' });
+    const geometry = new THREE.BufferGeometry();
+    // glTF Y-up local frame; the primitive extras delimit ground triangles.
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 100, 0, 10, 100, 0, 0, 100, 10], 3));
+    geometry.setIndex([0, 1, 2, 3, 4, 5]); geometry.userData.surfaceTriangles = 1;
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+    mesh.position.y = -(R + 1) * 1000;
+    const scene = new THREE.Group(); scene.rotation.x = Math.PI / 2; scene.add(mesh);
+    internals.tiles.group.position.set(1e10, -1e10, 3e10);
+    internals.tiles.group.scale.setScalar(0.001); internals.tiles.group.add(scene);
+    internals.customizeTileMaterial(scene, { content: { uri: 'nz/0/0/0.glb' } });
+    internals.surfaceStyle.update(Infinity);
+    expect(geometry.getAttribute('surfaceHeightKm').getX(0)).toBeCloseTo(1, 6);
+    expect(Array.from(geometry.getAttribute('surfaceGround').array)).toEqual([1, 1, 1, 0, 0, 0]);
+    const unrecognized = new THREE.Mesh(geometry.clone(), new THREE.MeshStandardMaterial());
+    unrecognized.geometry.deleteAttribute('surfaceHeightKm');
+    scene.add(unrecognized);
+    internals.customizeTileMaterial(scene, { content: { uri: 'authored-model.glb' } });
+    internals.surfaceStyle.update(Infinity);
+    expect(unrecognized.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    tm.setSurfaceAppearance({ ...DEFAULT_SURFACE_APPEARANCE });
+    expect(geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    tm.dispose();
+  });
+
   it('answers CPU samples from the grids, explicitly unloaded until they arrive', async () => {
     const requested = serve();
     const tm = make();

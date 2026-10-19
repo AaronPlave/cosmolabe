@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "cube contour toggle",
+    "cube-only capability controls",
+    "density edit",
+    "per-body isolation",
+    "selection persistence",
+    "disabled control collapse"
+  ],
+  "scope": "UI only, no terrain geometry"
+}

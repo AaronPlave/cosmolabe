@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { CubeImageryLayer } from '../CubeImageryLayer.js';
+import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
 import { cubeFaceToDirection, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
 import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress } from '../surface/CubeImagery.js';
 
@@ -86,6 +87,58 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
 }
 
 describe('CubeImageryLayer', () => {
+  it('preserves source contour heights through imagery clipping, toggles and eviction', async () => {
+    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, heightConvention: 'radial', verticalDatum: 'reference-sphere' }, false);
+    const tileSet = new THREE.Group(), loader = controlledLoader();
+    const tracked = new Set<THREE.Mesh>();
+    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json' }, {
+      fetchManifest: async () => manifest(), loadTexture: loader.loadTexture,
+      meshLifecycle: {
+        added(mesh) {
+          // Copy exactly the source's body-fixed transform, excluding any world origin.
+          mesh.updateWorldMatrix(true, false);
+          style.attach(mesh, tileSet.matrixWorld.clone().invert().multiply(mesh.matrixWorld));
+          tracked.add(mesh);
+        },
+        removing(mesh) { style.forget(mesh); tracked.delete(mesh); },
+        beforeSplit(mesh) { style.prepareForDerivedMesh(mesh); },
+      },
+    });
+    await layer.ready;
+    const address = directionToTexel(southPole, 3, 256, 4).address;
+    const { scene, mesh } = geometryTile(address, 5);
+    mesh.geometry.userData.surfaceTriangles = mesh.geometry.index!.count / 3;
+    // A coarse reference sphere: its chord interiors are below the datum, but
+    // its interpolated source heights remain ~zero. Recomputing at imagery
+    // clip vertices would invent many metres of false contour relief.
+    tileSet.add(scene); layer.addTile(scene, scene, address);
+    const tick = () => layer.update(camera(3_000), tileSet.matrixWorld, 2 * Math.tan(Math.PI / 6) / 800, null);
+    style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true, hillshade: true, baseColor: 'elevation' });
+    expect(style.current).toMatchObject({ hillshade: false, baseColor: 'imagery', contours: true });
+    for (let i = 0; i < 10; i++) { tick(); await loader.settle(); }
+    const blocks = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block')) as THREE.Mesh[];
+    expect(blocks().length).toBeGreaterThan(1);
+    for (const block of blocks()) {
+      const heights = block.geometry.getAttribute('surfaceHeightKm');
+      expect(heights).toBeDefined();
+      for (let i = 0; i < heights.count; i++) expect(Math.abs(heights.getX(i))).toBeLessThan(0.00001);
+      const material = block.material as THREE.Material;
+      const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+      material.onBeforeCompile(shader as never, undefined as never);
+      expect(shader.fragmentShader).toContain('cubeImageryTexel');
+      expect(shader.fragmentShader).toContain('saContourLine');
+      expect(shader.fragmentShader.indexOf('float saFootprint')).toBeGreaterThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor'));
+    }
+    layer.invalidateBlocks(); style.set({ ...DEFAULT_SURFACE_APPEARANCE }); tick();
+    expect(blocks().length).toBeGreaterThan(0);
+    for (const block of blocks()) expect(block.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    layer.invalidateBlocks(); style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true }); tick();
+    expect(blocks().every(b => b.geometry.hasAttribute('surfaceHeightKm'))).toBe(true);
+    layer.removeTile(scene);
+    expect(tracked.size).toBe(0);
+    layer.dispose();
+  });
+
   it('gives a tile the terrain draw cull hid resident imagery for other views, without splitting, requesting or counting it', async () => {
     const { layer, loader, scene, mesh, address, tick } = await setup();
     await loader.settle();

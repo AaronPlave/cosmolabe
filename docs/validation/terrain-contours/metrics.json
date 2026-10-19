@@ -1,0 +1,15 @@
+{
+  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "Mars": {
+    "changedPixels": 2392,
+    "restored": true,
+    "heightAttributesAfterDisable": 0
+  },
+  "Moon-synthetic-pole": {
+    "changedPixels": 11467,
+    "restored": true,
+    "heightAttributesAfterDisable": 0
+  },
+  "upstreamEvaluated": true,
+  "errors": []
+}

@@ -1,10 +1,16 @@
 import * as THREE from 'three';
+import { injectTerrainContours } from './TerrainContours.js';
 import { bodyFixedToGeodetic, type TerrainDatum } from './TerrainSampler.js';
 
 export type SurfaceBaseColor = 'imagery' | 'elevation' | 'neutral';
 export type ElevationPalette = 'terrain' | 'blue-gold' | 'grayscale';
 export interface SurfaceAppearanceSettings {
   hillshade: boolean;
+  /** Visual bands on loaded geometry; spacing adapts to the screen footprint. */
+  contours?: boolean;
+  contourOpacity?: number;
+  contourColor?: string;
+  contourDensity?: number;
   azimuthDeg: number;
   elevationDeg: number;
   contrast: number;
@@ -15,6 +21,7 @@ export interface SurfaceAppearanceSettings {
   maxKm: number;
 }
 export const DEFAULT_SURFACE_APPEARANCE: Readonly<SurfaceAppearanceSettings> = Object.freeze({
+  contours: false, contourOpacity: 0.35, contourColor: '#f2e6c9', contourDensity: 1,
   hillshade: false, azimuthDeg: 315, elevationDeg: 45, contrast: 1,
   baseColor: 'imagery', imageryAmount: 0.25, palette: 'terrain',
   minKm: -10, maxKm: 15,
@@ -34,6 +41,10 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
     azimuthDeg: clamp(s.azimuthDeg, 0, 360, 315), elevationDeg: clamp(s.elevationDeg, 5, 90, 45),
     contrast: clamp(s.contrast, 0.25, 3, 1), imageryAmount: clamp(s.imageryAmount, 0, 1, 0.25),
     palette: Object.hasOwn(ELEVATION_PALETTES, s.palette) ? s.palette : 'terrain',
+    contours: !!s.contours,
+    contourOpacity: clamp(s.contourOpacity ?? 0.35, 0, 1, 0.35),
+    contourDensity: clamp(s.contourDensity ?? 1, 0.25, 4, 1),
+    contourColor: /^#[0-9a-f]{6}$/i.test(s.contourColor ?? '') ? s.contourColor : '#f2e6c9',
     minKm,
     maxKm: Math.max(minKm + 0.001, clamp(s.maxKm, -1000, 1000, 15)),
   };
@@ -71,7 +82,8 @@ export function surfaceTintHeightAtHit(hit: THREE.Intersection): number | undefi
   return weights ? weights.x * height.getX(a) + weights.y * height.getX(b) + weights.z * height.getX(c) : undefined;
 }
 
-/** Styling only: cached quantized-mesh geometry is in tile-local metres, ECEF Z north.
+/** Styling only: quantized-mesh and known cube geometry use tile-local metres.
+ * Attachment matrices map their local axes to the body-fixed Z-north frame.
  * Position attributes, normals, geometry indices, LOD and physical sampling stay untouched.
  * No shader additions or extra attributes until a style is enabled. */
 export class SurfaceAppearance {
@@ -82,10 +94,11 @@ export class SurfaceAppearance {
     saLight: { value: new THREE.Vector3() }, saContrast: { value: 1 },
     saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
     saLow: { value: new THREE.Color() }, saMid: { value: new THREE.Color() }, saHigh: { value: new THREE.Color() },
+    saContourColor: { value: new THREE.Color() }, saContourOpacity: { value: 0.35 }, saContourDensity: { value: 1 },
     saUpScale: { value: new THREE.Vector3(1, 1, 1) },
   };
 
-  constructor(readonly datum: TerrainDatum) {
+  constructor(readonly datum: TerrainDatum, readonly supportsRelief = true) {
     if (datum.referenceShape.kind === 'ellipsoid') {
       const [a, b, c] = datum.referenceShape.radiiKm;
       this.uniforms.saUpScale.value.set(1, (a / b) ** 2, (a / c) ** 2);
@@ -93,11 +106,12 @@ export class SurfaceAppearance {
     this.updateUniforms();
   }
   get current(): SurfaceAppearanceSettings { return { ...this.settings }; }
-  get active(): boolean { return this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
+  get active(): boolean { return !!this.settings.contours || this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
 
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
     this.settings = normalizeSurfaceAppearance(settings);
+    if (!this.supportsRelief) { this.settings.hillshade = false; this.settings.baseColor = 'imagery'; }
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
@@ -105,8 +119,9 @@ export class SurfaceAppearance {
       entry.ready = this.isPrepared(mesh);
       if (this.key() !== before) entry.materials.forEach(m => { m.needsUpdate = true; });
       const unused = [
-        ...(this.settings.baseColor !== 'elevation' ? ['surfaceHeightKm'] : []),
-        ...(!this.settings.hillshade ? ['surfaceGround', 'surfaceReliefNormal'] : []),
+        ...(!this.needsHeights ? ['surfaceHeightKm'] : []),
+        ...(!this.settings.hillshade && !this.settings.contours ? ['surfaceGround'] : []),
+        ...(!this.settings.hillshade ? ['surfaceReliefNormal'] : []),
       ].filter(name => mesh.geometry.hasAttribute(name));
       if (unused.length) {
         // Release GPU buffers while the attribute is still registered. Merely
@@ -118,8 +133,11 @@ export class SurfaceAppearance {
     }
   }
 
+  private get needsHeights(): boolean { return !!this.settings.contours || this.settings.baseColor === 'elevation'; }
+
   private isPrepared(mesh: THREE.Mesh): boolean {
-    return (this.settings.baseColor !== 'elevation' || mesh.geometry.hasAttribute('surfaceHeightKm')) &&
+    return (!this.needsHeights || mesh.geometry.hasAttribute('surfaceHeightKm')) &&
+      (!this.settings.contours || mesh.geometry.hasAttribute('surfaceGround')) &&
       (!this.settings.hillshade || mesh.geometry.hasAttribute('surfaceReliefNormal'));
   }
 
@@ -144,7 +162,8 @@ export class SurfaceAppearance {
     touched.forEach(node => this.publishNormal(node));
     for (const [mesh, entry] of visibleMeshes) {
       const tileStart = performance.now();
-      if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
+      if (this.needsHeights) this.prepareHeights(mesh, entry.matrix);
+      if (this.settings.contours) this.prepareGroundMask(mesh);
       if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
       entry.ready = true;
       entry.materials.forEach(m => { m.needsUpdate = true; });
@@ -156,8 +175,19 @@ export class SurfaceAppearance {
     return { meshes, vertices, elapsedMs: performance.now() - start, maxTileMs };
   }
 
+  /** Prepare the source before imagery clips its triangles. Derived vertices
+   * must interpolate its heights, not resample the curved datum at a chord. */
+  prepareForDerivedMesh(mesh: THREE.Mesh): void {
+    const entry = this.meshes.get(mesh);
+    if (!entry || !this.active || entry.ready) return;
+    if (this.needsHeights) this.prepareHeights(mesh, entry.matrix);
+    if (this.settings.contours) this.prepareGroundMask(mesh);
+    entry.ready = this.isPrepared(mesh);
+    if (entry.ready) entry.materials.forEach(m => { m.needsUpdate = true; });
+  }
+
   private key(): string {
-    return this.active ? `_surface_v4_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
+    return this.active ? `_surface_v5_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -227,7 +257,9 @@ export class SurfaceAppearance {
     const geometry = mesh.geometry;
     if (geometry.hasAttribute('surfaceGround')) return;
     const mask = new Float32Array(geometry.getAttribute('position').count);
-    const surface = geometry.groups[0];
+    const cubeTriangles = geometry.userData.surfaceTriangles;
+    const surface = Number.isInteger(cubeTriangles) && cubeTriangles >= 0
+      ? { start: 0, count: cubeTriangles * 3 } : geometry.groups[0];
     if (!surface) mask.fill(1);
     else for (let i = surface.start; i < surface.start + surface.count; i++) {
       mask[geometry.index ? geometry.index.getX(i) : i] = 1;
@@ -355,6 +387,9 @@ export class SurfaceAppearance {
     const s = this.settings, az = THREE.MathUtils.degToRad(s.azimuthDeg), el = THREE.MathUtils.degToRad(s.elevationDeg);
     // Local east, north, up; azimuth clockwise from geographic north.
     this.uniforms.saLight.value.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el));
+    this.uniforms.saContourColor.value.set(s.contourColor ?? '#f2e6c9');
+    this.uniforms.saContourOpacity.value = s.contourOpacity ?? 0.35;
+    this.uniforms.saContourDensity.value = s.contourDensity ?? 1;
     this.uniforms.saContrast.value = s.contrast;
     this.uniforms.saImageryAmount.value = s.imageryAmount;
     this.uniforms.saRange.value.set(s.minKm, s.maxKm);
@@ -363,12 +398,14 @@ export class SurfaceAppearance {
   }
 
   private inject(shader: Shader, localToBody: { value: THREE.Matrix4 }): void {
-    Object.assign(shader.uniforms, this.uniforms, { saLocalToBody: localToBody });
-    if (this.settings.baseColor === 'elevation') {
+    Object.assign(shader.uniforms, this.uniforms, { saLocalToBody: localToBody, saContourLocalToBody: localToBody });
+    if (this.needsHeights) {
       shader.vertexShader = 'attribute float surfaceHeightKm; varying float vSAHeight;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSAHeight = surfaceHeightKm;');
-      shader.fragmentShader = `varying float vSAHeight;
-uniform vec2 saRange; uniform float saImageryAmount; uniform vec3 saLow, saMid, saHigh;
+      shader.fragmentShader = 'varying float vSAHeight;\n' + shader.fragmentShader;
+    }
+    if (this.settings.baseColor === 'elevation') {
+      shader.fragmentShader = `uniform vec2 saRange; uniform float saImageryAmount; uniform vec3 saLow, saMid, saHigh;
 ` + shader.fragmentShader;
       // After current imagery overlays have composed diffuseColor, before lighting.
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
@@ -382,6 +419,7 @@ diffuseColor.rgb = mix(saTint, diffuseColor.rgb, saImageryAmount);
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
         'diffuseColor.rgb = mix(vec3(1.0), diffuseColor.rgb, saImageryAmount);\n#include <roughnessmap_fragment>');
     }
+    if (this.settings.contours) injectTerrainContours(shader);
     if (this.settings.hillshade) {
       shader.vertexShader = 'attribute vec3 surfaceReliefNormal; varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSALocal = position; vSAReliefNormal = surfaceReliefNormal;');

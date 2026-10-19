@@ -86,6 +86,10 @@ slope/aspect, and further relief effects are deferred.
 
 ## Cube-sphere follow-up under #182
 
+Issue #183 adds [contours on known cube-sphere terrain](../terrain-contours/README.md).
+The exclusions and follow-up here still apply to elevation tint and hillshade;
+cube panels expose only the contour controls.
+
 Cube-sphere support is explicitly deferred from #187. This includes
 `apps/viewer/test-catalogs/moonfall-shackleton.json` and the
 `apps/viewer/test-catalogs/experiments/moon-terrain-cube*.json` demos, which use

@@ -38,19 +38,39 @@
   <section class="mt-2 pt-2 border-t border-border" aria-label="Surface appearance">
     <div class="ui-section-label mb-1">Surface appearance</div>
     {#if datum}
-      <label class="control-row">
-        <span>Base color</span>
-        <select aria-label="Surface base color" value={settings.baseColor} onchange={e => { cancelAppearancePick(); update({ baseColor: e.currentTarget.value as SurfaceBaseColor }); }}>
-          <option value="imagery">Imagery</option>
-          <option value="elevation">Elevation colors</option>
-          <option value="neutral">Neutral gray</option>
-        </select>
-      </label>
+      {#if bodyMesh.surfaceAppearanceSupportsRelief}
+        <label class="control-row">
+          <span>Base color</span>
+          <select aria-label="Surface base color" value={settings.baseColor} onchange={e => { cancelAppearancePick(); update({ baseColor: e.currentTarget.value as SurfaceBaseColor }); }}>
+            <option value="imagery">Imagery</option>
+            <option value="elevation">Elevation colors</option>
+            <option value="neutral">Neutral gray</option>
+          </select>
+        </label>
+      {/if}
       <div>
         <label class="control-row">
-          <span>Hillshade effect</span>
-          <input type="checkbox" aria-label="Hillshade effect" checked={settings.hillshade} onchange={e => update({ hillshade: e.currentTarget.checked })} />
+          <span>Contours</span>
+          <input type="checkbox" aria-label="Contours" checked={settings.contours ?? false} onchange={e => update({ contours: e.currentTarget.checked })} />
         </label>
+        {#if settings.contours}
+          <label class="control-row"><span>Line opacity</span>
+            <input aria-label="Contour opacity" type="range" min="0" max="1" step="0.05" value={settings.contourOpacity ?? 0.35} oninput={e => update({ contourOpacity: +e.currentTarget.value })} />
+          </label>
+          <label class="control-row"><span>Line color</span>
+            <input aria-label="Contour color" type="color" value={settings.contourColor ?? '#f2e6c9'} oninput={e => update({ contourColor: e.currentTarget.value })} />
+          </label>
+          <label class="control-row"><span>Density</span>
+            <input aria-label="Contour density" type="range" min="0.25" max="4" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
+          </label>
+          <p class="ui-meta text-text-muted my-1">Visual elevation bands with automatic spacing as you zoom. Loaded mesh only; no precise elevation labels.</p>
+        {/if}
+        {#if bodyMesh.surfaceAppearanceSupportsRelief}
+          <label class="control-row">
+            <span>Hillshade effect</span>
+            <input type="checkbox" aria-label="Hillshade effect" checked={settings.hillshade} onchange={e => update({ hillshade: e.currentTarget.checked })} />
+          </label>
+        {/if}
         {#if settings.hillshade}
           <label class="control-row"><span>Azimuth <span class="ui-readout">{settings.azimuthDeg}°</span></span>
             <input aria-label="Light azimuth" type="range" min="0" max="360" step="5" value={settings.azimuthDeg} oninput={e => update({ azimuthDeg: +e.currentTarget.value })} />
@@ -95,7 +115,7 @@
         <p class="ui-meta text-text-muted mt-2">Loaded terrain mesh only; coarse tiles give coarse relief. Tile debug colors take precedence.</p>
       </div>
     {:else}
-      <p class="ui-meta text-text-muted">Relief styles require quantized-mesh terrain with a supported elevation reference. Cube-sphere terrain, including MoonFall, is not supported yet.</p>
+      <p class="ui-meta text-text-muted">Surface styles require terrain with a supported elevation reference. Contours also support planetary cube-sphere terrain.</p>
     {/if}
   </section>
 {/if}

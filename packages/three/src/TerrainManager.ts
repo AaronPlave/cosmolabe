@@ -615,7 +615,13 @@ export class TerrainManager {
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
-  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.surfaceStyle?.set(settings); }
+  get surfaceAppearanceSupportsRelief(): boolean { return this.surfaceStyle?.supportsRelief ?? false; }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void {
+    // Rebuild derived geometry when its interpolated attribute layout changes.
+    // Color, density and opacity edits remain uniform-only.
+    if (!!settings.contours !== !!this.surfaceStyle?.current.contours) this.cubeImagery?.invalidateBlocks();
+    this.surfaceStyle?.set(settings);
+  }
   readonly tiles: TilesRenderer;
   /** Group to add to the scene. Positioned at body center, transforms meters→km and Z-up→Y-up. */
   readonly group: THREE.Group;
@@ -755,12 +761,12 @@ export class TerrainManager {
       uncertaintyKm: config.sourceMetadata?.uncertaintyKm,
       version: config.sourceMetadata?.version,
     }, config.samplerMaxTiles ?? 256);
-    // Other tile types may contain authored models, baked imagery, or an unknown
+    // Generic tile types may contain authored models, baked imagery, or an unknown
     // vertical reference. Do not present their coordinates as terrain heights.
-    this.surfaceStyle = config.type === 'quantized-mesh' &&
+    this.surfaceStyle = (config.type === 'quantized-mesh' || (config.type === '3dtiles' && !!config.cubeSphere)) &&
       (datum.verticalDatum === 'ellipsoid' || datum.verticalDatum === 'reference-sphere')
       && (datum.heightConvention === 'radial' || rxKm === ryKm)
-      ? new SurfaceAppearance(datum) : null;
+      ? new SurfaceAppearance(datum, config.type === 'quantized-mesh') : null;
     // The sampler's own LRU drops tiles independently of the renderer's; the
     // seam/datum debug indexes must forget them too or they report neighbours
     // the sampler no longer holds.
@@ -770,7 +776,13 @@ export class TerrainManager {
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery) {
-      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
+      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery, { meshLifecycle: {
+        added: (mesh, source) => {
+          if (this.isCubeSurface(source)) this.attachSurfaceStyle(mesh);
+        },
+        removing: mesh => this.surfaceStyle?.forget(mesh),
+        beforeSplit: mesh => this.surfaceStyle?.prepareForDerivedMesh(mesh),
+      } });
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
     }
     this.isImageryOnly = config.type === 'imagery';
@@ -2378,21 +2390,31 @@ export class TerrainManager {
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);
     }
-    if (this.surfaceStyle) {
+    if (this.surfaceStyle && (!this.cubeConfigured || (!this.cubeImagery && cubeAddress(tile)))) {
       scene.traverse(child => {
         if (!isMesh(child)) return;
-        const matrix = new THREE.Matrix4();
-        // Keep the absolute ECEF tile center in float64. Exclude tiles.group's
-        // ECEF-to-globe rotation and every camera-relative/world transform.
-        let node: THREE.Object3D | null = child;
-        while (node && node !== this.tiles.group) {
-          if (node.matrixAutoUpdate) node.updateMatrix();
-          matrix.premultiply(node.matrix);
-          node = node.parent;
-        }
-        this.surfaceStyle!.attach(child, matrix);
+        if (this.cubeConfigured && !this.isCubeSurface(child)) return;
+        this.attachSurfaceStyle(child);
       });
     }
+  }
+
+  private isCubeSurface(mesh: THREE.Mesh): boolean {
+    const count = mesh.geometry.userData.surfaceTriangles;
+    return Number.isInteger(count) && count > 0 && count * 3 <= (mesh.geometry.index?.count ?? 0);
+  }
+
+  private attachSurfaceStyle(mesh: THREE.Mesh): void {
+    const matrix = new THREE.Matrix4();
+    // Keep the absolute ECEF tile center in float64. Exclude tiles.group's
+    // ECEF-to-globe rotation and every camera-relative/world transform.
+    let node: THREE.Object3D | null = mesh;
+    while (node && node !== this.tiles.group) {
+      if (node.matrixAutoUpdate) node.updateMatrix();
+      matrix.premultiply(node.matrix);
+      node = node.parent;
+    }
+    this.surfaceStyle?.attach(mesh, matrix);
   }
 
   /**

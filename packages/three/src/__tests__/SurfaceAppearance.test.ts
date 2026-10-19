@@ -19,6 +19,85 @@ function compile(material: THREE.Material) {
 }
 
 describe('surface appearance physical and material contracts', () => {
+  it('shares datum-aware heights between contours and tint, and releases only unused attributes', () => {
+    const style = new SurfaceAppearance(datum), tile = mesh();
+    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190 - 8765, 0, 0));
+    style.set({ ...defaults, contours: true }); style.update(Infinity);
+    const heights = tile.geometry.getAttribute('surfaceHeightKm');
+    expect(heights.getX(0)).toBeCloseTo(-8.765, 5);
+    expect(tile.geometry.hasAttribute('surfaceGround')).toBe(true);
+    expect(tile.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
+    const shader = compile(tile.material);
+    expect(shader.fragmentShader).toContain('saContourLine');
+    expect(shader.fragmentShader).not.toMatch(/vCartographic|cartoOpacity|atan\(/);
+    const version = tile.material.version;
+    style.set({ ...defaults, contours: true, contourColor: '#123456', contourOpacity: 0.6, contourDensity: 2 });
+    expect(tile.material.version).toBe(version);
+    expect(shader.uniforms).toHaveProperty('saContourOpacity.value', 0.6);
+    style.set({ ...defaults, baseColor: 'elevation' }); style.update(Infinity);
+    expect(tile.geometry.getAttribute('surfaceHeightKm')).toBe(heights);
+    expect(tile.geometry.hasAttribute('surfaceGround')).toBe(false);
+    style.set({ ...defaults });
+    expect(tile.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(compile(tile.material).fragmentShader).toBe(THREE.ShaderLib.standard.fragmentShader);
+  });
+
+  it('masks skirt walls for contours without allocating hillshade normals', () => {
+    const tile = mesh(), style = new SurfaceAppearance(datum);
+    tile.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 20, 0, 10, 0, 15, 0, 0, -10, 0, 20, -10, 10, 0, -10], 3));
+    tile.geometry.setIndex([0, 1, 2, 3, 4, 5]);
+    tile.geometry.addGroup(0, 3, 0); tile.geometry.addGroup(3, 3, 0);
+    style.attach(tile, new THREE.Matrix4().makeTranslation(3396190, 0, 0));
+    style.set({ ...defaults, contours: true }); style.update(Infinity);
+    expect(Array.from(tile.geometry.getAttribute('surfaceGround').array)).toEqual([1, 1, 1, 0, 0, 0]);
+    expect(tile.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
+    expect(compile(tile.material).fragmentShader).toContain('step(0.999, vSAContourGround)');
+  });
+
+  it('composes contours after imagery and tint, before lighting and aerial perspective', () => {
+    const style = new SurfaceAppearance(datum), tile = mesh();
+    tile.material.onBeforeCompile = shader => {
+      shader.uniforms.imagerySentinel = { value: 1 };
+      injectShadowIntoShader(shader, makeShadowUniforms());
+      injectAerialPerspectiveIntoShader(shader, {});
+    };
+    style.attach(tile, new THREE.Matrix4().makeTranslation(0, 0, -3376200));
+    style.set({ ...defaults, contours: true, baseColor: 'elevation', hillshade: true });
+    style.update(Infinity);
+    const shader = compile(tile.material), fs = shader.fragmentShader;
+    expect(shader.uniforms).toHaveProperty('imagerySentinel');
+    expect(fs.indexOf('vec3 saTint')).toBeLessThan(fs.indexOf('float saFootprint'));
+    expect(fs.indexOf('float saFootprint')).toBeLessThan(fs.indexOf('#include <lights_physical_fragment>'));
+    expect(fs.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(fs.indexOf('AerialPerspectiveResult _ap'));
+    expect(shader.vertexShader.match(/attribute float surfaceHeightKm/g)).toHaveLength(1);
+    // Styling settings on one body cannot bleed into another.
+    expect(new SurfaceAppearance(datum).current.contours).toBe(false);
+  });
+
+  it('keeps contour height fields stable at tile boundaries and a lunar pole across origin shifts', () => {
+    const moon = { ...datum, referenceShape: { kind: 'sphere' as const, radiusKm: 1737.4 } };
+    const style = new SurfaceAppearance(moon), a = mesh(), b = mesh();
+    // Identical body-fixed pole in two different tile-local frames, metres.
+    a.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 10, 0, -1, 0, 10, -2], 3));
+    b.geometry.setAttribute('position', new THREE.Float32BufferAttribute([-100, 0, 0, -90, 0, -1, -100, 10, -2], 3));
+    style.attach(a, new THREE.Matrix4().makeTranslation(0, 0, -1738400));
+    style.attach(b, new THREE.Matrix4().makeTranslation(100, 0, -1738400));
+    b.visible = false;
+    style.set({ ...defaults, contours: true }); style.update(Infinity);
+    expect(b.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    b.visible = true; style.update(Infinity);
+    expect(a.geometry.getAttribute('surfaceHeightKm').array).toEqual(b.geometry.getAttribute('surfaceHeightKm').array);
+    expect(a.geometry.getAttribute('surfaceHeightKm').getX(0)).toBeCloseTo(1);
+    const heights = a.geometry.getAttribute('surfaceHeightKm').array.slice();
+    a.position.set(1e9, -1e9, 1e9); a.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 1);
+    style.update(Infinity);
+    expect(a.geometry.getAttribute('surfaceHeightKm').array).toEqual(heights);
+    style.set({ ...defaults, contours: true, hillshade: true }); style.update(Infinity);
+    style.set({ ...defaults, contours: true });
+    expect(a.geometry.hasAttribute('surfaceGround')).toBe(true);
+    expect(a.geometry.hasAttribute('surfaceReliefNormal')).toBe(false);
+  });
+
   it('has no relief-normal perturbation on coarse and fine constant-height reference surfaces', () => {
     for (const shape of [{ kind: 'sphere' as const, radiusKm: 3396.19 }, datum.referenceShape]) {
       for (const segments of [4, 16]) {
