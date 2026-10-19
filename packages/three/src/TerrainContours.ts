@@ -15,7 +15,7 @@ vSAContourPoint = mat3(saContourLocalToBody) * position * 0.001;
 vSAContourGround = surfaceGround;`);
   shader.fragmentShader = `
 varying float vSAContourGround; varying vec3 vSAContourPoint;
-uniform vec3 saContourColor; uniform float saContourOpacity, saContourDensity;
+uniform vec3 saContourColor; uniform float saContourOpacity, saContourDensity, saContourIntervalKm;
 float saContourLine(float height, float delta, float spacing) {
   float index = floor(height / spacing + 0.5);
   float major = 1.0 - step(0.5, abs(index - 10.0 * floor(index / 10.0 + 0.5)));
@@ -41,6 +41,7 @@ float saTarget = max(0.000001, (saScreenTarget / (1.0 + saScreenTarget / 0.2)) /
 float saLogStep = log(saTarget) / log(10.0);
 float saStep = pow(10.0, ceil(saLogStep));
 float saBlend = 1.0 - smoothstep(0.75, 1.0, fract(saLogStep));
+if (saContourIntervalKm > 0.0) { saStep = saContourIntervalKm; saBlend = 1.0; }
 float saDelta = length(vec2(dFdx(vSAHeight), dFdy(vSAHeight)));
 float saLine = mix(saContourLine(vSAHeight, max(saDelta, 1e-8), saStep * 10.0),
                    saContourLine(vSAHeight, max(saDelta, 1e-8), saStep), saBlend);

@@ -34,6 +34,9 @@ describe('surface appearance physical and material contracts', () => {
     style.set({ ...defaults, contours: true, contourColor: '#123456', contourOpacity: 0.6, contourDensity: 2 });
     expect(tile.material.version).toBe(version);
     expect(shader.uniforms).toHaveProperty('saContourOpacity.value', 0.6);
+    style.set({ ...style.current, contourIntervalKm: 0.1, contourLabels: true });
+    expect(shader.uniforms).toHaveProperty('saContourIntervalKm.value', 0.1);
+    expect(tile.material.version).toBe(version);
     style.set({ ...defaults, baseColor: 'elevation' }); style.update(Infinity);
     expect(tile.geometry.getAttribute('surfaceHeightKm')).toBe(heights);
     expect(tile.geometry.hasAttribute('surfaceGround')).toBe(false);

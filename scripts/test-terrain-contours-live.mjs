@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 const base = process.env.SURFACE_VIEWER_URL ?? 'http://localhost:5174';
 const output = process.env.CONTOUR_OUTPUT ?? 'work/issue-183/live';
+const labels = process.env.CONTOUR_LABELS === '1';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({
   headless: true,
@@ -50,8 +51,13 @@ try {
   await contours.check();
   await page.getByLabel('Contour color', { exact: true }).fill('#ff0000');
   await page.getByLabel('Contour opacity', { exact: true }).fill('0.7');
+  if (labels) {
+    await page.getByRole('checkbox', { name: 'Contour elevation labels', exact: true }).check();
+    assert.equal(await page.getByLabel('Contour interval', { exact: true }).inputValue(), '1');
+  }
 
   for (const [name, view] of Object.entries(poses)) {
+    if (labels) await page.getByLabel('Contour interval', { exact: true }).selectOption(name === 'close' ? '0.1' : '1');
     await page.evaluate(view => {
       const r = window.renderer, body = r.getBodyMesh('Moon'), V = r.camera.position.constructor;
       const center = body.getWorldPosition(new V());
@@ -81,23 +87,80 @@ try {
       return {
         gpu: gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER),
         terrain: tm.metrics, imagery: tm.cubeImageryStats, visible: tm.tiles.visibleTiles.size,
+        labels: tm.contourLabels.group.children.filter(s => s.visible).map(s => ({ text: s.userData.text, position: s.position.toArray() })),
       };
     });
+    if (labels) {
+      assert.ok(result.views[name].labels.length > 0, `${name}: missing elevation labels`);
+      assert.ok(result.views[name].labels.length <= 16);
+      const before = result.views[name].labels;
+      await page.waitForTimeout(600);
+      const after = await page.evaluate(() => window.renderer.getBodyMesh('Moon').terrainManager.contourLabels.group.children
+        .filter(s => s.visible).map(s => ({ text: s.userData.text, position: s.position.toArray() })));
+      assert.deepEqual(after, before, `${name}: settled labels moved`);
+      if (name === 'far') {
+        result.labelUpdateTiming = await page.evaluate(async () => {
+          const manager = window.renderer.getBodyMesh('Moon').terrainManager.contourLabels;
+          const original = manager.update, times = [];
+          manager.update = function (...args) {
+            const start = performance.now(); const value = original.apply(this, args);
+            times.push(performance.now() - start); return value;
+          };
+          try {
+            for (let i = 0; i < 120; i++) await new Promise(requestAnimationFrame);
+          } finally { manager.update = original; }
+          times.sort((a, b) => a - b);
+          return { samples: times.length, medianMs: times[Math.floor(times.length / 2)], p95Ms: times[Math.floor(times.length * 0.95)], maxMs: times.at(-1) };
+        });
+      }
+    }
     assert.ok(!/swiftshader|software/i.test(result.views[name].gpu), 'Live acceptance requires a physical GPU');
     await page.screenshot({ path: `${output}/${name}-contours.png` });
     await contours.uncheck();
     await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(() => !window.renderer.getBodyMesh('Moon').terrainManager.contourLabels.group.visible));
     await page.screenshot({ path: `${output}/${name}-off.png` });
     await contours.check();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${output}/${name}-restored.png` });
+    if (labels && name === 'close') {
+      result.motion = await page.evaluate(async () => {
+        const r = window.renderer, camera = r.camera, controls = r.cameraController.controls;
+        const initial = camera.position.clone(), direction = initial.clone().setFromMatrixColumn(camera.matrixWorld, 0);
+        const amplitude = initial.distanceTo(controls.target) * 0.06;
+        const samples = [];
+        for (let i = 0; i <= 24; i++) {
+          camera.position.copy(initial).addScaledVector(direction, amplitude * Math.sin(i / 24 * Math.PI * 2));
+          camera.lookAt(controls.target); camera.updateMatrixWorld(true);
+          await new Promise(requestAnimationFrame);
+          const group = r.getBodyMesh('Moon').terrainManager.contourLabels.group;
+          samples.push(group.children.filter(s => s.visible).length);
+        }
+        return { samples, maximum: Math.max(...samples) };
+      });
+      assert.ok(result.motion.maximum > 0 && result.motion.maximum <= 16);
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: `${output}/close-after-motion.png` });
+    }
     console.log(name, result.views[name].gpu, result.views[name].visible, 'tiles');
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByLabel('Contour density', { exact: true }).scrollIntoViewIfNeeded();
+  // The responsive shell moves/recreates the body panel after the resize.
+  await page.waitForTimeout(400);
+  await page.getByLabel(labels ? 'Contour interval' : 'Contour density', { exact: true }).scrollIntoViewIfNeeded();
   assert.ok(await contours.isChecked());
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${output}/mobile.png` });
+  if (labels) {
+    await page.getByRole('checkbox', { name: 'Contour elevation labels', exact: true }).uncheck();
+    assert.ok(await contours.isChecked());
+    assert.equal(await page.getByLabel('Contour interval', { exact: true }).inputValue(), '1');
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(() => !window.renderer.getBodyMesh('Moon').terrainManager.contourLabels.group.visible));
+    await page.getByRole('checkbox', { name: 'Contour elevation labels', exact: true }).check();
+    await page.getByLabel('Contour interval', { exact: true }).selectOption('0');
+    assert.ok(!await page.getByRole('checkbox', { name: 'Contour elevation labels', exact: true }).isChecked());
+  }
   result.errors = errors;
   result.failures = failures;
   await writeFile(`${output}/metrics.json`, JSON.stringify(result, null, 2));

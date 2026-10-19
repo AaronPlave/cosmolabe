@@ -11,6 +11,9 @@ export interface SurfaceAppearanceSettings {
   contourOpacity?: number;
   contourColor?: string;
   contourDensity?: number;
+  /** Zero retains automatic spacing; positive values are fixed kilometres. */
+  contourIntervalKm?: number;
+  contourLabels?: boolean;
   azimuthDeg: number;
   elevationDeg: number;
   contrast: number;
@@ -21,7 +24,7 @@ export interface SurfaceAppearanceSettings {
   maxKm: number;
 }
 export const DEFAULT_SURFACE_APPEARANCE: Readonly<SurfaceAppearanceSettings> = Object.freeze({
-  contours: false, contourOpacity: 0.35, contourColor: '#f2e6c9', contourDensity: 1,
+  contours: false, contourOpacity: 0.35, contourColor: '#f2e6c9', contourDensity: 1, contourIntervalKm: 0, contourLabels: false,
   hillshade: false, azimuthDeg: 315, elevationDeg: 45, contrast: 1,
   baseColor: 'imagery', imageryAmount: 0.25, palette: 'terrain',
   minKm: -10, maxKm: 15,
@@ -44,6 +47,8 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
     contours: !!s.contours,
     contourOpacity: clamp(s.contourOpacity ?? 0.35, 0, 1, 0.35),
     contourDensity: clamp(s.contourDensity ?? 1, 0.25, 4, 1),
+    contourIntervalKm: s.contourIntervalKm && s.contourIntervalKm > 0 ? Math.round(clamp(s.contourIntervalKm, 0.001, 100, 1) * 1000) / 1000 : 0,
+    contourLabels: !!s.contourLabels,
     contourColor: /^#[0-9a-f]{6}$/i.test(s.contourColor ?? '') ? s.contourColor : '#f2e6c9',
     minKm,
     maxKm: Math.max(minKm + 0.001, clamp(s.maxKm, -1000, 1000, 15)),
@@ -102,6 +107,7 @@ export class SurfaceAppearance {
     saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
     saLow: { value: new THREE.Color() }, saMid: { value: new THREE.Color() }, saHigh: { value: new THREE.Color() },
     saContourColor: { value: new THREE.Color() }, saContourOpacity: { value: 0.35 }, saContourDensity: { value: 1 },
+    saContourIntervalKm: { value: 0 },
     saUpScale: { value: new THREE.Vector3(1, 1, 1) },
   };
 
@@ -114,6 +120,21 @@ export class SurfaceAppearance {
   }
   get current(): SurfaceAppearanceSettings { return { ...this.settings }; }
   get active(): boolean { return !!this.settings.contours || this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
+
+  /** Original terrain only. Cube imagery may hide its source mesh while drawing
+   * clipped children; the tile scene, rather than that mesh, owns visibility. */
+  contourSources(): THREE.Mesh[] {
+    const result: THREE.Mesh[] = [];
+    for (const [mesh, entry] of this.meshes) {
+      if (entry.derived || !entry.ready || (entry.visibilityRoot && !entry.visibilityRoot.parent)) continue;
+      let visible = true;
+      for (let node: THREE.Object3D | null = entry.visibilityRoot ?? mesh; node; node = node.parent) {
+        if (!node.visible) { visible = false; break; }
+      }
+      if (visible) result.push(mesh);
+    }
+    return result;
+  }
 
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
@@ -183,7 +204,7 @@ export class SurfaceAppearance {
   }
 
   private key(): string {
-    return this.active ? `_surface_v7_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
+    return this.active ? `_surface_v8_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -417,6 +438,7 @@ export class SurfaceAppearance {
     this.uniforms.saContourColor.value.set(s.contourColor ?? '#f2e6c9');
     this.uniforms.saContourOpacity.value = s.contourOpacity ?? 0.35;
     this.uniforms.saContourDensity.value = s.contourDensity ?? 1;
+    this.uniforms.saContourIntervalKm.value = s.contourIntervalKm ?? 0;
     this.uniforms.saContrast.value = s.contrast;
     this.uniforms.saImageryAmount.value = s.imageryAmount;
     this.uniforms.saRange.value.set(s.minKm, s.maxKm);

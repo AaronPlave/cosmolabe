@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "logarithmicDepthBuffer": false,
+      "orthographic": false,
+      "labels": 7,
+      "sloped": 1343,
+      "unrestricted": 1343,
+      "occluded": 0,
+      "flat": 937,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": false,
+      "orthographic": true,
+      "labels": 12,
+      "sloped": 2376,
+      "unrestricted": 2376,
+      "occluded": 0,
+      "flat": 1492,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": true,
+      "orthographic": false,
+      "labels": 7,
+      "sloped": 1343,
+      "unrestricted": 1343,
+      "occluded": 0,
+      "flat": 854,
+      "disabled": 0
+    },
+    {
+      "logarithmicDepthBuffer": true,
+      "orthographic": true,
+      "labels": 12,
+      "sloped": 2376,
+      "unrestricted": 2376,
+      "occluded": 0,
+      "flat": 1492,
+      "disabled": 0
+    }
+  ],
+  "errors": []
+}

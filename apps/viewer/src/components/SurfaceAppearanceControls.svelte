@@ -62,10 +62,29 @@
           <label class="control-row"><span>Line color</span>
             <input aria-label="Contour color" type="color" value={settings.contourColor ?? '#f2e6c9'} oninput={e => update({ contourColor: e.currentTarget.value })} />
           </label>
+          <label class="control-row"><span>Interval</span>
+            <select aria-label="Contour interval" value={settings.contourIntervalKm ?? 0} onchange={e => {
+              const interval = +e.currentTarget.value;
+              update({ contourIntervalKm: interval, ...(interval === 0 ? { contourLabels: false } : {}) });
+            }}>
+              <option value="0">Automatic</option>
+              {#each [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5] as interval}
+                <option value={interval}>{interval * 1000} m</option>
+              {/each}
+            </select>
+          </label>
+          <label class="control-row"><span>Elevation labels</span>
+            <input aria-label="Contour elevation labels" type="checkbox" checked={settings.contourLabels ?? false} onchange={e => update({
+              contourLabels: e.currentTarget.checked,
+              ...(e.currentTarget.checked && !settings.contourIntervalKm ? { contourIntervalKm: 1 } : {}),
+            })} />
+          </label>
+          {#if !settings.contourIntervalKm}
           <label class="control-row"><span>Density</span>
             <input aria-label="Contour density" type="range" min="0.25" max="4" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
           </label>
-          <p class="ui-meta text-text-muted my-1">Unlit elevation lines with automatic spacing as you zoom. Heights follow the loaded mesh and body reference; numeric line labels are not yet available.</p>
+          {/if}
+          <p class="ui-meta text-text-muted my-1">Unlit elevation lines. Labels use fixed intervals and show metres above the body reference {datum.referenceShape.kind}; negative values are below it.</p>
         {/if}
         <label class="control-row">
           <span>Hillshade effect</span>

@@ -1,0 +1,958 @@
+{
+  "views": {
+    "close": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 264,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.3874999995032946,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 141,
+          "visible": 122,
+          "drawn": 48,
+          "inCache": 236,
+          "cpu": 144
+        },
+        "network": {
+          "requests": 236,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 37727904,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 62531732,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 186,
+        "pinnedTextures": 30,
+        "textureBytes": 69138432,
+        "maxTextureBytes": 167772160,
+        "requests": 186,
+        "bytes": 3861983,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 332.1000000834465,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 9913628,
+        "tiles": 48,
+        "splitTiles": 27,
+        "blocks": 135,
+        "displayedLevels": {
+          "1": 2,
+          "3": 17,
+          "5": 1,
+          "6": 7,
+          "7": 21,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "wantedLevels": {
+          "3": 3,
+          "4": 3,
+          "5": 6,
+          "6": 14,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 87,
+        "updateMs": 0.6000000238418579
+      },
+      "visible": 122,
+      "labels": [
+        {
+          "text": "-2600 m",
+          "position": [
+            -7.758812071753017,
+            -1734.7631633514818,
+            -8.222117254884509
+          ]
+        },
+        {
+          "text": "-2400 m",
+          "position": [
+            -4.52295460637664,
+            -1734.9874773500542,
+            -4.794961205682888
+          ]
+        },
+        {
+          "text": "-2800 m",
+          "position": [
+            -6.20327378340729,
+            -1734.5583640694692,
+            -10.293515244806017
+          ]
+        },
+        {
+          "text": "-2500 m",
+          "position": [
+            -2.8931117734593244,
+            -1734.8814445800797,
+            -7.483862805080555
+          ]
+        },
+        {
+          "text": "300 m",
+          "position": [
+            0.03244341151411234,
+            -1737.6976380702986,
+            -2.8619092897956406
+          ]
+        },
+        {
+          "text": "-500 m",
+          "position": [
+            3.6514077090586348,
+            -1736.8823130842559,
+            6.929971791976705
+          ]
+        },
+        {
+          "text": "-500 m",
+          "position": [
+            0.4746113352847665,
+            -1736.884659418432,
+            -7.283286597046917
+          ]
+        },
+        {
+          "text": "1100 m",
+          "position": [
+            -14.366019047435096,
+            -1738.3517453024883,
+            -17.580557016603024
+          ]
+        },
+        {
+          "text": "-1400 m",
+          "position": [
+            23.11642143231438,
+            -1735.7152315162662,
+            21.31160740637277
+          ]
+        },
+        {
+          "text": "-200 m",
+          "position": [
+            0.9701506584943118,
+            -1737.1715113129383,
+            -9.900426197822839
+          ]
+        },
+        {
+          "text": "-1300 m",
+          "position": [
+            29.147465587204753,
+            -1734.9953129940159,
+            54.63100834135145
+          ]
+        },
+        {
+          "text": "200 m",
+          "position": [
+            1.8397377538689383,
+            -1737.4431588197497,
+            23.271952780598525
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            -16.321070676368844,
+            -1738.2387152467213,
+            -17.156637752202464
+          ]
+        },
+        {
+          "text": "800 m",
+          "position": [
+            -13.2363475820577,
+            -1738.0299434839148,
+            -20.394865961494176
+          ]
+        },
+        {
+          "text": "700 m",
+          "position": [
+            -10.895310945695197,
+            -1737.9447630173809,
+            -20.515795544211947
+          ]
+        },
+        {
+          "text": "700 m",
+          "position": [
+            -11.949552724803944,
+            -1737.936810833513,
+            -20.602309899497747
+          ]
+        }
+      ]
+    },
+    "far": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 771,
+          "lastMs": 0.29999998211860657,
+          "meanMs": 0.34083333363135654,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 108,
+          "visible": 108,
+          "drawn": 34,
+          "inCache": 326,
+          "cpu": 149
+        },
+        "network": {
+          "requests": 326,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 52115664,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 82881636,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 326,
+        "pinnedTextures": 30,
+        "textureBytes": 121178112,
+        "maxTextureBytes": 167772160,
+        "requests": 326,
+        "bytes": 7462921,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 517.3000001311302,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 9883812,
+        "tiles": 34,
+        "splitTiles": 27,
+        "blocks": 118,
+        "displayedLevels": {
+          "2": 12,
+          "3": 39,
+          "4": 35,
+          "5": 32
+        },
+        "wantedLevels": {
+          "2": 12,
+          "3": 39,
+          "4": 35,
+          "5": 32
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 84,
+        "updateMs": 0.5999999940395355
+      },
+      "visible": 108,
+      "labels": [
+        {
+          "text": "0 m",
+          "position": [
+            -32.00972813073906,
+            -1736.975221719383,
+            -21.127371269037873
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            49.36713979786175,
+            -1734.5411960005424,
+            -23.208160222618673
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            53.63683837287654,
+            -1733.8450274253917,
+            50.14320092457562
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            -123.20849470794496,
+            -1731.4711114238887,
+            43.513838023386036
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            -13.022454860040227,
+            -1735.5333434809734,
+            -79.42824251282696
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            -76.92755258579629,
+            -1734.8104884796605,
+            -55.39396570714734
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            99.9575781391087,
+            -1734.2995441710875,
+            -27.708827271619818
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            45.10286808788061,
+            -1734.6996775615871,
+            -85.65477065308113
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            -73.45056334598019,
+            -1733.3283405082582,
+            110.43882812657998
+          ]
+        },
+        {
+          "text": "-4000 m",
+          "position": [
+            -159.82200165736103,
+            -1725.217774613728,
+            -52.445974716154744
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            19.44329696990078,
+            -1733.5758769801134,
+            -113.53572543720998
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            -180.19857057918549,
+            -1719.9922404093345,
+            131.4567025513386
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            61.4792212569554,
+            -1729.7882950814098,
+            110.41672569866134
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            102.28796971338002,
+            -1732.3295300738907,
+            -102.96258171227701
+          ]
+        },
+        {
+          "text": "-5000 m",
+          "position": [
+            -277.3892787279279,
+            -1708.6869433443244,
+            68.08792959106978
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            151.46781245170027,
+            -1729.7793822252572,
+            -1.236018276136349
+          ]
+        }
+      ]
+    },
+    "pole": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 1248,
+          "lastMs": 0.20000001788139343,
+          "meanMs": 0.1150000015894572,
+          "maxMs": 0.30000001192092896
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 21,
+          "visible": 21,
+          "drawn": 20,
+          "inCache": 326,
+          "cpu": 152
+        },
+        "network": {
+          "requests": 326,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 52115664,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 79035944,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 375,
+        "pinnedTextures": 30,
+        "textureBytes": 139392000,
+        "maxTextureBytes": 167772160,
+        "requests": 375,
+        "bytes": 8668392,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 626.3000001311302,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 7437440,
+        "tiles": 20,
+        "splitTiles": 20,
+        "blocks": 92,
+        "displayedLevels": {
+          "1": 16,
+          "2": 64,
+          "3": 12
+        },
+        "wantedLevels": {
+          "1": 16,
+          "2": 64,
+          "3": 12
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 3,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 72,
+        "updateMs": 0.19999998807907104
+      },
+      "visible": 21,
+      "labels": [
+        {
+          "text": "-3000 m",
+          "position": [
+            282.8208016185655,
+            -1707.5370921912015,
+            110.5459853244521
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            -45.864895639534936,
+            -1732.848621544481,
+            99.50316594531272
+          ]
+        },
+        {
+          "text": "3000 m",
+          "position": [
+            380.09069919483284,
+            -1684.309084389189,
+            -217.544968836473
+          ]
+        },
+        {
+          "text": "2000 m",
+          "position": [
+            38.61910471029678,
+            -1705.1291686423922,
+            -340.98258935854165
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            -162.30820775333066,
+            -1707.5970267265723,
+            -263.14533660984466
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            -248.6843396591697,
+            -1717.3232521199802,
+            -16.105185165339464
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            226.94733649130205,
+            -1666.3876711595847,
+            -435.8258450494136
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            145.49586582149993,
+            -1688.0521157133117,
+            379.5664571074413
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            -183.1782384883169,
+            -1707.5370577142266,
+            242.4210123583126
+          ]
+        },
+        {
+          "text": "2000 m",
+          "position": [
+            371.5776035867059,
+            -1669.1944293043775,
+            317.83651535428123
+          ]
+        },
+        {
+          "text": "3000 m",
+          "position": [
+            417.16862202458157,
+            -1633.9664895212454,
+            -429.9868584757677
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            636.1513407297907,
+            -1617.6939976908013,
+            13.27210854125245
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            -413.85512304535115,
+            -1672.0510060791837,
+            -210.8384629033277
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            -71.42100801603351,
+            -1624.4039357989136,
+            -614.8583291121939
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            465.1012039200789,
+            -1592.564274653083,
+            518.9128619780971
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            765.0788540793552,
+            -1549.361220664094,
+            180.12843994499704
+          ]
+        }
+      ]
+    },
+    "globe": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "terrain": {
+        "update": {
+          "count": 1610,
+          "lastMs": 0,
+          "meanMs": 0.09999999950329462,
+          "maxMs": 0.20000001788139343
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 18,
+          "visible": 18,
+          "drawn": 17,
+          "inCache": 326,
+          "cpu": 154
+        },
+        "network": {
+          "requests": 326,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 52115664,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 75991248,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "imagery": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 375,
+        "pinnedTextures": 30,
+        "textureBytes": 139392000,
+        "maxTextureBytes": 167772160,
+        "requests": 375,
+        "bytes": 8668392,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 693.6000000536442,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 5540904,
+        "tiles": 17,
+        "splitTiles": 15,
+        "blocks": 68,
+        "displayedLevels": {
+          "1": 39,
+          "2": 29
+        },
+        "wantedLevels": {
+          "1": 39,
+          "2": 29
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 2,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 51,
+        "updateMs": 0.19999998807907104
+      },
+      "visible": 18,
+      "labels": [
+        {
+          "text": "-3000 m",
+          "position": [
+            1130.192148712337,
+            -1287.6018847433193,
+            -269.73254477541957
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            1014.3958005020211,
+            -1407.267232041465,
+            -74.38584510157673
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            690.4805874722668,
+            -1484.8691887987036,
+            -571.2574810841559
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            1096.3690671789452,
+            -1202.1783863570174,
+            -606.3818944440653
+          ]
+        },
+        {
+          "text": "1000 m",
+          "position": [
+            636.1513407297907,
+            -1617.6939976908013,
+            13.27210854125245
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            709.4085035016478,
+            -1300.8978659551328,
+            -905.1935111204847
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            503.66902568168007,
+            -1423.4939735830872,
+            -857.2325065251589
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            226.94733649130205,
+            -1666.3876711595847,
+            -435.8258450494136
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            784.0462313237431,
+            -1494.8467890199906,
+            402.6528527963877
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            1040.898196931056,
+            -1315.2120953878446,
+            441.3081160212895
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            282.8208016185655,
+            -1707.5370921912015,
+            110.5459853244521
+          ]
+        },
+        {
+          "text": "0 m",
+          "position": [
+            173.0540838834866,
+            -1525.1047595428045,
+            -813.9394184490023
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            447.5669555801477,
+            -1607.150711673027,
+            481.32237345145757
+          ]
+        },
+        {
+          "text": "-1000 m",
+          "position": [
+            455.32106714777717,
+            -1138.3991132167364,
+            -1229.5172352171821
+          ]
+        },
+        {
+          "text": "-2000 m",
+          "position": [
+            -162.30820775333066,
+            -1707.5970267265723,
+            -263.14533660984466
+          ]
+        },
+        {
+          "text": "-3000 m",
+          "position": [
+            -336.99980579491057,
+            -1573.2838431116925,
+            647.3792206256521
+          ]
+        }
+      ]
+    }
+  },
+  "assets": {
+    "total": 8,
+    "settled": 8,
+    "loaded": 8,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 2556.5
+  },
+  "motion": {
+    "samples": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16
+    ],
+    "maximum": 16
+  },
+  "labelUpdateTiming": {
+    "samples": 120,
+    "medianMs": 0.09999999403953552,
+    "p95Ms": 0.20000001788139343,
+    "maxMs": 0.9000000059604645
+  },
+  "errors": [],
+  "failures": []
+}

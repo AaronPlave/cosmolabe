@@ -3,7 +3,8 @@
 This is an implementation with offline and real MoonFall checks, **not final acceptance
 of #183**. The per-body **Surface appearance → Contours** toggle supports
 quantized-mesh terrain and the known planetary cube-sphere path used by current
-MoonFall catalogs. Color, opacity and relative density are available. Contours
+MoonFall catalogs. Color, opacity, automatic density, fixed intervals and sparse
+elevation labels are available. Contours
 are off by default. Cube contours reuse the validated cube surface appearance
 capability on main (#263), preserving its elevation tint and hillshade controls.
 Generic 3D Tiles models do not acquire terrain-height styling.
@@ -46,7 +47,7 @@ We use ordered `smoothstep` edges, suppress unresolved bands and flat plateaus,
 and mask skirt/bottom geometry. Contours compose as unlit annotations after
 physical lighting, hillshade, eclipses and aerial perspective, before opaque
 output, tone mapping, output color conversion and existing fog/fade/debug hooks.
-Lighting still applies to the underlying terrain. There is no extra
+Lighting still applies to the underlying terrain. The contour lines add no extra
 draw call, geometric displacement, depth offset, DEM request, or LOD change.
 Color/opacity/density changes update uniforms without recompiling. Disabling
 contours removes their shader code and releases height/ground attributes unless
@@ -71,12 +72,40 @@ varies. A simple `>= 0.999` test admitted a thin strip on skirt faces sharing
 their top edge with the ground, creating dashed tile outlines. Constant-mask
 ground triangles remain eligible; skirts still hide physical terrain cracks.
 
-Numeric elevation labels are feasible from the existing datum-aware heights.
-They are not blocked by missing DEM data. The current shader only draws lines,
-with two automatically blended contour intervals that vary with local screen
-footprint. Numeric labels would need an interval/placement policy, extraction
-or sampling of visible line locations, depth/occlusion checks, overlap handling,
-and stable behavior across terrain LOD changes. No labels are implemented here.
+## Elevation labels
+
+Enable **Elevation labels** under Contours. Enabling labels switches automatic
+spacing to a fixed 1000 m interval; choose 10, 25, 50, 100, 250, 500, 1000, 2000
+or 5000 m in **Interval**. Fixed intervals also work without labels. Selecting
+Automatic disables labels and restores the density control. Labels are opt-in;
+existing contour settings retain automatic spacing.
+
+Labels report signed metres relative to the same body reference shape and
+height convention as the contour shader, including negative heights. They
+intersect the triangle's interpolated `surfaceHeightKm` field, rather than
+recomputing radial height at a chord midpoint. No new elevation source, DEM
+request, or geometry/LOD change is required. Numeric display is not a claim of
+metre-level source accuracy; coarse meshes still give coarse relief.
+
+Candidate extraction scans original visible ground triangles incrementally
+with a 2 ms frame-budget target, at most eight candidate levels per triangle
+and 64 retained anchors per visible source mesh. Clipped imagery blocks never
+duplicate candidates; detached/hidden cached LOD tiles are removed. Skirts,
+constant-height plateaus, back-facing terrain and unresolved line intervals do
+not supply labels. At most 16 pooled sprites per body draw horizontal text;
+placement avoids nearby labels, body names, callouts and viewer panels. Existing
+anchors retain priority while the camera moves. Layout refreshes every 250 ms;
+projection and visibility update every frame. Zooming/refinement can replace
+anchors when their source tile retires. Text following curves and cross-LOD
+anchor identity are outside this first version.
+
+Glyphs stay screen-aligned while their fragment depth follows the source
+triangle's plane, with a two-pixel camera-directed depth bias. This prevents
+half-clipped billboard text on slopes while foreground terrain still occludes
+labels. Both perspective/orthographic cameras and ordinary/log depth are tested.
+Labels are unlit, inherit line color and opacity, and hide in terrain debug
+modes. Disabling labels/contours clears candidates and hides the bounded sprite
+pool; disposing terrain releases its textures and materials.
 
 ## Reproducible offline validation
 
@@ -84,15 +113,17 @@ and stable behavior across terrain LOD changes. No labels are implemented here.
 npm ci
 npm run typecheck
 npm run lint
-npx vitest run packages/three/src/__tests__/SurfaceAppearance.test.ts
+npx vitest run packages/three/src/__tests__/SurfaceAppearance.test.ts packages/three/src/__tests__/TerrainContourLabels.test.ts
 # Optional: download the two upstream source files above into work/issue-183/
 # to include the upstream wrapper smoke comparison (not shipped/vendored).
 CHROMIUM_PATH=/usr/bin/chromium node scripts/test-terrain-contours.mjs
 CHROMIUM_PATH=/usr/bin/chromium node scripts/test-cube-terrain-contours.mjs
+node scripts/test-terrain-contour-labels.mjs
 # In another terminal: npm --prefix apps/viewer run dev -- --port 5182
 CHROMIUM_PATH=/usr/bin/chromium node scripts/test-terrain-contour-controls.mjs
 # Real local MoonFall cube terrain + WAC/NAC imagery, physical GPU required:
 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
+CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
 ```
 
 Omit `CHROMIUM_PATH` to use Playwright's installed browser. Captures default to
@@ -197,6 +228,24 @@ The harness toggles contours off/on in each desktop view and exercises the
 actual Svelte color/opacity controls. Software-WebGL regression fixtures above
 provide the exact disabled-pixel restoration and imagery-split comparisons.
 These real-GPU captures establish rendered behavior, not a frame-time benchmark.
+
+## Label validation
+
+The offline label regression tests steep terrain with perspective and
+orthographic cameras, each with normal and logarithmic depth. Depth-tested
+text retains all 1343 perspective and 2376 orthographic lit glyph pixels;
+a standard flat-billboard negative control retains only 854–1492. A foreground
+occluder hides every label pixel, and disabling contours leaves zero text.
+See [depth metrics](label-depth-metrics.json).
+
+Actual MoonFall labels were checked on the Apple M4 Max with local LOLA terrain
+and WAC/NAC imagery, across close/regional/polar/globe views, camera motion,
+settled placement, contour and label toggles, interval edits, and mobile controls.
+See [close labels](moonfall-labels-close.png), [regional labels](moonfall-labels-far.png),
+[globe labels](moonfall-labels-globe.png), [mobile controls](moonfall-labels-mobile.png),
+and [live metrics](label-live-metrics.json). The warmed regional label-update
+method took about 0.1 ms median CPU time over 120 frames. This excludes GPU
+sprite cost and terrain/style activation and is not a whole-frame benchmark.
 
 ## Remaining before closing #183
 

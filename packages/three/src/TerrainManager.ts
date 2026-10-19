@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
+import { TerrainContourLabels } from './TerrainContourLabels.js';
+import type { ScreenRect } from './EventCallout.js';
 import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
@@ -611,6 +613,7 @@ const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
+  private readonly contourLabels = new TerrainContourLabels();
   private surfaceStyle: SurfaceAppearance | null;
   private readonly cubeScenes = new Set<THREE.Object3D>();
   private readonly cubeStyleCandidate: boolean;
@@ -1150,6 +1153,7 @@ export class TerrainManager {
     this.tiles.group.rotation.x = -Math.PI / 2;
 
     this.group.add(this.tiles.group);
+    this.group.add(this.contourLabels.group);
   }
 
   /**
@@ -1158,7 +1162,7 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
-  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3): void {
+  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] = []): void {
     if (this.disposed) return;
 
     // Compute terrain-appropriate near/far from camera position.
@@ -1311,6 +1315,12 @@ export class TerrainManager {
         // Imagery must never stop terrain streaming or the frame loop.
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
       }
+    }
+    if (this.surfaceStyle) {
+      const size = renderer.getSize(_bufferSize);
+      const settings = this.surfaceStyle.current;
+      this.contourLabels.update(camera, size.x, size.y,
+        settings.contours && settings.contourLabels ? this.surfaceStyle.contourSources() : [], settings, this.debugMode === 'none', labelObstacles);
     }
   }
 
@@ -2152,6 +2162,7 @@ export class TerrainManager {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.contourLabels.dispose();
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
     this.cubeImagery?.dispose();
