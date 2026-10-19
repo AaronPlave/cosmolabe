@@ -91,7 +91,11 @@ frame work with a 2 ms target; construction/layout yield every 128 operations. T
 per frame, not the number of admitted contours. Extraction excludes offscreen
 and back-facing triangles and unresolved index levels. View changes refresh
 that filtered extraction, reusing segment objects on unchanged triangles so
-existing label anchors retain priority. No elevation requests are made.
+existing label anchors retain priority. Nearby tiles and paths close to the
+look direction are processed first. Labels beyond six times the nearest visible
+surface distance are omitted; this is a relative distance gate, so globe views
+still support labels. The distance scale has 25% hysteresis. No elevation
+requests are made.
 
 Shared triangle endpoints and tile borders are stitched before labeling.
 Mixed-LOD dangling ends may join within three pixels, with equal elevations,
@@ -102,13 +106,27 @@ then placed with rotated text bounds and collision checks. Projection updates
 every frame; placement starts a new cooperative pass 250 ms after the last one
 finishes. Layout snapshots the camera and source matrices in the body frame,
 so body motion/floating-origin updates cannot mix coordinate frames during a
-pass. Refinement can replace anchors when source triangles retire.
+pass. New labels publish path by path instead of waiting for the entire view.
+Existing anchors survive temporary occlusion and small camera moves; refinement
+can replace them when source triangles retire. Extraction refresh has a wider
+motion threshold to avoid constant work cancellation while navigating.
 
-Glyphs stay legible on slopes because their fragment depth follows the source
-triangle plane, with a two-pixel camera-directed bias. This keeps camera-facing
-text from being half-clipped by its own terrain, while actual foreground
-terrain still occludes it. Perspective/orthographic cameras and normal/log
-buffers are covered by the GPU regression.
+Labels use opaque warm-white semibold text with a black halo, independently of
+contour color and opacity (including zero line opacity). Text scales smoothly
+from 14 px to a minimum of about 12 px with relative distance. Rotated collision
+bounds follow the actual scaled size.
+
+Glyph fragment depth follows the source triangle plane with a 0.15-pixel
+camera-directed bias in the logarithmic viewer, reduced from two pixels to avoid pulling text through
+nearby relief. A source-mesh line-of-sight check additionally hides anchors
+behind foreground terrain, including fading tiles that do not write depth.
+These checks use a 2 ms frame target, cache successful checks for up to one
+second at a stationary view, and invalidate on camera/anchor movement or source
+changes. Unchecked anchors stay hidden while waiting their turn. Labels render
+after transparent terrain and retain per-fragment depth testing.
+Ordinary perspective depth additionally allows one depth-buffer quantum when a
+very small near plane reduces precision. Perspective/orthographic cameras and
+normal/log buffers are covered by the GPU regression. Geometry, material depth flags, and terrain render passes are unchanged.
 
 ## Reproducible validation
 
@@ -127,7 +145,7 @@ SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contour-contr
 CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
 ```
 
-371 renderer tests across 37 files pass, with typecheck, lint and viewer
+372 renderer tests across 37 files pass, with typecheck, lint and viewer
 production build. Tests cover transformed/mixed-LOD border stitching, separate
 same-height loops, cooperative construction without path caps, automatic
 spacing/density/hysteresis, source visibility, skirts, cleanup, and rotated
@@ -149,10 +167,13 @@ blocks retain the style fields, split/unsplit pixels are identical, debug
 precedence and disabled restoration hold, and no unused height fields remain.
 See [cube contours](cube-contours.png) and [tilted cube](cube-tilted.png).
 
-The [label/depth regression](label-depth-metrics.json) preserves all 92/94 lit
+The [label/depth regression](label-depth-metrics.json) preserves all 120/114 lit
 glyph pixels with perspective/orthographic cameras and normal/log depth.
-A flat-billboard negative control retains only 50. Foreground occlusion and
-disabled contours leave zero text pixels. Its dense 10 m scalar-field fixture
+A flat-billboard negative control retains only 58. Both ordinary foreground
+occlusion and a non-depth-writing foreground plane leave zero text pixels;
+without the anchor LOS check, the latter exposes all 120/114 pixels. Changing
+the contours to almost transparent black retains the same readable label pixels.
+Disabled contours leave zero text pixels. Its dense 10 m scalar-field fixture
 retains 57,344 contour pixels over 112 rows, below half the plane's area; the
 old shared-band fade retains zero. This verifies coverage without a full-plane
 tint. The scalar field is a synthetic rendering test, not scientific terrain.
@@ -177,21 +198,23 @@ and independent contour/label toggles.
 - [Mobile automatic labels and controls](moonfall-labels-mobile.png)
 
 Per-view warm CPU label-update timings are recorded over 120 frames, including
-cooperative layout. The automatic surface view shows 36 labels; the fixed 10 m
-oblique view shows 112. Label count follows readable paths, not a global cap.
+cooperative layout and the additional LOS checks. Label count follows readable,
+visible paths, not a global cap. Hidden labels retain their anchors for reuse.
 
-| View | Minor interval | Labels | Median CPU | Maximum CPU |
-| --- | --- | --- | --- | --- |
-| Surface, automatic | 100 m | 36 | 0.1 ms | 2.1 ms |
-| Oblique, fixed | 10 m | 112 | 0.3 ms | 2.3 ms |
-| Regional, automatic | 500 m | 29 | 0.1 ms | 2.1 ms |
-| Polar, automatic | 1000 m | 29 | 0.1 ms | 2.1 ms |
-| Globe, automatic | 1000 m | 23 | 0.1 ms | 2.2 ms |
+| View | Minor interval | Labels | Median CPU | P95 CPU | Maximum CPU |
+| --- | --- | --- | --- | --- | --- |
+| Surface, automatic | 100 m | 12 | 0.3 ms | 2.2 ms | 2.7 ms |
+| Oblique, fixed | 10 m | 97 | 2.1 ms | 3.6 ms | 6.2 ms |
+| Regional, automatic | 500 m | 26 | 0.2 ms | 2.2 ms | 2.6 ms |
+| Polar, automatic | 1000 m | 23 | 0.1 ms | 2.2 ms | 2.7 ms |
+| Globe, automatic | 1000 m | 20 | 0.1 ms | 2.1 ms | 3.3 ms |
 
-The earlier synchronous layout of the same oblique view peaked around 19 ms;
-cooperative placement removes that single-frame pass. These timings measure
-the label update method, not GPU sprite drawing, terrain/style activation,
-whole-frame performance or physical-phone behavior.
+An initial synchronous LOS pass peaked around 44 ms in the dense view; the
+cooperative cached version above avoids that burst. Individual mesh raycasts
+can still exceed the 2 ms target. These timings measure label CPU updates, not
+GPU sprite drawing, terrain/style activation, whole-frame performance or
+physical-phone behavior. Labels may still replace anchors when terrain LOD or
+automatic intervals change; this is not a guarantee of flicker-free navigation.
 
 Remaining before closing #183: real textured Mars captures; broader mixed-LOD,
 moving-camera/fade/flicker review; full imagery/Sun/eclipse/atmosphere

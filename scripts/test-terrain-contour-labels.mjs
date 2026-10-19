@@ -49,13 +49,19 @@ try {
       const occluder = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshBasicMaterial({ color: 0 }));
       occluder.position.z = 200; scene.add(occluder);
       const occluded = pixels();
+      occluder.material.transparent = true; occluder.material.depthWrite = false;
+      const missingDepth = lit(pixels());
+      labels.update(camera, 512, 512, [mesh, occluder], settings);
+      const fadingOccluded = lit(pixels());
       occluder.visible = false;
+      labels.update(camera, 512, 512, [mesh], { ...settings, contourOpacity: 0.01, contourColor: '#000000' });
+      const lowOpacity = lit(pixels());
       // Regression sensitivity: standard flat billboard depth clips glyphs.
       sprites.forEach(s => { s.material.onBeforeCompile = () => {}; s.material.customProgramCacheKey = () => 'flat-control'; s.material.needsUpdate = true; });
       const flat = pixels();
       labels.update(camera, 512, 512, [mesh], { ...settings, contours: false });
       const disabled = pixels();
-      result.push({ logarithmicDepthBuffer, orthographic, labels: sprites.length, sloped: lit(sloped), unrestricted: lit(unrestricted), occluded: lit(occluded), flat: lit(flat), disabled: lit(disabled) });
+      result.push({ logarithmicDepthBuffer, orthographic, labels: sprites.length, sloped: lit(sloped), unrestricted: lit(unrestricted), occluded: lit(occluded), flat: lit(flat), missingDepth, fadingOccluded, lowOpacity, disabled: lit(disabled) });
       labels.dispose(); geometry.dispose(); mesh.material.dispose(); occluder.geometry.dispose(); occluder.material.dispose(); renderer.dispose(); renderer.domElement.remove();
     }
     return result;
@@ -97,6 +103,9 @@ try {
     assert.ok(r.sloped >= r.unrestricted * 0.98, 'slope depth must preserve full glyphs');
     assert.ok(r.flat < r.sloped * 0.9, 'flat billboard negative control must clip text');
     assert.equal(r.occluded, 0, 'foreground terrain must hide labels');
+    assert.ok(r.missingDepth > 80, 'non-depth-writing foreground is a sensitive negative control');
+    assert.equal(r.fadingOccluded, 0, 'LOS must hide anchors behind fading/non-depth-writing terrain');
+    assert.equal(r.lowOpacity, r.sloped, 'label contrast must be independent of contour color and opacity');
     assert.equal(r.disabled, 0, 'disabling contours must hide labels');
   }
   assert.ok(coverage.retained.pixels > 5000 && coverage.retained.rows > 30, 'dense intervals must retain a continuous index skeleton');

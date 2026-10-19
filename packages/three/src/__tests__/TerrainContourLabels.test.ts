@@ -98,6 +98,14 @@ describe('terrain contour labels', () => {
     expect(visible).toHaveLength(19);
     expect(new Set(visible.map(s => s.userData.text)).size).toBe(19);
     for (const sprite of visible) expect(Math.abs(parseInt(sprite.userData.text) % 500)).toBe(0);
+    const anchors = () => labels.group.children.filter(s => s.visible).map(s => JSON.stringify([s.userData.text, s.position.toArray()])).sort();
+    const initial = anchors();
+    for (const x of [2, -2, 0]) {
+      camera.position.x = x; camera.updateMatrixWorld();
+      vi.mocked(performance.now).mockReturnValue(500 + x);
+      labels.update(camera, 1200, 1000, [mesh], settings);
+      expect(anchors()).toEqual(initial);
+    }
     mesh.rotation.z = 0.4;
     labels.update(camera, 1200, 1000, [mesh], settings);
     const rotated = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
@@ -105,4 +113,34 @@ describe('terrain contour labels', () => {
     for (const sprite of rotated) expect(sprite.material.rotation).toBeCloseTo(0.4, 6);
     labels.dispose();
   });
+  it('keeps labels opaque and neutral, bounds distance scaling, and rejects distant and occluded anchors', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ strokeText() {}, fillText() {} }) }) });
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    const labels = new TerrainContourLabels();
+    const camera = new THREE.OrthographicCamera(-600, 600, 500, -500, 0.1, 20000);
+    camera.position.z = 1000; camera.lookAt(0, 0, 0);
+    const meshes = [-350, 0, 350].map((x, i) => {
+      const geometry = new THREE.PlaneGeometry(250, 800, 1, 20), p = geometry.getAttribute('position');
+      geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, j) => p.getY(j) * 0.01), 1));
+      const mesh = new THREE.Mesh(geometry); mesh.position.set(x, 0, [0, -1000, -9000][i]); return mesh;
+    });
+    const settings = { ...defaults, contours: true, contourLabels: true, contourIntervalKm: 0.1, contourOpacity: 0, contourColor: '#000000' };
+    labels.update(camera, 1200, 1000, meshes, settings);
+    const visible = labels.group.children.filter(s => s.visible) as THREE.Sprite[];
+    const near = visible.filter(s => s.position.x < -200), middle = visible.filter(s => Math.abs(s.position.x) < 100);
+    expect(near.length).toBeGreaterThan(0); expect(middle.length).toBeGreaterThan(0);
+    expect(visible.some(s => s.position.x > 200)).toBe(false);
+    for (const sprite of visible) {
+      expect(sprite.material.opacity).toBe(1); expect(sprite.material.color.getHexString()).toBe('fff8e8');
+    }
+    expect(middle[0].scale.y / near[0].scale.y).toBeCloseTo(0.86);
+    // Transparent/fading terrain can omit depth writes. It must still hide the
+    // anchor rather than allowing a label to show through a foreground ridge.
+    const ridge = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1000), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+    ridge.position.z = 500;
+    labels.update(camera, 1200, 1000, [...meshes, ridge], settings);
+    expect(labels.group.children.filter(s => s.visible)).toHaveLength(0);
+    labels.dispose();
+  });
+
 });
