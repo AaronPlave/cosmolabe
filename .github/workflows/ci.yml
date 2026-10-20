@@ -11,6 +11,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terrain-fixtures:
+    name: Terrain builder fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install offline raster tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
+      - name: Oblate and below-reference Cartesian fixtures
+        run: /usr/bin/python3 scripts/terrain/test_cube_ellipsoid.py
+      - name: Existing lunar and cube builder fixtures
+        run: /usr/bin/python3 scripts/terrain/dem.py selftest
+
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest

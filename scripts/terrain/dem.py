@@ -33,7 +33,8 @@ The base may be geographic or 0°/0° equirectangular, with GDAL band
 scale/offset honoured (the LOLA LDEM stores Int16 half-metres).
 
 Requires GDAL's Python bindings and numpy (`brew install gdal` provides both).
-Heights keep the sources' vertical datum; nothing is re-referenced here.
+Geographic/polar tilers keep source heights. cube-tile can explicitly convert
+planetocentric areoid heights to radii using a supplied areoid-radius raster.
 """
 import argparse, gzip, hashlib, json, math, multiprocessing as mp, os, struct, sys, time
 import numpy as np
@@ -1125,6 +1126,45 @@ def direction_lonlat(d):
             np.degrees(np.arctan2(d[..., 2], np.hypot(d[..., 0], d[..., 1]))))
 
 
+def cube_field_heights(lon, lat, spacing_deg):
+    """Radial offsets from _T['radius'], solely for the cube lattice payload.
+
+    The public datum describes queried heights, not this storage convention.
+    MOLA topography is radius minus areoid radius (MEGDR SIS); adding the
+    measured areoid radius is the conversion, never a change of labels.
+    """
+    mode = _T.get('cube_source_convention', 'sphere-radial')
+    if mode == 'sphere-radial':
+        return field_heights(lon, lat, spacing_deg)
+    if mode == 'areoid-radial':
+        arr, gt, scale, offset = _T['areoid']
+        areoid = bilinear(arr, gt, lon, lat, wrap_lon=True) * scale + offset
+        return areoid + field_heights(lon, lat, spacing_deg) - _T['radius']
+    # An ellipsoid-normal source is evaluated at the geodetic latitude of the
+    # physical point on each fixed geocentric lattice ray. Iterating also handles
+    # below-reference terrain without pretending radial and normal offsets agree.
+    a, c = _T['cube_ellipsoid']
+    theta = np.radians(lat)
+    cp, sp = np.cos(theta), np.sin(theta)
+    r = 1 / np.sqrt((cp / a) ** 2 + (sp / c) ** 2)
+    e2 = 1 - (c / a) ** 2
+    for _ in range(32):
+        p, z = r * cp, r * sp
+        phi = np.arctan2(z, p * (1 - e2))
+        for _ in range(128):
+            n = a / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+            phi = np.arctan2(z + e2 * n * np.sin(phi), p)
+        n = a / np.sqrt(1 - e2 * np.sin(phi) ** 2)
+        # Dot with the normal, stable at both poles.
+        h = p * np.cos(phi) + z * np.sin(phi) - n * (1 - e2 * np.sin(phi) ** 2)
+        target = field_heights(lon, np.degrees(phi), spacing_deg)
+        delta = (target - h) / np.cos(phi - theta)
+        r += delta
+        if np.max(np.abs(delta)) < 1e-7:
+            return r - a
+    raise RuntimeError('ellipsoid-normal source did not converge on cube rays')
+
+
 def cube_normals(d, spacing_rad, radius_m):
     """Outward unit normals from central differences of the field ±spacing
     along two tangents chosen from each direction alone (the axis least
@@ -1141,7 +1181,7 @@ def cube_normals(d, spacing_rad, radius_m):
 
     def at(t, sign):
         q = flat * c + (sign * s) * t
-        return q * (radius_m + field_heights(*direction_lonlat(q), spacing_deg))[:, None]
+        return q * (radius_m + cube_field_heights(*direction_lonlat(q), spacing_deg))[:, None]
 
     n = np.cross(at(t1, 1) - at(t1, -1), at(t2, 1) - at(t2, -1))
     return n / np.linalg.norm(n, axis=1, keepdims=True)
@@ -1188,7 +1228,7 @@ def cube_representation(face, L, x, y, heights_m, density=4):
     it excludes source error, which neither source states per pixel."""
     n = (GRID - 1) * density + 1
     u, v = cube_lattice_uv(L, x, y, n)
-    truth = field_heights(*direction_lonlat(cube_directions(face, u, v)), _T['finest_deg'])
+    truth = cube_field_heights(*direction_lonlat(cube_directions(face, u, v)), _T['finest_deg'])
     idx = np.arange(n) / density
     rows, cols = np.meshgrid(idx, idx, indexing='ij')
     err = lattice_triangle_grid(heights_m.reshape(GRID, GRID).astype(np.float64), rows, cols) - truth
@@ -1310,17 +1350,20 @@ def cube_sample_job(job):
         sp = S['spacing_rad'][L]
         u, v = cube_lattice_uv(L, x, y)
         d = cube_directions(face, u, v).reshape(-1, 3)
-        h = field_heights(*direction_lonlat(d), math.degrees(sp))
+        h = cube_field_heights(*direction_lonlat(d), math.degrees(sp))
         nrm = cube_normals(d, sp, R)
         # numpy's SIMD arctan2/sin/cos can differ by an ulp with a value's
         # position in the array, so a vertex another tile shares (every edge
         # vertex) is evaluated alone: identical input, identical code path.
         for k in CUBE_EDGE_VERTICES:
-            h[k] = field_heights(*direction_lonlat(d[k:k + 1]), math.degrees(sp))[0]
+            h[k] = cube_field_heights(*direction_lonlat(d[k:k + 1]), math.degrees(sp))[0]
             nrm[k] = cube_normals(d[k:k + 1], sp, R)[0]
         rel = f'{face}/{L}/{x}'
         os.makedirs(os.path.join(S['out'], 'heights', rel), exist_ok=True)
         h32 = h.astype('<f4')
+        if not np.isfinite(h32).all() or np.any(R + h32 <= 0):
+            raise RuntimeError(f'{face}/{L}/{x}/{y}: invalid physical radii')
+        h = h32.astype(np.float64)  # rendered and CPU lattice share these exact source values
         with open(os.path.join(S['out'], 'heights', rel, f'{y}.f32'), 'wb') as f:
             f.write(h32.tobytes())
         np.save(os.path.join(S['scratch'], f'{face}_{L}_{x}_{y}.npy'), np.concatenate([h[:, None], nrm], 1))
@@ -1361,12 +1404,13 @@ def cube_write_job(job):
         # centre, which round up to ~0.1 m away from the float64 positions on a
         # level-0 face.
         half = np.abs((pos - centre).astype(np.float32).astype(np.float64)).max(0)
+        rounding_bound = float(np.linalg.norm((pos - centre).astype(np.float32).astype(np.float64) - (pos - centre), axis=1).max()) + 1e-6
         os.makedirs(os.path.join(S['out'], f'{face}/{L}/{x}'), exist_ok=True)
         with open(os.path.join(S['out'], f'{face}/{L}/{x}/{y}.glb'), 'wb') as f:
             f.write(encode_glb(pos - centre, nor, tri, centre, generator='scripts/terrain/dem.py cube-tile',
                                extras={'surfaceTriangles': len(surface)}))
         os.remove(name)
-        out.append(((face, L, x, y), [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]], len(surface), deviation))
+        out.append(((face, L, x, y), [*centre.tolist(), half[0], 0, 0, 0, half[1], 0, 0, 0, half[2]], len(surface), deviation, rounding_bound))
     return out
 
 
@@ -1502,17 +1546,56 @@ def file_sha256(path, limit=None):
     import hashlib
     h = hashlib.sha256()
     with open(path, 'rb') as f:
-        h.update(f.read() if limit is None else f.read(limit))
+        remaining = limit
+        while remaining is None or remaining > 0:
+            chunk = f.read(8 * 1024 * 1024 if remaining is None else min(remaining, 8 * 1024 * 1024))
+            if not chunk:
+                break
+            h.update(chunk)
+            if remaining is not None:
+                remaining -= len(chunk)
     return h.hexdigest()
 
 
 def cmd_cube_tile(args):
     t0 = time.time()
     fusion_path = os.path.join(args.fusion, 'fusion.json')
-    fusion = json.load(open(fusion_path))
+    with open(fusion_path) as f:
+        fusion = json.load(f)
     a, c = args.ellipsoid
-    if a != c:
-        raise SystemExit('cube-tile writes radial heights on a reference sphere; --ellipsoid A_M C_M must be equal')
+    if not all(math.isfinite(v) and v > 0 for v in (a, c)) or c > a:
+        raise SystemExit('cube-tile requires positive finite oblate radii A_M >= C_M')
+    convention = getattr(args, 'source_convention', None) or ('sphere-radial' if a == c else None)
+    if convention is None or (convention == 'sphere-radial' and a != c):
+        raise SystemExit('unequal radii require --source-convention areoid-radial or ellipsoid-normal')
+    if a != c and args.simplify:
+        raise SystemExit('ellipsoidal foundation products require the full lattice (--simplify 0)')
+    if a != c and (not getattr(args, 'body', None) or not getattr(args, 'frame', None)):
+        raise SystemExit('ellipsoidal products require --body and --frame provenance')
+    areoid_path = getattr(args, 'areoid', None)
+    if (convention == 'areoid-radial') != bool(areoid_path):
+        raise SystemExit('areoid-radial requires --areoid RADIUS_RASTER; other conventions must not supply one')
+    _T.update(cube_source_convention=convention, cube_ellipsoid=(a, c))
+    if areoid_path:
+        ds = gdal.Open(areoid_path)
+        band = ds.GetRasterBand(1)
+        if ds.GetDriver().ShortName == 'PDS':
+            # GDAL derives metres from the rounded MAP_SCALE in the PDS3 label.
+            # Use the exact angular grid stated by this known MEGDR product.
+            label = open(areoid_path).read()
+            required = ['AREOID_RADIUS', 'PLANETOCENTRIC', 'MEGA90N000EB.IMG', '3396000', '16.0 <PIXEL/DEGREE>']
+            if (ds.RasterXSize, ds.RasterYSize) != (5760, 2880) or not all(t in label for t in required):
+                raise SystemExit('unsupported PDS areoid label; supply a global geographic radius GeoTIFF')
+            gt = (0, 1 / 16, 0, 90, 0, -1 / 16)
+        else:
+            gt = geographic_grid(ds)
+        if gt[1] <= 0 or gt[5] >= 0 or gt[2] or gt[4] or abs(gt[1] * ds.RasterXSize - 360) > 1e-6 or abs(gt[5] * ds.RasterYSize + 180) > 1e-6 or abs(gt[3] - 90) > 1e-6:
+            raise SystemExit('areoid radius raster must cover the whole globe, north-up, pixel-is-area')
+        arr = band.ReadAsArray()
+        scale, offset = band.GetScale() or 1, band.GetOffset() or 0
+        if not np.isfinite(arr).all() or (band.GetNoDataValue() is not None and np.any(arr == band.GetNoDataValue())) or (arr * scale + offset).min() <= 0:
+            raise SystemExit('areoid radius raster contains invalid radii or nodata')
+        _T['areoid'] = (arr, gt, scale, offset)
     regions = [parse_cube_region(r) for r in args.region or []]
     max_level = max([args.global_level, *(L for r in regions for L in r['levels'])])
     if max_level > CUBE_MAX_LEVEL:
@@ -1563,9 +1646,9 @@ def cmd_cube_tile(args):
     write_jobs = [[(k, depth[k]) for k in keys[i:i + 8]] for i in range(0, len(keys), 8)]
     with mp.get_context('fork').Pool(args.workers) as pool:
         for k, rows in enumerate(pool.imap_unordered(cube_write_job, write_jobs)):
-            for key, box, ntri, dev in rows:
+            for key, box, ntri, dev, rounding_bound in rows:
                 tiles[key][0] = box
-                tiles[key] += [ntri, dev]
+                tiles[key] += [ntri, dev, rounding_bound]
             if k % 100 == 0:
                 print(f'  wrote {k * 8:,}/{len(keys):,} tiles ({time.time() - t0:.0f}s)', flush=True)
     os.rmdir(scratch)
@@ -1602,8 +1685,20 @@ def cmd_cube_tile(args):
     fusion_hash = file_sha256(fusion_path)
     generator_hash = file_sha256(os.path.abspath(__file__))
     # Everything else that shapes the output: two builds share a version only if their bytes can.
+    # Hash actual inputs as well as metadata: a changed residual or canonical
+    # raster must never reuse the same product identity. Stream multi-GB files.
+    inputs = {name: {'file': os.path.basename(p), 'sha256': file_sha256(p)} for name, p in {
+        'base': args.base, 'residual': os.path.join(args.fusion, 'residual.tif'),
+        **({'weight': os.path.join(args.fusion, 'weight.tif'), 'base_xy': os.path.join(args.fusion, 'base.tif')} if _T['grid'].kind == 'stere' else {}),
+        **({'areoid': areoid_path} if areoid_path else {}),
+    }.items()}
+    # Detached PDS labels describe an external image, whose bytes also shape output.
+    if areoid_path and ds.GetFileList():
+        inputs['areoidFiles'] = [{'file': os.path.basename(p), 'sha256': file_sha256(p)} for p in sorted(ds.GetFileList())]
+    body = getattr(args, 'body', None) or ('Moon' if a == c else 'unspecified')
+    frame = getattr(args, 'frame', None) or ('IAU_MOON' if body == 'Moon' else 'unspecified')
     build = {'generator': generator_hash, 'global_level': args.global_level, 'region': args.region, 'skirt_cells': args.skirt_cells,
-             'ellipsoid': args.ellipsoid, 'simplify': args.simplify}
+             'ellipsoid': args.ellipsoid, 'simplify': args.simplify, 'sourceConvention': convention, 'body': body, 'frame': frame, 'inputs': inputs}
     build_hash = hashlib.sha256(json.dumps(build, sort_keys=True).encode()).hexdigest()
     version = f'cube-fused-{fusion_hash[:12]}-g{args.global_level}-m{max_level}-b{build_hash[:8]}'
     # tilesetVersion = cpu-grids.json source.version: the viewer refuses CPU grids of another revision.
@@ -1617,7 +1712,7 @@ def cmd_cube_tile(args):
     glb_bytes = sum(os.path.getsize(os.path.join(args.out, f'{f}/{L}/{x}/{y}.glb')) for f, L, x, y in tiles)
     grid_bytes = sum(os.path.getsize(os.path.join(args.out, f'heights/{f}/{L}/{x}/{y}.f32')) for f, L, x, y in tiles)
     source = {
-        'id': 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)',
+        'id': f'{body}: {os.path.basename(args.base)} + {os.path.basename(fusion["detail"]["path"])} residual',
         'kind': 'height-grid',
         'version': version,
         'fusion': {'sha256': fusion_hash, 'created': fusion.get('created'),
@@ -1627,22 +1722,35 @@ def cmd_cube_tile(args):
     }
     datum = {'referenceShape': {'kind': 'sphere', 'radiusKm': a / 1000},
              'verticalDatum': 'reference-sphere', 'heightConvention': 'radial'}
+    if a != c:
+        datum = {'referenceShape': {'kind': 'ellipsoid', 'radiiKm': [a / 1000, a / 1000, c / 1000]},
+                 'verticalDatum': 'ellipsoid', 'heightConvention': 'geodetic-normal'}
+    conversion = {'sourceLatitude': 'planetographic' if convention == 'ellipsoid-normal' else 'planetocentric',
+                  'sourceHeightConvention': convention, 'longitude': 'east-positive degrees', 'frame': frame, 'body': body,
+                  'payload': 'float32 radial offsets (m) from equatorial reference radius, on geocentric cube rays',
+                  'publicSamples': 'Cartesian lattice intersections along the declared datum normal; ellipsoid-normal heights',
+                  'operation': {'sphere-radial': 'radius = reference radius + fused height',
+                                'areoid-radial': 'radius = bilinear areoid radius (pixel-is-area, longitude wraps, latitude clamps) + unchanged fused areoid height',
+                                'ellipsoid-normal': 'solve along each geocentric ray for geodetic-normal fused height at its physical geodetic latitude'}[convention]}
     ordered = sorted(tiles, key=lambda k: (k[1], CUBE_FACES.index(k[0]), k[3], k[2]))
     grids = {
         'format': 'cosmolabe-cube-height-grid-1',
         'mapping': 'gnomonic cube; faces, bases and tile addresses of packages/three/src/surface/CubeSphere.ts',
         'datum': datum,
+        **({'geometry': {'kind': 'radial-lattice', 'referenceRadiusKm': a / 1000}} if a != c else {}),
+        'coordinates': conversion,
         'verticalDatumNote': fusion['verticalDatum'],
         'source': source,
-        'grid': {'width': GRID, 'height': GRID, 'encoding': 'float32 little-endian, metres above the reference sphere',
+        'grid': {'width': GRID, 'height': GRID, 'encoding': 'float32 little-endian, radial offset metres from equatorial reference radius',
                  'order': 'row-major, face v then u, including tile edges', 'uri': 'heights/{face}/{level}/{x}/{y}.f32'},
         # Every stored height, padded 1 m outward: lets a ray query find terrain it has not loaded.
         'heightRangeKm': [(min(t[1] for t in tiles.values()) - 1) / 1000, (max(t[2] for t in tiles.values()) + 1) / 1000],
         'uncertainty': {
-            'kind': 'sampled representation error: max |CPU grid on its lattice triangles (linear in (u, v)) − fused field at its finest source level| '
-                    'at 4× vertex density; not a bound, and excludes source error (neither source states a per-pixel vertical uncertainty)',
+            'kind': 'sampled representation error: max |radial payload interpolation (linear on (u, v) lattice triangles) − converted fused field at its finest source level| '
+                    'at 4× vertex density; not a bound on Cartesian triangles or public normal-height samples; excludes chord sag, source and datum uncertainty',
             'perTile': 'tiles[i][4] (km)'},
         'maxLevel': max_level,
+        **({'renderedLatticeRoundingBoundKm': math.ceil(max(t[7] for t in tiles.values()) * 1e6) / 1e9} if not args.simplify else {}),
         'tiles': [[f, L, x, y, round(tiles[(f, L, x, y)][3] / 1000, 7)] for f, L, x, y in ordered],
     }
     if args.simplify > 0:
@@ -1666,12 +1774,16 @@ def cmd_cube_tile(args):
         'heightField': 'dem.py field_heights — the same fused field the quantized-mesh pyramid and polar cap sample',
         'source': source,
         'datum': datum,
+        'coordinates': conversion,
+        **({'geometry': grids['geometry']} if 'geometry' in grids else {}),
         'verticalDatum': fusion['verticalDatum'],
         'tiling': {'mapping': grids['mapping'], 'globalLevel': args.global_level, 'maxLevel': max_level,
                    'regions': [{k: r[k] for k in ('name', 'latDeg', 'lonDeg')} | {'radiusKmByLevel': {str(L): v for L, v in r['levels'].items()}}
                                for r in regions],
                    'faceCentreVertexSpacingM': [s * a for s in spacing_rad], 'tilesPerLevel': per_level},
         'mesh': {'grid': GRID, 'diagonal': 'v00→v11 in face (u, v)',
+                 **({'renderedLatticeRoundingBoundKm': grids['renderedLatticeRoundingBoundKm'],
+                     'roundingBoundDefinition': 'max Euclidean vertex displacement from float32 local glTF offsets plus 1 micrometre numerical allowance, rounded outward; same lattice topology bounds triangle displacement; excludes source error, datum uncertainty and GPU transforms'} if not args.simplify else {}),
                  'simplification': grids['renderedMesh']['simplification'] if args.simplify > 0 else 'none (full lattice)',
                  **({'surfaceTriangles': {str(L): {'mean': float(np.mean([tiles[k][5] for k in tiles if k[1] == L])),
                                                    'min': int(min(tiles[k][5] for k in tiles if k[1] == L))} for L in sorted(per_level)},
@@ -1718,7 +1830,8 @@ def cmd_cube_tile(args):
 def read_glb_mesh(path):
     """Body-fixed Z-up positions (float32 offsets + float64 translation),
     triangles and primitive extras of a one-mesh .glb from encode_glb."""
-    raw = open(path, 'rb').read()
+    with open(path, 'rb') as f:
+        raw = f.read()
     jl = struct.unpack_from('<I', raw, 12)[0]
     js, b0 = json.loads(raw[20:20 + jl]), 20 + jl + 8
     acc, bv = js['accessors'], js['bufferViews']
@@ -1763,7 +1876,7 @@ def cmd_cube_error(args):
     t0 = time.time()
     tileset = json.load(open(os.path.join(args.dir, args.tileset)))
     grids = json.load(open(os.path.join(args.dir, 'cpu-grids.json')))
-    R = grids['datum']['referenceShape']['radiusKm'] * 1000
+    R = grids.get('geometry', {}).get('referenceRadiusKm', grids['datum']['referenceShape'].get('radiusKm')) * 1000
     key = lambda n: tuple(int(v) if i else v for i, v in enumerate(n['content']['uri'][:-4].split('/')))
     nodes, children = {}, {}
 
@@ -2327,7 +2440,11 @@ def main():
                     help='skirt floor in vertex spacings; each edge also hangs 1.25× its largest measured gap to any other '
                          'level across it. 0 builds without skirts (the viewer can also hide them: cubeSphere.skirts false)')
     ct.add_argument('--ellipsoid', type=float, nargs=2, required=True, metavar=('A_M', 'C_M'),
-                    help='reference sphere radius (both values equal); heights are radial above it')
+                    help='physical oblate reference radii, equatorial and polar, metres')
+    ct.add_argument('--source-convention', choices=['sphere-radial', 'areoid-radial', 'ellipsoid-normal'],
+                    help='explicit source latitude/height contract; defaults to sphere-radial only for equal radii')
+    ct.add_argument('--areoid', help='global areoid-radius raster in metres (GDAL scale/offset honoured), required for areoid-radial')
+    ct.add_argument('--body'); ct.add_argument('--frame', help='body-fixed frame of the physical product')
     ct.add_argument('--simplify', type=float, default=0, metavar='FRAC',
                     help='RTIN-simplify each tile, own error ≤ FRAC × the level\'s face-centre vertex spacing (0: full lattice). '
                          'Edges keep every vertex; CPU grids are unchanged, so the rendered and CPU surfaces then differ (cpu-grids.json renderedMesh)')
