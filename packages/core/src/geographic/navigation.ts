@@ -119,7 +119,13 @@ export interface SurfaceNavigationTarget {
     /** Above the datum, km; null where the datum defines none (DSK). */
     km: number | null;
     sourceId?: string;
+    tileId?: string;
   };
+  /**
+   * The target's point on the datum, for a coordinate target: its geographic
+   * anchor, which terrain heights are measured from.
+   */
+  referencePositionKm?: Vec3;
   /**
    * On a terrain body whose product had no decoded coverage here yet: the
    * target is provisionally on the datum, and `refineWithTerrain` moves it
@@ -236,6 +242,7 @@ export function resolveGeographicTarget(input: GeographicCoordinateInput, refere
   return {
     bodyName: input.bodyName,
     positionKm: position,
+    referencePositionKm: [...position],
     up,
     ...tangentFrame(up, lonEastDeg),
     lonEastDeg,
@@ -253,14 +260,16 @@ export function resolveGeographicTarget(input: GeographicCoordinateInput, refere
  * are along the datum normal (geodetic) or radius (sphere) — the same
  * direction for every datum `navigationReference` accepts from terrain.
  */
-export function withTerrainElevation(target: SurfaceNavigationTarget, elevationKm: number, sourceId: string): SurfaceNavigationTarget {
+export function withTerrainElevation(target: SurfaceNavigationTarget, elevationKm: number, sourceId: string, tileId?: string): SurfaceNavigationTarget {
   if (!Number.isFinite(elevationKm)) return target;
   if (target.datum?.origin !== 'terrain') return target;
-  const along = target.datum.heightConvention === 'radial' ? unit(target.positionKm) : target.up;
-  const positionKm = add(target.positionKm, scale(along, elevationKm));
+  // From the datum point, so a re-sample replaces the height, never adds to it.
+  const base = target.referencePositionKm ?? target.positionKm;
+  const along = target.datum.heightConvention === 'radial' ? unit(base) : target.up;
+  const positionKm = add(base, scale(along, elevationKm));
   return {
-    ...target, positionKm, ...latitudes(positionKm, target.up),
-    height: { from: 'terrain-sample', km: elevationKm, sourceId },
+    ...target, positionKm, referencePositionKm: base, ...latitudes(positionKm, target.up),
+    height: { from: 'terrain-sample', km: elevationKm, sourceId, ...(tileId ? { tileId } : {}) },
     awaitingTerrain: false,
     notes: target.notes.filter((n) => n !== TERRAIN_PENDING_NOTE),
   };
@@ -273,19 +282,43 @@ export function withoutTerrainCoverage(target: SurfaceNavigationTarget): Surface
   return { ...target, awaitingTerrain: true, notes: [...target.notes, TERRAIN_PENDING_NOTE] };
 }
 
+/** What `refineWithTerrain` needs from a terrain sample. */
+export interface TerrainSampleRef {
+  elevationKm: number;
+  sourceId: string;
+  /** The decoded tile that answered; a finer one replaces a coarse parent. */
+  tileId?: string;
+}
+
 /**
- * The cold-cache handoff: a target placed on the datum while its terrain had
- * not loaded, moved onto the terrain sample that has since arrived. Returns
- * the refined target and the body-fixed shift (km) to apply to whatever was
- * placed by the old one — the pivot and, so the view keeps its framing, the
- * camera. Null when the target is not awaiting terrain or the sample is bad.
+ * Elevation change below which a re-sample leaves a target where it is, km:
+ * half a metre, under a person's eye height and the 2 m camera clearance,
+ * so streaming tiles of the same terrain do not jitter the pivot.
+ */
+export const TERRAIN_REFINE_MIN_KM = 0.0005;
+
+/**
+ * Keep a coordinate target on the terrain as it streams in. The target's
+ * anchor is geographic — its point on the datum — and each sample places it
+ * that far along the datum's height direction: the first sample after a
+ * cold cache, and every later one from a finer tile that moves the ground by
+ * at least `minChangeKm`. Returns the refined target and the body-fixed
+ * shift (km) to apply to what the old one placed (the pivot and, so the view
+ * keeps its framing, the camera); null when there is nothing to move.
+ *
+ * Only a coordinate target on a terrain datum refines. A picked point is the
+ * surface that was hit, and stays as picked.
  */
 export function refineWithTerrain(
-  target: SurfaceNavigationTarget, elevationKm: number, sourceId: string,
+  target: SurfaceNavigationTarget, sample: TerrainSampleRef, opts: { minChangeKm?: number } = {},
 ): { target: SurfaceNavigationTarget; shiftKm: Vec3 } | null {
-  if (!target.awaitingTerrain || !Number.isFinite(elevationKm)) return null;
-  const refined = withTerrainElevation(target, elevationKm, sourceId);
-  if (refined === target) return null;
+  if (target.origin.kind !== 'coordinates' || target.datum?.origin !== 'terrain') return null;
+  if (!Number.isFinite(sample.elevationKm)) return null;
+  if (!target.awaitingTerrain) {
+    const current = target.height.from === 'terrain-sample' ? target.height.km : null;
+    if (current !== null && Math.abs(sample.elevationKm - current) < (opts.minChangeKm ?? TERRAIN_REFINE_MIN_KM)) return null;
+  }
+  const refined = withTerrainElevation(target, sample.elevationKm, sample.sourceId, sample.tileId);
   return { target: refined, shiftKm: sub(refined.positionKm, target.positionKm) };
 }
 
@@ -491,4 +524,70 @@ function parseAngle(text: string, pos: string, neg: string, what: string, limit:
   }
   if (Math.abs(deg) > limit) return { ok: false, error: `${what} must be within ±${limit}°` };
   return { ok: true, deg };
+}
+
+/** Which number of a pasted pair is which. Never guessed from the values. */
+export type CoordinateOrder = 'lat-lon' | 'lon-lat';
+
+export type CoordinatePairParse =
+  | { ok: true; latDeg: number; lonDeg: number; order: CoordinateOrder; byLetters: boolean }
+  | { ok: false; error: string };
+
+const PAIR_TOKEN = /([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*°?\s*([NSEWnsew](?![A-Za-z]))?/g;
+
+/**
+ * Parse a pasted latitude/longitude pair: "18.4447, 77.4508",
+ * "18.4447° N, 77.4508° E", "18.4447N 77.4508E", "(-18.4; 282.55)".
+ *
+ * N/S and E/W letters name each number's axis, so a lettered pair reads the
+ * same in either order. An unlettered pair is read in `order` — latitude
+ * first by default, as maps and papers write it; GeoJSON and GIS tools write
+ * longitude first, and that has to be chosen, because two numbers that both
+ * fit ±90° say nothing about which is which. Longitude is returned in
+ * `direction`'s sign convention (an E/W letter is absolute), latitude
+ * north-positive, both range-checked as `parseLatitudeText`/
+ * `parseLongitudeText` do.
+ */
+export function parseCoordinatePair(text: string, opts: { order?: CoordinateOrder; direction?: LongitudeDirection } = {}): CoordinatePairParse {
+  const order = opts.order ?? 'lat-lon';
+  const direction = opts.direction ?? 'east';
+  const t = text.trim().replace(/^[([{]\s*|\s*[)\]}]$/g, '');
+  if (!t) return { ok: false, error: 'Enter a latitude and longitude' };
+  const tokens: { text: string; letter?: string }[] = [];
+  let rest = t;
+  for (const m of t.matchAll(PAIR_TOKEN)) {
+    tokens.push({ text: m[0].trim(), letter: m[2]?.toUpperCase() });
+    rest = rest.replace(m[0], ' ');
+  }
+  if (/[^\s,;]/.test(rest)) {
+    return { ok: false, error: /['′"″]/.test(t)
+      ? 'Degrees-minutes-seconds are not read yet: enter decimal degrees, e.g. 18.4447, 77.4508'
+      : 'Enter two decimal-degree numbers, e.g. 18.4447, 77.4508' };
+  }
+  if (tokens.length !== 2) return { ok: false, error: `Expected a latitude and a longitude, found ${tokens.length} number${tokens.length === 1 ? '' : 's'}` };
+  const axis = (letter?: string) => letter === 'N' || letter === 'S' ? 'lat' : letter === 'E' || letter === 'W' ? 'lon' : null;
+  const [a, b] = tokens;
+  const axA = axis(a.letter), axB = axis(b.letter);
+  let lat: string, lon: string, byLetters = false;
+  if (axA && axB) {
+    if (axA === axB) return { ok: false, error: `Both numbers are marked as ${axA === 'lat' ? 'latitude (N/S)' : 'longitude (E/W)'}` };
+    [lat, lon] = axA === 'lat' ? [a.text, b.text] : [b.text, a.text];
+    byLetters = true;
+  } else if (axA || axB) {
+    // One letter places that number; the other is the remaining axis.
+    const known = axA ? a : b, other = axA ? b : a;
+    [lat, lon] = axis(known.letter) === 'lat' ? [known.text, other.text] : [other.text, known.text];
+    byLetters = true;
+  } else {
+    [lat, lon] = order === 'lat-lon' ? [a.text, b.text] : [b.text, a.text];
+  }
+  const latP = parseLatitudeText(lat);
+  if (!latP.ok) {
+    const hint = !byLetters && order === 'lat-lon' && Math.abs(Number(a.text)) > 90 && Math.abs(Number(b.text)) <= 90
+      ? ' — is this longitude first? Choose Lon, Lat' : '';
+    return { ok: false, error: latP.error + hint };
+  }
+  const lonP = parseLongitudeText(lon, direction);
+  if (!lonP.ok) return lonP;
+  return { ok: true, latDeg: latP.deg, lonDeg: lonP.deg, order, byLetters };
 }

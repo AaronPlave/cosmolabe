@@ -529,7 +529,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
     if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
-    if (_awaitingTerrain && vs.frameTick % 15 === 0) refineAwaitedTerrain();
+    if (_terrainAnchor && vs.frameTick % 15 === 0) refineAnchoredTerrain();
     // A right-drag free look ends a look-at from inside the controller.
     const aim = cc.lookAtBody?.body.name ?? null;
     if (vs.lookAtBodyName !== aim) vs.lookAtBodyName = aim;
@@ -980,7 +980,7 @@ export function resolveCoordinateTarget(input: GeographicCoordinateInput): Surfa
   if (reference.reference.datum.origin === 'terrain') {
     const sample = bm.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
     target = sample
-      ? withTerrainElevation(target, sample.elevationKm, sample.source.id)
+      ? withTerrainElevation(target, sample.elevationKm, sample.source.id, sample.tileId)
       : withoutTerrainCoverage(target);
   }
   return { ok: true, target };
@@ -1055,34 +1055,50 @@ export function navigateToSurfaceTarget(
   else cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
   syncCameraState();
   vs.surfaceTarget = describeTarget(target, placement.viewpoint);
-  _awaitingTerrain = target.awaitingTerrain ? { target, viewpoint: placement.viewpoint } : null;
+  // A coordinate target on a terrain body stays anchored while tiles refine.
+  _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
+    ? { target, viewpoint: placement.viewpoint, revision: bm.terrainSampler?.revision ?? -1 }
+    : null;
   return { ok: true, target };
 }
 
 /**
- * A coordinate target placed on the datum because its terrain had not
- * decoded yet. Until it has, or other navigation takes the camera, the frame
- * loop keeps sampling; then the target, its pivot and the camera move onto
- * the terrain together, so the camera never orbits a point inside a hill or
- * above a basin.
+ * The coordinate target the camera is navigating to or pivoting about, kept
+ * as its geographic anchor while terrain streams (#190). The frame loop
+ * re-samples the terrain there whenever the body's sampler has decoded
+ * something new: the first sample after a cold cache, and every finer tile
+ * after a coarse parent that moves the ground by more than
+ * `TERRAIN_REFINE_MIN_KM`, moves the target, its pivot and the camera onto
+ * it together — so the camera never orbits a point inside a hill or above a
+ * basin as LOD refines. The handoff is final when other navigation takes
+ * the camera (the anchor is dropped then), never on the first sample.
  */
-let _awaitingTerrain: { target: SurfaceNavigationTarget; viewpoint: ViewpointDefinition } | null = null;
+let _terrainAnchor: {
+  target: SurfaceNavigationTarget;
+  viewpoint: ViewpointDefinition;
+  /** The sampler revision last sampled at; nothing new to read until it moves. */
+  revision: number;
+} | null = null;
 
-function refineAwaitedTerrain() {
-  const awaiting = _awaitingTerrain;
+function refineAnchoredTerrain() {
+  const anchor = _terrainAnchor;
   const cc = _renderer?.cameraController;
-  if (!awaiting || !cc) return;
-  if (!cc.surfaceNavigating) { _awaitingTerrain = null; return; }
-  const { target, viewpoint } = awaiting;
+  if (!anchor || !cc) return;
+  if (!cc.surfaceNavigating) { _terrainAnchor = null; return; }
+  const { target, viewpoint } = anchor;
   const bm = _renderer!.getBodyMesh(target.bodyName);
-  const sample = bm?.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
-  if (!bm || !sample) return;
-  const refined = refineWithTerrain(target, sample.elevationKm, sample.source.id);
-  _awaitingTerrain = null;
+  const revision = bm?.terrainSampler?.revision;
+  if (!bm || revision === undefined || revision === anchor.revision) return;
+  anchor.revision = revision;
+  const sample = bm.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
+  if (!sample) return;
+  const refined = refineWithTerrain(target, { elevationKm: sample.elevationKm, sourceId: sample.source.id, tileId: sample.tileId });
   if (!refined) return;
-  if (!cc.retargetSurface(bm, bodyFixedToMeshLocal(refined.shiftKm, _renderer!.scaleFactor))) return;
+  if (!cc.retargetSurface(bm, bodyFixedToMeshLocal(refined.shiftKm, _renderer!.scaleFactor))) { _terrainAnchor = null; return; }
   const shift = (v: readonly number[] | undefined) => v && [v[0] + refined.shiftKm[0], v[1] + refined.shiftKm[1], v[2] + refined.shiftKm[2]] as [number, number, number];
-  vs.surfaceTarget = describeTarget(refined.target, { ...viewpoint, eye: shift(viewpoint.eye), target: shift(viewpoint.target) });
+  const moved = { ...viewpoint, eye: shift(viewpoint.eye), target: shift(viewpoint.target) };
+  _terrainAnchor = { target: refined.target, viewpoint: moved, revision };
+  vs.surfaceTarget = describeTarget(refined.target, moved);
 }
 
 /** Resolve coordinates and fly (or jump) there. */
@@ -1109,7 +1125,7 @@ export function navigateToSurfacePoint(point: SurfacePoint, opts: { animate?: bo
   if (!_renderer || !surfaceNavigable(point)) return false;
   const bm = navigableMesh(point.bodyName);
   if (!bm) return false;
-  _awaitingTerrain = null;
+  _terrainAnchor = null;
   const target = surfacePointTarget(point);
   const sf = _renderer.scaleFactor;
   let clear = opts.from === 'click';

@@ -156,7 +156,7 @@ It is hidden when the camera is in free orbit, tracking nothing and not flying.
 | Command palette — "Frame tracked body" | Frame |
 | <kbd>Esc</kbd>, view context ×, "Stop camera flight" | Stop the flight |
 | Display settings — viewpoint list | Fly to the viewpoint (one that tracks a body is placed at once; `viewpoint` in a script always jumps) |
-| Command palette — "Go to coordinates…" | Fly or Jump to a latitude/longitude on a body ([surface navigation](#surface-navigation)) |
+| Tool rail — map pin, or command palette — "Go to coordinates…" | Fly or Jump to a latitude/longitude on a body ([surface navigation](#surface-navigation)) |
 | Scene — right-click a surface | Zoom to here, Fly to here (beside the body's own actions) |
 | Point probe panel — Fly to here, Frame here; palette "Fly to probed point" | Fly or Jump to the pinned point |
 | Scripts and `ViewerControl` | All of the above by name |
@@ -167,18 +167,23 @@ Fly and Jump also take a **place on a body** rather than the body as a whole
 (#190). The place is the target — what the camera looks at and then orbits —
 never the camera's own position. Three surfaces name one:
 
-- **Go to coordinates…** (command palette; `gotoCoordinates` in a script and
-  on `ViewerControl`): a body, a latitude and a longitude. The conventions are
-  explicit and on screen: planetocentric or planetographic latitude,
-  east- or west-positive longitude, either −180…180 or 0…360 (N/S and E/W
-  letters are absolute directions). Then a view:
+- **Go to coordinates…** (the map pin on the tool rail, beside Camera mode, in
+  both the side and the compact bottom rail; the command palette;
+  `gotoCoordinates` in a script and on `ViewerControl`): a body and one *Coordinates* field that takes a pasted
+  pair — `18.4447, 77.4508`, `18.4447° N, 77.4508° E`, `77.4508E 18.4447N`.
+  N/S and E/W letters mark which number is which, in either order; an
+  unlettered pair is read latitude first unless *Lon, Lat* is chosen (GeoJSON
+  and GIS order) — never guessed from the values. The conventions are
+  explicit and on screen: planetocentric or planetographic latitude, east- or
+  west-positive longitude, either −180…180 or 0…360. The dialog shows how it
+  read the pair before anything moves. Then a view:
   - **Overhead** — straight down the surface normal, north up;
   - **Oblique** — 50° off vertical, from the south;
   - **Surface** — at a person's eye height (2 m; less on a body a few km
     across) just south of the place, looking north at it.
 
-  Distances scale with the body; *Advanced* overrides the altitude, slant
-  range or eye height.
+  Distances scale with the body; *Advanced* overrides the altitude or slant
+  range (km) or the eye height (m).
 - **Right-click a surface** in the scene: **Zoom to here** cuts, and **Fly to
   here** flies, along the line of sight the point was clicked on, a quarter
   of the way out from it. That line is clear by construction, so neither
@@ -202,8 +207,13 @@ Where it lands:
   a triaxial body. Out-of-range input is refused, never clamped.
 - On a terrain body the place is raised onto the decoded terrain sample;
   where the terrain has not loaded yet the place goes on the reference
-  surface for now, says so, and moves onto the terrain — pivot and camera
-  together, keeping the framing — as soon as a sample decodes there. A placement's eye is lifted clear of terrain known under
+  surface for now and says so. The place stays anchored by its coordinates
+  while terrain streams: each time the body's terrain decodes something new
+  there — the first tile after a cold cache, then finer tiles replacing a
+  coarse parent — it is re-sampled, and a change of more than half a metre
+  moves the place, its pivot and the camera onto it together, keeping the
+  framing. The anchor is let go when other navigation takes the camera. A
+  picked point is not re-sampled: it is the surface that was hit. A placement's eye is lifted clear of terrain known under
   it, and the renderer's terrain clamp still applies.
 - A picked point is used exactly as picked, with its own source and datum.
 - The placement is a semantic viewpoint (#114): `center` the body, `frame`

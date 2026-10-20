@@ -11,8 +11,8 @@
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import { Navigation, MapPin } from 'lucide-svelte';
   import {
-    parseLatitudeText, parseLongitudeText, describeNavigationTarget, defaultSurfaceRangeKm,
-    type LatitudeConvention, type LongitudeDirection, type SurfaceViewPreset,
+    parseCoordinatePair, describeNavigationTarget, defaultSurfaceRangeKm,
+    type CoordinateOrder, type LatitudeConvention, type LongitudeDirection, type SurfaceViewPreset,
   } from '@cosmolabe/core';
   import { vs, coordinateBodies, resolveCoordinateTarget, goToCoordinates } from '../lib/viewer-state.svelte';
 
@@ -24,8 +24,9 @@
 
   // Kept between openings, so a second visit starts from the last place.
   let bodyName = $state('');
-  let latText = $state('');
-  let lonText = $state('');
+  /** One field for the pair, so a pasted "18.4447, 77.4508" goes in whole. */
+  let pairText = $state('');
+  let order = $state<CoordinateOrder>('lat-lon');
   let latitude = $state<LatitudeConvention>('planetocentric');
   let direction = $state<LongitudeDirection>('east');
   let preset = $state<SurfaceViewPreset>('overhead');
@@ -47,18 +48,28 @@
     if (open) untrack(() => onOpenChange(true));
   });
 
-  const lat = $derived(latText.trim() ? parseLatitudeText(latText) : null);
-  const lon = $derived(lonText.trim() ? parseLongitudeText(lonText, direction) : null);
+  const pair = $derived(pairText.trim() ? parseCoordinatePair(pairText, { order, direction }) : null);
+  // A surface eye height is metres; altitudes and ranges are km.
+  const rangeUnit = $derived(preset === 'surface' ? 'm' : 'km');
   const range = $derived.by(() => {
     const t = rangeText.trim();
     if (!t) return { ok: true as const, km: undefined };
-    const km = Number(t);
-    return Number.isFinite(km) && km > 0 ? { ok: true as const, km } : { ok: false as const, error: 'Range must be a positive number of km' };
+    const v = Number(t);
+    return Number.isFinite(v) && v > 0
+      ? { ok: true as const, km: rangeUnit === 'm' ? v / 1000 : v }
+      : { ok: false as const, error: `Range must be a positive number of ${rangeUnit === 'm' ? 'metres' : 'km'}` };
   });
 
-  const input = $derived(lat?.ok && lon?.ok && bodyName
-    ? { bodyName, latDeg: lat.deg, lonDeg: lon.deg, latitude, longitudeDirection: direction }
+  const input = $derived(pair?.ok && bodyName
+    ? { bodyName, latDeg: pair.latDeg, lonDeg: pair.lonDeg, latitude, longitudeDirection: direction }
     : null);
+  /** The pair as read, before anything moves: which number became which. */
+  const parsedText = $derived.by(() => {
+    if (!pair?.ok) return '';
+    const lat = `${Math.abs(pair.latDeg)}° ${pair.latDeg >= 0 ? 'N' : 'S'}`;
+    const lon = `${pair.lonDeg}° ${direction}-positive`;
+    return `Latitude ${lat} (${latitude}) · longitude ${lon}${pair.byLetters ? ', from the N/S/E/W letters' : ''}`;
+  });
   // Re-resolved when the body's terrain arrives, so the readout says what it lands on.
   const resolved = $derived.by(() => {
     void vs.frameTick;
@@ -67,15 +78,18 @@
 
   const error = $derived(
     failure
-    ?? (lat && !lat.ok ? lat.error : null)
-    ?? (lon && !lon.ok ? lon.error : null)
+    ?? (pair && !pair.ok ? pair.error : null)
     ?? (!range.ok ? range.error : null)
     ?? (resolved && !resolved.ok ? resolved.error : null),
   );
   const canGo = $derived(!!resolved?.ok && range.ok);
 
   const rangeLabel = $derived(preset === 'overhead' ? 'Altitude' : preset === 'oblique' ? 'Slant range' : 'Eye height');
-  const rangePlaceholder = $derived(resolved?.ok ? `${defaultSurfaceRangeKm(preset, resolved.target.scaleKm).toPrecision(3)} km (auto)` : 'auto');
+  const rangePlaceholder = $derived.by(() => {
+    if (!resolved?.ok) return 'auto';
+    const km = defaultSurfaceRangeKm(preset, resolved.target.scaleKm);
+    return `${Number((rangeUnit === 'm' ? km * 1000 : km).toPrecision(3))} ${rangeUnit} (auto)`;
+  });
 
   function go(animate: boolean) {
     if (!input || !range.ok) return;
@@ -115,16 +129,16 @@
           </select>
         </label>
 
-        <div class="grid grid-cols-2 gap-2">
-          <label class="grid gap-1">
-            <span class="text-text-secondary">Latitude</span>
-            <!-- svelte-ignore a11y_autofocus -->
-            <input class={fieldClass} bind:value={latText} placeholder="18.4447 N" autocomplete="off" spellcheck="false" autofocus />
-          </label>
-          <label class="grid gap-1">
-            <span class="text-text-secondary">Longitude</span>
-            <input class={fieldClass} bind:value={lonText} placeholder="77.4508 E" autocomplete="off" spellcheck="false" />
-          </label>
+        <label class="grid gap-1">
+          <span class="text-text-secondary">Coordinates ({order === 'lat-lon' ? 'latitude, longitude' : 'longitude, latitude'})</span>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input class={fieldClass} bind:value={pairText} placeholder={order === 'lat-lon' ? '18.4447, 77.4508' : '77.4508, 18.4447'} autocomplete="off" spellcheck="false" autofocus />
+        </label>
+        <div class="grid gap-1">
+          <span class="text-text-secondary">Order of unlabelled numbers</span>
+          <!-- Maps and papers write latitude first; GeoJSON and GIS tools
+               longitude first. Chosen, never guessed from the values. -->
+          <SegmentedControl label="Coordinate order" value={order === 'lat-lon' ? 'lat, lon' : 'lon, lat'} options={['lat, lon', 'lon, lat']} onValueChange={(v) => (order = v === 'lat, lon' ? 'lat-lon' : 'lon-lat')} />
         </div>
 
         <div class="grid gap-1">
@@ -135,19 +149,19 @@
           <span class="text-text-secondary">Longitude positive</span>
           <SegmentedControl label="Longitude direction" value={direction} options={['east', 'west']} onValueChange={(v) => (direction = v as LongitudeDirection)} />
           <span class="text-[11px] text-text-muted">
-            Degrees, {direction}-positive; −180…180 or 0…360. N/S and E/W letters are read as absolute directions.
+            Decimal degrees, {direction}-positive; −180…180 or 0…360. N/S and E/W letters mark each number and are absolute directions, in either order.
           </span>
         </div>
 
         <div class="grid gap-1">
           <span class="text-text-secondary">View</span>
-          <SegmentedControl label="View" value={preset} options={['overhead', 'oblique', 'surface']} onValueChange={(v) => (preset = v as SurfaceViewPreset)} />
+          <SegmentedControl label="View" value={preset} options={['overhead', 'oblique', 'surface']} onValueChange={(v) => { preset = v as SurfaceViewPreset; rangeText = ''; }} />
         </div>
 
         <details>
           <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Advanced</summary>
           <label class="grid gap-1 mt-1.5">
-            <span class="text-text-secondary">{rangeLabel} (km)</span>
+            <span class="text-text-secondary">{rangeLabel} ({rangeUnit})</span>
             <input class={fieldClass} bind:value={rangeText} placeholder={rangePlaceholder} inputmode="decimal" autocomplete="off" />
           </label>
         </details>
@@ -157,6 +171,7 @@
           {#if error}
             <span class="text-[var(--color-danger,#f87171)]">{error}</span>
           {:else if resolved?.ok}
+            <div class="text-text-secondary">{parsedText}</div>
             <div class="text-text-primary">Target: {resolved.target.bodyName} {describeNavigationTarget(resolved.target, 4)}</div>
             <div class="text-text-muted">
               {resolved.target.height.from === 'terrain-sample'
@@ -167,7 +182,7 @@
               <div class="text-text-muted">{note}</div>
             {/each}
           {:else}
-            <span class="text-text-muted">Enter a latitude and longitude.</span>
+            <span class="text-text-muted">Paste or type a latitude and longitude, e.g. 18.4447° N, 77.4508° E.</span>
           {/if}
         </div>
 

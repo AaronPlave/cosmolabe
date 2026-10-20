@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, withTerrainElevation,
   parseLatitudeText, parseLongitudeText, defaultSurfaceRangeKm, GeographicNavigationError, describeNavigationTarget,
-  withoutTerrainCoverage, refineWithTerrain,
+  withoutTerrainCoverage, refineWithTerrain, parseCoordinatePair,
   type GeographicCoordinateInput, type NavigationReference,
 } from '../geographic/navigation.js';
 import { bodyFixedToGeodetic } from '../geographic/coordinates.js';
@@ -120,18 +120,36 @@ describe('cold-cache terrain handoff', () => {
     const cold = withoutTerrainCoverage(resolveGeographicTarget(input('Mars', 18.4447, 77.4508), terrain));
     expect(cold.awaitingTerrain).toBe(true);
     expect(cold.notes.join()).toMatch(/not loaded/);
-    const loaded = refineWithTerrain(cold, -2.6, 'mola')!;
+    const loaded = refineWithTerrain(cold, { elevationKm: -2.6, sourceId: 'mola' })!;
     expect(loaded.target.awaitingTerrain).toBe(false);
     expect(loaded.target.notes.join()).not.toMatch(/not loaded/);
     expect(loaded.target.height).toEqual({ from: 'terrain-sample', km: -2.6, sourceId: 'mola' });
     // The shift moves the old target onto the new one, along the radius.
     expect(len(loaded.shiftKm)).toBeCloseTo(2.6, 9);
     expect(dot(loaded.shiftKm, cold.up)).toBeCloseTo(-2.6, 9);
-    // Once refined, nothing more to do.
-    expect(refineWithTerrain(loaded.target, 1, 'mola')).toBeNull();
   });
-  it('ignores targets that were never waiting', () => {
-    expect(refineWithTerrain(resolveGeographicTarget(input('Mars', 0, 0), MARS), 1, 'x')).toBeNull();
+
+  it('follows a finer tile that replaces a coarse parent, from the same geographic anchor', () => {
+    const cold = withoutTerrainCoverage(resolveGeographicTarget(input('Mars', 18.4447, 77.4508), terrain));
+    const coarse = refineWithTerrain(cold, { elevationKm: -2.0, sourceId: 'mola', tileId: 'L3' })!.target;
+    const fine = refineWithTerrain(coarse, { elevationKm: -2.35, sourceId: 'mola', tileId: 'L9' })!;
+    // The height is replaced, not added to: 2.35 km below the datum.
+    expect(len(fine.target.positionKm)).toBeCloseTo(3396.19 - 2.35, 9);
+    expect(dot(fine.shiftKm, cold.up)).toBeCloseTo(-0.35, 9);
+    expect(fine.target.height.tileId).toBe('L9');
+    // A re-decode of the same ground within half a metre leaves it put.
+    expect(refineWithTerrain(fine.target, { elevationKm: -2.3502, sourceId: 'mola', tileId: 'L9b' })).toBeNull();
+    // An explicit threshold applies.
+    expect(refineWithTerrain(fine.target, { elevationKm: -2.36, sourceId: 'mola' }, { minChangeKm: 0.05 })).toBeNull();
+  });
+
+  it('refines only coordinate targets on a terrain datum', () => {
+    expect(refineWithTerrain(resolveGeographicTarget(input('Mars', 0, 0), MARS), { elevationKm: 1, sourceId: 'x' })).toBeNull();
+    const picked = surfacePointTarget({
+      bodyName: 'Mars', bodyFixedPositionKm: [3396, 0, 0], source: 'terrain', latDeg: 0, lonDeg: 0, latitudeKind: 'geodetic',
+      hit: { heightKm: 0, datum: { ...terrain.datum } },
+    });
+    expect(refineWithTerrain(picked, { elevationKm: 1, sourceId: 'x' })).toBeNull();
   });
 });
 
@@ -225,5 +243,46 @@ describe('placement as a semantic viewpoint', () => {
       const mars = u.absolutePositionOf('Mars', et);
       for (let i = 0; i < 3; i++) expect(r.target[i] + mars[i]).toBeCloseTo(target[i], 6);
     }
+  });
+});
+
+describe('parseCoordinatePair', () => {
+  const ok = (text: string, opts?: Parameters<typeof parseCoordinatePair>[1]) => {
+    const r = parseCoordinatePair(text, opts);
+    if (!r.ok) throw new Error(`${text}: ${r.error}`);
+    return [r.latDeg, r.lonDeg];
+  };
+  it('reads the pasted forms people use', () => {
+    for (const text of ['18.4447, 77.4508', '18.4447 77.4508', '18.4447,77.4508', '(18.4447; 77.4508)', '18.4447° N, 77.4508° E', '18.4447N 77.4508E', '  18.4447 n , 77.4508 e ']) {
+      expect(ok(text)).toEqual([18.4447, 77.4508]);
+    }
+    expect(ok('-89.9, 0')).toEqual([-89.9, 0]);
+    expect(ok('18.4447° S, 77.4508° W')).toEqual([-18.4447, -77.4508]);
+    expect(ok('18.4447° S, 77.4508° W', { direction: 'west' })).toEqual([-18.4447, 77.4508]);
+    expect(ok('10, 282.55', { direction: 'west' })).toEqual([10, 282.55]);
+  });
+  it('lets letters override the order, and the order decide otherwise', () => {
+    expect(ok('77.4508 E, 18.4447 N')).toEqual([18.4447, 77.4508]);
+    expect(ok('77.4508, 18.4447', { order: 'lon-lat' })).toEqual([18.4447, 77.4508]);
+    // Both fit ±90°: read as ordered, never guessed.
+    expect(ok('45, 60')).toEqual([45, 60]);
+    expect(ok('45, 60', { order: 'lon-lat' })).toEqual([60, 45]);
+    expect(ok('77.45 E, 18.44')).toEqual([18.44, 77.45]);
+  });
+  it('refuses malformed and ambiguous input with a reason', () => {
+    const err = (text: string, opts?: Parameters<typeof parseCoordinatePair>[1]) => {
+      const r = parseCoordinatePair(text, opts);
+      expect(r.ok).toBe(false);
+      return r.ok ? '' : r.error;
+    };
+    expect(err('')).toMatch(/Enter/);
+    expect(err('18.4447')).toMatch(/found 1 number/);
+    expect(err('1, 2, 3')).toMatch(/found 3/);
+    expect(err('18 N, 20 S')).toMatch(/Both numbers/);
+    expect(err('Jezero')).toMatch(/decimal-degree/);
+    expect(err(`18°26'41"N, 77°27'3"E`)).toMatch(/minutes-seconds/);
+    expect(err('-5 S, 10')).toMatch(/sign or N\/S/);
+    expect(err('120, 45')).toMatch(/longitude first/);
+    expect(err('45, 400')).toMatch(/±360/);
   });
 });
