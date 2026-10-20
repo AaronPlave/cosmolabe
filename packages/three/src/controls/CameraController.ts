@@ -784,6 +784,10 @@ export class CameraController {
       trackBody: this._trackTarget?.body.name,
       // The pose is in the origin body's coordinates, which outlive tracking.
       originBody: this._originBody?.body.name ?? null,
+      // Without these a restored look-at view would orbit-lock back onto the
+      // tracked body, and a zoomed view would come back at whatever FOV is set.
+      lookAtBody: this._lookAtTarget?.body.name,
+      fov: this.camera.fov,
     };
     this._viewpoints.set(name, vp);
     return vp;

@@ -216,6 +216,31 @@ describe('viewpoint → viewpoint', () => {
     expect(cc.trackedBody).toBeNull();
     close(absolute(camera.position), there);
   });
+
+  it('restores a saved look-at view still aimed at the look-at body, at its FOV', () => {
+    const { cc, camera, host, frames, earth, abs } = setup();
+    for (const vp of [{ ...moonLookingAtEarth, fov: 20 }, worldView]) cc.addViewpoint(vp);
+    applyNamedViewpoint(host, 'Earth beyond the Moon');
+    frames();
+    const saved = cc.saveViewpoint('Saved');
+    expect(saved.lookAtBody).toBe('Earth');
+    expect(saved.fov).toBe(20);
+
+    applyNamedViewpoint(host, 'Default');
+    camera.fov = 70;
+    camera.updateProjectionMatrix();
+    frames();
+    applyNamedViewpoint(host, 'Saved');
+    frames();
+    expect(camera.fov).toBe(20);
+    expect(cc.trackedBody?.body.name).toBe('Moon');
+    expect(cc.lookAtBody?.body.name).toBe('Earth');
+    // Still facing Earth once it has moved, not orbit-locked onto the Moon.
+    abs.get('Earth')!.add(vec(0, 40_000, 0));
+    frames();
+    const view = camera.getWorldDirection(new THREE.Vector3());
+    expect(view.dot(earth.position.clone().sub(camera.position).normalize())).toBeCloseTo(1, 6);
+  });
 });
 
 describe('refusing a viewpoint whose bodies are not in the scene', () => {
