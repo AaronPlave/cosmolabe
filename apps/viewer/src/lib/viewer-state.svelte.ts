@@ -7,14 +7,14 @@
  */
 import {
   etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement,
-  withTerrainElevation, withoutTerrainCoverage, refineWithTerrain, describeNavigationTarget, GeographicNavigationError, ViewpointError,
+  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
   type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint,
-  surfaceNavigable, bodyFixedToMeshLocal,
+  surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
 } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -1057,7 +1057,7 @@ export function navigateToSurfaceTarget(
   vs.surfaceTarget = describeTarget(target, placement.viewpoint);
   // A coordinate target on a terrain body stays anchored while tiles refine.
   _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
-    ? { target, viewpoint: placement.viewpoint, revision: bm.terrainSampler?.revision ?? -1 }
+    ? { anchor: new SurfaceTerrainAnchor(target, bm), viewpoint: placement.viewpoint }
     : null;
   return { ok: true, target };
 }
@@ -1073,32 +1073,25 @@ export function navigateToSurfaceTarget(
  * basin as LOD refines. The handoff is final when other navigation takes
  * the camera (the anchor is dropped then), never on the first sample.
  */
-let _terrainAnchor: {
-  target: SurfaceNavigationTarget;
-  viewpoint: ViewpointDefinition;
-  /** The sampler revision last sampled at; nothing new to read until it moves. */
-  revision: number;
-} | null = null;
+let _terrainAnchor: { anchor: SurfaceTerrainAnchor; viewpoint: ViewpointDefinition } | null = null;
 
 function refineAnchoredTerrain() {
-  const anchor = _terrainAnchor;
+  const held = _terrainAnchor;
   const cc = _renderer?.cameraController;
-  if (!anchor || !cc) return;
+  if (!held || !cc) return;
   if (!cc.surfaceNavigating) { _terrainAnchor = null; return; }
-  const { target, viewpoint } = anchor;
-  const bm = _renderer!.getBodyMesh(target.bodyName);
-  const revision = bm?.terrainSampler?.revision;
-  if (!bm || revision === undefined || revision === anchor.revision) return;
-  anchor.revision = revision;
-  const sample = bm.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
-  if (!sample) return;
-  const refined = refineWithTerrain(target, { elevationKm: sample.elevationKm, sourceId: sample.source.id, tileId: sample.tileId });
-  if (!refined) return;
-  if (!cc.retargetSurface(bm, bodyFixedToMeshLocal(refined.shiftKm, _renderer!.scaleFactor))) { _terrainAnchor = null; return; }
-  const shift = (v: readonly number[] | undefined) => v && [v[0] + refined.shiftKm[0], v[1] + refined.shiftKm[1], v[2] + refined.shiftKm[2]] as [number, number, number];
-  const moved = { ...viewpoint, eye: shift(viewpoint.eye), target: shift(viewpoint.target) };
-  _terrainAnchor = { target: refined.target, viewpoint: moved, revision };
-  vs.surfaceTarget = describeTarget(refined.target, moved);
+  const bm = _renderer!.getBodyMesh(held.anchor.target.bodyName);
+  if (!bm) return;
+  let shiftKm: readonly [number, number, number] = [0, 0, 0];
+  const result = held.anchor.update(bm, (shift) => {
+    shiftKm = shift;
+    return cc.retargetSurface(bm, bodyFixedToMeshLocal(shift, _renderer!.scaleFactor));
+  });
+  if (result === 'released') { _terrainAnchor = null; return; }
+  if (!result) return;
+  const shift = (v: readonly number[] | undefined) => v && [v[0] + shiftKm[0], v[1] + shiftKm[1], v[2] + shiftKm[2]] as [number, number, number];
+  held.viewpoint = { ...held.viewpoint, eye: shift(held.viewpoint.eye), target: shift(held.viewpoint.target) };
+  vs.surfaceTarget = describeTarget(result, held.viewpoint);
 }
 
 /** Resolve coordinates and fly (or jump) there. */

@@ -80,8 +80,9 @@ export type {
 } from './controls/CameraController.js';
 export {
   bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
-  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, surfaceNavigable, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, surfaceNavigable, SurfaceTerrainAnchor, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
 } from './SurfaceNavigation.js';
+export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';

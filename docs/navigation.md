@@ -208,7 +208,8 @@ Where it lands:
 - On a terrain body the place is raised onto the decoded terrain sample;
   where the terrain has not loaded yet the place goes on the reference
   surface for now and says so. The place stays anchored by its coordinates
-  while terrain streams: each time the body's terrain decodes something new
+  while terrain streams: each time the body's CPU terrain — the cube grids on
+  a cube-sphere body, the tile sampler otherwise — decodes something new
   there — the first tile after a cold cache, then finer tiles replacing a
   coarse parent — it is re-sampled, and a change of more than half a metre
   moves the place, its pivot and the camera onto it together, keeping the

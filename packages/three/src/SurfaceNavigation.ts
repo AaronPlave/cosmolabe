@@ -7,7 +7,7 @@
  * renderer's display radius.
  */
 import * as THREE from 'three';
-import type { NavigationBodyShape, SurfacePoint } from '@cosmolabe/core';
+import { refineWithTerrain, type NavigationBodyShape, type SurfaceNavigationTarget, type SurfacePoint } from '@cosmolabe/core';
 import type { BodyMesh } from './BodyMesh.js';
 import type { SurfacePose } from './controls/CameraController.js';
 
@@ -109,4 +109,44 @@ export function zoomTowardSurfacePoint(
     target,
     up: camera.up.clone().applyQuaternion(inv).normalize(),
   };
+}
+
+/** The terrain a `SurfaceTerrainAnchor` follows: a body's CPU terrain. */
+export interface AnchorTerrain {
+  /** `BodyMesh.terrainRevision`; null without terrain. */
+  readonly terrainRevision: number | null;
+  sampleTerrain(latDeg: number, lonDeg: number): { elevationKm: number; source: { id: string }; tileId?: string } | null;
+}
+
+/**
+ * Keeps a coordinate target on a terrain body's ground while its terrain
+ * streams (#190): the cold-cache sample, then each finer tile that replaces
+ * a coarse parent. `update` re-samples only when the terrain's revision has
+ * moved, refines through core's `refineWithTerrain` (which ignores changes
+ * under half a metre), and hands the body-fixed shift to `apply` — the
+ * camera's `retargetSurface`, so the pivot and the camera move with it.
+ */
+export class SurfaceTerrainAnchor {
+  private revision: number | null;
+
+  constructor(public target: SurfaceNavigationTarget, terrain: AnchorTerrain) {
+    this.revision = terrain.terrainRevision;
+  }
+
+  /**
+   * The refined target when it moved; `null` when nothing changed; `'released'`
+   * when `apply` reports the navigation it would move is gone.
+   */
+  update(terrain: AnchorTerrain, apply: (shiftKm: readonly [number, number, number]) => boolean): SurfaceNavigationTarget | null | 'released' {
+    const revision = terrain.terrainRevision;
+    if (revision === null || revision === this.revision) return null;
+    this.revision = revision;
+    const sample = terrain.sampleTerrain(this.target.latGraphicDeg, this.target.lonEastDeg);
+    if (!sample) return null;
+    const refined = refineWithTerrain(this.target, { elevationKm: sample.elevationKm, sourceId: sample.source.id, tileId: sample.tileId });
+    if (!refined) return null;
+    if (!apply(refined.shiftKm)) return 'released';
+    this.target = refined.target;
+    return refined.target;
+  }
 }
