@@ -1,5 +1,5 @@
 {
-  "note": "Known #246 CPU neighbor-ownership gaps; these cases must become physical hits before production migration. Replay requires the original bounded product; not a general acceptance of unavailable results.",
+  "note": "Former CPU boundary ownership gaps in #245. Every recorded ray must hit an actual CPU lattice triangle, independently of renderer residency and skirts. Replay requires the original bounded product.",
   "revision": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
   "rays": [
     {

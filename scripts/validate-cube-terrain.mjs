@@ -647,7 +647,7 @@ for (const w of chosen) {
     const hit = await requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
     if (hit.kind !== 'hit') {
       boundaryUnavailable.push({ tile: w.tile, edge: w.edge, ray, reason: hit.reason });
-      gate(ELLIPSOID && hit.kind === 'unavailable' && hit.reason === 'partial-coverage', `boundary pick ${w.tile}: unexpected ${hit.kind} ${hit.reason}`);
+      gate(false, `boundary pick ${w.tile}: expected a physical hit; got ${hit.kind} ${hit.reason}`);
       continue;
     }
     const pair = (triangles) => [w.tile, w.against].map(id => bruteForceTile(ray, id, { triangles, withIndex: true })).sort((a, b) => a.t - b.t)[0];
@@ -662,14 +662,18 @@ for (const w of chosen) {
       renderedClearanceM: Number.isFinite(renderedBelow) ? renderedBelow : null });
   }
 }
-// Optional exact replay of known partial-coverage cases for a pinned product.
-// This records the current ownership gap; #246 must turn these into physical hits.
+// Exact replay of formerly unavailable seam queries for a pinned product.
 if (args['boundary-regression']) {
   const fixture = JSON.parse(readFileSync(args['boundary-regression'], 'utf8'));
   gate(fixture.revision === manifest.source.version, 'boundary regression must use its original product revision');
   for (const row of fixture.rays) {
     const hit = await requestSurfaceIntersection(surface, row.ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
-    gate(hit.kind === 'unavailable' && hit.reason === 'partial-coverage', `known boundary gap ${row.tile}/${row.edge}: expected unavailable/partial-coverage; got ${hit.kind} ${hit.reason ?? ''}`);
+    gate(hit.kind === 'hit', `boundary regression ${row.tile}/${row.edge}: expected a physical hit; got ${hit.kind} ${hit.reason ?? ''}`);
+    if (hit.kind === 'hit') {
+      const independentM = bruteForceTile(row.ray, hit.tileId, { triangles: 'surface' });
+      gate(Math.abs(independentM - hit.distanceKm * 1000) <= Math.max(0.001, (manifest.renderedLatticeRoundingBoundKm ?? 0.001) * 1000 * 4), `boundary regression ${row.tile}/${row.edge}: hit must lie on the actual emitted surface lattice`);
+      gate(hit.detail === 'coarse' && hit.accuracy.meshDeviationBoundKm === null, 'boundary hits must preserve unknown physical accuracy');
+    }
   }
 }
 // A ray that leaves the two tiles before reaching either is not a sample of this pair.

@@ -128,10 +128,22 @@ The radial conversion checks 390 emitted-grid values with less than 0.001 m
 error. Neither the original fitted plane nor the taper was changed.
 
 All tested mixed-level rendered edges have skirt coverage. CPU grids omit
-skirts: exact mixed-level boundary rays can return `unavailable` /
-`partial-coverage`, which is recorded separately from successful picks and
-never promoted to a miss or a certified hit. Representation, nearest-hit and
-source uncertainty remain explicit. Global roots intentionally have coarse
+skirts. Ray queries enumerate incident closed tile/face footprints and pass
+rejected parent hits to the finer owner. Finer interiors supersede parents;
+when finer triangles have no intersection, an actual shared outer-edge hit
+from a resident ancestor can supply provisional boundary support. This is an
+intersection of an existing lattice triangle, not an interpolated bridge or a
+skirt. The returned tile ID identifies that support; it may differ from the
+half-open point sampler's finest tile. Finest-owned hits take priority over
+ancestor boundary support. Coordinate-scaled floating-point tolerances retain
+real edge/vertex intersections at planetary coordinate magnitudes.
+
+All 96 targeted boundary rays now hit, including the 10 formerly unavailable
+rays. Exact replay asserts each hit against the emitted tile's surface-only
+triangles and retains coarse/unknown accuracy. Missing resident coverage still
+returns `unavailable`; finite marching/loading budgets and partial-product
+metadata still prevent a certified nearest-hit or miss claim. Representation,
+nearest-hit and source uncertainty remain explicit. Global roots intentionally have coarse
 geometry; this bounded product is not a global Mars accuracy claim.
 
 The legacy `fused.sh` metadata states that areoid numbers were placed as IAU
@@ -147,14 +159,6 @@ with their own coordinate provenance before #244 switches production catalogs.
 The #245 foundation does not accept the following behavior for production.
 Before switching Ingenuity catalogs under #246/#244:
 
-- Resolve CPU neighbor/boundary ownership: the bounded product has 10 known
-  `unavailable/partial-coverage` results among 96 boundary rays despite rendered
-  skirt coverage. `coverage() === 'finest'` does not certify an intersection.
-  Exact rays and the required product revision are recorded in
-  `scripts/terrain/fixtures/mars-cube-boundary-rays.json`. Replay the current
-  limitation with the command below; replace the expected unavailable results
-  with physical-hit assertions when ownership is fixed. This replay requires
-  the generated bounded product and is not an offline CI fixture.
 - Exercise point elevation, picking, fly-to-point, navigation/clearance, and
   measurements during cold loading and refinement as well as after settling.
   Decide explicitly whether rendered or CPU geometry governs placement and
@@ -165,6 +169,12 @@ Before switching Ingenuity catalogs under #246/#244:
   these operations.
 - Audit mission and image coordinate provenance independently, including
   planetocentric/planetographic latitude and areoid/ellipsoid heights.
+
+The boundary regression for #245 is retained in
+`scripts/terrain/fixtures/mars-cube-boundary-rays.json`. It requires the original
+bounded product; offline CI additionally covers an extracted physical edge
+triangle and synthetic parent-child, cube face/corner, pole and antimeridian
+queries without a renderer or skirts.
 
 ```sh
 node scripts/validate-cube-terrain.mjs \

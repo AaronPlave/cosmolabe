@@ -398,88 +398,37 @@
   },
   "boundaryPicks": {
     "note": "rays (0\u201360\u00b0 off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
-    "rays": 86,
-    "raysOnPair": 86,
+    "rays": 96,
+    "raysOnPair": 96,
     "renderedMinusCpuM": {
-      "n": 86,
+      "n": 96,
       "maxM": 291.04234626754646,
-      "rmsM": 41.027287429909386,
+      "rmsM": 38.71513743274447,
       "p95M": 30.79653014879591
     },
     "skirtHitRenderedMinusCpuM": {
-      "n": 23,
-      "maxM": 9.433230725341446,
-      "rmsM": 2.3662635556279787,
-      "p95M": 6.305664186472995
+      "n": 25,
+      "maxM": 0.18188703816645102,
+      "rmsM": 0.03711129842195834,
+      "p95M": 0.029581713830793888
     },
     "skirtHitOverEdgeGap": {
-      "n": 23,
-      "maxM": 0.5123469314016653,
-      "rmsM": 0.12850407684413412,
-      "p95M": 0.342479452740395
+      "n": 25,
+      "maxM": 0.00377497801106454,
+      "rmsM": 0.0007561738115713945,
+      "p95M": 0.00015130121263694788
     },
-    "renderedOnSkirt": 23,
+    "renderedOnSkirt": 25,
     "throughCrackWithoutSkirts": 8,
     "renderedClearanceM": {
-      "n": 83,
+      "n": 93,
       "maxM": 160.2719588771191,
-      "rmsM": 31.112226344499938,
-      "p95M": 34.849110234665346
+      "rmsM": 28.84919033667249,
+      "p95M": 19.758893433429776
     },
     "renderedClearanceMinM": 30.23935542566977
   },
-  "boundaryUnavailable": [
-    {
-      "tile": "py/10/626/336",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/10/626/336",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/10/626/336",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/10/626/336",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/11/1252/672",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/11/1252/672",
-      "edge": "S",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/9/313/167",
-      "edge": "N",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/9/313/167",
-      "edge": "N",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/9/313/167",
-      "edge": "N",
-      "reason": "partial-coverage"
-    },
-    {
-      "tile": "py/9/313/167",
-      "edge": "N",
-      "reason": "partial-coverage"
-    }
-  ],
+  "boundaryUnavailable": [],
   "imagery": {
     "failures": [],
     "markers": {
@@ -740,7 +689,7 @@
     "focusedTests": "8 files, 130 tests passed",
     "pythonOblate": "3 tests passed (including emitted negative-height flattened lattice)",
     "pythonLegacy": "dem.py selftest passed",
-    "lint": "ESLint of changed TypeScript files passed",
+    "lint": "npm run lint passed",
     "existingLunarProduct": {
       "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
       "tiles": 4030,
@@ -751,12 +700,20 @@
         "rmsM": 4.4501160753993375e-05,
         "p95M": 8.973303556558676e-05
       }
-    }
+    },
+    "boundaryRegression": "96/96 targeted boundary hits; all 10 recorded former gaps hit and match emitted surface-only triangles"
   },
   "limits": [
     "Software WebGL captures at 1280x800, DPR 1; no physical GPU performance claim.",
-    "CPU surface is partial-product; boundary unavailability remains explicit.",
+    "CPU surface is partial-product; missing/unloaded coverage remains unavailable and finite query budgets do not certify a miss or nearest hit.",
     "No source/datum accuracy certification or production mission trajectory migration.",
     "Coarse orbital rendered LOD and finest CPU lattice can differ by hundreds of metres; captured offsets are retained."
-  ]
+  ],
+  "boundaryRegression": {
+    "fixture": "scripts/terrain/fixtures/mars-cube-boundary-rays.json",
+    "formerlyUnavailable": 10,
+    "physicalHits": 10,
+    "surfaceOnlyVerification": "All 10 compared to the emitted tile surface triangles, within the published float32 lattice rounding budget; no skirts.",
+    "coveragePolicy": "Finest-owned hits preferred. Actual closed outer-edge triangle support from resident ancestors remains provisional if no finest-owned triangle intersects. Interior superseded hits remain rejected."
+  }
 }
