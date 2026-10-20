@@ -67,10 +67,7 @@ function stubHost(viewpoints: CameraViewpoint[]) {
   const host: ViewpointHost = {
     cameraController: {
       getViewpoint: (n) => byName.get(n),
-      applyViewpoint: (vp) => { calls.push(`apply:${vp.name}`); },
-      flyToViewpoint: (vp) => { calls.push(`goTo:${vp.name}`); },
-      track: (bm) => { calls.push(`track:${bm ? 'body' : 'null'}`); },
-      lookAt: (bm) => { calls.push(`lookAt:${bm ? 'body' : 'null'}`); },
+      establishView: (vp) => { calls.push(`apply:${(vp as CameraViewpoint).name}`); },
     },
     timeController: {
       get et() { return et; },

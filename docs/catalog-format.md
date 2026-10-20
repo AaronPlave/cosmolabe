@@ -511,6 +511,19 @@ Jezero after the clock has moved, and "Cassini from the Sun side" is on the Sun
 side whenever it is chosen. This is the difference between "show me the rings
 from the side" and "show me the Huygens landing".
 
+Resolution happens once, when the viewpoint is chosen. Afterwards the camera
+travels with `center`, and a `lookAt` body stays in view, but directions are
+not re-derived as time plays: "behind Cassini, along its velocity" is where the
+camera starts, not a chase camera that keeps following the velocity. Live
+relationships like that belong to the camera frames (chase, LVLH, body- or
+SC-fixed).
+
+Choosing a viewpoint establishes the whole view, whatever navigation came
+before. Any flight or look-at in progress ends, the camera returns to free
+orbit, and the scene origin moves to `center`, or to the universe origin for a
+viewpoint with none. A viewpoint whose bodies are missing from the scene is
+refused, and nothing changes.
+
 An unparseable `time` is reported on the console and then ignored, rather than
 being silently rounded to J2000: a viewpoint that quietly jumps to the year 2000
 looks like a working scene aimed at empty space. Malformed fields are reported

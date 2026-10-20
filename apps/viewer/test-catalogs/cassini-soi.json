@@ -138,7 +138,7 @@
       "distance": 0.03
     },
     {
-      "name": "Chase Cassini",
+      "name": "Behind Cassini, along its velocity",
       "type": "Viewpoint",
       "center": "Cassini",
       "from": { "kind": "velocity", "relativeTo": "Saturn", "negate": true },

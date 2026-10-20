@@ -46,6 +46,9 @@ export function cameraViewpointFromDefinition(
     name: def.name,
     ...pose,
     trackBody: def.center,
+    // Resolved positions are relative to the center, or to the universe
+    // origin for a viewpoint with none.
+    originBody: def.center ?? null,
     lookAtBody: def.lookAt,
     fov: def.fov,
     // Resolved by CatalogLoader (SPICE str2et, else core's calendar parse),

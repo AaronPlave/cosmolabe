@@ -34,6 +34,10 @@ export interface CameraViewpoint extends ViewpointPose {
   name: string;
   /** If set, camera tracks this body name */
   trackBody?: string;
+  /** The body the pose's coordinates are relative to (null: the universe
+   *  origin). Defaults to `trackBody`. A view saved after un-tracking keeps
+   *  the origin it was taken in. */
+  originBody?: string | null;
   /** If set, the camera keeps facing this body while tracking `trackBody`. */
   lookAtBody?: string;
   /** Vertical field of view in degrees, when the viewpoint sets one. */
@@ -733,6 +737,43 @@ export class CameraController {
     this.camera.up.copy(vp.up);
   }
 
+  /**
+   * Establish a viewpoint: the whole view, not a pose laid over whatever
+   * navigation left behind. Ends any flight, scripted move or look-at, returns
+   * to free orbit, puts the scene origin on `origin` (null: the universe
+   * origin) — the coordinates the pose is in — and applies the pose. Then
+   * orbit-locks `track` and faces `lookAt` when given.
+   *
+   * Free orbit because the other frames would not keep the pose: LVLH, chase,
+   * surface and instrument place the camera themselves on their next update,
+   * and body-fixed or SC-fixed would carry a pose stated in scene axes round
+   * with their body as time runs.
+   *
+   * With `duration`, the camera flies to the pose instead of cutting, but only
+   * when the origin stays where it is and nothing is tracked: a flight between
+   * two origins' coordinates would pass through neither.
+   */
+  establishView(
+    pose: ViewpointPose,
+    opts: { origin: BodyMesh | null; track?: BodyMesh | null; lookAt?: BodyMesh | null; duration?: number },
+  ): void {
+    this._beginNavigation();
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) this.setMode(CameraModeName.FREE_ORBIT);
+    const sameOrigin = this._originBody === opts.origin;
+    this._originBody = opts.origin;
+    this._trackTarget = opts.track ?? null;
+    this._lookAtTarget = opts.lookAt ?? null;
+    if (opts.duration && sameOrigin && !opts.track && !opts.lookAt) {
+      this._startAnimation(pose.position.clone(), pose.target.clone(), pose.up.clone(), opts.duration);
+      return;
+    }
+    this.camera.position.copy(pose.position);
+    this.controls.target.copy(pose.target);
+    this.camera.up.copy(pose.up);
+    this._prevTargetPos.copy(pose.target);
+    this.camera.lookAt(pose.target);
+  }
+
   /** Save current camera state as a named viewpoint */
   saveViewpoint(name: string): CameraViewpoint {
     const vp: CameraViewpoint = {
@@ -741,6 +782,8 @@ export class CameraController {
       target: this.controls.target.clone(),
       up: this.camera.up.clone(),
       trackBody: this._trackTarget?.body.name,
+      // The pose is in the origin body's coordinates, which outlive tracking.
+      originBody: this._originBody?.body.name ?? null,
     };
     this._viewpoints.set(name, vp);
     return vp;

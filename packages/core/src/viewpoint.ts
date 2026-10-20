@@ -209,6 +209,40 @@ function relativePosition(scene: ViewpointScene, body: string, relativeTo: strin
   return relativeTo ? sub(p, positionOf(scene, relativeTo, et)) : p;
 }
 
+/**
+ * Velocity of `body` relative to `relativeTo` at `et`, by differencing
+ * positions in the inertial scene frame: right for every trajectory type,
+ * including body-fixed ones whose own velocity is stated in a rotating frame.
+ *
+ * Central where both neighbours have positions; one-sided at the edge of
+ * coverage — a trajectory's first or last epoch, an SPK or OEM gap, a
+ * spacecraft's existence window — so a pose that is available at `et` does
+ * not fail for want of a sample a second beyond it. `r` is the position at
+ * `et`, already known to exist.
+ */
+function differenceVelocity(
+  scene: ViewpointScene,
+  body: string,
+  relativeTo: string | undefined,
+  et: number,
+  r: Vec3,
+  what: string,
+): Vec3 {
+  const at = (t: number): Vec3 | undefined => {
+    try {
+      return relativePosition(scene, body, relativeTo, t);
+    } catch {
+      return undefined;
+    }
+  };
+  const ahead = at(et + VELOCITY_STEP);
+  const behind = at(et - VELOCITY_STEP);
+  if (ahead && behind) return scale(sub(ahead, behind), 1 / (2 * VELOCITY_STEP));
+  if (ahead) return scale(sub(ahead, r), 1 / VELOCITY_STEP);
+  if (behind) return scale(sub(r, behind), 1 / VELOCITY_STEP);
+  throw new ViewpointError(`${what} needs a position within ${VELOCITY_STEP} s of this epoch, and there is none`);
+}
+
 function resolveDirection(
   scene: ViewpointScene,
   dir: ViewDirection,
@@ -229,15 +263,10 @@ function resolveDirection(
       const b = scene.getBody(body);
       if (!b) throw new ViewpointError(`unknown body "${body}"`);
       const relativeTo = dir.relativeTo ?? b.activeParentAt(et);
-      // A central difference of positions in the inertial scene frame: right
-      // for every trajectory type, including body-fixed ones whose own
-      // velocity is stated in a rotating frame.
-      const ahead = relativePosition(scene, body, relativeTo, et + VELOCITY_STEP);
-      const behind = relativePosition(scene, body, relativeTo, et - VELOCITY_STEP);
-      const v = scale(sub(ahead, behind), 1 / (2 * VELOCITY_STEP));
       const what = `${dir.kind} of "${body}"${relativeTo ? ` relative to "${relativeTo}"` : ''}`;
-      if (dir.kind === 'velocity') return scale(unit(v, what), sign);
       const r = relativePosition(scene, body, relativeTo, et);
+      const v = differenceVelocity(scene, body, relativeTo, et, r, what);
+      if (dir.kind === 'velocity') return scale(unit(v, what), sign);
       return scale(unit(cross(r, v), what), sign);
     }
     case 'axis':

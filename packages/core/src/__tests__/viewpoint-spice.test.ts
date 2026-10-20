@@ -12,13 +12,14 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe } from '../Universe.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 import { resolveViewpoint, type ViewpointDefinition } from '../viewpoint.js';
 import type { Vec3 } from '../kinematics.js';
+import { kernelArrayBuffer } from './_harness/kernels.js';
 
-const KERNEL_DIR = fileURLToPath(new URL('../../../spice/test-kernels', import.meta.url));
+const KERNEL_DIR = fileURLToPath(new URL('../../../../kernels/test-data', import.meta.url));
 const CASSINI_DIR = join(KERNEL_DIR, 'cassini');
 const SOI_SPK = join(CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp');
 const HAS_SPK = existsSync(SOI_SPK) && statSync(SOI_SPK).size > 100_000;
@@ -35,19 +36,19 @@ const angleDeg = (a: Vec3, b: Vec3) => {
 };
 
 describe.skipIf(!HAS_SPK)('cassini-soi semantic viewpoints against SPICE', () => {
-  let spice: Spice;
+  let spice: Awaited<ReturnType<typeof createHeritageSpice>>;
   let universe: Universe;
   let byName: Map<string, ViewpointDefinition>;
   let soi: number;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     for (const [dir, name] of [
       [KERNEL_DIR, 'naif0012.tls'], [KERNEL_DIR, 'pck00010.tpc'],
       [CASSINI_DIR, 'cas_v43.tf'], [CASSINI_DIR, 'cas00172.tsc'], [CASSINI_DIR, '040629AP_SCPSE_04179_04185.bsp'],
     ]) {
       const b = readFileSync(join(dir, name));
-      await spice.furnish({ type: 'buffer', data: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, filename: name });
+      await spice.furnish({ type: 'buffer', data: kernelArrayBuffer(b), filename: name });
     }
     universe = new Universe(spice);
     universe.loadCatalog(JSON.parse(readFileSync(CATALOG, 'utf8')) as CatalogJson);
@@ -74,8 +75,8 @@ describe.skipIf(!HAS_SPK)('cassini-soi semantic viewpoints against SPICE', () =>
     expect(angleDeg(r.up, [m[2], m[5], m[8]])).toBeLessThan(1e-3);
   });
 
-  it('chases Cassini along its Saturn-relative velocity, up along the orbit normal', () => {
-    const r = resolveViewpoint(universe, byName.get('Chase Cassini')!, soi);
+  it('places the camera behind Cassini along its Saturn-relative velocity, up along the orbit normal', () => {
+    const r = resolveViewpoint(universe, byName.get('Behind Cassini, along its velocity')!, soi);
     const s = cassiniFromSaturn(soi);
     const v: Vec3 = [s[3], s[4], s[5]];
     expect(angleDeg(r.eye, [-v[0], -v[1], -v[2]])).toBeLessThan(1e-3);
@@ -83,7 +84,7 @@ describe.skipIf(!HAS_SPK)('cassini-soi semantic viewpoints against SPICE', () =>
   });
 
   it('follows the clock for a viewpoint that names no time', () => {
-    const vp = byName.get('Chase Cassini')!;
+    const vp = byName.get('Behind Cassini, along its velocity')!;
     expect(vp.epoch).toBeUndefined();
     // Across SOI periapsis the velocity swings through tens of degrees in an hour.
     const before = resolveViewpoint(universe, vp, soi - 1800);

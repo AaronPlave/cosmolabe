@@ -57,10 +57,12 @@ function host(u: Universe) {
   const h: ViewpointHost = {
     cameraController: {
       getViewpoint: (n) => vps.get(n),
-      applyViewpoint: (vp) => { state.applied = vp; state.calls.push('apply'); },
-      flyToViewpoint: (vp) => { state.applied = vp; state.calls.push('fly'); },
-      track: (bm) => { state.tracked = bm?.body.name ?? null; },
-      lookAt: (bm) => { state.lookAt = bm?.body.name ?? null; },
+      establishView: (vp, o) => {
+        state.applied = vp as CameraViewpoint;
+        state.calls.push(o.duration ? 'fly' : 'apply');
+        state.tracked = o.track?.body.name ?? null;
+        state.lookAt = o.lookAt?.body.name ?? null;
+      },
     },
     timeController: {
       get et() { return state.et; },

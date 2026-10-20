@@ -11,6 +11,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { Universe } from '../Universe.js';
+import { Body } from '../Body.js';
+import type { Trajectory } from '../trajectories/Trajectory.js';
 import type { CatalogJson } from '../catalog/CatalogLoader.js';
 import { bodyFixedOffsetToWorld, type Vec3 } from '../kinematics.js';
 import {
@@ -188,6 +190,33 @@ describe('resolveViewpoint: semantic relationships', () => {
     expect(() => resolveViewpoint(u, { name: 'X', center: 'Probe', lookAt: 'Nope', distance: 1 }, ET)).toThrow(/unknown body "Nope"/);
     expect(() => resolveViewpoint(u, { name: 'X', center: 'Probe', from: { kind: 'toward', body: 'Sun' } }, ET)).toThrow(/distance/);
     expect(() => resolveViewpoint(u, { name: 'X', lookAt: 'Moon' }, ET)).toThrow(/center/);
+  });
+});
+
+describe('resolveViewpoint: velocity at the edge of coverage', () => {
+  /** A straight-line pass covering only [T0, T1], like one SPK or OEM
+   *  segment: NaN outside it, as a trajectory with no data reports. */
+  const T0 = ET, T1 = ET + 600;
+  const segment: Trajectory = {
+    startTime: T0,
+    endTime: T1,
+    stateAt: (et) => et < T0 || et > T1
+      ? { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] }
+      : { position: [20000, 3 * (et - T0), 0], velocity: [0, 3, 0] },
+  };
+  const u = universe();
+  u.addBody(new Body({ name: 'Pass', trajectory: segment, parentName: 'Mars', trajectoryFrame: 'EclipticJ2000' }));
+  const chase: ViewpointDefinition = { name: 'Behind the pass', center: 'Pass', distance: 1, from: { kind: 'velocity', negate: true } };
+
+  it('resolves at the first and last epoch of the segment, one-sided', () => {
+    for (const et of [T0, T1, (T0 + T1) / 2]) expectVec(resolveViewpoint(u, chase, et).eye, [0, -1, 0], 1e-9);
+  });
+
+  it('fails clearly, naming the relationship, where there is no position at all', () => {
+    expect(() => resolveViewpoint(u, chase, T1 + 100)).toThrow(/"Pass" has no position/);
+    const blip: Trajectory = { stateAt: (et) => et === T0 ? { position: [1, 0, 0], velocity: [0, 0, 0] } : { position: [NaN, NaN, NaN], velocity: [NaN, NaN, NaN] } };
+    u.addBody(new Body({ name: 'Blip', trajectory: blip, parentName: 'Mars', trajectoryFrame: 'EclipticJ2000' }));
+    expect(() => resolveViewpoint(u, { ...chase, center: 'Blip' }, T0)).toThrow(/velocity of "Blip" relative to "Mars" needs a position within 1 s/);
   });
 });
 
