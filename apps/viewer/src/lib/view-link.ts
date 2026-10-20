@@ -1,4 +1,5 @@
 import { applyViewState, validateViewState, ViewStateError } from '@cosmolabe/control';
+import { resolveCameraViewpoint } from '@cosmolabe/three';
 import { catalogLocation, allEntries, requestedCatalog } from './catalog-nav';
 import { catalogs } from './catalogs.svelte';
 import { getRenderer, vs } from './viewer-state.svelte';
@@ -8,6 +9,8 @@ import { captureSharedEvents, restoreSharedEvents } from './event-finder.svelte'
 import { configuredProfiles, createConfiguredProfile, removeConfiguredItem, setConfiguredItemEnabled, setConfiguredItemVisible } from './analysis.svelte';
 import { sharedProfileOf, validateProfileLinkState, type ProfileLinkState } from './profile-link-state';
 import { viewLink, type ViewerViewState } from './view-state-url';
+import { captureSharedMeasurements, restoreSharedMeasurements } from './spatial-measurements.svelte';
+import { validateMeasurementLinkState, validateMeasurementReferences } from './measurement-link-state';
 
 export function captureViewState(pageUrl = location.href): ViewerViewState {
   const r = getRenderer();
@@ -25,11 +28,20 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
   // Match only catalog-owned viewpoints, never session-only Saved views. A
   // remembered dropdown value becomes stale as soon as the camera is dragged.
   const matches = (a: readonly number[], b: readonly number[]) => a.every((x, i) => Math.abs(x - b[i]) <= 1e-9 * Math.max(1, Math.abs(x)));
+  // Catalog viewpoints are relationships, resolved where they are shown: at
+  // their own epoch, else now. That is also where restoring the link resolves
+  // them (`applyViewState` applies a named view after seeking to the link's
+  // time), so a match here reproduces the same pose there.
   const named = getUniverse()?.viewpoints.find(v => {
-    const vp = cc.getViewpoint(v.name);
-    return vp && (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) &&
-      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) &&
-      matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
+    const stored = cc.getViewpoint(v.name);
+    if (!stored) return false;
+    let vp;
+    try { vp = resolveCameraViewpoint(stored, stored.epoch ?? host.getTime()); } catch { return false; }
+    // A look-at view's orientation is the look-at body, not a stored target.
+    const aimed = vp.lookAtBody ? cc.lookAtBody?.body.name === vp.lookAtBody
+      : matches(camera.target, vp.target.toArray().map(x => x / r.scaleFactor));
+    return (vp.trackBody ?? null) === (cc.originBody?.body.name ?? null) && aimed &&
+      matches(camera.position, vp.position.toArray().map(x => x / r.scaleFactor)) && matches(camera.up, vp.up.toArray());
   });
   const state = validateViewState({ version: 1, catalog: ref,
     time: { kind: 'fixed', source: 'ET', et: host.getTime() },
@@ -42,8 +54,10 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
   });
   const events = captureSharedEvents();
   const profiles = configuredProfiles();
+  const measurements = captureSharedMeasurements();
   return { ...state, ...(events ? { events } : {}),
-    ...(profiles.length ? { profiles: validateProfileLinkState({ version: 1, profiles: profiles.map(sharedProfileOf) }) } : {}) };
+    ...(profiles.length ? { profiles: validateProfileLinkState({ version: 1, profiles: profiles.map(sharedProfileOf) }) } : {}),
+    ...(measurements ? { measurements } : {}) };
 }
 
 /** Replace the timeline profiles with the shared ones (none when the link has none).
@@ -73,9 +87,17 @@ export async function copyViewLink(): Promise<string> {
 export async function restoreView(state: ViewerViewState, signal?: AbortSignal): Promise<void> {
   const r = getRenderer();
   if (signal?.aborted) return;
+  // Validate every measurement/reference before changing any scene state.
+  if (state.measurements) {
+    const shared = validateMeasurementLinkState(state.measurements);
+    const universe = getUniverse();
+    if (!universe) throw new ViewStateError('Measurement context: the catalog has no scene.');
+    validateMeasurementReferences(shared, universe, state.time.kind === 'fixed' ? state.time.et : createViewerControl().getTime());
+  }
   // Searches may take time; keep the encoded epoch paused while rebuilding.
   applyViewState(createViewerControl(), { ...state, playback: { ...state.playback, playing: false } }, { afterSeek: () => r?.renderFrame() });
   try {
+    restoreSharedMeasurements(state.measurements);
     restoreSharedProfiles(state.profiles);
     await restoreSharedEvents(state.events, signal);
   } finally {

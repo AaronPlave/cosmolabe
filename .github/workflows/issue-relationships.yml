@@ -1,0 +1,69 @@
+name: Issue dependency graph
+
+on:
+  pull_request:
+    paths:
+      - .github/issue-relationships.json
+      - scripts/sync-issue-relationships.mjs
+      - .github/workflows/issue-relationships.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/issue-relationships.json
+      - scripts/sync-issue-relationships.mjs
+      - .github/workflows/issue-relationships.yml
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply missing GitHub issue relationships (otherwise preview only)
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate acyclic issue relationship manifest
+        run: node scripts/sync-issue-relationships.mjs --validate
+
+  sync:
+    needs: validate
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Add native dependencies and sub-issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/sync-issue-relationships.mjs --apply
+
+  preview:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && !inputs.apply
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Preview missing native links
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/sync-issue-relationships.mjs --dry-run

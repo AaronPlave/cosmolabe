@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { absolutizeCatalogAssets, resolveCatalogRelative } from '../catalog-assets';
+import { absolutizeCatalogAssets, catalogsUseDsk, resolveCatalogRelative } from '../catalog-assets';
 
 describe('resolveCatalogRelative', () => {
   const cat = 'https://mission.example/catalogs/scenes/main.json';
@@ -54,6 +54,7 @@ describe('absolutizeCatalogAssets', () => {
             terrain: {
               type: 'quantized-mesh',
               url: '../terrain/',
+              cubeSphere: { cpuGrids: '../terrain/cpu-grids.json', imagery: { url: '../imagery/imagery.json' } },
               imagery: [{ url: '../tiles/{z}/{y}/{x}.jpg' }, { url: 'https://trek.example/{z}/{y}/{x}.jpg' }],
             },
             surfaceTiles: [{ name: 'Site', url: 'site/tileset.json' }],
@@ -63,13 +64,29 @@ describe('absolutizeCatalogAssets', () => {
           ],
         },
         {
+          name: 'Comet',
+          geometry: { type: 'Dsk', source: '../shapes/comet.bds' },
+        },
+        {
+          // Cosmographia's spelling, inside a TimeSwitched sequence.
+          name: 'Orbiter',
+          geometry: {
+            type: 'TimeSwitched',
+            sequence: [{ startTime: '2004-03-02', geometry: { type: 'DSK', kernel: '../shapes/bus.bds' } }],
+          },
+        },
+        {
           name: 'Tiled',
           geometry: { type: 'Globe', radius: 1, baseMap: { type: 'NameTemplate', template: 'tex/t_%level_%column_%row.dds' } },
+        },
+        {
+          name: 'Imaged',
+          geometry: { type: 'Globe', radius: 1, imagery: [{ url: '../tiles/global/{z}/{y}/{x}.jpg' }, { url: 'site/{z}/{y}/{x}.png' }] },
         },
       ],
     };
     absolutizeCatalogAssets(catalog, url);
-    const [sc, planet, tiled] = catalog.items as any[];
+    const [sc, planet, comet, orbiter, tiled, imaged] = catalog.items as any[];
 
     expect(sc.geometry.source).toBe('https://mission.example/catalogs/models/spacecraft.glb');
     // Trajectory data stays as written: the viewer pre-fetches it keyed by that path.
@@ -78,13 +95,38 @@ describe('absolutizeCatalogAssets', () => {
     expect(planet.geometry.baseMap).toBe('https://mission.example/catalogs/textures/planet.jpg');
     expect(planet.geometry.normalMap).toBe('https://mission.example/catalogs/scenes/textures/planet-normal.jpg');
     expect(planet.geometry.terrain.url).toBe('https://mission.example/catalogs/terrain/');
+    expect(planet.geometry.terrain.cubeSphere.cpuGrids).toBe('https://mission.example/catalogs/terrain/cpu-grids.json');
+    expect(planet.geometry.terrain.cubeSphere.imagery.url).toBe('https://mission.example/catalogs/imagery/imagery.json');
     expect(planet.geometry.terrain.imagery.map((i: any) => i.url)).toEqual([
       'https://mission.example/catalogs/tiles/{z}/{y}/{x}.jpg',
       'https://trek.example/{z}/{y}/{x}.jpg',
     ]);
     expect(planet.geometry.surfaceTiles[0].url).toBe('https://mission.example/catalogs/scenes/site/tileset.json');
     expect(planet.items[0].geometry.texture).toBe('https://mission.example/catalogs/textures/rings.png');
+    expect(comet.geometry.source).toBe('https://mission.example/catalogs/shapes/comet.bds');
+    expect(orbiter.geometry.sequence[0].geometry.kernel).toBe('https://mission.example/catalogs/shapes/bus.bds');
     expect(tiled.geometry.baseMap.template).toBe('https://mission.example/catalogs/scenes/tex/t_%level_%column_%row.dds');
+    expect(imaged.geometry.imagery.map((i: any) => i.url)).toEqual([
+      'https://mission.example/catalogs/tiles/global/{z}/{y}/{x}.jpg',
+      'https://mission.example/catalogs/scenes/site/{z}/{y}/{x}.png',
+    ]);
+  });
+});
+
+describe('catalogsUseDsk', () => {
+  it('finds a Dsk geometry at any depth, in any catalog of the scene', () => {
+    const plain = { items: [{ name: 'A', geometry: { type: 'Mesh', source: 'a.glb' } }] };
+    const nested = { items: [{ name: 'B', items: [{ name: 'C', geometry: { type: 'Dsk', source: 'c.bds' } }] }] };
+    expect(catalogsUseDsk([plain])).toBe(false);
+    expect(catalogsUseDsk([plain, nested])).toBe(true);
+  });
+
+  it('recognises Cosmographia\'s { type: "DSK", kernel } spelling', () => {
+    expect(catalogsUseDsk([{ items: [{ name: 'E', geometry: { type: 'DSK', kernel: 'e.bds' } }] }])).toBe(true);
+  });
+
+  it('ignores a Dsk with no source, which the renderer cannot load either', () => {
+    expect(catalogsUseDsk([{ items: [{ name: 'D', geometry: { type: 'Dsk' } }] }])).toBe(false);
   });
 });
 
@@ -109,7 +151,8 @@ describe('the repository catalogs', () => {
     else if (node && typeof node === 'object') {
       const o = node as Record<string, unknown>;
       const take = (v: unknown) => typeof v === 'string' && out.push(v);
-      if (o.type === 'Mesh') take(o.source);
+      if (o.type === 'Mesh' || o.type === 'Dsk') take(o.source);
+      if (typeof o.type === 'string' && o.type.toUpperCase() === 'DSK') take(o.kernel);
       if (o.type === 'Globe') ['baseMap', 'normalMap', 'displacementMap', 'bumpMap'].forEach((k) => take(o[k]));
       if (o.type === 'Rings') take(o.texture);
       Object.values(o).forEach((v) => assetUrls(v, out));
@@ -127,6 +170,9 @@ describe('the repository catalogs', () => {
       absolutizeCatalogAssets(json, pathToFileURL(file).href);
       for (const url of assetUrls(json)) {
         if (!url.startsWith('file:')) continue; // remote assets aren't this test's business
+        // A DSK is a kernel: like `spiceKernels`, it lives under kernels/ and is
+        // fetched by a script (scripts/fetch-*-kernels.sh), not committed.
+        if (fileURLToPath(url).startsWith(join(ROOT, 'kernels'))) continue;
         checked++;
         if (!existsSync(fileURLToPath(url))) missing.push(`${relative(ROOT, file)} -> ${url}`);
       }

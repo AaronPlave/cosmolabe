@@ -3,7 +3,7 @@
 # Fetch the SPICE kernels Bessel's Phase 0 demo needs from the public NAIF
 # archive into kernels/data/ (git-ignored bulk). The small, redistributable
 # fixtures the unit and e2e tests load live under kernels/fixtures/ and are
-# committed; packages/spice/scripts/make-fixture-spk.mjs derives them from these
+# committed; packages/cspice-wasm/scripts/make-fixture-spk.mjs derives them from these
 # downloads. Kernels are treated as untrusted input (SECURITY.md): we only read
 # them through CSPICE, never execute them.
 #

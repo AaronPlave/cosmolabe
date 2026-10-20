@@ -275,11 +275,12 @@ describe('TerrainManager debug surface modes and metrics', () => {
     const hidden = new THREE.Group();
     hidden.add(debugged);
     scenes.push(hidden);
-    // Imagery overlays: textures in ImageOverlayPlugin's per-material uniform array.
+    // Imagery overlays: textures in ImageOverlayPlugin's per-mesh uniform array,
+    // which outlives customizeTileMaterial's material swap.
     const overlayTex = new THREE.Texture({ width: 128, height: 128 });
     const overlaid = new THREE.Mesh(plane(), new THREE.MeshStandardMaterial());
-    (overlaid.material as unknown as Record<symbol, unknown>)[Symbol('OVERLAY_PARAMS')] =
-      { layerMaps: { value: [overlayTex, null] } };
+    (tm as unknown as { overlayPlugin: unknown }).overlayPlugin =
+      { meshParams: new WeakMap([[overlaid, { layerMaps: { value: [overlayTex, null] } }]]) };
     const withOverlay = new THREE.Group();
     withOverlay.add(overlaid);
     scenes.push(withOverlay);

@@ -13,8 +13,8 @@ import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import type { SpiceInstance } from '../../spice-injection.js';
 
-/** Bundled, always-present generic + Cassini kernels (`packages/spice/test-kernels`). */
-export const SPICE_TEST_KERNELS = join(__dirname, '../../../../spice/test-kernels');
+/** Bundled, always-present generic + Cassini kernels (`kernels/test-data`). */
+export const SPICE_TEST_KERNELS = join(__dirname, '../../../../../kernels/test-data');
 /** Larger mission kernels shipped with the viewer (LRO, de440s, MSL, ...). */
 export const VIEWER_KERNELS = join(__dirname, '../../../../../apps/viewer/test-catalogs/kernels');
 

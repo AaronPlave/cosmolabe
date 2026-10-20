@@ -1,0 +1,71 @@
+{
+  "features": 9,
+  "diagnostics": [],
+  "gpu": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "projected": [
+    -1.3608015918947923e-13,
+    1.109517919378037e-13,
+    0.999995691225992
+  ],
+  "camera": [
+    0.0007028786424993865,
+    0.0031574385508818833,
+    0.0010791864580892087
+  ],
+  "rotation": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "hit": {
+    "kind": "geographic-feature",
+    "layerId": "jezero-science",
+    "featureId": "string:science",
+    "bodyName": "Mars"
+  },
+  "readout": "Vector base · Mars: reference globe, Moon: reference globe",
+  "chrome": [
+    {
+      "name": "desktop",
+      "viewport": {
+        "width": 1100,
+        "height": 760
+      },
+      "visible": true,
+      "bounds": {
+        "x": 785,
+        "y": 8,
+        "width": 307.0625,
+        "height": 22,
+        "top": 8,
+        "right": 1092.0625,
+        "bottom": 30,
+        "left": 785
+      },
+      "overlaps": [],
+      "readout": "Vector base · Mars: reference globe, Moon: reference globe"
+    },
+    {
+      "name": "mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible": true,
+      "bounds": {
+        "x": 75,
+        "y": 50,
+        "width": 307.0625,
+        "height": 22,
+        "top": 50,
+        "right": 382.0625,
+        "bottom": 72,
+        "left": 75
+      },
+      "overlaps": [],
+      "readout": "Vector base · Mars: reference globe, Moon: reference globe"
+    }
+  ],
+  "errors": []
+}

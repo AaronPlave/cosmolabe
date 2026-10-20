@@ -42,7 +42,13 @@ export interface CatalogValidationOptions {
   trajectoryTypes?: readonly string[];
   /** Rotation `type`s a custom factory handles; their fields are not checked. */
   rotationTypes?: readonly string[];
+  /** Geometry `type`s a renderer plugin draws. Their fields are never checked,
+   *  and naming one here also stops it being reported as a misspelling of a
+   *  built-in type (a plugin's `"Globes"` next to the built-in `"Globe"`). */
+  geometryTypes?: readonly string[];
 }
+
+import { VIEWPOINT_FIELDS, VIEW_DIRECTION_FIELDS } from '../viewpoint.js';
 
 type KeySet = ReadonlySet<string>;
 const keys = (...k: string[]): KeySet => new Set(k);
@@ -51,7 +57,9 @@ const keys = (...k: string[]): KeySet => new Set(k);
 
 const CATALOG_KEYS = keys(
   'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport',
-  'defaultTime', 'defaultViewpoint', 'frames',
+  'defaultTime', 'defaultViewpoint', 'frames', 'geographicLayers', 'geographicCoordinates',
+  // Free text for whoever reads the file; no code interprets it.
+  'description',
 );
 
 const ITEM_KEYS = keys(
@@ -60,24 +68,20 @@ const ITEM_KEYS = keys(
   'startTime', 'endTime', 'items', 'arcs', 'spiceKernels',
 );
 
-const VIEWPOINT_KEYS = keys(
-  'name', 'type', 'center', 'frame', 'distance', 'longitude', 'latitude',
-  'eye', 'target', 'up', 'fov', 'time',
-);
+/** From the viewpoint parser itself (viewpoint.ts), so the two cannot drift. */
+const VIEWPOINT_KEYS = keys(...VIEWPOINT_FIELDS);
 
 /** Item types the loader skips without building a body: their content is
  *  overlay metadata it never reads, so it is not checked either. */
 const SKIPPED_ITEM_TYPES = new Set(['Visualizer', 'FeatureLabels']);
 
 const ARC_KEYS = keys(
-  'center', 'trajectoryFrame', 'trajectory', 'bodyFrame', 'startTime', 'endTime',
-  'showLine', 'numKeySamples',
-  // Cosmographia arcs carry a rotation and geometry of their own; the loader
-  // does not read them, so they are reported rather than listed here.
+  'center', 'trajectoryFrame', 'trajectory', 'rotationModel', 'trajectoryPlot',
+  'startTime', 'endTime', 'showLine', 'numKeySamples',
 );
 
 const TRAJECTORY_PLOT_KEYS = keys(
-  'duration', 'lead', 'fade', 'color', 'opacity', 'visible', 'sampleCount', 'lineWidth',
+  'duration', 'lead', 'fade', 'color', 'opacity', 'visible', 'sampleCount',
 );
 
 const LABEL_KEYS = keys('color', 'visible');
@@ -89,6 +93,13 @@ const FRAME_SPEC_KEYS = keys('name', 'base', 'quaternion', 'matrix');
 const SPK_IMPORT_KEYS = keys('kernel', 'center', 'naifIdRange', 'defaults', 'nameTemplate');
 
 const STRUCTURED_FRAME_KEYS = keys('type', 'body');
+
+/** The object form of a `spiceKernels` entry (a bare string is the other). */
+const KERNEL_REF_KEYS = keys('url', 'size', 'label');
+
+/** Inline records: `InterpolatedStates.samples[]` and `Interpolated.records[]`. */
+const STATE_RECORD_KEYS = keys('et', 'position', 'velocity');
+const ORIENTATION_RECORD_KEYS = keys('et', 'q');
 
 // ── Trajectories ────────────────────────────────────────────────────────────
 
@@ -129,7 +140,7 @@ const ROTATION_KEYS: Record<string, KeySet> = {
   Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame'),
   FixedEuler: keys('type', 'sequence', 'angles', 'inertialFrame'),
   Interpolated: keys('type', 'source', 'records', 'inertialFrame'),
-  Spice: keys('type', 'bodyFrame', 'inertialFrame'),
+  Spice: keys('type', 'bodyFrame', 'inertialFrame', 'fallbackFrame'),
   Nadir: keys('type', 'target', 'center', 'inertialFrame'),
   SurfaceUp: keys('type'),
 };
@@ -153,15 +164,39 @@ const GEOMETRY_COMMON = [
 const GEOMETRY_KEYS: Record<string, KeySet> = {
   Globe: keys(
     ...GEOMETRY_COMMON, 'baseMap', 'normalMap', 'displacementMap', 'displacementScale',
-    'displacementBias', 'bumpMap', 'bumpScale', 'atmosphere', 'terrain', 'surfaceTiles',
+    'displacementBias', 'bumpMap', 'bumpScale', 'atmosphere', 'imagery', 'terrain', 'surfaceTiles',
   ),
-  Mesh: keys(...GEOMETRY_COMMON, 'source', 'size', 'scale', 'meshRotation', 'meshOffset'),
+  Mesh: keys(...GEOMETRY_COMMON, 'source', 'size', 'scale', 'meshRotation', 'meshOffset', 'bumpMapType'),
   Sensor: keys(
     ...GEOMETRY_COMMON, 'target', 'spiceId', 'shape', 'horizontalFov', 'verticalFov', 'range',
     'orientation', 'frustumColor', 'frustumOpacity',
   ),
   Rings: keys(...GEOMETRY_COMMON, 'innerRadius', 'outerRadius', 'texture'),
+  // `kernel` is Cosmographia's name for `source`; the loader renames it.
+  Dsk: keys(...GEOMETRY_COMMON, 'source', 'kernel', 'color'),
+  // `color` is the fallback colour of Dsk entries.
+  TimeSwitched: keys(...GEOMETRY_COMMON, 'sequence', 'color'),
 };
+
+/** A `TimeSwitched.sequence[]` entry, and the geometry each entry may hold:
+ *  only Mesh and Dsk shapes are drawn per entry, and only these fields of
+ *  them (`emissive`, `castShadow` and `scale` are read at the top level). */
+const TIME_SWITCHED_ENTRY_KEYS = keys('startTime', 'endTime', 'geometry');
+const TIME_SWITCHED_GEOMETRY_KEYS: Record<string, KeySet> = {
+  Mesh: keys('type', 'source', 'size', 'meshRotation', 'meshOffset', 'bumpMapType'),
+  Dsk: keys('type', 'source', 'kernel', 'color'),
+};
+
+/** The loader's own spelling of a geometry type: it accepts Cosmographia's
+ *  `"DSK"` in any case as `Dsk`, and nothing else case-insensitively. */
+const canonicalGeometryType = (type: string): string => (type.toUpperCase() === 'DSK' ? 'Dsk' : type);
+
+/** Every geometry type a renderer here draws or loads, field-checked or not:
+ *  an unknown type near one of these is reported as its misspelling. */
+const BUILTIN_GEOMETRY_TYPES: readonly string[] = [
+  'Globe', 'Mesh', 'Sensor', 'Rings', 'Dsk', 'TimeSwitched',
+  'Axes', 'KeplerianSwarm', 'ParticleSystem', 'Ellipsoid',
+];
 
 /** A nested object's allowed keys, and its own nested objects. An array value
  *  is checked element by element; a string or boolean value is not checked. */
@@ -172,9 +207,10 @@ interface NestedSpec {
 
 const IMAGERY: NestedSpec = {
   keys: keys(
-    'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
+    'id', 'name', 'type', 'url', 'levels', 'dimension', 'projection', 'layer', 'tileMatrixSet',
     'crs', 'format', 'styles', 'version', 'transparent',
     'bounds', 'minZoom', 'endCaps', 'opacity', 'color', 'time',
+    'attribution', 'description', 'resolutionMeters', 'visible',
   ),
 };
 
@@ -198,14 +234,31 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'type', 'url', 'cesiumIonAssetId', 'cesiumIonToken', 'imagery', 'errorTarget',
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
-        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata',
+        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere',
       ),
       children: {
         imagery: IMAGERY,
+        cubeSphere: {
+          keys: keys(
+            'cpuGrids', 'residentLevel', 'maxDetailTiles', 'imagery', 'skirts',
+            // Spread into the CPU grid source's options (CubeSphereGrids.ts).
+            'maxConcurrentRequests', 'retryFailedMs', 'retryBaseMs',
+          ),
+          children: {
+            // A cube-face imagery config (CubeImageryLayer), not a layer like the others.
+            imagery: {
+              keys: keys(
+                'url', 'maxScreenTexelError', 'maxTextureBytes', 'maxConcurrentRequests',
+                'residentLevel', 'maxBlocksPerTile', 'retryFailedMs', 'maxLevel',
+              ),
+            },
+          },
+        },
         datum: { keys: keys('verticalDatum', 'heightConvention') },
         sourceMetadata: { keys: keys('id', 'kind', 'url', 'uncertaintyKm', 'version') },
       },
     },
+    imagery: IMAGERY,
     surfaceTiles: {
       keys: keys('name', 'url', 'lat', 'lon', 'altitudeOffset', 'errorTarget', 'maxCacheBytes'),
     },
@@ -214,6 +267,26 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
   Mesh: { surfaceLock: SURFACE_LOCK },
   Sensor: { surfaceLock: SURFACE_LOCK },
   Rings: { surfaceLock: SURFACE_LOCK },
+};
+
+// ── Geographic layers (core/geographic) ─────────────────────────────────────
+
+const GEOGRAPHIC_COORDINATES: NestedSpec = {
+  keys: keys('latitude', 'longitudeDirection', 'longitudeDomain', 'referenceShape', 'height'),
+  children: {
+    referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
+    height: { keys: keys('unit', 'datum', 'convention') },
+  },
+};
+
+/** `geographicLayers[]` entries. `provenance` is free-form by design and is
+ *  not checked. */
+const GEOGRAPHIC_LAYER: NestedSpec = {
+  keys: keys('id', 'name', 'body', 'source', 'coordinates', 'display', 'provenance'),
+  children: {
+    coordinates: GEOGRAPHIC_COORDINATES,
+    display: { keys: keys('visible', 'color', 'opacity') },
+  },
 };
 
 // ── Known wrong names ───────────────────────────────────────────────────────
@@ -276,6 +349,12 @@ const describeFix = (fix: Fix): string =>
 type Json = Record<string, unknown>;
 const isObject = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
 
+/** `table[key]` for the table's own entries only. A catalog `type` is
+ *  arbitrary text, and a plain lookup of `"constructor"` or `"__proto__"`
+ *  finds Object.prototype's instead of nothing. */
+const own = <T>(table: Readonly<Record<string, T>>, key: string): T | undefined =>
+  Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+
 /**
  * Report every key in `json` that no node of its kind accepts. Returns the
  * diagnostics rather than printing them, so a caller can decide; the loader
@@ -286,6 +365,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
   if (!isObject(json)) return out;
   const customTrajectories = new Set(options.trajectoryTypes ?? []);
   const customRotations = new Set(options.rotationTypes ?? []);
+  const customGeometries = new Set(options.geometryTypes ?? []);
 
   const report = (path: string, node: string, key: string, fix: Fix | undefined) => {
     out.push({
@@ -319,7 +399,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     const type = typeof spec.type === 'string' ? spec.type : undefined;
     if (type === undefined) return;
     if (customTrajectories.has(type)) return;
-    const allowed = TRAJECTORY_KEYS[type];
+    const allowed = own(TRAJECTORY_KEYS, type);
     if (!allowed) {
       const near = nearest(type, Object.keys(TRAJECTORY_KEYS));
       out.push({
@@ -345,6 +425,9 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     if (Array.isArray(spec.trajectories)) {
       spec.trajectories.forEach((t, i) => checkTrajectory(t, `${path}.trajectories[${i}]`, owner));
     }
+    if (type === 'InterpolatedStates') {
+      checkRecords(spec.samples, STATE_RECORD_KEYS, `${path}.samples`, `sample`, owner);
+    }
     if (Array.isArray(spec.waypoints)) {
       spec.waypoints.forEach((w, i) => {
         if (isObject(w)) checkKeys(w, WAYPOINT_KEYS, `${path}.waypoints[${i}]`, `waypoint ${i} of ${owner}`, 'waypoint');
@@ -356,6 +439,10 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     if (!isObject(arc)) return;
     checkKeys(arc, ARC_KEYS, path, `arc ${index} of ${owner}`, 'arc', [['the item', ITEM_KEYS]]);
     checkTrajectory(arc.trajectory, `${path}.trajectory`, `${owner} (arc ${index})`);
+    checkRotation(arc.rotationModel, `${path}.rotationModel`, `${owner} (arc ${index})`);
+    if (isObject(arc.trajectoryPlot)) {
+      checkKeys(arc.trajectoryPlot, TRAJECTORY_PLOT_KEYS, `${path}.trajectoryPlot`, `trajectoryPlot of ${owner} (arc ${index})`, 'trajectoryPlot');
+    }
     checkFrameRef(arc.trajectoryFrame, `${path}.trajectoryFrame`, `${owner} (arc ${index})`);
   };
 
@@ -368,7 +455,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     const type = typeof spec.type === 'string' ? spec.type : undefined;
     if (type === undefined) return;
     if (customRotations.has(type)) return;
-    const allowed = ROTATION_KEYS[type];
+    const allowed = own(ROTATION_KEYS, type);
     if (!allowed) {
       const near = nearest(type, Object.keys(ROTATION_KEYS));
       out.push({
@@ -383,17 +470,84 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
       return;
     }
     checkKeys(spec, allowed, path, `${type} rotationModel of ${owner}`, `rotation:${type}`, [['the item', ITEM_KEYS]]);
+    if (type === 'Interpolated') {
+      checkRecords(spec.records, ORIENTATION_RECORD_KEYS, `${path}.records`, 'record', owner);
+    }
+  };
+
+  /** Inline records can run to thousands; one typo is usually repeated in
+   *  every one, so a key is reported at its first record only. */
+  const checkRecords = (records: unknown, allowed: KeySet, path: string, what: string, owner: string) => {
+    if (!Array.isArray(records)) return;
+    const seen = new Set<string>();
+    records.forEach((r, i) => {
+      if (!isObject(r)) return;
+      for (const key of Object.keys(r)) {
+        if (allowed.has(key) || seen.has(key)) continue;
+        seen.add(key);
+        report(`${path}[${i}]`, `${what} ${i} of ${owner}`, key, suggest(key, allowed, what, []));
+      }
+    });
+  };
+
+  const checkKernelRefs = (refs: unknown, path: string, owner: string) => {
+    if (!Array.isArray(refs)) return;
+    refs.forEach((r, i) => {
+      if (isObject(r)) checkKeys(r, KERNEL_REF_KEYS, `${path}[${i}]`, `spiceKernels[${i}] of ${owner}`, 'spiceKernels');
+    });
+  };
+
+  /** A viewpoint's `from`, or `up` in its object form, checked by `kind`. A
+   *  missing or unknown kind is the viewpoint parser's to report. */
+  const checkDirection = (dir: unknown, path: string, owner: string) => {
+    if (!isObject(dir) || typeof dir.kind !== 'string') return;
+    const fields = own(VIEW_DIRECTION_FIELDS, dir.kind);
+    if (fields) checkKeys(dir, keys(...fields), path, `${dir.kind} direction of ${owner}`, 'direction');
   };
 
   const checkGeometry = (spec: unknown, path: string, owner: string) => {
     if (!isObject(spec)) return;
-    const type = typeof spec.type === 'string' ? spec.type : undefined;
-    const allowed = type !== undefined ? GEOMETRY_KEYS[type] : undefined;
-    // An unknown geometry type may be a plugin's; its fields are not ours to judge.
-    if (!type || !allowed) return;
+    const authored = typeof spec.type === 'string' ? spec.type : undefined;
+    if (authored === undefined || customGeometries.has(authored)) return;
+    const type = canonicalGeometryType(authored);
+    const allowed = own(GEOMETRY_KEYS, type);
+    if (!allowed) {
+      // An unknown geometry type may be a plugin's, whose fields are not ours
+      // to judge. One a letter or two from a built-in type is far more likely
+      // a typo, and renders as a placeholder sphere, so that much is said.
+      if (BUILTIN_GEOMETRY_TYPES.includes(type)) return;
+      const near = nearest(type, BUILTIN_GEOMETRY_TYPES);
+      if (near) {
+        out.push({
+          path: `${path}.type`,
+          node: `geometry of ${owner}`,
+          key: type,
+          suggestion: near,
+          message:
+            `unknown geometry type "${type}" on ${owner} (${path}); no renderer draws it, so the body ` +
+            `gets a placeholder. Did you mean "${near}"? (If a renderer plugin draws "${type}", pass it ` +
+            `in the loader's geometryTypes option.)`,
+        });
+      }
+      return;
+    }
     const node = `${type} geometry of ${owner}`;
     checkKeys(spec, allowed, path, node, `geometry:${type}`);
-    checkNested(spec, GEOMETRY_NESTED[type] ?? {}, path, node, `geometry:${type}`);
+    checkNested(spec, own(GEOMETRY_NESTED, type) ?? {}, path, node, `geometry:${type}`);
+    if (type === 'TimeSwitched' && Array.isArray(spec.sequence)) {
+      spec.sequence.forEach((entry, i) => {
+        if (!isObject(entry)) return;
+        const entryPath = `${path}.sequence[${i}]`;
+        checkKeys(entry, TIME_SWITCHED_ENTRY_KEYS, entryPath, `sequence[${i}] of ${node}`, 'timeSwitched');
+        const g = entry.geometry;
+        if (!isObject(g) || typeof g.type !== 'string') return;
+        const entryType = canonicalGeometryType(g.type);
+        const allowedHere = own(TIME_SWITCHED_GEOMETRY_KEYS, entryType);
+        if (allowedHere) {
+          checkKeys(g, allowedHere, `${entryPath}.geometry`, `${entryType} geometry of sequence[${i}] of ${node}`, `geometry:${entryType}`);
+        }
+      });
+    }
   };
 
   const checkNested = (parent: Json, children: Record<string, NestedSpec>, path: string, node: string, kind: string) => {
@@ -415,6 +569,8 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     const owner = `"${name}"`;
     if (item.type === 'Viewpoint') {
       checkKeys(item, VIEWPOINT_KEYS, path, `viewpoint ${owner}`, 'viewpoint');
+      checkDirection(item.from, `${path}.from`, `viewpoint ${owner}`);
+      checkDirection(item.up, `${path}.up`, `viewpoint ${owner}`);
       return;
     }
     if (typeof item.type === 'string' && SKIPPED_ITEM_TYPES.has(item.type)) return;
@@ -430,10 +586,13 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
       checkKeys(item.label, LABEL_KEYS, `${path}.label`, `label of ${owner}`, 'label');
     }
     if (Array.isArray(item.arcs)) item.arcs.forEach((a, i) => checkArc(a, `${path}.arcs[${i}]`, owner, i));
+    checkKernelRefs(item.spiceKernels, `${path}.spiceKernels`, owner);
     if (Array.isArray(item.items)) item.items.forEach((c, i) => checkItem(c, `${path}.items[${i}]`));
   };
 
   checkKeys(json, CATALOG_KEYS, '$', 'the catalog', 'catalog');
+  checkKernelRefs(json.spiceKernels, '$.spiceKernels', 'the catalog');
+  checkNested(json, { geographicLayers: GEOGRAPHIC_LAYER, geographicCoordinates: GEOGRAPHIC_COORDINATES }, '$', 'the catalog', 'catalog');
   if (Array.isArray(json.items)) json.items.forEach((item, i) => checkItem(item, `$.items[${i}]`));
   if (Array.isArray(json.frames)) {
     json.frames.forEach((f, i) => {
@@ -454,7 +613,8 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
 /** The fix to suggest for `key`: a known alias first, then a near spelling
  *  among the valid keys, then the same key in a node it plausibly belongs in. */
 function suggest(key: string, allowed: KeySet, aliasKind: string, siblings: Array<[string, KeySet]>): Fix | undefined {
-  const alias = KNOWN_ALIASES[aliasKind]?.[key];
+  const aliases = own(KNOWN_ALIASES, aliasKind);
+  const alias = aliases && own(aliases, key);
   if (alias) return alias;
   const near = nearest(key, [...allowed]);
   if (near) return { key: near };

@@ -1,0 +1,122 @@
+{
+  "name": "Moon terrain: polar cap baseline (#145)",
+  "description": "Square-tile south-polar cap of the same fused field (no CPU sampler). Build: scripts/build-moon-terrain/polar.sh. Experimental, not listed in the catalog index; see docs/design/cube-sphere-experiment.md.",
+  "defaultTime": "2028-12-15T10:04:00Z",
+  "defaultViewpoint": "Shackleton",
+  "items": [
+    {
+      "name": "Shackleton",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 60,
+      "latitude": -89.6,
+      "longitude": 0
+    },
+    {
+      "name": "South Pole",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 20,
+      "latitude": -89.9,
+      "longitude": 130
+    },
+    {
+      "name": "Orbital Overview",
+      "type": "Viewpoint",
+      "center": "Moon",
+      "distance": 6000,
+      "latitude": -55,
+      "longitude": 30
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1,
+          0.9,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Earth"
+      },
+      "trajectoryPlot": {
+        "visible": false
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "baseMap": "../textures/earth-5k.jpg",
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1
+        ]
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "center": "Earth",
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Moon"
+      },
+      "rotationModel": {
+        "type": "Builtin",
+        "name": "IAU_MOON"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "../textures/moon-16k.jpg",
+        "normalMap": "../textures/moon-normal-16k.jpg",
+        "displacementMap": "../textures/moon-displacement-2k.jpg",
+        "displacementScale": 20,
+        "displacementBias": -9,
+        "terrain": {
+          "type": "3dtiles",
+          "url": "../data/moon-terrain-polar/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/polar.sh)"
+          }
+        }
+      },
+      "label": {
+        "color": [
+          0.7,
+          0.7,
+          0.7
+        ]
+      }
+    }
+  ]
+}

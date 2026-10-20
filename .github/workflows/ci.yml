@@ -13,7 +13,9 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    # Playwright 1.60 cannot install Chromium dependencies on Ubuntu 26.04.
+    # Keep the browser smoke on a supported image rather than the moving alias.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -27,13 +29,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
+          key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
         # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
         #
-        # Five paths are needed: packages/spice's suite reads test-kernels/,
+        # Five paths are needed: mission integration suites read kernels/test-data/,
         # the cspice-wasm, frames and interop suites read the shared
         # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), core's
         # oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as its
@@ -52,8 +54,8 @@ jobs:
         # would otherwise accept the pointer and load nothing, failing much
         # later with SPICE(NOLOADEDFILES).
         #
-        # The fifth path is one file, not a directory: the frames differential
-        # harness checks CK coverage on a second mission (issue #39) and needs
+        # The fifth path is one file, not a directory: the frames reference regression
+        # suite checks CK coverage on a second mission (issue #39) and needs
         # only the MSL rover telemetry CK (335 KB), not the rest of msl/, which
         # is 70 MB of Mars ephemeris no test here touches.
         #
@@ -64,8 +66,8 @@ jobs:
         # an asteroid SPK no test touches.
         run: |
           git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+          git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+          git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
 
       - name: Check for stale git-lfs pointers
         # A .gitattributes narrowing does not re-stage blobs committed while the
@@ -162,3 +164,33 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Install Chromium for global geographic smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Global countries normal-viewer smoke
+        env:
+          DEV_DATA_MODE: local
+          CL_SMOKE: '1'
+          CL_FRAMES: '1'
+          CL_VIEWER_URL: http://127.0.0.1:5188/
+          CL_OUTPUT: /tmp/geographic-global-smoke
+        run: |
+          npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5188 --strictPort > /tmp/geographic-global-vite.log 2>&1 &
+          VIEWER_PID=$!
+          trap 'kill "$VIEWER_PID"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5188/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/test-geographic-global.mjs
+
+      - name: Save global geographic smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-global-smoke
+          path: |
+            /tmp/geographic-global-smoke/
+            /tmp/geographic-global-vite.log
+          if-no-files-found: ignore

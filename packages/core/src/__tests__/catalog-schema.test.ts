@@ -143,6 +143,127 @@ describe('validateCatalog', () => {
     expect(ds).toEqual([]);
   });
 
+  // A catalog `type` is arbitrary text; a plain table lookup of these finds
+  // Object.prototype's members, which used to crash the check.
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])(
+    'reports, rather than crashes on, a %s type on every node kind',
+    (type) => {
+      const ds = validateCatalog({
+        name: 't',
+        items: [{
+          name: 'Probe',
+          trajectory: JSON.parse(`{"type": ${JSON.stringify(type)}}`),
+          rotationModel: JSON.parse(`{"type": ${JSON.stringify(type)}}`),
+          geometry: JSON.parse(`{"type": ${JSON.stringify(type)}}`),
+        }],
+      });
+      expect(ds.map((d) => d.path)).toEqual(['$.items[0].trajectory.type', '$.items[0].rotationModel.type']);
+    },
+  );
+
+  it('does not take a prototype member for a known alias', () => {
+    const [d] = validateCatalog(withItem({ trajectory: { type: 'Keplerian', constructor: 1 } }));
+    expect(d.key).toBe('constructor');
+    expect(d.suggestion).toBeUndefined();
+  });
+
+  it('checks inline state and orientation records, once per key', () => {
+    const ds = validateCatalog(withItem({
+      trajectory: {
+        type: 'InterpolatedStates',
+        samples: [
+          { et: 0, positon: [1, 0, 0], velocity: [0, 1, 0] },
+          { et: 60, positon: [1, 0, 0], velocity: [0, 1, 0] },
+        ],
+      },
+      rotationModel: { type: 'Interpolated', records: [{ et: 0, quat: [1, 0, 0, 0] }] },
+    }));
+    expect(ds.map((d) => [d.path, d.suggestion])).toEqual([
+      ['$.items[0].trajectory.samples[0].positon', 'position'],
+      ['$.items[0].rotationModel.records[0].quat', undefined],
+    ]);
+  });
+
+  it('checks the object form of spiceKernels, at the catalog and on items', () => {
+    const ds = validateCatalog({
+      name: 't',
+      spiceKernels: ['naif0012.tls', { url: 'de440s.bsp', lable: 'DE440s' }],
+      items: [{ name: 'Probe', spiceKernels: [{ url: 'p.bsp', sise: 10 }] }],
+    });
+    expect(ds.map((d) => [d.path, d.suggestion])).toEqual([
+      ['$.spiceKernels[1].lable', 'label'],
+      ['$.items[0].spiceKernels[0].sise', 'size'],
+    ]);
+  });
+
+  it('accepts semantic viewpoints and checks their direction objects by kind', () => {
+    const ok = {
+      name: 't',
+      items: [
+        { name: 'Beyond', type: 'Viewpoint', center: 'Cassini', lookAt: 'Saturn', distance: 50,
+          from: { kind: 'toward', body: 'Saturn', negate: true }, up: { kind: 'axis', axis: '+z', frame: 'ECLIPJ2000' } },
+        { name: 'Behind', type: 'Viewpoint', center: 'Cassini', distance: 50, epoch: 1e8,
+          from: { kind: 'velocity', negate: true, relativeTo: 'Saturn' }, up: [0, 0, 1] },
+      ],
+    };
+    expect(validateCatalog(ok)).toEqual([]);
+    const typo = {
+      name: 't',
+      items: [{ name: 'V', type: 'Viewpoint', center: 'Cassini', distance: 50,
+        from: { kind: 'velocity', relativTo: 'Saturn' }, up: { kind: 'toward', body: 'Sun', negat: true } }],
+    };
+    expect(validateCatalog(typo).map((d) => [d.path, d.suggestion])).toEqual([
+      ['$.items[0].from.relativTo', 'relativeTo'],
+      ['$.items[0].up.negat', 'negate'],
+    ]);
+  });
+
+  it('reports a geometry type a letter or two from a built-in one, unless a plugin claims it', () => {
+    const catalog = withItem({ geometry: { type: 'Globee', radius: 1 } });
+    const [d, ...rest] = validateCatalog(catalog);
+    expect(rest).toEqual([]);
+    expect([d.key, d.suggestion]).toEqual(['Globee', 'Globe']);
+    expect(validateCatalog(catalog, { geometryTypes: ['Globee'] })).toEqual([]);
+    // A plugin type nowhere near a built-in one is left alone.
+    expect(validateCatalog(withItem({ geometry: { type: 'PlumeCloud', density: 3 } }))).toEqual([]);
+  });
+
+  it('accepts Cosmographia\'s "DSK" spelling, and checks TimeSwitched entries', () => {
+    expect(validateCatalog(withItem({ geometry: { type: 'DSK', kernel: 'shape.bds', color: [1, 1, 1] } }))).toEqual([]);
+    const ds = validateCatalog(withItem({
+      geometry: {
+        type: 'TimeSwitched',
+        sequence: [
+          { endTime: '2014-01-01T00:00:00Z', geometry: { type: 'Mesh', source: 'a.glb', bumpMapType: 'normal' } },
+          { startTime: '2014-01-01T00:00:00Z', geometry: { type: 'Dsk', source: 'b.bds', colour: [1, 0, 0] } },
+          { strtTime: '2015-01-01T00:00:00Z', geometry: { type: 'Mesh', source: 'c.glb' } },
+        ],
+      },
+    }));
+    expect(ds.map((d) => [d.path, d.suggestion])).toEqual([
+      ['$.items[0].geometry.sequence[1].geometry.colour', 'color'],
+      ['$.items[0].geometry.sequence[2].strtTime', 'startTime'],
+    ]);
+  });
+
+  it('checks geographic layers, but not their free-form provenance', () => {
+    const ds = validateCatalog({
+      name: 't',
+      geographicCoordinates: { latitude: 'planetocentric', referenceShape: { kind: 'sphere', radiusKm: 3396 } },
+      geographicLayers: [{
+        id: 'craters', body: 'Mars', source: 'craters.geojson',
+        display: { visible: true, colour: '#fff' },
+        coordinates: { height: { unit: 'm', datm: 'areoid' } },
+        provenance: { anything: 'goes', here: 1 },
+      }],
+      items: [],
+    });
+    expect(ds.map((d) => [d.path, d.suggestion])).toEqual([
+      ['$.geographicLayers[0].coordinates.height.datm', 'datum'],
+      ['$.geographicLayers[0].display.colour', 'color'],
+    ]);
+  });
+
   it('checks every nesting level: children, arcs, spkImport defaults', () => {
     const ds = validateCatalog({
       name: 't',
@@ -189,6 +310,43 @@ describe('CatalogLoader', () => {
     // Half a period later the moonlet is on the far side of a 1.2 km orbit.
     expect(Math.hypot(p0[0] + pHalf[0], p0[1] + pHalf[1], p0[2] + pHalf[2])).toBeLessThan(1e-6);
     expect(Math.hypot(...p0)).toBeCloseTo(1.2, 9);
+  });
+
+  it('states a Uniform, Fixed or FixedEuler rotation in the item-level bodyFrame', () => {
+    const { bodies } = new CatalogLoader().load({
+      name: 't',
+      items: [
+        { name: 'U', bodyFrame: 'EclipticJ2000', rotationModel: { type: 'Uniform', period: 1 } },
+        { name: 'F', bodyFrame: 'EclipticJ2000', rotationModel: { type: 'Fixed', quaternion: [1, 0, 0, 0] } },
+        { name: 'E', bodyFrame: 'EclipticJ2000', rotationModel: { type: 'FixedEuler', sequence: 'Z', angles: [0] } },
+        // The rotation's own inertialFrame still wins, and without either the default stands.
+        { name: 'Own', bodyFrame: 'EclipticJ2000', rotationModel: { type: 'Fixed', quaternion: [1, 0, 0, 0], inertialFrame: 'ICRF' } },
+        { name: 'None', rotationModel: { type: 'Fixed', quaternion: [1, 0, 0, 0] } },
+      ],
+    } as unknown as CatalogJson);
+    expect(bodies.map((b) => b.rotation?.sourceFrame)).toEqual([
+      'EclipticJ2000', 'EclipticJ2000', 'EclipticJ2000', 'ICRF', 'EquatorJ2000',
+    ]);
+  });
+
+  it('ends the last arc at the item-level endTime', () => {
+    const loader = new CatalogLoader();
+    const { bodies } = loader.load({
+      name: 't',
+      items: [{
+        name: 'Probe',
+        endTime: '2030-01-01T00:00:00Z',
+        arcs: [
+          { startTime: '2029-01-01T00:00:00Z', trajectory: { type: 'FixedPoint', position: [1, 0, 0] } },
+          { startTime: '2029-06-01T00:00:00Z', trajectory: { type: 'FixedPoint', position: [2, 0, 0] } },
+        ],
+      }],
+    });
+    const end = loader.parseEpochValue('2030-01-01T00:00:00Z');
+    const start = loader.parseEpochValue('2029-01-01T00:00:00Z');
+    // Before this, the last arc ran a fixed 365.25 days from its own start.
+    expect(bodies[0].trajectory.endTime).toBeCloseTo(end, 3);
+    expect(bodies[0].trajectory.startTime).toBeCloseTo(start, 3);
   });
 
   it('reads the mm and cm distance suffixes rather than treating them as km', () => {

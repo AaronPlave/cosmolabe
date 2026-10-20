@@ -170,7 +170,7 @@ export class RingMesh extends THREE.Object3D {
           fetchedBuffer = await resp.arrayBuffer();
         }
         const loader = new DDSLoader();
-        const texData = loader.parse(fetchedBuffer, false);
+        const texData = loader.parse(fetchedBuffer, true);
         const ct = new THREE.CompressedTexture(
           texData.mipmaps, texData.width, texData.height,
           texData.format as THREE.CompressedPixelFormat,
