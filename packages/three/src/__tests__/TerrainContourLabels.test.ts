@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ContourOcclusion } from '../ContourOcclusion.js';
 import { contourAnchor, formatContourHeight, TerrainContourLabels } from '../TerrainContourLabels.js';
 import { DEFAULT_SURFACE_APPEARANCE as defaults, normalizeSurfaceAppearance, SurfaceAppearance } from '../SurfaceAppearance.js';
 
@@ -182,8 +183,10 @@ describe('terrain contour labels', () => {
     update();
     const initial = labels.group.children.filter(s => s.visible).map(s => s.position.toArray());
     expect(initial).toHaveLength(19);
-    const raycast = mesh.raycast.bind(mesh);
-    const check = vi.spyOn(mesh, 'raycast').mockImplementation((ray, hits) => { now += 1; raycast(ray, hits); });
+    const intersects = ContourOcclusion.prototype.intersects;
+    const check = vi.spyOn(ContourOcclusion.prototype, 'intersects').mockImplementation(function (this: ContourOcclusion, mesh, ray, far) {
+      now += 1; return intersects.call(this, mesh, ray, far);
+    });
     // More than one pixel per frame invalidates LOS. Each real raycast uses
     // half the allowance, so later labels must retain their result and get a
     // turn, instead of going dark behind the first two labels every frame.
@@ -205,6 +208,41 @@ describe('terrain contour labels', () => {
       expect(labels.group.children.filter(s => s.visible)).toHaveLength(19);
     }
     expect(check.mock.calls.length).toBeLessThan(19);
+    labels.dispose();
+  });
+
+  it('keeps existing labels across small rotations at a collision boundary', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ strokeText() {}, fillText() {} }) }) });
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const labels = new TerrainContourLabels(), geometry = new THREE.PlaneGeometry(1200, 1000, 1, 40);
+    const p = geometry.getAttribute('position');
+    geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getY(i) * 0.01), 1));
+    const mesh = new THREE.Mesh(geometry), camera = new THREE.OrthographicCamera(-600, 600, 500, -500, 0.1, 10000);
+    camera.position.z = 1000; camera.lookAt(0, 0, 0);
+    const settings = { ...defaults, contours: true, contourLabels: true, contourIntervalKm: 0.1 };
+    labels.update(camera, 1200, 1000, [mesh], settings);
+    const texts = () => labels.group.children.filter(s => s.visible).map(s => s.userData.text).sort();
+    const initial = texts(); expect(initial).toHaveLength(19);
+    // The rotated, padded word bounds cross the old exact-overlap boundary.
+    // Incumbents should keep their slots rather than alternating neighbours.
+    for (let frame = 0; frame < 120; frame++) {
+      now += 16; camera.rotation.z = 0.18 + 0.01 * Math.sin(frame / 4); camera.updateMatrixWorld();
+      labels.update(camera, 1200, 1000, [mesh], settings);
+      expect(initial.every(text => texts().includes(text))).toBe(true);
+    }
+    camera.rotation.z = 0; camera.updateMatrixWorld();
+    // A panel edge grazing the padded bounds must not flash the centre label.
+    // There is still space between its actual glyphs and the panel.
+    for (let frame = 0; frame < 60; frame++) {
+      now += 16;
+      labels.update(camera, 1200, 1000, [mesh], settings, true,
+        [{ x0: 624 + Math.sin(frame / 4), x1: 1200, y0: 480, y1: 520 }]);
+      expect(texts()).toContain('0 m');
+    }
+    // Actual foreground terrain and UI obstacles still hide labels at once.
+    labels.update(camera, 1200, 1000, [mesh], settings, true, [{ x0: 0, y0: 0, x1: 1200, y1: 1000 }]);
+    expect(texts()).toHaveLength(0);
     labels.dispose();
   });
 

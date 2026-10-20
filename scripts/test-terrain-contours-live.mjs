@@ -180,6 +180,35 @@ try {
       assert.ok(result.visibilityMotion.jitter.minimumRetained > 0.65, 'small motions blanked the label layer');
       assert.ok(result.visibilityMotion.jitter.meanRetained > 0.85, 'small camera motions caused sustained label loss');
       assert.ok(result.visibilityMotion.running.meanRetained > 0.75, 'running time caused sustained label loss');
+      result.acceleratedTime = await page.evaluate(async () => {
+        const r = window.renderer, manager = r.getBodyMesh('Moon').terrainManager.contourLabels;
+        const original = manager.update, times = [], counts = [], expiredLosses = [];
+        manager.update = function (...args) {
+          const start = performance.now(); const result = original.apply(this, args);
+          times.push(performance.now() - start); return result;
+        };
+        window.cosmo.setTimeRate(3600); window.cosmo.setPlaying(true);
+        try {
+          for (let frame = 0; frame < 360; frame++) {
+            const before = new Set(manager.visiblePlacements);
+            await new Promise(requestAnimationFrame);
+            let expired = 0;
+            for (const placement of before) {
+              if (manager.visiblePlacements.has(placement) || !manager.placements.includes(placement)) continue;
+              const cache = manager.occlusion.get(placement);
+              if (cache && !cache.hidden && cache.staleSince !== undefined
+                && performance.now() - cache.staleSince >= 250 && manager.project(placement, r.camera, 1440, 1000)) expired++;
+            }
+            expiredLosses.push(expired); counts.push(manager.visiblePlacements.size);
+          }
+        } finally { window.cosmo.setPlaying(false); window.cosmo.setTimeRate(1); manager.update = original; }
+        times.sort((a, b) => a - b);
+        return { rate: 3600, frames: counts.length, visibleCounts: counts, expiredLosses,
+          totalExpiredLosses: expiredLosses.reduce((a, b) => a + b, 0),
+          timing: { medianMs: times[Math.floor(times.length / 2)], p95Ms: times[Math.floor(times.length * 0.95)], maxMs: times.at(-1) } };
+      });
+      await writeFile(`${output}/accelerated-time.json`, JSON.stringify(result.acceleratedTime, null, 2));
+      assert.equal(result.acceleratedTime.totalExpiredLosses, 0, '3600x time caused labels to blink while waiting for LOS work');
     }
     if (labels && name === 'close') {
       result.motion = await page.evaluate(async () => {

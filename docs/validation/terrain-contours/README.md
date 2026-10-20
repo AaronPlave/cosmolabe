@@ -123,7 +123,9 @@ coordinate order chooses among stations, independent of path traversal,
 triangle subdivision, source order and screen centre. Once admitted, a station
 is retained while visible instead of being re-ranked after tiny moves. This
 makes neighboring contours share terrain corridors rather than unrelated
-screen-centred anchors. Collision priority is also terrain-based. Crowding or
+screen-centred anchors. Already-visible labels keep priority over new neighbors. Collision spacing
+uses two pixels of hysteresis within the existing five-pixel padding, keeping
+glyphs separated while suppressing swaps at label and panel boundaries. Crowding or
 a viewer panel hides the preferred station instead of moving it to a new spot.
 
 Visible spans must still have enough projected room and low curvature for the
@@ -144,8 +146,12 @@ bounds follow the actual scaled size.
 Glyph fragment depth follows the source triangle plane with a 0.5-pixel
 camera-directed bias in the logarithmic viewer to keep glyphs intact on relief. A source-mesh line-of-sight check additionally hides anchors
 behind foreground terrain, including fading tiles that do not write depth.
-These checks use a 2 ms frame target and refresh oldest checks first, so the
-first few contours cannot starve the rest during motion. Cached results use
+These checks use a 2 ms frame target, prioritizing already-visible labels
+and then the oldest checks. Private per-geometry BVHs use indirect indexing:
+source plate/index order, shared `geometry.boundsTree`, and `mesh.raycast`
+remain unchanged. Bounds reject distant meshes before tree creation; trees
+are lazy and weakly cached with source geometry. This accelerates annotation
+checks without changing viewer picking or measurement behavior. Cached results use
 body-relative camera/anchor coordinates with a four-screen-pixel tolerance;
 body translation/rotation and floating-origin shifts do not invalidate a
 constant relative view. Results remain cached until relative movement or
@@ -175,7 +181,7 @@ SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contour-contr
 CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
 ```
 
-375 renderer tests across 38 files pass, with typecheck, lint and viewer
+378 renderer tests across 39 files pass, with typecheck, lint and viewer
 production build. Tests cover transformed/mixed-LOD border stitching, separate
 same-height loops, cooperative construction without path caps, automatic
 spacing/density/hysteresis, source visibility, skirts, cleanup, and rotated
@@ -223,12 +229,30 @@ The run checks automatic close/regional/polar/globe views, a fixed 10 m oblique
 view at approximately 22 km terrain altitude, camera motion, settled placement,
 and independent contour/label toggles. The [motion metrics](label-motion-metrics.json)
 add 120-frame two-pixel camera jitter and 120 frames with actual time running at
-1x, starting from 35 visible labels. Jitter retains 96.8% of those anchors on
-average (94.3% minimum); running time retains 89.6% on average (85.7% minimum).
+1x, starting from 32 visible labels. Jitter retains all 32 anchors throughout;
+running time retains 93.9% on average (90.6% minimum).
 These count stable anchor identities, not pixel-perfect glyph persistence;
 real visibility, collisions and LOD can still change which labels are shown.
 A 19-path regression with deliberately slow raycasts preserves all labels
 through repeated movement after a long pause and common body/camera transforms.
+A separate 19-path test preserves incumbents through 120 small rotations at a
+text-box collision boundary and 60 frames grazing a panel edge; a covering
+panel still hides all labels immediately. Accelerated LOS tests agree with
+source mesh raycasts under translation, rotation and non-uniform scaling,
+respect material side/ray length, and preserve source index/position arrays.
+
+The [accelerated-time regression](label-accelerated-metrics.json) runs 360 frames
+with actual time advancing at **3600x (one hour per second)**. It records zero
+losses of previously visible labels caused by expired queued LOS checks.
+Warm moving label-update CPU time is 0.5 ms median, 2.6 ms p95 and 5.2 ms maximum.
+An isolated close-view diagnostic reproduced 53 deadline-related disappearances
+in 120 frames before acceleration, versus zero afterward; its GPU depth-disabled
+control showed the glyphs were intact when the CPU layer admitted them.
+The [first-use CPU profile](label-preparation-metrics.json), measured separately
+from warm motion and including lazy BVH/label preparation, peaks at 17 ms over
+1,214 label-update samples (0.4 ms median, 2.3 ms p95). It excludes shader/GPU
+activation and total-frame costs; an individual build/query may exceed 2 ms.
+
 Looking above the horizon and back
 keeps the automatic interval at 10 m with zero eye drift in both steps.
 
@@ -245,11 +269,11 @@ visible paths, not a global cap. Hidden labels retain their anchors for reuse.
 
 | View | Minor interval | Labels | Median CPU | P95 CPU | Maximum CPU |
 | --- | --- | --- | --- | --- | --- |
-| Surface, automatic | 10 m | 37 | 0.4 ms | 0.5 ms | 1.0 ms |
-| Oblique, fixed | 10 m | 68 | 0.5 ms | 0.6 ms | 0.7 ms |
+| Surface, automatic | 10 m | 31 | 0.5 ms | 0.8 ms | 1.3 ms |
+| Oblique, fixed | 10 m | 62 | 0.6 ms | 0.8 ms | 0.8 ms |
 | Regional, automatic | 1000 m | 17 | 0.2 ms | 0.3 ms | 0.3 ms |
 | Polar, automatic | 1000 m | 28 | 0.2 ms | 0.3 ms | 0.3 ms |
-| Globe, automatic | 1000 m | 30 | 0.2 ms | 0.3 ms | 0.4 ms |
+| Globe, automatic | 1000 m | 29 | 0.2 ms | 0.3 ms | 0.3 ms |
 
 An initial synchronous LOS pass peaked around 44 ms in the dense view; the
 cooperative cached version above avoids that burst. Individual mesh raycasts
