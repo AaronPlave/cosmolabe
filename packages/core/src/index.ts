@@ -3,7 +3,27 @@ export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeC
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+// Viewpoints — the catalog `Viewpoint` item, its semantic camera relationships
+// (look-at, placement and up directions, frames, epoch), resolution at an
+// epoch, and the portable JSON form a shareable view state composes.
+export {
+  resolveViewpoint,
+  parseViewpoint,
+  validateViewpoint,
+  viewpointToJson,
+  viewpointBodies,
+  presetViewpoint,
+  ViewpointError,
+} from './viewpoint.js';
+export type {
+  ViewpointDefinition,
+  ViewDirection,
+  ViewAxis,
+  ViewPreset,
+  ResolvedViewpoint,
+  ViewpointScene,
+} from './viewpoint.js';
 export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
 export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
