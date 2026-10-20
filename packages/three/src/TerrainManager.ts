@@ -2453,7 +2453,9 @@ export class TerrainManager {
           if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
         }
       }
-      this.surfaceStyle!.attach(child, matrix, this.cubeConfigured ? scene : undefined);
+      // A detached cached QM root is still `visible=true`. It must not enter
+      // style preparation, auto-spacing or labels with its stale world scale.
+      this.surfaceStyle!.attach(child, matrix, scene);
     });
   }
 

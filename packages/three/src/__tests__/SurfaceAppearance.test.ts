@@ -19,6 +19,29 @@ function compile(material: THREE.Material) {
 }
 
 describe('surface appearance physical and material contracts', () => {
+  it('excludes detached quantized-mesh roots from contour sources and preparation', () => {
+    const manager = new TerrainManager({ type: 'quantized-mesh', url: 'https://example.invalid/' }, 3396.19, undefined as never);
+    const tile = mesh(); tile.position.set(3396190, 0, 0);
+    manager.tiles.group.add(tile);
+    manager.tiles.dispatchEvent({ type: 'load-model', scene: tile, tile: {} } as never);
+    const style = (manager as unknown as { surfaceStyle: SurfaceAppearance }).surfaceStyle;
+    style.set({ ...defaults, contours: true }); style.update(Infinity);
+    expect(style.contourSources()).toEqual([tile]);
+    tile.removeFromParent(); style.update(Infinity);
+    expect(tile.visible).toBe(true); // TilesRenderer detaches, it need not hide.
+    expect(style.contourSources()).toEqual([]);
+    manager.tiles.group.add(tile); tile.visible = false; style.update(Infinity);
+    expect(style.contourSources()).toEqual([]);
+    tile.visible = true; style.update(Infinity);
+    expect(style.contourSources()).toEqual([tile]);
+    const cached = mesh(); cached.position.set(3396190, 0, 0);
+    manager.tiles.dispatchEvent({ type: 'load-model', scene: cached, tile: {} } as never);
+    style.update(Infinity);
+    expect(cached.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(style.contourSources()).toEqual([tile]);
+    manager.dispose();
+  });
+
   it('shares datum-aware heights between contours and tint, and releases only unused attributes', () => {
     const style = new SurfaceAppearance(datum), tile = mesh();
     style.attach(tile, new THREE.Matrix4().makeTranslation(3396190 - 8765, 0, 0));

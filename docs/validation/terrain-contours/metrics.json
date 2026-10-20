@@ -3,6 +3,20 @@
   "Mars": {
     "changedPixels": 35545,
     "darkContourPixels": 41564,
+    "opticalComposition": {
+      "fixture": "controlled synthetic occluder; actual Mars TIN",
+      "atmosphereChangedPixels": 98883,
+      "eclipseChangedPixels": 159541,
+      "referencePixels": 3992,
+      "atmospherePixels": 3993,
+      "eclipsePixels": 4196,
+      "combinedPixels": 4196,
+      "atmosphereRetainsMask": true,
+      "eclipseRetainsMask": true,
+      "combinedRetainsMask": true,
+      "shadowMapChangedPixels": 18533,
+      "shadowMapRetainsMask": true
+    },
     "restored": true,
     "heightAttributesAfterDisable": 0
   },

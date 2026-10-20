@@ -1,8 +1,8 @@
 # Terrain contours: issue #183 progress
 
 Client-side contours for quantized-mesh terrain and validated planetary cube
-products, including MoonFall. This is **not final acceptance of #183**: broader
-scientific-source, rendering-combination and GPU performance checks remain.
+products, including MoonFall. The bounded Mars/Moon implementation is ready for
+human visual review; this does not close #183 or guarantee every terrain source.
 Generic 3D Tiles do not acquire elevation styling.
 
 ## Controls and behavior
@@ -56,6 +56,45 @@ The shader adapts derivative antialiasing from the pinned
 with Apache-2.0 attribution in `NOTICE`. These example files are not exported
 from the installed npm package. Its planar/grid machinery and ellipsoid/world
 height reconstruction are not used.
+
+## Giro3D and NASA-AMMOS comparison
+
+Reviewed Giro3D **2.0.5**, commit `8554742f4379899c939244f983e4871865b5d76c`,
+from its [official source distribution](https://registry.npmjs.org/@giro3d/giro3d/-/giro3d-2.0.5.tgz):
+[contour shader](https://gitlab.com/giro3d/giro3d/-/blob/8554742f4379899c939244f983e4871865b5d76c/src/renderer/shader/chunk/giro3d_contour_line_fragment.glsl),
+[options](https://gitlab.com/giro3d/giro3d/-/blob/8554742f4379899c939244f983e4871865b5d76c/src/core/ContourLineOptions.ts),
+and [material](https://gitlab.com/giro3d/giro3d/-/blob/8554742f4379899c939244f983e4871865b5d76c/src/renderer/LayeredMaterial.ts).
+The supplied GitHub links are stale; the package identifies GitLab as its source.
+Also reviewed the [Giro3D demo](https://giro3d.org/latest/examples/map-contour-lines.html)
+and NASA-AMMOS's [TopoLinesPlugin and material wrapper](https://github.com/NASA-AMMOS/3DTilesRendererJS/tree/3febfcff2869771a9152084b80312ae5e244133e/example/three/src/plugins/topolines).
+Giro3D credits an earlier NASA-AMMOS example: these are related techniques.
+
+Giro3D offers primary/secondary intervals, opacity, thickness and color, with
+ordinary style edits updating uniforms and the enable flag controlling a shader
+define. Its shader uses an elevation-modulo threshold and normal/view-depth
+thickness scaling. The demo documents excessive apparent width on very flat
+surfaces. NASA-AMMOS instead uses derivative antialiasing and blends adjacent
+scale levels, including a converged-band tint for unresolved relief; it also
+includes geographic grids and generic GPU ellipsoid-height reconstruction.
+
+Retained the existing emphasized index/minor hierarchy, uniform-only color and
+opacity edits, and NASA-derived derivative filtering. Rejected a switch to
+Giro3D's hard threshold or scene-depth width formula: these would discard our
+screen-space antialiasing and depend on scene units/view depth. Retained
+continuous nested contour filtering instead of upstream's converged-band tint,
+which would reintroduce a terrain-color wash at dense intervals. No additional
+thickness control, graticule, data layer or upstream implementation was added.
+
+Cosmolabe keeps float64 datum-aware source heights, signed elevation,
+body-relative transforms and one shared automatic interval. Labels intersect
+that same field. Contours remain unlit after physical lighting and aerial
+perspective, rather than being mixed into a diffuse color that is subsequently
+shaded. Giro3D's shader/options do not replace the connected-path labeling,
+terrain occlusion or planetary capability gates. The comparison justified
+stronger active-optics and complete-frame validation; real textured Mars then
+exposed detached cached QM roots contaminating automatic spacing and stations.
+All production tile roots now use attached-scene visibility ownership, retaining
+cube behavior and excluding detached quantized-mesh cache entries.
 
 ## Automatic spacing and dense lines
 
@@ -179,9 +218,12 @@ node scripts/test-terrain-contour-labels.mjs
 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contour-controls.mjs
 # Real local MoonFall cube terrain + WAC/NAC imagery and physical GPU:
 CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
+# Run these sequentially, with no competing GPU benchmark:
+CONTOUR_SCENE=mars node scripts/test-terrain-contour-acceptance.mjs
+CONTOUR_SCENE=moon node scripts/test-terrain-contour-acceptance.mjs
 ```
 
-378 renderer tests across 39 files pass, with typecheck, lint and viewer
+379 renderer tests across 39 files pass, with typecheck, lint and viewer
 production build. Tests cover transformed/mixed-LOD border stitching, separate
 same-height loops, cooperative construction without path caps, automatic
 spacing/density/hysteresis, source visibility, skirts, cleanup, and rotated
@@ -282,8 +324,100 @@ GPU sprite drawing, terrain/style activation, whole-frame performance or
 physical-phone behavior. Labels may still replace anchors when terrain LOD or
 automatic intervals change; this is not a guarantee of flicker-free navigation.
 
-Remaining before closing #183: real textured Mars captures; broader mixed-LOD,
-moving-camera/fade/flicker review; full imagery/Sun/eclipse/atmosphere
-combinations; whole-frame GPU and first-enable measurements. The full repository
-suite is left to CI because the local initial run encountered missing LFS SPICE
-kernels and sandbox subprocess restrictions. Issue #183 remains open.
+## Textured Mars, active optics and refinement
+
+The [Mars acceptance metrics](mars-acceptance-metrics.json) use existing MarsHub
+v14 quantized mesh with its 8.765 km encoding offset and supported ellipsoid
+height convention, NASA Viking imagery and bounded Jezero CTX imagery from the
+existing catalogs. The separate local fused areoid-datum product remains gated;
+it was not relabeled to enable styling. Catalog Sun lighting and actual Mars
+rotation/ephemeris are active, with aerial perspective strength 1. Close,
+regional and grazing views show 5, 12 and 31 readable labels across 74, 68 and
+98 visible tiles, with shared automatic intervals of 5, 50 and 1 m respectively.
+Camera coordinates are recorded in `actualCamera`; the paused inspector's camera
+readout can lag directly scripted camera changes. Initial per-view metadata is
+captured before label settlement; `labelDiagnostics` records the final style.
+
+- [Textured Jezero close view](mars-acceptance-close-imagery.png)
+- [Same terrain with hillshade](mars-acceptance-close-hillshade.png)
+- [Same terrain with elevation tint](mars-acceptance-close-elevation.png)
+- [Regional imagery and labels](mars-acceptance-regional-imagery.png)
+- [Grazing view](mars-acceptance-grazing-imagery.png)
+- [Regional view during refinement](mars-acceptance-regional-refining.png)
+
+Two 90-frame Mars traces cover camera relocation while requests and mixed tile
+levels are active in every sampled frame. All contour sources remain attached;
+zero detached cached roots enter sampling. The [Moon acceptance run](moon-acceptance-metrics.json)
+adds a 90-frame close-to-globe refinement trace (four frames with pending terrain
+requests, mixed levels throughout), plus 25 close and 14 globe labels. Tile
+`internal.depth` includes virtual imagery levels, so it is not a pure geometry
+LOD measurement. See [polar close view](moon-acceptance-close-imagery.png) and
+[globe during refinement](moon-acceptance-globe-refining.png). Both runs have zero
+HTTP, page or shader errors. These traces complement the continuous camera and
+running-time label regressions above; they do not prove zero visible changes at
+LOD replacement. Native coarse TIN contours remain angular, and existing tile
+fade dithering is visible during Mars refinement. No smoothing or imagery-driven
+geometry refinement was introduced.
+
+The [optical regression](metrics.json) now actively changes aerial perspective
+and eclipse shading over real Mars TIN geometry, with procedural fixture color.
+Its controlled occluder is synthetic, not an observed mission eclipse. Atmosphere
+changes 98,883 background pixels and the eclipse changes 159,541. All 3,992
+fully covered red contour-core pixels survive atmosphere, eclipse and their
+combination with hillshade/elevation tint. Antialiased edge pixels legitimately
+blend with the changing background. A separate synthetic shadow caster changes
+18,533 terrain pixels with stock shadow-map receiving enabled, while retaining
+the contour cores. Original disabled pixels still restore exactly. See
+[combined active optics](mars-active-atmosphere-eclipse-hillshade-elevation.png)
+and [shadow receiving](mars-active-shadow-map.png). Existing label GPU fixtures
+separately verify opacity independence and terrain occlusion; this is not a
+claim that every planetary shadow implementation was exhaustively exercised.
+
+## Complete-frame performance and activation
+
+Both acceptance runs use Apple M4 Max ANGLE Metal at an actual **1440×1000 drawing
+buffer**, natural Sun lighting and actual imagery. Each mode warms eight frames,
+then measures 60 complete viewer frames: CPU submission, wall time fenced by
+`readPixels`, and independent non-disjoint GPU timer queries. PNG capture is
+excluded. Runs are sequential. Baseline and disabled-again bracket the styles;
+small differences, especially the Moon GPU baseline, include run-order/thermal
+noise and should not be interpreted as precise incremental costs.
+
+| Scene / mode | CPU median / p95 | Fenced frame median / p95 | GPU median / p95 |
+| --- | --- | --- | --- |
+| Mars baseline | 0.60 / 0.80 ms | 2.30 / 2.90 ms | 1.21 / 1.67 ms |
+| Mars contours | 0.60 / 0.80 ms | 4.50 / 4.90 ms | 3.28 / 3.44 ms |
+| Mars contours + labels | 1.00 / 1.30 ms | 5.00 / 5.80 ms | 3.42 / 3.46 ms |
+| Mars disabled again | 0.50 / 0.80 ms | 2.20 / 4.60 ms | 1.21 / 3.30 ms |
+| Moon baseline | 1.60 / 2.10 ms | 3.70 / 4.30 ms | 1.15 / 1.64 ms |
+| Moon contours | 2.10 / 2.30 ms | 4.20 / 5.20 ms | 0.95 / 2.07 ms |
+| Moon contours + labels | 2.10 / 2.70 ms | 4.10 / 4.60 ms | 1.07 / 1.24 ms |
+| Moon disabled again | 1.60 / 2.10 ms | 3.40 / 4.60 ms | 0.77 / 1.66 ms |
+
+Disabling restores zero changed pixels at a two-channel-value tolerance in both
+textured scenes. Contours preserve baseline terrain draw/triangle counts (Mars
+75 / 93,945; Moon 149 / 505,263); glyph sprites add draws. Disabled-again returns
+to those original counts. This supports no material warm disabled overhead in
+these scenes, rather than a universal zero-cost claim.
+
+First enable is measured **before** any contour screenshot/program warmup:
+
+| Scene | Contours first fenced frame / preparation ready | Labels first fenced frame / settled |
+| --- | --- | --- |
+| Mars | 20.2 / 23.6 ms | 9.9 / 56.1 ms |
+| Moon | 63.4 / 110.1 ms | 9.4 / 915.2 ms |
+
+Setters take at most 0.5 ms for enable operations. Shader compilation/first use
+can cause a visible frame hitch; Moon labels publish progressively over 102
+cooperative frames before settlement. Disabling Moon styles also takes a 46.4 ms
+first fenced frame. These cold costs remain a review limit, distinct from warm
+label motion. The measurements exclude initial terrain/network loading, which
+settles before first enable; preparation wall time includes cooperative yields.
+
+The PR remains draft and **ready for human visual review**, with #183 open.
+Remaining limits are cold activation/label settlement, native coarse geometry
+and fade dithering, possible anchor changes when source LOD/automatic intervals
+change, physical-phone GPU acceptance, and broader source-specific scientific
+validation. Reducing first-use latency or changing terrain/fade architecture
+would be separate follow-ups. The full repository suite runs in GitHub CI;
+local checks cover all renderer tests, typecheck, lint and production build.

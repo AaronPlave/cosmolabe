@@ -58,9 +58,11 @@ try {
       const ambient = new THREE.AmbientLight(0xffffff, 2); scene.add(ambient);
       const sun = new THREE.DirectionalLight(0xffffff, 0.3); sun.position.set(1e7, 1e7, -1e7); scene.add(sun);
       const shadows = makeShadowUniforms();
-      // Compile the real eclipse/AP chain. Optical parameters stay disabled:
-      // this is a material compatibility fixture, not an atmosphere scene.
-      const ap = makeAerialPerspectiveUniforms(normalizeAtmosphere(getAtmospherePreset('Mars')), 3396.19, 1000, null);
+      // Compile the production eclipse/AP chain. Baseline captures keep it
+      // disabled; the controlled Mars fixture below actively exercises both.
+      const atmosphere = normalizeAtmosphere(getAtmospherePreset('Mars'));
+      const ap = makeAerialPerspectiveUniforms(atmosphere, 3396.19, 1000, null);
+      Object.assign(ap, shadows); // Same eclipse fields for surface and atmospheric transport.
       const style = new SurfaceAppearance(body === 'Mars' ? datum : moon);
       const parents = [], children = [];
       let center, up;
@@ -133,6 +135,49 @@ try {
       result[body].darkContourPixels = darkChanged;
       ambient.intensity = 2; sun.intensity = 0.3;
       if (body === 'Mars') {
+        // Controlled optical fixture, not an observed eclipse. Exercise active
+        // production AP + eclipse hooks instead of compiling disabled uniforms.
+        const red = { contours: true, contourColor: '#ff0000', contourOpacity: 1 };
+        // Compare fully covered line cores; AA fringes mix with changing terrain light.
+        const mask = data => { const result=[]; for(let i=0;i<data.length;i+=4)if(data[i]===255&&data[i+1]===0&&data[i+2]===0)result.push(i);return result; };
+        const referenceData=render('optical-reference', red), reference=mask(referenceData);
+        ap.uAPPlanetWorldPos.value.copy(center).negate();
+        ap.uAPPlanetToWorld.value.makeScale(1000,1000,1000).setPosition(-center.x,-center.y,-center.z);
+        ap.uAPWorldToPlanet.value.copy(ap.uAPPlanetToWorld.value).invert();
+        ap.uAPCameraWorldPos.value.copy(camera.position); ap.uAPSunWorldPos.value.copy(sun.position);
+        ap.uAPPlanetRadius.value=3396190; ap.uAPShellRadius.value=(3396.19+atmosphere.heightKm)*1000;
+        ap.uAPStrength.value=1;
+        const hazyData=render('active-atmosphere', red), hazy=mask(hazyData);
+        shadows.uSunWorldPos.value.copy(sun.position); shadows.uSunRadius.value=100000;
+        shadows.uShadowOccluderPos.value[0].copy(sun.position).sub(target).normalize().multiplyScalar(size*5).add(target);
+        shadows.uShadowOccluderRadius.value[0]=size*2; shadows.uShadowOccluderCount.value=1;
+        const eclipsedData=render('active-atmosphere-eclipse', red), eclipsed=mask(eclipsedData);
+        const changed=(a,b)=>{let n=0;for(let i=0;i<a.length;i+=4)if(Math.max(Math.abs(a[i]-b[i]),Math.abs(a[i+1]-b[i+1]),Math.abs(a[i+2]-b[i+2]))>2)n++;return n;};
+        const combined = mask(render('active-atmosphere-eclipse-hillshade-elevation', { ...red, hillshade:true, baseColor:'elevation' }));
+        result.Mars.opticalComposition={ fixture:'controlled synthetic occluder; actual Mars TIN',
+          atmosphereChangedPixels:changed(referenceData,hazyData), eclipseChangedPixels:changed(hazyData,eclipsedData),
+          referencePixels:reference.length, atmospherePixels:hazy.length, eclipsePixels:eclipsed.length, combinedPixels:combined.length,
+          atmosphereRetainsMask:reference.every(i=>hazy.includes(i)), eclipseRetainsMask:reference.every(i=>eclipsed.includes(i)), combinedRetainsMask:reference.every(i=>combined.includes(i)) };
+        ap.uAPStrength.value=0; shadows.uShadowOccluderCount.value=0;
+        // Shadow-only synthetic caster tests stock shadow-map receiving;
+        // it writes no ordinary color/depth and represents no mission object.
+        ambient.intensity=0;
+        const shadowReference=render('shadow-map-reference',red), shadowMask=mask(shadowReference);
+        const oldSun=sun.position.clone(), oldTarget=sun.target.position.clone();
+        const direction=sun.position.clone().sub(target).normalize(); sun.position.copy(target).addScaledVector(direction,size*4);
+        sun.target.position.copy(target);scene.add(sun.target);sun.castShadow=true;
+        Object.assign(sun.shadow.camera,{left:-size,right:size,top:size,bottom:-size,near:1,far:size*10});sun.shadow.camera.updateProjectionMatrix();
+        sun.shadow.mapSize.set(1024,1024);renderer.shadowMap.enabled=true;
+        parents.forEach(m=>{m.receiveShadow=true;});
+        const caster=new THREE.Mesh(new THREE.BoxGeometry(size*.2,size*.2,size*.2),new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false}));
+        caster.position.copy(target).addScaledVector(up,size*.25);caster.castShadow=true;scene.add(caster);
+        const mappedData=render('active-shadow-map',red), mappedMask=new Set(mask(mappedData));
+        result.Mars.opticalComposition.shadowMapChangedPixels=changed(shadowReference,mappedData);
+        result.Mars.opticalComposition.shadowMapRetainsMask=shadowMask.every(i=>mappedMask.has(i));
+        caster.removeFromParent();caster.geometry.dispose();caster.material.dispose();sun.castShadow=false;renderer.shadowMap.enabled=false;
+        sun.position.copy(oldSun);sun.target.position.copy(oldTarget);ambient.intensity=2;
+      }
+      if (body === 'Mars') {
         parents.forEach(m => { m.visible = false; });
         children.forEach(m => { m.visible = true; }); render('children', { contours: true });
       }
@@ -195,6 +240,14 @@ try {
   results.errors = errors;
   await writeFile(`${output}/metrics.json`, JSON.stringify(results, null, 2));
   assert.deepEqual(errors, []);
+  assert.ok(results.Mars.opticalComposition.referencePixels > 100);
+  assert.ok(results.Mars.opticalComposition.atmosphereChangedPixels > 100, 'active atmosphere must change terrain shading');
+  assert.ok(results.Mars.opticalComposition.eclipseChangedPixels > 100, 'active eclipse must change terrain shading');
+  assert.ok(results.Mars.opticalComposition.atmosphereRetainsMask);
+  assert.ok(results.Mars.opticalComposition.eclipseRetainsMask);
+  assert.ok(results.Mars.opticalComposition.combinedRetainsMask);
+  assert.ok(results.Mars.opticalComposition.shadowMapChangedPixels > 100, 'stock shadow map must change terrain shading');
+  assert.ok(results.Mars.opticalComposition.shadowMapRetainsMask);
   assert.equal(results.skirtChangedPixels, 0, 'Contours must never draw on skirts, including their shared top edge');
   for (const body of ['Mars', 'Moon-synthetic-pole', 'Moon-synthetic-globe']) {
     assert.ok(results[body].changedPixels > 100, JSON.stringify(results));
