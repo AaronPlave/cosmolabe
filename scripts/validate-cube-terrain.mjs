@@ -37,7 +37,7 @@
  *
  * Run `npm run build` first (it imports packages/three/dist).
  *
- *   node scripts/validate-cube-terrain.mjs [--dir DIR] [--out DIR] [--seed N]
+ *   node scripts/validate-cube-terrain.mjs [--dir DIR] [--out DIR] [--seed N] [--boundary-regression FILE]
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -646,7 +646,7 @@ for (const w of chosen) {
     const ray = { origin: { xKm: eye[0], yKm: eye[1], zKm: eye[2] }, direction: [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]], nearKm: 0, farKm: 10 };
     const hit = await requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
     if (hit.kind !== 'hit') {
-      boundaryUnavailable.push({ tile: w.tile, edge: w.edge, reason: hit.reason });
+      boundaryUnavailable.push({ tile: w.tile, edge: w.edge, ray, reason: hit.reason });
       gate(ELLIPSOID && hit.kind === 'unavailable' && hit.reason === 'partial-coverage', `boundary pick ${w.tile}: unexpected ${hit.kind} ${hit.reason}`);
       continue;
     }
@@ -660,6 +660,16 @@ for (const w of chosen) {
       cpuM: hit.distanceKm * 1000, renderedM: withSkirts.t, renderedOnSkirt: withSkirts.skirt,
       throughCrackWithoutSkirts: !(surfaceOnly.t < withSkirts.t + 1e-3) , renderedMinusCpuM: withSkirts.t - hit.distanceKm * 1000,
       renderedClearanceM: Number.isFinite(renderedBelow) ? renderedBelow : null });
+  }
+}
+// Optional exact replay of known partial-coverage cases for a pinned product.
+// This records the current ownership gap; #246 must turn these into physical hits.
+if (args['boundary-regression']) {
+  const fixture = JSON.parse(readFileSync(args['boundary-regression'], 'utf8'));
+  gate(fixture.revision === manifest.source.version, 'boundary regression must use its original product revision');
+  for (const row of fixture.rays) {
+    const hit = await requestSurfaceIntersection(surface, row.ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
+    gate(hit.kind === 'unavailable' && hit.reason === 'partial-coverage', `known boundary gap ${row.tile}/${row.edge}: expected unavailable/partial-coverage; got ${hit.kind} ${hit.reason ?? ''}`);
   }
 }
 // A ray that leaves the two tiles before reaching either is not a sample of this pair.

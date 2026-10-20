@@ -112,7 +112,10 @@ The wrapper refuses to overwrite an existing output directory. It emits 78
 tiles: level-0 roots globally and a bounded Jezero chain to level 11 (51.8 m
 face-centre spacing, smaller locally). The unlisted catalog
 `test-catalogs/experiments/mars-terrain-cube-jezero` opens it in the viewer.
-No full rebuild or upload is part of this workflow.
+The dataset is registered as `localOnly` in `scripts/data-hosting/datasets.json`.
+Its product directory and diagnostic catalog remain available in development
+and are omitted from both local-data and hosted deployment bundles. No full
+rebuild or upload is part of this workflow.
 
 ## Evidence and limits
 
@@ -138,3 +141,35 @@ That is not the convention declared by the USGS DTM label. This foundation
 retains source-coordinate scalar registration, not the old erroneous
 Cartesian interpretation. Mission trajectory/image placement must be audited
 with their own coordinate provenance before #244 switches production catalogs.
+
+## Production migration acceptance for #246
+
+The #245 foundation does not accept the following behavior for production.
+Before switching Ingenuity catalogs under #246/#244:
+
+- Resolve CPU neighbor/boundary ownership: the bounded product has 10 known
+  `unavailable/partial-coverage` results among 96 boundary rays despite rendered
+  skirt coverage. `coverage() === 'finest'` does not certify an intersection.
+  Exact rays and the required product revision are recorded in
+  `scripts/terrain/fixtures/mars-cube-boundary-rays.json`. Replay the current
+  limitation with the command below; replace the expected unavailable results
+  with physical-hit assertions when ownership is fixed. This replay requires
+  the generated bounded product and is not an offline CI fixture.
+- Exercise point elevation, picking, fly-to-point, navigation/clearance, and
+  measurements during cold loading and refinement as well as after settling.
+  Decide explicitly whether rendered or CPU geometry governs placement and
+  clearance, and verify transitions. Coarse rendered/finest CPU differences
+  reach 291 m at sampled boundaries and 224 m in the overview capture. The
+  recorded nominal 50 m camera clearance falls to 30.24 m above the rendered
+  pair at sampled boundaries. Settled-scene agreement alone cannot accept
+  these operations.
+- Audit mission and image coordinate provenance independently, including
+  planetocentric/planetographic latitude and areoid/ellipsoid heights.
+
+```sh
+node scripts/validate-cube-terrain.mjs \
+  --dir apps/viewer/test-catalogs/data/mars-terrain-cube-jezero \
+  --site 18.65,77.4 \
+  --boundary-regression scripts/terrain/fixtures/mars-cube-boundary-rays.json \
+  --out work/cube-terrain/mars-boundary-replay
+```
