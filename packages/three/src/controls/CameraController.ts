@@ -98,6 +98,34 @@ export interface FlyToOptions {
   up?: THREE.Vector3;
 }
 
+/**
+ * A camera pose relative to a body, in the body's mesh frame and scene units:
+ * it turns with the body. What surface navigation (#190) lands on.
+ */
+export interface SurfacePose {
+  position: THREE.Vector3;
+  /** The point on the surface the camera looks at; it becomes the orbit pivot. */
+  target: THREE.Vector3;
+  up: THREE.Vector3;
+}
+
+/**
+ * How `flyToSurface` travels.
+ *
+ * - `'arc'` swings around the body along the great circle between the two
+ *   directions, rising enough not to cut through it: the path for a target
+ *   picked by its coordinates, which may be on the far side.
+ * - `'line'` closes straight in. Only for a destination along a clear line of
+ *   sight, such as toward a point picked on screen.
+ */
+export type SurfaceFlightPath = 'arc' | 'line';
+
+export interface SurfaceFlightOptions {
+  /** Seconds; by default from how far round the body and how far down the flight goes. */
+  duration?: number;
+  path?: SurfaceFlightPath;
+}
+
 /** A camera flight in progress, as `CameraController.flight` reports it. */
 export interface CameraFlight {
   /** The body the flight lands on; null for a flight to a saved viewpoint. */
@@ -117,6 +145,72 @@ const DEFAULT_OVERVIEW_SECONDS = 2.5;
  * it; a drag must.
  */
 const MANUAL_DRAG_THRESHOLD_PX = 3;
+
+/** A surface flight's path, in the destination body's mesh frame (scene units). */
+interface SurfaceFlight {
+  body: BodyMesh;
+  path: SurfaceFlightPath;
+  startPos: THREE.Vector3;
+  startTarget: THREE.Vector3;
+  startUp: THREE.Vector3;
+  endPos: THREE.Vector3;
+  endTarget: THREE.Vector3;
+  endUp: THREE.Vector3;
+  /** Extra height at the middle of an arc, so it clears the body. */
+  rise: number;
+}
+
+const _sfQ = /* @__PURE__ */ new THREE.Quaternion();
+const _sfSwing = /* @__PURE__ */ new THREE.Quaternion();
+const _sfIdentity = /* @__PURE__ */ new THREE.Quaternion();
+const _sfA = /* @__PURE__ */ new THREE.Vector3();
+const _sfB = /* @__PURE__ */ new THREE.Vector3();
+
+/**
+ * The pose `s` (0..1, eased) of the way along a surface flight, in the scene
+ * frame as the body stands now: the path is in the body's frame, so the
+ * landing stays on the same ground while the body turns.
+ *
+ * An arc swings the direction from the body's centre along the great circle,
+ * scales the distance geometrically (so a descent from interplanetary range
+ * spends its time where the scale changes, not in a blur) and adds `rise`
+ * at the middle. The distance never drops below the smaller endpoint's, so
+ * the camera cannot pass inside the body.
+ */
+function surfaceFlightPose(f: SurfaceFlight, s: number, pos: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3): void {
+  const q = f.body.mesh.quaternion;
+  const center = f.body.position;
+  if (f.path === 'line') {
+    pos.lerpVectors(f.startPos, f.endPos, s);
+  } else {
+    const r0 = f.startPos.length(), r1 = f.endPos.length();
+    const u0 = _sfA.copy(f.startPos).divideScalar(r0 || 1);
+    const u1 = _sfB.copy(f.endPos).divideScalar(r1 || 1);
+    _sfSwing.setFromUnitVectors(u0, u1);
+    _sfQ.slerpQuaternions(_sfIdentity, _sfSwing, s);
+    const r = (r0 > 0 && r1 > 0 ? r0 ** (1 - s) * r1 ** s : r0 + (r1 - r0) * s) + f.rise * Math.sin(Math.PI * s);
+    pos.copy(u0).applyQuaternion(_sfQ).multiplyScalar(r);
+  }
+  pos.applyQuaternion(q).add(center);
+  target.lerpVectors(f.startTarget, f.endTarget, s).applyQuaternion(q).add(center);
+  up.lerpVectors(f.startUp, f.endUp, s);
+  if (up.lengthSq() < 1e-12) up.copy(f.endUp);
+  up.normalize().applyQuaternion(q);
+}
+
+/**
+ * The rendered globe's radius in the direction of `offset` (scene frame,
+ * from the body's centre), scene units: its ellipsoid as drawn, enlargement
+ * included.
+ */
+function renderedRadiusToward(body: BodyMesh, offset: THREE.Vector3): number {
+  const mesh = body.mesh as THREE.Mesh | undefined;
+  if (!mesh) return body.displayRadius * body.scaleFactor;
+  const u = _sfA.copy(offset).applyQuaternion(_sfQ.copy(mesh.quaternion).invert()).normalize();
+  const r = body.displayRadius;
+  const k = (u.x / (r * mesh.scale.x)) ** 2 + (u.y / (r * mesh.scale.y)) ** 2 + (u.z / (r * mesh.scale.z)) ** 2;
+  return k > 0 ? 1 / Math.sqrt(k) : body.displayRadius * body.scaleFactor;
+}
 
 export class CameraController {
   readonly controls: TrackballControls;
@@ -211,8 +305,19 @@ export class CameraController {
     /** Landing pose in the followed body's mesh frame (`FlyToOptions.offset`/`up`). */
     followOffset?: THREE.Vector3;
     followUp?: THREE.Vector3;
+    /** A surface flight (`flyToSurface`): the whole path, in the body's mesh frame. */
+    surface?: SurfaceFlight;
   } | null = null;
   private _lastAnimMs = 0;
+
+  /**
+   * A point on a body's surface the orbit turns about (#190), in the body's
+   * mesh frame so it stays on the same ground as the body rotates. Live only
+   * while that body is tracked; in free orbit the camera co-rotates with it.
+   */
+  private _surfacePivot: { body: BodyMesh; local: THREE.Vector3; lastQuat: THREE.Quaternion } | null = null;
+  /** A pivot to install with the origin switch a surface flight lands with. */
+  private _pendingSurfacePivot: THREE.Vector3 | null = null;
 
   /**
    * Navigation input from the person since the last `update()`: a drag past
@@ -471,6 +576,7 @@ export class CameraController {
     // move the camera's coordinates out from under this one.
     this._trackTarget = null;
     this._pendingOriginSwitch = null;
+    this._clearSurfacePivot();
     // A look-at would override the view the flight lands on.
     this.clearLookAt();
     // A frame that places the camera itself would take it back from where the
@@ -513,7 +619,104 @@ export class CameraController {
     if (!anim) return false;
     this.cancelAnimation();
     if (anim.destination) this._pendingOriginSwitch = anim.destination;
+    if (anim.surface) this._pendingSurfacePivot = anim.surface.endTarget.clone();
     return true;
+  }
+
+  // ── Surface navigation (#190) ──
+  //
+  // A pose on a body's surface rather than a framing of the whole body. The
+  // poses are in the body's mesh frame (`SurfacePose`), so they hold the
+  // same ground as the body turns, and the point looked at becomes the orbit
+  // pivot: wheel and drag then work about that point, not the body's centre.
+
+  /** The surface point the orbit turns about, in its body's mesh frame; null when none. */
+  get surfacePivot(): { body: BodyMesh; local: THREE.Vector3 } | null {
+    const p = this._surfacePivot;
+    return p ? { body: p.body, local: p.local.clone() } : null;
+  }
+
+  /** Whether surface navigation holds the camera: flying to a surface pose, landing, or pivoting about one. */
+  get surfaceNavigating(): boolean {
+    return !!(this._surfacePivot || this._pendingSurfacePivot || this._anim?.surface);
+  }
+
+  private _clearSurfacePivot(): void {
+    this._surfacePivot = null;
+    this._pendingSurfacePivot = null;
+  }
+
+  /**
+   * Jump: cut to `pose` on `bodyMesh`, track the body, and pivot about the
+   * pose's target. A frame that places the camera itself is left for free
+   * orbit; a body-fixed one moves onto the body.
+   */
+  jumpToSurface(bodyMesh: BodyMesh, pose: SurfacePose): void {
+    this._beginNavigation();
+    if (this._frameOwnsCamera) this.setMode(CameraModeName.FREE_ORBIT);
+    const center = this._rebaseOnto(bodyMesh);
+    const q = bodyMesh.mesh.quaternion;
+    this.camera.position.copy(pose.position).applyQuaternion(q).add(center);
+    this.camera.up.copy(pose.up).applyQuaternion(q).normalize();
+    this.controls.target.copy(pose.target).applyQuaternion(q).add(center);
+    this._prevTargetPos.copy(this.controls.target);
+    this._trackTarget = bodyMesh;
+    this.camera.lookAt(this.controls.target);
+    this._carryOrbitFrameTo(bodyMesh);
+    this._surfacePivot = { body: bodyMesh, local: pose.target.clone(), lastQuat: q.clone() };
+  }
+
+  /**
+   * Fly: animate to `pose` on `bodyMesh`, then track the body and pivot about
+   * the pose's target, as `jumpToSurface` would land. Stopping it, or manual
+   * input, leaves the camera where it is facing that target.
+   */
+  flyToSurface(bodyMesh: BodyMesh, pose: SurfacePose, opts: SurfaceFlightOptions = {}): void {
+    this._trackTarget = null;
+    this._pendingOriginSwitch = null;
+    this._clearSurfacePivot();
+    this.clearLookAt();
+    const up = this.camera.up.clone();
+    if (this._frameOwnsCamera) {
+      const startUp = up.clone();
+      this.setMode(CameraModeName.FREE_ORBIT);
+      this.camera.up.copy(startUp);
+    }
+    const path = opts.path ?? 'arc';
+    const inv = bodyMesh.mesh.quaternion.clone().invert();
+    const center = bodyMesh.position;
+    const toLocal = (v: THREE.Vector3) => v.clone().sub(center).applyQuaternion(inv);
+    const flight: SurfaceFlight = {
+      body: bodyMesh, path,
+      startPos: toLocal(this.camera.position),
+      startTarget: toLocal(this.controls.target),
+      startUp: up.applyQuaternion(inv),
+      endPos: pose.position.clone(),
+      endTarget: pose.target.clone(),
+      endUp: pose.up.clone().normalize(),
+      rise: 0,
+    };
+    const r0 = flight.startPos.length(), r1 = flight.endPos.length();
+    const turn = r0 > 0 && r1 > 0 ? flight.startPos.angleTo(flight.endPos) / Math.PI : 0;
+    if (path === 'arc') {
+      // Cruise higher the further round the body the flight goes: half a
+      // radius up, for the far side, which is also what shows where it is.
+      const radius = renderedRadiusToward(bodyMesh, flight.endPos.clone().applyQuaternion(bodyMesh.mesh.quaternion));
+      const cruise = radius * (1.02 + 0.5 * turn);
+      flight.rise = Math.max(0, cruise - Math.sqrt(r0 * r1));
+    }
+    const descent = r0 > 0 && r1 > 0 ? Math.min(1, Math.abs(Math.log10(r0 / r1)) / 4) : 0;
+    const duration = opts.duration ?? (path === 'line' ? DEFAULT_DIRECT_SECONDS : 1 + 1.5 * Math.max(turn, descent));
+    const endPos = new THREE.Vector3(), endTarget = new THREE.Vector3(), endUp = new THREE.Vector3();
+    surfaceFlightPose(flight, 1, endPos, endTarget, endUp);
+    const anim = this._startAnimation(endPos, endTarget, endUp, duration, () => {
+      this._pendingOriginSwitch = bodyMesh;
+      this._pendingSurfacePivot = flight.endTarget.clone();
+    });
+    anim.surface = flight;
+    anim.destination = bodyMesh;
+    anim.path = 'direct';
+    anim.phase = 'approach';
   }
 
   private _startApproach(
@@ -598,6 +801,7 @@ export class CameraController {
     this.cancelAnimation();
     this._pendingOriginSwitch = null;
     this.clearLookAt();
+    this._clearSurfacePivot();
   }
 
   /**
@@ -811,6 +1015,7 @@ export class CameraController {
   /** Track a body each frame — camera orbits the body, preserving the view offset.
    *  Also sets this body as the origin body for coordinate-system centering. */
   track(bodyMesh: BodyMesh | null): void {
+    this._clearSurfacePivot();
     this._trackTarget = bodyMesh;
     if (bodyMesh) {
       this._originBody = bodyMesh;
@@ -856,6 +1061,8 @@ export class CameraController {
 
     this._activeMode = newMode;
     this._modeBodyName = params.bodyName;
+    // A frame that places the camera itself has no orbit to pivot.
+    if (!newMode.allowsOrbitControls) this._clearSurfacePivot();
 
     // Enable/disable TrackballControls based on mode
     this.controls.enabled = newMode.allowsOrbitControls;
@@ -957,6 +1164,7 @@ export class CameraController {
    * Idempotent: safe to call when nothing is tracked.
    */
   stopTracking(): void {
+    this._clearSurfacePivot();
     this._trackTarget = null;
     this.clearLookAt();
     if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
@@ -1104,6 +1312,17 @@ export class CameraController {
     // the camera around that one.
     this._carryOrbitFrameTo(body);
 
+    const pivot = this._pendingSurfacePivot;
+    this._pendingSurfacePivot = null;
+    if (pivot) {
+      // Under the new origin the body is at the origin (or still where it was
+      // drawn, when it already was the origin).
+      const center = wasAlreadyOrigin ? bodyPos : new THREE.Vector3();
+      this.controls.target.copy(pivot).applyQuaternion(body.mesh.quaternion).add(center);
+      this._prevTargetPos.copy(this.controls.target);
+      this._surfacePivot = { body, local: pivot, lastQuat: body.mesh.quaternion.clone() };
+    }
+
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce
     // wrong lat/lon (e.g., snapping Surface Explorer to the wrong pole).
@@ -1137,11 +1356,13 @@ export class CameraController {
    */
   private _yieldToManualInput(): void {
     const destination = this._anim?.destination;
+    const surface = this._anim?.surface;
     this._anim = null;
     this._move = null;
     // Inertia from before the flight is not the person's input now.
     (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
     if (destination) this._pendingOriginSwitch = destination;
+    if (surface) this._pendingSurfacePivot = surface.endTarget.clone();
   }
 
   /** Whether a fly-to/viewpoint animation is currently playing */
@@ -1476,9 +1697,13 @@ export class CameraController {
       const t = Math.min(this._anim.elapsed / this._anim.duration, 1);
       const s = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-      this.camera.position.lerpVectors(this._anim.startPos, this._anim.endPos, s);
-      this.controls.target.lerpVectors(this._anim.startTarget, this._anim.endTarget, s);
-      this.camera.up.lerpVectors(this._anim.startUp, this._anim.endUp, s).normalize();
+      if (this._anim.surface) {
+        surfaceFlightPose(this._anim.surface, s, this.camera.position, this.controls.target, this.camera.up);
+      } else {
+        this.camera.position.lerpVectors(this._anim.startPos, this._anim.endPos, s);
+        this.controls.target.lerpVectors(this._anim.startTarget, this._anim.endTarget, s);
+        this.camera.up.lerpVectors(this._anim.startUp, this._anim.endUp, s).normalize();
+      }
       this.camera.lookAt(this.controls.target);
 
       if (t >= 1) {
@@ -1518,7 +1743,9 @@ export class CameraController {
       if (this._activeMode.allowsOrbitControls) {
         // The mode's body is what these controls orbit — the origin body
         // `setMode` put it at — not whatever free orbit last tracked.
-        this._updateMinDistance(this._originBody ?? this._trackTarget);
+        // About a surface pivot the target is on the ground: no floor on the
+        // camera-to-target distance; the surface guard below keeps it out.
+        this._updateMinDistance(this._surfacePivot ? null : this._originBody ?? this._trackTarget);
         this._applyTouchPan();
         this.controls.update();
       } else {
@@ -1532,6 +1759,10 @@ export class CameraController {
       // and screen-space axes stay correct. No lookAt needed.
       if (this._modeCtx) {
         this._activeMode.update(this._modeCtx);
+      }
+      // The co-rotating frame carries the pivot round with the body.
+      if (this._surfacePivot && this._activeMode.allowsOrbitControls) {
+        this._guardSurface(this._surfacePivot.body, true);
       }
 
       // Keyboard (WASD/roll) — camera quaternion is already correct from mode update,
@@ -1581,7 +1812,19 @@ export class CameraController {
     // (0,0,0) thanks to CRR origin-shifting, but surface-locked bodies may be
     // shifted off-origin by the renderer's terrain clamp — read bm.position
     // directly so the camera always looks at the body's rendered position.
-    if (this._trackTarget) {
+    if (this._surfacePivot && this._surfacePivot.body !== this._trackTarget) this._surfacePivot = null;
+    const pivot = this._surfacePivot;
+    if (pivot) {
+      // Turn with the body so the ground under the pivot stays put on
+      // screen, then hold the pivot on it.
+      const q = pivot.body.mesh.quaternion;
+      const center = pivot.body.position;
+      const dq = this._tmpQ.copy(pivot.lastQuat).invert().premultiply(q);
+      this.camera.position.sub(center).applyQuaternion(dq).add(center);
+      this.camera.up.applyQuaternion(dq).normalize();
+      pivot.lastQuat.copy(q);
+      this.controls.target.copy(pivot.local).applyQuaternion(q).add(center);
+    } else if (this._trackTarget) {
       this.controls.target.copy(this._trackTarget.position);
     }
 
@@ -1594,7 +1837,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    this._updateMinDistance(this._trackTarget);
+    this._updateMinDistance(pivot ? null : this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom
@@ -1625,25 +1868,33 @@ export class CameraController {
     // `clampCameraAboveSurfaces` does a proper terrain sample and handles the
     // "below reference but above actual terrain" case (Jezero, Hellas, etc.)
     // that this static reference-radius guard would otherwise break.
-    if (clampBody && !clampBody.hasTerrain) {
-      const sf = clampBody.scaleFactor;
-      const minR = clampBody.displayRadius * sf * 1.0001;
-      const offset = this._tmpV1.subVectors(this.camera.position, clampBody.position);
-      const dist = offset.length();
-      if (dist > 0 && dist < minR) {
-        offset.multiplyScalar(minR / dist);
-        this.camera.position.copy(clampBody.position).add(offset);
-        // Also nudge the orbit target out so subsequent rotations don't keep
-        // pulling the camera back into the body.
-        const targetOffset = this._tmpV2.subVectors(this.controls.target, clampBody.position);
-        const targetDist = targetOffset.length();
-        if (targetDist < minR) {
-          if (targetDist > 1e-6) {
-            targetOffset.multiplyScalar(minR / targetDist);
-            this.controls.target.copy(clampBody.position).add(targetOffset);
-          }
-        }
-      }
+    if (clampBody) this._guardSurface(clampBody, pivot !== null);
+  }
+
+  /**
+   * Keep the camera outside `body`'s rendered globe, pushing it back out
+   * radially. Bodies with terrain are left to the renderer's terrain clamp.
+   * About a surface pivot the target is on the ground by design: it stays,
+   * and the floor is the rendered ellipsoid in the camera's direction rather
+   * than the equatorial radius, so a polar view is not pushed 20 km up.
+   */
+  private _guardSurface(body: BodyMesh, aboutPivot: boolean): void {
+    if (body.hasTerrain) return;
+    const offset = this._tmpV1.subVectors(this.camera.position, body.position);
+    const dist = offset.length();
+    if (!(dist > 0)) return;
+    const minR = (aboutPivot ? renderedRadiusToward(body, offset) : body.displayRadius * body.scaleFactor) * 1.0001;
+    if (dist >= minR) return;
+    offset.multiplyScalar(minR / dist);
+    this.camera.position.copy(body.position).add(offset);
+    if (aboutPivot) return;
+    // Also nudge the orbit target out so subsequent rotations don't keep
+    // pulling the camera back into the body.
+    const targetOffset = this._tmpV2.subVectors(this.controls.target, body.position);
+    const targetDist = targetOffset.length();
+    if (targetDist < minR && targetDist > 1e-6) {
+      targetOffset.multiplyScalar(minR / targetDist);
+      this.controls.target.copy(body.position).add(targetOffset);
     }
   }
 
@@ -1681,6 +1932,7 @@ export class CameraController {
 
   private readonly _tmpV1 = new THREE.Vector3();
   private readonly _tmpV2 = new THREE.Vector3();
+  private readonly _tmpQ = new THREE.Quaternion();
 
   dispose(): void {
     this._anim = null;

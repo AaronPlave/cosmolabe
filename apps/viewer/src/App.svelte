@@ -12,6 +12,7 @@
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
+  import GoToCoordinates from './components/GoToCoordinates.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
@@ -24,6 +25,7 @@
   import { restoreView } from './lib/view-link';
   import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
+  import type { SurfacePoint } from '@cosmolabe/three';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
@@ -35,7 +37,7 @@
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
   let uiHidden = $state(false);
-  let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
+  let contextMenu = $state<{ x: number; y: number; bodyName: string | null; surfacePoint: SurfacePoint | null } | null>(null);
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -177,8 +179,13 @@
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const bodyName = renderer.pickBody(screenX, screenY);
+    // The surface under the click, through the same scene hit as the probe
+    // (#127): only a genuine hit offers surface navigation, never a lat/lon
+    // made up from the body's centre.
+    const hit = renderer.pickScene(screenX, screenY, 'probe');
+    const surfacePoint = hit?.kind === 'surface' ? hit.point : null;
 
-    contextMenu = { x: e.clientX, y: e.clientY, bodyName };
+    contextMenu = { x: e.clientX, y: e.clientY, bodyName, surfacePoint };
   }
 
   /** Suppress native context menu on the canvas */
@@ -197,7 +204,7 @@
     if (commandPaletteOpen) return;
     // Likewise the catalog browser, which also handles its own Escape and
     // marks it handled, so the Escape does not go on to dismiss a panel too.
-    if (shell.catalogBrowserOpen || e.defaultPrevented) return;
+    if (shell.catalogBrowserOpen || shell.coordinatesOpen || e.defaultPrevented) return;
 
     // Text entry of any kind, contenteditable included — the script editor is
     // one, and a bare `t` typed into it must not toggle trajectories.
@@ -633,12 +640,14 @@
     {/if}
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />
+    <GoToCoordinates bind:open={shell.coordinatesOpen} onClose={() => shell.coordinatesOpen = false} />
 
     {#if contextMenu}
       <ContextMenu
         x={contextMenu.x}
         y={contextMenu.y}
         bodyName={contextMenu.bodyName}
+        surfacePoint={contextMenu.surfacePoint}
         onClose={() => contextMenu = null}
       />
     {/if}

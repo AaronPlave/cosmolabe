@@ -74,7 +74,14 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController } from './controls/CameraController.js';
-export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose } from './controls/CameraController.js';
+export type {
+  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions,
+} from './controls/CameraController.js';
+export {
+  bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+} from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';

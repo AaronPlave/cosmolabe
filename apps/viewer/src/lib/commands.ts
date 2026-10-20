@@ -6,7 +6,7 @@ import type { UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
-  toggleProbe, clearProbePin,
+  toggleProbe, clearProbePin, navigateToSurfacePoint,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell } from './shell.svelte';
@@ -39,6 +39,7 @@ function getBuiltinCommands(): Command[] {
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: 'F', category: 'Camera', execute: () => flyToTracked() },
     { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
     { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
+    { id: 'cam:go-to-coordinates', label: 'Go to coordinates…', category: 'Camera', execute: () => { shell.coordinatesOpen = true; } },
     ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: 'Esc', category: 'Camera', execute: () => stopFlight() }] : []),
     { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: 'M', category: 'Camera', execute: () => cycleCamera() },
     { id: 'cam:reset', label: 'Reset to Free Orbit', shortcut: 'Esc', category: 'Camera', execute: () => resetCamera() },
@@ -53,7 +54,10 @@ function getBuiltinCommands(): Command[] {
 
     // Inspect
     { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
-    ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
+    ...(vs.probePin ? [
+      { id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() },
+      { id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin' }); } },
+    ] : []),
 
     // Instrument
     { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {

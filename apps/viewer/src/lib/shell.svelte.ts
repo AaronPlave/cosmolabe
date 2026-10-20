@@ -191,6 +191,9 @@ export const shell = $state({
    */
   catalogBrowserOpen: false,
 
+  /** The "Go to coordinates…" dialog (#190), opened from the command palette. */
+  coordinatesOpen: false,
+
   /**
    * Progressive analysis depth on the timeline. `transport` is the minimal time
    * strip, event marks on its track included; `expanded` adds the secondary

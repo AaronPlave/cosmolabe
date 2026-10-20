@@ -5,9 +5,16 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
-import { etToDate, type Universe } from '@cosmolabe/core';
+import {
+  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement,
+  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
+  type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type ViewpointDefinition,
+} from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
-import { CameraModeName, rateLabel } from '@cosmolabe/three';
+import {
+  CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint,
+} from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
@@ -132,7 +139,28 @@ export const vs = $state({
 
   /** Bodies currently identified in the 3D view by `highlightBodies`. */
   highlightedBodies: [] as string[],
+
+  /**
+   * The surface point the camera was last navigated to (#190) and pivots
+   * about, for the view context: the target on the body, never the camera's
+   * own position. Null once other navigation takes the camera.
+   */
+  surfaceTarget: null as SurfaceTargetInfo | null,
 });
+
+/** What the view context shows about a surface navigation target. */
+export interface SurfaceTargetInfo {
+  bodyName: string;
+  /** "18.4447° N, 77.4508° E", in the convention it was named in. */
+  coordinates: string;
+  /** How the coordinates were stated ("planetocentric, east-positive"), or the pick's source. */
+  convention: string;
+  /** Where the target's height came from. */
+  surface: string;
+  notes: string[];
+  /** The semantic viewpoint the camera was placed by, when it was a preset. */
+  viewpoint?: ViewpointDefinition;
+}
 
 // ── Renderer reference (not reactive — internal only) ──
 
@@ -499,6 +527,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     const cc = renderer.cameraController;
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
+    if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
     syncFlightState();
     rafId = requestAnimationFrame(tick);
   };
@@ -911,6 +940,161 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.
   vs.trackedBodyName = bodyName;
+  return true;
+}
+
+// ── Surface navigation (#190) ──
+//
+// Navigation to a place on a body: by coordinates, from a pinned probe point,
+// or from a point right-clicked in the scene. The target is resolved by core
+// against the body's physical reference shape (and terrain, when decoded);
+// these only choose the camera verb. None of them changes the selection, the
+// simulation time or a measurement.
+
+export type SurfaceNavigationResult = { ok: true; target: SurfaceNavigationTarget } | { ok: false; error: string };
+
+/**
+ * Resolve entered coordinates on `input.bodyName` without moving the camera,
+ * for validation as the person types. Fails with a reason a person can act
+ * on: no such body, no physical shape, no rotation model, bad input.
+ */
+export function resolveCoordinateTarget(input: GeographicCoordinateInput): SurfaceNavigationResult {
+  const bm = _renderer?.getBodyMesh(input.bodyName);
+  const body = _universe?.getBody(input.bodyName);
+  if (!bm || !body) return { ok: false, error: `No body named "${input.bodyName}"` };
+  const reference = navigationReference(navigationShapeOf(bm));
+  if (!reference.ok) return { ok: false, error: reference.reason };
+  if (!body.rotation) return { ok: false, error: `${input.bodyName} has no rotation model, so it has no body-fixed coordinates` };
+  let target: SurfaceNavigationTarget;
+  try {
+    target = resolveGeographicTarget(input, reference.reference);
+  } catch (e) {
+    if (e instanceof GeographicNavigationError) return { ok: false, error: e.message };
+    throw e;
+  }
+  if (reference.reference.datum.origin === 'terrain') {
+    const sample = bm.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
+    target = sample
+      ? withTerrainElevation(target, sample.elevationKm, sample.source.id)
+      : withoutTerrainCoverage(target);
+  }
+  return { ok: true, target };
+}
+
+/** Bodies the coordinate dialog can offer: globes with a physical reference and a rotation model. */
+export function coordinateBodies(): string[] {
+  if (!_renderer || !_universe) return [];
+  const out: string[] = [];
+  for (const body of _universe.getAllBodies()) {
+    const bm = _renderer.getBodyMesh(body.name);
+    if (bm && body.rotation && navigationReference(navigationShapeOf(bm)).ok) out.push(body.name);
+  }
+  return out;
+}
+
+function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint): SurfaceTargetInfo {
+  const { origin } = target;
+  const input = origin.kind === 'coordinates' ? origin.input : null;
+  const shape = target.datum?.origin === 'terrain' ? 'terrain datum' : 'reference shape';
+  return {
+    bodyName: target.bodyName,
+    // Entered coordinates keep the precision typed; a pick, its pointer's.
+    coordinates: describeNavigationTarget(target, input
+      ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
+      : picked ? coordinateDecimals(picked) : 4),
+    convention: input
+      ? `${input.latitude}, ${input.longitudeDirection}-positive`
+      : origin.kind === 'surface-point' ? `${origin.latitudeKind}, east-positive; picked on ${origin.source}` : '',
+    surface: target.height.from === 'terrain-sample' ? `on terrain (${target.height.sourceId})`
+      : target.height.from === 'surface-point' ? 'the picked point'
+      : `on the ${shape}`,
+    notes: target.notes,
+    ...(viewpoint ? { viewpoint } : {}),
+  };
+}
+
+/** Decimal places the person typed, so the readout does not drop entered precision. */
+function decimalsOf(v: number): number {
+  const text = String(v);
+  const dot = text.indexOf('.');
+  return dot < 0 || text.includes('e') ? 0 : Math.min(10, text.length - dot - 1);
+}
+
+/**
+ * Fly or jump to `target` at a preset view (overhead, oblique, surface). An
+ * arc that rises around the body, never through it; manual input stops it.
+ * The target becomes the orbit pivot on landing.
+ */
+export function navigateToSurfaceTarget(
+  target: SurfaceNavigationTarget,
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+): SurfaceNavigationResult {
+  if (!_renderer) return { ok: false, error: 'No scene' };
+  if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) {
+    return { ok: false, error: 'Seconds must be zero or more' };
+  }
+  const bm = navigableMesh(target.bodyName);
+  if (!bm) return { ok: false, error: `No body named "${target.bodyName}"` };
+  let placement;
+  try {
+    placement = surfaceViewPlacement(target, opts.preset ?? 'overhead', {
+      rangeKm: opts.rangeKm, groundRadiusAt: terrainGroundRadius(bm),
+    });
+  } catch (e) {
+    if (e instanceof GeographicNavigationError || e instanceof ViewpointError) return { ok: false, error: e.message };
+    throw e;
+  }
+  const pose = surfacePoseFromBodyFixed(placement, _renderer.scaleFactor);
+  const cc = _renderer.cameraController;
+  if (opts.animate === false || opts.seconds === 0) cc.jumpToSurface(bm, pose);
+  else cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
+  syncCameraState();
+  vs.surfaceTarget = describeTarget(target, placement.viewpoint);
+  return { ok: true, target };
+}
+
+/** Resolve coordinates and fly (or jump) there. */
+export function goToCoordinates(
+  input: GeographicCoordinateInput,
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+): SurfaceNavigationResult {
+  const resolved = resolveCoordinateTarget(input);
+  return resolved.ok ? navigateToSurfaceTarget(resolved.target, opts) : resolved;
+}
+
+/**
+ * Navigate to a picked surface point (#127's `SurfacePoint`, from the scene
+ * hit or the pinned probe): along the line of sight to it — "Zoom to here"
+ * cuts, "Fly to here" animates — keeping the view direction, with the point
+ * as the orbit pivot.
+ *
+ * A point just clicked in the scene (`from: 'click'`) was seen along that
+ * line, so the line is clear. A pinned probe point may since have turned
+ * away; it gets the line only while it faces the camera, and otherwise an
+ * overhead view by an arc around the body.
+ */
+export function navigateToSurfacePoint(point: SurfacePoint, opts: { animate?: boolean; from?: 'click' | 'pin' } = {}): boolean {
+  if (!_renderer) return false;
+  const bm = navigableMesh(point.bodyName);
+  if (!bm) return false;
+  const target = surfacePointTarget(point);
+  const sf = _renderer.scaleFactor;
+  let clear = opts.from === 'click';
+  if (!clear) {
+    const inv = bm.mesh.quaternion.clone().invert();
+    const eye = _renderer.camera.position.clone().sub(bm.position).applyQuaternion(inv).divideScalar(sf);
+    // Body-fixed Z-up from the mesh's Y-up frame.
+    const toEye: [number, number, number] = [eye.x - target.positionKm[0], -eye.z - target.positionKm[1], eye.y - target.positionKm[2]];
+    const facing = toEye[0] * target.up[0] + toEye[1] * target.up[1] + toEye[2] * target.up[2];
+    clear = facing > 0.2 * Math.hypot(...toEye);
+  }
+  const pose = clear ? zoomTowardSurfacePoint(bm, _renderer.camera, point, sf) : null;
+  if (!pose) return navigateToSurfaceTarget(target, { preset: 'overhead', animate: opts.animate }).ok;
+  const cc = _renderer.cameraController;
+  if (opts.animate) cc.flyToSurface(bm, pose, { path: 'line' });
+  else cc.jumpToSurface(bm, pose);
+  syncCameraState();
+  vs.surfaceTarget = describeTarget(target, undefined, point);
   return true;
 }
 
