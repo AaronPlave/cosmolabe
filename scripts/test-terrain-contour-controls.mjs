@@ -40,6 +40,7 @@ try {
  assert.equal(await page.getByLabel('Hillshade effect',{exact:true}).count(),1);
  assert.equal(await page.getByLabel('Surface base color',{exact:true}).count(),1);
  await contours.check();
+ assert.equal(await page.getByLabel('Contour density',{exact:true}).getAttribute('max'),'2');
  await page.getByLabel('Contour density',{exact:true}).fill('2');
  assert.equal(await page.evaluate(()=>window.renderer.getBodyMesh('Moon').surfaceAppearance.contours),true);
  await page.getByLabel('Contour elevation labels',{exact:true}).check();

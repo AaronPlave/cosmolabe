@@ -48,7 +48,7 @@ export function estimateContourInterval(camera: THREE.Camera, width: number, hei
   const threshold = gradients.reduce((sum, g) => sum + g.weight, 0) * 0.75;
   let sum = 0, delta = gradients[0].delta;
   for (const g of gradients) { delta = g.delta; sum += g.weight; if (sum >= threshold) break; }
-  const target = Math.max(0.001, Math.min(1, delta * 4 / density));
+  const target = Math.max(0.001, Math.min(1, delta * 8 / density));
   // Hysteresis keeps a tile refinement or a small camera move from repeatedly
   // flipping between neighbouring 1–2–5 steps.
   if (target <= previous * 1.25 && niceContourInterval(target / 0.75) >= previous) return previous;

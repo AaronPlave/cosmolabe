@@ -47,7 +47,7 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
     palette: Object.hasOwn(ELEVATION_PALETTES, s.palette) ? s.palette : 'terrain',
     contours: !!s.contours,
     contourOpacity: clamp(s.contourOpacity ?? 0.35, 0, 1, 0.35),
-    contourDensity: clamp(s.contourDensity ?? 1, 0.25, 4, 1),
+    contourDensity: clamp(s.contourDensity ?? 1, 0.25, 2, 1),
     contourIntervalKm: s.contourIntervalKm && s.contourIntervalKm > 0 ? Math.round(clamp(s.contourIntervalKm, 0.001, 100, 1) * 1000) / 1000 : 0,
     contourLabels: !!s.contourLabels,
     contourColor: /^#[0-9a-f]{6}$/i.test(s.contourColor ?? '') ? s.contourColor : '#f2e6c9',
@@ -152,7 +152,7 @@ export class SurfaceAppearance {
     samplingCamera.up.set(0, 0, 1).transformDirection(bodyWorld);
     samplingCamera.lookAt(new THREE.Vector3().setFromMatrixPosition(bodyWorld));
     samplingCamera.updateMatrixWorld(true);
-    const interval = estimateContourInterval(samplingCamera, width, height, sources, density, this.autoContourIntervalKm);
+    const interval = estimateContourInterval(samplingCamera, width, height, sources, density, old && old.density === density ? this.autoContourIntervalKm : 0);
     if (interval === undefined) return; // Do not lock an empty/sky-only sample.
     this.autoContourIntervalKm = interval;
     this.contourScale = { eye, altitude, projection, height, density };

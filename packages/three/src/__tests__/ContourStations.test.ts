@@ -28,7 +28,7 @@ describe('terrain-fixed contour stations', () => {
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial()); mesh.position.z = 1000;
     const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: 1 }, heightConvention: 'radial', verticalDatum: 'reference-sphere' });
     style.attach(mesh, new THREE.Matrix4().makeTranslation(0, 0, 1000));
-    style.set({ ...defaults, contours: true }); style.update(Infinity);
+    style.set({ ...defaults, contours: true, contourDensity: 0.5 }); style.update(Infinity);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1e6); camera.position.z = 2000; camera.lookAt(0, 10000, 2000);
     try {
       style.updateContourInterval(camera, 1000, 1000, [mesh]); const initial = style.contourIntervalKm;
@@ -39,7 +39,7 @@ describe('terrain-fixed contour stations', () => {
       const replacement = new THREE.Mesh(geometry.clone(), mesh.material); replacement.position.copy(mesh.position);
       style.attach(replacement, new THREE.Matrix4().makeTranslation(0, 0, 1000)); style.update(Infinity); now += 500;
       style.updateContourInterval(camera, 1000, 1000, [replacement]); expect(style.contourIntervalKm).toBe(initial);
-      style.set({ ...defaults, contours: true, contourDensity: 4 }); now += 500;
+      style.set({ ...defaults, contours: true, contourDensity: 2 }); now += 500;
       style.updateContourInterval(camera, 1000, 1000, [replacement]); expect(style.contourIntervalKm).toBeLessThan(initial);
       style.set({ ...defaults, contours: true }); camera.position.z = 20000; camera.lookAt(0, 0, 0); now += 500;
       style.updateContourInterval(camera, 1000, 1000, [replacement]); expect(style.contourIntervalKm).toBeGreaterThan(initial);

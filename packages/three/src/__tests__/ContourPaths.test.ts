@@ -52,10 +52,10 @@ describe('connected index contours', () => {
     geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getY(i) * 0.001), 1));
     const mesh = new THREE.Mesh(geometry), camera = new THREE.OrthographicCamera(-500, 500, 500, -500, 1, 10000);
     camera.position.z = 1000; camera.lookAt(0, 0, 0);
-    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 1, 0.1)).toBe(0.005);
-    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 4, 0.1)).toBe(0.001);
+    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 1, 0.1)).toBe(0.01);
+    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 2, 0.1)).toBe(0.005);
     expect(automaticContourInterval(camera, 1000, 1000, [], 1, 0.05)).toBe(0.05);
-    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 1, 0.005)).toBe(0.005);
+    expect(automaticContourInterval(camera, 1000, 1000, [mesh], 1, 0.01)).toBe(0.01);
   });
 
   it('yields during topology construction without dropping any contour paths', () => {
@@ -76,6 +76,6 @@ describe('connected index contours', () => {
     const camera = new THREE.OrthographicCamera(-500, 500, 500, -500, 1, 10000);
     camera.position.z = 1000; camera.lookAt(0, 0, 0);
     const surface = make(1000, 0.001), tinySteepPatch = make(10, 100);
-    expect(automaticContourInterval(camera, 1000, 1000, [surface, tinySteepPatch], 1, 0.1)).toBe(0.005);
+    expect(automaticContourInterval(camera, 1000, 1000, [surface, tinySteepPatch], 1, 0.1)).toBe(0.01);
   });
 });

@@ -91,6 +91,8 @@ export class TerrainContourLabels {
   private layoutJob?: Generator<void, Placement[]>;
   private interval = 0;
   private nextLayout = 0;
+  private layoutView?: THREE.Matrix4;
+  private layoutProjection?: THREE.Matrix4;
   private readonly point = new THREE.Vector3();
   private readonly projected = new THREE.Vector3();
   private readonly end = new THREE.Vector3();
@@ -109,14 +111,16 @@ export class TerrainContourLabels {
   private nextViewCheck = 0;
   private focusDistance = Infinity;
   private occlusionDeadline = 0;
+  private visibilityPending = false;
+  private readonly bodyInverse = new THREE.Matrix4();
   private sourceRevision = 0;
   private occlusionSources = new Set<THREE.Mesh>();
   private readonly raycaster = new THREE.Raycaster();
-  private readonly occlusion = new WeakMap<Placement, { time: number; revision: number; eye: THREE.Vector3; point: THREE.Vector3; hidden: boolean }>();
+  private readonly occlusion = new WeakMap<Placement, { time: number; staleSince?: number; revision: number; eye: THREE.Vector3; point: THREE.Vector3; hidden: boolean }>();
 
   constructor() { this.group.name = 'terrain-contour-labels'; }
 
-  get settled(): boolean { return !this.dirty && !this.topology && !this.layoutJob && [...this.caches.values()].every(cache => cache.complete); }
+  get settled(): boolean { return !this.visibilityPending && !this.dirty && !this.topology && !this.layoutJob && [...this.caches.values()].every(cache => cache.complete); }
 
   update(camera: THREE.Camera, width: number, height: number, sources: THREE.Mesh[],
     settings: SurfaceAppearanceSettings, enabled = true, obstacles: readonly ScreenRect[] = []): void {
@@ -147,6 +151,7 @@ export class TerrainContourLabels {
     camera.updateWorldMatrix(true, false);
     this.cameraPosition.setFromMatrixPosition(camera.matrixWorld);
     this.group.updateWorldMatrix(true, false);
+    this.bodyInverse.copy(this.group.matrixWorld).invert();
     // Use visible source vertices, rather than tile centres (which can be far
     // outside a close-up view), to establish the local distance scale.
     let nearestDistance = Infinity;
@@ -177,10 +182,14 @@ export class TerrainContourLabels {
     const topologyStart = performance.now();
     while (this.topology) {
       const result = this.topology.next();
-      if (result.done) { this.paths = result.value; this.topology = undefined; this.layoutJob = undefined; this.nextLayout = 0; break; }
+      if (result.done) { this.paths = result.value; this.topology = undefined; this.layoutJob = undefined; this.layoutView = undefined; this.nextLayout = 0; break; }
       if (performance.now() - topologyStart >= 2) break;
     }
-    if (!this.layoutJob && performance.now() >= this.nextLayout) {
+    const layoutView = new THREE.Matrix4().multiplyMatrices(camera.matrixWorldInverse, this.group.matrixWorld);
+    const changed = !this.layoutView || layoutView.elements.some((value, i) => Math.abs(value - this.layoutView!.elements[i]) > 1e-7)
+      || !this.layoutProjection?.equals(camera.projectionMatrix);
+    if (!this.layoutJob && changed && performance.now() >= this.nextLayout) {
+      this.layoutView = layoutView; this.layoutProjection = camera.projectionMatrix.clone();
       this.layoutJob = this.layout(camera, width, height);
     }
     const layoutStart = performance.now();
@@ -193,17 +202,28 @@ export class TerrainContourLabels {
     const selected = new Map<ContourSegment, Placement>();
     let drawn = 0;
     this.occlusionDeadline = performance.now() + 2;
+    this.visibilityPending = false;
+    // Refresh oldest checks first. Drawing order must not let the same first
+    // few contours consume every frame's raycast allowance during motion.
+    const checks = [...this.placements].sort((a, b) => (this.occlusion.get(a)?.time ?? -Infinity)
+      - (this.occlusion.get(b)?.time ?? -Infinity));
+    for (const placement of checks) {
+      if (!live.has(placement.mesh)) continue;
+      const screen = this.project(placement, camera, width, height);
+      if (screen) this.hidden(placement, camera, sources, screen.worldPerPx);
+      if (performance.now() >= this.occlusionDeadline) break;
+    }
     const ordered = [...this.placements].sort((a, b) => b.anchor.heightKm - a.anchor.heightKm
       || (a.bodyPoint ?? a.anchor.point).x - (b.bodyPoint ?? b.anchor.point).x
       || (a.bodyPoint ?? a.anchor.point).y - (b.bodyPoint ?? b.anchor.point).y
       || (a.bodyPoint ?? a.anchor.point).z - (b.bodyPoint ?? b.anchor.point).z);
     for (const placement of ordered) {
       if (!live.has(placement.mesh) || !live.has(placement.tangentStart.mesh) || !live.has(placement.tangentEnd.mesh)) continue;
+      selected.set(placement.segment, placement);
       const screen = this.project(placement, camera, width, height);
       if (!screen) continue;
       // Occlusion or a transient obstacle must not discard the path's chosen
       // anchor: reusing it avoids a new position whenever a ridge crosses it.
-      selected.set(placement.segment, placement);
       if (occupied.some(box => overlaps(box, screen.box))) continue;
       if (this.hidden(placement, camera, sources, screen.worldPerPx)) continue;
       occupied.push(screen.box);
@@ -215,7 +235,7 @@ export class TerrainContourLabels {
       material.opacity = 1;
       const uniforms = sprite.userData.depthUniforms;
       uniforms.saLabelNormal.value.copy(this.normal).normalize();
-      uniforms.saLabelBias.value = screen.worldPerPx * 0.15;
+      uniforms.saLabelBias.value = screen.worldPerPx * 0.5;
       uniforms.saLabelProjection.value.copy(camera.projectionMatrix);
       sprite.position.copy(this.point);
       this.group.worldToLocal(sprite.position);
@@ -238,11 +258,25 @@ export class TerrainContourLabels {
 
   private hidden(placement: Placement, camera: THREE.Camera, sources: THREE.Mesh[], worldPerPx: number): boolean {
     const now = performance.now(), old = this.occlusion.get(placement);
+    // Cache in the body frame: orbital translation, body rotation and floating
+    // origin changes do not change terrain visibility for a tracking camera.
+    const eye = this.cameraPosition.clone().applyMatrix4(this.bodyInverse);
+    const point = this.point.clone().applyMatrix4(this.bodyInverse);
+    // A four-pixel spatial tolerance amortizes tiny translations without
+    // clearing CPU visibility every frame. GPU glyph depth remains current.
+    const pixel = 4 * worldPerPx / this.group.matrixWorld.getMaxScaleOnAxis();
     const valid = old && old.revision === this.sourceRevision
-      && old.eye.distanceToSquared(this.cameraPosition) < worldPerPx ** 2
-      && old.point.distanceToSquared(this.point) < worldPerPx ** 2;
-    if (valid && now - old.time < 1000) return old.hidden;
-    if (now >= this.occlusionDeadline) return valid ? old.hidden : true;
+      && old.eye.distanceToSquared(eye) < pixel ** 2
+      && old.point.distanceToSquared(point) < pixel ** 2;
+    if (valid) { old.staleSince = undefined; return old.hidden; }
+    if (old) old.staleSince ??= now;
+    // Preserve the last result briefly while its fair-queued check catches up.
+    // New anchors must be checked first; glyphs still depth-test every
+    // frame, and a previously visible anchor never gets an unbounded grace.
+    if (now >= this.occlusionDeadline) {
+      this.visibilityPending = true;
+      return old && now - old.staleSince! < 250 ? old.hidden : true;
+    }
     // An anchor LOS check complements glyph depth testing: tangent-plane
     // extrapolation and fading/non-depth-writing tiles must not expose text
     // through a foreground ridge. Test original ground meshes, even when cube
@@ -261,7 +295,7 @@ export class TerrainContourLabels {
       if (hits.length) break;
     }
     const hidden = hits.length > 0;
-    this.occlusion.set(placement, { time: now, revision: this.sourceRevision, eye: this.cameraPosition.clone(), point: this.point.clone(), hidden });
+    this.occlusion.set(placement, { time: now, revision: this.sourceRevision, eye, point, hidden });
     return hidden;
   }
 
@@ -381,8 +415,16 @@ export class TerrainContourLabels {
     const dy = this.gradient.dot(this.screenUp) - gradientView * this.normal.dot(this.screenUp) / normalView;
     const delta = worldPerPx * Math.hypot(dx, dy);
     const major = this.interval * 5;
-    const spacing = major * 5 ** Math.max(0, Math.ceil(Math.log(Math.max(1, delta / (major * 0.3))) / Math.log(5)));
-    if (delta >= major * 0.3 && Math.abs(anchor.heightKm - Math.round(anchor.heightKm / spacing) * spacing) > 1e-6) return;
+    // Match the shader's continuous nested bands, with separate admission and
+    // retention thresholds so a near-threshold line cannot blink its label.
+    const smooth = (low: number, high: number, value: number) => THREE.MathUtils.smoothstep(value, low, high);
+    let spacing = major, reveal = 1, strength = 0;
+    for (let level = 0; level <= 6; level++) {
+      if (Math.abs(anchor.heightKm - Math.round(anchor.heightKm / spacing) * spacing) < 1e-6)
+        strength = Math.max(strength, reveal * (1 - smooth(spacing * 0.15, spacing * 0.3, delta)));
+      reveal *= smooth(spacing * 0.15, spacing * 0.3, delta); spacing *= 5;
+    }
+    if (strength < (this.selected.has(placement.segment) ? 0.15 : 0.4)) return;
     const start = placement.tangentStart, end = placement.tangentEnd;
     this.end.copy(start.point).applyMatrix4(frames?.get(start.mesh) ?? start.mesh.matrixWorld).project(camera);
     const ax = this.end.x, ay = this.end.y;
@@ -501,6 +543,17 @@ export class TerrainContourLabels {
     }).sort((a, b) => a.priority - b.priority);
     for (const { path } of paths) {
       for (const edge of path.edges) processed.add(edge.segment);
+      // A terrain station remains chosen while it is in view. Re-evaluating
+      // straightness and station ranking every 250 ms made small movements
+      // replace otherwise good labels, even though their coordinates were fixed.
+      const previous = path.edges.map(edge => this.selected.get(edge.segment)).find(p => p
+        && frames.has(p.tangentStart.mesh) && frames.has(p.tangentEnd.mesh)
+        && this.project(p, camera, width, height, frames));
+      if (previous) {
+        placements.push(previous);
+        this.placements = [...placements, ...this.placements.filter(p => !processed.has(p.segment))];
+        continue;
+      }
       const runs: Run[] = []; let run: Run = { edges: [], length: 0 };
       for (const edge of path.edges) {
         if (++work % 128 === 0) yield;
@@ -608,8 +661,8 @@ if (vIsPerspective != 0.0) gl_FragDepth = log2(max(1e-12, 1.0 - labelView.z)) * 
     if (sprite.userData.text === text) return;
     const canvas = document.createElement('canvas'), context = canvas.getContext('2d')!;
     canvas.width = (text.length * 8.5 + 12) * 2; canvas.height = 52;
-    context.font = '600 28px monospace'; context.textAlign = 'center'; context.textBaseline = 'middle';
-    context.lineWidth = 6; context.strokeStyle = '#000';
+    context.font = '400 28px monospace'; context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.lineWidth = 4; context.strokeStyle = '#000';
     context.strokeText(text, canvas.width / 2, 26);
     context.fillStyle = '#fff'; context.fillText(text, canvas.width / 2, 26);
     const material = sprite.material as THREE.SpriteMaterial;
@@ -622,9 +675,9 @@ if (vIsPerspective != 0.0) gl_FragDepth = log2(max(1e-12, 1.0 - labelView.z)) * 
   private clear(): void {
     this.caches.clear(); this.paths = []; this.placements = []; this.selected.clear();
     this.dirty = true; this.topology = undefined; this.layoutJob = undefined; this.nextLayout = 0;
-    this.viewSnapshot = undefined; this.nextViewCheck = 0;
+    this.viewSnapshot = undefined; this.nextViewCheck = 0; this.layoutView = undefined; this.layoutProjection = undefined;
     this.screenSources.clear(); this.occlusionSources.clear(); this.sourceRevision++;
-    this.focusDistance = Infinity;
+    this.focusDistance = Infinity; this.visibilityPending = false;
     for (const sprite of this.sprites) sprite.visible = false;
   }
 

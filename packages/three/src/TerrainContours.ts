@@ -29,8 +29,16 @@ float saMajor = saContourLine(vSAHeight, saDelta, saMajorStep, 1.0);
 // both at dense intervals, creating islands of contour coverage on slopes.
 // Nested multiples of five retain a resolvable index skeleton at grazing
 // angles, without turning subpixel periodic lines into a solid terrain tint.
-float saCoarseStep = saMajorStep * pow(5.0, max(0.0, ceil(log(max(1.0, saDelta * 4.0 / saMajorStep)) / log(5.0))));
-float saCoarse = saContourLine(vSAHeight, saDelta, saCoarseStep, 1.0);
+// Blend nested levels continuously. A ceil(log(gradient)) selection jumped
+// an entire contour family at triangle/LOD borders and during small motion.
+float saCoarse = 0.0;
+float saReveal = 1.0;
+float saSpacing = saMajorStep;
+for (int level = 0; level < 6; level++) {
+  saReveal *= smoothstep(saSpacing * 0.15, saSpacing * 0.3, saDelta);
+  saSpacing *= 5.0;
+  saCoarse = max(saCoarse, saContourLine(vSAHeight, saDelta, saSpacing, 1.0) * saReveal);
+}
 float saLine = max(saMinor, max(saMajor, saCoarse));
 float saFade = smoothstep(1e-8, 1e-7, saDelta);
 // Skirts share top vertices with ground. Reject the varying mask on their

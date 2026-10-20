@@ -81,7 +81,7 @@
           </label>
           {#if !settings.contourIntervalKm}
           <label class="control-row"><span>Density</span>
-            <input aria-label="Contour density" type="range" min="0.25" max="4" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
+            <input aria-label="Contour density" type="range" min="0.25" max="2" step="0.25" value={settings.contourDensity ?? 1} oninput={e => update({ contourDensity: +e.currentTarget.value })} />
           </label>
           {/if}
           {#if contourInterval}

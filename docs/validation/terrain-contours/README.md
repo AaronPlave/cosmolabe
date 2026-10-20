@@ -10,7 +10,8 @@ Generic 3D Tiles do not acquire elevation styling.
 In a body's **Surface appearance**, enable **Contours**, then **Elevation labels**.
 Labels work with **Automatic** and with the fixed 10–5000 m interval choices.
 Switching interval modes preserves the label toggle. Automatic mode also exposes
-**Density**. A readout shows the actual minor and index intervals.
+**Density**, from 0.25 to 2 (previously 4), with an eight-pixel target at
+default density. A readout shows the actual minor and index intervals.
 
 Every fifth contour is an emphasized index contour, following the
 [USGS index-contour convention](https://www.usgs.gov/ngp-standards-and-specifications/us-topo-cartographic-specifications-elevation).
@@ -87,6 +88,9 @@ coarser index levels (multiples of five) where finer bands cannot resolve.
 Filtering finishes before the AA support overlaps an entire period, avoiding
 a solid contour-color wash. This deliberately preserves a readable index
 skeleton rather than claiming every 10 m line is resolvable from any distance.
+Nested levels now blend continuously as finer bands become unresolved; there
+is no per-fragment rounded jump to the next coarser family. Different source
+LOD still changes the underlying interpolated height field and its gradients.
 Loaded coarse triangles can still produce angular contours; styling does not
 invent higher-resolution topography. A static sphere has no terrain contours.
 
@@ -116,32 +120,39 @@ transects at powers-of-two metre spacings. Coarse planes are a subset of finer
 planes; refining the reveal level adds stations without sliding the old ones.
 Planes nearly parallel to the ground are excluded. A fixed axis/hierarchy/
 coordinate order chooses among stations, independent of path traversal,
-triangle subdivision, source order, screen centre and placement history. This
+triangle subdivision, source order and screen centre. Once admitted, a station
+is retained while visible instead of being re-ranked after tiny moves. This
 makes neighboring contours share terrain corridors rather than unrelated
 screen-centred anchors. Collision priority is also terrain-based. Crowding or
 a viewer panel hides the preferred station instead of moving it to a new spot.
 
 Visible spans must still have enough projected room and low curvature for the
 straight word. Tangents update with zoom so labels continue to follow their
-contours. Projection updates every frame; cooperative layout restarts 250 ms
-after the previous pass finishes and publishes progressively. Its camera and
+contours. Projection updates every frame; cooperative layout restarts after
+relative view/projection or topology changes, at most every 250 ms, and
+publishes progressively. An unchanged view does not rebuild the same layout. Its camera and
 mesh snapshots share the body frame, including scale conversion, preserving
 positions under body transforms and floating-origin updates. Finer terrain
 LOD can move the underlying isohypse and its station intersection. This is
 terrain anchoring to loaded geometry, not a separate immutable global DEM.
 
-Labels use opaque warm-white semibold text with a black halo, independently of
+Labels use opaque warm-white regular-weight text with a thinner black halo, independently of
 contour color and opacity (including zero line opacity). Text scales smoothly
 from 14 px to a minimum of 10 px with relative distance. Rotated collision
 bounds follow the actual scaled size.
 
-Glyph fragment depth follows the source triangle plane with a 0.15-pixel
-camera-directed bias in the logarithmic viewer, reduced from two pixels to avoid pulling text through
-nearby relief. A source-mesh line-of-sight check additionally hides anchors
+Glyph fragment depth follows the source triangle plane with a 0.5-pixel
+camera-directed bias in the logarithmic viewer to keep glyphs intact on relief. A source-mesh line-of-sight check additionally hides anchors
 behind foreground terrain, including fading tiles that do not write depth.
-These checks use a 2 ms frame target, cache successful checks for up to one
-second at a stationary view, and invalidate on camera/anchor movement or source
-changes. Unchecked anchors stay hidden while waiting their turn. Labels render
+These checks use a 2 ms frame target and refresh oldest checks first, so the
+first few contours cannot starve the rest during motion. Cached results use
+body-relative camera/anchor coordinates with a four-screen-pixel tolerance;
+body translation/rotation and floating-origin shifts do not invalidate a
+constant relative view. Results remain cached until relative movement or
+source changes, without a periodic one-second expiry. Previously checked
+anchors retain their result for up to 250 ms after invalidation while awaiting
+a refresh; new anchors stay hidden until checked. Glyph depth remains current
+every frame. Settled status also waits for pending visibility work. Labels render
 after transparent terrain and retain per-fragment depth testing.
 Ordinary perspective depth additionally allows one depth-buffer quantum when a
 very small near plane reduces precision. Perspective/orthographic cameras and
@@ -164,7 +175,7 @@ SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contour-contr
 CONTOUR_LABELS=1 SURFACE_VIEWER_URL=http://localhost:5174 node scripts/test-terrain-contours-live.mjs
 ```
 
-374 renderer tests across 38 files pass, with typecheck, lint and viewer
+375 renderer tests across 38 files pass, with typecheck, lint and viewer
 production build. Tests cover transformed/mixed-LOD border stitching, separate
 same-height loops, cooperative construction without path caps, automatic
 spacing/density/hysteresis, source visibility, skirts, cleanup, and rotated
@@ -186,16 +197,18 @@ blocks retain the style fields, split/unsplit pixels are identical, debug
 precedence and disabled restoration hold, and no unused height fields remain.
 See [cube contours](cube-contours.png) and [tilted cube](cube-tilted.png).
 
-The [label/depth regression](label-depth-metrics.json) preserves all 107 lit
+The [label/depth regression](label-depth-metrics.json) preserves all 83 lit
 glyph pixels with perspective/orthographic cameras and normal/log depth.
-A flat-billboard negative control retains only 55. Both ordinary foreground
+A flat-billboard negative control retains only 48. Both ordinary foreground
 occlusion and a non-depth-writing foreground plane leave zero text pixels;
-without the anchor LOS check, the latter exposes all 107 pixels. Changing
+without the anchor LOS check, the latter exposes all 83 pixels. Changing
 the contours to almost transparent black retains the same readable label pixels.
 Disabled contours leave zero text pixels. Its dense 10 m scalar-field fixture
 retains 57,344 contour pixels over 112 rows, below half the plane's area; the
 old shared-band fade retains zero. This verifies coverage without a full-plane
-tint. The scalar field is a synthetic rendering test, not scientific terrain.
+tint. Straddling the former gradient-level boundary with a 0.2% zoom change
+changes total rendered luminance by 0.14%; the old rounded-level control jumps
+14%. The scalar field is a synthetic rendering test, not scientific terrain.
 
 The [Svelte controls regression](label-ui-metrics.json) checks automatic labels,
 fixed interval persistence, per-body isolation, density restoration, labels
@@ -208,7 +221,15 @@ local LOLA cube terrain and WAC/NAC imagery, 1440×1000 desktop and 390×844 mob
 viewport. All eight initial assets load; there are no HTTP/page/shader errors.
 The run checks automatic close/regional/polar/globe views, a fixed 10 m oblique
 view at approximately 22 km terrain altitude, camera motion, settled placement,
-and independent contour/label toggles. Looking above the horizon and back
+and independent contour/label toggles. The [motion metrics](label-motion-metrics.json)
+add 120-frame two-pixel camera jitter and 120 frames with actual time running at
+1x, starting from 35 visible labels. Jitter retains 96.8% of those anchors on
+average (94.3% minimum); running time retains 89.6% on average (85.7% minimum).
+These count stable anchor identities, not pixel-perfect glyph persistence;
+real visibility, collisions and LOD can still change which labels are shown.
+A 19-path regression with deliberately slow raycasts preserves all labels
+through repeated movement after a long pause and common body/camera transforms.
+Looking above the horizon and back
 keeps the automatic interval at 10 m with zero eye drift in both steps.
 
 - [Automatic surface labels](moonfall-labels-close.png)
@@ -217,17 +238,18 @@ keeps the automatic interval at 10 m with zero eye drift in both steps.
 - [Automatic globe labels](moonfall-labels-globe.png)
 - [Mobile automatic labels and controls](moonfall-labels-mobile.png)
 
-Per-view warm CPU label-update timings are recorded over 120 frames, including
-cooperative layout and the additional LOS checks. Label count follows readable,
+Per-view warm CPU label-update timings are recorded over 120 stationary frames,
+including cache lookups. Unchanged views no longer repeat layout or LOS work;
+these timings are not measurements of movement/rebuilding cost. Label count follows readable,
 visible paths, not a global cap. Hidden labels retain their anchors for reuse.
 
 | View | Minor interval | Labels | Median CPU | P95 CPU | Maximum CPU |
 | --- | --- | --- | --- | --- | --- |
-| Surface, automatic | 10 m | 36 | 0.6 ms | 3.7 ms | 4.5 ms |
-| Oblique, fixed | 10 m | 68 | 2.2 ms | 4.6 ms | 5.6 ms |
-| Regional, automatic | 500 m | 29 | 0.3 ms | 2.7 ms | 4.6 ms |
-| Polar, automatic | 1000 m | 28 | 0.2 ms | 2.9 ms | 4.6 ms |
-| Globe, automatic | 1000 m | 23 | 0.2 ms | 2.3 ms | 3.2 ms |
+| Surface, automatic | 10 m | 37 | 0.4 ms | 0.5 ms | 1.0 ms |
+| Oblique, fixed | 10 m | 68 | 0.5 ms | 0.6 ms | 0.7 ms |
+| Regional, automatic | 1000 m | 17 | 0.2 ms | 0.3 ms | 0.3 ms |
+| Polar, automatic | 1000 m | 28 | 0.2 ms | 0.3 ms | 0.3 ms |
+| Globe, automatic | 1000 m | 30 | 0.2 ms | 0.3 ms | 0.4 ms |
 
 An initial synchronous LOS pass peaked around 44 ms in the dense view; the
 cooperative cached version above avoids that burst. Individual mesh raycasts

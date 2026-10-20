@@ -102,6 +102,20 @@ try {
       await page.waitForTimeout(600);
       const after = await page.evaluate(() => window.renderer.getBodyMesh('Moon').terrainManager.contourLabels.group.children
         .filter(s => s.visible).map(s => ({ text: s.userData.text, position: s.position.toArray(), rotation: s.material.rotation })));
+      if (JSON.stringify(after.map(v => JSON.stringify(v)).sort()) !== JSON.stringify(before.map(v => JSON.stringify(v)).sort())) {
+        const diagnostic = await page.evaluate(async () => {
+          const r = window.renderer, manager = r.getBodyMesh('Moon').terrainManager.contourLabels;
+          const frames = [];
+          for (let i = 0; i < 30; i++) {
+            await new Promise(requestAnimationFrame);
+            frames.push({ visible: manager.group.children.filter(s => s.visible).length,
+              placements: manager.placements.length, revision: manager.sourceRevision, settled: manager.settled,
+              eye: r.camera.position.toArray(), hidden: manager.placements.filter(p => manager.occlusion.get(p)?.hidden).length });
+          }
+          return frames;
+        });
+        await writeFile(`${output}/${name}-unstable.json`, JSON.stringify({ before, after, diagnostic }, null, 2));
+      }
       assert.deepEqual(after.map(v => JSON.stringify(v)).sort(), before.map(v => JSON.stringify(v)).sort(), `${name}: settled labels moved`);
       {
         const timing = await page.evaluate(async () => {
@@ -122,6 +136,7 @@ try {
       }
     }
     assert.ok(!/swiftshader|software/i.test(result.views[name].gpu), 'Live acceptance requires a physical GPU');
+    await page.evaluate(() => window.cosmo.select('Moon'));
     assert.equal(await page.getByLabel('Surface base color', { exact: true }).inputValue(), 'imagery');
     await page.screenshot({ path: `${output}/${name}-contours.png` });
     await contours.uncheck();
@@ -131,6 +146,41 @@ try {
     await contours.check();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${output}/${name}-restored.png` });
+    if (labels && name === 'close') {
+      await page.waitForFunction(() => window.renderer.getBodyMesh('Moon').terrainManager.contourLabels.settled, null, { timeout: 120000 });
+      await page.waitForTimeout(300);
+      result.visibilityMotion = await page.evaluate(async () => {
+        const r = window.renderer, camera = r.camera, controls = r.cameraController.controls;
+        const manager = r.getBodyMesh('Moon').terrainManager.contourLabels;
+        const initial = camera.position.clone(), target = controls.target.clone();
+        const right = initial.clone().setFromMatrixColumn(camera.matrixWorld, 0);
+        const pixel = initial.distanceTo(target) * 2 / camera.projectionMatrix.elements[5] / 1000;
+        const key = sprite => [sprite.userData.text, ...sprite.position.toArray().map(v => v.toFixed(4))].join(':');
+        const baseline = new Set(manager.group.children.filter(s => s.visible).map(key));
+        const sample = () => {
+          const visible = new Set(manager.group.children.filter(s => s.visible).map(key));
+          return [...baseline].filter(k => visible.has(k)).length / baseline.size;
+        };
+        const jitter = [], running = [];
+        for (let frame = 0; frame < 120; frame++) {
+          camera.position.copy(initial).addScaledVector(right, pixel * 2 * Math.sin(frame / 12));
+          camera.lookAt(target); camera.updateMatrixWorld(true);
+          await new Promise(requestAnimationFrame); jitter.push(sample());
+        }
+        camera.position.copy(initial); camera.lookAt(target); camera.updateMatrixWorld(true);
+        window.cosmo.setTimeRate(1); window.cosmo.setPlaying(true);
+        try {
+          for (let frame = 0; frame < 120; frame++) { await new Promise(requestAnimationFrame); running.push(sample()); }
+        } finally { window.cosmo.setPlaying(false); }
+        const metrics = values => ({ minimumRetained: Math.min(...values), meanRetained: values.reduce((a, b) => a + b, 0) / values.length, samples: values });
+        return { baseline: baseline.size, jitter: metrics(jitter), running: metrics(running) };
+      });
+      await writeFile(`${output}/visibility-motion.json`, JSON.stringify(result.visibilityMotion, null, 2));
+      assert.ok(result.visibilityMotion.baseline >= 15, 'motion test must start with a populated label view');
+      assert.ok(result.visibilityMotion.jitter.minimumRetained > 0.65, 'small motions blanked the label layer');
+      assert.ok(result.visibilityMotion.jitter.meanRetained > 0.85, 'small camera motions caused sustained label loss');
+      assert.ok(result.visibilityMotion.running.meanRetained > 0.75, 'running time caused sustained label loss');
+    }
     if (labels && name === 'close') {
       result.motion = await page.evaluate(async () => {
         const r = window.renderer, camera = r.camera, controls = r.cameraController.controls;

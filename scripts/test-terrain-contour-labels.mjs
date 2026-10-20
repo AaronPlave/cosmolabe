@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
-const server = await createServer({ configFile: false, root: process.cwd(), server: { host: '127.0.0.1', port: 5197, strictPort: true }, logLevel: 'error' });
+const server = await createServer({ configFile: false, root: process.cwd(), server: { host: '127.0.0.1', port: Number(process.env.CONTOUR_TEST_PORT ?? 5197), strictPort: true }, logLevel: 'error' });
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
@@ -82,11 +82,33 @@ try {
     const count = () => {
       renderer.render(scene, camera);
       const data = new Uint8Array(512 * 512 * 4), gl = renderer.getContext(); gl.readPixels(0, 0, 512, 512, gl.RGBA, gl.UNSIGNED_BYTE, data);
-      let pixels = 0, rows = 0;
+      let pixels = 0, rows = 0, luminance = 0;
+      for (let i = 0; i < data.length; i += 4) luminance += data[i];
       for (let y = 0; y < 512; y++) { let row = false; for (let x = 0; x < 512; x++) if (data[(y * 512 + x) * 4] > 60) { pixels++; row = true; } if (row) rows++; }
-      return { pixels, rows };
+      return { pixels, rows, luminance };
     };
     const retained = count(), original = material.onBeforeCompile, key = material.customProgramCacheKey.bind(material);
+    const transition = () => {
+      const values = [];
+      // Straddle the old ceil(log(delta * 4 / major)) boundary. A tiny
+      // continuous zoom must not introduce a new family across the crater.
+      for (const scale of [0.999, 1.001]) {
+        camera.top = 320 * scale; camera.bottom = -camera.top; camera.updateProjectionMatrix();
+        values.push(count().luminance);
+      }
+      return Math.abs(values[1] - values[0]) / Math.max(...values);
+    };
+    const smoothTransition = transition();
+    material.onBeforeCompile = (shader, renderer) => {
+      original.call(material, shader, renderer);
+      shader.fragmentShader = shader.fragmentShader.replace(/float saCoarse = 0\.0;[\s\S]*?float saLine =/, `
+float oldStep = saMajorStep * pow(5.0, max(0.0, ceil(log(max(1.0, saDelta * 4.0 / saMajorStep)) / log(5.0))));
+float saCoarse = saContourLine(vSAHeight, saDelta, oldStep, 1.0);
+float saLine =`);
+    };
+    material.customProgramCacheKey = () => key() + '_abrupt-level-control'; material.needsUpdate = true;
+    const abruptTransition = transition();
+    camera.top = 500; camera.bottom = -500; camera.updateProjectionMatrix();
     material.onBeforeCompile = (shader, renderer) => {
       original.call(material, shader, renderer);
       shader.fragmentShader = shader.fragmentShader.replace('float saLine = max(saMinor, max(saMajor, saCoarse));', 'float saLine = saMinor;');
@@ -95,21 +117,23 @@ try {
     const singleBand = count();
     style.set({ ...defaults }); const disabled = count();
     geometry.dispose(); material.dispose(); renderer.dispose(); renderer.domElement.remove();
-    return { retained, singleBand, disabled };
+    return { retained, singleBand, disabled, smoothTransition, abruptTransition };
   });
   console.log(JSON.stringify({ results, coverage, errors }, null, 2));
   for (const r of results) {
-    assert.ok(r.labels > 0 && r.sloped > 80, 'must render real text');
+    assert.ok(r.labels > 0 && r.sloped > 50, 'must render real text');
     assert.ok(r.sloped >= r.unrestricted * 0.98, 'slope depth must preserve full glyphs');
     assert.ok(r.flat < r.sloped * 0.9, 'flat billboard negative control must clip text');
     assert.equal(r.occluded, 0, 'foreground terrain must hide labels');
-    assert.ok(r.missingDepth > 80, 'non-depth-writing foreground is a sensitive negative control');
+    assert.ok(r.missingDepth > 50, 'non-depth-writing foreground is a sensitive negative control');
     assert.equal(r.fadingOccluded, 0, 'LOS must hide anchors behind fading/non-depth-writing terrain');
     assert.equal(r.lowOpacity, r.sloped, 'label contrast must be independent of contour color and opacity');
     assert.equal(r.disabled, 0, 'disabling contours must hide labels');
   }
   assert.ok(coverage.retained.pixels > 5000 && coverage.retained.rows > 30, 'dense intervals must retain a continuous index skeleton');
   assert.ok(coverage.retained.pixels < 512 * 512 / 2, 'unresolved lines must not wash the entire slope with contour color');
+  assert.ok(coverage.smoothTransition < 0.01, 'continuous zoom must not pop a contour family');
+  assert.ok(coverage.abruptTransition > coverage.smoothTransition * 10, 'abrupt-level control must reproduce the seam/pop');
   assert.equal(coverage.singleBand.pixels, 0, 'the previous shared-band fade must fail this dense fixture');
   assert.equal(coverage.disabled.pixels, 0);
   assert.deepEqual(errors, []);

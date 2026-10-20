@@ -22,6 +22,7 @@ describe('terrain contour labels', () => {
 
   it('formats signed metres without negative zero and bounds persisted intervals', () => {
     expect([-4, -0.025, -0, 0.05, 1.25].map(formatContourHeight)).toEqual(['-4000 m', '-25 m', '0 m', '50 m', '1250 m']);
+    expect(normalizeSurfaceAppearance({ ...defaults, contourDensity: 4 }).contourDensity).toBe(2);
     expect(normalizeSurfaceAppearance({ ...defaults, contourIntervalKm: Infinity }).contourIntervalKm).toBe(1);
     expect(normalizeSurfaceAppearance({ ...defaults, contourIntervalKm: -1 }).contourIntervalKm).toBe(0);
     expect(normalizeSurfaceAppearance({ ...defaults, contourIntervalKm: 0.00001 }).contourIntervalKm).toBe(0.001);
@@ -162,6 +163,48 @@ describe('terrain contour labels', () => {
     ridge.position.z = 500;
     labels.update(camera, 1200, 1000, [...meshes, ridge], settings);
     expect(labels.group.children.filter(s => s.visible)).toHaveLength(0);
+    labels.dispose();
+  });
+
+  it('fairly refreshes moving visibility checks without blinking or invalidating tracking-time motion', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ strokeText() {}, fillText() {} }) }) });
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new THREE.Group(), labels = new TerrainContourLabels();
+    const geometry = new THREE.PlaneGeometry(1200, 1000, 1, 40), p = geometry.getAttribute('position');
+    geometry.setAttribute('surfaceHeightKm', new THREE.Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getY(i) * 0.01), 1));
+    const mesh = new THREE.Mesh(geometry);
+    const camera = new THREE.OrthographicCamera(-600, 600, 500, -500, 0.1, 10000);
+    camera.position.z = 1000; camera.lookAt(0, 0, 0);
+    body.add(mesh, labels.group, camera);
+    const settings = { ...defaults, contours: true, contourLabels: true, contourIntervalKm: 0.1 };
+    const update = () => { body.updateMatrixWorld(true); labels.update(camera, 1200, 1000, [mesh], settings); };
+    update();
+    const initial = labels.group.children.filter(s => s.visible).map(s => s.position.toArray());
+    expect(initial).toHaveLength(19);
+    const raycast = mesh.raycast.bind(mesh);
+    const check = vi.spyOn(mesh, 'raycast').mockImplementation((ray, hits) => { now += 1; raycast(ray, hits); });
+    // More than one pixel per frame invalidates LOS. Each real raycast uses
+    // half the allowance, so later labels must retain their result and get a
+    // turn, instead of going dark behind the first two labels every frame.
+    now += 10000; // A long paused view must not consume the motion grace period.
+    for (let frame = 0; frame < 60; frame++) {
+      now += 16; camera.position.x = Math.sin(frame / 8) * 20;
+      update();
+      expect(labels.group.children.filter(s => s.visible)).toHaveLength(19);
+    }
+    expect(check.mock.calls.length).toBeGreaterThan(50);
+    check.mockClear();
+    camera.position.x = 0; now += 16; update();
+    // A whole moving body and its tracking camera have constant relative LOS.
+    // Expensive checks must remain cached despite changing world coordinates.
+    check.mockClear();
+    for (let frame = 0; frame < 10; frame++) {
+      now += 16; body.position.set(1e7 + frame * 100, -2e7, 3e7); body.rotation.y += 0.001;
+      update();
+      expect(labels.group.children.filter(s => s.visible)).toHaveLength(19);
+    }
+    expect(check.mock.calls.length).toBeLessThan(19);
     labels.dispose();
   });
 
