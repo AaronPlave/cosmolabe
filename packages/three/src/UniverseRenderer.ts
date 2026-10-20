@@ -1156,13 +1156,19 @@ export class UniverseRenderer {
       markers.clipStrokesToCamera(this.camera, strokeMinDepth);
     }
 
+    const contourLabelObstacles = [
+      ...(this.labelManager?.getScreenRects() ?? []),
+      ...this.spatialCalloutRects, ...this.probeCalloutRects,
+      ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
+      ...(this._screenOccluders?.() ?? []),
+    ];
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
         const dist = bm.position.distanceTo(this.camera.position);
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx);
+        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, contourLabelObstacles);
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
     }

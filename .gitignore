@@ -56,6 +56,7 @@ apps/viewer/test-catalogs/data/moon-imagery-cube-*/
 work/cube-terrain/
 work/cube-imagery/
 work/cube-surface-appearance/
+work/issue-183/
 scripts/build-moon-terrain/data/
 scripts/build-globe-textures/data/
 scripts/build-globe-textures/.venv/
