@@ -1,4 +1,5 @@
 import clipping, { type MultiPolygon, type Pair } from 'polygon-clipping';
+import { geographicProjection } from '../geographic/projection.js';
 import { wrapLon } from '../geographic/coordinates.js';
 import type { GeographicCoordinates, GeographicFeature, GeographicGeometry, GeoPosition } from '../geographic/model.js';
 import { planFail } from './model.js';
@@ -6,8 +7,18 @@ import { planFail } from './model.js';
 const DEG = Math.PI / 180;
 const WORLD: MultiPolygon = [[[[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]]]];
 
+/** Rendering supports polar charts; this estimator's clipping/area model does not. */
+export function assertSurfacePlanProjection(feature: GeographicFeature): void {
+  const g = feature.geometry;
+  const polygons = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+  if (polygons.some(p => geographicProjection(p[0]) !== 'longitude-latitude')) {
+    planFail('unsupported-shape', feature.id, 'Pole-enclosing polygons are unsupported by the surface-plan estimator; split the region into non-polar pieces');
+  }
+}
+
 /** Clip in the shared source longitude/latitude plane, not a second geometry model. */
 export function surfaceFeatureGeometry(feature: GeographicFeature, coordinates: GeographicCoordinates): MultiPolygon {
+  assertSurfacePlanProjection(feature);
   const g = feature.original.geometry as unknown as GeographicGeometry<GeoPosition>;
   if (g.type !== 'Polygon' && g.type !== 'MultiPolygon') return planFail('unsupported-shape', feature.id, 'Expected Polygon or MultiPolygon');
   const polygons: GeoPosition[][][] = g.type === 'Polygon' ? [g.coordinates as GeoPosition[][]] : g.coordinates as GeoPosition[][][];

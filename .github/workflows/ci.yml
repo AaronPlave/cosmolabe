@@ -13,7 +13,9 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    # Playwright 1.60 cannot install Chromium dependencies on Ubuntu 26.04.
+    # Keep the browser smoke on a supported image rather than the moving alias.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -162,3 +164,33 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Install Chromium for global geographic smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Global countries normal-viewer smoke
+        env:
+          DEV_DATA_MODE: local
+          CL_SMOKE: '1'
+          CL_FRAMES: '1'
+          CL_VIEWER_URL: http://127.0.0.1:5188/
+          CL_OUTPUT: /tmp/geographic-global-smoke
+        run: |
+          npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5188 --strictPort > /tmp/geographic-global-vite.log 2>&1 &
+          VIEWER_PID=$!
+          trap 'kill "$VIEWER_PID"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5188/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/test-geographic-global.mjs
+
+      - name: Save global geographic smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-global-smoke
+          path: |
+            /tmp/geographic-global-smoke/
+            /tmp/geographic-global-vite.log
+          if-no-files-found: ignore

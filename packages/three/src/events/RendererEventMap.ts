@@ -1,9 +1,12 @@
 import type { UniverseEventMap } from '@cosmolabe/core';
 import type { AssetProgress, InitialAssetsSummary } from '../AssetLoadTracker.js';
 import type { SurfacePoint } from '../SceneHit.js';
+import type { GeographicFeatureRef } from '../geographic/GeographicIndex.js';
 
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {
+  'geographic:click': GeographicFeatureRef;
+  'geographic:hover': GeographicFeatureRef | null;
   /**
    * Emitted immediately on a single-click of a body (no debounce — selection
    * shouldn't feel laggy). Note: a double-click will fire `body:click` once or
