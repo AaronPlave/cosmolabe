@@ -69,12 +69,19 @@ export interface CameraModeParams {
   centerBodyName?: string;
   /** Damping factor 0-1 for CHASE smoothing (default: 0.05) */
   damping?: number;
-  /** Geodetic latitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic latitude in degrees. With `lonDeg`,
+   *  an explicit destination — 0°, 0° included. Omitted, `CameraController`
+   *  infers the entry from the current view (see `surfaceEntryPose`). */
   latDeg?: number;
-  /** Geodetic longitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic longitude in degrees. */
   lonDeg?: number;
-  /** Altitude above surface in km for SURFACE */
+  /** SURFACE: height above the reference ellipsoid, km. SURFACE_EXPLORER:
+   *  clearance above sampled terrain, km. */
   altKm?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial heading, degrees clockwise from north (default 0). */
+  headingDeg?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial pitch, degrees up from the horizon (mode default when omitted). */
+  pitchDeg?: number;
   /** Body to look at from surface (SURFACE mode) */
   lookTarget?: string;
   /** Sensor name for INSTRUMENT mode */

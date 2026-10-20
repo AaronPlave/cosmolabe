@@ -382,6 +382,24 @@ export function viewpointBodies(vp: ViewpointDefinition): string[] {
 // --- Parsing and the portable form ------------------------------------------
 
 const DIRECTION_KINDS = ['toward', 'velocity', 'orbitNormal', 'axis', 'vector'] as const;
+
+/**
+ * The fields `parseViewpoint` reads from a `Viewpoint` item, and the fields
+ * `parseDirection` reads for each direction `kind` (`from`, and `up` in its
+ * object form). The catalog schema check (catalog/CatalogSchema.ts) reports
+ * any other key, so a field added to the parser below must be added here.
+ */
+export const VIEWPOINT_FIELDS: readonly string[] = [
+  'name', 'type', 'center', 'frame', 'lookAt', 'distance', 'longitude', 'latitude', 'fov',
+  'eye', 'target', 'up', 'from', 'time', 'epoch',
+];
+export const VIEW_DIRECTION_FIELDS: Readonly<Record<typeof DIRECTION_KINDS[number], readonly string[]>> = {
+  toward: ['kind', 'body', 'from', 'negate'],
+  velocity: ['kind', 'body', 'relativeTo', 'negate'],
+  orbitNormal: ['kind', 'body', 'relativeTo', 'negate'],
+  axis: ['kind', 'axis', 'frame'],
+  vector: ['kind', 'vector', 'frame'],
+};
 const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 const vec3 = (v: unknown): v is [number, number, number] =>
   Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x));
