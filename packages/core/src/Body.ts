@@ -51,6 +51,11 @@ export interface BodyProperties {
    *  frame (`Trajectory.frame`, e.g. TLE → TEME) overrides this. Defaults to
    *  ECLIPJ2000. */
   trajectoryFrame?: string;
+  /** Existence window, ET seconds: before `existsFrom` and after `existsUntil`
+   *  the body is not in the scene (Cosmographia's item `startTime`/`endTime`).
+   *  Either bound may be omitted; with neither, the body always exists. */
+  existsFrom?: number;
+  existsUntil?: number;
 }
 
 function canonicalFrame(name: string): string {
@@ -89,6 +94,9 @@ export class Body {
   /** The frame the body's own properties declared, canonicalized; undefined
    *  when none was given. `frame` is what to use. */
   readonly declaredFrame?: string;
+  /** Existence window bounds (ET seconds); see `existsAt`. */
+  readonly existsFrom?: number;
+  readonly existsUntil?: number;
   readonly children: Body[] = [];
 
   /** Called when trajectory or rotation is changed at runtime. Set by Universe. */
@@ -112,6 +120,17 @@ export class Body {
     this.declaredFrame = props.trajectoryFrame !== undefined
       ? canonicalFrame(props.trajectoryFrame)
       : undefined;
+    this.existsFrom = props.existsFrom;
+    this.existsUntil = props.existsUntil;
+  }
+
+  /** Whether `et` falls inside the body's own existence window (bounds
+   *  inclusive). Says nothing about its parent or its data coverage:
+   *  `Universe.isPresentAt` answers the whole question. */
+  existsAt(et: number): boolean {
+    if (this.existsFrom !== undefined && et < this.existsFrom) return false;
+    if (this.existsUntil !== undefined && et > this.existsUntil) return false;
+    return true;
   }
 
   /** Frame `stateAt(et).position` is expressed in, by name. The trajectory's

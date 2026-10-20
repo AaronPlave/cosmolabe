@@ -29,7 +29,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc --build packages/control packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
+    "build": "tsc --build packages/control packages/cspice-wasm packages/frames packages/interop packages/core packages/three packages/cesium-adapter packages/cesium",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "typecheck:viewer": "tsc -p apps/viewer/tsconfig.check.json",
     "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
@@ -41,6 +41,7 @@
     "lint:purity": "bash scripts/purity-lint.sh",
     "preprocess:displacement": "node scripts/preprocess-displacement.mjs",
     "validate:terrain": "node scripts/validate-terrain.mjs",
+    "plan:surface": "tsc --build packages/core && node scripts/plan-surface.mjs",
     "test:dem": "python3 scripts/terrain/dem.py selftest",
     "publish:data": "node scripts/publish-data.mjs"
   },

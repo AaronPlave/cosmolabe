@@ -38,6 +38,7 @@ export {
   type HCkCoverageOptions,
   type HSpkSegment,
   type HGfReport,
+  type HDskShape,
 } from './heritage-spice.js';
 export { spiceUtcFromIso } from './iso-epoch.js';
 export { sha256Hex, sha256HexOfText } from './sha256.js';

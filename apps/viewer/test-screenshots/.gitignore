@@ -5,3 +5,6 @@
 
 # Generated transport decomposition captures; reviewed figure lives in docs.
 atmosphere-diagnostics/
+
+# Generated continuous measurement camera-orbit recordings.
+measurements/arrow-orbits/

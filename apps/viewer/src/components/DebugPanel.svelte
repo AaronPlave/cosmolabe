@@ -31,6 +31,9 @@
     'cpu-coverage': 'Green: CPU heights decoded · amber: split from parent',
     'datum-height': 'Mean height vs datum: blue below · red above',
     'seam-error': 'Edge mismatch vs neighbours: green 0 → red ≥ 5 m · grey: none cached',
+    'cube-face': 'Cube-sphere face hue, brighter with depth (#149 experiment)',
+    'imagery-level': 'Cube imagery: hue per displayed imagery level, independent of tile depth (#149)',
+    'imagery-unlit': 'Cube imagery texels, unlit and unconverted (#149 registration checks)',
   };
 
   /**
@@ -39,7 +42,7 @@
    * the planet's terrain diagnostics). Polled with FPS rather than derived
    * per frame: the memory estimate walks the loaded tiles.
    */
-  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; }
+  interface TerrainSnapshot { body: string; metrics: TerrainPerformanceMetrics; source: string | null; state: string; debugMode: TerrainDebugMode; surface: string | null; }
   let terrain = $state<TerrainSnapshot | null>(null);
 
   function pollTerrain(): void {
@@ -54,6 +57,7 @@
           body: name, metrics, source: bm.terrainSourceId,
           state: bm.terrainDiagnostics?.state ?? 'unloaded',
           debugMode: bm.terrainDebugMode ?? 'none',
+          surface: bm.surfaceTransitionState,
         };
         // The renderer owns the mode; the panel only mirrors it, so reopening
         // the panel or reloading a catalog never shows a stale selection.
@@ -229,6 +233,25 @@
         <div class="row" title="requests issued · queued + downloading + parsing"><span class="label">Requests</span><span class="val">{t.network.requests} &middot; {t.network.queued + t.network.downloading + t.network.parsing} open{#if t.network.failed}&nbsp;&middot; {t.network.failed} failed{/if}</span></div>
         <div class="row" title="tile LRU cache / its limit"><span class="label">Cache</span><span class="val">{mb(t.memory.cacheBytes)} / {mb(t.memory.maxCacheBytes)}</span></div>
         <div class="row" title="estimated from loaded tiles: geometry / textures"><span class="label">GPU est.</span><span class="val">{mb(t.memory.geometryBytes)} / {mb(t.memory.textureBytes)}</span></div>
+        <div class="row" title="static map / preloading / waiting for first tiles / streamed / fallback after a failed stream"><span class="label">Surface</span><span class="val">{terrain.surface ?? '—'}</span></div>
+        {#if t.imagery.layers > 0}
+          <div class="row" title="imagery overlays shown / configured · overlay fetches (failed)"><span class="label">Imagery</span><span class="val">{t.imagery.activeOverlays} / {t.imagery.layers} &middot; {t.imagery.requests}{#if t.imagery.failed}&nbsp;({t.imagery.failed} failed){/if}</span></div>
+          <label class="row" title="Per-tile imagery composite size. Changing it rebuilds every shown overlay, for side-by-side measurement; texture memory grows with its square.">
+            <span class="label">Composite</span>
+            <select
+              class="val m-0 bg-transparent"
+              value={String(t.imagery.overlayResolution)}
+              onchange={(e) => {
+                const px = Number((e.target as HTMLSelectElement).value);
+                getRenderer()?.getBodyMesh(terrain!.body)?.setOverlayResolution(px);
+              }}
+            >
+              {#each [...new Set([256, 512, 1024, t.imagery.overlayResolution])].sort((a, b) => a - b) as px}
+                <option value={String(px)}>{px} px</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
       {:else}
         <div class="row"><span class="label">Sampler</span><span class="val">none</span></div>
       {/if}

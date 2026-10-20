@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const DATASETS_PATH = join(ROOT, 'scripts/data-hosting/datasets.json');
-/** Directory the viewer serves as its publicDir; catalog-relative paths resolve inside it. */
+/** On-disk root for repository example catalogs and their catalog-relative assets. */
 export const CATALOG_ROOT = 'apps/viewer/test-catalogs';
 
 const BUILD_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;

@@ -9,6 +9,8 @@ import { captureSharedEvents, restoreSharedEvents } from './event-finder.svelte'
 import { configuredProfiles, createConfiguredProfile, removeConfiguredItem, setConfiguredItemEnabled, setConfiguredItemVisible } from './analysis.svelte';
 import { sharedProfileOf, validateProfileLinkState, type ProfileLinkState } from './profile-link-state';
 import { viewLink, type ViewerViewState } from './view-state-url';
+import { captureSharedMeasurements, restoreSharedMeasurements } from './spatial-measurements.svelte';
+import { validateMeasurementLinkState, validateMeasurementReferences } from './measurement-link-state';
 
 export function captureViewState(pageUrl = location.href): ViewerViewState {
   const r = getRenderer();
@@ -52,8 +54,10 @@ export function captureViewState(pageUrl = location.href): ViewerViewState {
   });
   const events = captureSharedEvents();
   const profiles = configuredProfiles();
+  const measurements = captureSharedMeasurements();
   return { ...state, ...(events ? { events } : {}),
-    ...(profiles.length ? { profiles: validateProfileLinkState({ version: 1, profiles: profiles.map(sharedProfileOf) }) } : {}) };
+    ...(profiles.length ? { profiles: validateProfileLinkState({ version: 1, profiles: profiles.map(sharedProfileOf) }) } : {}),
+    ...(measurements ? { measurements } : {}) };
 }
 
 /** Replace the timeline profiles with the shared ones (none when the link has none).
@@ -83,9 +87,17 @@ export async function copyViewLink(): Promise<string> {
 export async function restoreView(state: ViewerViewState, signal?: AbortSignal): Promise<void> {
   const r = getRenderer();
   if (signal?.aborted) return;
+  // Validate every measurement/reference before changing any scene state.
+  if (state.measurements) {
+    const shared = validateMeasurementLinkState(state.measurements);
+    const universe = getUniverse();
+    if (!universe) throw new ViewStateError('Measurement context: the catalog has no scene.');
+    validateMeasurementReferences(shared, universe, state.time.kind === 'fixed' ? state.time.et : createViewerControl().getTime());
+  }
   // Searches may take time; keep the encoded epoch paused while rebuilding.
   applyViewState(createViewerControl(), { ...state, playback: { ...state.playback, playing: false } }, { afterSeek: () => r?.renderFrame() });
   try {
+    restoreSharedMeasurements(state.measurements);
     restoreSharedProfiles(state.profiles);
     await restoreSharedEvents(state.events, signal);
   } finally {

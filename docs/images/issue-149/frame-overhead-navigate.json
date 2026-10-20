@@ -1,0 +1,1125 @@
+[
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:17:01.864Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube/tileset.json",
+  "label": "nav-grid",
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "navigate": [
+    {
+     "catalog": "grid",
+     "culling": false,
+     "rep": 0,
+     "frames": 412,
+     "longFrames": 22,
+     "flyMs": 3620,
+     "intervalMs": {
+      "n": 411,
+      "median": 8.3,
+      "p95": 13.1,
+      "max": 21.9,
+      "mean": 8.775
+     },
+     "cpuMs": {
+      "n": 412,
+      "median": 3,
+      "p95": 9.6,
+      "max": 17.5,
+      "mean": 3.766
+     },
+     "gpuMs": {
+      "n": 412,
+      "median": 1.589,
+      "p95": 2.646,
+      "max": 5.017,
+      "mean": 1.628
+     },
+     "stages": {
+      "frames": 412,
+      "frame": 3.757,
+      "terrain": 2.458,
+      "tiles": 0.2917,
+      "imagery": 2.151,
+      "prep": 0.2777,
+      "submit": 0.8728,
+      "passes": 4,
+      "terrainOther": 0.01505,
+      "frameOther": 0.1485
+     },
+     "visibleMax": 174,
+     "drawnMax": 174,
+     "drawnMean": 87.33,
+     "visibleMean": 87.33,
+     "settleMs": 3557,
+     "finished": true,
+     "glbRequests": 654,
+     "glbBytes": 105227220,
+     "imageryRequests": 641,
+     "imageryBytes": 18276483,
+     "memory": {
+      "cacheBytes": 125333376,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 181005672,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 13.48,
+      "evicted": 256
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": true,
+     "rep": 0,
+     "frames": 410,
+     "longFrames": 22,
+     "flyMs": 3525,
+     "intervalMs": {
+      "n": 409,
+      "median": 8.3,
+      "p95": 12.5,
+      "max": 21.9,
+      "mean": 8.589
+     },
+     "cpuMs": {
+      "n": 410,
+      "median": 1.5,
+      "p95": 8.4,
+      "max": 20.3,
+      "mean": 2.631
+     },
+     "gpuMs": {
+      "n": 410,
+      "median": 0.8615,
+      "p95": 1.484,
+      "max": 2.145,
+      "mean": 0.8613
+     },
+     "stages": {
+      "frames": 410,
+      "frame": 2.624,
+      "terrain": 1.887,
+      "tiles": 0.2898,
+      "imagery": 1.565,
+      "prep": 0.1566,
+      "submit": 0.4341,
+      "passes": 4,
+      "terrainOther": 0.03171,
+      "frameOther": 0.1468
+     },
+     "visibleMax": 180,
+     "drawnMax": 60,
+     "drawnMean": 24.69,
+     "visibleMean": 87.74,
+     "settleMs": 3567,
+     "finished": true,
+     "glbRequests": 667,
+     "glbBytes": 107318932,
+     "imageryRequests": 558,
+     "imageryBytes": 16359283,
+     "memory": {
+      "cacheBytes": 126612288,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 174670944,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 5.433,
+      "evicted": 165
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": true,
+     "rep": 1,
+     "frames": 414,
+     "longFrames": 18,
+     "flyMs": 3570,
+     "intervalMs": {
+      "n": 413,
+      "median": 8.3,
+      "p95": 12.2,
+      "max": 22.6,
+      "mean": 8.608
+     },
+     "cpuMs": {
+      "n": 414,
+      "median": 1.6,
+      "p95": 8.3,
+      "max": 17.7,
+      "mean": 2.668
+     },
+     "gpuMs": {
+      "n": 414,
+      "median": 0.8675,
+      "p95": 1.524,
+      "max": 14.44,
+      "mean": 0.8844
+     },
+     "stages": {
+      "frames": 414,
+      "frame": 2.66,
+      "terrain": 1.902,
+      "tiles": 0.293,
+      "imagery": 1.573,
+      "prep": 0.1582,
+      "submit": 0.4495,
+      "passes": 4,
+      "terrainOther": 0.03623,
+      "frameOther": 0.15
+     },
+     "visibleMax": 180,
+     "drawnMax": 71,
+     "drawnMean": 25.04,
+     "visibleMean": 88.42,
+     "settleMs": 3556,
+     "finished": true,
+     "glbRequests": 692,
+     "glbBytes": 111341556,
+     "imageryRequests": 554,
+     "imageryBytes": 16363949,
+     "memory": {
+      "cacheBytes": 124693920,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 172106736,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 5.433,
+      "evicted": 154
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": false,
+     "rep": 1,
+     "frames": 410,
+     "longFrames": 27,
+     "flyMs": 3642,
+     "intervalMs": {
+      "n": 409,
+      "median": 8.3,
+      "p95": 13.5,
+      "max": 22.9,
+      "mean": 8.869
+     },
+     "cpuMs": {
+      "n": 410,
+      "median": 3,
+      "p95": 10,
+      "max": 18.4,
+      "mean": 3.81
+     },
+     "gpuMs": {
+      "n": 410,
+      "median": 1.588,
+      "p95": 2.716,
+      "max": 3.898,
+      "mean": 1.629
+     },
+     "stages": {
+      "frames": 410,
+      "frame": 3.798,
+      "terrain": 2.498,
+      "tiles": 0.2815,
+      "imagery": 2.203,
+      "prep": 0.2659,
+      "submit": 0.8795,
+      "passes": 4,
+      "terrainOther": 0.01366,
+      "frameOther": 0.1541
+     },
+     "visibleMax": 174,
+     "drawnMax": 174,
+     "drawnMean": 86.72,
+     "visibleMean": 86.72,
+     "settleMs": 3554,
+     "finished": true,
+     "glbRequests": 682,
+     "glbBytes": 109732576,
+     "imageryRequests": 643,
+     "imageryBytes": 18221822,
+     "memory": {
+      "cacheBytes": 123415008,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 178441464,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 13.48,
+      "evicted": 242
+     },
+     "errors": []
+    }
+   ]
+  }
+ },
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:17:45.687Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube-simplified-003/tileset.json",
+  "label": "nav-s003-grid",
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "navigate": [
+    {
+     "catalog": "grid",
+     "culling": false,
+     "rep": 0,
+     "frames": 411,
+     "longFrames": 13,
+     "flyMs": 3528,
+     "intervalMs": {
+      "n": 410,
+      "median": 8.3,
+      "p95": 10.9,
+      "max": 19.7,
+      "mean": 8.573
+     },
+     "cpuMs": {
+      "n": 411,
+      "median": 2.9,
+      "p95": 7.2,
+      "max": 12.7,
+      "mean": 3.394
+     },
+     "gpuMs": {
+      "n": 411,
+      "median": 1.149,
+      "p95": 1.626,
+      "max": 2.263,
+      "mean": 1.156
+     },
+     "stages": {
+      "frames": 411,
+      "frame": 3.386,
+      "terrain": 2.012,
+      "tiles": 0.3891,
+      "imagery": 1.605,
+      "prep": 0.29,
+      "submit": 0.9153,
+      "passes": 4,
+      "terrainOther": 0.01752,
+      "frameOther": 0.1684
+     },
+     "visibleMax": 219,
+     "drawnMax": 219,
+     "drawnMean": 120.8,
+     "visibleMean": 120.8,
+     "settleMs": 3556,
+     "finished": true,
+     "glbRequests": 912,
+     "glbBytes": 78352252,
+     "imageryRequests": 634,
+     "imageryBytes": 18584735,
+     "memory": {
+      "cacheBytes": 87382056,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 121369080,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 4.319,
+      "evicted": 225
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": true,
+     "rep": 0,
+     "frames": 410,
+     "longFrames": 3,
+     "flyMs": 3443,
+     "intervalMs": {
+      "n": 409,
+      "median": 8.3,
+      "p95": 9.7,
+      "max": 15.1,
+      "mean": 8.384
+     },
+     "cpuMs": {
+      "n": 410,
+      "median": 1.6,
+      "p95": 5.6,
+      "max": 13.4,
+      "mean": 2.266
+     },
+     "gpuMs": {
+      "n": 410,
+      "median": 0.7102,
+      "p95": 1.008,
+      "max": 1.552,
+      "mean": 0.6669
+     },
+     "stages": {
+      "frames": 410,
+      "frame": 2.257,
+      "terrain": 1.496,
+      "tiles": 0.39,
+      "imagery": 1.064,
+      "prep": 0.158,
+      "submit": 0.4346,
+      "passes": 4,
+      "terrainOther": 0.04171,
+      "frameOther": 0.1683
+     },
+     "visibleMax": 219,
+     "drawnMax": 63,
+     "drawnMean": 30.57,
+     "visibleMean": 121.3,
+     "settleMs": 3561,
+     "finished": true,
+     "glbRequests": 929,
+     "glbBytes": 79808464,
+     "imageryRequests": 548,
+     "imageryBytes": 16199571,
+     "memory": {
+      "cacheBytes": 87920652,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 118952700,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 1.181,
+      "evicted": 139
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": true,
+     "rep": 1,
+     "frames": 414,
+     "longFrames": 4,
+     "flyMs": 3481,
+     "intervalMs": {
+      "n": 413,
+      "median": 8.3,
+      "p95": 9.3,
+      "max": 16.6,
+      "mean": 8.395
+     },
+     "cpuMs": {
+      "n": 414,
+      "median": 1.6,
+      "p95": 5.3,
+      "max": 11.8,
+      "mean": 2.232
+     },
+     "gpuMs": {
+      "n": 414,
+      "median": 0.7086,
+      "p95": 1.024,
+      "max": 1.636,
+      "mean": 0.6678
+     },
+     "stages": {
+      "frames": 414,
+      "frame": 2.224,
+      "terrain": 1.491,
+      "tiles": 0.3954,
+      "imagery": 1.059,
+      "prep": 0.1539,
+      "submit": 0.4196,
+      "passes": 4,
+      "terrainOther": 0.03696,
+      "frameOther": 0.1597
+     },
+     "visibleMax": 222,
+     "drawnMax": 69,
+     "drawnMean": 31.09,
+     "visibleMean": 122.6,
+     "settleMs": 3568,
+     "finished": true,
+     "glbRequests": 900,
+     "glbBytes": 77273604,
+     "imageryRequests": 558,
+     "imageryBytes": 16275024,
+     "memory": {
+      "cacheBytes": 87964740,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 119012016,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 1.181,
+      "evicted": 157
+     },
+     "errors": []
+    },
+    {
+     "catalog": "grid",
+     "culling": false,
+     "rep": 1,
+     "frames": 413,
+     "longFrames": 10,
+     "flyMs": 3513,
+     "intervalMs": {
+      "n": 412,
+      "median": 8.3,
+      "p95": 10.4,
+      "max": 16.9,
+      "mean": 8.489
+     },
+     "cpuMs": {
+      "n": 413,
+      "median": 2.8,
+      "p95": 6.8,
+      "max": 13.3,
+      "mean": 3.287
+     },
+     "gpuMs": {
+      "n": 413,
+      "median": 1.151,
+      "p95": 1.615,
+      "max": 1.981,
+      "mean": 1.154
+     },
+     "stages": {
+      "frames": 413,
+      "frame": 3.278,
+      "terrain": 1.983,
+      "tiles": 0.3925,
+      "imagery": 1.576,
+      "prep": 0.2789,
+      "submit": 0.8622,
+      "passes": 4,
+      "terrainOther": 0.01429,
+      "frameOther": 0.154
+     },
+     "visibleMax": 219,
+     "drawnMax": 219,
+     "drawnMean": 121.1,
+     "visibleMean": 121.1,
+     "settleMs": 3555,
+     "finished": true,
+     "glbRequests": 906,
+     "glbBytes": 77850716,
+     "imageryRequests": 628,
+     "imageryBytes": 18170192,
+     "memory": {
+      "cacheBytes": 87554820,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 121601028,
+      "textureBytes": 0
+     },
+     "imagery": {
+      "textures": 451,
+      "textureMiB": 159.9,
+      "blockGeometryMB": 4.319,
+      "evicted": 227
+     },
+     "errors": []
+    }
+   ]
+  }
+ },
+ {
+  "generator": "scripts/capture-cube-imagery.mjs",
+  "created": "2026-10-15T17:16:17.412Z",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "cubeTileset": "moon-terrain-cube/tileset.json",
+  "label": "nav-terrain",
+  "poses": {
+   "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+   "views": {
+    "shackleton": {
+     "eye": [
+      -18.11,
+      21.75,
+      -1743
+     ],
+     "target": [
+      -6.393,
+      7.679,
+      -1735
+     ],
+     "fov": 60
+    },
+    "pole": {
+     "eye": [
+      7.85,
+      -9.356,
+      -1749
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 60
+    },
+    "antimeridian-60s": {
+     "eye": [
+      -904.7,
+      12.63,
+      -1530
+     ],
+     "target": [
+      -868.7,
+      1.064e-13,
+      -1505
+     ],
+     "fov": 60
+    },
+    "face-edge": {
+     "eye": [
+      1270,
+      -17.73,
+      -1244
+     ],
+     "target": [
+      1229,
+      0,
+      -1229
+     ],
+     "fov": 60
+    },
+    "face-corner": {
+     "eye": [
+      1035,
+      1057,
+      -1021
+     ],
+     "target": [
+      1003,
+      1003,
+      -1003
+     ],
+     "fov": 60
+    },
+    "overview": {
+     "eye": [
+      1359,
+      2353,
+      -3881
+     ],
+     "target": [
+      297.1,
+      514.6,
+      -1633
+     ],
+     "fov": 50
+    },
+    "nac-footprint": {
+     "eye": [
+      356.9,
+      129.9,
+      -2154
+     ],
+     "target": [
+      1.064e-13,
+      0,
+      -1737
+     ],
+     "fov": 50
+    }
+   }
+  },
+  "browser": {
+   "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+   "devicePixelRatio": 1,
+   "crossOriginIsolated": false,
+   "shadowMap": true,
+   "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+   "hardwareConcurrency": 16,
+   "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+  },
+  "host": {
+   "platform": "darwin 25.6.0",
+   "cpus": 16,
+   "cpuModel": "Apple M4 Max",
+   "memoryGB": 48
+  },
+  "results": {
+   "navigate": [
+    {
+     "catalog": "terrain",
+     "culling": false,
+     "rep": 0,
+     "frames": 410,
+     "longFrames": 0,
+     "flyMs": 3422,
+     "intervalMs": {
+      "n": 409,
+      "median": 8.3,
+      "p95": 9.2,
+      "max": 10,
+      "mean": 8.335
+     },
+     "cpuMs": {
+      "n": 410,
+      "median": 1,
+      "p95": 1.9,
+      "max": 6,
+      "mean": 1.076
+     },
+     "gpuMs": {
+      "n": 410,
+      "median": 1.207,
+      "p95": 2.023,
+      "max": 3.938,
+      "mean": 1.213
+     },
+     "stages": {
+      "frames": 410,
+      "frame": 1.065,
+      "terrain": 0.3539,
+      "tiles": 0.3349,
+      "imagery": 0,
+      "prep": 0.1883,
+      "submit": 0.3544,
+      "passes": 4,
+      "terrainOther": 0.01902,
+      "frameOther": 0.1688
+     },
+     "visibleMax": 177,
+     "drawnMax": 177,
+     "drawnMean": 87.98,
+     "visibleMean": 87.98,
+     "settleMs": 3557,
+     "finished": true,
+     "glbRequests": 698,
+     "glbBytes": 112306924,
+     "imageryRequests": 0,
+     "imageryBytes": 0,
+     "memory": {
+      "cacheBytes": 129170112,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 129170112,
+      "textureBytes": 0
+     },
+     "imagery": null,
+     "errors": []
+    },
+    {
+     "catalog": "terrain",
+     "culling": true,
+     "rep": 0,
+     "frames": 411,
+     "longFrames": 0,
+     "flyMs": 3423,
+     "intervalMs": {
+      "n": 410,
+      "median": 8.3,
+      "p95": 9.2,
+      "max": 9.7,
+      "mean": 8.32
+     },
+     "cpuMs": {
+      "n": 411,
+      "median": 0.8,
+      "p95": 2.1,
+      "max": 5.1,
+      "mean": 0.9691
+     },
+     "gpuMs": {
+      "n": 411,
+      "median": 0.6274,
+      "p95": 1.049,
+      "max": 1.774,
+      "mean": 0.6326
+     },
+     "stages": {
+      "frames": 411,
+      "frame": 0.9601,
+      "terrain": 0.4185,
+      "tiles": 0.374,
+      "imagery": 0,
+      "prep": 0.1479,
+      "submit": 0.2085,
+      "passes": 4,
+      "terrainOther": 0.04453,
+      "frameOther": 0.1852
+     },
+     "visibleMax": 177,
+     "drawnMax": 68,
+     "drawnMean": 24.72,
+     "visibleMean": 88.03,
+     "settleMs": 3571,
+     "finished": true,
+     "glbRequests": 731,
+     "glbBytes": 117616540,
+     "imageryRequests": 0,
+     "imageryBytes": 0,
+     "memory": {
+      "cacheBytes": 127251744,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 127251744,
+      "textureBytes": 0
+     },
+     "imagery": null,
+     "errors": []
+    },
+    {
+     "catalog": "terrain",
+     "culling": true,
+     "rep": 1,
+     "frames": 409,
+     "longFrames": 0,
+     "flyMs": 3414,
+     "intervalMs": {
+      "n": 408,
+      "median": 8.3,
+      "p95": 9.2,
+      "max": 10.1,
+      "mean": 8.332
+     },
+     "cpuMs": {
+      "n": 409,
+      "median": 0.8,
+      "p95": 2,
+      "max": 5.2,
+      "mean": 0.9178
+     },
+     "gpuMs": {
+      "n": 409,
+      "median": 0.6422,
+      "p95": 1.054,
+      "max": 1.559,
+      "mean": 0.6287
+     },
+     "stages": {
+      "frames": 409,
+      "frame": 0.9095,
+      "terrain": 0.3861,
+      "tiles": 0.3433,
+      "imagery": 0,
+      "prep": 0.132,
+      "submit": 0.2017,
+      "passes": 4,
+      "terrainOther": 0.04279,
+      "frameOther": 0.1897
+     },
+     "visibleMax": 177,
+     "drawnMax": 63,
+     "drawnMean": 24.64,
+     "visibleMean": 87.84,
+     "settleMs": 3574,
+     "finished": true,
+     "glbRequests": 708,
+     "glbBytes": 113915964,
+     "imageryRequests": 0,
+     "imageryBytes": 0,
+     "memory": {
+      "cacheBytes": 128690520,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 128690520,
+      "textureBytes": 0
+     },
+     "imagery": null,
+     "errors": []
+    },
+    {
+     "catalog": "terrain",
+     "culling": false,
+     "rep": 1,
+     "frames": 412,
+     "longFrames": 0,
+     "flyMs": 3434,
+     "intervalMs": {
+      "n": 411,
+      "median": 8.3,
+      "p95": 9.1,
+      "max": 9.6,
+      "mean": 8.32
+     },
+     "cpuMs": {
+      "n": 412,
+      "median": 1,
+      "p95": 1.8,
+      "max": 4.9,
+      "mean": 1.074
+     },
+     "gpuMs": {
+      "n": 412,
+      "median": 1.198,
+      "p95": 2.064,
+      "max": 2.691,
+      "mean": 1.212
+     },
+     "stages": {
+      "frames": 412,
+      "frame": 1.066,
+      "terrain": 0.3597,
+      "tiles": 0.342,
+      "imagery": 0,
+      "prep": 0.1803,
+      "submit": 0.3573,
+      "passes": 4,
+      "terrainOther": 0.01772,
+      "frameOther": 0.1682
+     },
+     "visibleMax": 177,
+     "drawnMax": 177,
+     "drawnMean": 88.24,
+     "visibleMean": 88.24,
+     "settleMs": 3547,
+     "finished": true,
+     "glbRequests": 739,
+     "glbBytes": 118903752,
+     "imageryRequests": 0,
+     "imageryBytes": 0,
+     "memory": {
+      "cacheBytes": 127731336,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 127731336,
+      "textureBytes": 0
+     },
+     "imagery": null,
+     "errors": []
+    }
+   ]
+  }
+ }
+]

@@ -1,0 +1,102 @@
+{
+  "scene": {
+    "id": "mars",
+    "catalog": "ingenuity-jezero",
+    "output": "mission-mars.jpg",
+    "utc": "2021-07-05T09:00:08Z",
+    "et": 678747677.184,
+    "viewpoint": "Wright Brothers Field",
+    "tracked": "Ingenuity",
+    "selected": null,
+    "trajectory": null,
+    "sensor": null,
+    "panel": null,
+    "terrain": "Mars",
+    "omitImageryHosts": [
+      "astro.arcgis.com"
+    ],
+    "surfaceCamera": {
+      "height": 0.001,
+      "offset": 0.004
+    }
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "et": 678747677.184,
+  "camera": {
+    "position": [
+      0.002362426133403277,
+      0.003121415498255383,
+      0.0012944914257979204
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "up": [
+      0.9340703890637866,
+      -0.3298488913291612,
+      -0.13679260639065827
+    ],
+    "fov": 60
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2021-07-05T09:00:08.000Z\nsetTimeRate 1\ngotoObject Ingenuity\nsetFrame free-orbit Ingenuity\nclearLookAt\nsetFov 60\nsetCamera [0.0023624261334, 0.00312141549826, 0.0012944914258] [0, 0, 0] [0.934070389064, -0.329848891329, -0.136792606391]\nsetLayer trajectories off\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\ndeselect\n",
+  "initialAssets": {
+    "total": 2,
+    "settled": 2,
+    "loaded": 2,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 161.5
+  },
+  "terrain": {
+    "update": {
+      "count": 336,
+      "lastMs": 0.5,
+      "meanMs": 0.4500000002483527,
+      "maxMs": 0.7000000029802322
+    },
+    "parse": {
+      "count": 186,
+      "lastMs": 0.5,
+      "meanMs": 0.5510752685368061,
+      "maxMs": 3.5
+    },
+    "cpuDecode": {
+      "count": 180,
+      "lastMs": 0,
+      "meanMs": 0.11499999997516473,
+      "maxMs": 1.2000000029802322
+    },
+    "sample": {
+      "count": 8,
+      "lastMicros": 200.00000298023224,
+      "meanMicros": 37.500000558793545
+    },
+    "tiles": {
+      "active": 134,
+      "visible": 112,
+      "inCache": 186,
+      "cpu": 180
+    },
+    "network": {
+      "requests": 186,
+      "queued": 0,
+      "downloading": 0,
+      "parsing": 0,
+      "failed": 0
+    },
+    "memory": {
+      "cacheBytes": 118394988,
+      "maxCacheBytes": 536870912,
+      "geometryBytes": 18255276,
+      "textureBytes": 100139712
+    }
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

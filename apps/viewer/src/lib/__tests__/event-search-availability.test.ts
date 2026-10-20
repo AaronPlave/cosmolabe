@@ -324,6 +324,7 @@ describe('which demo catalogs cannot search at all', () => {
   // in io-volcanos), and those are refused per body; see the real-kernel test
   // in closest-approach-altitude.integration.test.ts.
   const SPICE_FREE = [
+    'arrokoth-dsk.json',
     'atmosphere-earth-dusk.json',
     'atmosphere-earth-eclipse.json',
     'atmosphere-earth-textured.json',
@@ -336,7 +337,8 @@ describe('which demo catalogs cannot search at all', () => {
     'ingenuity-jezero.json',
     'inner-planets-keplerian.json',
     'iss.json',
-    'moonfall-shackleton.json',
+    'mars-imagery-jezero.json',
+    'moon-imagery-apollo15.json',
   ];
 
   it('is exactly the catalogs that furnish no kernels', async () => {

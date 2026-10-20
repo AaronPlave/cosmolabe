@@ -1,0 +1,438 @@
+{
+  "generator": "scripts/capture-cube-terrain.mjs",
+  "created": "2026-10-13T23:55:44.797Z",
+  "product": "polar",
+  "catalog": "test-catalogs/experiments/moon-terrain-polar",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "browser": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "webglVendor": "Google Inc. (Google)",
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "devicePixelRatio": 1,
+    "launch": "playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host)"
+  },
+  "host": {
+    "platform": "linux 6.18.44-fc-v114",
+    "cpus": 4,
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "memoryGB": 16
+  },
+  "stableCriterion": "queued+downloading+parsing+CPU grids in flight = 0 and visible tile count unchanged for 8 polls of 500 ms",
+  "captures": [
+    {
+      "product": "polar",
+      "view": "shackleton",
+      "mode": "shaded",
+      "file": "polar-shackleton-shaded.jpg",
+      "finished": true,
+      "settleMs": 6340,
+      "polls": 12,
+      "pose": {
+        "frame": "IAU_MOON body-fixed, km, Z-up",
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
+      },
+      "errorTarget": 2,
+      "finestVisibleLevel": 6,
+      "finestVertexSpacingM": 48.828125,
+      "visibleByLevel": {
+        "2": 10,
+        "3": 18,
+        "4": 18,
+        "5": 22,
+        "6": 8
+      },
+      "requests": 101,
+      "bytes": 26110212,
+      "cpuGridRequests": 0,
+      "tiles": {
+        "active": 76,
+        "visible": 76,
+        "inCache": 100,
+        "cpu": 0
+      },
+      "network": {
+        "requests": 100,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "memory": {
+        "cacheBytes": 15986400,
+        "maxCacheBytes": 536870912,
+        "geometryBytes": 15986400,
+        "textureBytes": 0
+      },
+      "update": {
+        "count": 45,
+        "lastMs": 0.7000000001862645,
+        "meanMs": 1.3511111110966239,
+        "maxMs": 10.399999999906868
+      },
+      "parse": {
+        "count": 0,
+        "lastMs": 0,
+        "meanMs": 0,
+        "maxMs": 0
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        },
+        "settled": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": -89.69058746389238,
+          "lonDeg": 129.7800000231569,
+          "altKm": -2.786815158530999,
+          "cameraDistanceKm": 20.784265776850116,
+          "physical": null
+        },
+        "afterRayCoverage": {
+          "latDeg": -89.69058746389238,
+          "lonDeg": 129.7800000231569,
+          "altKm": -2.786815158530999,
+          "cameraDistanceKm": 20.784265776850116,
+          "physical": null
+        }
+      },
+      "cubeGrids": null,
+      "errors": []
+    },
+    {
+      "product": "polar",
+      "view": "shackleton",
+      "mode": "lod",
+      "file": "polar-shackleton-lod.jpg",
+      "finished": true,
+      "settleMs": 5974,
+      "polls": 11,
+      "pose": {
+        "frame": "IAU_MOON body-fixed, km, Z-up",
+        "eye": [
+          -18.105506477265028,
+          21.746334717688182,
+          -1743.1703438165612
+        ],
+        "target": [
+          -6.393456931874776,
+          7.679114341167814,
+          -1734.8712243020793
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
+      },
+      "errorTarget": 2,
+      "finestVisibleLevel": 6,
+      "finestVertexSpacingM": 48.828125,
+      "visibleByLevel": {
+        "2": 10,
+        "3": 18,
+        "4": 18,
+        "5": 22,
+        "6": 8
+      },
+      "requests": 101,
+      "bytes": 26110212,
+      "cpuGridRequests": 0,
+      "tiles": {
+        "active": 76,
+        "visible": 76,
+        "inCache": 100,
+        "cpu": 0
+      },
+      "network": {
+        "requests": 100,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "memory": {
+        "cacheBytes": 15986400,
+        "maxCacheBytes": 536870912,
+        "geometryBytes": 15986400,
+        "textureBytes": 0
+      },
+      "update": {
+        "count": 58,
+        "lastMs": 1.1999999997206032,
+        "meanMs": 1.5810344827698608,
+        "maxMs": 18.5
+      },
+      "parse": {
+        "count": 0,
+        "lastMs": 0,
+        "meanMs": 0,
+        "maxMs": 0
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        },
+        "settled": {
+          "latDeg": -89.6700000000011,
+          "lonDeg": 129.78000000000003,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": -89.69058746389238,
+          "lonDeg": 129.7800000231569,
+          "altKm": -2.786815158530999,
+          "cameraDistanceKm": 20.784265776850116,
+          "physical": null
+        },
+        "afterRayCoverage": {
+          "latDeg": -89.69058746389238,
+          "lonDeg": 129.7800000231569,
+          "altKm": -2.786815158530999,
+          "cameraDistanceKm": 20.784265776850116,
+          "physical": null
+        }
+      },
+      "cubeGrids": null,
+      "errors": []
+    },
+    {
+      "product": "polar",
+      "view": "pole",
+      "mode": "shaded",
+      "file": "polar-pole-shaded.jpg",
+      "finished": true,
+      "settleMs": 5939,
+      "polls": 11,
+      "pose": {
+        "frame": "IAU_MOON body-fixed, km, Z-up",
+        "eye": [
+          7.850375853599291,
+          -9.355713626741792,
+          -1749.3573683560176
+        ],
+        "target": [
+          1.0638506744193058e-13,
+          0,
+          -1737.4
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
+      },
+      "errorTarget": 2,
+      "finestVisibleLevel": 4,
+      "finestVertexSpacingM": 195.3125,
+      "visibleByLevel": {
+        "2": 12,
+        "3": 11,
+        "4": 20
+      },
+      "requests": 57,
+      "bytes": 19031516,
+      "cpuGridRequests": 0,
+      "tiles": {
+        "active": 43,
+        "visible": 43,
+        "inCache": 56,
+        "cpu": 0
+      },
+      "network": {
+        "requests": 56,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "memory": {
+        "cacheBytes": 8952384,
+        "maxCacheBytes": 536870912,
+        "geometryBytes": 8952384,
+        "textureBytes": 0
+      },
+      "update": {
+        "count": 46,
+        "lastMs": 0.3000000002793968,
+        "meanMs": 0.8978260869423494,
+        "maxMs": 12.399999999906868
+      },
+      "parse": {
+        "count": 0,
+        "lastMs": 0,
+        "meanMs": 0,
+        "maxMs": 0
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": -90,
+          "lonDeg": 0,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        },
+        "settled": {
+          "latDeg": -90,
+          "lonDeg": 0,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": -89.96320167625208,
+          "lonDeg": -49.9999999781954,
+          "altKm": 1.0935370910526672,
+          "cameraDistanceKm": 15.529397258174798,
+          "physical": null
+        },
+        "afterRayCoverage": {
+          "latDeg": -89.96320167625208,
+          "lonDeg": -49.9999999781954,
+          "altKm": 1.0935370910526672,
+          "cameraDistanceKm": 15.529397258174798,
+          "physical": null
+        }
+      },
+      "cubeGrids": null,
+      "errors": []
+    },
+    {
+      "product": "polar",
+      "view": "pole",
+      "mode": "lod",
+      "file": "polar-pole-lod.jpg",
+      "finished": true,
+      "settleMs": 5429,
+      "polls": 10,
+      "pose": {
+        "frame": "IAU_MOON body-fixed, km, Z-up",
+        "eye": [
+          7.850375853599291,
+          -9.355713626741792,
+          -1749.3573683560176
+        ],
+        "target": [
+          1.0638506744193058e-13,
+          0,
+          -1737.4
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime 2028-12-15T10:04:00Z, paused"
+      },
+      "errorTarget": 2,
+      "finestVisibleLevel": 4,
+      "finestVertexSpacingM": 195.3125,
+      "visibleByLevel": {
+        "2": 12,
+        "3": 11,
+        "4": 20
+      },
+      "requests": 57,
+      "bytes": 19031516,
+      "cpuGridRequests": 0,
+      "tiles": {
+        "active": 43,
+        "visible": 43,
+        "inCache": 56,
+        "cpu": 0
+      },
+      "network": {
+        "requests": 56,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "memory": {
+        "cacheBytes": 8952384,
+        "maxCacheBytes": 536870912,
+        "geometryBytes": 8952384,
+        "textureBytes": 0
+      },
+      "update": {
+        "count": 61,
+        "lastMs": 1,
+        "meanMs": 1.3508196721296208,
+        "maxMs": 17.899999999906868
+      },
+      "parse": {
+        "count": 0,
+        "lastMs": 0,
+        "meanMs": 0,
+        "maxMs": 0
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": -90,
+          "lonDeg": 0,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        },
+        "settled": {
+          "latDeg": -90,
+          "lonDeg": 0,
+          "elevationKm": null,
+          "tileId": null,
+          "source": null,
+          "coverage": null
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": -89.96320167625208,
+          "lonDeg": -49.9999999781954,
+          "altKm": 1.0935370910526672,
+          "cameraDistanceKm": 15.529397258174798,
+          "physical": null
+        },
+        "afterRayCoverage": {
+          "latDeg": -89.96320167625208,
+          "lonDeg": -49.9999999781954,
+          "altKm": 1.0935370910526672,
+          "cameraDistanceKm": 15.529397258174798,
+          "physical": null
+        }
+      },
+      "cubeGrids": null,
+      "errors": []
+    }
+  ]
+}

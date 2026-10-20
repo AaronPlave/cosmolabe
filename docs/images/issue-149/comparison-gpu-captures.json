@@ -1,0 +1,3345 @@
+{
+ "generator": "scripts/capture-cube-imagery.mjs --gpu --experiments compare (four runs)",
+ "browser": {
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+  "devicePixelRatio": 1,
+  "webglRenderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "hardwareConcurrency": 16,
+  "launch": "playwright chromium headless, --use-angle=metal --ignore-gpu-blocklist --enable-gpu (hardware GPU); ?test=1 (no antialias/bloom/stars)"
+ },
+ "host": {
+  "platform": "darwin 25.6.0",
+  "cpus": 16,
+  "cpuModel": "Apple M4 Max",
+  "memoryGB": 48
+ },
+ "viewport": {
+  "width": 1280,
+  "height": 800
+ },
+ "poses": {
+  "frame": "IAU_MOON body-fixed, km, Z-up; catalog defaultTime 2028-12-15T10:04:00Z, paused; terrain errorTarget 2; imagery maxScreenTexelError 1.5 (default)",
+  "views": {
+   "shackleton": {
+    "eye": [
+     -18.105506477265028,
+     21.746334717688182,
+     -1743.1703438165612
+    ],
+    "target": [
+     -6.393456931874776,
+     7.679114341167814,
+     -1734.8712243020793
+    ],
+    "fov": 60
+   },
+   "pole": {
+    "eye": [
+     7.850375853599291,
+     -9.355713626741792,
+     -1749.3573683560176
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 60
+   },
+   "antimeridian-60s": {
+    "eye": [
+     -904.682018981909,
+     12.632564870383355,
+     -1529.8828787968093
+    ],
+    "target": [
+     -868.7000000000003,
+     1.0638506744193061e-13,
+     -1504.6325365350838
+    ],
+    "fov": 60
+   },
+   "face-edge": {
+    "eye": [
+     1269.779955654124,
+     -17.7306250421164,
+     -1243.5816214284555
+    ],
+    "target": [
+     1228.5273216335079,
+     0,
+     -1228.5273216335077
+    ],
+    "fov": 60
+   },
+   "face-corner": {
+    "eye": [
+     1035.155626664929,
+     1057.0661225120136,
+     -1020.6423473584441
+    ],
+    "target": [
+     1003.088357724157,
+     1003.0883577241569,
+     -1003.0883576218536
+    ],
+    "fov": 60
+   },
+   "overview": {
+    "eye": [
+     1358.630504784723,
+     2353.21706300009,
+     -3880.6508946146696
+    ],
+    "target": [
+     297.1128985070086,
+     514.614635798194,
+     -1632.6219593534372
+    ],
+    "fov": 50
+   },
+   "nac-footprint": {
+    "eye": [
+     356.93098808567845,
+     129.91225535041144,
+     -2154.1684789389037
+    ],
+    "target": [
+     1.0638506744193058e-13,
+     0,
+     -1737.4
+    ],
+    "fov": 50
+   }
+  }
+ },
+ "runs": {
+  "equalErrorTarget2": [
+   {
+    "product": "cube",
+    "view": "shackleton",
+    "finished": true,
+    "coldToFinishedMs": 316,
+    "visibleTiles": 110,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 346,
+    "bytes": 36172064,
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 31972800,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 31972800,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.821806640625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.2999999970197678,
+      "p95": 2.6999999955296516,
+      "max": 3.1999999955296516,
+      "mean": 1.4604166666977108
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.394208,
+      "p95": 1.657083,
+      "max": 1.719666,
+      "mean": 0.5263903041666669
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 115,
+      "triangles": 1022468,
+      "programs": 5,
+      "geometries": 132,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole",
+    "finished": true,
+    "coldToFinishedMs": 315,
+    "visibleTiles": 75,
+    "levels": {
+     "3": 8,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 11,
+     "8": 20
+    },
+    "centreLevel": 8,
+    "centreVertexSpacingM": 212.0849609375,
+    "requests": 290,
+    "bytes": 27160780,
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 23020416,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 23020416,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1,
+      "p95": 2,
+      "max": 2.2000000029802322,
+      "mean": 1.2300000000124176
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.299541,
+      "p95": 1.138624,
+      "max": 1.152124,
+      "mean": 0.5179959
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 80,
+      "triangles": 717828,
+      "programs": 5,
+      "geometries": 93,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "overview",
+    "finished": true,
+    "coldToFinishedMs": 209,
+    "visibleTiles": 15,
+    "levels": {
+     "0": 3,
+     "1": 12
+    },
+    "centreLevel": 1,
+    "centreVertexSpacingM": 27146.875,
+    "requests": 227,
+    "bytes": 18175764,
+    "cpuGridRequests": 136,
+    "memory": {
+     "cacheBytes": 14227896,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 14227896,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 10,
+     "requests": 136,
+     "bytes": 2298400,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.3350380859375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.6999999955296516,
+      "p95": 1.1000000014901161,
+      "max": 1.3000000044703484,
+      "mean": 0.7175000000124176
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.172249,
+      "p95": 0.49525,
+      "max": 0.511833,
+      "mean": 0.25010909583333335
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 20,
+      "triangles": 195588,
+      "programs": 5,
+      "geometries": 24,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "face-corner",
+    "finished": true,
+    "coldToFinishedMs": 531,
+    "visibleTiles": 219,
+    "levels": {
+     "1": 15,
+     "2": 24,
+     "3": 36,
+     "4": 34,
+     "5": 41,
+     "6": 57,
+     "7": 12
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 424.169921875,
+    "requests": 474,
+    "bytes": 57196576,
+    "cpuGridRequests": 141,
+    "memory": {
+     "cacheBytes": 52914984,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 52914984,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 15,
+     "requests": 141,
+     "bytes": 2382900,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 2.2999999970197678,
+      "p95": 4.700000002980232,
+      "max": 5.300000004470348,
+      "mean": 2.6095833332898715
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.648458,
+      "p95": 2.8555,
+      "max": 2.913749,
+      "mean": 0.8936210375000009
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 224,
+      "triangles": 1971204,
+      "programs": 5,
+      "geometries": 281,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "shackleton-grazing",
+    "finished": true,
+    "coldToFinishedMs": 420,
+    "visibleTiles": 134,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 20,
+     "9": 12,
+     "10": 11,
+     "11": 15,
+     "12": 20
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 368,
+    "bytes": 39568352,
+    "cpuGridRequests": 145,
+    "memory": {
+     "cacheBytes": 35329944,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 35329944,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 19,
+     "requests": 145,
+     "bytes": 2450500,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.5679765625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.5,
+      "p95": 3,
+      "max": 3.899999998509884,
+      "mean": 1.6533333333519598
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.434124,
+      "p95": 1.875458,
+      "max": 1.974291,
+      "mean": 0.5930559250000002
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 139,
+      "triangles": 1231364,
+      "programs": 5,
+      "geometries": 161,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole-grazing",
+    "finished": true,
+    "coldToFinishedMs": 313,
+    "visibleTiles": 119,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 12,
+     "9": 10,
+     "10": 19,
+     "11": 20
+    },
+    "centreLevel": 11,
+    "centreVertexSpacingM": 26.5106201171875,
+    "requests": 343,
+    "bytes": 35689348,
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 31493208,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 31493208,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.6130146484375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.3000000044703484,
+      "p95": 2.899999998509884,
+      "max": 3.3000000044703484,
+      "mean": 1.5170833333705862
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.389624,
+      "p95": 1.689875,
+      "max": 1.714416,
+      "mean": 0.5408119875
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 126,
+      "triangles": 1125126,
+      "programs": 6,
+      "geometries": 137,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "cap-nadir",
+    "finished": true,
+    "coldToFinishedMs": 316,
+    "visibleTiles": 117,
+    "levels": {
+     "0": 1,
+     "1": 8,
+     "2": 44,
+     "3": 12,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 16
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 424.169921875,
+    "requests": 320,
+    "bytes": 32707020,
+    "cpuGridRequests": 139,
+    "memory": {
+     "cacheBytes": 28615656,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 28615656,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 13,
+     "requests": 139,
+     "bytes": 2349100,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.2000000029802322,
+      "p95": 2.600000001490116,
+      "max": 2.899999998509884,
+      "mean": 1.5091666666790844
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.323333,
+      "p95": 1.461916,
+      "max": 1.476249,
+      "mean": 0.5607453333333334
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 122,
+      "triangles": 1083396,
+      "programs": 5,
+      "geometries": 147,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "shackleton",
+    "finished": true,
+    "coldToFinishedMs": 315,
+    "visibleTiles": 76,
+    "levels": {
+     "2": 10,
+     "3": 18,
+     "4": 18,
+     "5": 22,
+     "6": 8
+    },
+    "centreLevel": 4,
+    "centreVertexSpacingM": 195.3125,
+    "requests": 101,
+    "bytes": 26110441,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 15986400,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 15986400,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.8136484375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1,
+      "p95": 2.2000000029802322,
+      "max": 2.5,
+      "mean": 1.2191666667039196
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.279583,
+      "p95": 1.208125,
+      "max": 1.40325,
+      "mean": 0.46287035416666683
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 81,
+      "triangles": 726532,
+      "programs": 5,
+      "geometries": 95,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole",
+    "finished": true,
+    "coldToFinishedMs": 212,
+    "visibleTiles": 43,
+    "levels": {
+     "2": 12,
+     "3": 11,
+     "4": 20
+    },
+    "centreLevel": 4,
+    "centreVertexSpacingM": 195.3125,
+    "requests": 57,
+    "bytes": 19031729,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 8952384,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 8952384,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.8000000044703484,
+      "p95": 1.7000000029802322,
+      "max": 2.100000001490116,
+      "mean": 0.9870833333271245
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.213958,
+      "p95": 0.885791,
+      "max": 0.895708,
+      "mean": 0.35315903750000005
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 48,
+      "triangles": 439300,
+      "programs": 5,
+      "geometries": 54,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "overview",
+    "finished": true,
+    "coldToFinishedMs": 214,
+    "visibleTiles": 4,
+    "levels": {
+     "1": 4
+    },
+    "centreLevel": null,
+    "centreVertexSpacingM": null,
+    "requests": 5,
+    "bytes": 10666277,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 639456,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 639456,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.00153125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.6000000014901161,
+      "p95": 0.7000000029802322,
+      "max": 1,
+      "mean": 0.5716666666790843
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.198374,
+      "p95": 0.21025,
+      "max": 0.222541,
+      "mean": 0.15395192499999993
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 9,
+      "triangles": 99844,
+      "programs": 5,
+      "geometries": 8,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "shackleton-grazing",
+    "finished": true,
+    "coldToFinishedMs": 316,
+    "visibleTiles": 88,
+    "levels": {
+     "2": 12,
+     "3": 12,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 16
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 117,
+    "bytes": 28684813,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 18544224,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 18544224,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.5670576171875,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.1000000014901161,
+      "p95": 2.399999998509884,
+      "max": 4.700000002980232,
+      "mean": 1.2904166666480401
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.33,
+      "p95": 1.414666,
+      "max": 1.550249,
+      "mean": 0.45489546250000024
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 93,
+      "triangles": 830980,
+      "programs": 5,
+      "geometries": 106,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole-grazing",
+    "finished": true,
+    "coldToFinishedMs": 427,
+    "visibleTiles": 103,
+    "levels": {
+     "2": 12,
+     "3": 12,
+     "4": 12,
+     "5": 10,
+     "6": 17,
+     "7": 24,
+     "8": 16
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 24.4140625,
+    "requests": 137,
+    "bytes": 31902293,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 21741504,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 21741504,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.6130380859375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.2999999970197678,
+      "p95": 2.7000000029802322,
+      "max": 3.4000000059604645,
+      "mean": 1.5495833333581686
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.368166,
+      "p95": 1.605375,
+      "max": 1.631249,
+      "mean": 0.6242088916666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 110,
+      "triangles": 985862,
+      "programs": 6,
+      "geometries": 124,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "cap-nadir",
+    "finished": true,
+    "coldToFinishedMs": 211,
+    "visibleTiles": 19,
+    "levels": {
+     "2": 15,
+     "3": 4
+    },
+    "centreLevel": 3,
+    "centreVertexSpacingM": 390.625,
+    "requests": 25,
+    "bytes": 13883709,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 3836736,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 3836736,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.8999999985098839,
+      "p95": 1.0999999940395355,
+      "max": 1.2999999970197678,
+      "mean": 0.901666666691502
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.4845,
+      "p95": 0.487874,
+      "max": 0.490083,
+      "mean": 0.48445422083333306
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 24,
+      "triangles": 230404,
+      "programs": 5,
+      "geometries": 27,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "shackleton",
+    "finished": true,
+    "coldToFinishedMs": 5610,
+    "visibleTiles": 2495,
+    "levels": {
+     "3": 10,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 832,
+     "9": 633,
+     "10": 540
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 3351,
+    "bytes": 48309081,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 173839684,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 173839684,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.8217333984375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 25.80000000447035,
+      "p95": 30,
+      "max": 32.900000005960464,
+      "mean": 26.060833333308498
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 5.575083,
+      "p95": 9.011499,
+      "max": 9.917999,
+      "mean": 5.764578137499997
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 2500,
+      "triangles": 4375908,
+      "programs": 5,
+      "geometries": 2571,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "pole",
+    "finished": true,
+    "coldToFinishedMs": 8657,
+    "visibleTiles": 3244,
+    "levels": {
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 444,
+     "9": 2320
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 4363,
+    "bytes": 60798109,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 221725764,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 221725764,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 33.29999999701977,
+      "p95": 38.100000001490116,
+      "max": 45.5,
+      "mean": 33.66041666666667
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 6.808999,
+      "p95": 9.507875,
+      "max": 14.329416,
+      "mean": 6.813307308333333
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 3249,
+      "triangles": 5510078,
+      "programs": 5,
+      "geometries": 3310,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "overview",
+    "finished": true,
+    "coldToFinishedMs": 218,
+    "visibleTiles": 14,
+    "levels": {
+     "1": 6,
+     "2": 8
+    },
+    "centreLevel": 1,
+    "centreVertexSpacingM": 42642.21153396021,
+    "requests": 191,
+    "bytes": 3587261,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 11720168,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 11720168,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.33487890625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.7000000029802322,
+      "p95": 0.8999999985098839,
+      "max": 1.1000000014901161,
+      "mean": 0.7120833333271245
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.28425,
+      "p95": 0.304791,
+      "max": 0.332916,
+      "mean": 0.2858290208333332
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 19,
+      "triangles": 99168,
+      "programs": 5,
+      "geometries": 34,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "face-corner",
+    "finished": true,
+    "coldToFinishedMs": 331,
+    "visibleTiles": 107,
+    "levels": {
+     "1": 1,
+     "2": 18,
+     "3": 36,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 16
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 666.2845552181283,
+    "requests": 221,
+    "bytes": 5191971,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 15855576,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 15855576,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.6000000014901161,
+      "p95": 1.8999999985098839,
+      "max": 2.2000000029802322,
+      "mean": 1.630416666654249
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.608875,
+      "p95": 0.615791,
+      "max": 0.622999,
+      "mean": 0.6091541833333327
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 112,
+      "triangles": 369494,
+      "programs": 5,
+      "geometries": 141,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "shackleton-grazing",
+    "finished": true,
+    "coldToFinishedMs": 8792,
+    "visibleTiles": 3193,
+    "levels": {
+     "3": 12,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 867,
+     "9": 492,
+     "10": 411,
+     "11": 399,
+     "12": 532
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 4279,
+    "bytes": 60590773,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 219575496,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 219575496,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.567794921875,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 32.100000001490116,
+      "p95": 36.399999998509884,
+      "max": 38.19999999552965,
+      "mean": 32.249166666561116
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 6.000958,
+      "p95": 9.820666,
+      "max": 10.530874,
+      "mean": 6.1934414874999995
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 3198,
+      "triangles": 5534790,
+      "programs": 5,
+      "geometries": 3280,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "pole-grazing",
+    "finished": true,
+    "coldToFinishedMs": 34944,
+    "visibleTiles": 5446,
+    "levels": {
+     "3": 14,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 504,
+     "9": 1682,
+     "10": 1245,
+     "11": 405,
+     "12": 1116
+    },
+    "centreLevel": 10,
+    "centreVertexSpacingM": 83.28556940226603,
+    "requests": 9050,
+    "bytes": 116628152,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 388585800,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 388585800,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.6129248046875,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 56.899999998509884,
+      "p95": 67.39999999850988,
+      "max": 72.39999999850988,
+      "mean": 58.875416666672876
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 8.230749,
+      "p95": 17.224875,
+      "max": 18.8645,
+      "mean": 9.90345313333333
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 5453,
+      "triangles": 8867806,
+      "programs": 6,
+      "geometries": 5577,
+      "textures": 11
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "cap-nadir",
+    "finished": true,
+    "coldToFinishedMs": 1503,
+    "visibleTiles": 764,
+    "levels": {
+     "1": 4,
+     "2": 8,
+     "3": 16,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 512
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 666.2845552181283,
+    "requests": 1019,
+    "bytes": 17948773,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 60014764,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 60014764,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 6.399999998509884,
+      "p95": 9.199999995529652,
+      "max": 9.700000002980232,
+      "mean": 6.915000000006208
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 1.075083,
+      "p95": 3.705125,
+      "max": 4.4085,
+      "mean": 1.7567604374999997
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 769,
+      "triangles": 1639924,
+      "programs": 5,
+      "geometries": 854,
+      "textures": 10
+     }
+    },
+    "errors": []
+   }
+  ],
+  "polarErrorTarget1": [
+   {
+    "product": "polar",
+    "view": "shackleton",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 423,
+    "visibleTiles": 142,
+    "levels": {
+     "2": 6,
+     "3": 31,
+     "4": 25,
+     "5": 34,
+     "6": 38,
+     "7": 8
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 189,
+    "bytes": 40267989,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 30054432,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 30054432,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.8137470703125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.8999999985098839,
+      "p95": 3.7999999970197678,
+      "max": 6.399999998509884,
+      "mean": 2.119583333407839
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.507041,
+      "p95": 2.108624,
+      "max": 5.245499,
+      "mean": 0.7337607749999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 147,
+      "triangles": 1300996,
+      "programs": 5,
+      "geometries": 171,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 319,
+    "visibleTiles": 103,
+    "levels": {
+     "2": 8,
+     "3": 21,
+     "4": 34,
+     "5": 40
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 137,
+    "bytes": 31901941,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 21741504,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 21741504,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.2000000029802322,
+      "p95": 3.100000001490116,
+      "max": 4,
+      "mean": 1.4691666666418315
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.400583,
+      "p95": 1.732291,
+      "max": 2.739,
+      "mean": 0.5555908333333336
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 108,
+      "triangles": 961540,
+      "programs": 5,
+      "geometries": 126,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "overview",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 213,
+    "visibleTiles": 4,
+    "levels": {
+     "1": 4
+    },
+    "centreLevel": null,
+    "centreVertexSpacingM": null,
+    "requests": 5,
+    "bytes": 10666277,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 639456,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 639456,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.00153125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.5999999940395355,
+      "p95": 0.7000000029802322,
+      "max": 1.2000000029802322,
+      "mean": 0.5625
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.199374,
+      "p95": 0.208041,
+      "max": 0.874541,
+      "mean": 0.1585576791666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 9,
+      "triangles": 99844,
+      "programs": 5,
+      "geometries": 8,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "shackleton-grazing",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 531,
+    "visibleTiles": 163,
+    "levels": {
+     "2": 7,
+     "3": 29,
+     "4": 20,
+     "5": 24,
+     "6": 24,
+     "7": 23,
+     "8": 36
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 217,
+    "bytes": 44772913,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 34530624,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 34530624,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.5672880859375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.6000000014901161,
+      "p95": 2.7999999970197678,
+      "max": 4.200000002980232,
+      "mean": 1.7470833333830038
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.594833,
+      "p95": 1.372874,
+      "max": 2.491625,
+      "mean": 0.6819292208333335
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 168,
+      "triangles": 1483780,
+      "programs": 5,
+      "geometries": 193,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole-grazing",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 528,
+    "visibleTiles": 179,
+    "levels": {
+     "2": 7,
+     "3": 27,
+     "4": 29,
+     "5": 18,
+     "6": 26,
+     "7": 28,
+     "8": 44
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 24.4140625,
+    "requests": 241,
+    "bytes": 48633769,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 38367360,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 38367360,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.613064453125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.8000000044703484,
+      "p95": 3.3000000044703484,
+      "max": 4.899999998509884,
+      "mean": 2.007083333345751
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.593999,
+      "p95": 1.458,
+      "max": 3.295416,
+      "mean": 0.7310224249999996
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 186,
+      "triangles": 1647366,
+      "programs": 6,
+      "geometries": 221,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "cap-nadir",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 317,
+    "visibleTiles": 52,
+    "levels": {
+     "2": 5,
+     "3": 43,
+     "4": 4
+    },
+    "centreLevel": 4,
+    "centreVertexSpacingM": 195.3125,
+    "requests": 69,
+    "bytes": 20962205,
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 10870752,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 10870752,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.8999999985098839,
+      "p95": 1.8000000044703484,
+      "max": 3,
+      "mean": 1.074999999968956
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.229124,
+      "p95": 0.9615,
+      "max": 2.200625,
+      "mean": 0.4221612791666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 57,
+      "triangles": 517636,
+      "programs": 5,
+      "geometries": 68,
+      "textures": 9
+     }
+    },
+    "errors": []
+   }
+  ],
+  "cubeErrorTarget1": [
+   {
+    "product": "cube",
+    "view": "shackleton",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 525,
+    "visibleTiles": 194,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 9,
+     "6": 18,
+     "7": 32,
+     "8": 21,
+     "9": 33,
+     "10": 39,
+     "11": 20
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 444,
+    "bytes": 51941616,
+    "sincePose": {
+     "requests": 228,
+     "bytes": 35391584
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 47639472,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 47639472,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.8218740234375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 2.2000000029802322,
+      "p95": 3.600000001490116,
+      "max": 4.600000001490116,
+      "mean": 2.374166666654249
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.650999,
+      "p95": 1.623041,
+      "max": 2.382999,
+      "mean": 0.7519728083333332
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 199,
+      "triangles": 1753604,
+      "programs": 5,
+      "geometries": 224,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 415,
+    "visibleTiles": 144,
+    "levels": {
+     "3": 8,
+     "4": 12,
+     "5": 8,
+     "6": 24,
+     "7": 22,
+     "8": 30,
+     "9": 40
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 377,
+    "bytes": 41159952,
+    "sincePose": {
+     "requests": 151,
+     "bytes": 23001016
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 36928584,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 36928584,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 1.6000000014901161,
+      "p95": 2.4000000059604645,
+      "max": 2.8000000044703484,
+      "mean": 1.7637499999875823
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.487124,
+      "p95": 0.91225,
+      "max": 1.188,
+      "mean": 0.5607175541666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 149,
+      "triangles": 1318404,
+      "programs": 5,
+      "geometries": 166,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "overview",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 210,
+    "visibleTiles": 45,
+    "levels": {
+     "1": 17,
+     "2": 28
+    },
+    "centreLevel": 2,
+    "centreVertexSpacingM": 13573.4375,
+    "requests": 239,
+    "bytes": 20106236,
+    "sincePose": {
+     "requests": 39,
+     "bytes": 6130648
+    },
+    "cpuGridRequests": 136,
+    "memory": {
+     "cacheBytes": 16146264,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 16146264,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 10,
+     "requests": 136,
+     "bytes": 2298400,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.3350888671875,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 0.9000000059604645,
+      "p95": 2,
+      "max": 2.399999998509884,
+      "mean": 1.0737500000124176
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.28025,
+      "p95": 1.090416,
+      "max": 1.241666,
+      "mean": 0.3947050249999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 50,
+      "triangles": 456708,
+      "programs": 5,
+      "geometries": 62,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "face-corner",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 848,
+    "visibleTiles": 411,
+    "levels": {
+     "2": 75,
+     "3": 69,
+     "4": 40,
+     "5": 56,
+     "6": 71,
+     "7": 100
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 424.169921875,
+    "requests": 748,
+    "bytes": 101282228,
+    "sincePose": {
+     "requests": 522,
+     "bytes": 83123292
+    },
+    "cpuGridRequests": 141,
+    "memory": {
+     "cacheBytes": 96717720,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 96717720,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 15,
+     "requests": 141,
+     "bytes": 2382900,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 4.300000004470348,
+      "p95": 5.600000001490116,
+      "max": 8.799999997019768,
+      "mean": 4.47375000010555
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 1.300999,
+      "p95": 2.199125,
+      "max": 4.990375,
+      "mean": 1.447070179166667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 416,
+      "triangles": 3642372,
+      "programs": 5,
+      "geometries": 510,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "shackleton-grazing",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 520,
+    "visibleTiles": 203,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 9,
+     "6": 19,
+     "7": 29,
+     "8": 19,
+     "9": 28,
+     "10": 25,
+     "11": 20,
+     "12": 32
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 455,
+    "bytes": 53567732,
+    "sincePose": {
+     "requests": 260,
+     "bytes": 40396584
+    },
+    "cpuGridRequests": 145,
+    "memory": {
+     "cacheBytes": 49238112,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 49238112,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 19,
+     "requests": 145,
+     "bytes": 2450500,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.5681953125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 2.399999998509884,
+      "p95": 3.600000001490116,
+      "max": 4.700000002980232,
+      "mean": 2.519583333376795
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.665749,
+      "p95": 1.30675,
+      "max": 2.501499,
+      "mean": 0.7952747541666667
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 208,
+      "triangles": 1831940,
+      "programs": 5,
+      "geometries": 232,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole-grazing",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 520,
+    "visibleTiles": 193,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 9,
+     "6": 19,
+     "7": 27,
+     "8": 29,
+     "9": 19,
+     "10": 26,
+     "11": 38,
+     "12": 4
+    },
+    "centreLevel": 11,
+    "centreVertexSpacingM": 26.5106201171875,
+    "requests": 439,
+    "bytes": 51136884,
+    "sincePose": {
+     "requests": 231,
+     "bytes": 35874028
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 46840152,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 46840152,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.613048828125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 2.2000000029802322,
+      "p95": 4.199999995529652,
+      "max": 5,
+      "mean": 2.4933333332960803
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.624375,
+      "p95": 2.238791,
+      "max": 2.669749,
+      "mean": 0.8373153041666668
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 200,
+      "triangles": 1769222,
+      "programs": 6,
+      "geometries": 214,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "cap-nadir",
+    "errorTarget": 1,
+    "throttle": null,
+    "finished": true,
+    "coldToFinishedMs": 631,
+    "visibleTiles": 306,
+    "levels": {
+     "1": 4,
+     "2": 49,
+     "3": 112,
+     "4": 41,
+     "5": 20,
+     "6": 21,
+     "7": 39,
+     "8": 20
+    },
+    "centreLevel": 8,
+    "centreVertexSpacingM": 212.0849609375,
+    "requests": 556,
+    "bytes": 70677616,
+    "sincePose": {
+     "requests": 358,
+     "bytes": 57023820
+    },
+    "cpuGridRequests": 139,
+    "memory": {
+     "cacheBytes": 66343560,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 66343560,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 13,
+     "requests": 139,
+     "bytes": 2349100,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 240,
+      "median": 3.399999998509884,
+      "p95": 4.100000001490116,
+      "max": 4.799999997019768,
+      "mean": 3.396666666554908
+     },
+     "gpuMs": {
+      "n": 240,
+      "median": 0.770041,
+      "p95": 1.020374,
+      "max": 1.926291,
+      "mean": 0.8325126958333332
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 311,
+      "triangles": 2728452,
+      "programs": 5,
+      "geometries": 386,
+      "textures": 9
+     }
+    },
+    "errors": []
+   }
+  ],
+  "coldThrottled40ms100Mbps": [
+   {
+    "product": "cube",
+    "view": "shackleton",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 2757,
+    "visibleTiles": 110,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 11,
+     "7": 15,
+     "8": 13,
+     "9": 25,
+     "10": 12
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 336,
+    "bytes": 34562928,
+    "sincePose": {
+     "requests": 139,
+     "bytes": 21070008
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 30374160,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 30374160,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.821806640625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.399999998509884,
+      "p95": 6.299999997019768,
+      "max": 6.299999997019768,
+      "mean": 2.919999999552965
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.07425,
+      "p95": 4.775875,
+      "max": 4.775875,
+      "mean": 1.5329412999999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 115,
+      "triangles": 1022468,
+      "programs": 5,
+      "geometries": 133,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 1841,
+    "visibleTiles": 75,
+    "levels": {
+     "3": 8,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 11,
+     "8": 20
+    },
+    "centreLevel": 8,
+    "centreVertexSpacingM": 212.0849609375,
+    "requests": 288,
+    "bytes": 26838924,
+    "sincePose": {
+     "requests": 93,
+     "bytes": 13667812
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 22700688,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 22700688,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 1.2000000029802322,
+      "p95": 3,
+      "max": 3,
+      "mean": 1.3700000002980233
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.271208,
+      "p95": 1.923499,
+      "max": 1.923499,
+      "mean": 0.43422040000000006
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 80,
+      "triangles": 717828,
+      "programs": 5,
+      "geometries": 93,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "overview",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 517,
+    "visibleTiles": 15,
+    "levels": {
+     "0": 3,
+     "1": 12
+    },
+    "centreLevel": 1,
+    "centreVertexSpacingM": 27146.875,
+    "requests": 229,
+    "bytes": 18497560,
+    "sincePose": {
+     "requests": 22,
+     "bytes": 3395584
+    },
+    "cpuGridRequests": 136,
+    "memory": {
+     "cacheBytes": 14547624,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 14547624,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 10,
+     "requests": 136,
+     "bytes": 2298400,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.3350380859375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 0.7000000029802322,
+      "p95": 4.399999998509884,
+      "max": 4.399999998509884,
+      "mean": 1.080000000447035
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.185375,
+      "p95": 3.786916,
+      "max": 3.786916,
+      "mean": 0.5512246000000001
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 20,
+      "triangles": 195588,
+      "programs": 5,
+      "geometries": 26,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "face-corner",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 5629,
+    "visibleTiles": 219,
+    "levels": {
+     "1": 15,
+     "2": 24,
+     "3": 36,
+     "4": 34,
+     "5": 41,
+     "6": 57,
+     "7": 12
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 424.169921875,
+    "requests": 487,
+    "bytes": 59288216,
+    "sincePose": {
+     "requests": 277,
+     "bytes": 43703540
+    },
+    "cpuGridRequests": 141,
+    "memory": {
+     "cacheBytes": 54993216,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 54993216,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 15,
+     "requests": 141,
+     "bytes": 2382900,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 3.2999999970197678,
+      "p95": 7.199999995529652,
+      "max": 7.199999995529652,
+      "mean": 3.7299999997019766
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.097749,
+      "p95": 4.870041,
+      "max": 4.870041,
+      "mean": 1.6714663
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 224,
+      "triangles": 1971204,
+      "programs": 5,
+      "geometries": 282,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "shackleton-grazing",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 3474,
+    "visibleTiles": 134,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 10,
+     "8": 20,
+     "9": 12,
+     "10": 11,
+     "11": 15,
+     "12": 20
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 106.04248046875,
+    "requests": 363,
+    "bytes": 38763760,
+    "sincePose": {
+     "requests": 173,
+     "bytes": 26397084
+    },
+    "cpuGridRequests": 145,
+    "memory": {
+     "cacheBytes": 34530624,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 34530624,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 19,
+     "requests": 145,
+     "bytes": 2450500,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.5679765625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.399999998509884,
+      "p95": 4.899999998509884,
+      "max": 4.899999998509884,
+      "mean": 2.5899999998509884
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.69025,
+      "p95": 2.95225,
+      "max": 2.95225,
+      "mean": 0.9106827999999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 139,
+      "triangles": 1231364,
+      "programs": 5,
+      "geometries": 161,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "pole-grazing",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 2862,
+    "visibleTiles": 119,
+    "levels": {
+     "3": 10,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 12,
+     "8": 12,
+     "9": 10,
+     "10": 19,
+     "11": 20
+    },
+    "centreLevel": 11,
+    "centreVertexSpacingM": 26.5106201171875,
+    "requests": 338,
+    "bytes": 34884760,
+    "sincePose": {
+     "requests": 141,
+     "bytes": 21391840
+    },
+    "cpuGridRequests": 144,
+    "memory": {
+     "cacheBytes": 30693888,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 30693888,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 18,
+     "requests": 144,
+     "bytes": 2433600,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 0.6130146484375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 1.8000000044703484,
+      "p95": 3.600000001490116,
+      "max": 3.600000001490116,
+      "mean": 1.95
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.576958,
+      "p95": 2.248458,
+      "max": 2.248458,
+      "mean": 0.7419036999999999
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 126,
+      "triangles": 1125126,
+      "programs": 6,
+      "geometries": 137,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "cube",
+    "view": "cap-nadir",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 1841,
+    "visibleTiles": 117,
+    "levels": {
+     "0": 1,
+     "1": 8,
+     "2": 44,
+     "3": 12,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 16
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 424.169921875,
+    "requests": 317,
+    "bytes": 32224268,
+    "sincePose": {
+     "requests": 90,
+     "bytes": 13904416
+    },
+    "cpuGridRequests": 139,
+    "memory": {
+     "cacheBytes": 28136064,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 28136064,
+     "textureBytes": 0
+    },
+    "cubeGrids": {
+     "residentTiles": 126,
+     "detailTiles": 13,
+     "requests": 139,
+     "bytes": 2349100,
+     "failed": 0,
+     "inFlight": 0,
+     "version": "cube-fused-79895697c6b6-g3-m12"
+    },
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.600000001490116,
+      "p95": 6.399999998509884,
+      "max": 6.399999998509884,
+      "mean": 2.9299999989569185
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.421333,
+      "p95": 4.896375,
+      "max": 4.896375,
+      "mean": 1.5921622
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 122,
+      "triangles": 1083396,
+      "programs": 5,
+      "geometries": 146,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "shackleton",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 4041,
+    "visibleTiles": 142,
+    "levels": {
+     "2": 6,
+     "3": 31,
+     "4": 25,
+     "5": 34,
+     "6": 38,
+     "7": 8
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 189,
+    "bytes": 40267989,
+    "sincePose": {
+     "requests": 188,
+     "bytes": 30245160
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 30054432,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 30054432,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.8137470703125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.4000000059604645,
+      "p95": 3.2000000029802322,
+      "max": 3.2000000029802322,
+      "mean": 2.5200000002980234
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.102374,
+      "p95": 1.592958,
+      "max": 1.592958,
+      "mean": 1.0979912
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 147,
+      "triangles": 1300996,
+      "programs": 5,
+      "geometries": 171,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 2891,
+    "visibleTiles": 103,
+    "levels": {
+     "2": 8,
+     "3": 21,
+     "4": 34,
+     "5": 40
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 137,
+    "bytes": 31901941,
+    "sincePose": {
+     "requests": 136,
+     "bytes": 21879112
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 21741504,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 21741504,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 1.9000000059604645,
+      "p95": 4.899999998509884,
+      "max": 4.899999998509884,
+      "mean": 2.3400000005960466
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.780041,
+      "p95": 3.472,
+      "max": 3.472,
+      "mean": 1.1375788999999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 108,
+      "triangles": 961540,
+      "programs": 5,
+      "geometries": 126,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "overview",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 311,
+    "visibleTiles": 4,
+    "levels": {
+     "1": 4
+    },
+    "centreLevel": null,
+    "centreVertexSpacingM": null,
+    "requests": 5,
+    "bytes": 10666277,
+    "sincePose": {
+     "requests": 4,
+     "bytes": 643448
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 639456,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 639456,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.00153125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 0.5,
+      "p95": 0.7999999970197678,
+      "max": 0.7999999970197678,
+      "mean": 0.5299999997019768
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.05675,
+      "p95": 0.061749,
+      "max": 0.061749,
+      "mean": 0.05791630000000001
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 9,
+      "triangles": 99844,
+      "programs": 5,
+      "geometries": 8,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "shackleton-grazing",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 4545,
+    "visibleTiles": 163,
+    "levels": {
+     "2": 7,
+     "3": 29,
+     "4": 20,
+     "5": 24,
+     "6": 24,
+     "7": 23,
+     "8": 36
+    },
+    "centreLevel": 5,
+    "centreVertexSpacingM": 97.65625,
+    "requests": 217,
+    "bytes": 44772913,
+    "sincePose": {
+     "requests": 216,
+     "bytes": 34750084
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 34530624,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 34530624,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.5672880859375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.8000000044703484,
+      "p95": 5.0999999940395355,
+      "max": 5.0999999940395355,
+      "mean": 3.120000000298023
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.160958,
+      "p95": 3.000624,
+      "max": 3.000624,
+      "mean": 1.4481412
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 168,
+      "triangles": 1483780,
+      "programs": 5,
+      "geometries": 193,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "pole-grazing",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 4963,
+    "visibleTiles": 179,
+    "levels": {
+     "2": 7,
+     "3": 27,
+     "4": 29,
+     "5": 18,
+     "6": 26,
+     "7": 28,
+     "8": 44
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 24.4140625,
+    "requests": 241,
+    "bytes": 48633769,
+    "sincePose": {
+     "requests": 240,
+     "bytes": 38610940
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 38367360,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 38367360,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.613064453125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 3.2999999970197678,
+      "p95": 4.300000004470348,
+      "max": 4.300000004470348,
+      "mean": 3.2599999994039535
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.074333,
+      "p95": 2.219416,
+      "max": 2.219416,
+      "mean": 1.2372951999999997
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 186,
+      "triangles": 1647366,
+      "programs": 6,
+      "geometries": 221,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "polar",
+    "view": "cap-nadir",
+    "errorTarget": 1,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 1551,
+    "visibleTiles": 52,
+    "levels": {
+     "2": 5,
+     "3": 43,
+     "4": 4
+    },
+    "centreLevel": 4,
+    "centreVertexSpacingM": 195.3125,
+    "requests": 69,
+    "bytes": 20962205,
+    "sincePose": {
+     "requests": 68,
+     "bytes": 10939376
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 10870752,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 10870752,
+     "textureBytes": 0
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 1.2000000029802322,
+      "p95": 3.600000001490116,
+      "max": 3.600000001490116,
+      "mean": 1.3899999998509884
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.412541,
+      "p95": 2.567875,
+      "max": 2.567875,
+      "mean": 0.6546955000000001
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 57,
+      "triangles": 517636,
+      "programs": 5,
+      "geometries": 68,
+      "textures": 9
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "shackleton",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 27711,
+    "visibleTiles": 2495,
+    "levels": {
+     "3": 10,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 832,
+     "9": 633,
+     "10": 540
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 3351,
+    "bytes": 48309081,
+    "sincePose": {
+     "requests": 3294,
+     "bytes": 47007926
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 173839684,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 173839684,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.8217333984375,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 28.600000001490116,
+      "p95": 32.400000005960464,
+      "max": 32.400000005960464,
+      "mean": 28.800000000745058
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 4.460125,
+      "p95": 6.222083,
+      "max": 6.222083,
+      "mean": 4.4735289
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 2500,
+      "triangles": 4375908,
+      "programs": 5,
+      "geometries": 2579,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "pole",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 36049,
+    "visibleTiles": 3244,
+    "levels": {
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 444,
+     "9": 2320
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 4363,
+    "bytes": 60798109,
+    "sincePose": {
+     "requests": 4292,
+     "bytes": 59173208
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 221725764,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 221725764,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 35,
+      "p95": 45.399999998509884,
+      "max": 45.399999998509884,
+      "mean": 35.9
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 5.985166,
+      "p95": 10.842625,
+      "max": 10.842625,
+      "mean": 6.6150913000000005
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 3249,
+      "triangles": 5510078,
+      "programs": 5,
+      "geometries": 3325,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "overview",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 206,
+    "visibleTiles": 14,
+    "levels": {
+     "1": 6,
+     "2": 8
+    },
+    "centreLevel": 1,
+    "centreVertexSpacingM": 42642.21153396021,
+    "requests": 65,
+    "bytes": 1496007,
+    "sincePose": {
+     "requests": 12,
+     "bytes": 301328
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 4578216,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 4578216,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.33487890625,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 0.6000000014901161,
+      "p95": 2,
+      "max": 2,
+      "mean": 0.7300000004470348
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.078166,
+      "p95": 1.391249,
+      "max": 1.391249,
+      "mean": 0.20707019999999998
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 19,
+      "triangles": 99168,
+      "programs": 5,
+      "geometries": 42,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "face-corner",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 1128,
+    "visibleTiles": 107,
+    "levels": {
+     "1": 1,
+     "2": 18,
+     "3": 36,
+     "4": 12,
+     "5": 12,
+     "6": 12,
+     "7": 16
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 666.2845552181283,
+    "requests": 171,
+    "bytes": 4204141,
+    "sincePose": {
+     "requests": 112,
+     "bytes": 2856268
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 12673940,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 12673940,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 2.2999999970197678,
+      "p95": 3.5,
+      "max": 3.5,
+      "mean": 2.4100000001490116
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 0.61275,
+      "p95": 1.957041,
+      "max": 1.957041,
+      "mean": 0.7064244000000002
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 112,
+      "triangles": 369494,
+      "programs": 5,
+      "geometries": 151,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "shackleton-grazing",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 35622,
+    "visibleTiles": 3193,
+    "levels": {
+     "3": 12,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 867,
+     "9": 492,
+     "10": 411,
+     "11": 399,
+     "12": 532
+    },
+    "centreLevel": 9,
+    "centreVertexSpacingM": 166.57113880453207,
+    "requests": 4279,
+    "bytes": 60590773,
+    "sincePose": {
+     "requests": 4221,
+     "bytes": 59267509
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 219575496,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 219575496,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.567794921875,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 34,
+      "p95": 38.29999999701977,
+      "max": 38.29999999701977,
+      "mean": 34.209999999403955
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 3.132083,
+      "p95": 9.681375,
+      "max": 9.681375,
+      "mean": 4.2118038
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 3198,
+      "triangles": 5534790,
+      "programs": 5,
+      "geometries": 3285,
+      "textures": 10
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "pole-grazing",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 76994,
+    "visibleTiles": 5410,
+    "levels": {
+     "3": 14,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 256,
+     "8": 504,
+     "9": 1678,
+     "10": 1258,
+     "11": 436,
+     "12": 1040
+    },
+    "centreLevel": 10,
+    "centreVertexSpacingM": 83.28556940226603,
+    "requests": 9084,
+    "bytes": 116978298,
+    "sincePose": {
+     "requests": 9026,
+     "bytes": 115655034
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 388627600,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 388627600,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 0.61292578125,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 67.20000000298023,
+      "p95": 68.5,
+      "max": 68.5,
+      "mean": 67.16000000014901
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 8.133208,
+      "p95": 11.965166,
+      "max": 11.965166,
+      "mean": 8.4793496
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 5417,
+      "triangles": 8819858,
+      "programs": 6,
+      "geometries": 5547,
+      "textures": 11
+     }
+    },
+    "errors": []
+   },
+   {
+    "product": "geographic",
+    "view": "cap-nadir",
+    "errorTarget": 2,
+    "throttle": "40,100",
+    "finished": true,
+    "coldToFinishedMs": 8574,
+    "visibleTiles": 764,
+    "levels": {
+     "1": 4,
+     "2": 8,
+     "3": 16,
+     "4": 32,
+     "5": 64,
+     "6": 128,
+     "7": 512
+    },
+    "centreLevel": 7,
+    "centreVertexSpacingM": 666.2845552181283,
+    "requests": 1019,
+    "bytes": 17948773,
+    "sincePose": {
+     "requests": 992,
+     "bytes": 17377468
+    },
+    "cpuGridRequests": 0,
+    "memory": {
+     "cacheBytes": 60014764,
+     "maxCacheBytes": 536870912,
+     "geometryBytes": 60014764,
+     "textureBytes": 11184810.666666666
+    },
+    "cubeGrids": null,
+    "terrainPixelFraction": 1,
+    "holePixels": 0,
+    "frames": {
+     "wallMs": {
+      "n": 10,
+      "median": 8.5,
+      "p95": 8.899999998509884,
+      "max": 8.899999998509884,
+      "mean": 8.419999999552966
+     },
+     "gpuMs": {
+      "n": 10,
+      "median": 1.796124,
+      "p95": 2.057375,
+      "max": 2.057375,
+      "mean": 1.8058410000000003
+     },
+     "gpuDisjoint": false,
+     "draws": {
+      "calls": 769,
+      "triangles": 1639924,
+      "programs": 5,
+      "geometries": 856,
+      "textures": 10
+     }
+    },
+    "errors": []
+   }
+  ]
+ }
+}

@@ -1,0 +1,79 @@
+{
+  "name": "Jezero imagery (no terrain)",
+  "version": "1.1",
+  "description": "Streamed imagery pilot (#123): global Viking and CTX mosaics with bounded Jezero CTX and HiRISE layers on the Mars ellipsoid, with no physical terrain. ingenuity-jezero.json drapes the same stack over fused terrain.",
+  "defaultTime": "2021-07-05T09:00:08Z",
+  "defaultViewpoint": "Jezero regional",
+  "items": [
+    { "name": "Mars globe", "type": "Viewpoint", "center": "Mars", "distance": 14000, "latitude": 18.4, "longitude": 77.5 },
+    { "name": "Jezero regional", "type": "Viewpoint", "center": "Mars", "distance": 4200, "latitude": 18.4, "longitude": 77.5 },
+    { "name": "Jezero crater", "type": "Viewpoint", "center": "Mars", "distance": 3460, "latitude": 18.45, "longitude": 77.4 },
+    { "name": "Wright Brothers Field", "type": "Viewpoint", "center": "Mars", "distance": 3398, "latitude": 18.4447, "longitude": 77.4508 },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "bodyFrame": "EquatorJ2000",
+      "rotationModel": { "type": "Builtin" },
+      "geometry": {
+        "type": "Globe",
+        "radii": [3396.19, 3396.19, 3376.2],
+        "baseMap": "textures/mars.dds",
+        "atmosphere": "Mars",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global · Viking",
+            "description": "Viking MDIM 2.1 color mosaic",
+            "resolutionMeters": 232,
+            "attribution": "NASA Trek",
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+            "levels": 8
+          },
+          {
+            "id": "ctx-global",
+            "name": "Global · CTX",
+            "description": "Murray Lab CTX global mosaic",
+            "resolutionMeters": 5,
+            "attribution": "Esri / Caltech Murray Lab",
+            "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+            "levels": 13,
+            "dimension": 512,
+            "minZoom": 5
+          },
+          {
+            "id": "jezero-ctx",
+            "name": "Jezero · CTX",
+            "description": "Mars 2020 Jezero CTX orthomosaic",
+            "resolutionMeters": 6,
+            "attribution": "NASA Trek",
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "levels": 13,
+            "bounds": [77.16, 18.21, 77.70, 18.72],
+            "minZoom": 5
+          },
+          {
+            "id": "jezero-hirise",
+            "name": "Jezero · HiRISE",
+            "description": "Mars 2020 Jezero HiRISE orthomosaic",
+            "resolutionMeters": 0.25,
+            "attribution": "NASA Trek",
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "levels": 17,
+            "bounds": [77.22, 18.31, 77.58, 18.67],
+            "minZoom": 9
+          }
+        ]
+      },
+      "label": { "color": [1.0, 0.5, 0.3] }
+    }
+  ]
+}
