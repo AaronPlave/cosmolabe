@@ -1,0 +1,65 @@
+name: AI review loop
+
+on:
+  workflow_run:
+    workflows: [AI review loop wake]
+    types: [completed]
+  issue_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR to reconcile
+        required: true
+        type: number
+      retry_current_head:
+        description: Retry a missing or failed Work review without consuming a round
+        required: false
+        default: false
+        type: boolean
+      resume_after_human:
+        description: Start a new three-round episode after human intervention
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+jobs:
+  resolve:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      number: ${{ steps.pr.outputs.number }}
+    steps:
+      - name: Checkout protected resolver
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Resolve pull request number
+        id: pr
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DISPATCH_PR: ${{ inputs.pr_number }}
+        run: node .github/scripts/ai-review-loop-runner.mjs resolve
+
+  execute:
+    needs: resolve
+    uses: ./.github/workflows/ai-review-loop-execute.yml
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+      id-token: write
+    with:
+      pr_number: ${{ fromJSON(needs.resolve.outputs.number) }}
+      retry_current_head: ${{ inputs.retry_current_head || false }}
+      resume_after_human: ${{ inputs.resume_after_human || false }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

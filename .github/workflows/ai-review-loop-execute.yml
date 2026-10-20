@@ -1,0 +1,135 @@
+name: AI review loop execute
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+      retry_current_head:
+        default: false
+        type: boolean
+      resume_after_human:
+        default: false
+        type: boolean
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+concurrency:
+  group: ai-review-pr-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    outputs:
+      action: ${{ steps.loop.outputs.action }}
+      head: ${{ steps.loop.outputs.head }}
+      round: ${{ steps.loop.outputs.round }}
+      review_comment_id: ${{ steps.loop.outputs.reviewCommentId }}
+      pr_number: ${{ inputs.pr_number }}
+      head_ref: ${{ steps.loop.outputs.headRef }}
+    steps:
+      # Orchestration always comes from the protected default branch, never
+      # from the untrusted pull-request head.
+      - name: Checkout protected orchestrator
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Reconcile current GitHub state
+        id: loop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          CHATGPT_REVIEW_LOGIN: ${{ vars.CHATGPT_REVIEW_LOGIN }}
+          CLAUDE_BOT_LOGIN: ${{ vars.CLAUDE_BOT_LOGIN }}
+          RETRY_CURRENT_HEAD: ${{ inputs.retry_current_head || 'false' }}
+          RESUME_AFTER_HUMAN: ${{ inputs.resume_after_human || 'false' }}
+        run: node .github/scripts/ai-review-loop.mjs
+
+  remediate:
+    needs: reconcile
+    if: needs.reconcile.outputs.action == 'remediate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout protected validation helpers
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Preserve trusted helpers outside the PR checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-loop-trusted"
+          cp .github/scripts/ai-review-loop*.mjs "$RUNNER_TEMP/ai-loop-trusted/"
+      - name: Checkout pull-request head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.reconcile.outputs.head_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate eligibility, changed files, checkout, and exact trusted review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.reconcile.outputs.pr_number }}
+          EXPECTED_HEAD: ${{ needs.reconcile.outputs.head }}
+          EXPECTED_ROUND: ${{ needs.reconcile.outputs.round }}
+          REVIEW_COMMENT_ID: ${{ needs.reconcile.outputs.review_comment_id }}
+          CHATGPT_REVIEW_LOGIN: ${{ vars.CHATGPT_REVIEW_LOGIN }}
+        run: node "$RUNNER_TEMP/ai-loop-trusted/ai-review-loop-runner.mjs" prepare
+      - name: Address blocking review findings
+        timeout-minutes: 25
+        env:
+          CLAUDE_BRANCH: ${{ needs.reconcile.outputs.head_ref }}
+        uses: anthropics/claude-code-action@97c53473391bff1901034d4b454b5bac7ab7a029
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: ${{ vars.CHATGPT_REVIEW_LOGIN }},${{ vars.CLAUDE_BOT_LOGIN }},github-actions[bot]
+          claude_args: --max-turns 10
+          prompt: |
+            Read .git/trusted-ai-review.md, verified from comment ${{ needs.reconcile.outputs.review_comment_id }} by ${{ vars.CHATGPT_REVIEW_LOGIN }}. Fix only its blocking findings for PR #${{ needs.reconcile.outputs.pr_number }}, reviewed head ${{ needs.reconcile.outputs.head }}, round ${{ needs.reconcile.outputs.round }}.
+
+            First verify the current head is still ${{ needs.reconcile.outputs.head }}; otherwise exit without editing. Keep changes scoped to those findings. Run targeted tests for touched code. Push one normal commit to the existing PR branch. Do not force-push, rebase, alter .github/ files, change labels, approve, enable auto-merge, or merge.
+
+            If a finding conflicts with established direction, repeats without resolution, tests remain broken, or the fix materially expands scope, do not push a speculative partial fix. Post this exact marker in a top-level PR comment, followed by a short reason:
+            <!-- ai-loop:remediation {"schema":1,"reviewed_head":"${{ needs.reconcile.outputs.head }}","round":${{ needs.reconcile.outputs.round }},"status":"blocked"} -->
+
+  finalize:
+    needs: [reconcile, remediate]
+    if: always() && needs.reconcile.outputs.action == 'remediate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Checkout protected recovery helpers
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Record unsuccessful remediation and reconcile current state
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.reconcile.outputs.pr_number }}
+          EXPECTED_HEAD: ${{ needs.reconcile.outputs.head }}
+          EXPECTED_ROUND: ${{ needs.reconcile.outputs.round }}
+          CHATGPT_REVIEW_LOGIN: ${{ vars.CHATGPT_REVIEW_LOGIN }}
+          CLAUDE_BOT_LOGIN: ${{ vars.CLAUDE_BOT_LOGIN }}
+        run: node .github/scripts/ai-review-loop-runner.mjs finalize
