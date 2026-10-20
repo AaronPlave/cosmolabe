@@ -37,6 +37,7 @@ import {
   normalizeFrameKey,
   type FixedFrameSpec,
 } from '../frames/FrameRegistry.js';
+import { validateCatalog } from './CatalogSchema.js';
 
 /**
  * A SPICE kernel reference inside a catalog. Bare strings are Cosmographia-native;
@@ -109,7 +110,6 @@ export interface TrajectoryPlotSpec {
   opacity?: number;
   visible?: string | boolean;
   sampleCount?: number;
-  lineWidth?: number;
 }
 
 export interface CatalogItem {
@@ -304,20 +304,14 @@ export interface GeometrySpec {
   radii?: number[];
   size?: number;
   source?: string;
-  meshFile?: string;
   meshRotation?: number[];
-  sensor?: {
-    horizontalFov?: number;
-    verticalFov?: number;
-    frustumColor?: number[];
-    target?: string;
-  };
+  // Everything else is read by the renderers from `Body.geometryData`; the
+  // keys each geometry type accepts are listed in CatalogSchema.ts.
   [key: string]: unknown;
 }
 
 export interface LabelSpec {
   color?: number[] | string;
-  fadeSize?: number;
   /** If false, no label is created for this body. Defaults to true. */
   visible?: boolean;
 }
@@ -372,6 +366,8 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
     case 'au': return num * 149597870.7;
     case 'km': return num;
     case 'm': return num * 0.001;
+    case 'cm': return num * 1e-5;
+    case 'mm': return num * 1e-6;
     case 'y': case 'yr': case 'yrs': case 'year': case 'years':
       return num * 365.25 * 86400; // years → seconds
     case 'd': case 'day': case 'days':
@@ -383,7 +379,11 @@ function parseValueWithUnit(val: number | string | undefined, defaultVal: number
     case 's': case 'sec': case 'secs': case 'second': case 'seconds':
       return num;                   // seconds
     case '': return num;
-    default: return num;
+    default:
+      // Read as the bare number, which is what an unsuffixed value means, but
+      // say so: "2000ft" as 2000 km is off by a factor of 3280.
+      console.warn(`[Cosmolabe] Unrecognized unit "${match[2]}" in ${JSON.stringify(val)}; reading the number without it.`);
+      return num;
   }
 }
 
@@ -394,6 +394,21 @@ const BODY_GM: Record<string, number> = {
   Uranus: 5793939, Neptune: 6836529, Venus: 324859, Mercury: 22032,
   Pluto: 871,
 };
+
+/** The gravitational parameter a Keplerian orbit propagates with. A catalog
+ *  `period` wins, as in Cosmographia, and is the only way to orbit a center
+ *  with no GM in BODY_GM; otherwise the center's GM. Bare numbers are days. */
+function keplerianMu(semiMajorAxisKm: number, period: number | string | undefined, center: string | undefined): number {
+  if (period != null) {
+    const seconds = typeof period === 'number' || !/[a-zA-Z]/.test(period)
+      ? Number(period) * 86400
+      : parseValueWithUnit(period, 0);
+    if (seconds > 0 && semiMajorAxisKm > 0) {
+      return 4 * Math.PI * Math.PI * semiMajorAxisKm ** 3 / (seconds * seconds);
+    }
+  }
+  return BODY_GM[center ?? 'Sun'] ?? 0;
+}
 
 // Well-known Builtin body names → SPICE targets
 const BUILTIN_BODIES: Record<string, { target: string; center: string }> = {
@@ -576,6 +591,9 @@ export interface CatalogLoaderOptions {
    *  are resolved against. `Universe` passes its own; a standalone loader
    *  makes one. */
   frames?: FrameRegistry;
+  /** Geometry types a renderer plugin draws, so the unknown-key check neither
+   *  checks their fields nor reports one as a misspelled built-in type. */
+  geometryTypes?: readonly string[];
 }
 
 export class CatalogLoader {
@@ -584,6 +602,7 @@ export class CatalogLoader {
   private readonly resolveFileBinary?: (source: string) => ArrayBuffer | undefined;
   private readonly trajectoryFactories?: Record<string, TrajectoryFactory>;
   private readonly rotationFactories?: Record<string, RotationFactory>;
+  private readonly geometryTypes?: readonly string[];
   private frames: FrameRegistry;
   /** Epoch (ET) used to probe whether SPICE kernels have coverage. Set from catalog's defaultTime. */
   private probeEpoch = 0;
@@ -600,6 +619,7 @@ export class CatalogLoader {
       this.resolveFileBinary = opts.resolveFileBinary;
       this.trajectoryFactories = opts.trajectoryFactories;
       this.rotationFactories = opts.rotationFactories;
+      this.geometryTypes = opts.geometryTypes;
       frames = opts.frames;
     }
     this.frames = frames ?? new FrameRegistry({ spice: this.spice });
@@ -720,6 +740,18 @@ export class CatalogLoader {
   }
 
   load(json: CatalogJson): LoadedCatalog {
+    // Unknown keys first, before anything is built from what remains: a key
+    // the loader does not read leaves a plausible scene missing what it asked
+    // for, and this is the only place that mistake can surface.
+    const label = json.name ? `catalog "${json.name}"` : 'catalog';
+    for (const d of validateCatalog(json, {
+      trajectoryTypes: Object.keys(this.trajectoryFactories ?? {}),
+      rotationTypes: Object.keys(this.rotationFactories ?? {}),
+      geometryTypes: this.geometryTypes,
+    })) {
+      console.warn(`[Cosmolabe] ${label}: ${d.message}`);
+    }
+
     // If catalog specifies a defaultTime, use it as the probe epoch for SPICE coverage checks.
     // This ensures Builtin bodies use SPICE data when the loaded kernels cover the mission epoch
     // (e.g. a Cassini SCPSE kernel covering 2004 would fail the default J2000 probe at ET=0).
@@ -995,7 +1027,9 @@ export class CatalogLoader {
         ? this.parseEpochValue(arc.endTime)
         : (i < arcs.length - 1 && arcs[i + 1].startTime != null
           ? this.parseEpochValue(arcs[i + 1].startTime!)
-          : startTime + 365.25 * 86400);
+          : (i === arcs.length - 1 && item.endTime != null
+            ? this.parseEpochValue(item.endTime)
+            : startTime + 365.25 * 86400));
 
       return {
         trajectory: this.buildTrajectory(arc.trajectory, {
@@ -1056,7 +1090,7 @@ export class CatalogLoader {
           argPeriapsis: argPeri * Math.PI / 180,
           meanAnomalyAtEpoch: (spec.meanAnomaly ?? 0) * Math.PI / 180,
           epoch: spec.epoch ? this.parseEpochValue(spec.epoch) : 0,
-          mu: BODY_GM[item.center ?? 'Sun'] ?? 0,
+          mu: keplerianMu(sma, spec.period, item.center),
         });
       }
 
@@ -1283,6 +1317,10 @@ export class CatalogLoader {
   private buildRotationModel(item: CatalogItem, trajectory?: Trajectory, parentBody?: Body): RotationModel | undefined {
     const spec = item.rotationModel;
     if (!spec) return undefined;
+    // Cosmographia's item-level `bodyFrame` names the frame a rotation model
+    // is stated in. The rotations whose frame is otherwise a fixed default
+    // take it when they do not name one themselves.
+    const statedFrame = spec.inertialFrame ?? (typeof item.bodyFrame === 'string' ? item.bodyFrame : undefined);
 
     // Check custom factories before built-in types
     const customFactory = this.rotationFactories?.[spec.type];
@@ -1326,7 +1364,7 @@ export class CatalogLoader {
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           poleRaDeg * Math.PI / 180,
           poleDecDeg * Math.PI / 180,
-          spec.inertialFrame ?? 'EquatorJ2000',
+          statedFrame ?? 'EquatorJ2000',
         );
       }
 
@@ -1429,7 +1467,7 @@ export class CatalogLoader {
       }
 
       case 'Fixed': {
-        const sourceFrame = spec.inertialFrame ?? 'EquatorJ2000';
+        const sourceFrame = statedFrame ?? 'EquatorJ2000';
         if (spec.quaternion && spec.quaternion.length >= 4) {
           return new FixedRotation(
             [spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]],
@@ -1450,7 +1488,7 @@ export class CatalogLoader {
           return new FixedEulerRotation(
             spec.sequence,
             spec.angles,
-            spec.inertialFrame ?? 'EquatorJ2000',
+            statedFrame ?? 'EquatorJ2000',
           );
         }
         return undefined;

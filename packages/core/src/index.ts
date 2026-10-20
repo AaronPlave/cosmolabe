@@ -25,6 +25,8 @@ export type {
   ViewpointScene,
 } from './viewpoint.js';
 export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
+export { validateCatalog } from './catalog/CatalogSchema.js';
+export type { CatalogDiagnostic, CatalogValidationOptions } from './catalog/CatalogSchema.js';
 export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
 // Built-in catalogs (Sun, Earth system, planets, asteroids, …) for programmatic
