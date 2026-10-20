@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CameraModeName, ensureQuatContinuity, bodyWorldOrientation, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
 import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
@@ -90,8 +90,17 @@ export class SurfaceMode implements ICameraMode {
       (N * (1 - e2) + this.altitudeKm) * sinLat,
     );
 
-    // Body-fixed north at this lat/lon
-    this.bodyFixedForward.set(-sinLat * cosLon, -sinLat * sinLon, cosLat).normalize();
+    // Body-fixed heading at this lat/lon: north turned clockwise (toward east)
+    // by `headingDeg`. Yaw then starts at zero, so the heading is the base the
+    // mode carries over movement.
+    const headingRad = (params.headingDeg ?? 0) * Math.PI / 180;
+    const ch = Math.cos(headingRad), sh = Math.sin(headingRad);
+    this.bodyFixedForward.set(
+      ch * -sinLat * cosLon + sh * -sinLon,
+      ch * -sinLat * sinLon + sh * cosLon,
+      ch * cosLat,
+    ).normalize();
+    this.pitch = Math.max(-1.4, Math.min(1.4, (params.pitchDeg ?? 0) * Math.PI / 180));
 
     // Transform to J2000
     const bodyQ = this.getBodyQuat(ctx, bm);
@@ -302,10 +311,12 @@ export class SurfaceMode implements ICameraMode {
     this.speedKmPerSec = this.altitudeKm * 2;
   }
 
-  private getBodyQuat(ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {
-    // Body→world orientation as the mesh renders it (catalog rotation model +
-    // obliquity), so surface lat/lon placement and horizon stay locked to the
-    // rendered terrain. Callers copy the result, so a shared scratch is safe.
-    return bodyWorldOrientation(bm, ctx.et, _bodyWorldQ);
+  private getBodyQuat(_ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {
+    // Body→world orientation read off the rendered mesh (catalog rotation
+    // model + obliquity, or the globe's own pole when there is no rotation
+    // model), so surface lat/lon placement and horizon stay locked to the
+    // rendered terrain — the frame Surface Explorer and the entry pose use.
+    // Callers copy the result, so a shared scratch is safe.
+    return bm.bodyToWorldQuaternion(_bodyWorldQ);
   }
 }

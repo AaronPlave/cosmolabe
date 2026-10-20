@@ -21,6 +21,7 @@ import { ChaseMode } from './modes/ChaseMode.js';
 import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
 import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
+import { surfaceEntryPose } from './surfaceEntry.js';
 
 /** A camera pose in scene coordinates. */
 export interface ViewpointPose {
@@ -664,21 +665,11 @@ export class CameraController {
     const mode = this._activeMode.name;
     if (mode === CameraModeName.FREE_ORBIT || this._frameOwnsCamera) return;
     if (this._modeSubjectFor(mode, bodyMesh) === this._modeBodyName) return;
-    const origin = this._originBody;
     // Mode.activate() only reads body rotation (not position), so it is safe
     // before the renderer's next frame recomputes positions under this origin.
-    this.setModeForBody(mode, bodyMesh);
     // setMode puts the origin on the frame's body — the planet, for a
-    // body-fixed frame on a spacecraft. Carry the camera into those
-    // coordinates; body positions are all still in one frame, so the
-    // difference between the two is the shift.
-    const moved = this._originBody;
-    if (origin && moved && moved !== origin) {
-      const shift = moved.position.clone().sub(origin.position);
-      this.camera.position.sub(shift);
-      this.controls.target.sub(shift);
-      this._prevTargetPos.sub(shift);
-    }
+    // body-fixed frame on a spacecraft — and carries the camera with it.
+    this.setModeForBody(mode, bodyMesh);
   }
 
   /**
@@ -832,25 +823,68 @@ export class CameraController {
 
   /**
    * Switch camera mode. Returns false if the mode name is unknown.
-   * Switching to FREE_ORBIT re-enables orbit controls and keyboard.
+   *
+   * The camera stays where it is in space unless the new mode places it
+   * itself. When the mode moves the scene origin onto its body, the camera
+   * and orbit target are carried into those coordinates. Leaving a mode that
+   * placed the camera (surface, chase, LVLH, instrument) for one the person
+   * orbits in keeps the view as it was: the orbit target is put on the line
+   * of sight and `up` is the screen's up, so the next `controls.update()`
+   * does not turn the camera, and free orbit lets go of a tracked body the
+   * view is no longer centred on rather than swinging round to face it.
+   *
+   * SURFACE and SURFACE_EXPLORER given a body but no `latDeg`/`lonDeg` enter
+   * at the pose `surfaceEntryPose` infers from the current view — the region
+   * looked at, at a practical height, heading where the view was heading —
+   * never at 0°, 0° by default. A given coordinate, 0°, 0° included, is used
+   * as it is.
    */
   setMode(modeName: CameraModeName, params: CameraModeParams = {}): boolean {
     const newMode = this._modes.get(modeName);
     if (!newMode) return false;
+    const leaving = this._activeMode;
+    const ctx = this._modeCtx;
 
-    // Deactivate current mode
-    if (this._modeCtx) {
-      this._activeMode.deactivate(this._modeCtx);
+    // Infer a surface entry before anything moves: it reads the view as it is.
+    if ((modeName === CameraModeName.SURFACE || modeName === CameraModeName.SURFACE_EXPLORER)
+      && params.bodyName && ctx && (params.latDeg === undefined || params.lonDeg === undefined)) {
+      const bm = ctx.bodyMeshes.get(params.bodyName);
+      const pick = ctx.pickSurface;
+      const entry = bm && surfaceEntryPose(
+        bm, this.camera, ctx.scaleFactor,
+        modeName === CameraModeName.SURFACE ? 'flight' : 'explorer',
+        pick ? () => pick(0, 0) : undefined,
+      );
+      if (entry) {
+        params = {
+          ...params,
+          latDeg: entry.latDeg,
+          lonDeg: entry.lonDeg,
+          altKm: params.altKm ?? entry.altKm,
+          headingDeg: params.headingDeg ?? entry.headingDeg,
+          pitchDeg: params.pitchDeg ?? entry.pitchDeg,
+        };
+      }
     }
 
-    // Restore TrackballControls damping and camera up when leaving a non-FreeOrbit mode
-    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+    // Deactivate current mode
+    if (ctx) leaving.deactivate(ctx);
+
+    // Restore TrackballControls damping when leaving a non-FreeOrbit mode
+    if (leaving.name !== CameraModeName.FREE_ORBIT) {
       this.controls.staticMoving = false;
       this.controls.dynamicDampingFactor = 0.15;
-      // Modes may set camera.up to unusual directions (e.g. surface normal).
-      // Reset to prevent TrackballControls gimbal instability.
-      if (modeName === CameraModeName.FREE_ORBIT) {
-        this.camera.up.set(0, 1, 0);
+    }
+
+    if (newMode.allowsOrbitControls && newMode !== leaving) {
+      if (!leaving.allowsOrbitControls) this._targetLineOfSight(this._modeBodyName);
+      // Modes may leave camera.up anywhere (a surface normal, a co-rotated
+      // up). The screen's up is the same view with an up square to the line
+      // of sight, which TrackballControls handles without a roll or snap.
+      this.camera.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion).normalize();
+      if (modeName === CameraModeName.FREE_ORBIT && this._trackTarget) {
+        const reach = Math.max(this.camera.position.distanceTo(this.controls.target), 1e-20);
+        if (this.controls.target.distanceTo(this._trackTarget.position) > 1e-6 * reach) this._trackTarget = null;
       }
     }
 
@@ -869,19 +903,57 @@ export class CameraController {
 
     // Set origin body to the mode's target for floating-point precision.
     // Without this, camera.position = largeBodyOffset + smallCameraOffset loses precision.
-    if (params.bodyName && this._modeCtx) {
-      const targetBm = this._modeCtx.bodyMeshes.get(params.bodyName);
+    const prevOrigin = this._originBody;
+    if (params.bodyName && ctx) {
+      const targetBm = ctx.bodyMeshes.get(params.bodyName);
       if (targetBm) {
         this._originBody = targetBm;
       }
     }
 
-    // Activate new mode with context
-    if (this._modeCtx) {
-      newMode.activate(this._modeCtx, params);
+    // Activate new mode with context. Body positions are still the last
+    // frame's, under the previous origin, and so is the camera: a mode that
+    // places the camera places it in those coordinates.
+    if (ctx) {
+      newMode.activate(ctx, params);
+    }
+
+    // Then carry the camera into the new origin's coordinates. Every body
+    // position is still in one frame, so the difference between the two
+    // origins is the shift; the renderer's next frame puts the bodies there.
+    const origin = this._originBody;
+    if (origin && origin !== prevOrigin) {
+      const shift = origin.position.clone();
+      if (prevOrigin) shift.sub(prevOrigin.position);
+      this.camera.position.sub(shift);
+      this.controls.target.sub(shift);
+      this._prevTargetPos.sub(shift);
     }
 
     return true;
+  }
+
+  /**
+   * Put the orbit target on the camera's line of sight, so orbiting resumes
+   * around what is in the middle of the view without turning the camera: where
+   * the line of sight meets `bodyName`'s surface, or as far ahead as the body's
+   * centre when it misses.
+   */
+  private _targetLineOfSight(bodyName: string | undefined): void {
+    const bm = bodyName ? this._modeCtx?.bodyMeshes.get(bodyName) : undefined;
+    const forward = this.camera.getWorldDirection(this._tmpV1);
+    let reach = this.camera.position.distanceTo(this.controls.target);
+    if (bm) {
+      const toCenter = this._tmpV2.subVectors(bm.position, this.camera.position);
+      const along = toCenter.dot(forward);
+      const radius = bm.displayRadius * bm.scaleFactor;
+      const miss2 = toCenter.lengthSq() - along * along;
+      const hit = along - Math.sqrt(Math.max(radius * radius - miss2, 0));
+      reach = along > 0 && miss2 <= radius * radius && hit > 0 ? hit : toCenter.length();
+    }
+    if (!(reach > 0)) reach = 1;
+    this.controls.target.copy(this.camera.position).addScaledVector(forward, reach);
+    this._prevTargetPos.copy(this.controls.target);
   }
 
   /**
@@ -891,8 +963,12 @@ export class CameraController {
    * - BODY_FIXED/SURFACE: uses the parent celestial body (planet/moon)
    * - INSTRUMENT: activates the specified sensor
    *
+   * Surface modes enter where the current view is looking (see `setMode`).
+   * A mode that needs a body returns false, changing nothing, when there is
+   * none; `modeSubject` is the body a mode change normally applies to.
+   *
    * @param modeName The camera mode to switch to
-   * @param bodyMesh The body to target (usually the tracked body)
+   * @param bodyMesh The body to target (usually `modeSubject`)
    * @param opts Extra options (sensorName for instrument mode)
    */
   setModeForBody(
@@ -900,7 +976,11 @@ export class CameraController {
     bodyMesh: BodyMesh | null,
     opts?: { sensorName?: string },
   ): boolean {
-    if (!bodyMesh) return this.setMode(modeName);
+    if (modeName === CameraModeName.FREE_ORBIT) return this.setMode(CameraModeName.FREE_ORBIT);
+    if (modeName === CameraModeName.INSTRUMENT) {
+      return this.setMode(CameraModeName.INSTRUMENT, { sensorName: opts?.sensorName ?? '' });
+    }
+    if (!bodyMesh) return false;
 
     const body = bodyMesh.body;
     const isSC = body.classification === 'spacecraft';
@@ -908,8 +988,6 @@ export class CameraController {
     const celestialBody = isSC ? parentName : body.name;
 
     switch (modeName) {
-      case CameraModeName.FREE_ORBIT:
-        return this.setMode(CameraModeName.FREE_ORBIT);
       case CameraModeName.SC_FIXED:
         return this.setMode(CameraModeName.SC_FIXED, { bodyName: body.name });
       case CameraModeName.BODY_FIXED:
@@ -923,18 +1001,14 @@ export class CameraController {
           bodyName: body.name, centerBodyName: parentName, offset: 100,
         });
       case CameraModeName.SURFACE:
+        if (!celestialBody) return false;
         return this.setMode(CameraModeName.SURFACE, {
-          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 10,
+          bodyName: celestialBody,
           lookTarget: isSC ? body.name : undefined,
         });
       case CameraModeName.SURFACE_EXPLORER:
-        return this.setMode(CameraModeName.SURFACE_EXPLORER, {
-          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 0.05,
-        });
-      case CameraModeName.INSTRUMENT:
-        return this.setMode(CameraModeName.INSTRUMENT, {
-          sensorName: opts?.sensorName ?? '',
-        });
+        if (!celestialBody) return false;
+        return this.setMode(CameraModeName.SURFACE_EXPLORER, { bodyName: celestialBody });
       default:
         return this.setMode(modeName);
     }
@@ -991,8 +1065,19 @@ export class CameraController {
     const available = allModes.filter(m => !exclude.includes(m));
     const curIdx = available.indexOf(this._activeMode.name);
     const nextMode = available[(curIdx + 1) % available.length];
-    this.setModeForBody(nextMode, this._trackTarget ?? this._originBody);
+    this.setModeForBody(nextMode, this.modeSubject);
     return nextMode;
+  }
+
+  /**
+   * The body a mode change applies to: the tracked body, or — when the
+   * camera has let go of it (a free look, a WASD move, leaving a surface
+   * view) — the origin body, the body the camera was last anchored on and is
+   * still drawn around. Focusing another body moves both. Every mode-change
+   * entry point (the `M` cycle, a mode menu) should use this, so they agree.
+   */
+  get modeSubject(): BodyMesh | null {
+    return this._trackTarget ?? this._originBody;
   }
 
   /** Get the mode instance (for mode-specific properties like InstrumentMode.sensorName) */
@@ -1509,20 +1594,29 @@ export class CameraController {
 
     // --- Non-FreeOrbit modes: delegate to active mode ---
     if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
-      // Discard right-click drag — modes handle their own orientation via delta rotation.
-      // Right-click in these modes would fight with the mode's target/quaternion control.
-      this._rightDragDx = 0;
-      this._rightDragDy = 0;
-
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        // Right-drag free look in body-fixed and SC-fixed: turn the view in
+        // place, as free orbit does, but keep the frame and its body. The mode
+        // then co-rotates the new target, orientation and up with the frame,
+        // so the look holds as time runs.
+        this._applyFreeLook();
         // The mode's body is what these controls orbit — the origin body
-        // `setMode` put it at — not whatever free orbit last tracked.
-        this._updateMinDistance(this._originBody ?? this._trackTarget);
+        // `setMode` put it at — not whatever free orbit last tracked. Its
+        // surface is a floor on the distance to the target only while the
+        // target is its centre; after a free look, or coming back from a
+        // surface view, the target is elsewhere and the renderer's surface
+        // clamp is the floor, as in free orbit.
+        const pivot = this._originBody ?? this._trackTarget;
+        const reach = Math.max(this.camera.position.distanceTo(this.controls.target), 1e-20);
+        this._updateMinDistance(pivot && this.controls.target.distanceTo(pivot.position) <= 1e-6 * reach ? pivot : null);
         this._applyTouchPan();
         this.controls.update();
       } else {
-        // The mode owns the camera; a two-finger drag is its own to interpret.
+        // The mode owns the camera, orientation included; a right-drag or a
+        // two-finger drag is its own to interpret.
+        this._rightDragDx = 0;
+        this._rightDragDy = 0;
         this._touchPanDx = 0;
         this._touchPanDy = 0;
       }
@@ -1552,30 +1646,8 @@ export class CameraController {
 
     // --- FreeOrbit mode: existing behavior ---
 
-    // Right-click free look
-    if (this._rightDragDx !== 0 || this._rightDragDy !== 0) {
-      this._trackTarget = null;
-
-      const forward = new THREE.Vector3();
-      this.camera.getWorldDirection(forward);
-      const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
-
-      const q = new THREE.Quaternion();
-      q.premultiply(
-        new THREE.Quaternion().setFromAxisAngle(this.camera.up, -this._rightDragDx * this.freeLookSensitivity),
-      );
-      q.premultiply(
-        new THREE.Quaternion().setFromAxisAngle(right, -this._rightDragDy * this.freeLookSensitivity),
-      );
-
-      const dist = this.camera.position.distanceTo(this.controls.target);
-      const newDir = forward.applyQuaternion(q).normalize();
-      this.controls.target.copy(this.camera.position).addScaledVector(newDir, dist);
-      this.camera.up.applyQuaternion(q).normalize();
-
-      this._rightDragDx = 0;
-      this._rightDragDy = 0;
-    }
+    // Right-click free look: the view leaves the tracked body
+    if (this._applyFreeLook()) this._trackTarget = null;
 
     // Tracking: lock orbit target to the tracked body. The body is normally at
     // (0,0,0) thanks to CRR origin-shifting, but surface-locked bodies may be
@@ -1645,6 +1717,39 @@ export class CameraController {
         }
       }
     }
+  }
+
+  /**
+   * Apply the right-drag accumulated since the last frame as a free look: turn
+   * the view about the camera's own position, moving the orbit target along
+   * with the line of sight at the same distance, so the camera stays put and
+   * the next `controls.update()` keeps the new direction.
+   *
+   * A free look is the person aiming the camera, so it ends a look-at — which
+   * would otherwise turn the camera straight back — but nothing else: the
+   * caller decides whether tracking survives. True when it turned the view.
+   */
+  private _applyFreeLook(): boolean {
+    const dx = this._rightDragDx;
+    const dy = this._rightDragDy;
+    this._rightDragDx = 0;
+    this._rightDragDy = 0;
+    if (dx === 0 && dy === 0) return false;
+    this.clearLookAt();
+
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
+
+    const q = new THREE.Quaternion();
+    q.premultiply(new THREE.Quaternion().setFromAxisAngle(this.camera.up, -dx * this.freeLookSensitivity));
+    q.premultiply(new THREE.Quaternion().setFromAxisAngle(right, -dy * this.freeLookSensitivity));
+
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const newDir = forward.applyQuaternion(q).normalize();
+    this.controls.target.copy(this.camera.position).addScaledVector(newDir, dist);
+    this.camera.up.applyQuaternion(q).normalize();
+    return true;
   }
 
   /**

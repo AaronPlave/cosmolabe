@@ -499,6 +499,9 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     const cc = renderer.cameraController;
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
+    // A right-drag free look ends a look-at from inside the controller.
+    const aim = cc.lookAtBody?.body.name ?? null;
+    if (vs.lookAtBodyName !== aim) vs.lookAtBodyName = aim;
     syncFlightState();
     rafId = requestAnimationFrame(tick);
   };
@@ -1238,11 +1241,17 @@ export function setLighting(mode: 'natural' | 'shadow' | 'flood') {
   savePrefs({ lightingMode: mode });
 }
 
-export function setCameraMode(mode: CameraModeName) {
-  if (!_renderer) return;
+/**
+ * Switch camera mode on the controller's `modeSubject` — the same body the `M`
+ * cycle uses, so the two agree after a free look lets go of the tracked body.
+ * False, changing nothing, when the mode needs a body and there is none.
+ */
+export function setCameraMode(mode: CameraModeName): boolean {
+  if (!_renderer) return false;
   const cc = _renderer.cameraController;
-  cc.setModeForBody(mode, cc.trackedBody);
+  const ok = cc.setModeForBody(mode, cc.modeSubject);
   syncCameraState();
+  return ok;
 }
 
 /**
