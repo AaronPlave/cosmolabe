@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { bodyFixedToMeshLocal, meshLocalToBodyFixed, surfacePoseFromBodyFixed, zoomTowardSurfacePoint } from '../SurfaceNavigation.js';
+import { bodyFixedToMeshLocal, meshLocalToBodyFixed, surfaceNavigable, surfacePoseFromBodyFixed, zoomTowardSurfacePoint } from '../SurfaceNavigation.js';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { SurfacePoint } from '../SceneHit.js';
 
@@ -33,5 +33,20 @@ describe('surface navigation helpers', () => {
     expect(after.length()).toBeCloseTo(before.length() / 4, 6);
     expect(after.normalize().dot(before.normalize())).toBeCloseTo(1, 9);
     expect(zoomTowardSurfacePoint(bm, camera, { ...point([0, 0, 1]), bodyName: 'Mars' } as SurfacePoint, 1)).toBeNull();
+  });
+
+  it('is not offered for a DSK pick, whose frame is the rotated shape model\'s', () => {
+    // 67P-like: the model container turned away from the globe mesh frame.
+    const model = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 1.1);
+    const bm = {
+      body: { name: '67P' }, position: new THREE.Vector3(), mesh: { quaternion: new THREE.Quaternion() },
+      bodyToWorldQuaternion: (out: THREE.Quaternion) => out.copy(model),
+    } as unknown as BodyMesh;
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 20);
+    const dsk = { bodyName: '67P', bodyFixedPositionKm: [0, 0, 2], source: 'dsk' } as unknown as SurfacePoint;
+    expect(surfaceNavigable(dsk)).toBe(false);
+    expect(zoomTowardSurfacePoint(bm, camera, dsk, 1)).toBeNull();
+    expect(surfaceNavigable({ source: 'terrain' })).toBe(true);
   });
 });

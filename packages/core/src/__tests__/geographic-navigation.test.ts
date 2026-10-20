@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, withTerrainElevation,
   parseLatitudeText, parseLongitudeText, defaultSurfaceRangeKm, GeographicNavigationError, describeNavigationTarget,
+  withoutTerrainCoverage, refineWithTerrain,
   type GeographicCoordinateInput, type NavigationReference,
 } from '../geographic/navigation.js';
 import { bodyFixedToGeodetic } from '../geographic/coordinates.js';
@@ -111,6 +112,29 @@ describe('resolveGeographicTarget', () => {
   });
 });
 
+describe('cold-cache terrain handoff', () => {
+  const terrain = ref('Mars', [3396.19, 3396.19, 3376.2], {
+    terrainDatum: { referenceShape: { kind: 'sphere', radiusKm: 3396.19 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+  });
+  it('places provisionally on the datum, then moves onto the terrain once it loads', () => {
+    const cold = withoutTerrainCoverage(resolveGeographicTarget(input('Mars', 18.4447, 77.4508), terrain));
+    expect(cold.awaitingTerrain).toBe(true);
+    expect(cold.notes.join()).toMatch(/not loaded/);
+    const loaded = refineWithTerrain(cold, -2.6, 'mola')!;
+    expect(loaded.target.awaitingTerrain).toBe(false);
+    expect(loaded.target.notes.join()).not.toMatch(/not loaded/);
+    expect(loaded.target.height).toEqual({ from: 'terrain-sample', km: -2.6, sourceId: 'mola' });
+    // The shift moves the old target onto the new one, along the radius.
+    expect(len(loaded.shiftKm)).toBeCloseTo(2.6, 9);
+    expect(dot(loaded.shiftKm, cold.up)).toBeCloseTo(-2.6, 9);
+    // Once refined, nothing more to do.
+    expect(refineWithTerrain(loaded.target, 1, 'mola')).toBeNull();
+  });
+  it('ignores targets that were never waiting', () => {
+    expect(refineWithTerrain(resolveGeographicTarget(input('Mars', 0, 0), MARS), 1, 'x')).toBeNull();
+  });
+});
+
 describe('surfacePointTarget', () => {
   it('keeps the exact picked position and its provenance', () => {
     const p: [number, number, number] = [1000.123456789, 1200.5, 700.25];
@@ -141,6 +165,15 @@ describe('surfaceViewPlacement', () => {
     expect(s.rangeKm).toBeLessThan(q.rangeKm);
     expect(q.rangeKm).toBeLessThan(o.rangeKm);
     expect(o.viewpoint).toMatchObject({ center: 'Mars', frame: 'BodyFixed', target: t.positionKm });
+  });
+  it('puts the surface view at a person\'s eye height, not an aerial one', () => {
+    expect(defaultSurfaceRangeKm('surface', 6371)).toBe(0.002);
+    expect(defaultSurfaceRangeKm('surface', 3390)).toBe(0.002);
+    expect(defaultSurfaceRangeKm('surface', 1737)).toBe(0.002);
+    expect(defaultSurfaceRangeKm('surface', 11)).toBeCloseTo(0.0011, 12);
+    const s = surfaceViewPlacement(t, 'surface');
+    const eyeHeight = dot([s.eyeKm[0] - t.positionKm[0], s.eyeKm[1] - t.positionKm[1], s.eyeKm[2] - t.positionKm[2]], t.up);
+    expect(eyeHeight).toBeCloseTo(0.002, 9);
   });
   it('lifts the eye above known terrain', () => {
     const s = surfaceViewPlacement(t, 'surface', { groundRadiusAt: () => 3500, clearanceKm: 0.01 });

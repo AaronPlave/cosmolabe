@@ -2,7 +2,7 @@
   // Every action here is one of the shared navigation verbs (docs/navigation.md):
   // the menu chooses which, and does not re-derive what any of them means.
   import { selectBody, trackBody, frameBody, flyToBody, lookAtBody, resetCamera, navigateToSurfacePoint } from '../lib/viewer-state.svelte';
-  import { coordinateDecimals, formatLatitude, formatLongitude, type SurfacePoint } from '@cosmolabe/three';
+  import { coordinateDecimals, formatLatitude, formatLongitude, surfaceNavigable, type SurfacePoint } from '@cosmolabe/three';
   import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route, ZoomIn, MapPin } from 'lucide-svelte';
 
   interface Props {
@@ -44,7 +44,7 @@
   }
 
   // Clamp position to viewport
-  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint ? 370 : 290))}px;`);
+  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint && surfaceNavigable(surfacePoint) ? 370 : 290))}px;`);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -73,7 +73,7 @@
       </button>
       <div class="h-px bg-border my-1"></div>
     {/if}
-    {#if surfacePoint}
+    {#if surfacePoint && surfaceNavigable(surfacePoint)}
       <div class="px-3 py-1 text-[11px] text-text-muted uppercase tracking-wider flex items-center gap-1">
         <MapPin size={11} /> {surfacePoint.bodyName} surface
       </div>

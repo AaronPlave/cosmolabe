@@ -120,6 +120,12 @@ export interface SurfaceNavigationTarget {
     km: number | null;
     sourceId?: string;
   };
+  /**
+   * On a terrain body whose product had no decoded coverage here yet: the
+   * target is provisionally on the datum, and `refineWithTerrain` moves it
+   * onto the terrain once a sample arrives.
+   */
+  awaitingTerrain?: boolean;
   datum: SurfaceDatum | null;
   /** How the target was named. */
   origin:
@@ -255,12 +261,32 @@ export function withTerrainElevation(target: SurfaceNavigationTarget, elevationK
   return {
     ...target, positionKm, ...latitudes(positionKm, target.up),
     height: { from: 'terrain-sample', km: elevationKm, sourceId },
+    awaitingTerrain: false,
+    notes: target.notes.filter((n) => n !== TERRAIN_PENDING_NOTE),
   };
 }
 
+const TERRAIN_PENDING_NOTE = 'Terrain is not loaded here yet: the target is on the reference surface until it is';
+
 /** A terrain body whose product has no decoded coverage at the target yet. */
 export function withoutTerrainCoverage(target: SurfaceNavigationTarget): SurfaceNavigationTarget {
-  return { ...target, notes: [...target.notes, 'Terrain is not loaded here yet: the target is on the reference surface'] };
+  return { ...target, awaitingTerrain: true, notes: [...target.notes, TERRAIN_PENDING_NOTE] };
+}
+
+/**
+ * The cold-cache handoff: a target placed on the datum while its terrain had
+ * not loaded, moved onto the terrain sample that has since arrived. Returns
+ * the refined target and the body-fixed shift (km) to apply to whatever was
+ * placed by the old one — the pivot and, so the view keeps its framing, the
+ * camera. Null when the target is not awaiting terrain or the sample is bad.
+ */
+export function refineWithTerrain(
+  target: SurfaceNavigationTarget, elevationKm: number, sourceId: string,
+): { target: SurfaceNavigationTarget; shiftKm: Vec3 } | null {
+  if (!target.awaitingTerrain || !Number.isFinite(elevationKm)) return null;
+  const refined = withTerrainElevation(target, elevationKm, sourceId);
+  if (refined === target) return null;
+  return { target: refined, shiftKm: sub(refined.positionKm, target.positionKm) };
 }
 
 /**
@@ -345,7 +371,9 @@ export function defaultSurfaceRangeKm(preset: SurfaceViewPreset, scaleKm: number
   switch (preset) {
     case 'overhead': return clamp(0.3 * scaleKm, 1, 20000);
     case 'oblique': return clamp(0.08 * scaleKm, 0.5, 5000);
-    case 'surface': return clamp(1e-4 * scaleKm, 0.002, 2);
+    // Eye height: a person's, 2 m, on anything big enough to stand on;
+    // proportionally less on a body only a few km across.
+    case 'surface': return clamp(1e-4 * scaleKm, 1e-4, 0.002);
   }
 }
 

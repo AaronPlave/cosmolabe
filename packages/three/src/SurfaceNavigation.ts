@@ -66,6 +66,17 @@ export function surfacePoseFromBodyFixed(
   };
 }
 
+/**
+ * Whether surface navigation can go to `point`. A DSK pick is in the shape
+ * model's native Z-up frame, oriented by the model container
+ * (`bodyToWorldQuaternion`), not the globe mesh frame `SurfacePose` is in;
+ * until navigation handles that frame, it is not offered there rather than
+ * landing somewhere else on an irregular body (#107).
+ */
+export function surfaceNavigable(point: Pick<SurfacePoint, 'source'>): boolean {
+  return point.source !== 'dsk';
+}
+
 /** How much closer "Zoom to here" brings the camera, and its nearest approach. */
 export const SURFACE_ZOOM_FRACTION = 0.25;
 export const SURFACE_ZOOM_MIN_RANGE_KM = 0.01;
@@ -76,13 +87,14 @@ export const SURFACE_ZOOM_MIN_RANGE_KM = 0.01;
  * direction and up kept. That segment is the ray the point was seen along,
  * so the new position is clear of the surface by construction; no flight
  * over the globe is needed. Already nearer than that, the camera stays and
- * only pivots on the point. Null when the point is not on `bm`.
+ * only pivots on the point. Null when the point is not on `bm`, or is a DSK
+ * pick (`surfaceNavigable`).
  */
 export function zoomTowardSurfacePoint(
   bm: BodyMesh, camera: THREE.Camera, point: SurfacePoint, scaleFactor: number,
   fraction = SURFACE_ZOOM_FRACTION,
 ): SurfacePose | null {
-  if (point.bodyName !== bm.body.name) return null;
+  if (point.bodyName !== bm.body.name || !surfaceNavigable(point)) return null;
   const inv = bm.mesh.quaternion.clone().invert();
   const target = bodyFixedToMeshLocal(point.bodyFixedPositionKm, scaleFactor);
   const eye = camera.position.clone().sub(bm.position).applyQuaternion(inv);

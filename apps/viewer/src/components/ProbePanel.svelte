@@ -5,7 +5,7 @@
    * numbers are measured from.
    */
   import {
-    coordinateDecimals, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
+    coordinateDecimals, surfaceNavigable, describeDatum, describeSource, formatHeight, formatLatitude, formatLongitude, surfacePointToText,
   } from '@cosmolabe/three';
   import { Copy, Check, Ruler, Navigation, Maximize } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
@@ -92,6 +92,7 @@
 
     <!-- Camera navigation to the pinned point (#190): the same surface point,
          not re-entered coordinates. Separate from measuring. -->
+    {#if surfaceNavigable(point)}
     <div class="mt-3 flex gap-1.5">
       <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: true, from: 'pin' })} title="Fly closer and orbit about this point">
         <Navigation size={13} /> Fly to here
@@ -100,7 +101,8 @@
         <Maximize size={13} /> Frame here
       </Button>
     </div>
-    <Button variant="secondary" size="sm" class="ui-control w-full mt-1.5" onclick={() => measureFromHere(point)}>
+    {/if}
+    <Button variant="secondary" size="sm" class="ui-control w-full {surfaceNavigable(point) ? 'mt-1.5' : 'mt-3'}" onclick={() => measureFromHere(point)}>
       <Ruler size={13} /> Measure from here
     </Button>
 

@@ -161,6 +161,9 @@ interface SurfaceFlight {
   rise: number;
 }
 
+/** How close to a globe without terrain the camera may come about a surface pivot, km. */
+export const SURFACE_PIVOT_CLEARANCE_KM = 0.002;
+
 const _sfQ = /* @__PURE__ */ new THREE.Quaternion();
 const _sfSwing = /* @__PURE__ */ new THREE.Quaternion();
 const _sfIdentity = /* @__PURE__ */ new THREE.Quaternion();
@@ -640,6 +643,37 @@ export class CameraController {
   /** Whether surface navigation holds the camera: flying to a surface pose, landing, or pivoting about one. */
   get surfaceNavigating(): boolean {
     return !!(this._surfacePivot || this._pendingSurfacePivot || this._anim?.surface);
+  }
+
+  /**
+   * Move the surface target by `delta` (the body's mesh frame, scene units),
+   * carrying the camera with it so the view keeps its framing: the hand-off
+   * when terrain the target was waiting for arrives. Applies to a flight
+   * still heading there, a landing about to install its pivot, or the pivot
+   * itself. False when none of those is on `bodyMesh`.
+   */
+  retargetSurface(bodyMesh: BodyMesh, delta: THREE.Vector3): boolean {
+    const flight = this._anim?.surface;
+    if (flight && flight.body === bodyMesh) {
+      flight.endPos.add(delta);
+      flight.endTarget.add(delta);
+      return true;
+    }
+    const world = delta.clone().applyQuaternion(bodyMesh.mesh.quaternion);
+    if (this._pendingSurfacePivot && this._pendingOriginSwitch === bodyMesh) {
+      this._pendingSurfacePivot.add(delta);
+      this.camera.position.add(world);
+      return true;
+    }
+    const pivot = this._surfacePivot;
+    if (pivot && pivot.body === bodyMesh) {
+      pivot.local.add(delta);
+      this.camera.position.add(world);
+      this.controls.target.add(world);
+      this._prevTargetPos.add(world);
+      return true;
+    }
+    return false;
   }
 
   private _clearSurfacePivot(): void {
@@ -1960,15 +1994,21 @@ export class CameraController {
    * Keep the camera outside `body`'s rendered globe, pushing it back out
    * radially. Bodies with terrain are left to the renderer's terrain clamp.
    * About a surface pivot the target is on the ground by design: it stays,
-   * and the floor is the rendered ellipsoid in the camera's direction rather
-   * than the equatorial radius, so a polar view is not pushed 20 km up.
+   * and the floor is the rendered ellipsoid in the camera's direction plus
+   * `SURFACE_PIVOT_CLEARANCE_KM`, rather than the equatorial radius plus a
+   * fraction of it, so a 2 m eye height or a polar view is not pushed up.
    */
   private _guardSurface(body: BodyMesh, aboutPivot: boolean): void {
     if (body.hasTerrain) return;
     const offset = this._tmpV1.subVectors(this.camera.position, body.position);
     const dist = offset.length();
     if (!(dist > 0)) return;
-    const minR = (aboutPivot ? renderedRadiusToward(body, offset) : body.displayRadius * body.scaleFactor) * 1.0001;
+    // About a pivot the camera may stand on the ground: an absolute eye-height
+    // floor (the renderer's terrain clamp margin), not a fraction of the
+    // radius, which is hundreds of metres on a planet.
+    const minR = aboutPivot
+      ? renderedRadiusToward(body, offset) + SURFACE_PIVOT_CLEARANCE_KM * body.scaleFactor
+      : body.displayRadius * body.scaleFactor * 1.0001;
     if (dist >= minR) return;
     offset.multiplyScalar(minR / dist);
     this.camera.position.copy(body.position).add(offset);

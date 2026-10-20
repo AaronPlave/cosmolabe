@@ -174,7 +174,8 @@ never the camera's own position. Three surfaces name one:
   letters are absolute directions). Then a view:
   - **Overhead** — straight down the surface normal, north up;
   - **Oblique** — 50° off vertical, from the south;
-  - **Surface** — just above the ground south of the place, looking north at it.
+  - **Surface** — at a person's eye height (2 m; less on a body a few km
+    across) just south of the place, looking north at it.
 
   Distances scale with the body; *Advanced* overrides the altitude, slant
   range or eye height.
@@ -184,7 +185,9 @@ never the camera's own position. Three surfaces name one:
   goes round the globe, and neither changes the camera frame. The menu offers
   them only when the shared scene hit (#127) found a surface; a click into
   space or on a spacecraft gets the ordinary menu. A right-drag is still
-  free look and opens no menu.
+  free look and opens no menu. A DSK shape model's surface is not offered
+  yet: its picks are in the model's own frame, which surface navigation does
+  not handle (#107).
 - **The pinned Point Probe**: *Fly to here* / *Frame here* go to the same
   surface point, without re-entering it — along the line of sight while the
   point faces the camera, otherwise overhead.
@@ -198,8 +201,9 @@ Where it lands:
   rotation model is refused with the reason; so is planetographic latitude on
   a triaxial body. Out-of-range input is refused, never clamped.
 - On a terrain body the place is raised onto the decoded terrain sample;
-  where the terrain has not loaded yet the dialog says the place is on the
-  reference surface. A placement's eye is lifted clear of terrain known under
+  where the terrain has not loaded yet the place goes on the reference
+  surface for now, says so, and moves onto the terrain — pivot and camera
+  together, keeping the framing — as soon as a sample decodes there. A placement's eye is lifted clear of terrain known under
   it, and the renderer's terrain clamp still applies.
 - A picked point is used exactly as picked, with its own source and datum.
 - The placement is a semantic viewpoint (#114): `center` the body, `frame`
@@ -216,7 +220,8 @@ How it moves:
 - On landing (or a cut) the body is tracked and **the place is the orbit
   pivot**: wheel zoom closes on it and drag orbits about it, instead of
   snapping back to the body's centre. In free orbit the camera turns with
-  the body so the place stays where it is on screen. Any other navigation
+  the body so the place stays where it is on screen. On a globe without
+  terrain the camera may come within 2 m of the ground about the pivot. Any other navigation
   ends the pivot; so does a right-drag or a movement key, as they end
   tracking.
 - Manual input stops the flight where it is, facing the place — as for any

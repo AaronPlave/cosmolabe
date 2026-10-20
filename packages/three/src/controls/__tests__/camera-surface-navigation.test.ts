@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CameraController } from '../CameraController.js';
+import { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from '../CameraController.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 function fakeElement(width = 800, height = 600) {
@@ -109,6 +109,63 @@ describe('jumpToSurface', () => {
     frame(0.016);
     expect(cc.surfacePivot).toBeNull();
     expect(cc.controls.target.length()).toBeLessThan(1e-9);
+  });
+});
+
+describe('near the ground of a globe without terrain', () => {
+  const groundPose = (heightKm: number) => ({
+    position: new THREE.Vector3(R + heightKm, 0, 0.014),
+    target: new THREE.Vector3(R, 0, 0),
+    up: new THREE.Vector3(1, 0, 0),
+  });
+
+  it('keeps a 2 m eye height instead of pushing it out to a fraction of the radius', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, groundPose(0.002));
+    for (let i = 0; i < 10; i++) frame(0.016);
+    expect(camera.position.length() - R).toBeGreaterThan(0.0019);
+    expect(camera.position.length() - R).toBeLessThan(0.0025);
+  });
+
+  it('floors a dive toward the ground at the 2 m clearance', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, groundPose(0.010));
+    frame(0.016);
+    // Something drives the camera under the surface (an orbit about the pivot, say).
+    camera.position.set(R - 0.5, 0, 0.01);
+    frame(0.016);
+    expect(camera.position.length() - R).toBeCloseTo(SURFACE_PIVOT_CLEARANCE_KM, 6);
+    // The pivot stays on the ground.
+    close(cc.controls.target, new THREE.Vector3(R, 0, 0));
+  });
+});
+
+describe('retargetSurface', () => {
+  it('moves the pivot and the camera together once terrain arrives', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, overheadX());
+    frame(0.016);
+    const before = camera.position.clone();
+    expect(cc.retargetSurface(mars, new THREE.Vector3(-2.6, 0, 0))).toBe(true);
+    frame(0.016);
+    close(cc.controls.target, new THREE.Vector3(R - 2.6, 0, 0));
+    close(camera.position, before.clone().add(new THREE.Vector3(-2.6, 0, 0)), 1e-6);
+  });
+
+  it('retargets a flight still on its way', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.flyToSurface(mars, overheadX());
+    frame(0.1);
+    expect(cc.retargetSurface(mars, new THREE.Vector3(5, 0, 0))).toBe(true);
+    for (let i = 0; i < 200 && cc.flight; i++) frame(0.05);
+    frame(0.016);
+    close(camera.position, new THREE.Vector3(R + 105, 0, 0), 1e-6);
+    close(cc.controls.target, new THREE.Vector3(R + 5, 0, 0));
+  });
+
+  it('does nothing without surface navigation on that body', () => {
+    const { cc, mars } = setup();
+    expect(cc.retargetSurface(mars, new THREE.Vector3(1, 0, 0))).toBe(false);
   });
 });
 

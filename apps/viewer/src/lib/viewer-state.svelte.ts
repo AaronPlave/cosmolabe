@@ -7,13 +7,14 @@
  */
 import {
   etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement,
-  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
+  withTerrainElevation, withoutTerrainCoverage, refineWithTerrain, describeNavigationTarget, GeographicNavigationError, ViewpointError,
   type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint,
+  surfaceNavigable, bodyFixedToMeshLocal,
 } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
@@ -528,6 +529,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
     if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
+    if (_awaitingTerrain && vs.frameTick % 15 === 0) refineAwaitedTerrain();
     // A right-drag free look ends a look-at from inside the controller.
     const aim = cc.lookAtBody?.body.name ?? null;
     if (vs.lookAtBodyName !== aim) vs.lookAtBodyName = aim;
@@ -1053,7 +1055,34 @@ export function navigateToSurfaceTarget(
   else cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
   syncCameraState();
   vs.surfaceTarget = describeTarget(target, placement.viewpoint);
+  _awaitingTerrain = target.awaitingTerrain ? { target, viewpoint: placement.viewpoint } : null;
   return { ok: true, target };
+}
+
+/**
+ * A coordinate target placed on the datum because its terrain had not
+ * decoded yet. Until it has, or other navigation takes the camera, the frame
+ * loop keeps sampling; then the target, its pivot and the camera move onto
+ * the terrain together, so the camera never orbits a point inside a hill or
+ * above a basin.
+ */
+let _awaitingTerrain: { target: SurfaceNavigationTarget; viewpoint: ViewpointDefinition } | null = null;
+
+function refineAwaitedTerrain() {
+  const awaiting = _awaitingTerrain;
+  const cc = _renderer?.cameraController;
+  if (!awaiting || !cc) return;
+  if (!cc.surfaceNavigating) { _awaitingTerrain = null; return; }
+  const { target, viewpoint } = awaiting;
+  const bm = _renderer!.getBodyMesh(target.bodyName);
+  const sample = bm?.sampleTerrain(target.latGraphicDeg, target.lonEastDeg);
+  if (!bm || !sample) return;
+  const refined = refineWithTerrain(target, sample.elevationKm, sample.source.id);
+  _awaitingTerrain = null;
+  if (!refined) return;
+  if (!cc.retargetSurface(bm, bodyFixedToMeshLocal(refined.shiftKm, _renderer!.scaleFactor))) return;
+  const shift = (v: readonly number[] | undefined) => v && [v[0] + refined.shiftKm[0], v[1] + refined.shiftKm[1], v[2] + refined.shiftKm[2]] as [number, number, number];
+  vs.surfaceTarget = describeTarget(refined.target, { ...viewpoint, eye: shift(viewpoint.eye), target: shift(viewpoint.target) });
 }
 
 /** Resolve coordinates and fly (or jump) there. */
@@ -1077,9 +1106,10 @@ export function goToCoordinates(
  * overhead view by an arc around the body.
  */
 export function navigateToSurfacePoint(point: SurfacePoint, opts: { animate?: boolean; from?: 'click' | 'pin' } = {}): boolean {
-  if (!_renderer) return false;
+  if (!_renderer || !surfaceNavigable(point)) return false;
   const bm = navigableMesh(point.bodyName);
   if (!bm) return false;
+  _awaitingTerrain = null;
   const target = surfacePointTarget(point);
   const sf = _renderer.scaleFactor;
   let clear = opts.from === 'click';

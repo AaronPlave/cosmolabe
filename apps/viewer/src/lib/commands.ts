@@ -2,7 +2,7 @@
  * Command registry — all actions accessible via the command palette.
  * Combines built-in commands with plugin-contributed commands.
  */
-import type { UniverseRenderer } from '@cosmolabe/three';
+import { surfaceNavigable, type UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
@@ -56,7 +56,7 @@ function getBuiltinCommands(): Command[] {
     { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
     ...(vs.probePin ? [
       { id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() },
-      { id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin' }); } },
+      ...(surfaceNavigable(vs.probePin) ? [{ id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin' }); } }] : []),
     ] : []),
 
     // Instrument
