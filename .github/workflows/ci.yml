@@ -13,7 +13,9 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest
+    # Playwright 1.60 cannot install Chromium dependencies on Ubuntu 26.04.
+    # Keep the browser smoke on a supported image rather than the moving alias.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
