@@ -15,6 +15,21 @@ const metadata: PhysicalSurfaceMetadata = {
   bodyId: 'fixture', frame: 'FIXTURE_FIXED', source: { id: 'torus', kind: 'triangle-mesh', version: 'fixture-mesh-v1', uncertaintyKm: 0 },
   shape: { kind: 'mesh' }, coverage: 'complete-product',
 };
+
+it('retains a metre-scale lattice edge at Mars body-fixed scale without admitting points outside it', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/mars-cube-edge-triangle.json', import.meta.url), 'utf8'));
+  const surface = new CpuMeshSurface(metadata, { positionsKm: new Float64Array(fixture.positionsKm), indices: new Uint32Array([0, 1, 2]) }, { meshDeviationBoundKm: null });
+  const hit = surface.intersectRay(fixture.ray, { maxMeshErrorKm: 0.001 });
+  expect(hit).toMatchObject({ kind: 'hit', distanceKm: expect.closeTo(2, 9), detail: 'coarse' });
+  // Move the target 1 mm beyond the endpoint along the bottom edge. Roundoff
+  // accommodation must not grow this real triangle into a seam filler.
+  const p = fixture.positionsKm;
+  const length = Math.hypot(p[3] - p[0], p[4] - p[1], p[5] - p[2]);
+  const outside = [0, 1, 2].map(i => p[3 + i] + (p[3 + i] - p[i]) * 1e-6 / length);
+  const o = fixture.ray.origin;
+  expect(surface.intersectRay({ ...fixture.ray, direction: [outside[0] - o.xKm, outside[1] - o.yKm, outside[2] - o.zKm] }, { maxMeshErrorKm: 0.001 }).kind).toBe('miss');
+});
+
 const options = { maxMeshErrorKm: 0.001 };
 const ray = (x = 4, direction = -1): SurfaceRay => ({ origin: { xKm: x, yKm: 0, zKm: 0 }, direction: [direction, 0, 0], nearKm: 0, farKm: 8 });
 const distance = (a: BodyFixedCartesian, b: BodyFixedCartesian) => Math.hypot(a.xKm - b.xKm, a.yKm - b.yKm, a.zKm - b.zKm);

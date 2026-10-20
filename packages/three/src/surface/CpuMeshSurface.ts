@@ -39,6 +39,7 @@ export class CpuMeshSurface implements PhysicalSurface {
     const { positionsKm, indices } = this.mesh;
     const ox = ray.origin.xKm, oy = ray.origin.yKm, oz = ray.origin.zKm;
     const dx = direction[0], dy = direction[1], dz = direction[2];
+    const originScale = Math.max(Math.abs(ox), Math.abs(oy), Math.abs(oz));
     let nearest = ray.farKm, triangleIndex = -1;
     let nx = 0, ny = 0, nz = 0;
     // Scalar Möller–Trumbore: no per-triangle allocation, so the scan stays
@@ -55,11 +56,20 @@ export class CpuMeshSurface implements PhysicalSurface {
       // Relative parallel tolerance works for both kilometre bodies and metre-scale detail.
       if (nLength === 0 || Math.abs(determinant) <= 1e-14 * nLength) continue;
       const sx = ox - ax, sy = oy - ay, sz = oz - az;
+      // Body-fixed coordinates can be millions of times larger than a cell.
+      // Subtraction then loses more than a fixed barycentric epsilon at shared
+      // edges/vertices. Propagate that floating-point scale through the triangle
+      // and ray determinant; this admits roundoff, not a physical seam skirt.
+      const e1Bound = Math.abs(e1x) + Math.abs(e1y) + Math.abs(e1z);
+      const e2Bound = Math.abs(e2x) + Math.abs(e2y) + Math.abs(e2z);
+      const roundoffKm = 32 * Number.EPSILON * Math.max(originScale, Math.abs(ax), Math.abs(ay), Math.abs(az), e1Bound, e2Bound);
+      const uTolerance = Math.max(1e-12, roundoffKm * e2Bound / Math.abs(determinant));
+      const vTolerance = Math.max(1e-12, roundoffKm * e1Bound / Math.abs(determinant));
       const u = (sx * px + sy * py + sz * pz) / determinant;
-      if (u < -1e-12) continue;
+      if (u < -uTolerance) continue;
       const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x;
       const v = (dx * qx + dy * qy + dz * qz) / determinant;
-      if (v < -1e-12 || u + v > 1 + 1e-12) continue;
+      if (v < -vTolerance || u + v > 1 + uTolerance + vTolerance) continue;
       const distance = (e2x * qx + e2y * qy + e2z * qz) / determinant;
       if (distance < ray.nearKm || distance > nearest) continue;
       // Keep the first triangle on shared edges for deterministic provenance.

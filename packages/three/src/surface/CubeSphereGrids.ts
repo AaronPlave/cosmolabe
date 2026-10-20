@@ -1,8 +1,8 @@
-import type { TerrainDatum, TerrainSample, TerrainSourceMetadata } from '../TerrainSampler.js';
+import { geodeticToBodyFixed, wrapLon, type TerrainDatum, type TerrainSample, type TerrainSourceMetadata } from '../TerrainSampler.js';
 import { CpuMeshSurface } from './CpuMeshSurface.js';
 import { fetchWithRetry } from '../fetchWithRetry.js';
 import {
-  CubeSphereSampler, cubeFaceToDirection, cubeTileId, directionToCubeFace,
+  CubeSphereSampler, cubeFaceBasis, cubeFaceToDirection, cubeTileId, directionToCubeFace,
   type CubeFace, type CubeFaceCoordinate, type CubeHeightTile, type CubeTileAddress,
 } from './CubeSphere.js';
 import {
@@ -21,10 +21,16 @@ import {
 export interface CubeGridManifest {
   format: 'cosmolabe-cube-height-grid-1';
   datum: TerrainDatum;
+  /** Payload values are radial offsets from this radius, not datum heights.
+   * Required for ellipsoidal products; public samples are ellipsoid-normal heights. */
+  geometry?: { kind: 'radial-lattice'; referenceRadiusKm: number };
+  /** Emitted local float32 offsets versus the same CPU lattice, Euclidean km.
+   * This is not a bound on error against the source field or true terrain. */
+  renderedLatticeRoundingBoundKm?: number;
   source: TerrainSourceMetadata;
   grid: { width: number; height: number; uri: string; encoding?: string };
   /**
-   * `[min, max]` of every height in the product (km, padded outward): a
+   * `[min, max]` of every stored radial offset in the product (km, padded outward): a
    * residency-independent bound, so a ray query can find terrain it has not
    * loaded yet.
    */
@@ -93,6 +99,7 @@ export class CubeSphereGridSource {
   private requests = 0;
   private bytes = 0;
   private disposed = false;
+  private querySurface?: CubeGridSurface;
   /** Height range of every tile loaded so far, km: the ray query's search shell. */
   minHeightKm = Infinity;
   maxHeightKm = -Infinity;
@@ -109,7 +116,10 @@ export class CubeSphereGridSource {
     if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 2 || height < 2) throw new Error('Malformed cube grid dimensions');
     const range = manifest.heightRangeKm;
     if (!Array.isArray(range) || range.length !== 2 || !range.every(Number.isFinite) || range[0] > range[1]) throw new Error('Malformed cube grid height range');
-    this.sampler = new CubeSphereSampler(manifest.datum, manifest.source);
+    this.sampler = new CubeSphereSampler(manifest.datum, manifest.source, manifest.geometry ? 'radial-offset' : 'datum-height');
+    const geometry = manifest.geometry;
+    if ((geometry && (geometry.kind !== 'radial-lattice' || !Number.isFinite(geometry.referenceRadiusKm) || geometry.referenceRadiusKm <= 0))
+      || (manifest.datum.referenceShape.kind === 'ellipsoid' && !geometry)) throw new Error('Ellipsoidal cube grids require explicit radial-lattice geometry');
     for (const [face, level, x, y, uncertaintyKm] of manifest.tiles) this.uncertaintyById.set(cubeTileId({ face, level, x, y }), uncertaintyKm);
     this.residentLevel = options.residentLevel ?? 2;
     this.retryFailedMs = options.retryFailedMs ?? 30_000;
@@ -171,9 +181,14 @@ export class CubeSphereGridSource {
     };
   }
 
-  /** CPU sample from whatever is resident now, and a request for the finest tile there. Null only when nothing is resident. */
+  /** CPU sample from resident grids, requesting detail independently of rendering.
+   * Null preserves genuinely unavailable resident coverage. */
   sample(latDeg: number, lonDeg: number): TerrainSample | null {
     void this.request(latDeg, lonDeg);
+    if (this.manifest.geometry) {
+      this.querySurface ??= new CubeGridSurface(this, '', 'body-fixed');
+      return this.querySurface.sampleElevation(latDeg, lonDeg);
+    }
     return this.sampler.sample(latDeg, lonDeg);
   }
 
@@ -211,10 +226,11 @@ export class CubeSphereGridSource {
       if (this.disposed) return;
       if (buffer.byteLength !== width * height * 4) throw new Error(`Cube grid ${id}: expected ${width * height * 4} bytes, got ${buffer.byteLength}`);
       const view = new DataView(buffer);
-      const elevationsKm = new Float32Array(width * height);
+      const elevationsKm = new Float64Array(width * height);
       let lo = Infinity, hi = -Infinity;
       for (let i = 0; i < elevationsKm.length; i++) {
         const km = view.getFloat32(i * 4, true) / 1000;
+        if (!Number.isFinite(km)) throw new Error(`Cube grid ${id}: non-finite radial offset`);
         elevationsKm[i] = km;
         if (km < lo) lo = km;
         if (km > hi) hi = km;
@@ -229,10 +245,12 @@ export class CubeSphereGridSource {
           const evicted = this.detail.keys().next().value!;
           this.detail.delete(evicted);
           this.sampler.removeTile(ID_FIELDS(evicted));
+          this.querySurface?.invalidate(evicted);
           this.onChange?.(evicted);
         }
       }
       this.failed.delete(id);
+      this.querySurface?.invalidate(id);
       this.onChange?.(id);
     }).catch((error: unknown) => {
       const count = (this.failed.get(id)?.count ?? 0) + 1;
@@ -250,11 +268,46 @@ function addressAt(coordinate: CubeFaceCoordinate, level: number): Address {
   return { face: coordinate.face, level, x: index(coordinate.u), y: index(coordinate.v) };
 }
 
+// Point sampling uses one half-open address; ray intersections also need the
+// other closed footprints at a tile edge, including incident cube faces.
+const COORDINATE_ROUNDOFF = 32 * Number.EPSILON;
+function touchingCoordinates(coordinate: CubeFaceCoordinate, maxLevel: number): CubeFaceCoordinate[] {
+  const direction = cubeFaceToDirection(coordinate.face, coordinate.u, coordinate.v);
+  const dot = (a: readonly number[]) => a[0] * direction[0] + a[1] * direction[1] + a[2] * direction[2];
+  const result: CubeFaceCoordinate[] = [];
+  const count = 2 ** maxLevel;
+  const sides = (value: number) => {
+    const grid = (value + 1) * count / 2;
+    return Math.abs(grid - Math.round(grid)) <= COORDINATE_ROUNDOFF * count
+      ? [...new Set([Math.max(-1, value - COORDINATE_ROUNDOFF * 2), Math.min(1, value + COORDINATE_ROUNDOFF * 2)])]
+      : [value];
+  };
+  for (const face of ['px', 'nx', 'py', 'ny', 'pz', 'nz'] as const) {
+    const [n, uAxis, vAxis] = cubeFaceBasis(face), scale = dot(n);
+    if (scale <= 0) continue;
+    const u = dot(uAxis) / scale, v = dot(vAxis) / scale;
+    if (Math.abs(u) > 1 + COORDINATE_ROUNDOFF || Math.abs(v) > 1 + COORDINATE_ROUNDOFF) continue;
+    for (const a of sides(Math.max(-1, Math.min(1, u)))) for (const b of sides(Math.max(-1, Math.min(1, v)))) result.push({ face, u: a, v: b });
+  }
+  return result;
+}
+
+/** Whether a real triangle hit lies on this tile's closed outer footprint. */
+function onTileBoundary(position: SurfaceHit['position'], tile: CubeHeightTile): boolean {
+  const [n, uAxis, vAxis] = cubeFaceBasis(tile.face);
+  const dot = (a: readonly number[]) => a[0] * position.xKm + a[1] * position.yKm + a[2] * position.zKm;
+  const scale = dot(n), u = dot(uAxis) / scale, v = dot(vAxis) / scale;
+  const count = 2 ** tile.level;
+  return [u - (-1 + 2 * tile.x / count), u - (-1 + 2 * (tile.x + 1) / count),
+    v - (-1 + 2 * tile.y / count), v - (-1 + 2 * (tile.y + 1) / count)].some(delta => Math.abs(delta) <= COORDINATE_ROUNDOFF);
+}
+
 /**
  * Cartesian triangles of one resident grid, exactly as the builder emits the
- * tile's .glb: vertex (i, j) at dyadic face coordinates, radius datum + height
- * along its geocentric direction, and the lattice diagonal v00→v11. Spheres only:
- * the builder writes radial heights on a reference sphere.
+ * tile's .glb: vertex (i, j) at dyadic face coordinates, reference radius plus
+ * stored radial offset along its geocentric direction, diagonal v00→v11.
+ * For ellipsoidal products the payload's reference radius is distinct from
+ * the public geodetic datum: the varying offsets encode the physical shape.
  */
 export function cubeTileMesh(tile: CubeHeightTile, radiusKm: number): { positionsKm: Float64Array; indices: Uint32Array } {
   const { width: w, height: h } = tile;
@@ -280,7 +333,10 @@ export function cubeTileMesh(tile: CubeHeightTile, radiusKm: number): { position
  * It marches the ray segment inside the shell of loaded heights in order (see
  * `march`) and intersects each finest resident tile it meets as the exact
  * triangles of its grid's full lattice (the .glb's own triangles, unless the product is simplified:
- * then they differ by up to the manifest's per-tile `renderedDeviationKm`), stopping once past the nearest hit. Coverage is declared partial: a hit is a provisional
+ * then they differ by up to the manifest's per-tile `renderedDeviationKm`).
+ * Closed incident footprints retain real outer-edge support from ancestors
+ * when no finest-owned triangle intersects. Point-sampling's half-open address
+ * must not erase those boundaries. Coverage is declared partial: a hit is a provisional
  * nearest hit (coarse), and no hit is `unavailable`, never a miss — the march can
  * clip a tile corner, and unloaded detail could occlude.
  *
@@ -299,15 +355,43 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     private readonly maxTilesPerRay = 64, private readonly maxSteps = 8192,
   ) {
     const shape = source.manifest.datum.referenceShape;
-    if (shape.kind !== 'sphere') throw new Error('CubeGridSurface: the builder emits radial heights on a sphere only');
-    this.radiusKm = shape.radiusKm;
+    this.radiusKm = source.manifest.geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : NaN);
+    if (!Number.isFinite(this.radiusKm)) throw new Error('CubeGridSurface requires an explicit radial lattice');
     this.metadata = { bodyId, frame, source: source.manifest.source, shape: { kind: 'globe', datum: source.manifest.datum }, coverage: 'partial-product' };
   }
 
   /** Forget a derived mesh when its grid changes or leaves. */
   invalidate(id: string): void { this.meshes.delete(id); }
 
-  sampleElevation(latDeg: number, lonDeg: number): TerrainSample | null { return this.source.sampler.sample(latDeg, lonDeg); }
+  sampleElevation(latDeg: number, lonDeg: number): TerrainSample | null {
+    if (!this.source.manifest.geometry) return this.source.sampler.sample(latDeg, lonDeg);
+    // Validate coordinates and canonicalize poles/longitude before constructing a
+    // normal ray. Intersect the Cartesian lattice, including its chord sag;
+    // interpolating radial payload values would mislabel them as normal heights.
+    this.source.sampler.faceCoordinate(latDeg, lonDeg);
+    lonDeg = Math.abs(latDeg) === 90 ? 0 : wrapLon(lonDeg);
+    const datum = this.source.manifest.datum;
+    const shape = datum.referenceShape;
+    const minRadius = shape.kind === 'sphere' ? shape.radiusKm : Math.min(...shape.radiiKm);
+    const maxRadius = shape.kind === 'sphere' ? shape.radiusKm : Math.max(...shape.radiiKm);
+    const [lo, hi] = this.source.manifest.heightRangeKm;
+    const extent = maxRadius - minRadius + Math.max(Math.abs(lo), Math.abs(hi))
+      + maxRadius - this.latticeInnerRadiusKm(lo) + 1;
+    const zero = geodeticToBodyFixed({ latDeg, lonDeg }, datum);
+    const above = geodeticToBodyFixed({ latDeg, lonDeg, heightKm: extent }, datum);
+    for (const p of [zero, above]) {
+      if (Math.abs(latDeg) === 90) { p.xKm = 0; p.yKm = 0; }
+      else if (lonDeg === 0 || lonDeg === -180) p.yKm = 0;
+      else if (Math.abs(lonDeg) === 90) p.xKm = 0;
+    }
+    const direction: SurfaceVector = [(zero.xKm - above.xKm) / extent, (zero.yKm - above.yKm) / extent, (zero.zKm - above.zKm) / extent];
+    const ray: SurfaceRay = { origin: above, direction, nearKm: 0, farKm: 2 * extent };
+    void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
+    const hit = this.intersectRay(ray, { maxMeshErrorKm: 0 });
+    if (hit.kind !== 'hit') return null;
+    return { position: { latDeg, lonDeg: wrapLon(lonDeg) }, elevationKm: extent - hit.distanceKm,
+      datum, source: hit.metadata.source, tileId: hit.tileId };
+  }
 
   /**
    * The ray's interval inside the shell of the product's heights, or null when
@@ -345,6 +429,9 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
    * horizon occluder for the draw cull.
    */
   get renderedInnerRadiusKm(): number {
+    // An ellipsoid-normal datum does not certify a sphere below the emitted
+    // terrain. Keep frustum culling and disable the horizon test for now.
+    if (this.source.manifest.datum.referenceShape.kind !== 'sphere') return 0;
     const { heightRangeKm, tiles, renderedMesh } = this.source.manifest;
     const deviationKm = renderedMesh ? tiles.reduce((m, t) => Math.max(m, t[5] ?? Infinity), 0) : 0;
     return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm);
@@ -392,7 +479,12 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     for (const step of this.march(ray, d, ...segment, (c) => { const a = this.source.availableAt(c); return { id: cubeTileId(a), level: a.level }; })) {
       signal.throwIfAborted();
       if (!step || seen.size >= this.maxTilesPerRay) break;
-      if (!seen.has(step.id)) { seen.add(step.id); loads.push(this.source.requestCoordinate(this.point(ray, d, step.t))); }
+      for (const coordinate of touchingCoordinates(this.point(ray, d, step.t), this.source.manifest.maxLevel)) {
+        const id = cubeTileId(this.source.availableAt(coordinate));
+        if (seen.has(id)) continue;
+        if (seen.size >= this.maxTilesPerRay) break;
+        seen.add(id); loads.push(this.source.requestCoordinate(coordinate));
+      }
     }
     await Promise.all(loads);
   }
@@ -403,36 +495,63 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     const segment = this.segment(ray, d);
     if (!segment) return { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
     const [t0, t1] = segment;
-    let best: SurfaceHit | null = null;
+    const result: { best: SurfaceHit | null; boundary: SurfaceHit | null } = { best: null, boundary: null };
+    const ancestors = new Map<string, CubeHeightTile>();
     const tiles = new Map<string, CubeHeightTile>();
+    const discover = (c: CubeFaceCoordinate) => {
+      for (const coordinate of touchingCoordinates(c, this.source.manifest.maxLevel)) {
+        const tile = this.source.sampler.finestResident(coordinate)?.tile;
+        if (!tile) continue;
+        tiles.set(cubeTileId(tile), tile);
+        // An ancestor's boundary is still a real lattice edge even when both
+        // adjacent finest footprints have different source LOD heights.
+        for (let level = tile.level - 1; level >= 0; level--) {
+          const ancestor = this.source.sampler.getTile(addressAt(coordinate, level));
+          if (ancestor) ancestors.set(cubeTileId(ancestor), ancestor);
+        }
+      }
+    };
     const resident = (c: CubeFaceCoordinate) => {
+      discover(c);
       const tile = this.source.sampler.finestResident(c)?.tile;
-      if (!tile) return null;
-      const id = cubeTileId(tile);
-      tiles.set(id, tile);
-      return { id, level: tile.level };
+      return tile ? { id: cubeTileId(tile), level: tile.level } : null;
     };
     const tried = new Set<string>();
-    for (const step of this.march(ray, d, t0, t1, resident)) {
-      if (!step) return { kind: 'unavailable', reason: 'not-resident', metadata: this.metadata };
-      if (best && step.t > best.distanceKm) break;
-      if (tried.has(step.id)) continue;
-      if (tried.size >= this.maxTilesPerRay) break;
-      tried.add(step.id);
-      const tile = tiles.get(step.id)!, mesh = this.mesh(step.id, tile);
-      // A tile answers only where no finer resident tile owns the surface: a
-      // parent's mesh still spans its children's ground. A superseded hit is
-      // skipped and the search continues along the same mesh, and on to the
-      // finer tiles the march meets.
+    const intersect = (id: string, tile: CubeHeightTile) => {
+      if (tried.has(id) || tried.size >= this.maxTilesPerRay) return;
+      tried.add(id);
+      const mesh = this.mesh(id, tile);
       for (let near = t0, attempt = 0; attempt < 64; attempt++) {
-        const hit = mesh.intersectRay({ ...ray, nearKm: near, farKm: best ? best.distanceKm : t1 }, options);
+        const hit = mesh.intersectRay({ ...ray, nearKm: near, farKm: result.best ? result.best.distanceKm : t1 }, options);
         if (hit.kind !== 'hit') break;
-        const p = hit.position, owner = this.source.sampler.finestResident(directionToCubeFace([p.xKm, p.yKm, p.zKm]))?.tile;
-        if (!owner || owner.level <= tile.level) { best = { ...hit, tileId: step.id }; break; }
+        const p = hit.position, coordinate = directionToCubeFace([p.xKm, p.yKm, p.zKm]);
+        const owner = this.source.sampler.finestResident(coordinate)?.tile;
+        discover(coordinate);
+        if (!owner || owner.level <= tile.level) {
+          result.best = { ...hit, tileId: id }; break;
+        }
+        // Never use a superseded interior. A closed outer boundary retains
+        // actual triangle support if the finer lattices have no intersection.
+        // Prefer a finest-owned hit whenever one exists, even over this edge.
+        if (onTileBoundary(p, tile) && onTileBoundary(p, owner)
+          && (!result.boundary || hit.distanceKm < result.boundary.distanceKm)) result.boundary = { ...hit, tileId: id };
         near = hit.distanceKm + 1e-9;
       }
+    };
+    for (const step of this.march(ray, d, t0, t1, resident)) {
+      if (!step) return { kind: 'unavailable', reason: 'not-resident', metadata: this.metadata };
+      if (result.best && step.t > result.best.distanceKm) break;
+      // Map iteration also visits owners discovered at a rejected hit, so the
+      // handoff does not depend on the march happening to sample that tile.
+      for (const [id, tile] of tiles) intersect(id, tile);
     }
-    return best ?? { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
+    if (!result.best) {
+      for (const [id, tile] of ancestors) {
+        intersect(id, tile);
+        for (const [ownerId, owner] of tiles) intersect(ownerId, owner);
+      }
+    }
+    return result.best ?? result.boundary ?? { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
   }
 
   private mesh(id: string, tile: CubeHeightTile): CpuMeshSurface {

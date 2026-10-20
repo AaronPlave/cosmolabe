@@ -1,5 +1,5 @@
 {
-  "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... See docs/data-hosting.md.",
+  "$comment": "Deployment data manifest (issue #137). Each entry is a large static product that is served from the data host instead of the Pages artifact. `build` is null until `node scripts/publish-data.mjs <kind>/<name> --build <id>` has published and verified it; the publisher then records the build id here, and that is what hosted catalogs pin. Remote layout: terrain/<name>/<build>/..., kernels/<name>-<build>/.... Local-only experiments declare localOnly plus their catalog paths and are omitted from deployment bundles. See docs/data-hosting.md.",
   "version": 1,
   "datasets": {
     "terrain/mars-terrain-fused": {
@@ -264,6 +264,17 @@
       "localDir": "apps/viewer/test-catalogs/data/moon-imagery-cube-wac-nac",
       "catalogPrefix": "data/moon-imagery-cube-wac-nac/",
       "build": "cube-imagery-composite-3f34a19541af7710"
+    },
+    "cube-terrain/mars-terrain-cube-jezero": {
+      "kind": "cube-terrain",
+      "name": "mars-terrain-cube-jezero",
+      "localDir": "apps/viewer/test-catalogs/data/mars-terrain-cube-jezero",
+      "catalogPrefix": "data/mars-terrain-cube-jezero/",
+      "build": null,
+      "localOnly": true,
+      "catalogs": [
+        "experiments/mars-terrain-cube-jezero.json"
+      ]
     }
   }
 }

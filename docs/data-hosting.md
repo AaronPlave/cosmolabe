@@ -242,3 +242,14 @@ the free plan.
 - **Kernel coverage intervals** in the kernel manifests.
 - **Moving the whole Examples catalog/index to the host** can use the existing
   catalog-source mechanism ([catalog-sources.md](catalog-sources.md)) later.
+
+### Local-only experiments
+
+A dataset with `localOnly: true` remains available to the Vite development
+server, but its `catalogPrefix` and explicitly listed `catalogs` (paths relative
+to the test-catalog root) are excluded from deployment bundles in both local-data
+and hosted-data modes. The hosted rewriter also removes these files when run on
+a previously copied catalog tree. Keep `build: null` until publication is
+explicitly intended. References from other catalogs still fail strict hosted
+validation while the dataset is unpublished; this is not a global unpublished
+dataset exemption. The bounded Jezero cube product uses this scope.

@@ -460,12 +460,14 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     keep = [k for k in tiles if k in keep_set]
     gen = hashlib.sha256(open(os.path.abspath(__file__), 'rb').read()).hexdigest()
     params = json.dumps({'kind': kind, 'tiles': len(keep), 'T': args.tile_size, 'g': args.gutter, 'ss': args.supersample,
-                         'regions': args.region, 'global': args.global_level, **(extra or {})}, sort_keys=True)
+                         'regions': args.region, 'global': args.global_level, 'radiusKm': R_KM,
+                         'body': getattr(args, 'body', 'Moon'), 'registration': registration, **(extra or {})}, sort_keys=True)
     version = f'cube-imagery-{kind}-' + hashlib.sha256((gen + params).encode()).hexdigest()[:16]
     manifest = {
         'format': 'cosmolabe-cube-imagery-1',
         'source': {**source_meta, 'version': version},
-        'bodyId': 'Moon',
+        'bodyId': getattr(args, 'body', 'Moon'),
+        'metricRadiusKm': R_KM,
         'registration': registration,
         'tileSize': args.tile_size, 'gutter': args.gutter, 'encoding': 'jpeg' if ext == 'jpg' else 'png', 'colorSpace': colour_space,
         'minLevel': 0, 'maxLevel': max(k[1] for k in keep),
@@ -481,11 +483,16 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
 
 
 def cmd_fixture(args):
+    global R_KM
+    R_KM = args.radius_km
+    if not math.isfinite(R_KM) or R_KM <= 0:
+        raise SystemExit('--radius-km must be positive and finite')
     regions = [parse_cube_region(r) for r in args.region or []]
     tiles = select_tiles(args.global_level, regions)
     meta = {'id': f'cube-imagery-fixture-{args.pattern}', 'kind': 'imagery',
             'attribution': 'Synthetic diagnostic fixture (scripts/terrain/cube_imagery.py); no observational data'}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame or "IAU_" + args.body.upper()}', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+                    'latitude': 'planetocentric',
                     'resampling': f'analytic, {args.supersample}×{args.supersample} box per pixel' if args.pattern == 'grid' else 'exact texel index',
                     'footprint': 'global'}
     keep = run(args, args.pattern, tiles, meta, registration, 'srgb' if args.pattern == 'grid' else 'linear')
@@ -638,6 +645,9 @@ def main():
         s.add_argument('--supersample', type=int, default=3)
         s.add_argument('--workers', type=int, default=os.cpu_count())
     sub.choices['fixture'].add_argument('--pattern', choices=('grid', 'registration'), required=True)
+    sub.choices['fixture'].add_argument('--radius-km', type=float, default=1737.4, help='angular-to-distance metric for diagnostic rings and region selection')
+    sub.choices['fixture'].add_argument('--body', default='Moon')
+    sub.choices['fixture'].add_argument('--frame')
     sub.choices['nac'].add_argument('--source', required=True)
     sub.choices['composite'].add_argument('--base', required=True, help='global raster (LROC WAC), drawn everywhere')
     sub.choices['composite'].add_argument('--detail', required=True, help='regional raster (LROC NAC South Pole) drawn over it where it has data')
