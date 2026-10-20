@@ -1001,17 +1001,26 @@ export class CameraController {
           bodyName: body.name, centerBodyName: parentName, offset: 100,
         });
       case CameraModeName.SURFACE:
-        if (!celestialBody) return false;
+        if (!this._hasSurface(celestialBody)) return false;
         return this.setMode(CameraModeName.SURFACE, {
           bodyName: celestialBody,
           lookTarget: isSC ? body.name : undefined,
         });
       case CameraModeName.SURFACE_EXPLORER:
-        if (!celestialBody) return false;
+        if (!this._hasSurface(celestialBody)) return false;
         return this.setMode(CameraModeName.SURFACE_EXPLORER, { bodyName: celestialBody });
       default:
         return this.setMode(modeName);
     }
+  }
+
+  /**
+   * Whether `bodyName` is a loaded body with a shape a surface mode can stand
+   * on. Without one the surface mode would activate and place nothing.
+   */
+  private _hasSurface(bodyName: string): boolean {
+    const radii = bodyName ? this._modeCtx?.bodyMeshes.get(bodyName)?.body.radii : undefined;
+    return !!radii && radii[0] > 0;
   }
 
   /**
@@ -1052,9 +1061,11 @@ export class CameraController {
   }
 
   /**
-   * Cycle to the next camera mode. Excludes INSTRUMENT by default.
+   * Cycle to the next camera mode `modeSubject` can take. Excludes INSTRUMENT
+   * by default; a mode that needs a body it lacks (no subject, no parent with
+   * a surface) is skipped, so the cycle never reports a mode it did not enter.
    * @param exclude Mode names to skip when cycling
-   * @returns The new mode name
+   * @returns The mode now active
    */
   cycleMode(exclude: CameraModeName[] = [CameraModeName.INSTRUMENT]): CameraModeName {
     const allModes = [
@@ -1064,9 +1075,11 @@ export class CameraController {
     ];
     const available = allModes.filter(m => !exclude.includes(m));
     const curIdx = available.indexOf(this._activeMode.name);
-    const nextMode = available[(curIdx + 1) % available.length];
-    this.setModeForBody(nextMode, this.modeSubject);
-    return nextMode;
+    for (let step = 1; step <= available.length; step++) {
+      const nextMode = available[(curIdx + step) % available.length];
+      if (this.setModeForBody(nextMode, this.modeSubject)) return nextMode;
+    }
+    return this._activeMode.name;
   }
 
   /**

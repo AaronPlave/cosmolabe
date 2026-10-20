@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
 import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
+import { bodyFixedToGeodeticRad, geodeticToBodyFixedKm, type Ellipsoid } from '../surfaceNavigation.js';
 
 const _surfaceNormal = /* @__PURE__ */ new THREE.Vector3();
 const _forward = /* @__PURE__ */ new THREE.Vector3();
@@ -10,6 +11,10 @@ const _move = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
 const _toBody = /* @__PURE__ */ new THREE.Vector3();
 const _bodyWorldQ = /* @__PURE__ */ new THREE.Quaternion();
+const _invBodyQ = /* @__PURE__ */ new THREE.Quaternion();
+
+/** Lowest height above the floor (terrain, or the ellipsoid without terrain), km. */
+const MIN_CLEARANCE_KM = 0.01;
 
 /**
  * Surface Flight Camera — WASD flight over a body's surface, airplane-style.
@@ -261,20 +266,12 @@ export class SurfaceMode implements ICameraMode {
       }
     }
 
-    // Update altitude from radial distance (pitch-based movement changes it)
-    _toBody.copy(ctx.camera.position).sub(bm.position);
-    const dist = _toBody.length() / sf;
-    this.altitudeKm = Math.max(0.01, dist - bm.body.radii[0]);
-    this.speedKmPerSec = this.altitudeKm * 2;
-
-    // Minimum altitude clamp — don't go underground
-    const minAlt = 0.01; // 10 meters
-    const minDist = (bm.body.radii[0] + minAlt) * sf;
-    const actualDist = _toBody.length();
-    if (actualDist < minDist && actualDist > 1e-20) {
-      _surfaceNormal.copy(_toBody).divideScalar(actualDist);
-      ctx.camera.position.copy(bm.position).addScaledVector(_surfaceNormal, minDist);
-    }
+    // Height above the floor — sampled terrain where the body has it, the
+    // reference ellipsoid where it does not — measured geodetically, as the
+    // entry pose places the camera. A radial distance against the equatorial
+    // radius would read an oblate body's poles as tens of km underground
+    // (Earth ≈ 21 km) and throw the camera up on the first frame.
+    this.clampAboveFloor(ctx, bm);
 
     // Recompute normal after all position adjustments
     _toBody.copy(ctx.camera.position).sub(bm.position);
@@ -303,6 +300,38 @@ export class SurfaceMode implements ICameraMode {
     }
     this.detachPointerInput?.();
     this.detachPointerInput = null;
+  }
+
+  /**
+   * Keep the camera at least `MIN_CLEARANCE_KM` above the floor along the
+   * geodetic normal, and update the altitude (and the speed derived from it)
+   * to the camera's height above that floor.
+   */
+  private clampAboveFloor(ctx: CameraModeContext, bm: BodyMesh): void {
+    const radii = bm.body.radii;
+    if (!radii) return;
+    const sf = ctx.scaleFactor;
+    const a = radii[0];
+    const c = radii[2] ?? a;
+    const ell: Ellipsoid = { a, e2: 1 - (c * c) / (a * a) };
+
+    _toBody.copy(ctx.camera.position).sub(bm.position).divideScalar(sf);
+    if (this.hasBodyQuat) _toBody.applyQuaternion(_invBodyQ.copy(this.curBodyQuat).invert());
+    if (_toBody.lengthSq() < 1e-20) return;
+    const g = bodyFixedToGeodeticRad([_toBody.x, _toBody.y, _toBody.z], ell);
+    const terrainKm = bm.hasTerrain
+      ? bm.sampleTerrainElevation(g.latRad * 180 / Math.PI, g.lonRad * 180 / Math.PI)?.elevationKm ?? 0
+      : 0;
+
+    const floorKm = terrainKm + MIN_CLEARANCE_KM;
+    if (g.altKm < floorKm) {
+      const p = geodeticToBodyFixedKm(g.latRad, g.lonRad, floorKm, ell);
+      _toBody.set(p[0], p[1], p[2]);
+      if (this.hasBodyQuat) _toBody.applyQuaternion(this.curBodyQuat);
+      ctx.camera.position.copy(bm.position).addScaledVector(_toBody, sf);
+    }
+    this.altitudeKm = Math.max(MIN_CLEARANCE_KM, g.altKm - terrainKm);
+    this.speedKmPerSec = this.altitudeKm * 2;
   }
 
   /** Scale altitude (and the speed derived from it) by a zoom factor. */

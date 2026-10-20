@@ -18,7 +18,7 @@ import type { Quaternion } from '@cosmolabe/core';
 import { CameraController } from '../CameraController.js';
 import { CameraModeName, bodyWorldOrientation } from '../CameraModes.js';
 import { flightEntryCapKm, surfaceEntryPose, EXPLORER_ENTRY_CLEARANCE_KM } from '../surfaceEntry.js';
-import { geodeticToBodyFixedKm } from '../surfaceNavigation.js';
+import { bodyFixedToGeodeticRad, geodeticToBodyFixedKm } from '../surfaceNavigation.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
 const MOON_R = 1737.4;
@@ -55,10 +55,10 @@ function fakeBody(
   name: string, radius: number, position: THREE.Vector3,
   opts: {
     classification?: string; parentName?: string; spinDegPerSec?: number;
-    elevationKm?: number;
+    elevationKm?: number; polarRadius?: number;
   } = {},
 ): BodyMesh {
-  const { classification, parentName, spinDegPerSec = 0, elevationKm } = opts;
+  const { classification, parentName, spinDegPerSec = 0, elevationKm, polarRadius = radius } = opts;
   const bm = {
     position,
     displayRadius: radius,
@@ -67,7 +67,7 @@ function fakeBody(
     sampleTerrainElevation: () => (elevationKm !== undefined ? { elevationKm } : null),
     body: {
       name, classification, parentName,
-      radii: classification === 'spacecraft' ? undefined : [radius, radius, radius],
+      radii: classification === 'spacecraft' ? undefined : [radius, radius, polarRadius],
       ...spin(spinDegPerSec),
     },
     // As BodyMesh renders a globe: body→world, then the Y-pole geometry's
@@ -370,6 +370,80 @@ describe('surface entry (slice A)', () => {
       expect(cc.setModeForBody(mode, null), mode).toBe(false);
       expect(cc.mode).toBe(CameraModeName.FREE_ORBIT);
     }
+  });
+});
+
+describe('surface flight floor and mode validation (review of #269)', () => {
+  /** An Earth-shaped body at the origin, the camera far out over (lat, lon). */
+  function oblate(opts: { elevationKm?: number } = {}) {
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const camera = new THREE.PerspectiveCamera(60, 4 / 3, 1e-6, 1e12);
+    const cc = new CameraController(camera, fakeElement());
+    const a = 6378.137, c = 6356.752;
+    const earth = fakeBody('Earth', a, new THREE.Vector3(), { polarRadius: c, elevationKm: opts.elevationKm });
+    const bodies = new Map([['Earth', earth]]);
+    cc.setModeContext(null, 0, 1, bodies);
+    cc.focus(earth);
+    camera.position.set(0, 0, 3 * a);
+    camera.lookAt(0, 0, 0);
+    const frame = () => {
+      now += 100;
+      cc.setModeContext(null, 0, 1, bodies);
+      cc.update();
+    };
+    /** Geodetic height of the camera above the ellipsoid, km. */
+    const height = () => {
+      const p = camera.position.clone().sub(earth.position);
+      const { altKm } = bodyFixedToGeodeticRad([p.x, p.y, p.z], { a, e2: 1 - (c * c) / (a * a) });
+      return altKm;
+    };
+    return { camera, cc, earth, bodies, frame, height };
+  }
+
+  it('keeps a Surface Flight entry near an oblate body\'s pole at its height over several frames', () => {
+    const { cc, frame, height } = oblate();
+    cc.setMode(CameraModeName.SURFACE, { bodyName: 'Earth', latDeg: 85, lonDeg: 20, altKm: 0.1 });
+    expect(height()).toBeCloseTo(0.1, 6);
+    for (let i = 0; i < 5; i++) frame();
+    // A radial floor at the equatorial radius would throw it ~21 km up here.
+    expect(height()).toBeCloseTo(0.1, 6);
+  });
+
+  it('pushes Surface Flight up to terrain plus clearance, not just the ellipsoid', () => {
+    const { cc, frame, height } = oblate({ elevationKm: 2 });
+    cc.setMode(CameraModeName.SURFACE, { bodyName: 'Earth', latDeg: 40, lonDeg: 0, altKm: 0.5 });
+    frame();
+    expect(height()).toBeCloseTo(2.01, 6);
+  });
+
+  it('refuses a surface mode on a parent body that is not loaded, or has no shape, changing nothing', () => {
+    const { cc, bodies } = oblate();
+    const lost = fakeBody('Probe', 0.001, new THREE.Vector3(9000, 0, 0), { classification: 'spacecraft', parentName: 'Ghost' });
+    const shapeless = fakeBody('Rock', 1, new THREE.Vector3(9000, 0, 0), { classification: 'spacecraft' });
+    const onRock = fakeBody('Hopper', 0.001, new THREE.Vector3(9001, 0, 0), { classification: 'spacecraft', parentName: 'Rock' });
+    for (const bm of [lost, shapeless, onRock]) bodies.set(bm.body.name, bm);
+    cc.setModeForBody(CameraModeName.BODY_FIXED, bodies.get('Earth')!);
+    for (const craft of [lost, onRock]) {
+      for (const mode of [CameraModeName.SURFACE, CameraModeName.SURFACE_EXPLORER]) {
+        expect(cc.setModeForBody(mode, craft), `${mode} on ${craft.body.name}`).toBe(false);
+        expect(cc.mode).toBe(CameraModeName.BODY_FIXED);
+        expect(cc.originBody?.body.name).toBe('Earth');
+      }
+    }
+  });
+
+  it('cycleMode skips modes it cannot enter and reports the mode it did', () => {
+    const camera = new THREE.PerspectiveCamera();
+    const cc = new CameraController(camera, fakeElement());
+    cc.setModeContext(null, 0, 1, new Map());
+    // Nothing tracked and no origin: every mode but free orbit needs a body.
+    expect(cc.cycleMode()).toBe(CameraModeName.FREE_ORBIT);
+    expect(cc.mode).toBe(CameraModeName.FREE_ORBIT);
+
+    const { cc: withEarth } = oblate();
+    expect(withEarth.cycleMode()).toBe(CameraModeName.SC_FIXED);
+    expect(withEarth.mode).toBe(CameraModeName.SC_FIXED);
   });
 });
 
