@@ -394,9 +394,39 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     }
   };
 
+  /**
+   * A `type` that is missing or not a string. Without one the loader cannot
+   * pick a model and falls back silently, so the node's other fields cannot be
+   * checked either; this is reported instead. A key a letter or two from
+   * `type` (`tyep`) is named as the misspelling.
+   */
+  const checkTypePresent = (spec: Json, path: string, node: string, consequence: string): string | undefined => {
+    if (typeof spec.type === 'string') return spec.type;
+    if (spec.type !== undefined) {
+      out.push({
+        path: `${path}.type`,
+        node,
+        key: 'type',
+        message: `"type" on ${node} (${path}) must be a string, not ${JSON.stringify(spec.type)}; ${consequence}.`,
+      });
+      return undefined;
+    }
+    const misspelled = Object.keys(spec).find((k) => nearest(k, ['type']) === 'type');
+    out.push({
+      path: `${path}.${misspelled ?? 'type'}`,
+      node,
+      key: misspelled ?? 'type',
+      suggestion: misspelled ? 'type' : undefined,
+      message: misspelled
+        ? `unknown key "${misspelled}" on ${node} (${path}) leaves it with no "type"; ${consequence}. Did you mean "type"?`
+        : `${node} (${path}) has no "type"; ${consequence}.`,
+    });
+    return undefined;
+  };
+
   const checkTrajectory = (spec: unknown, path: string, owner: string) => {
     if (!isObject(spec)) return;
-    const type = typeof spec.type === 'string' ? spec.type : undefined;
+    const type = checkTypePresent(spec, path, `trajectory of ${owner}`, 'the body is fixed at its parent\'s origin');
     if (type === undefined) return;
     if (customTrajectories.has(type)) return;
     const allowed = own(TRAJECTORY_KEYS, type);
@@ -452,7 +482,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
 
   const checkRotation = (spec: unknown, path: string, owner: string) => {
     if (!isObject(spec)) return;
-    const type = typeof spec.type === 'string' ? spec.type : undefined;
+    const type = checkTypePresent(spec, path, `rotationModel of ${owner}`, 'the body has no orientation');
     if (type === undefined) return;
     if (customRotations.has(type)) return;
     const allowed = own(ROTATION_KEYS, type);
@@ -507,7 +537,7 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
 
   const checkGeometry = (spec: unknown, path: string, owner: string) => {
     if (!isObject(spec)) return;
-    const authored = typeof spec.type === 'string' ? spec.type : undefined;
+    const authored = checkTypePresent(spec, path, `geometry of ${owner}`, 'no renderer draws it, so the body gets a placeholder');
     if (authored === undefined || customGeometries.has(authored)) return;
     const type = canonicalGeometryType(authored);
     const allowed = own(GEOMETRY_KEYS, type);
@@ -540,12 +570,30 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
         const entryPath = `${path}.sequence[${i}]`;
         checkKeys(entry, TIME_SWITCHED_ENTRY_KEYS, entryPath, `sequence[${i}] of ${node}`, 'timeSwitched');
         const g = entry.geometry;
-        if (!isObject(g) || typeof g.type !== 'string') return;
-        const entryType = canonicalGeometryType(g.type);
+        if (!isObject(g)) return;
+        const geometryPath = `${entryPath}.geometry`;
+        const entryNode = `geometry of sequence[${i}] of ${node}`;
+        const authoredEntryType = checkTypePresent(g, geometryPath, entryNode, 'the entry draws nothing');
+        if (authoredEntryType === undefined) return;
+        const entryType = canonicalGeometryType(authoredEntryType);
         const allowedHere = own(TIME_SWITCHED_GEOMETRY_KEYS, entryType);
-        if (allowedHere) {
-          checkKeys(g, allowedHere, `${entryPath}.geometry`, `${entryType} geometry of sequence[${i}] of ${node}`, `geometry:${entryType}`);
+        if (!allowedHere) {
+          // Entries are drawn by the TimeSwitched renderer itself, which
+          // takes only these types, so any other is reported, typo or not.
+          const kinds = Object.keys(TIME_SWITCHED_GEOMETRY_KEYS);
+          const near = nearest(authoredEntryType, kinds);
+          out.push({
+            path: `${geometryPath}.type`,
+            node: entryNode,
+            key: authoredEntryType,
+            suggestion: near,
+            message:
+              `geometry type "${authoredEntryType}" on ${entryNode} (${geometryPath}) cannot be drawn in a ` +
+              `TimeSwitched entry, which takes only ${kinds.join(' or ')}.` + (near ? ` Did you mean "${near}"?` : ''),
+          });
+          return;
         }
+        checkKeys(g, allowedHere, geometryPath, `${entryType} ${entryNode}`, `geometry:${entryType}`);
       });
     }
   };

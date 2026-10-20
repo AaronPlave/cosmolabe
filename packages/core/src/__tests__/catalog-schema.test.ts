@@ -228,6 +228,57 @@ describe('validateCatalog', () => {
     expect(validateCatalog(withItem({ geometry: { type: 'PlumeCloud', density: 3 } }))).toEqual([]);
   });
 
+  // Without a type the loader falls back silently (a body fixed at its
+  // parent's origin, no orientation, a placeholder), and none of the node's
+  // other fields can be checked, so the missing type itself is reported.
+  it.each([
+    ['trajectory', { trajectory: { tyep: 'Keplerian', semiMajorAxis: 7000 } }],
+    ['rotationModel', { rotationModel: { tpye: 'Uniform', period: 1 } }],
+    ['geometry', { geometry: { Type: 'Globe', radius: 1 } }],
+  ])('reports a misspelled type on %s, naming the misspelling', (node, item) => {
+    const ds = validateCatalog(withItem(item));
+    expect(ds).toHaveLength(1);
+    const misspelled = Object.keys((item as Record<string, Record<string, unknown>>)[node])[0];
+    expect(ds[0].path).toBe(`$.items[0].${node}.${misspelled}`);
+    expect([ds[0].key, ds[0].suggestion]).toEqual([misspelled, 'type']);
+    expect(ds[0].message).toContain('Did you mean "type"');
+  });
+
+  it.each([
+    ['trajectory', { trajectory: { semiMajorAxis: 7000 } }],
+    ['rotationModel', { rotationModel: { period: 1 } }],
+    ['geometry', { geometry: { radius: 1 } }],
+  ])('reports a missing type on %s', (node, item) => {
+    const ds = validateCatalog(withItem(item));
+    expect(ds.map((d) => [d.path, d.key, d.suggestion])).toEqual([[`$.items[0].${node}.type`, 'type', undefined]]);
+    expect(ds[0].message).toContain('has no "type"');
+  });
+
+  it.each(['trajectory', 'rotationModel', 'geometry'])('reports a non-string type on %s', (node) => {
+    const ds = validateCatalog(withItem({ [node]: { type: 42 } }));
+    expect(ds.map((d) => [d.path, d.key])).toEqual([[`$.items[0].${node}.type`, 'type']]);
+    expect(ds[0].message).toContain('must be a string');
+  });
+
+  it('reports a TimeSwitched entry geometry type it cannot draw, with the nearest one', () => {
+    const ds = validateCatalog(withItem({
+      geometry: {
+        type: 'TimeSwitched',
+        sequence: [
+          { geometry: { type: 'Mehs', source: 'a.glb' } },
+          { geometry: { type: 'Globe', radius: 1 } },
+          { geometry: { source: 'c.glb' } },
+          { geometry: { type: 'dsk', source: 'd.bds' } },
+        ],
+      },
+    }));
+    expect(ds.map((d) => [d.path, d.key, d.suggestion])).toEqual([
+      ['$.items[0].geometry.sequence[0].geometry.type', 'Mehs', 'Mesh'],
+      ['$.items[0].geometry.sequence[1].geometry.type', 'Globe', undefined],
+      ['$.items[0].geometry.sequence[2].geometry.type', 'type', undefined],
+    ]);
+  });
+
   it('accepts Cosmographia\'s "DSK" spelling, and checks TimeSwitched entries', () => {
     expect(validateCatalog(withItem({ geometry: { type: 'DSK', kernel: 'shape.bds', color: [1, 1, 1] } }))).toEqual([]);
     const ds = validateCatalog(withItem({
