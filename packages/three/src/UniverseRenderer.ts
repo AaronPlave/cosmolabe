@@ -1362,7 +1362,7 @@ export class UniverseRenderer {
       this.instrumentView.fullScreen = false;
     }
 
-    if (this.instrumentView?.active) {
+    if (this.instrumentView?.measure(this.renderer.domElement)) {
       try {
         const sf = this.sensorFrustums.get(this.instrumentView.sensorName!);
         if (sf) {
@@ -2002,13 +2002,15 @@ export class UniverseRenderer {
   }
 
   /**
-   * Show/hide the instrument picture-in-picture view.
-   * Pass a sensor name to activate, or null to deactivate.
+   * Show/hide the instrument view. Pass a sensor name to activate, or null to
+   * deactivate. `options.surface` presents the feed in a host-owned canvas
+   * (e.g. a movable window); without one it uses the fixed corner inset.
    */
   setInstrumentView(sensorName: string | null, options?: InstrumentViewOptions): void {
     if (sensorName == null) {
       if (this.instrumentView) {
         this.instrumentView.setSensor(null);
+        this.instrumentView.setSurface(null);
       }
       return;
     }
@@ -2043,7 +2045,32 @@ export class UniverseRenderer {
       } catch { /* IK not loaded */ }
     }
 
+    this.instrumentView.setSurface(options?.surface ?? null);
     this.instrumentView.setSensor(sf, fovBoundary);
+  }
+
+  /**
+   * The active instrument view as a host window needs it: identity, the
+   * physical FOV, how it is pointed, and where the image sat in its surface on
+   * the last frame (null when nothing was drawn — hidden, minimized, or
+   * full-canvas). Null with no active view.
+   */
+  getInstrumentViewInfo(): {
+    sensor: string; spacecraft: string | null; target: string | null;
+    fov: [number, number]; pointing: 'spice' | 'target' | 'none';
+    imageRect: import('./InstrumentView.js').Rect | null;
+  } | null {
+    const iv = this.instrumentView;
+    if (!iv?.active) return null;
+    const sf = this.sensorFrustums.get(iv.sensorName!);
+    return {
+      sensor: iv.sensorName!,
+      spacecraft: sf?.body.parentName ?? null,
+      target: sf?.targetName ?? null,
+      fov: iv.fov,
+      pointing: iv.pointing,
+      imageRect: iv.imageRect,
+    };
   }
 
   /** Get the currently active instrument view sensor name, if any. */

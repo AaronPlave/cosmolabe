@@ -130,6 +130,15 @@ export const vs = $state({
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
 
+  /**
+   * The sensor the Instrument view window shows (#192). The one source of
+   * truth: the Display selector, the window's own selector and the commands
+   * all write here, and the window pushes it to the renderer while it is on
+   * screen. Kept across close and catalog reloads, so reopening shows the same
+   * instrument when the new scene still has it.
+   */
+  instrumentSensor: null as string | null,
+
   /** Bodies currently identified in the 3D view by `highlightBodies`. */
   highlightedBodies: [] as string[],
 });

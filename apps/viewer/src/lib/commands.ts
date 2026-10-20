@@ -9,7 +9,7 @@ import {
   toggleProbe, clearProbePin,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell } from './shell.svelte';
+import { shell, openTool } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
 
@@ -56,12 +56,15 @@ function getBuiltinCommands(): Command[] {
     ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
 
     // Instrument
-    { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {
+    { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
+    // The old `I` behavior, kept explicit: step to the next sensor, in the
+    // window, rather than cycling through feeds nobody can see.
+    { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: (r) => {
       const sensors = r.getSensorNames();
       if (sensors.length === 0) return;
-      const current = r.activeInstrumentView;
-      const idx = current ? sensors.indexOf(current) : -1;
-      r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { marginX: 16, marginY: 60 });
+      const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
+      vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+      openTool('instrument');
     }},
   ];
 }

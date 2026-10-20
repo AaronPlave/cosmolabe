@@ -15,7 +15,7 @@
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
-    reclampFloats, topVisiblePanel, minimizePanel, isToolId,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId, isExpanded, toggleExpanded,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -228,15 +228,6 @@
         case 'g': setDisplayOption('grid', !vs.showGrid); return;
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
-        case 'i': {
-          const sensors = renderer.getSensorNames();
-          if (sensors.length === 0) return;
-          const current = renderer.activeInstrumentView;
-          const idx = current ? sensors.indexOf(current) : -1;
-          const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
-          renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
-          return;
-        }
         case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
@@ -285,6 +276,11 @@
   function dismissTopSurface(): boolean {
     const top = topVisiblePanel();
     if (top == null) return false;
+    // An expanded panel steps back to its window before it goes anywhere.
+    if (isExpanded(top)) {
+      toggleExpanded(top);
+      return true;
+    }
     if (compact) {
       minimizePanel(top);
       return true;
