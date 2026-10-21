@@ -630,6 +630,7 @@ export class UniverseRenderer {
     // Consumer selection handlers should be idempotent.
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
+    this._onDblClick = this._onDblClick.bind(this);
     canvas.addEventListener('dblclick', this._onDblClick);
 
     // Touch: a browser synthesizes a click for a tap, but only when it decides
@@ -4624,10 +4625,10 @@ export class UniverseRenderer {
   };
 
   /**
-   * Double-click handler: picks the body and emits 'body:dblclick'.
+   * Double-click uses scene selection precedence before the body fallback.
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
-  private _onDblClick = (event: MouseEvent): void => {
+  private _onDblClick(event: MouseEvent): void {
     if (this.pointerTool || this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
     }
@@ -4637,8 +4638,15 @@ export class UniverseRenderer {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
-    const bodyName = this.pickBody(screenX, screenY);
-    if (!bodyName) return;
+    if (this.spatialRelationships.pick(screenX, screenY, 11)) return;
+    const hit = this.pickScene(screenX, screenY, 'select');
+    if (hit?.kind === 'geographic-feature') {
+      const { layerId, featureId, bodyName } = hit;
+      this.events.emit('geographic:dblclick', { layerId, featureId, bodyName });
+      return;
+    }
+    if (hit?.kind !== 'entity') return;
+    const bodyName = hit.bodyName;
 
     const bm = this.bodyMeshes.get(bodyName);
     if (!bm) return;

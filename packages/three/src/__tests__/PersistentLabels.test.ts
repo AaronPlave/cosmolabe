@@ -18,13 +18,13 @@ describe('persistent annotation arbitration', () => {
     l.update([candidate('a',50,.74)],[],2200);
     expect(a?.accepted).toBe(false);expect(a?.opacity).toBeGreaterThan(0);
   });
-  it('selected and external annotation obstacles win; physical omission evicts immediately', () => {
+  it('selected and external annotation obstacles win; physical invalidation evicts immediately', () => {
     const l=new PersistentLabels();settle(l,[candidate('a')]);
     const selected={...candidate('b',1),selected:true};
     settle(l,[candidate('a'),selected],500);
     expect(l.states.get('b')?.opacity).toBe(1);expect(l.states.has('a')).toBe(false);
     l.update([selected],[selected.box],1000);expect(l.states.size).toBe(0);
-    settle(l,[candidate('a')],1100);l.update([],[],1600);expect(l.states.size).toBe(0);
+    settle(l,[candidate('a')],1100);l.update([],[],1600,new Set(['a']));expect(l.states.size).toBe(0);
   });
   it('bounds placements and is deterministic under candidate input reordering', () => {
     const a=new PersistentLabels(3),b=new PersistentLabels(3);
@@ -34,16 +34,55 @@ describe('persistent annotation arbitration', () => {
   });
   it('fades ordinary collision changes while selection and safety obstacles preempt immediately', () => {
     const l=new PersistentLabels();settle(l,[candidate('old')]);
-    l.update([candidate('old'),candidate('higher',70)],[],500);
+    l.update([candidate('old'),candidate('higher',80)],[],500);
     expect(l.states.get('old')?.accepted).toBe(false);
     expect(l.states.get('old')?.opacity).toBeGreaterThan(0);
-    expect(l.states.get('higher')?.opacity).toBeGreaterThan(0);
+    expect(l.states.get('higher')?.opacity).toBe(0);
+    for (let now=600; now<=1000; now+=50) {
+      const drawn=l.update([candidate('old'),candidate('higher',80)],[],now);
+      expect(drawn.length).toBeLessThanOrEqual(1);
+    }
+    expect(l.states.get('higher')?.opacity).toBe(1);
   });
   it('reserves a bounded render slot for selection ahead of old fading states', () => {
     const l=new PersistentLabels(1);settle(l,[candidate('old')]);
     const selected={...candidate('new'),selected:true,box:{x0:200,y0:0,x1:300,y1:20}};
     const drawn=l.update([candidate('old',50,0),selected],[],500);
     expect(drawn.map(s=>s.id)).toEqual(['new']);
+  });
+  it('holds contested ownership across zoom reversals, then hands off once with no crossfade', () => {
+    const l = new PersistentLabels(); settle(l,[candidate('a'),candidate('b',49)]);
+    const winners:string[]=[];
+    for(let i=0;i<240;i++) {
+      const t=i<120?i:240-i;
+      const drawn=l.update([candidate('a',50,.9+t*.01),candidate('b',49+Math.sin(i)*5,1+t*.01)],[],500+i*16);
+      expect(drawn.map(s=>s.id)).toEqual(['a']);
+      winners.push([...l.states.values()].find(s=>s.accepted)!.id);
+    }
+    expect(new Set(winners)).toEqual(new Set(['a']));expect(l.handoffs).toBe(0);
+    for(let i=0;i<60;i++) {
+      const drawn=l.update([candidate('a'),candidate('b',80)],[],4500+i*16);
+      expect(drawn.length).toBeLessThanOrEqual(1);
+    }
+    expect(l.states.get('b')?.opacity).toBe(1);expect(l.handoffs).toBe(1);
+  });
+  it('requires entry clearance before admitting a neighbor near a contested edge', () => {
+    const l=new PersistentLabels();settle(l,[candidate('owner',70)]);
+    for(let i=0;i<120;i++) {
+      const x=100+Math.sin(i)*3;
+      const neighbor={...candidate('neighbor'),box:{x0:x,y0:10,x1:x+90,y1:30}};
+      const drawn=l.update([candidate('owner',70),neighbor],[],500+i*16);
+      expect(drawn.map(s=>s.id)).toEqual(['owner']);
+    }
+    expect(l.enters).toBe(1);expect(l.handoffs).toBe(0);
+  });
+  it('ordinary omission fades, re-entry keeps leave hysteresis, and invalidation evicts immediately', () => {
+    const l=new PersistentLabels();settle(l,[candidate('a')]);
+    l.update([],[],500);expect(l.states.get('a')?.opacity).toBeGreaterThan(0);
+    for(let i=0;i<10;i++) l.update([candidate('a',50,.8)],[],516+i*16);
+    expect(l.states.has('a')).toBe(false);
+    settle(l,[candidate('a')],800);
+    l.update([],[],1300,new Set(['a']));expect(l.states.size).toBe(0);
   });
   it('budget skips work without emitting a false visibility result and always advances one query', () => {
     let now=0;const budget=new AnnotationBudget(2,()=>now);

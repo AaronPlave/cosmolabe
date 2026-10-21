@@ -27,7 +27,7 @@ export class PlaceNames {
   selectedRef: string | null = null;
   readonly bodies = new Set<string>();
   readonly hiddenLayers = new Set<string>();
-  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0 };
+  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0, handoffs: 0 };
   indexBuildMs = 0;
   private drawn: Array<{ place: Place; box: ScreenRect }> = [];
   private readonly labels = new Map<string, HTMLDivElement>();
@@ -65,8 +65,9 @@ export class PlaceNames {
   update(camera: PerspectiveCamera, meshes: ReadonlyMap<string, BodyMesh>, scale: number, width: number, height: number,
     obstacles: readonly ScreenRect[], occluded: (world: Vector3) => boolean): void {
     const start = performance.now();
-    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0 };
+    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0, handoffs: 0 };
     const candidates: Projection[] = [];
+    const invalidated = new Set<string>();
     const focalPixels = height / (2 * Math.tan(camera.fov * Math.PI / 360));
     const selected = this.selectedRef ? this.index.byRef.get(this.selectedRef) : undefined;
     const names = new Set(this.bodies);
@@ -80,10 +81,16 @@ export class PlaceNames {
       const ratio = eye.length() / (body.displayRadius * scale);
       const angle = Math.min(100, Math.max(.1, Math.acos(Math.min(1, 1 / Math.max(1, ratio))) * 180 / Math.PI * 1.5));
       const region = this.bodies.has(name) ? this.index.nearby(name, lon, lat, angle, PLACE_LIMIT) : [];
+      // Retained IDs bypass regional and candidate admission limits so ordinary
+      // scale/frustum exits can transition using a freshly projected anchor.
+      for (const id of this.layout.states.keys()) {
+        const retained = this.index.byRef.get(id);
+        if (retained?.layer.body === name && !region.includes(retained)) region.push(retained);
+      }
       if (selected?.layer.body === name && !region.includes(selected)) region.push(selected);
       for (const place of region) {
         this.metrics.scanned++;
-        if (place !== selected && this.hiddenLayers.has(place.layer.id)) continue;
+        if (place !== selected && (!this.bodies.has(name) || this.hiddenLayers.has(place.layer.id))) { invalidated.add(place.ref); continue; }
         const cached = this.anchors.get(place.ref);
         if (!cached) continue;
         const normal = cached.normal.clone().applyQuaternion(body.mesh.quaternion);
@@ -91,13 +98,15 @@ export class PlaceNames {
         const view = camera.position.clone().sub(world);
         // Full physical disk, independent of Sun lighting. Ellipsoid normals
         // are geodetic, not radial. Hide immediately on a proven backside.
-        if (normal.dot(view) <= 0) continue;
+        if (normal.dot(view) <= 0) { invalidated.add(place.ref); continue; }
         const p = world.clone().project(camera);
-        if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+        if (p.z < -1 || p.z > 1) { invalidated.add(place.ref); continue; }
+        const inViewport = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+        if (!inViewport && !this.layout.states.has(place.ref)) continue;
         const depth = -world.clone().applyMatrix4(camera.matrixWorldInverse).z;
         const extent = place.diameterKm ?? body.displayRadius * .005;
         const apparent = extent * scale * focalPixels / Math.max(1e-12, depth);
-        const eligibility = place === selected ? 10 : apparent / place.label.minPixels;
+        let eligibility = place === selected ? 10 : apparent / place.label.minPixels;
         if (eligibility < .75) {
           // Still project a retained label while it fades at the exit threshold.
           if (!this.layout.states.has(place.ref)) continue;
@@ -111,7 +120,10 @@ export class PlaceNames {
           this.widths.set(key, textWidth);
         }
         const box = placeLabelBox((p.x + 1) * width / 2, (1 - p.y) * height / 2, textWidth, font);
-        if (box.x0 < 8 || box.x1 > width - 8 || box.y0 < 8 || box.y1 > height - 8) continue;
+        if (box.x0 < 8 || box.x1 > width - 8 || box.y0 < 8 || box.y1 > height - 8) {
+          if (!this.layout.states.has(place.ref)) continue;
+          eligibility = 0;
+        }
         candidates.push({ id: place.ref, place, world, source: 'reference-shape', font, box, selected: place === selected,
           eligibility, priority: place.label.importance + Math.min(6, Math.log2(Math.max(1, apparent))) });
       }
@@ -120,7 +132,10 @@ export class PlaceNames {
     // visible feature behind a dense catalog cell or the invisible hemisphere.
     candidates.sort((a,b) => Number(!!b.selected) - Number(!!a.selected)
       || (b.priority + (this.layout.states.get(b.id)?.accepted ? 8 : 0)) - (a.priority + (this.layout.states.get(a.id)?.accepted ? 8 : 0)) || a.id.localeCompare(b.id));
-    const projected = candidates.slice(0, 512);
+    const retained = candidates.filter(p => this.layout.states.has(p.id));
+    const retainedIds = new Set(retained.map(p => p.id));
+    const projected = [...retained, ...candidates.filter(p => !retainedIds.has(p.id)).slice(0, 512 - retained.length)];
+    for (const id of this.layout.states.keys()) if (!candidates.some(p => p.id === id)) invalidated.add(id);
     this.metrics.candidates = projected.length;
     const budget = new AnnotationBudget(2);
     // Oldest result first guarantees refresh progress during continuous motion.
@@ -141,7 +156,7 @@ export class PlaceNames {
         });
         if (result) {
           if (result.value) this.visibility.set(p.id, result.value);
-          else this.visibility.delete(p.id);
+          else { this.visibility.delete(p.id); invalidated.add(p.id); }
           this.metrics.losChecks++;
         } else this.metrics.losDeferred++;
       }
@@ -156,6 +171,7 @@ export class PlaceNames {
       const dx = (screen.x + 1) * width / 2 - cx, dy = (1 - screen.y) * height / 2 - cy;
       p.box = { x0:p.box.x0+dx, x1:p.box.x1+dx, y0:p.box.y0+dy, y1:p.box.y1+dy };
     }
+    for (const p of projected) if (this.visibility.get(p.id)?.hidden) invalidated.add(p.id);
     const visible = projected.filter(p => this.visibility.get(p.id)?.hidden === false);
     // Area-aware spacing: sparse at a whole globe, progressively more at a
     // regional/surface view. This is a layout clearance, not a source footprint.
@@ -163,9 +179,10 @@ export class PlaceNames {
       const body = meshes.get(p.place.layer.body)!;
       const disk = body.displayRadius * scale * focalPixels / Math.max(1e-12, camera.position.distanceTo(body.position));
       const spacing = p.selected ? 6 : Math.max(12, Math.min(100, 45000 / Math.max(200, disk)));
-      return { ...p, box: { x0: p.box.x0-spacing, x1:p.box.x1+spacing, y0:p.box.y0-spacing*.45, y1:p.box.y1+spacing*.45 } };
+      const gap = Math.max(12, spacing * .25);
+      return { ...p, entryBox: { x0:p.box.x0-spacing-gap, x1:p.box.x1+spacing+gap, y0:p.box.y0-spacing*.45-gap, y1:p.box.y1+spacing*.45+gap }, box: { x0: p.box.x0-spacing, x1:p.box.x1+spacing, y0:p.box.y0-spacing*.45, y1:p.box.y1+spacing*.45 } };
     });
-    const states = this.layout.update(layoutCandidates, obstacles, start);
+    const states = this.layout.update(layoutCandidates, obstacles, start, invalidated);
     this.drawn = [];
     const alive = new Set<string>();
     const byId = new Map(visible.map(p => [p.id,p]));
@@ -183,14 +200,16 @@ export class PlaceNames {
       el.style.fontSize = `${p.font}px`; el.style.fontWeight = p.selected ? '600' : '400';
       el.style.color = p.selected ? '#ffe2a6' : p.place.label.class === 'major' ? '#e4e5df' : '#cbd0d0';
       el.style.opacity = String(state.opacity * (p.selected ? 1 : .85));
+      el.dataset.accepted = String(state.accepted);
       el.dataset.anchor = p.source; el.dataset.labelClass = p.place.label.class;
-      if (state.opacity >= .15) this.drawn.push({ place:p.place, box:p.box });
+      if (state.accepted && state.opacity >= .5) this.drawn.push({ place:p.place, box:p.box });
       this.metrics[p.source === 'terrain-sample' ? 'terrain' : 'reference']++;
     }
     for (const [id,el] of this.labels) if (!alive.has(id)) { el.remove(); this.labels.delete(id); }
-    const retainedIds = new Set(projected.map(p => p.id));
-    for (const id of this.visibility.keys()) if (!retainedIds.has(id)) this.visibility.delete(id);
+    const projectedIds = new Set(projected.map(p => p.id));
+    for (const id of this.visibility.keys()) if (!projectedIds.has(id)) this.visibility.delete(id);
     this.metrics.drawn = this.drawn.length;
+    this.metrics.handoffs = this.layout.handoffs;
     this.metrics.enters = this.layout.enters; this.metrics.exits = this.layout.exits;
     this.metrics.cpuMs = performance.now() - start;
   }

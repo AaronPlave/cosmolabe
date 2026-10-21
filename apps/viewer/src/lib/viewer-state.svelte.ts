@@ -21,6 +21,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool } from './shell.svelte';
+import { navigateToPlace } from './places';
 
 // ── Exported types ──
 
@@ -470,6 +471,10 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     vs.selectedPlaceRef = place.ref;
     renderer.placeNames.selectedRef = place.ref;
     openTool('places');
+  }));
+  _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
+    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+    if (place) navigateToPlace(place, 'fly');
   }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 

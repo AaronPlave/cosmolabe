@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
+import * as placeActions from '../places';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
@@ -107,7 +108,7 @@ function makeFakeRenderer(objects: string[]) {
     // This control-layer fake has no asynchronous assets, but it must expose
     // the same subscription surface so binding it follows the production path.
     events: {
-      on: () => () => {},
+      on: vi.fn((_event: string, _listener: (payload: unknown) => void) => () => {}),
     },
     timeController: {
       get et() {
@@ -517,10 +518,16 @@ describe('navigation verbs', () => {
     expect(control.getSelected()).toBeNull();
   });
 
-  it('keeps a place on the current body and clears both highlight and details on another body', () => {
+  it('routes geographic double-click to shared Fly and clears place selection on another body', () => {
     const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
       {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
     vs.places=new PlaceIndex([layer]);const place=vs.places.places[0];
+    const fly=vi.spyOn(placeActions,'navigateToPlace').mockReturnValue(true);
+    const doubleClick=renderer.events.on.mock.calls.find(([event])=>event==='geographic:dblclick')![1];
+    doubleClick({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
+    expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly');
+    doubleClick({layerId:place.layer.id,featureId:'stale',bodyName:place.layer.body});
+    expect(fly).toHaveBeenCalledTimes(1);fly.mockRestore();
     selectPlace(place);const control=createViewerControl();control.track('Titan');
     expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);
     expect(parseCoordinatePair(placeCoordinates(place))).toMatchObject({ok:true,latDeg:-30.12345678,lonDeg:-120.12345678});

@@ -18,6 +18,40 @@ const browser=await chromium.launch({executablePath:hardware?'/Applications/Goog
 const context=await browser.newContext({viewport:{width:1440,height:900},...(process.env.CL_RECORD?{recordVideo:{dir:output,size:{width:1440,height:900}}}:{})});
 const page=await context.newPage(),errors=[],results=[];
 page.on('pageerror',e=>errors.push(e.message));
+// Gate the actual on-screen sequence, including fades, in both zoom directions.
+function checkZoom(result) {
+  results.push(result);
+  const sequences = new Map();
+  for (const sample of result.samples) {
+    const visible=sample.labels.filter(l=>l.opacity>.1);
+    for(let i=0;i<visible.length;i++) for(let j=i+1;j<visible.length;j++) {
+      const a=visible[i],b=visible[j];
+      assert.ok(!(a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y),
+        `Overlapping visible names ${JSON.stringify(a)} / ${JSON.stringify(b)} during ${result.phase}`);
+    }
+    for(const l of sample.labels) if(!sequences.has(l.id)) sequences.set(l.id,[]);
+    for(const [id,seq] of sequences) seq.push({visible:visible.some(l=>l.id===id),accepted:sample.labels.some(l=>l.id===id&&l.accepted),range:sample.rangeKm});
+  }
+  const transitions=[];
+  for(const [id,seq] of sequences) {
+    const runs=seq.filter((v,i)=>i===0||v.visible!==seq[i-1].visible).map(v=>v.visible);
+    const acceptedRuns=seq.filter((v,i)=>i===0||v.accepted!==seq[i-1].accepted).map(v=>v.accepted);
+    assert.ok(runs.filter(Boolean).length<=2,`${id} repeatedly flashes during ${result.phase}: ${runs}`);
+    assert.ok(acceptedRuns.filter(Boolean).length<=2,`${id} repeatedly loses ownership during ${result.phase}`);
+    let lastExit;
+    for(let i=1;i<seq.length;i++) {
+      if(!seq[i].visible&&seq[i-1].visible)lastExit=seq[i].range;
+      if(seq[i].visible&&!seq[i-1].visible&&lastExit!==undefined) {
+        const change=Math.max(seq[i].range,lastExit)/Math.min(seq[i].range,lastExit);
+        assert.ok(change>=1.25,`${id} returns without meaningful zoom change (${change}) during ${result.phase}`);
+      }
+    }
+    transitions.push({id,runs,acceptedRuns});
+  }
+  const first=result.samples[0],last=result.samples.at(-1);
+  assert.ok(last.handoffs-first.handoffs<=32,`Excessive collision handoffs during ${result.phase}`);
+  result.sequences=transitions;
+}
 try {
   await page.addInitScript(() => {
     // Vite HMR query strings denote module identity. Drive the live module,
@@ -59,7 +93,7 @@ try {
           const id=el.dataset.placeRef;if(oldNodes.has(id)&&oldNodes.get(id)!==el)identityChanges++;
           oldNodes.set(id,el);
           const rect=el.getBoundingClientRect(),canvas=r.renderer.domElement.getBoundingClientRect();
-          if(Number(el.style.opacity)>.2){
+          if(el.dataset.accepted==='true' && Number(el.style.opacity)>.5){
             const hit=r.placeNames.pick(rect.x+rect.width/2-canvas.x,rect.y+rect.height/2-canvas.y);
             if(!hit || r.placeNames.index.byRef.get(id)?.feature.id!==hit.featureId)throw new Error('Moving name pick drift');
             pickChecks++;
@@ -74,6 +108,20 @@ try {
     assert.equal(motion.identityChanges,0,'a continuously retained label keeps its DOM identity');
     assert.ok(motion.enters<20&&motion.exits<20,'slow orbit must not churn the whole label set');
     results.push(motion);
+    const doubleClick=await page.evaluate(()=>{
+      const r=window.renderer,el=[...document.querySelectorAll('.cl-place-name')].find(el=>Number(el.style.opacity)>.6&&el.dataset.accepted==='true');
+      if(!el)throw new Error('No visible name for double click');
+      const box=el.getBoundingClientRect();window.__placeDoubleUnsub?.();window.__placeDoubleClicks=[];
+      window.__placeDoubleUnsub=r.events.on('geographic:dblclick',ref=>window.__placeDoubleClicks.push(ref));
+      return{id:el.dataset.placeRef,x:box.x+box.width/2,y:box.y+box.height/2};
+    });
+    await page.mouse.move(doubleClick.x,doubleClick.y);
+    await page.mouse.dblclick(doubleClick.x,doubleClick.y,{delay:50});
+    await page.waitForFunction(id=>window.renderer.placeNames.selectedRef===id,doubleClick.id);
+    assert.equal(await page.evaluate(()=>window.__placeDoubleClicks.length),1);
+    results.push({body,phase:'visible geographic double click to shared Fly',id:doubleClick.id});
+    await page.waitForTimeout(1700);
+    await page.evaluate(async()=>{const {selectPlace}=await window.__placeModule('/src/lib/places.ts');selectPlace(null);});
     await page.evaluate(async fovFrames=>{
       const r=window.renderer;
       for(const fov of [45,75,60]){r.camera.fov=fov;r.camera.updateProjectionMatrix();for(let i=0;i<fovFrames;i++)await new Promise(requestAnimationFrame);}
@@ -90,21 +138,24 @@ try {
       const ray=r.camera.position.clone().sub(target).normalize(),start=performance.now(),samples=[];
       for(let i=0;i<sweepFrames;i++){
         await new Promise(requestAnimationFrame);
-        const t=i/(sweepFrames-1),range=Math.exp(Math.log(from)*(1-t)+Math.log(to)*t)*r.scaleFactor;
+        const t=phase==='tiny zoom reversals'? .5+.02*Math.sin(i*.8) : i/(sweepFrames-1),range=Math.exp(Math.log(from)*(1-t)+Math.log(to)*t)*r.scaleFactor;
         r.camera.position.copy(target).addScaledVector(ray,range);
         // Small pan changes the line of sight throughout the zoom.
         r.camera.position.addScaledVector(r.camera.up,Math.sin(t*Math.PI*2)*range*.015);
         r.camera.lookAt(target);r.camera.updateMatrixWorld(true);
-        samples.push({...r.placeNames.metrics});
+        samples.push({...r.placeNames.metrics,rangeKm:range/r.scaleFactor,labels:[...document.querySelectorAll('.cl-place-name')].map(el=>{
+          const rect=el.getBoundingClientRect();return{id:el.dataset.placeRef,opacity:Number(el.style.opacity),accepted:el.dataset.accepted==='true',x:rect.x,y:rect.y,width:rect.width,height:rect.height};
+        })});
       }
       return{body,phase,elapsedMs:performance.now()-start,samples};
     },{from,to,phase,body,sweepFrames});
     const radius=await page.evaluate(body=>window.renderer.getBodyMesh(body).displayRadius,body);
-    results.push(await sweep(radius*2,radius*.15,'zoom global to regional'));
+    const inward=await sweep(radius*2,radius*.15,'zoom global to regional');checkZoom(inward);
     await page.waitForTimeout(300);await page.screenshot({path:`${output}/${body.toLowerCase()}-regional.png`});
-    results.push(await sweep(radius*.15,body==='Mars'?40:8,'zoom regional to surface'));
+    const surface=await sweep(radius*.15,body==='Mars'?40:8,'zoom regional to surface');checkZoom(surface);
     await page.waitForTimeout(300);await page.screenshot({path:`${output}/${body.toLowerCase()}-surface.png`});
-    results.push(await sweep(body==='Mars'?40:8,radius*2,'zoom out through all tiers'));
+    const outward=await sweep(body==='Mars'?40:8,radius*2,'zoom out through all tiers');checkZoom(outward);
+    const tiny=await sweep(radius*.18,radius*.15,'tiny zoom reversals');checkZoom(tiny);
     // Real selection is retained on the current body, cleared on body change.
     await page.evaluate(async({root,query,body})=>{
       const {navigateToPlace}=await window.__placeModule('/src/lib/places.ts');
@@ -155,4 +206,4 @@ try {
   await writeFile(`${output}/motion-metrics.json`,JSON.stringify({sampling:{orbitFrames,sweepFrames,fovFrames},results,errors},null,2)+'\n');
   await context.close();await browser.close();
 }
-console.log(JSON.stringify({phases:results.map(({samples,...r})=>r),errors},null,2));
+console.log(JSON.stringify({phases:results.map(({samples,sequences,...r})=>({...r,places:sequences?.length})),errors},null,2));
