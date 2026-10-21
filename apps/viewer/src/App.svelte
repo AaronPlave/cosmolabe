@@ -12,11 +12,11 @@
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin, showNextInstrument } from './lib/viewer-state.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
-    isToolOpen,
+    isToolOpen, openTool,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -263,10 +263,10 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      // `I` never closes the Instrument view (#192): it opens the window, then
-      // steps through sensors in it. Closing stays with the rail, Escape and X.
+      // `I` opens, restores or raises the Instrument view without changing its
+      // sensor (#192). Closing stays with the rail, Escape and X.
       if (tool && !e.repeat) {
-        if (tool.id === 'instrument') showNextInstrument();
+        if (tool.id === 'instrument') openTool('instrument');
         else toggleTool(tool.id);
       }
     }

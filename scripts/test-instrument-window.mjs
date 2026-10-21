@@ -14,11 +14,11 @@ const headless = process.env.HEADED ? false : true;
 const browser = await chromium.launch({ headless, args: headless ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : [] });
 
 /** Load a test catalog, paused, and return its page. */
-async function open(catalog, deviceScaleFactor = 1) {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor });
+async function open(catalog, deviceScaleFactor = 1, options = {}) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor, reducedMotion: 'reduce', ...options });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/?catalog=test-catalogs/${catalog}&test=1`);
+  await page.goto(`${base}/?catalog=test-catalogs/${catalog}&test=1`, { waitUntil: 'domcontentloaded', timeout: 180000 });
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, null, { timeout: 180000 });
   return { page, errors };
 }
@@ -89,16 +89,26 @@ try {
   // ── Cassini, DPR 1 ──
   {
     const { page, errors } = await open('cassini-soi');
+    console.log('WebGL renderer:', await page.evaluate(() => {
+      const gl = window.renderer.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    }));
     await page.evaluate(() => window.__cosmolabe.runScript('setPlaying off\nsetTime 2005-07-14T12:58:36Z\ngotoObject Cassini'));
     await page.waitForTimeout(1500);
     await page.evaluate(() => window.renderer.stop());
 
-    // `I` opens the window, then steps through sensors in it — never closes it.
+    // `I` opens and raises the window without changing the physical sensor.
     await page.keyboard.press('i');
     await win(page).waitFor();
     await page.evaluate(() => window.renderer.renderFrame());
     assert.equal((await info(page)).sensor, 'ISS NAC');
     await page.keyboard.press('i');
+    assert.equal((await info(page)).sensor, 'ISS NAC', 'I changed the selected sensor');
+    // Cycling remains available as a separate, explicit palette command.
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.getByPlaceholder('Search bodies, commands...').fill('Next instrument sensor');
+    await page.getByRole('option', { name: 'Next instrument sensor' }).click();
     await page.waitForFunction(() => window.renderer.getInstrumentViewInfo()?.sensor === 'ISS WAC');
     await win(page).locator('select[aria-label="Instrument"]').selectOption('ISS NAC');
     await page.evaluate(() => window.renderer.renderFrame());
@@ -109,11 +119,24 @@ try {
     // the feed — identical with the window open and minimized.
     let box = await feedBox(page);
     const withFeed = await mainCanvasSum(page, box);
+    const stats = () => page.evaluate(() => {
+      window.renderer.renderFrame();
+      const { calls, triangles } = window.renderer.renderer.info.render;
+      return { calls, triangles };
+    });
+    const visibleStats = await stats();
     await button(page, 'Minimize').click();
     assert.equal(await instrumentDraws(page), 0, 'minimized window renders nothing');
     const withoutFeed = await mainCanvasSum(page, box);
     assert.equal(withFeed, withoutFeed, 'instrument pixels leaked into the main canvas');
-    await button(page, 'Restore').click();
+    const minimizedStats = await stats();
+    assert.ok(visibleStats.calls > minimizedStats.calls, 'frame statistics omit instrument draw calls');
+    assert.ok(visibleStats.triangles > minimizedStats.triangles, 'frame statistics omit instrument triangles');
+    console.log('Cassini frame statistics:', { visible: visibleStats, minimized: minimizedStats });
+    await page.keyboard.press('i');
+    await win(page).locator('canvas').waitFor();
+    assert.equal((await info(page)).sensor, 'ISS NAC', 'I changed the sensor on restore');
+    assert.deepEqual(await stats(), visibleStats, 'restored frame statistics accumulated across frames');
 
     // Float it, then overlap with Display in both stacking orders.
     let header = await win(page).locator('header').boundingBox();
@@ -129,8 +152,9 @@ try {
     await page.evaluate(() => window.renderer.renderFrame());
     await page.screenshot({ path: `${output}/display-over-instrument.png` });
     box = await feedBox(page);
-    await page.mouse.click(box.x + box.width - 20, box.y + 60);
-    assert.match(await topAt(probe), /ISS NAC/, 'window raised over Display');
+    await page.keyboard.press('i');
+    assert.equal((await info(page)).sensor, 'ISS NAC', 'I changed the obscured window sensor');
+    assert.match(await topAt(probe), /ISS NAC/, 'I raised the window over Display');
     await page.evaluate(() => window.renderer.renderFrame());
     await page.screenshot({ path: `${output}/instrument-over-display.png` });
 
@@ -229,6 +253,7 @@ try {
     await win(page).waitFor();
     const options = await win(page).locator('select[aria-label="Instrument"] option').allTextContents();
     assert.deepEqual(options, ['EIS NAC', 'EIS WAC', 'MISE', 'E-THEMIS']);
+    await page.screenshot({ path: `${output}/clipper.png` });
     await page.evaluate(() => { history.pushState(null, '', '?catalog=test-catalogs/cassini-soi&test=1'); dispatchEvent(new PopStateEvent('popstate')); });
     await page.waitForFunction(() => window.renderer?.getSensorNames().includes('ISS NAC') && window.__cosmolabe.assetsReady, null, { timeout: 180000 });
     await page.waitForFunction(() => document.querySelector('section.instrument select[aria-label="Instrument"]')?.value === 'ISS NAC');
@@ -249,6 +274,8 @@ try {
       }));
     });
     assert.deepEqual(fovs, { LAMP: [0.39, 9.64], Diviner: [4.04, 0.35], LEND: [5.6, 5.6], CRaTER: [65.9, 65.9] });
+    await win(page).waitFor();
+    await page.screenshot({ path: `${output}/lro.png` });
     // A sensor with no catalog FOV and no IK says so rather than showing the fallback as fact.
     await page.evaluate(() => {
       const geo = window.renderer.sensorFrustums.get('LEND').body.geometryData;
@@ -258,6 +285,34 @@ try {
     await win(page).locator('select[aria-label="Instrument"]').selectOption('LEND');
     await win(page).getByText('FOV unknown').waitFor();
     assert.equal((await info(page)).fov, null);
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
+
+  // Compact presentation with emulated touch input. This exercises the sheet
+  // controls; it does not substitute for physical phone/browser validation.
+  for (const catalog of ['cassini-soi', 'europa-clipper', 'lro-moon']) {
+    const { page, errors } = await open(catalog, 2, {
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    });
+    await page.locator('button[aria-label^="Instrument view"]').first().tap();
+    await win(page).locator('canvas').waitFor();
+    await page.waitForFunction(() => window.renderer.getInstrumentViewInfo()?.imageRect?.w > 0);
+    const sensor = (await info(page)).sensor;
+    const box = await feedBox(page);
+    assert.ok(box.x >= 0 && box.x + box.width <= 391, 'compact feed overflows the viewport');
+    assert.ok(box.height > 0 && box.y + box.height <= 845, 'compact feed is off screen');
+    await page.screenshot({ path: `${output}/${catalog}-compact.png` });
+    await button(page, 'Expand').tap();
+    await button(page, 'Return').tap();
+    await button(page, 'Minimize').tap();
+    assert.equal(await instrumentDraws(page), 0, 'compact minimized window still draws');
+    // Compact minimizes the entire sheet; its rail button restores it.
+    await page.locator('button[aria-label^="Instrument view"]').first().tap();
+    await win(page).locator('canvas').waitFor();
+    assert.equal((await info(page)).sensor, sensor, 'touch restore changed the sensor');
+    await button(page, 'Close').tap();
+    await win(page).waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
     await page.close();
   }

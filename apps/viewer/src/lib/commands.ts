@@ -56,10 +56,9 @@ function getBuiltinCommands(): Command[] {
     ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
 
     // Instrument
-    { id: 'instr:open', label: 'Open instrument view', category: 'Display', execute: () => openTool('instrument') },
-    // `I`: opens the window, then steps through sensors in it — never through
-    // feeds nobody can see.
-    { id: 'instr:cycle', label: 'Next instrument sensor', shortcut: 'I', category: 'Display', execute: () => showNextInstrument() },
+    { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
+    // Sensor cycling is an explicit palette action, separate from open/focus.
+    { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: () => showNextInstrument() },
   ];
 }
 

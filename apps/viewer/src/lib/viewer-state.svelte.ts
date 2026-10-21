@@ -556,8 +556,8 @@ export function unbindRenderer() {
 }
 
 /**
- * `I`: open the Instrument view window, or — once it is on screen — step to the
- * next sensor in it. Wraps around.
+ * Palette command: open the Instrument view window, or step to the next sensor
+ * once it is on screen. Wraps around. The `I` shortcut only opens/raises.
  */
 export function showNextInstrument() {
   if (!isPanelVisible('instrument')) {

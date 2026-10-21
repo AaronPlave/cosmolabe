@@ -1173,6 +1173,10 @@ export class UniverseRenderer {
       }
     }
 
+    // Count every pass in this frame, including the early instrument feed.
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
+
     // A windowed instrument feed renders before the main passes: Pass 1 clears
     // the whole buffer, so the pixels it borrowed under its window never reach
     // a screenshot, a video frame or the screen (#192).
@@ -1184,8 +1188,6 @@ export class UniverseRenderer {
     // --- Multi-pass rendering ---
     this.geographicVectors.begin();
     this.renderer.autoClear = false;
-    this.renderer.info.autoReset = false;
-    this.renderer.info.reset();
     this._renderDebugFrame++;
 
     if (this.bloomEffect?.enabled && this.solarSources.size > 0) {
