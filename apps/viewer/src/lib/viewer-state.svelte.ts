@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
+import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 
 // ── Exported types ──
 
@@ -129,6 +130,15 @@ export const vs = $state({
 
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
+
+  /**
+   * The sensor the Instrument view window shows (#192). The one source of
+   * truth: the Display selector, the window's own selector and the commands
+   * all write here, and the window pushes it to the renderer while it is on
+   * screen. Kept across closing the window; a new scene starts from its own
+   * first instrument.
+   */
+  instrumentSensor: null as string | null,
 
   /** Bodies currently identified in the 3D view by `highlightBodies`. */
   highlightedBodies: [] as string[],
@@ -419,6 +429,20 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
   _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  // An instrument belongs to the scene it was chosen in.
+  vs.instrumentSensor = null;
+
+  // The Instrument view window is the viewer's presentation of the renderer's
+  // instrument view, so a sensor chosen anywhere else — a script, the console —
+  // shows in the window, and clearing it closes the window.
+  _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    if (sensor == null) {
+      closeTool('instrument');
+    } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
+      vs.instrumentSensor = sensor;
+      openTool('instrument');
+    }
+  }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -529,6 +553,22 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+}
+
+/**
+ * Palette command: open the Instrument view window, or step to the next sensor
+ * once it is on screen. Wraps around. The `I` shortcut only opens/raises.
+ */
+export function showNextInstrument() {
+  if (!isPanelVisible('instrument')) {
+    openTool('instrument');
+    return;
+  }
+  const sensors = _renderer?.getSensorNames() ?? [];
+  if (sensors.length === 0) return;
+  const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
+  vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  openTool('instrument'); // raise it, so the change is seen
 }
 
 export function getRenderer(): UniverseRenderer | null {

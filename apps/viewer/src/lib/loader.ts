@@ -436,17 +436,10 @@ async function furnishPlanned(
     rememberKernelFrames(buffer);
     return;
   }
-  if (k.size && k.size > 0) {
-    // Fetched here rather than inside `furnish` only to report byte progress,
-    // which is worth it for the files big enough to be declared.
-    const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
-    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
-    rememberKernelFrames(buffer);
-    return;
-  }
-  const response = await fetch(source.url);
-  if (!response.ok) throw new Error(`Failed to fetch kernel: ${source.url} (${response.status})`);
-  const buffer = await response.arrayBuffer();
+  // Fetched here rather than inside `furnish` to undo `.gz` transport
+  // compression, and to report byte progress for the files big enough to be
+  // declared.
+  const buffer = await fetchWithProgress(source.url, k.size ? onProgress : undefined);
   await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
   rememberKernelFrames(buffer);
 }

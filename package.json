@@ -36,6 +36,7 @@
     "typecheck": "npm run build && npm run typecheck:tests && npm run typecheck:viewer && npm run typecheck:svelte",
     "test": "vitest run",
     "test:permalinks": "node scripts/test-view-permalinks.mjs",
+    "test:instrument-window": "node scripts/test-instrument-window.mjs",
     "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
     "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",

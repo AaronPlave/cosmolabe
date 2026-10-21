@@ -39,7 +39,8 @@ export type {
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
+export { fitImageRect } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary, FovOutline, Rect as InstrumentImageRect } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
 export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';

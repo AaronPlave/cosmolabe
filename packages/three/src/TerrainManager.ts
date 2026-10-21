@@ -1361,6 +1361,11 @@ export class TerrainManager {
     this.culledScenes.length = 0;
   }
 
+  /** Re-apply this frame's main-view cull after an instrument pass showed every tile. */
+  recullToMainView(): void {
+    if (this.drawCulling) this.cullToMainView();
+  }
+
   /** Turn the main-view draw cull on or off (`TerrainConfig.drawCulling`); takes effect from the next update. */
   setDrawCulling(enabled: boolean): void {
     this.drawCulling = enabled;
