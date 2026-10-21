@@ -8,7 +8,7 @@ import { recommendSurfaceSources, parseSurfacePlan } from '../packages/core/dist
 import { fetchOdeMarsMetadata } from './ode-mars-metadata.mjs';
 
 const USAGE = 'Usage: npm run --silent discover:surface -- PLAN.json --inventory INVENTORY.json\n'
-  + '  [--policy consistent|finest-imagery|physical-accuracy] [--out REPORT.json]\n'
+  + '  [--policy consistent|finest-imagery|physical-accuracy] [--out REPORT.json] [--sources-out SOURCES.json]\n'
   + '  [--ode-template HTTPS-ODE-MARS-METADATA-URL]\n'
   + 'Offline by default. Inventory metadata is not a build lock.\n'
   + 'Optional ODE URL needs {page} and {pageSize} placeholders; host allowlisted.\n'
@@ -26,7 +26,7 @@ export async function runSurfaceDiscoveryCli(args) {
   const planPath = resolve(args[0]), options = new Map();
   for (let i = 1; i < args.length; i++) {
     const flag = args[i];
-    if (!['--inventory', '--policy', '--out', '--ode-template'].includes(flag) || options.has(flag))
+    if (!['--inventory', '--policy', '--out', '--sources-out', '--ode-template'].includes(flag) || options.has(flag))
       throw new Error('Unknown or duplicate option: ' + flag + '\n' + USAGE);
     if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error('Missing ' + flag + ' value');
     options.set(flag, args[++i]);
@@ -53,12 +53,16 @@ export async function runSurfaceDiscoveryCli(args) {
     ...(options.has('--ode-template') ? { ode: await fetchOdeMarsMetadata(options.get('--ode-template')) } : {}),
   };
   const json = JSON.stringify(output, null, 2) + '\n';
+  const inputs = [planPath, inventoryPath, ...[...references.keys()].map(k => resolve(dirname(planPath), k))];
+  const destinations = ['--out', '--sources-out'].filter(k => options.has(k)).map(k => resolve(options.get(k)));
+  if (destinations.some(p => inputs.includes(p)) || new Set(destinations).size !== destinations.length)
+    throw new Error('Output destinations must be distinct from each other and all input files');
   if (options.has('--out')) {
     const target = resolve(options.get('--out'));
-    if ([planPath, inventoryPath, ...[...references.keys()].map(k => resolve(dirname(planPath), k))].includes(target))
-      throw new Error('--out must not overwrite an input');
     await writeFile(target, json);
   }
+  if (options.has('--sources-out')) await writeFile(resolve(options.get('--sources-out')),
+    JSON.stringify(inventory.map(record => record.descriptor), null, 2) + '\n');
   return json;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
