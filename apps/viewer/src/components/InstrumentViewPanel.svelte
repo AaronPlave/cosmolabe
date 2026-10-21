@@ -39,15 +39,22 @@
     if (vs.instrumentSensor == null && sensors.length > 0) vs.instrumentSensor = sensors[0];
   });
 
-  // The renderer presents the feed here while the canvas exists. Minimizing
-  // unmounts the canvas, which ends the feed: a hidden window renders nothing.
+  // Which sensor and where it is shown are separate renderer calls, so a
+  // script switching sensors (`setInstrumentView`) never takes the feed out of
+  // this window; its choice comes back through `vs.instrumentSensor`.
   $effect(() => {
-    const r = renderer;
-    const target = surface;
-    if (!r || !target || !sensor) return;
-    r.setInstrumentView(sensor, { surface: target });
-    return () => r.setInstrumentView(null);
+    if (renderer && sensor) renderer.setInstrumentView(sensor);
   });
+
+  // Hand the renderer this window's canvas. A minimized window unmounts it but
+  // the renderer keeps the detached element, which renders nothing — rather
+  // than falling back to the corner inset.
+  $effect(() => {
+    if (renderer && surface) renderer.setInstrumentViewSurface(surface);
+  });
+
+  // No teardown here: this component also unmounts for a layout switch or a
+  // scene load, which must not end the feed. Closing the tool does (App.svelte).
 
   const info = $derived.by(() => {
     void vs.frameTick;
@@ -64,10 +71,14 @@
   // A docked or sheet window has no height of its own; give the feed one at
   // roughly the instrument's aspect, within reason for very wide or tall FOVs.
   const sized = $derived(shell.layout === 'compact' || !isFloating('instrument'));
-  const feedAspect = $derived(info ? Math.min(Math.max(info.fov[0] / info.fov[1], 1), 2.5) : 4 / 3);
+  const feedAspect = $derived(info ? Math.min(Math.max(info.viewFov[0] / info.viewFov[1], 1), 2.5) : 4 / 3);
 
   const deg = (d: number) => (d >= 10 ? d.toFixed(1) : d >= 1 ? d.toFixed(2) : d.toPrecision(3));
-  const POINTING = { spice: 'SPICE attitude', target: 'Aimed at target', none: 'Unpointed' } as const;
+  const POINTING = {
+    spice: { text: 'SPICE attitude', title: 'Pointed by the instrument frame\'s SPICE attitude (CK) at this time' },
+    target: { text: 'Approx. pointing', title: 'No attitude at this time: the boresight is aimed at the target, roll unknown' },
+    none: { text: 'Unpointed', title: 'No attitude and no target: the view direction is not meaningful' },
+  } as const;
 </script>
 
 <InstrumentPanel key="instrument" {title} width={toolDef('instrument').width} {onClose} expandable fill>
@@ -86,8 +97,8 @@
     {#if info}
       <span title="Target">→ {info.target ?? 'no target'}</span>
       <span title="Live on the scene clock">Live · {vs.timeText}</span>
-      <span title="Angular field of view">{deg(info.fov[0])}° × {deg(info.fov[1])}°</span>
-      <span title="Pointing source" class:warn={info.pointing !== 'spice'}>{POINTING[info.pointing]}</span>
+      <span title="Sensor field of view. The image shows {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°, a small margin around it.">FOV {deg(info.fov[0])}° × {deg(info.fov[1])}°</span>
+      <span title={POINTING[info.pointing].title} class:warn={info.pointing !== 'spice'}>{POINTING[info.pointing].text}</span>
     {/if}
   </div>
 

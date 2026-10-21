@@ -15,7 +15,8 @@
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
-    reclampFloats, topVisiblePanel, minimizePanel, isToolId, isExpanded, toggleExpanded,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
+    openTool, isToolOpen,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -43,6 +44,13 @@
   // scene nothing (#94: no persistent header).
   $effect(() => {
     document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+  });
+
+  // Closing the Instrument view window — X, Escape, the rail, Display's Off —
+  // ends the feed. Here rather than in the panel, which also unmounts for a
+  // layout switch or a scene load that must not end it.
+  $effect(() => {
+    if (!isToolOpen('instrument')) untrack(() => getRenderer()?.setInstrumentView(null));
   });
 
   // A scene deep-linked by path is named by that path until a source lists it
@@ -255,7 +263,13 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool && !e.repeat) toggleTool(tool.id);
+      // `I` opens, restores or raises the Instrument view rather than toggling
+      // it (#192): it is how you get to the feed, and closing stays with the
+      // rail, Escape and the window's own X.
+      if (tool && !e.repeat) {
+        if (tool.id === 'instrument') openTool(tool.id);
+        else toggleTool(tool.id);
+      }
     }
   }
 
@@ -274,13 +288,15 @@
    * would be a poor trade.
    */
   function dismissTopSurface(): boolean {
-    const top = topVisiblePanel();
-    if (top == null) return false;
-    // An expanded panel steps back to its window before it goes anywhere.
-    if (isExpanded(top)) {
-      toggleExpanded(top);
+    // An expanded panel covers the workspace, whatever was touched since: it
+    // steps back to its window before anything behind it is dismissed.
+    const expanded = expandedPanel();
+    if (expanded) {
+      toggleExpanded(expanded);
       return true;
     }
+    const top = topVisiblePanel();
+    if (top == null) return false;
     if (compact) {
       minimizePanel(top);
       return true;

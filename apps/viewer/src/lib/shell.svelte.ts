@@ -390,6 +390,11 @@ export function isExpanded(key: PanelKey): boolean {
   return shell.panels[key].expanded;
 }
 
+/** The expanded panel on screen, if any — it covers every other panel. */
+export function expandedPanel(): PanelKey | null {
+  return PANEL_KEYS.find((key) => shell.panels[key].expanded && isPanelVisible(key)) ?? null;
+}
+
 export function toggleExpanded(key: PanelKey) {
   shell.panels[key].expanded = !shell.panels[key].expanded;
   if (shell.panels[key].expanded) restorePanel(key);

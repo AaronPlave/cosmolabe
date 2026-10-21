@@ -5,7 +5,7 @@ import {
   watchLayout, isToolId, isMinimized, minimizePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
   raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
-  FLOAT_Z_BASE, isExpanded, toggleExpanded, type PanelKey,
+  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, type PanelKey,
 } from '../shell.svelte';
 
 /**
@@ -330,6 +330,21 @@ describe('expanding', () => {
     toggleExpanded('instrument');
     expect(isExpanded('instrument')).toBe(false);
     expect(floatOf('instrument')).toEqual({ x: 300, y: 200, w: 440, h: 360 });
+  });
+
+  it('outranks the focus order for Escape: a panel opened behind it is not what Escape reaches first', () => {
+    openTool('instrument');
+    mount('instrument', 'display');
+    toggleExpanded('instrument');
+    openTool('display'); // touched after, so the top of the focus order
+    expect(topVisiblePanel()).toBe('display');
+    expect(expandedPanel()).toBe('instrument');
+  });
+
+  it('is not reported while its panel is off screen', () => {
+    openTool('instrument');
+    toggleExpanded('instrument');
+    expect(expandedPanel()).toBeNull(); // never mounted
   });
 
   it('does not survive minimizing or closing', () => {

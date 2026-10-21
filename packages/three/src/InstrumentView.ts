@@ -78,6 +78,9 @@ const _savedScissor = new THREE.Vector4();
 const _savedClearColor = new THREE.Color();
 const _lookTarget = new THREE.Vector3();
 
+/** Margin around a SPICE FOV boundary so its outline sits just inside the image. */
+const FOV_PADDING = 1.05;
+
 /** FOV boundary data for drawing the actual sensor footprint outline. */
 export interface FovBoundary {
   shape: string;               // 'POLYGON' | 'RECTANGLE' | 'CIRCLE' | 'ELLIPSE'
@@ -104,6 +107,7 @@ export class InstrumentView {
   private layout: { surface: Rect; fit: Rect; image: Rect; clip: Rect } | null = null;
   private _pointing: 'spice' | 'target' | 'none' = 'none';
   private _fov: [number, number] = [0, 0];
+  private _viewFov: [number, number] = [0, 0];
   private _active = false;
   /** Instrument native aspect ratio (hFov / vFov). Used for letterboxing. */
   private instrAspect = 1;
@@ -183,8 +187,10 @@ export class InstrumentView {
 
   get active(): boolean { return this._active; }
   get sensorName(): string | undefined { return this.sensor?.body.name; }
-  /** Angular extent of the rendered image, degrees [horizontal, vertical]. */
+  /** The sensor's angular coverage, degrees [horizontal, vertical]: the SPICE boundary's extent, or the catalog FOV. */
   get fov(): [number, number] { return this._fov; }
+  /** Angular extent of the rendered image, degrees — the coverage plus padding when drawn from a SPICE boundary. */
+  get viewFov(): [number, number] { return this._viewFov; }
   /** How the camera was pointed on the last update: SPICE attitude, aimed at the target, or not at all. */
   get pointing(): 'spice' | 'target' | 'none' { return this._pointing; }
   /**
@@ -216,6 +222,7 @@ export class InstrumentView {
       const geo = sensor.body.geometryData as Record<string, unknown> | undefined;
       let hFov = (geo?.horizontalFov as number) ?? 10;
       let vFov = (geo?.verticalFov as number) ?? hFov;
+      let padding = 1;
 
       // When SPICE boundary is available, compute tight-fitting FOV from the
       // actual boundary bounding box instead of the enriched symmetric version.
@@ -225,6 +232,7 @@ export class InstrumentView {
         hFov = tight.hFov;
         vFov = tight.vFov;
         this.fovCenterOffset = tight.centerOffset;
+        padding = FOV_PADDING;
       }
 
       // Use the instrument's actual FOV and aspect ratio
@@ -233,7 +241,8 @@ export class InstrumentView {
       this.camera.aspect = this.instrAspect;
       this.camera.updateProjectionMatrix();
 
-      this._fov = [hFov, vFov];
+      this._viewFov = [hFov, vFov];
+      this._fov = [hFov / padding, vFov / padding];
       this.fovDiv.textContent = `${hFov.toPrecision(4)}°×${vFov.toPrecision(4)}°`;
 
       // Update border color from sensor frustum color
@@ -270,7 +279,7 @@ export class InstrumentView {
       const bLen = Math.sqrt(b[0] ** 2 + b[1] ** 2 + b[2] ** 2);
       const dot = (bsN[0] * b[0] + bsN[1] * b[1] + bsN[2] * b[2]) / bLen;
       const fullAngleDeg = 2 * Math.acos(Math.min(1, Math.abs(dot))) * 180 / Math.PI;
-      const padded = fullAngleDeg * 1.05;
+      const padded = fullAngleDeg * FOV_PADDING;
       return { hFov: padded, vFov: padded, centerOffset: [0, 0] };
     }
 
@@ -303,8 +312,8 @@ export class InstrumentView {
     const extentV = (maxV - minV) * 180 / Math.PI;
     // Add 5% padding
     return {
-      hFov: extentH * 1.05,
-      vFov: extentV * 1.05,
+      hFov: extentH * FOV_PADDING,
+      vFov: extentV * FOV_PADDING,
       centerOffset: [centerH, centerV],
     };
   }

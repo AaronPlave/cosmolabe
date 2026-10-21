@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
+import { openTool, closeTool, isToolOpen } from './shell.svelte';
 
 // ── Exported types ──
 
@@ -428,6 +429,17 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
   _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  // The Instrument view window is the viewer's presentation of the renderer's
+  // instrument view, so a sensor chosen anywhere else — a script, the console —
+  // shows in the window, and clearing it closes the window.
+  _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    if (sensor == null) {
+      closeTool('instrument');
+    } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
+      vs.instrumentSensor = sensor;
+      openTool('instrument');
+    }
+  }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
