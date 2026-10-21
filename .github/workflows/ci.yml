@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
+          key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
 
       - name: Smudge test-kernel LFS files
         # See deploy-pages.yml for why we install + fetch + checkout
@@ -79,10 +79,12 @@ jobs:
         # nothing after (the cache above covers it), where
         # scripts/fetch-kernels.sh would pull 94 MB from NAIF — 62 MB of that
         # an asteroid SPK no test touches.
+        # The named-place browser smoke also needs the Mars base texture.
+        # Materialize this one LFS asset so CI exercises the unchanged real scene.
         run: |
           git lfs install --local
-          git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-          git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+          git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc,apps/viewer/test-catalogs/textures/mars.dds"
+          git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc" "apps/viewer/test-catalogs/textures/mars.dds"
 
       - name: Check for stale git-lfs pointers
         # A .gitattributes narrowing does not re-stage blobs committed while the
@@ -186,7 +188,7 @@ jobs:
       - name: Install Chromium for global geographic smoke
         run: npx playwright install --with-deps chromium
 
-      - name: Global countries normal-viewer smoke
+      - name: Normal-viewer geographic and planetary place smoke
         env:
           DEV_DATA_MODE: local
           CL_SMOKE: '1'
