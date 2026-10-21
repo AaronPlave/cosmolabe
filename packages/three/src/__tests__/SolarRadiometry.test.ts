@@ -87,6 +87,8 @@ it('reinhard reference response remains positive, bounded, monotonic, and determ
   expect(sweep[3]).toBeCloseTo(0.47, 12);
   expect(sweep[5]).toBeLessThan(0.94);
   for (let i = 1; i < sweep.length; i++) expect(sweep[i]).toBeGreaterThan(sweep[i-1]);
-  expect(solarRadianceToDisplay([-1, 0, 1/exposure], exposure))
-    .toEqual([0, 0, 0.47]);
+  const [negative, zero, unit] = solarRadianceToDisplay([-1, 0, 1/exposure], exposure);
+  expect(negative).toBe(0);
+  expect(zero).toBe(0);
+  expect(unit).toBeCloseTo(0.47, 12);
 });
