@@ -62,6 +62,15 @@ describe('offline source discovery CLI', () => {
     expect(report.recommendations.every(r => r.status !== 'verified-candidate')).toBe(true);
     expect(a.stderr).toBe('');
   });
+  it('supports the independent Gale fixture with no invented archive coverage', () => {
+    const galePlan = resolve('docs/examples/surface-plans/gale.plan.json');
+    const galeInventory = resolve('docs/examples/surface-plans/mars-gale.inventory.json');
+    const result = run(galePlan, '--inventory', galeInventory);
+    expect(result.status).toBe(0);
+    const report = JSON.parse(result.stdout);
+    expect(report.recommendations).toHaveLength(4);
+    expect(report.recommendations.every(r => r.status !== 'verified-candidate')).toBe(true);
+  });
   it('rejects unknown flags and overwriting inputs', () => {
     expect(run('--help').stdout).toContain('discover:surface');
     expect(run(plan, '--inventory', inv, '--typo').status).toBe(2);
