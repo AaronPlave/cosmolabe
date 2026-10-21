@@ -725,7 +725,7 @@ function initScene(
     const u = universe;
     const hook = {
       ready: true,
-      exposureMetadata: r.getSolarExposureMetadata(),
+      getExposureMetadata: () => r.getSolarExposureMetadata(),
       /** Flips true once the catalog's initial models, textures and trajectory
        *  caches have loaded or failed. The harness waits on this instead of
        *  sleeping a fixed settle window and hoping the textures made it
