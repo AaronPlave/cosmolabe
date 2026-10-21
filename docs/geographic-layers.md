@@ -112,6 +112,46 @@ a link only when it is an `http(s)` URL, and opens without access to the
 viewer. *Coordinates* copies a Point's exact source numbers with their
 convention; the properties header copies the unmodified source geometry.
 
+## Layer styles
+
+The palette button on a vector layer opens its **style editor** below the layer
+list, with three sections:
+
+- **Style.** Layer opacity, and controls for only the geometry types the layer
+  has. *Points*: colour, size (screen pixels at every distance), opacity,
+  circle/square/diamond and a dark halo. *Lines*: colour, width, opacity,
+  dashed and a dark outline. *Polygons*: fill colour and opacity, a hatch
+  preset, and outline colour, width and opacity; holes stay open. *Colour by*
+  switches from a single colour to a **category** palette or a **number**
+  ramp over a property. The legend is built from the layer's actual values,
+  with counts, and warns about missing values, non-numbers and fields with
+  too many values (each category's colour is editable; values beyond the
+  palette share *Other*). Under a rule, per-part colours show as set by it.
+- **Data.** Source, catalog, read-only status, body and frame, coordinate
+  convention, counts per geometry type, overall extent, provenance or licence,
+  and the property schema (type, values or range, how many features have it).
+  Imported properties are listed read-only; styling never changes them.
+- **Labels.** Label by name or a property, text size, at most N labels, hide
+  beyond a camera range, and a contrast halo. Overlapping labels are dropped,
+  keeping those already shown so a resting view does not reshuffle; labels
+  past the horizon hide.
+
+A selected feature's details can make an **exception**: its own colour and
+opacity, set only when you ask, and cleared back to the layer style.
+
+The style is a small declarative object (`GeographicLayerStyle`, versioned,
+in `@cosmolabe/core`): layer defaults per geometry type, one optional property
+rule, labels, and explicit per-feature exceptions keyed by stable feature ID.
+Opacities multiply: catalog display × layer × part × feature. It is kept in
+this browser's localStorage, keyed by the layer's catalog and ID (at most 64
+layers and 256 KiB; the least recently edited go first), and restored when the
+same catalog loads; a stored style is validated and any invalid part is
+ignored with a reason. It is never written into the catalog or the data. The
+editor shows *Catalog defaults* or *Local style*; **Revert** undoes changes
+since it opened and **Reset** returns to the catalog defaults. Draw order among
+a body's vector layers (earlier draws over later where fills overlap) is for
+the session.
+
 ## Coordinate interpretation
 
 RFC 7946 GeoJSON itself means Earth WGS84. Planetary GeoJSON is an explicit

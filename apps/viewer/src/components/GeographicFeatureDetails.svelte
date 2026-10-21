@@ -15,6 +15,8 @@
   } from '@cosmolabe/core';
   import { Button } from '$lib/components/ui/button';
   import { geo, findFeature, goToFeature, navigationUnavailable, selectFeature } from '../lib/geographic-layers.svelte';
+  import { geoStyles, featureOverride, setFeatureOverride, layerStyle } from '../lib/geographic-styles.svelte';
+  import { resolveGeographicStyle } from '@cosmolabe/core';
 
   let found = $derived(findFeature(geo.selected));
   let copied = $state<string | null>(null);
@@ -78,6 +80,16 @@
   }
 
   let unavailable = $derived(found ? navigationUnavailable(found.layer) : null);
+  /** This feature's exception, if one was set; otherwise it follows its layer. */
+  let exception = $derived((void geoStyles.byLayer, featureOverride(geo.selected)));
+  /** The colour it draws with now, for the control's starting value. */
+  let drawn = $derived.by(() => {
+    void geoStyles.byLayer;
+    if (!found) return null;
+    const r = resolveGeographicStyle(found.layer, layerStyle(found.layer.id), found.feature);
+    const t = found.feature.geometry.type;
+    return t.includes('Point') ? r.point.color : t.includes('Line') ? r.line.color : r.fill.color;
+  });
   let properties = $derived(found ? Object.entries(found.feature.properties ?? {}) : []);
 </script>
 
@@ -120,6 +132,20 @@
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
       <dt>Data</dt><dd>{layer.ownership === 'catalog' ? 'Catalog' : 'Imported file'} · read-only</dd>
     </dl>
+
+    <div class="feature-style" role="group" aria-label="Feature style">
+      <span class="ui-meta label">Style</span>
+      {#if exception}
+        <input type="color" class="swatch-input" value={exception.color ?? drawn ?? '#59c5dd'} aria-label="Feature colour"
+          oninput={(e) => geo.selected && setFeatureOverride(geo.selected, { ...exception, color: (e.currentTarget as HTMLInputElement).value })} />
+        <input type="range" min="0" max="1" step="0.05" value={exception.opacity ?? 1} aria-label="Feature opacity"
+          oninput={(e) => geo.selected && setFeatureOverride(geo.selected, { ...exception, opacity: Number((e.currentTarget as HTMLInputElement).value) })} />
+        <button class="text-button" onclick={() => geo.selected && setFeatureOverride(geo.selected, null)} title="Follow the layer style again">Clear exception</button>
+      {:else}
+        <span class="ui-meta">Follows the layer style</span>
+        <button class="text-button" onclick={() => geo.selected && setFeatureOverride(geo.selected, { color: drawn ?? '#59c5dd' })} title="Give this feature its own colour and opacity">Make exception</button>
+      {/if}
+    </div>
 
     <div class="ui-section-label props-label">
       Properties
@@ -243,6 +269,37 @@
   .icon-button:hover {
     color: var(--color-text-primary);
     background: var(--color-surface-3);
+  }
+  .feature-style {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .feature-style .label {
+    min-width: 70px;
+  }
+  .feature-style input[type='range'] {
+    flex: 1;
+    min-width: 60px;
+  }
+  .swatch-input {
+    width: 32px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background: none;
+    cursor: pointer;
+  }
+  .text-button {
+    border: none;
+    border-radius: 3px;
+    background: none;
+    padding: 2px 6px;
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
   }
   .copy-prop {
     opacity: 0.5;

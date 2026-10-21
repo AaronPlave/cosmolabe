@@ -1,0 +1,74 @@
+{
+  "styled": {
+    "metrics": {
+      "restyles": 5,
+      "drawCalls": 3,
+      "drawPages": 2,
+      "batches": 2,
+      "surfaceMeshes": 2,
+      "offsetVertices": 0,
+      "textureBytes": 1439696
+    },
+    "style": {
+      "version": 1,
+      "point": {
+        "sizePx": 16,
+        "shape": "diamond",
+        "halo": true
+      },
+      "line": {
+        "widthPx": 5,
+        "dashed": true
+      },
+      "polygon": {
+        "fillOpacity": 0.4,
+        "hatch": true,
+        "outlineWidthPx": 4
+      }
+    },
+    "recordsId": "d85be619-a37a-4288-b214-29e85eace14f",
+    "program": "9ec35165-73e9-428f-afeb-783d3f6d2a2d"
+  },
+  "legend": "Jezero science target\n1\nregion\n1\nregions\n1\nsites\n1\ntraverse\n1\ntraverses\n1",
+  "labels": [
+    "Jezero science target"
+  ],
+  "reloaded": {
+    "version": 1,
+    "point": {
+      "sizePx": 16,
+      "shape": "diamond",
+      "halo": true
+    },
+    "line": {
+      "widthPx": 5,
+      "dashed": true
+    },
+    "polygon": {
+      "fillOpacity": 0.4,
+      "hatch": true,
+      "outlineWidthPx": 4
+    },
+    "rule": {
+      "kind": "categorical",
+      "field": "name",
+      "colors": {
+        "Jezero science target": "#e69f00",
+        "region": "#56b4e9",
+        "regions": "#009e73",
+        "sites": "#f0e442",
+        "traverse": "#0072b2",
+        "traverses": "#d55e00"
+      },
+      "otherColor": "#8a8f98",
+      "missingColor": "#4b5059"
+    },
+    "labels": {
+      "field": null,
+      "sizePx": 11,
+      "maxLabels": 40,
+      "halo": true
+    }
+  },
+  "errors": []
+}

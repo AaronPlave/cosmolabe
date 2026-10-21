@@ -6,12 +6,14 @@
    * panel. Vector layers list their source and read-only status, and one layer
    * at a time is browsed feature by feature below.
    */
-  import { ChevronDown, ChevronRight, Focus, List } from 'lucide-svelte';
+  import { ChevronDown, ChevronRight, Focus, List, Palette } from 'lucide-svelte';
   import { describeGeographicCoordinates, type GeographicLayer, type GeographicLayerLoad } from '@cosmolabe/core';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import ImageryLayersSection from './ImageryLayersSection.svelte';
   import GeographicFeatureBrowser from './GeographicFeatureBrowser.svelte';
   import GeographicFeatureDetails from './GeographicFeatureDetails.svelte';
+  import GeographicStyleEditor from './GeographicStyleEditor.svelte';
+  import { geoStyles, openStyleEditor, hasLocalStyle } from '../lib/geographic-styles.svelte';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import {
     geo, geographicLoads, geographicLayer, layerVisible, setLayerVisible, isolateLayer, isIsolated, showAllLayers,
@@ -41,6 +43,7 @@
   });
   let failures = $derived(geographicLoads().filter((load) => load.status === 'error'));
   let active = $derived(geographicLayer(geo.activeLayerId));
+  let styling = $derived(geographicLayer(geoStyles.editing));
 
   /** Layers whose details are expanded, by id. */
   let expanded = $state(new Set<string>());
@@ -124,7 +127,7 @@
                     aria-label="Show {layer.name}"
                     onchange={(e) => setLayerVisible(layer.id, (e.target as HTMLInputElement).checked)}
                   />
-                  <span class="swatch" style:background={layer.definition.display?.color ?? '#59c5dd'} aria-hidden="true"></span>
+                  <span class="swatch" style:background={geoStyles.byLayer[layer.id]?.point?.color ?? geoStyles.byLayer[layer.id]?.line?.color ?? geoStyles.byLayer[layer.id]?.polygon?.fillColor ?? layer.definition.display?.color ?? '#59c5dd'} aria-hidden="true"></span>
                   <button class="layer-name ui-body" title="List this layer’s features" onclick={() => browseLayer(browsing ? null : layer.id)} aria-pressed={browsing}>
                     {layer.name}
                   </button>
@@ -133,6 +136,11 @@
                   <button class="layer-action" class:on={isIsolated(layer.id)} onclick={() => isIsolated(layer.id) ? showAllLayers(layer.body) : isolateLayer(layer.id)}
                     title={isIsolated(layer.id) ? 'Show the other vector layers again' : 'Show only this vector layer'} aria-label="Isolate {layer.name}" aria-pressed={isIsolated(layer.id)}>
                     <Focus size={13} />
+                  </button>
+                  <button class="layer-action" class:on={geoStyles.editing === layer.id} class:styled={hasLocalStyle(layer.id)}
+                    onclick={() => openStyleEditor(geoStyles.editing === layer.id ? null : layer.id)}
+                    title={hasLocalStyle(layer.id) ? 'Style (local changes)' : 'Style and properties'} aria-label="Style {layer.name}" aria-pressed={geoStyles.editing === layer.id}>
+                    <Palette size={13} />
                   </button>
                   <button class="layer-action" onclick={() => browseLayer(browsing ? null : layer.id)} title="List features" aria-label="List features of {layer.name}">
                     <List size={13} />
@@ -185,6 +193,9 @@
       </section>
     {/if}
 
+    {#if styling}
+      <GeographicStyleEditor layer={styling} />
+    {/if}
     {#if active}
       <GeographicFeatureBrowser layer={active} />
     {:else if groups.some((g) => g.layers.length)}
@@ -318,6 +329,9 @@
     background: none;
     color: var(--color-text-secondary);
     cursor: pointer;
+  }
+  .layer-action.styled {
+    color: var(--color-warning);
   }
   .layer-action:hover,
   .layer-action.on {
