@@ -12,10 +12,11 @@
 import {
   geographicFeatureAnchor, geographicFeatureExtent, geographicGeometryPositions, geographicQueryEmpty,
   geographicQueryMatches, geographicSearchIndex,
-  type GeographicFeature, type GeographicFieldFilter, type GeographicLayer, type GeographicLayerLoad,
+  type BodyFixedPosition, type GeographicFeature, type GeographicFieldFilter, type GeographicLayer, type GeographicLayerLoad,
   type GeographicSearchEntry, type Universe,
 } from '@cosmolabe/core';
 import { sameGeographicFeature, type GeographicFeatureRef } from '@cosmolabe/three';
+import * as THREE from 'three';
 import { flyOverSurface, getRenderer, onViewerEvent } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
@@ -171,29 +172,69 @@ const VIEW_SAMPLES = 16;
 let viewTimer: ReturnType<typeof setInterval> | undefined;
 let viewKey = '';
 
-/** Recompute which of the active layer's features are on screen, when the view has moved. */
+type Vec3 = [number, number, number];
+const unitNormal = (p: BodyFixedPosition): Vec3 => {
+  const lat = p.latDeg * Math.PI / 180, lon = p.lonDeg * Math.PI / 180;
+  return [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)];
+};
+const angle = (a: Vec3, b: Vec3) => Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+
+interface ViewSample { id: string; positions: BodyFixedPosition[]; axis: Vec3; radius: number }
+/** Per immutable layer: each feature's anchor and strided vertices, and the cap (axis, angular radius) bounding them. */
+const viewSamples = new WeakMap<GeographicLayer, ViewSample[]>();
+function samplesOf(layer: GeographicLayer): ViewSample[] {
+  let samples = viewSamples.get(layer);
+  if (!samples) {
+    samples = layer.features.map((feature) => {
+      const all = geographicGeometryPositions(feature.geometry);
+      const stride = Math.max(1, Math.ceil(all.length / VIEW_SAMPLES));
+      const anchor = geographicFeatureAnchor(feature);
+      const positions = [anchor, ...all.filter((_, j) => j % stride === 0)];
+      const axis = unitNormal(anchor);
+      // Every vertex, not only the sampled ones, bounds the cap.
+      const radius = all.reduce((r, p) => Math.max(r, angle(axis, unitNormal(p))), 0);
+      return { id: feature.id, positions, axis, radius };
+    });
+    viewSamples.set(layer, samples);
+  }
+  return samples;
+}
+
+/**
+ * Recompute which of the active layer's features are on screen, when the view
+ * has moved: the camera, the canvas, or the body itself (it turns under a
+ * resting camera). Features whose bounding cap lies wholly past the horizon
+ * are not projected at all.
+ */
 function refreshInView(force = false): void {
   const renderer = getRenderer();
   const layer = geographicLayer(geo.activeLayerId);
-  if (!renderer || !layer) { geo.inView = null; return; }
+  const bm = layer ? renderer?.getBodyMesh(layer.body) : undefined;
+  if (!renderer || !layer || !bm) { geo.inView = null; return; }
   const canvas = renderer.renderer.domElement;
-  const key = `${layer.id}|${renderer.camera.matrixWorld.elements.join(',')}|${canvas.clientWidth}x${canvas.clientHeight}`;
+  const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+  const key = [layer.id, renderer.camera.matrixWorld.elements.join(','), bm.position.toArray().join(','),
+    rotation.toArray().join(','), `${canvas.clientWidth}x${canvas.clientHeight}`].join('|');
   if (!force && key === viewKey) return;
   viewKey = key;
-  const owners: number[] = [];
-  const positions = layer.features.flatMap((feature, i) => {
-    const all = geographicGeometryPositions(feature.geometry);
-    const stride = Math.max(1, Math.ceil(all.length / VIEW_SAMPLES));
-    const sample = [geographicFeatureAnchor(feature), ...all.filter((_, j) => j % stride === 0)];
-    for (let k = 0; k < sample.length; k++) owners.push(i);
-    return sample;
-  });
-  const projected = renderer.projectGeographicPositions(layer.body, positions, layer.datum);
+  // The camera in the body's own axes, in km.
+  const camera = renderer.camera.position.clone().sub(bm.position).divideScalar(renderer.scaleFactor).applyQuaternion(rotation.invert());
+  const distance = camera.length();
+  const shape = layer.datum.referenceShape;
+  // The smaller radius sees the larger horizon, so nothing visible is culled.
+  const radius = shape.kind === 'sphere' ? shape.radiusKm : Math.min(shape.radiiKm[0], shape.radiiKm[2]);
+  const direction: Vec3 = [camera.x / distance, camera.y / distance, camera.z / distance];
+  const horizon = distance > radius ? Math.acos(radius / distance) + 2 * Math.PI / 180 : Math.PI;
+  const owners: string[] = [];
+  const positions: BodyFixedPosition[] = [];
+  for (const sample of samplesOf(layer)) {
+    if (angle(sample.axis, direction) - sample.radius > horizon) continue;
+    for (const p of sample.positions) { positions.push(p); owners.push(sample.id); }
+  }
+  const projected = positions.length ? renderer.projectGeographicPositions(layer.body, positions, layer.datum) : [];
   const visible = new Set<string>();
   projected?.forEach((p, i) => {
-    if (p.facing && p.inFront && p.x >= 0 && p.y >= 0 && p.x <= canvas.clientWidth && p.y <= canvas.clientHeight) {
-      visible.add(layer.features[owners[i]].id);
-    }
+    if (p.facing && p.inFront && p.x >= 0 && p.y >= 0 && p.x <= canvas.clientWidth && p.y <= canvas.clientHeight) visible.add(owners[i]);
   });
   geo.inView = visible;
 }

@@ -21,6 +21,7 @@
     type GeographicEditFeature, type GeographicEditLayer, type GeographicEditOperation, type GeographicGeometry, type GeoPosition,
   } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
+  import { drawnSurface } from '../lib/drawn-surface';
   import { edits, editLayer, applyEdit, draftShape, surfacePosition } from '../lib/geographic-editing.svelte';
 
   interface Screen { x: number; y: number; visible: boolean }
@@ -36,23 +37,15 @@
   let feature = $derived(edits.editing ? layer?.features.find((f) => f.id === edits.editing!.featureId) ?? null : null);
 
   /**
-   * Heights of the drawn surface at vertices, cached briefly: the renderer
-   * drapes vectors on its drawn triangles, so marks at these heights sit on
-   * the drawn feature. Edge samples between vertices interpolate them.
+   * Heights of the drawn surface at vertices, from the viewer's shared cache:
+   * the renderer drapes vectors on its drawn triangles, so marks at these
+   * heights sit on the drawn feature. Edge samples between vertices
+   * interpolate them.
    */
-  const heights = new Map<string, number | null>();
-  let heightsAt = 0;
   function renderedHeights(l: GeographicEditLayer, positions: GeoPosition[]): (number | null)[] {
     const r = getRenderer();
     if (!r) return positions.map(() => null);
-    if (performance.now() - heightsAt > 1000 || heights.size > 4000) { heights.clear(); heightsAt = performance.now(); }
-    const key = (p: GeoPosition) => `${l.body}|${p[0]}|${p[1]}`;
-    const missing = positions.filter((p) => !heights.has(key(p)));
-    if (missing.length) {
-      const found = r.renderedSurfaceHeightsKm(l.body, missing.map((p) => normalizeGeographicPosition([p[0], p[1]], l.coordinates)), geographicDatum(l.coordinates));
-      missing.forEach((p, i) => heights.set(key(p), found[i]));
-    }
-    return positions.map((p) => heights.get(key(p)) ?? null);
+    return drawnSurface.heightsOf(r, l.body, positions.map((p) => normalizeGeographicPosition([p[0], p[1]], l.coordinates)), geographicDatum(l.coordinates));
   }
 
   /** Project declared-convention positions to the canvas at the given heights (else on the drawn surface). */

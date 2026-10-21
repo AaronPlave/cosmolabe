@@ -3,13 +3,14 @@
    * Names the selected geographic feature in the scene — one callout, never
    * one per feature, so a dense layer does not crowd the view. It sits at the
    * feature's anchor (a point's own position, otherwise its extent's centre) on
-   * the drawn surface, follows the body every frame, and
+   * resident terrain where there is some, follows the body every frame, and
    * hides past the horizon or off screen rather than showing through the planet.
    * Selecting in the scene opens nothing; clicking the callout opens the
    * feature's details in Surface layers.
    */
   import { geographicFeatureAnchor, geographicFeatureName } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
+  import { drawnSurface } from '../lib/drawn-surface';
   import { geo, findFeature, showSelectedDetails } from '../lib/geographic-layers.svelte';
 
   let found = $derived(findFeature(geo.selected));
@@ -19,10 +20,8 @@
     void vs.frameTick;
     const r = getRenderer();
     if (!r || !found || !anchor) return null;
-    // On the drawn surface (globe facets or terrain tiles), where the feature itself is drawn.
-    const heightKm = r.renderedSurfaceHeightsKm(found.layer.body, [anchor], found.layer.datum)[0];
-    const at = heightKm === null ? anchor : { ...anchor, heightKm };
-    const p = r.projectGeographicPositions(found.layer.body, [at], found.layer.datum, { sampleTerrain: heightKm === null })?.[0];
+    // On the drawn surface, so the leader touches the feature as drawn even on a coarse globe.
+    const p = drawnSurface.project(r, found.layer.body, [anchor], found.layer.datum)?.[0];
     const canvas = r.renderer.domElement;
     if (!p || !p.facing || !p.inFront || p.x < 0 || p.y < 0 || p.x > canvas.clientWidth || p.y > canvas.clientHeight) return null;
     // Whole pixels: sub-pixel motion of a resting view reads as jitter in text.

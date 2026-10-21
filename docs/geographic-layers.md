@@ -139,7 +139,12 @@ list, with three sections:
 - **Labels.** Label by name or a property, text size, at most N labels, hide
   beyond a camera range, and a contrast halo. Overlapping labels are dropped,
   keeping those already shown so a resting view does not reshuffle; labels
-  past the horizon hide.
+  past the horizon hide. Candidates are chosen by where features are (past
+  the horizon, then off screen, are dropped first), never by source order, so
+  a large layer labels what is in view. Labels sit on the surface as drawn
+  (globe facets or terrain tiles, found by a cached ray down the normal, shared
+  with the selection callout), so they stay on their features close up on a
+  coarse globe. The selected feature is named by its callout instead.
 
 A selected feature's details can make an **exception**: its own colour and
 opacity, set only when you ask, and cleared back to the layer style.

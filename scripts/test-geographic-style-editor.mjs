@@ -93,6 +93,27 @@ try {
   assert.ok(results.labels.length > 0 && results.labels.length <= 40);
   await page.screenshot({ path: `${output}/labels.png` });
 
+  // Close up, the drawn globe departs from the datum: a point label's anchor
+  // must sit on the drawn point (its own, or one drawn at the same spot).
+  await page.getByRole('option', { name: /^Jezero science target Point/ }).dblclick();
+  await page.waitForTimeout(3000);
+  // The selection's callout names it; with the selection cleared, its label shows.
+  await page.getByRole('button', { name: 'Deselect feature' }).click();
+  await page.waitForTimeout(800);
+  results.closeUp = await page.evaluate(() => {
+    const r = window.renderer, layer = r.universe.geographicLayers.get('jezero-science');
+    return [...document.querySelectorAll('.geo-label')].flatMap(el => {
+      const feature = layer.features.find(f => `${layer.id}/${f.id}` === el.dataset.key);
+      if (!feature || !/Point/.test(feature.geometry.type)) return [];
+      const [, x, y] = el.style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px\)/).map(Number);
+      const hit = r.pickScene(x, y, 'select');
+      return [{ label: feature.id, x, y, picked: hit?.kind === 'geographic-feature' ? hit.featureId : hit?.kind ?? null }];
+    });
+  });
+  assert.ok(results.closeUp.length > 0, 'a point is labelled close up');
+  for (const l of results.closeUp) assert.match(String(l.picked), /^string:(science|sites)$/, `label ${l.label} sits on a drawn point`);
+  await page.screenshot({ path: `${output}/labels-close-up.png` });
+
   // Styles survive a reload of the same catalog.
   const kept = (await state()).style;
   await open();

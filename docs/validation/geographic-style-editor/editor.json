@@ -26,12 +26,20 @@
         "outlineWidthPx": 4
       }
     },
-    "recordsId": "d85be619-a37a-4288-b214-29e85eace14f",
-    "program": "9ec35165-73e9-428f-afeb-783d3f6d2a2d"
+    "recordsId": "87b8b36c-6799-4354-b932-3544ba88044d",
+    "program": "980ef6c1-6844-419b-9380-cd53d1dda220"
   },
   "legend": "Jezero science target\n1\nregion\n1\nregions\n1\nsites\n1\ntraverse\n1\ntraverses\n1",
   "labels": [
     "Jezero science target"
+  ],
+  "closeUp": [
+    {
+      "label": "string:sites",
+      "x": 640,
+      "y": 402,
+      "picked": "string:science"
+    }
   ],
   "reloaded": {
     "version": 1,
