@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, withTerrainElevation,
   parseLatitudeText, parseLongitudeText, defaultSurfaceRangeKm, GeographicNavigationError, describeNavigationTarget,
-  withoutTerrainCoverage, refineWithTerrain, parseCoordinatePair,
+  withoutTerrainCoverage, refineWithTerrain, parseCoordinatePair, compactTargetLabel, pointFrameRangeKm,
   type GeographicCoordinateInput, type NavigationReference,
 } from '../geographic/navigation.js';
 import { bodyFixedToGeodetic } from '../geographic/coordinates.js';
@@ -284,5 +284,32 @@ describe('parseCoordinatePair', () => {
     expect(err('-5 S, 10')).toMatch(/sign or N\/S/);
     expect(err('120, 45')).toMatch(/longitude first/);
     expect(err('45, 400')).toMatch(/±360/);
+  });
+});
+
+describe('compactTargetLabel', () => {
+  it('shortens a long pasted pair to 4 places with its hemispheres, longitude as E/W of the prime meridian', () => {
+    const t = resolveGeographicTarget(input('Moon', -15.123123, 214.234234567), MOON);
+    expect(compactTargetLabel(t)).toEqual({ lat: '15.1231° S', lon: '145.7658° W' });
+    // Fewer places for a narrow view; still both hemispheres.
+    expect(compactTargetLabel(t, 2)).toEqual({ lat: '15.12° S', lon: '145.77° W' });
+    // The full entered precision is still the target's own description.
+    expect(describeNavigationTarget(t, 9)).toBe('15.123123000° S, 214.234234567° E');
+  });
+
+  it('states a west-positive entry as E/W the same way, and never shows −180', () => {
+    const west = resolveGeographicTarget(input('Mars', 4.5, 137.4, { longitudeDirection: 'west' }), MARS);
+    expect(compactTargetLabel(west).lon).toBe('137.4000° W');
+    const seam = resolveGeographicTarget(input('Moon', 0, 179.99996), MOON);
+    expect(compactTargetLabel(seam).lon).toBe('180.0000° E');
+    expect(compactTargetLabel(resolveGeographicTarget(input('Moon', 0, -180), MOON)).lon).toBe('180.0000° E');
+  });
+});
+
+describe('pointFrameRangeKm', () => {
+  it('is a hundredth of the radius, within 0.5–500 km', () => {
+    expect(pointFrameRangeKm(1737.4)).toBeCloseTo(17.374, 9);
+    expect(pointFrameRangeKm(11)).toBe(0.5);
+    expect(pointFrameRangeKm(69911)).toBe(500);
   });
 });

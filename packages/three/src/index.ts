@@ -76,7 +76,7 @@ export type { TimeListener } from './controls/TimeController.js';
 export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
 export type {
   CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
-  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
 } from './controls/CameraController.js';
 export {
   bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,

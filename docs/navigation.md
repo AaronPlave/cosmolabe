@@ -182,9 +182,10 @@ never the camera's own position. Three surfaces name one:
   latitude, east- or west-positive longitude, either −180…180 or 0…360) are
   stated under the field and changed under *Advanced*. A pair that resolves
   gets one quiet line naming the place, plus how it was read when that is not
-  obvious (by its letters, west-positive); errors and warnings — terrain not
-  loaded there yet, a pole — are always shown, and where the height comes
-  from is under *Details*. Then a view:
+  obvious (by its letters, west-positive), and one line on what it stands on
+  (*Terrain loaded · elevation −5300 m*, or *No terrain · on the reference
+  ellipsoid*) whose ⓘ gives the terrain source, tile and datum. Errors and
+  warnings — terrain not loaded there yet, a pole — are always shown. Then a view:
   - **Overhead** — straight down the surface normal, north up;
   - **Oblique** — 50° off vertical, from the south;
   - **Surface** — at a person's eye height (2 m; less on a body a few km
@@ -247,25 +248,53 @@ How it moves:
 - A flight to coordinates swings round the body on an arc that rises with
   how far round it goes (half a radius up for the far side) and never drops
   inside the smaller of its two end distances, so it cannot cut through the
-  globe. Its path is in the body's frame, so the landing tracks the ground as
-  the body turns.
+  globe. The rise is never more than half the distance flown, so a hop
+  between nearby places stays low over the ground rather than climbing tens
+  of km and dropping the terrain's detail on the way. Its path is in the
+  body's frame, so the landing tracks the ground as the body turns.
+- Asking again for the view the camera already holds does nothing (it only
+  re-anchors on the place), and asking again while a flight to that view is
+  under way lets that flight carry on, rather than leaving the ground and
+  coming back.
 - On landing (or a cut) the body is tracked and **the place is the orbit
   pivot**: wheel zoom closes on it and drag orbits about it, instead of
   snapping back to the body's centre. In free orbit the camera turns with
   the body so the place stays where it is on screen. On a globe without
-  terrain the camera may come within 2 m of the ground about the pivot. Any other navigation
+  terrain the camera may come within 2 m of the ground about the pivot. Orbit
+  and zoom speed follow how far a drag or wheel step would carry the camera
+  against its height above the ground: about a point a few metres away they
+  stay responsive (a tenth of full speed from a 2 m eye height, full speed
+  overhead), where orbiting the body's centre from the same height is slowed
+  to the floor. The height is above the decoded terrain under the camera, so
+  a crater floor or a basin below the datum is ground, not "below the
+  surface". Any other navigation
   ends the pivot; so does a right-drag or a movement key, as they end
   tracking.
 - Manual input stops the flight where it is, facing the place — as for any
   flight.
 - Time, the selection and measurements do not change. The view context shows
-  **Target** with the place's coordinates (its tooltip: conventions and what
-  surface it is on). Its **×** (*Clear surface target*) lets go of the place
+  **Target** with the place's coordinates, compactly: 4 places (2 at a phone
+  width), latitude N/S and longitude E/W of the prime meridian (214.2342° E
+  reads 145.7658° W), never truncated — a narrow bar wraps instead. Its
+  tooltip has the coordinates as entered, at their full precision and in
+  their convention, and what surface the place is on. Its **×** (*Clear surface target*) lets go of the place
   without moving the camera: no pivot, no terrain following, no readout; the
   camera keeps its position and view direction and keeps tracking the body,
   orbiting from where the pivot was (which no longer turns with the body).
   During a flight it stops the flight where it is. Selection, time and
   panels stay as they are.
+
+### Diagnosing a landing
+
+`window.__surfaceNavDebug = true` in the browser console logs surface
+navigation as `[surface-nav] <event> {…}` (km throughout): each `navigate`
+(preset, range, eye lift, the target's height source and tile, the camera's
+clearance before, and the flight plan — rise, chord, duration, or `arrived` /
+`continuing`), each `terrain-refine` (terrain revision, new height, tile and
+shift, in flight or on the pivot), and a `tick` twice a second while on a
+target and for 8 s after: eye clearance above the CPU terrain under it, the
+surface clamp's correction that frame, eye-to-target range, cube-grid
+residency, and the rendered hit at the centre of the view.
 
 ## Related mechanisms
 
