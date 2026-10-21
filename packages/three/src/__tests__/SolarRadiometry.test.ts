@@ -1,4 +1,6 @@
+import * as THREE from 'three';
 import { expect, it } from 'vitest';
+import { SunVisual } from '../SunVisual.js';
 import {
   solarIrradiance, solarDisplayExposure, SOLAR_CENTER_RADIANCE,
   SOLAR_REFERENCE_DISTANCE_KM, SOLAR_RADIUS_KM, FIXED_REFERENCE_SOLAR_EXPOSURE,
@@ -91,4 +93,21 @@ it('reinhard reference response remains positive, bounded, monotonic, and determ
   expect(negative).toBe(0);
   expect(zero).toBe(0);
   expect(unit).toBeCloseTo(0.47, 12);
+});
+
+it('passes fixed exposure to the solar disk without changing the linear source', () => {
+  const sun = new SunVisual();
+  try {
+    const camera = new THREE.PerspectiveCamera(60, 1, 1e-6, 1e10);
+    camera.position.set(1, 0, 0);
+    const center = new THREE.Vector3(0, 0, 0);
+    sun.update(camera, center, 0.00465, 800, SOLAR_RADIUS_KM, 123);
+    expect(sun.uniforms.uSolarExposure.value).toBe(123);
+    expect(sun.material.toneMapped).toBe(false);
+    expect(sun.material.fragmentShader).toContain('sourcePass');
+    // The source pass continues to emit linear radiance before display response.
+    expect(sun.material.fragmentShader).toContain('radiance / (sourceScale * sourceScale)');
+  } finally {
+    sun.material.dispose();
+  }
 });
