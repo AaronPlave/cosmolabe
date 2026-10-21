@@ -60,6 +60,58 @@ Standalone GeoJSON requires a companion catalog: the viewer reports this rather
 than guessing a body or adopting Earth coordinates. This descriptor is also the
 explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
 
+## Surface layers panel
+
+The viewer's **Surface layers** tool (rail, or "Surface layers" in the command
+palette) is the one place to manage a scene's surface data, grouped by body:
+each body's streamed imagery stack (the same controls as the info panel's
+Imagery section, not a second manager) and its geographic vector layers.
+Physical terrain appearance stays in the info panel.
+
+Each vector layer shows visibility, colour, feature count, validation issues
+(skipped features, import notes), and where it came from: **Catalog** or
+**Imported file**, both read-only. Session changes are presentation only; the
+imported data is never modified. Expanding a layer shows its ID, source URL or
+file, catalog, coordinate convention, style defaults, provenance and import
+diagnostics. *Isolate* shows only that vector layer on its body (imagery is
+untouched); *Show all vectors* restores the rest. Failed sources are listed
+with their errors.
+
+Choosing a layer lists its features: search matches names and every scalar
+property value; a property filter offers categories (for string fields with at
+most 24 values), numeric ranges, booleans or text; **In view** keeps features
+with a vertex or anchor on screen; **Filter scene too** draws only the
+matching features. The list is virtualized (only visible rows are rendered)
+and searches an in-memory index built once per layer, bounded by the import
+limits. There is no GIS backend.
+
+Selection is shared with the scene. Clicking a feature in 3D selects it, opens
+the panel on its layer and scrolls to it; clicking a row selects it in the
+scene. Selecting never moves the camera. Double-click a row, press Enter, or
+use **Fly to** to fly over the feature's extent, or **Frame** to cut there,
+through the shared navigation (docs/navigation.md). Bodies that are not globes
+disable both, with the reason. Arrow keys move the selection in the list;
+Escape clears it. One callout names the selected feature in the scene; it
+hides past the horizon.
+
+The rules that keep list, scene and details consistent:
+
+- Hiding a layer, or a scene filter that excludes the selected feature, clears
+  the selection and says why. Selecting a feature of a hidden layer from the
+  list shows that layer first.
+- A list-only filter does not change the scene. A scene selection outside it
+  stays selected and the list says it is outside the current filter.
+- Visibility, filters and selection reset when a scene loads. Closing the
+  panel removes any scene filter.
+
+The details show the feature's name, geometry, position (a Point's own
+coordinates, or its extent's centre and extent) in the **layer's declared
+convention**, the convention itself, the stable reference `layerId /
+featureId`, its source and its properties under readable labels. A property is
+a link only when it is an `http(s)` URL, and opens without access to the
+viewer. *Coordinates* copies a Point's exact source numbers with their
+convention; the properties header copies the unmodified source geometry.
+
 ## Coordinate interpretation
 
 RFC 7946 GeoJSON itself means Earth WGS84. Planetary GeoJSON is an explicit

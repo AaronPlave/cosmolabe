@@ -9,9 +9,11 @@ import {
   toggleProbe, clearProbePin,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell } from './shell.svelte';
+import { shell, openTool } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
+import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
+import { geographicFeatureName } from '@cosmolabe/core';
 
 export interface Command {
   id: string;
@@ -55,6 +57,10 @@ function getBuiltinCommands(): Command[] {
     { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
     ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
 
+    // Surface layers
+    { id: 'layers:open', label: 'Surface layers', category: 'Inspect', execute: () => openTool('layers') },
+    ...geographicSelectionCommands(),
+
     // Instrument
     { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {
       const sensors = r.getSensorNames();
@@ -63,6 +69,19 @@ function getBuiltinCommands(): Command[] {
       const idx = current ? sensors.indexOf(current) : -1;
       r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { marginX: 16, marginY: 60 });
     }},
+  ];
+}
+
+/** Actions on the selected geographic feature, named after it. */
+function geographicSelectionCommands(): Command[] {
+  const found = findFeature(geo.selected);
+  if (!found || !geo.selected) return [];
+  const ref = geo.selected;
+  const name = geographicFeatureName(found.feature);
+  return [
+    { id: 'layers:fly', label: `Fly to ${name}`, category: 'Inspect', execute: () => { goToFeature(ref); } },
+    { id: 'layers:frame', label: `Frame ${name}`, category: 'Inspect', execute: () => { goToFeature(ref, { cut: true }); } },
+    { id: 'layers:deselect', label: 'Clear surface feature selection', shortcut: 'Esc', category: 'Inspect', execute: () => { clearGeographicSelection(); } },
   ];
 }
 
