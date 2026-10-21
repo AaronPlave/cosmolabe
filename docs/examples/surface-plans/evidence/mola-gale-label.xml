@@ -5,18 +5,18 @@
 <?xml-model href="https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1N00_1980.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
 <?xml-model href="https://pds.nasa.gov/pds4/msn/v1/PDS4_MSN_1N00_1310.sch" schematypens="http://purl.oclc.org/dsdl/schematron"?>
 
-<Product_Observational xmlns="http://pds.nasa.gov/pds4/pds/v1" 
-  xmlns:pds="http://pds.nasa.gov/pds4/pds/v1" 
-  xmlns:cart="http://pds.nasa.gov/pds4/cart/v1" 
-  xmlns:disp="http://pds.nasa.gov/pds4/disp/v1" 
+<Product_Observational xmlns="http://pds.nasa.gov/pds4/pds/v1"
+  xmlns:pds="http://pds.nasa.gov/pds4/pds/v1"
+  xmlns:cart="http://pds.nasa.gov/pds4/cart/v1"
+  xmlns:disp="http://pds.nasa.gov/pds4/disp/v1"
   xmlns:geom="http://pds.nasa.gov/pds4/geom/v1"
   xmlns:msn="http://pds.nasa.gov/pds4/msn/v1"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-  xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1N00.xsd http://pds.nasa.gov/pds4/cart/v1 https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1N00_1970.xsd 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pds.nasa.gov/pds4/pds/v1 https://pds.nasa.gov/pds4/pds/v1/PDS4_PDS_1N00.xsd http://pds.nasa.gov/pds4/cart/v1 https://pds.nasa.gov/pds4/cart/v1/PDS4_CART_1N00_1970.xsd
   http://pds.nasa.gov/pds4/disp/v1 https://pds.nasa.gov/pds4/disp/v1/PDS4_DISP_1N00_1510.xsd
   http://pds.nasa.gov/pds4/geom/v1 https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1N00_1980.xsd
   http://pds.nasa.gov/pds4/msn/v1 https://pds.nasa.gov/pds4/msn/v1/PDS4_MSN_1N00_1310.xsd">
-  
+
   <Identification_Area>
     <logical_identifier>urn:nasa:pds:mgs_mola_topography_derived:data_meg128:megt00n090hb</logical_identifier>
     <version_id>1.1</version_id>
@@ -106,7 +106,7 @@
         </msn:Orbital_Mission>
       </msn:Mission_Information>
     </Mission_Area>
-    <Discipline_Area>  
+    <Discipline_Area>
       <cart:Cartography>
         <Local_Internal_Reference>
           <local_identifier_reference>gridded_image</local_identifier_reference>
@@ -174,7 +174,7 @@
           <geom:geometry_start_time_utc>1997-09-15T19:10:00.000Z</geom:geometry_start_time_utc>
           <geom:geometry_stop_time_utc>2001-06-30T11:10:40.000Z</geom:geometry_stop_time_utc>
           <geom:Orbiter_Identification>
-            <geom:Central_Body_Identification><geom:name>Mars</geom:name></geom:Central_Body_Identification>           
+            <geom:Central_Body_Identification><geom:name>Mars</geom:name></geom:Central_Body_Identification>
             <geom:Coordinate_System_Identification>
               <geom:coordinate_system_type>Planetocentric</geom:coordinate_system_type>
               <geom:Coordinate_System_Origin_Identification>
@@ -268,13 +268,12 @@
     <Stream_Text>
       <offset unit="byte">0</offset>
       <parsing_standard_id>7-Bit ASCII Text</parsing_standard_id>
-      <description> The ENVI header is a separate ASCII file that includes basic image data file characteristics. 
+      <description> The ENVI header is a separate ASCII file that includes basic image data file characteristics.
         ENVI will read both files and use the map projection information in the header file to correctly display
-        the image. The header files are provided because ENVI is not able to import the map projection information 
-        directly from the MEGDR image labels. 
+        the image. The header files are provided because ENVI is not able to import the map projection information
+        directly from the MEGDR image labels.
       </description>
       <record_delimiter>Carriage-Return Line-Feed</record_delimiter>
     </Stream_Text>
   </File_Area_Observational_Supplemental>
 </Product_Observational>
-

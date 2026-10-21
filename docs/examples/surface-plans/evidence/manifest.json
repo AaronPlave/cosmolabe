@@ -96,12 +96,16 @@
     {
       "file": "mola-jezero-label.xml",
       "metadataUrl": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt44n000hb.xml",
-      "sha256": "f6de640ed5603eb03395616214c9a5707c9d49273f699d2cbeec53e93df6bd08"
+      "sha256": "7888756395578487913b31601c4da35fbcfdabb8ca101566c077dbfff8c7c79c",
+      "archiveBytesSha256": "f6de640ed5603eb03395616214c9a5707c9d49273f699d2cbeec53e93df6bd08",
+      "note": "Original XML label content; CRLF and trailing whitespace normalized for repository storage. archiveBytesSha256 preserves the fetched byte identity."
     },
     {
       "file": "mola-gale-label.xml",
       "metadataUrl": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
-      "sha256": "a5dcc68f1a4ce98bf7dc4aa3cc85cf2939f5a5f700408e7dfffc017d95e65b7b"
+      "sha256": "9bf81ab6de6d203616aae72f7d7494d6b7ebb2a91619c1e2bdd209bff5eaaef6",
+      "archiveBytesSha256": "a5dcc68f1a4ce98bf7dc4aa3cc85cf2939f5a5f700408e7dfffc017d95e65b7b",
+      "note": "Original XML label content; CRLF and trailing whitespace normalized for repository storage. archiveBytesSha256 preserves the fetched byte identity."
     },
     {
       "file": "jezero-ctx-live.cache.json",
