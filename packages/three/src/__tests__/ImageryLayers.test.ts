@@ -369,6 +369,17 @@ describe('TerrainManager imagery layer controls', () => {
       return tm;
     };
 
+    it('keeps the static surface until visible cube blocks have resident imagery', async () => {
+      const tm = await withRoot(tile(4));
+      const stats = { ready: true, tiles: 1, untexturedBlocks: 1 };
+      Object.defineProperty(tm, 'cubeImagery', { value: { stats }, configurable: true });
+      expect(tm.isReadyToShow(10_000)).toBe(false);
+      stats.untexturedBlocks = 0;
+      expect(tm.isReadyToShow(10_001)).toBe(true);
+      Object.defineProperty(tm, 'cubeImagery', { value: null });
+      tm.dispose();
+    });
+
     it('falls back when one root tile loads and the other fails', async () => {
       const tm = await withRoot(tile(4), tile(-1));
       dispatch(tm, { type: 'load-model', scene: new THREE.Group(), tile: {} });

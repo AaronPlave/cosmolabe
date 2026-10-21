@@ -1,0 +1,1400 @@
+{
+  "views": {
+    "inside": {
+      "coarse": {
+        "centreImagery": {
+          "geometry": {
+            "face": "py",
+            "level": 10,
+            "x": 625,
+            "y": 337
+          },
+          "sources": [
+            {
+              "id": "viking",
+              "enabled": 1,
+              "level": 1,
+              "address": {
+                "face": "py",
+                "level": 1,
+                "x": 1,
+                "y": 0
+              },
+              "outputMetersPerPixel": 12005.38900711453
+            },
+            {
+              "id": "ctx-global",
+              "enabled": 1,
+              "level": 10,
+              "address": {
+                "face": "py",
+                "level": 10,
+                "x": 625,
+                "y": 337
+              },
+              "outputMetersPerPixel": 23.448025404520568
+            },
+            {
+              "id": "jezero-ctx",
+              "enabled": 1,
+              "level": 10,
+              "address": {
+                "face": "py",
+                "level": 10,
+                "x": 625,
+                "y": 337
+              },
+              "outputMetersPerPixel": 23.448025404520568
+            },
+            {
+              "id": "jezero-hirise",
+              "enabled": 1,
+              "level": 10,
+              "address": {
+                "face": "py",
+                "level": 10,
+                "x": 625,
+                "y": 337
+              },
+              "outputMetersPerPixel": 23.448025404520568
+            }
+          ]
+        },
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "drawingSize": [
+          1400,
+          900
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-77932da93a299797",
+          "ready": true,
+          "textures": 46,
+          "pinnedTextures": 24,
+          "textureBytes": 17098752,
+          "maxTextureBytes": 100663296,
+          "requests": 46,
+          "bytes": 1822567,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 8.5,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 319092,
+          "tiles": 7,
+          "splitTiles": 0,
+          "blocks": 7,
+          "displayedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "10": 4
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "10": 4
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "maxDisplayedLevel": 10,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 0,
+          "updateMs": 0.30000001192092896
+        },
+        "draws": 10,
+        "terrain": {
+          "update": {
+            "count": 95,
+            "lastMs": 0.19999998807907104,
+            "meanMs": 0.21578947493904516,
+            "maxMs": 2.800000011920929
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 0,
+            "lastMicros": 0,
+            "meanMicros": 0
+          },
+          "tiles": {
+            "active": 60,
+            "visible": 56,
+            "drawn": 7,
+            "inCache": 78,
+            "cpu": 22
+          },
+          "network": {
+            "requests": 78,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 12469392,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 16986444,
+            "textureBytes": 17098752
+          },
+          "imagery": {
+            "layers": 4,
+            "activeOverlays": 4,
+            "overlayResolution": 256,
+            "requests": 46,
+            "failed": 0
+          }
+        }
+      },
+      "fine": {
+        "centreImagery": {
+          "geometry": {
+            "face": "py",
+            "level": 10,
+            "x": 625,
+            "y": 337
+          },
+          "sources": [
+            {
+              "id": "viking",
+              "enabled": 1,
+              "level": 1,
+              "address": {
+                "face": "py",
+                "level": 1,
+                "x": 1,
+                "y": 0
+              },
+              "outputMetersPerPixel": 12005.38900711453
+            },
+            {
+              "id": "ctx-global",
+              "enabled": 1,
+              "level": 13,
+              "address": {
+                "face": "py",
+                "level": 13,
+                "x": 5007,
+                "y": 2696
+              },
+              "outputMetersPerPixel": 2.931003175565071
+            },
+            {
+              "id": "jezero-ctx",
+              "enabled": 1,
+              "level": 13,
+              "address": {
+                "face": "py",
+                "level": 13,
+                "x": 5007,
+                "y": 2696
+              },
+              "outputMetersPerPixel": 2.931003175565071
+            },
+            {
+              "id": "jezero-hirise",
+              "enabled": 1,
+              "level": 15,
+              "address": {
+                "face": "py",
+                "level": 15,
+                "x": 20031,
+                "y": 10785
+              },
+              "outputMetersPerPixel": 0.7327507938912677
+            }
+          ]
+        },
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "drawingSize": [
+          1400,
+          900
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-77932da93a299797",
+          "ready": true,
+          "textures": 84,
+          "pinnedTextures": 24,
+          "textureBytes": 31223808,
+          "maxTextureBytes": 100663296,
+          "requests": 84,
+          "bytes": 3840509,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 30.700000047683716,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 1107180,
+          "tiles": 7,
+          "splitTiles": 3,
+          "blocks": 43,
+          "displayedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "10": 6,
+            "11": 10,
+            "12": 9,
+            "13": 4,
+            "14": 7,
+            "15": 4
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "10": 6,
+            "11": 10,
+            "12": 9,
+            "13": 4,
+            "14": 7,
+            "15": 4
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "maxDisplayedLevel": 15,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 36,
+          "updateMs": 0.5
+        },
+        "draws": 46,
+        "terrain": {
+          "update": {
+            "count": 261,
+            "lastMs": 0.19999998807907104,
+            "meanMs": 0.13666666621963183,
+            "maxMs": 0.29999998211860657
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 0,
+            "lastMicros": 0,
+            "meanMicros": 0
+          },
+          "tiles": {
+            "active": 60,
+            "visible": 56,
+            "drawn": 7,
+            "inCache": 78,
+            "cpu": 22
+          },
+          "network": {
+            "requests": 78,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 12469392,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 17774532,
+            "textureBytes": 31223808
+          },
+          "imagery": {
+            "layers": 4,
+            "activeOverlays": 4,
+            "overlayResolution": 256,
+            "requests": 84,
+            "failed": 0
+          }
+        }
+      },
+      "coarseTiming": {
+        "frames": 120,
+        "medianMs": 0.9000000059604645,
+        "p95Ms": 1.399999976158142
+      },
+      "fineTiming": {
+        "frames": 120,
+        "medianMs": 1.199999988079071,
+        "p95Ms": 1.699999988079071
+      },
+      "unchangedTerrainIds": true,
+      "unchangedMeshes": true,
+      "unchangedCpuHit": true
+    },
+    "outside": {
+      "coarse": {
+        "centreImagery": {
+          "geometry": {
+            "face": "py",
+            "level": 9,
+            "x": 313,
+            "y": 166
+          },
+          "sources": [
+            {
+              "id": "viking",
+              "enabled": 1,
+              "level": 1,
+              "address": {
+                "face": "py",
+                "level": 1,
+                "x": 1,
+                "y": 0
+              },
+              "outputMetersPerPixel": 11972.16406638037
+            },
+            {
+              "id": "ctx-global",
+              "enabled": 1,
+              "level": 9,
+              "address": {
+                "face": "py",
+                "level": 9,
+                "x": 313,
+                "y": 166
+              },
+              "outputMetersPerPixel": 46.76626588429832
+            },
+            {
+              "id": "jezero-ctx",
+              "enabled": 1,
+              "level": 8,
+              "address": {
+                "face": "py",
+                "level": 8,
+                "x": 156,
+                "y": 83
+              },
+              "outputMetersPerPixel": 93.53253176859664
+            },
+            {
+              "id": "jezero-hirise",
+              "enabled": 0,
+              "level": 0,
+              "outputMetersPerPixel": null
+            }
+          ]
+        },
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "drawingSize": [
+          1400,
+          900
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-77932da93a299797",
+          "ready": true,
+          "textures": 90,
+          "pinnedTextures": 24,
+          "textureBytes": 33454080,
+          "maxTextureBytes": 100663296,
+          "requests": 90,
+          "bytes": 4045661,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 30.700000047683716,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 1107180,
+          "tiles": 6,
+          "splitTiles": 0,
+          "blocks": 6,
+          "displayedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "6": 1,
+            "8": 1,
+            "9": 1
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "6": 1,
+            "8": 1,
+            "9": 1
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "maxDisplayedLevel": 9,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 0,
+          "updateMs": 0.29999998211860657
+        },
+        "draws": 9,
+        "terrain": {
+          "update": {
+            "count": 474,
+            "lastMs": 0,
+            "meanMs": 0.12166666686534881,
+            "maxMs": 0.30000001192092896
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 0,
+            "lastMicros": 0,
+            "meanMicros": 0
+          },
+          "tiles": {
+            "active": 39,
+            "visible": 35,
+            "drawn": 6,
+            "inCache": 78,
+            "cpu": 26
+          },
+          "network": {
+            "requests": 78,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 12469392,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 17774532,
+            "textureBytes": 33454080
+          },
+          "imagery": {
+            "layers": 4,
+            "activeOverlays": 4,
+            "overlayResolution": 256,
+            "requests": 90,
+            "failed": 0
+          }
+        }
+      },
+      "fine": {
+        "centreImagery": {
+          "geometry": {
+            "face": "py",
+            "level": 9,
+            "x": 313,
+            "y": 166
+          },
+          "sources": [
+            {
+              "id": "viking",
+              "enabled": 1,
+              "level": 1,
+              "address": {
+                "face": "py",
+                "level": 1,
+                "x": 1,
+                "y": 0
+              },
+              "outputMetersPerPixel": 11972.16406638037
+            },
+            {
+              "id": "ctx-global",
+              "enabled": 1,
+              "level": 13,
+              "address": {
+                "face": "py",
+                "level": 13,
+                "x": 5011,
+                "y": 2659
+              },
+              "outputMetersPerPixel": 2.922891617768645
+            },
+            {
+              "id": "jezero-ctx",
+              "enabled": 0,
+              "level": 0,
+              "outputMetersPerPixel": null
+            },
+            {
+              "id": "jezero-hirise",
+              "enabled": 0,
+              "level": 0,
+              "outputMetersPerPixel": null
+            }
+          ]
+        },
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "drawingSize": [
+          1400,
+          900
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-77932da93a299797",
+          "ready": true,
+          "textures": 98,
+          "pinnedTextures": 24,
+          "textureBytes": 36427776,
+          "maxTextureBytes": 100663296,
+          "requests": 98,
+          "bytes": 4371825,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 40.800000071525574,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 385800,
+          "tiles": 6,
+          "splitTiles": 1,
+          "blocks": 21,
+          "displayedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "6": 1,
+            "8": 1,
+            "9": 3,
+            "10": 1,
+            "11": 7,
+            "12": 3,
+            "13": 2
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 1,
+            "4": 1,
+            "6": 1,
+            "8": 1,
+            "9": 3,
+            "10": 1,
+            "11": 7,
+            "12": 3,
+            "13": 2
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "maxDisplayedLevel": 13,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 15,
+          "updateMs": 0.4000000059604645
+        },
+        "draws": 24,
+        "terrain": {
+          "update": {
+            "count": 638,
+            "lastMs": 0.09999999403953552,
+            "meanMs": 0.09499999831120173,
+            "maxMs": 0.20000001788139343
+          },
+          "parse": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "cpuDecode": {
+            "count": 0,
+            "lastMs": 0,
+            "meanMs": 0,
+            "maxMs": 0
+          },
+          "sample": {
+            "count": 0,
+            "lastMicros": 0,
+            "meanMicros": 0
+          },
+          "tiles": {
+            "active": 39,
+            "visible": 35,
+            "drawn": 6,
+            "inCache": 78,
+            "cpu": 26
+          },
+          "network": {
+            "requests": 78,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "memory": {
+            "cacheBytes": 12469392,
+            "maxCacheBytes": 536870912,
+            "geometryBytes": 17053152,
+            "textureBytes": 36427776
+          },
+          "imagery": {
+            "layers": 4,
+            "activeOverlays": 4,
+            "overlayResolution": 256,
+            "requests": 98,
+            "failed": 0
+          }
+        }
+      },
+      "coarseTiming": {
+        "frames": 120,
+        "medianMs": 0.699999988079071,
+        "p95Ms": 1
+      },
+      "fineTiming": {
+        "frames": 120,
+        "medianMs": 0.7999999821186066,
+        "p95Ms": 1.0999999940395355
+      },
+      "unchangedTerrainIds": true,
+      "unchangedMeshes": true,
+      "unchangedCpuHit": true
+    }
+  },
+  "controls": {
+    "reorderAndOpacityChangePixels": true,
+    "restoresExactPixels": true,
+    "physicalGeometryUnchanged": true
+  },
+  "cycles": [
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 106,
+      "pinnedTextures": 24,
+      "textureBytes": 39401472,
+      "maxTextureBytes": 100663296,
+      "requests": 106,
+      "bytes": 4626718,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 50.20000007748604,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1053600,
+      "tiles": 9,
+      "splitTiles": 2,
+      "blocks": 18,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 9,
+      "updateMs": 0.30000001192092896
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 106,
+      "pinnedTextures": 24,
+      "textureBytes": 39401472,
+      "maxTextureBytes": 100663296,
+      "requests": 106,
+      "bytes": 4626718,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 50.20000007748604,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1053600,
+      "tiles": 6,
+      "splitTiles": 1,
+      "blocks": 21,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 13,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 15,
+      "updateMs": 0.20000001788139343
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 106,
+      "pinnedTextures": 24,
+      "textureBytes": 39401472,
+      "maxTextureBytes": 100663296,
+      "requests": 106,
+      "bytes": 4626718,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 50.20000007748604,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1053600,
+      "tiles": 9,
+      "splitTiles": 2,
+      "blocks": 18,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 9,
+      "updateMs": 0.4000000059604645
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 106,
+      "pinnedTextures": 24,
+      "textureBytes": 39401472,
+      "maxTextureBytes": 100663296,
+      "requests": 106,
+      "bytes": 4626718,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 50.20000007748604,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1053600,
+      "tiles": 6,
+      "splitTiles": 1,
+      "blocks": 21,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 13,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 15,
+      "updateMs": 0.29999998211860657
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 106,
+      "pinnedTextures": 24,
+      "textureBytes": 39401472,
+      "maxTextureBytes": 100663296,
+      "requests": 106,
+      "bytes": 4626718,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 50.20000007748604,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1053600,
+      "tiles": 9,
+      "splitTiles": 2,
+      "blocks": 18,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 2,
+        "7": 2,
+        "8": 6,
+        "9": 4,
+        "10": 1
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 9,
+      "updateMs": 0.29999998211860657
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 67,
+      "pinnedTextures": 24,
+      "textureBytes": 24904704,
+      "maxTextureBytes": 25165824,
+      "requests": 179,
+      "bytes": 7236163,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 14,
+      "blockBuildMs": 72.30000004172325,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1492980,
+      "tiles": 6,
+      "splitTiles": 1,
+      "blocks": 21,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 13,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 15,
+      "updateMs": 0.30000001192092896
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 67,
+      "pinnedTextures": 24,
+      "textureBytes": 24904704,
+      "maxTextureBytes": 25165824,
+      "requests": 187,
+      "bytes": 7649988,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 22,
+      "blockBuildMs": 72.30000004172325,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1492980,
+      "tiles": 7,
+      "splitTiles": 3,
+      "blocks": 43,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "5": 9,
+        "11": 7,
+        "12": 9,
+        "13": 4,
+        "14": 7,
+        "15": 4
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "10": 6,
+        "11": 10,
+        "12": 9,
+        "13": 4,
+        "14": 7,
+        "15": 4
+      },
+      "fallbackBlocks": 6,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 15,
+      "queued": 6,
+      "budgetLimited": true,
+      "extraDraws": 36,
+      "updateMs": 0.5999999940395355
+    },
+    {
+      "version": "cube-imagery-xyz-77932da93a299797",
+      "ready": true,
+      "textures": 67,
+      "pinnedTextures": 24,
+      "textureBytes": 24904704,
+      "maxTextureBytes": 25165824,
+      "requests": 195,
+      "bytes": 7976152,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 30,
+      "blockBuildMs": 72.30000004172325,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 1492980,
+      "tiles": 6,
+      "splitTiles": 1,
+      "blocks": 21,
+      "displayedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "wantedLevels": {
+        "0": 1,
+        "1": 1,
+        "4": 1,
+        "6": 1,
+        "8": 1,
+        "9": 3,
+        "10": 1,
+        "11": 7,
+        "12": 3,
+        "13": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "maxDisplayedLevel": 13,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 15,
+      "updateMs": 0.30000001192092896
+    }
+  ],
+  "missingSource": {
+    "expectedFaults": 1,
+    "noRetryStorm": true,
+    "missing": {
+      "centreImagery": {
+        "geometry": {
+          "face": "py",
+          "level": 9,
+          "x": 313,
+          "y": 166
+        },
+        "sources": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 1,
+            "address": {
+              "face": "py",
+              "level": 1,
+              "x": 1,
+              "y": 0
+            },
+            "outputMetersPerPixel": 11972.16406638037
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 9,
+            "address": {
+              "face": "py",
+              "level": 9,
+              "x": 313,
+              "y": 166
+            },
+            "outputMetersPerPixel": 46.76626588429832
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 0,
+            "level": 0,
+            "outputMetersPerPixel": null
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 0,
+            "level": 0,
+            "outputMetersPerPixel": null
+          }
+        ]
+      },
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "drawingSize": [
+        1400,
+        900
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-77932da93a299797",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 24,
+        "textureBytes": 17470464,
+        "maxTextureBytes": 100663296,
+        "requests": 48,
+        "bytes": 1636085,
+        "failures": 1,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 55,
+        "inFlight": 0,
+        "failedTiles": 1,
+        "blockGeometryBytes": 1511016,
+        "tiles": 6,
+        "splitTiles": 1,
+        "blocks": 21,
+        "displayedLevels": {
+          "0": 1,
+          "1": 1,
+          "4": 1,
+          "6": 1,
+          "8": 1,
+          "9": 16
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 1,
+          "4": 1,
+          "6": 1,
+          "8": 1,
+          "9": 3,
+          "10": 1,
+          "11": 7,
+          "12": 3,
+          "13": 2
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 13,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 9,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 15,
+        "updateMs": 0.29999998211860657
+      },
+      "draws": 24,
+      "terrain": {
+        "update": {
+          "count": 61,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.1508196719357225,
+          "maxMs": 0.5999999940395355
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 39,
+          "visible": 35,
+          "drawn": 6,
+          "inCache": 50,
+          "cpu": 26
+        },
+        "network": {
+          "requests": 50,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 7993200,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 12195216,
+          "textureBytes": 17470464
+        },
+        "imagery": {
+          "layers": 4,
+          "activeOverlays": 4,
+          "overlayResolution": 256,
+          "requests": 48,
+          "failed": 1
+        }
+      }
+    },
+    "recovered": {
+      "centreImagery": {
+        "geometry": {
+          "face": "py",
+          "level": 9,
+          "x": 313,
+          "y": 166
+        },
+        "sources": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 1,
+            "address": {
+              "face": "py",
+              "level": 1,
+              "x": 1,
+              "y": 0
+            },
+            "outputMetersPerPixel": 11972.16406638037
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 13,
+            "address": {
+              "face": "py",
+              "level": 13,
+              "x": 5011,
+              "y": 2659
+            },
+            "outputMetersPerPixel": 2.922891617768645
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 0,
+            "level": 0,
+            "outputMetersPerPixel": null
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 0,
+            "level": 0,
+            "outputMetersPerPixel": null
+          }
+        ]
+      },
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "drawingSize": [
+        1400,
+        900
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-77932da93a299797",
+        "ready": true,
+        "textures": 55,
+        "pinnedTextures": 24,
+        "textureBytes": 20444160,
+        "maxTextureBytes": 100663296,
+        "requests": 56,
+        "bytes": 1962249,
+        "failures": 1,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 55,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 385800,
+        "tiles": 6,
+        "splitTiles": 1,
+        "blocks": 21,
+        "displayedLevels": {
+          "0": 1,
+          "1": 1,
+          "4": 1,
+          "6": 1,
+          "8": 1,
+          "9": 3,
+          "10": 1,
+          "11": 7,
+          "12": 3,
+          "13": 2
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 1,
+          "4": 1,
+          "6": 1,
+          "8": 1,
+          "9": 3,
+          "10": 1,
+          "11": 7,
+          "12": 3,
+          "13": 2
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 13,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 15,
+        "updateMs": 0.29999998211860657
+      },
+      "draws": 24,
+      "terrain": {
+        "update": {
+          "count": 226,
+          "lastMs": 0.10000002384185791,
+          "meanMs": 0.10916666785875956,
+          "maxMs": 0.30000001192092896
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 39,
+          "visible": 35,
+          "drawn": 6,
+          "inCache": 50,
+          "cpu": 26
+        },
+        "network": {
+          "requests": 50,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 7993200,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 11070000,
+          "textureBytes": 20444160
+        },
+        "imagery": {
+          "layers": 4,
+          "activeOverlays": 4,
+          "overlayResolution": 256,
+          "requests": 56,
+          "failed": 1
+        }
+      }
+    }
+  },
+  "errors": []
+}
