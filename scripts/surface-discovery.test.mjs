@@ -38,7 +38,7 @@ describe('opt-in PDS ODE Mars adapter (#249)', () => {
     expect(unknown.diagnostics[0].code).toBe('ode-unrecognized-payload');
   });
   it('rejects unapproved hosts, paging abuse and suspicious API redirects', async () => {
-    await expect(fetchOdeMarsMetadata('https://example.invalid/mars/{page}/{pageSize}')).rejects.toThrow(/ODE Mars metadata|Mars ODE metadata/);
+    await expect(fetchOdeMarsMetadata('https://example.invalid/mars/{page}/{pageSize}')).rejects.toThrow(/Only HTTPS Mars ODE metadata endpoints/);
     await expect(fetchOdeMarsMetadata(template, { pageSize: 999 })).rejects.toThrow(/ODE limits/);
     const redirected = await fetchOdeMarsMetadata(template, {
       fetchImpl: async (_url, opts) => {
