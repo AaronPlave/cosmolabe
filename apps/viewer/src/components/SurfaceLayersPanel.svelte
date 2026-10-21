@@ -59,6 +59,10 @@
   }
 
   function ownership(layer: GeographicLayer): { label: string; title: string } {
+    if (layer.ownership === 'user') {
+      const copy = typeof layer.definition.provenance?.workingCopyOf === 'string' ? layer.definition.provenance.workingCopyOf : null;
+      return { label: copy ? `Editable copy of ${copy}` : 'Authored here · editable', title: 'Kept in this browser; edit it with the Draw tool. Export it from there.' };
+    }
     return layer.ownership === 'catalog'
       ? { label: 'Catalog · read-only', title: 'Published with the catalog. Presentation changes here are for this session; the data is never modified.' }
       : { label: 'Imported file · read-only', title: 'Opened from a local file for this session. It is not saved, and the data is never modified.' };

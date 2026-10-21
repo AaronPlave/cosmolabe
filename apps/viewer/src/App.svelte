@@ -6,6 +6,10 @@
   import ViewportHud from './components/ViewportHud.svelte';
   import GeographicCallout from './components/GeographicCallout.svelte';
   import GeographicLabels from './components/GeographicLabels.svelte';
+  import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
+  import {
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo as undoEdit, redo as redoEdit,
+  } from './lib/geographic-editing.svelte';
   import './lib/geographic-styles.svelte';
   import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -18,7 +22,7 @@
   import ProbePanel from './components/ProbePanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
-    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
+    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized, isToolOpen,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
@@ -217,6 +221,17 @@
 
     const renderer = getRenderer();
     if (!renderer) return;
+
+    // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
+    if (edits.tool || edits.editing || isToolOpen('draw')) {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redoEdit(); else undoEdit(); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redoEdit(); return; }
+      if (!mod && e.key === 'Enter' && edits.tool) { e.preventDefault(); finishDraft(); return; }
+      if (!mod && e.key === 'Backspace' && removeLastVertex()) { e.preventDefault(); return; }
+      if (!mod && e.key === 'Delete' && deleteSelectedVertex()) { e.preventDefault(); return; }
+      if (e.key === 'Escape' && cancelDrawing()) return;
+    }
 
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
       switch (e.key) {
@@ -589,6 +604,7 @@
     <ViewportHud />
     <GeographicLabels />
     <GeographicCallout />
+    <GeographicEditOverlay />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time

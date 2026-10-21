@@ -216,7 +216,7 @@
     <dl class="facts ui-meta">
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
       {#if layer.source.catalog}<dt>Catalog</dt><dd class="mono break">{layer.source.catalog}</dd>{/if}
-      <dt>Data</dt><dd>{layer.ownership === 'catalog' ? 'Catalog' : 'Imported file'} · read-only</dd>
+      <dt>Data</dt><dd>{layer.ownership === 'user' ? 'Authored here · editable with Draw' : `${layer.ownership === 'catalog' ? 'Catalog' : 'Imported file'} · read-only`}</dd>
       <dt>Body</dt><dd>{layer.body} · {layer.frame}</dd>
       <dt>Convention</dt><dd>{describeGeographicCoordinates(layer.coordinates)}</dd>
       <dt>Features</dt><dd>{counts.map(([t, n]) => `${n.toLocaleString()} ${t}`).join(' · ') || 'none'}</dd>

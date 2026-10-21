@@ -1565,6 +1565,44 @@ export class UniverseRenderer {
   }
 
   /**
+   * Height (km above the datum, along the geodetic normal) of the surface
+   * actually drawn at each position: the globe's facets or the resident
+   * terrain tiles, whichever is visible. Geographic vectors drape on those same
+   * triangles, and a geodetic position is the same latitude/longitude anywhere
+   * along its normal, so an overlay placed at this height sits exactly on the
+   * drawn feature, even where a coarse globe mesh lies below the ellipsoid.
+   * Null where nothing drawn is hit. Surface tile overlays are not consulted.
+   */
+  renderedSurfaceHeightsKm(bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum): (number | null)[] {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return positions.map(() => null);
+    const targets: THREE.Object3D[] = [];
+    if (bm.mesh.visible) targets.push(bm.mesh);
+    if (bm.terrainTileGroup?.visible) targets.push(bm.terrainTileGroup);
+    const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const toWorld = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor));
+    const shape = datum.referenceShape;
+    // From above any relief (Olympus Mons is ~22 km) down the normal, to well below the datum.
+    const aboveKm = 40 + 0.01 * (shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0]);
+    const ray = new THREE.Raycaster();
+    const origin = new THREE.Vector3(), direction = new THREE.Vector3();
+    const visible = (hit: THREE.Intersection) => {
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      return true;
+    };
+    return positions.map((position) => {
+      const top = geodeticToBodyFixed({ ...position, heightKm: aboveKm }, datum);
+      const ground = geodeticToBodyFixed({ ...position, heightKm: 0 }, datum);
+      origin.set(top.xKm, top.yKm, top.zKm).applyMatrix4(toWorld);
+      direction.set(ground.xKm, ground.yKm, ground.zKm).applyMatrix4(toWorld).sub(origin).normalize();
+      ray.set(origin, direction);
+      ray.far = 2 * aboveKm * this.scaleFactor;
+      const hit = ray.intersectObjects(targets, true).find(visible);
+      return hit ? aboveKm - hit.distance / this.scaleFactor : null;
+    });
+  }
+
+  /**
    * Canvas CSS-pixel positions of geodetic points on a body, for host overlays
    * such as a selected feature's callout or an in-view filter. A 2D position
    * sits on the datum (height 0), or on the resident CPU terrain sample when

@@ -17,6 +17,7 @@
   import { geo, findFeature, goToFeature, navigationUnavailable, selectFeature } from '../lib/geographic-layers.svelte';
   import { geoStyles, featureOverride, setFeatureOverride, layerStyle } from '../lib/geographic-styles.svelte';
   import { resolveGeographicStyle } from '@cosmolabe/core';
+  import GeographicFeatureEditor from './GeographicFeatureEditor.svelte';
 
   let found = $derived(findFeature(geo.selected));
   let copied = $state<string | null>(null);
@@ -130,8 +131,10 @@
       </dd>
       {#if feature.id.startsWith('index:')}<dt></dt><dd class="warn">No source ID: this reference follows source order and changes if the file is reordered.</dd>{/if}
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
-      <dt>Data</dt><dd>{layer.ownership === 'catalog' ? 'Catalog' : 'Imported file'} · read-only</dd>
+      <dt>Data</dt><dd>{layer.ownership === 'user' ? 'Authored here · editable' : `${layer.ownership === 'catalog' ? 'Catalog' : 'Imported file'} · read-only`}</dd>
     </dl>
+
+    <GeographicFeatureEditor />
 
     <div class="feature-style" role="group" aria-label="Feature style">
       <span class="ui-meta label">Style</span>

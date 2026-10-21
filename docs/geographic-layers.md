@@ -112,6 +112,10 @@ a link only when it is an `http(s)` URL, and opens without access to the
 viewer. *Coordinates* copies a Point's exact source numbers with their
 convention; the properties header copies the unmodified source geometry.
 
+Authored layers and editable copies of read-only layers are drawn and edited
+with the Draw tool; see [geographic-editing.md](geographic-editing.md). They
+list as *Authored here · editable* or *Editable copy of …*.
+
 ## Layer styles
 
 The palette button on a vector layer opens its **style editor** below the layer

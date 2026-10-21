@@ -60,3 +60,28 @@ describe('projectGeographicPositions', () => {
     expect(harness().renderer.projectGeographicPositions('Mars', [{ latDeg: 0, lonDeg: 0 }], datum)).toBeNull();
   });
 });
+
+describe('renderedSurfaceHeightsKm', () => {
+  function withMesh(radiusKm: number, segments: number) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radiusKm, segments, segments / 2), new THREE.MeshBasicMaterial());
+    mesh.updateMatrixWorld(true);
+    const body = { visible: true, position: new THREE.Vector3(), mesh, terrainTileGroup: null, bodyToWorldQuaternion: (q: THREE.Quaternion) => q.identity() };
+    return Object.assign(Object.create(UniverseRenderer.prototype), { bodyMeshes: new Map([['Moon', body]]), scaleFactor: 1 }) as UniverseRenderer;
+  }
+
+  it('reads the drawn surface along the normal: a coarse globe lies below the datum between its vertices', () => {
+    const fine = withMesh(1000, 256).renderedSurfaceHeightsKm('Moon', [{ latDeg: 10, lonDeg: 20 }], datum)[0]!;
+    expect(fine).toBeLessThan(0);
+    expect(fine).toBeGreaterThan(-0.1);
+    const coarse = withMesh(1000, 16).renderedSurfaceHeightsKm('Moon', [{ latDeg: 10, lonDeg: 20 }], datum)[0]!;
+    expect(coarse).toBeLessThan(fine);
+    // No deeper than a 22.5° facet can sag at its centre.
+    expect(coarse).toBeGreaterThan(-1000 * (1 - Math.cos(Math.PI / 8)));
+  });
+
+  it('returns null where nothing drawn is hit, and for a body that is not drawn', () => {
+    const r = withMesh(500, 32);
+    expect(r.renderedSurfaceHeightsKm('Moon', [{ latDeg: 0, lonDeg: 0 }], datum)).toEqual([null]);
+    expect(r.renderedSurfaceHeightsKm('Mars', [{ latDeg: 0, lonDeg: 0 }], datum)).toEqual([null]);
+  });
+});
