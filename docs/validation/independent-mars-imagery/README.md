@@ -18,7 +18,13 @@ a single source keeps the previous levels 0–1 fallback. Coarse loads now obey
 the same concurrency and texture reservations as finer imagery. Cube shader
 textures are included in terrain memory diagnostics. The static map remains
 until visible imagery blocks have resident textures and the mandatory base
-manifest is valid. Optional manifests never establish the stack reference or
+manifest is valid. Every drawn block must also have a resident mandatory-base
+ancestor (`baseUncoveredBlocks === 0`); a failed base root cannot be masked by a
+resident optional texture whose pixels may all be transparent. Optional alpha
+still composites over a healthy base, and base recovery releases the transition.
+The mandatory base product is required to supply opaque global fallback; this
+check guarantees base residency, not arbitrary per-pixel alpha validation.
+Optional manifests never establish the stack reference or
 readiness. Optional transient manifest failures stop after four attempts
 (500/1000/2000 ms backoff); `retryFailed()` explicitly retries failed optional
 manifests, coalescing overlapping recovery calls. Only the required base retains
@@ -52,6 +58,56 @@ Curiosity's three-source stack, but its catalog/product acceptance belongs to
 5 m CTX everywhere, migrate production catalogs, or close #136. Broader source
 coverage and useful production fallback must precede those migrations; #137
 owns publication.
+
+### Scalable coverage strategy and remaining #136 work
+
+The mergeable deliverable here is reusable multi-source rendering, the bounded
+XYZ adapter and their acceptance tests. The two native-detail regions establish
+independence from physical terrain; they do not meet the original “anywhere on
+Mars” product-availability criterion. #136 stays open for the concrete work
+below; #246/#247 do not inherit that renderer/coverage gap implicitly.
+
+Use a useful, opaque Viking global pyramid for mandatory fallback, global CTX
+at a practical overview level, and native-resolution CTX/HiRISE in declared
+regional working sets. Size the global overview from measured source detail
+and product cost; this fixture's Viking L1 is insufficient for production.
+Build regional working sets with the current adapter's `--region` interface,
+retain original source identities, and publish exact built levels/footprints.
+A regional cache is an honest deliverable for a mission working area, not a
+claim of native CTX availability outside it.
+
+For the original arbitrary-location native-CTX criterion, the intended scalable
+extension is an on-demand cube XYZ adapter/cache using the same registered
+pixel/gutter convention and versioned tile URIs. Cache immutable generated tiles
+by source/version/face/level/x/y; bound generation concurrency and cached bytes,
+and retain alpha/nodata and recorded parent-source fallback. Coverage must be
+indexed/paged by cube cell so requesting a new region does not require downloading
+a planet-wide explicit tile list. The present renderer reads finite `tiles`
+lists; this indexed availability and on-demand adapter are **remaining #136
+implementation**, not capabilities delivered by this PR. For scale, an ideal
+5 m global raster on a 3396 km sphere is about 5.8 trillion pixels (23 TB RGBA
+before mipmaps/gutters); this estimate motivates demand-driven coverage rather
+than an unconditional highest-resolution global bake.
+
+Remaining acceptance tracked explicitly in #136:
+
+- Implement and test the indexed availability/on-demand source contract, bounded
+  generation/cache behavior, and source-version invalidation. Native availability
+  must reflect valid upstream coverage; nodata/corrupt-source parent fallback
+  must not claim native detail.
+- Supply and validate useful global Viking/CTX overview products with explicit
+  resolution/coverage limits, plus native working regions as demand requires.
+- Verify arbitrary valid CTX regions outside the two fixture footprints,
+  including both hemispheres and cube seams/polar source limits. At fixed coarse
+  terrain, check source-native detail, exact CPU/mesh identity, bounded memory,
+  requests and draws through region changes, and base/optional outage recovery.
+  Include automated availability/registration tests and rendered measurements.
+
+#137 owns publication once these product/adapter contracts are defined; it does
+not supply missing availability logic. #246 and #247 adopt the reusable renderer
+and published products and own their mission footprints, layer controls,
+useful fallback and scientific/catalog acceptance. They may validate explicitly
+regional native detail without closing #136's global-availability remainder.
 
 The service returned corrupt HTTP-200 PNGs in fourteen z11 tiles during this
 build. The pre-existing geographic `fallBackToParentTiles` adapter already
@@ -134,7 +190,14 @@ budget; an additional 24 MiB run evicts textures without exceeding the cap.
 Simulated missing high-level CTX tiles retain lower-source coverage with zero
 untextured blocks, do not retry repeatedly inside the backoff window, and
 recover native detail after clearing the failures. Geometry and CPU hits stay
-identical through recovery. No browser or shader errors were recorded.
+identical through recovery. A cold mandatory-base outage test returns 404 for all six Viking roots while
+all optional image requests successfully decode fully transparent textures.
+Optional residency reports zero untextured blocks, but the separate base
+coverage counter prevents the swap: the real body remains `waiting` with its
+static map visible. Explicit base recovery clears that counter and transitions
+to `streamed`. This rendered check runs 12 km above the terrain to keep the
+camera outside the static reference sphere; native-detail checks stay at 1.2 km.
+No browser or shader errors were recorded.
 
 Review follow-up on Apple M4 Max, Metal at 1400×900 (119 available hardware
 queries over 120 rendered frames, no disjoint results):
@@ -152,7 +215,7 @@ Bounds use one shared longitude/latitude calculation per fragment; unbounded
 stacks skip it. The bounded regional coverage and production rollout limits
 above remain unchanged.
 
-- Renderer suites: 64 files, 737 tests passed.
+- Renderer suites: 64 files, 738 tests passed.
 - Focused renderer/catalog-policy suites: 75 tests passed.
 - XYZ adapter: five offline regressions passed; existing cube-imagery selftest passed.
 - Build, lint, test/viewer typechecks and Svelte checks passed (0 errors/warnings).

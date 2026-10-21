@@ -94,6 +94,8 @@ export interface CubeImageryStats {
   fallbackBlocks: number;
   failedBlocks: number;
   untexturedBlocks: number;
+  /** Blocks without a resident mandatory-base ancestor; optional alpha cannot establish coverage. */
+  baseUncoveredBlocks: number;
   maxDisplayedLevel: number;
   /** CPU ms of the last update (selection + block builds) and cumulative block-build ms. */
   updateMs: number;
@@ -283,7 +285,7 @@ export class CubeImageryLayer {
   private counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 };
   private last: Omit<CubeImageryStats, 'version' | 'ready' | 'textures' | 'pinnedTextures' | 'textureBytes' | 'maxTextureBytes' | 'requests' | 'bytes' | 'failures' | 'aborted' | 'evicted' | 'inFlight' | 'failedTiles' | 'blockBuildMs' | 'blockGeometryBytes'> = {
     queued: 0, budgetLimited: false, tiles: 0, splitTiles: 0, blocks: 0, extraDraws: 0,
-    displayedLevels: {}, wantedLevels: {}, fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
+    displayedLevels: {}, wantedLevels: {}, fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
   };
 
   constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number } = {}) {
@@ -497,7 +499,7 @@ export class CubeImageryLayer {
     };
     const wanted = new Map<string, number>();
     const stats = { tiles: 0, splitTiles: 0, blocks: 0, displayedLevels: {} as Record<number, number>, wantedLevels: {} as Record<number, number>,
-      fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, maxDisplayedLevel: -1 };
+      fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1 };
     for (const s of this.sources) s.info.view = s.info.visible ? { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull: false } : null;
     const { tileSize } = this.manifest;
     const culledStats = { ...stats, displayedLevels: {}, wantedLevels: {} };
@@ -642,10 +644,10 @@ export class CubeImageryLayer {
   }
 
   /** Point a material at the best resident tile for `leaf`, and want the tile it should have. */
-  private show(geometry: ImageryAddress, leaf: ImageryBlock, uniforms: Uniforms, wanted: Map<string, number>, stats: { blocks: number; displayedLevels: Record<number, number>; wantedLevels: Record<number, number>; fallbackBlocks: number; failedBlocks: number; untexturedBlocks: number; maxDisplayedLevel: number }): void {
+  private show(geometry: ImageryAddress, leaf: ImageryBlock, uniforms: Uniforms, wanted: Map<string, number>, stats: { blocks: number; displayedLevels: Record<number, number>; wantedLevels: Record<number, number>; fallbackBlocks: number; failedBlocks: number; untexturedBlocks: number; baseUncoveredBlocks: number; maxDisplayedLevel: number }): void {
     stats.blocks++;
     stats.wantedLevels[leaf.image.level] = (stats.wantedLevels[leaf.image.level] ?? 0) + 1;
-    let maxShown = -1, fallback = false, failedBlock = false;
+    let maxShown = -1, fallback = false, failedBlock = false, baseCovered = false;
     for (let i = 0; i < this.order.length; i++) {
       const source = this.order[i], u = uniforms.layers[i];
       u.enabled.value = 0;
@@ -671,6 +673,9 @@ export class CubeImageryLayer {
         if (failed && shown && shown.address.level < image.level) view.degradedTiles++;
       }
       if (!shown) continue;
+      // The mandatory base is the coverage guarantee. Optional sources may
+      // contain alpha/nodata even when their textures are resident.
+      if (source.index === 0) baseCovered = true;
       shown.lastUsed = this.frame;
       if (shown.address.level < image.level && leaf.inView) { if (failed) failedBlock = true; else fallback = true; }
       maxShown = Math.max(maxShown, shown.address.level);
@@ -686,6 +691,7 @@ export class CubeImageryLayer {
     }
     uniforms.cubeImageryEnabled.value = maxShown >= 0 ? 1 : 0;
     uniforms.cubeImageryLevel.value = maxShown;
+    if (!baseCovered) stats.baseUncoveredBlocks++;
     if (maxShown < 0) stats.untexturedBlocks++;
     else {
       stats.displayedLevels[maxShown] = (stats.displayedLevels[maxShown] ?? 0) + 1;

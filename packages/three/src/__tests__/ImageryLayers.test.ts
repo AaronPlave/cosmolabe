@@ -377,11 +377,15 @@ describe('TerrainManager imagery layer controls', () => {
 
     it('keeps the static surface until visible cube blocks have resident imagery', async () => {
       const tm = await withRoot(tile(4));
-      const stats = { ready: true, tiles: 1, untexturedBlocks: 1 };
+      const stats = { ready: true, tiles: 1, untexturedBlocks: 1, baseUncoveredBlocks: 0 };
       Object.defineProperty(tm, 'cubeImagery', { value: { stats }, configurable: true });
       expect(tm.isReadyToShow(10_000)).toBe(false);
       stats.untexturedBlocks = 0;
       expect(tm.isReadyToShow(10_001)).toBe(true);
+      stats.baseUncoveredBlocks = 1; // valid base manifest, missing base texture
+      expect(tm.isReadyToShow(10_002)).toBe(false);
+      stats.baseUncoveredBlocks = 0;
+      expect(tm.isReadyToShow(10_003)).toBe(true);
       // Resident optional pixels cannot compensate for a failed mandatory base.
       stats.ready = false;
       expect(tm.isReadyToShow(10_002)).toBe(false);

@@ -1680,7 +1680,7 @@ export class TerrainManager {
     if (!this._pluginReady || this.hasStreamFailed(now)) return false;
     if (this.cubeImagery && (this.debugMode === 'none' || IMAGERY_DEBUG[this.debugMode])) {
       const imagery = this.cubeImagery.stats;
-      if (!imagery.ready || !imagery.tiles || imagery.untexturedBlocks > 0) return false;
+      if (!imagery.ready || !imagery.tiles || imagery.untexturedBlocks > 0 || imagery.baseUncoveredBlocks > 0) return false;
     }
     const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
     if (!((stats.visible ?? 0) > 0)) { this.firstVisibleAt = 0; return false; }

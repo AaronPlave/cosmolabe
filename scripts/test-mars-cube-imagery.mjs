@@ -12,9 +12,9 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const errors = [], requests = [];
-let faultActive = false, expectedFaults = 0;
+let faultActive = false, expectedFaults = 0, baseFaultActive = false, expectedBaseFaults = 0;
 page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
-page.on('response', r=>{ if(faultActive && r.status()===404 && /ctx-global\/tiles/.test(r.url())) { expectedFaults++; return; } if(r.status()>=400 && !r.url().endsWith('/favicon.ico')) errors.push(`${r.status()} ${r.url()}`); });
+page.on('response', r=>{ if(baseFaultActive && r.status()===404 && /viking\/tiles/.test(r.url())) { expectedBaseFaults++; return; } if(faultActive && r.status()===404 && /ctx-global\/tiles/.test(r.url())) { expectedFaults++; return; } if(r.status()>=400 && !r.url().endsWith('/favicon.ico')) errors.push(`${r.status()} ${r.url()}`); });
 page.on('console', m => { if (m.type() === 'error' && !m.text().includes('status of 404')) { errors.push(m.text()); console.error(m.text()); } });
 page.on('request', r => { if (/\.(glb|png)(\?|$)/.test(r.url())) requests.push(r.url()); });
 const result = { views: {}, cycles: [], errors };
@@ -209,6 +209,44 @@ try {
     await pose(lat,lon,1.2); await settle();
     result.motionTiming[name] = await timing(true);
   }
+  // Cold base-tile failure with successful, entirely transparent optional tiles.
+  // A valid base manifest and optional texture residency must not hide the map.
+  const transparentPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4//8/AwAI/AL+p5qgoAAAAABJRU5ErkJggg==', 'base64');
+  await page.route('**/mars-imagery-cube/**/tiles/**', route => {
+    if (!baseFaultActive) return route.fallback();
+    return route.request().url().includes('/viking/tiles/')
+      ? route.fulfill({ status: 404, body: 'simulated missing mandatory base tile' })
+      : route.fulfill({ status: 200, contentType: 'image/png', body: transparentPng });
+  });
+  baseFaultActive = true;
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>window.renderer?.getBodyMesh('Mars')?.terrainManager?.cubeImageryStats?.ready,null,{timeout:120000});
+  await page.evaluate(async()=>{ await window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.ready; window.cosmo.setPlaying(false); });
+  await pose(18.9,77.4,12); await settle();
+  const baseFailure = await page.evaluate(() => {
+    const b = window.renderer.getBodyMesh('Mars'), t = b.terrainManager;
+    return { imagery: t.cubeImageryStats, readyToShow: t.isReadyToShow(), surface: b.surfaceTransitionState, staticVisible: b.mesh.visible };
+  });
+  assert.ok(expectedBaseFaults > 0);
+  assert.ok(baseFailure.imagery.textures > 0);
+  assert.equal(baseFailure.imagery.untexturedBlocks,0);
+  assert.ok(baseFailure.imagery.baseUncoveredBlocks > 0);
+  assert.equal(baseFailure.readyToShow,false);
+  assert.equal(baseFailure.surface,'waiting');
+  assert.equal(baseFailure.staticVisible,true);
+  await page.locator('canvas').first().screenshot({path:`${output}/base-tile-failure.png`});
+  baseFaultActive = false;
+  await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.retryFailed());
+  await settle();
+  const baseRecovery = await page.evaluate(() => {
+    const b = window.renderer.getBodyMesh('Mars'), t = b.terrainManager;
+    return { imagery: t.cubeImageryStats, readyToShow: t.isReadyToShow(), surface: b.surfaceTransitionState, staticVisible: b.mesh.visible };
+  });
+  assert.equal(baseRecovery.imagery.baseUncoveredBlocks,0);
+  assert.equal(baseRecovery.readyToShow,true);
+  assert.equal(baseRecovery.surface,'streamed');
+  assert.equal(baseRecovery.staticVisible,false);
+  result.baseTileFailure = { expectedBaseFaults, optionalTilesTransparent: true, failure: baseFailure, recovered: baseRecovery };
   assert.equal(errors.length,0,errors.join('\n'));
   await writeFile(`${output}/metrics.json`,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify({ gpu: result.views.inside.fine.gpu, views: Object.fromEntries(Object.entries(result.views).map(([k,v])=>[k,{levels:v.fine.imagery.displayedLevels,bytes:v.fine.imagery.textureBytes,draws:v.fine.draws,p95Ms:v.fineTiming.p95Ms}])) },null,2));

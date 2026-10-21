@@ -161,6 +161,36 @@ describe('CubeImageryLayer', () => {
     layer.dispose();
   });
 
+  it('requires a resident base ancestor even when a transparent optional root is resident', async () => {
+    let baseOffline = true;
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0 }, {
+      fetchManifest: async () => ({ ...manifest(0), maxLevel: 0, tiles: faces.map(face => cubeTileId({ face, level: 0, x: 0, y: 0 })) }),
+      loadTexture: async url => {
+        if (url.includes('//base/') && baseOffline) throw new Error('HTTP 404');
+        const alpha = url.includes('//base/') ? 255 : 0;
+        return { texture: new THREE.DataTexture(new Uint8Array([255, 255, 255, alpha]), 1, 1), bytes: 4, downloadBytes: 4 };
+      },
+    });
+    await layer.ready;
+    const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
+    const { scene } = geometryTile(address); tileSet.add(scene); layer.addTile(scene, scene, address);
+    const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
+    try {
+      for (let i = 0; i < 10; i++) await tick();
+      expect(layer.stats.ready).toBe(true); // manifest is valid
+      expect(layer.stats.textures).toBeGreaterThan(0); // transparent optional roots exist
+      expect(layer.stats.failedTiles).toBeGreaterThan(0);
+      expect(layer.stats.untexturedBlocks).toBe(0); // residency alone is insufficient
+      expect(layer.stats.baseUncoveredBlocks).toBe(layer.stats.blocks);
+      expect(layer.stats.baseUncoveredBlocks).toBeGreaterThan(0);
+      baseOffline = false; layer.retryFailed();
+      for (let i = 0; i < 10; i++) await tick();
+      expect(layer.stats.baseUncoveredBlocks).toBe(0); // real base ancestor restored
+      expect(layer.stats.untexturedBlocks).toBe(0);
+    } finally { layer.dispose(); }
+  });
+
   it('rejects a missing mandatory base even when the optional manifest is valid', async () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) => String(url).includes('base')
       ? new Response('', { status: 404 }) : Response.json(manifest(1)));
