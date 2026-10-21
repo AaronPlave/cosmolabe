@@ -36,7 +36,10 @@ export class PlaceIndex {
       const fields = p.sourceFields && typeof p.sourceFields === 'object' && !Array.isArray(p.sourceFields) ? p.sourceFields : {};
       const aliases = [...(Array.isArray(p.aliases) ? p.aliases.slice(0, 16).map(text) : []), text(fields.clean_name)].filter(Boolean);
       const ref = text(p.placeRef) || JSON.stringify([layer.id, feature.id]);
-      if (this.byRef.has(ref)) { this.diagnostics.push(`Duplicate place reference ${ref}`); continue; }
+      if (this.byRef.has(ref)) {
+        if (this.diagnostics.length < 32) this.diagnostics.push(`Duplicate place reference ${ref}`);
+        continue;
+      }
       const diameter = Number(p.diameterKm ?? fields.diameter);
       const place: Place = { ref, layer, feature, name, aliases,
         kind: text(p.featureClass) || text(p.type) || 'Site',
@@ -83,7 +86,7 @@ export class PlaceIndex {
     const span = Math.abs(lat) + radius >= 90 ? 180 : Math.min(180, radius / Math.max(0.01, Math.cos((Math.abs(lat) + radius) * Math.PI / 180)));
     const bins: Place[][] = [];
     const seen = new Set<string>();
-    for (let y = Math.max(0, Math.floor((lat - radius + 90) / 10)); y <= Math.min(17, Math.floor((lat + radius + 90) / 10)); y++)
+    for (let y = Math.min(17, Math.max(0, Math.floor((lat - radius + 90) / 10))); y <= Math.min(17, Math.floor((lat + radius + 90) / 10)); y++)
       for (let x = Math.floor((lon - span + 180) / 10); x <= Math.floor((lon + span + 180) / 10); x++) {
         const key = `${body}:${((x % 36) + 36) % 36}:${y}`;
         if (!seen.has(key)) { seen.add(key); const cell = this.cells.get(key); if (cell) bins.push(cell); }

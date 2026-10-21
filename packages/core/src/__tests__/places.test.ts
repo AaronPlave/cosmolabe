@@ -30,13 +30,15 @@ describe('shared place index', () => {
     const index = new PlaceIndex([first, moved]);
     expect(index.places).toHaveLength(1);
     expect(index.diagnostics[0]).toContain('Duplicate place reference');
+    expect(new PlaceIndex(Array.from({ length: 100 }, () => first)).diagnostics).toHaveLength(32);
   });
 
   it('finds spatial candidates across the seam and includes every longitude at the pole', () => {
     const index = new PlaceIndex([layer([{ name: 'West', lon: -179.9, lat: 0 }, { name: 'East', lon: 179.9, lat: 0 },
-      { name: 'Pole A', lon: 40 }, { name: 'Pole B', lon: -100 }])]);
+      { name: 'Pole A', lon: 40 }, { name: 'Pole B', lon: -100 }, { name: 'North pole', lon: 80, lat: 90 }])]);
     expect(index.nearby('Moon', 180, 0, 1).map(p => p.name).sort()).toEqual(['East', 'West']);
     expect(index.nearby('Moon', 180, -90, 0.2).map(p => p.name).sort()).toEqual(['Pole A', 'Pole B']);
+    expect(index.nearby('Moon', -180, 90, 0).map(p => p.name)).toEqual(['North pole']);
     expect(index.nearby('Mars', 180, -90, 90)).toEqual([]);
   });
 

@@ -38,6 +38,8 @@ describe('optional geographic name annotations', () => {
     expect(f.names.pick(420, 400)?.featureId).toBe('string:front');
     expect(f.elements[0]).toMatchObject({ textContent: 'Front <script>', dataset: { anchor: 'reference-shape' } });
     f.update(); expect(f.names.pick(420, 400)?.featureId).toBe('string:front');
+    f.body.mesh.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
+    f.update(); expect(f.names.pick(420, 400)?.featureId).toBe('string:back');
   });
   it('respects reserved annotation space, terrain LOS, camera motion and selected-place priority', () => {
     const f = fixture(); f.names.setBodyVisible('Moon', true);
