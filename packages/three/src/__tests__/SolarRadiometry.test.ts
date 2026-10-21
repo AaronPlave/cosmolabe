@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { solarIrradiance, solarDisplayExposure, SOLAR_CENTER_RADIANCE, SOLAR_REFERENCE_DISTANCE_KM, SOLAR_RADIUS_KM } from '../SolarRadiometry.js';
+import {
+  solarIrradiance, solarDisplayExposure, SOLAR_CENTER_RADIANCE,
+  SOLAR_REFERENCE_DISTANCE_KM, SOLAR_RADIUS_KM, FIXED_REFERENCE_SOLAR_EXPOSURE,
+  resolveSolarDisplayExposure, solarExposureMetadata, solarRadianceToDisplay,
+} from '../SolarRadiometry.js';
 import { normalizeAtmosphere, transmittanceToSpace } from '../AtmosphereModel.js';
 import { getAtmospherePreset } from '../AtmosphereMesh.js';
 
@@ -42,4 +46,47 @@ it('Mars dust produces the expected modest blue direct-light filtering', () => {
   const t = transmittanceToSpace(normalizeAtmosphere(getAtmospherePreset('Mars')!),3390,[3400,0,0],[0,1,0],1024,false);
   expect(t[2]).toBeGreaterThan(t[0]);
   expect(t[0]).toBeGreaterThan(0);
+});
+
+it('keeps legacy observer adaptation opt-in compatible and fixed reference independent of distance', () => {
+  const distances = [0.6, 1, 1.5, 9.5, 30].map(v => v * SOLAR_REFERENCE_DISTANCE_KM);
+  const legacy = { mode: 'legacy-observer-adapted' } as const;
+  const fixed = { mode: 'fixed-reference' } as const;
+  for (const d of distances) {
+    expect(resolveSolarDisplayExposure(legacy, d)).toBe(solarDisplayExposure(d));
+    expect(resolveSolarDisplayExposure(fixed, d)).toBe(FIXED_REFERENCE_SOLAR_EXPOSURE);
+    expect(resolveSolarDisplayExposure({ mode: 'fixed-reference', exposure: 100 }, d)).toBe(100);
+  }
+  expect(resolveSolarDisplayExposure(legacy, distances[4]))
+    .toBeGreaterThan(resolveSolarDisplayExposure(legacy, distances[1]) * 800);
+});
+
+it('rejects invalid reference exposures instead of contaminating shader uniforms', () => {
+  for (const exposure of [0, -1, NaN, Infinity, -Infinity]) {
+    expect(() => resolveSolarDisplayExposure({ mode: 'fixed-reference', exposure },
+      SOLAR_REFERENCE_DISTANCE_KM)).toThrow(/exposure/);
+  }
+});
+
+it('returns deterministic reference metadata, distinct from legacy camera adaptation', () => {
+  const fixed = solarExposureMetadata({ mode: 'fixed-reference' });
+  expect(fixed).toEqual({
+    mode: 'fixed-reference',
+    exposure: FIXED_REFERENCE_SOLAR_EXPOSURE,
+    response: 'reinhard-0.94',
+    radianceUnits: 'relative-solar-center',
+    referenceDistanceKm: SOLAR_REFERENCE_DISTANCE_KM,
+  });
+  expect(solarExposureMetadata({ mode: 'legacy-observer-adapted' }).exposure).toBeNull();
+});
+
+it('reinhard reference response remains positive, bounded, monotonic, and deterministic', () => {
+  const exposure = FIXED_REFERENCE_SOLAR_EXPOSURE;
+  const sweep = [0, 0.01, 0.1, 1, 4, 16].map(n => solarRadianceToDisplay([n / exposure], exposure)[0]);
+  expect(sweep[0]).toBe(0);
+  expect(sweep[3]).toBeCloseTo(0.47, 12);
+  expect(sweep[5]).toBeLessThan(0.94);
+  for (let i = 1; i < sweep.length; i++) expect(sweep[i]).toBeGreaterThan(sweep[i-1]);
+  expect(solarRadianceToDisplay([-1, 0, 1/exposure], exposure))
+    .toEqual([0, 0, 0.47]);
 });
