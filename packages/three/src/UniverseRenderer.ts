@@ -490,6 +490,11 @@ export class UniverseRenderer {
       antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });
+    // Document the existing default explicitly: physical display shaders own
+    // their Reinhard response; a second renderer tone curve would double-map
+    // Sun/atmosphere/AP. This is not yet a scene-wide HDR compositing pipeline.
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     // Watch for devicePixelRatio changes — fires when the window is dragged
