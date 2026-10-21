@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Universe, parseGeographicGeoJson, type GeographicCoordinates, type GeographicLayer } from '@cosmolabe/core';
-import { GeographicVectorLayer, type GeographicFeatureRef } from '@cosmolabe/three';
+import { GeographicVectorLayer, UniverseRenderer, type GeographicFeatureRef } from '@cosmolabe/three';
+import * as THREE from 'three';
 
 /**
  * The Surface layers panel's state against a real Universe store and the real
@@ -22,7 +23,7 @@ vi.mock('../loader', () => ({ getUniverse: () => universe }));
 
 const {
   geo, selectFeature, setLayerVisible, layerVisible, isolateLayer, isIsolated, showAllLayers, listedFeatures,
-  browseLayer, syncSceneFilter, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature, showSelectedDetails,
+  browseLayer, syncSceneFilter, setInViewOnly, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature, showSelectedDetails,
 } = await import('../geographic-layers.svelte');
 const { shell, closeAllTools } = await import('../shell.svelte');
 
@@ -40,10 +41,22 @@ const point = (id: string, lon: number, lat: number, properties: object = {}) =>
 function fakeRenderer(scene: Universe) {
   const events = new Map<string, (payload: unknown) => void>();
   const geographicVectors = new GeographicVectorLayer(scene, 1, (ref) => events.get('geographic:select')?.(ref));
-  const bodyMeshes = new Map([['Mars', { body: { geometryType: 'Globe' } }], ['Phobos', { body: { geometryType: 'Mesh' } }]]);
+  // Mars turns about its pole by `spin`; a resting camera 10,000 km out looks at it along +X.
+  const spin = new THREE.Quaternion();
+  const mars = { visible: true, body: { geometryType: 'Globe' }, position: new THREE.Vector3(), terrainDatum: null,
+    bodyToWorldQuaternion: (q: THREE.Quaternion) => q.copy(spin) };
+  const bodyMeshes = new Map<string, object>([['Mars', mars], ['Phobos', { body: { geometryType: 'Mesh' } }]]);
+  const camera = new THREE.PerspectiveCamera(60, 2, 1, 1e6);
+  camera.position.set(10000, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
+  const view = { bodyMeshes, camera, scaleFactor: 1, renderer: { domElement: { clientWidth: 800, clientHeight: 400 } } };
+  const projected: number[] = [];
   return {
-    geographicVectors,
-    getBodyMesh: (name: string) => bodyMeshes.get(name),
+    geographicVectors, spin, camera, projected, scaleFactor: 1, renderer: view.renderer,
+    getBodyMesh: (name: string) => bodyMeshes.get(name) as never,
+    projectGeographicPositions: (...args: Parameters<UniverseRenderer['projectGeographicPositions']>) => {
+      projected.push(args[1].length);
+      return UniverseRenderer.prototype.projectGeographicPositions.apply(view as unknown as UniverseRenderer, args);
+    },
     events: { on: (name: string, handler: (payload: unknown) => void) => { events.set(name, handler); return () => events.delete(name); } },
     emit: (name: string, payload: unknown) => events.get(name)?.(payload),
     /** What `begin()` does each frame: apply visibility/filter changes. */
@@ -187,6 +200,26 @@ describe('feature list search and filters', () => {
     closeTool('layers');
     expect(renderer!.geographicVectors.featureFilter('science')).toBeNull();
     expect(geo.sceneFilter).toBe(false);
+  });
+});
+
+describe('in view', () => {
+  it('follows the body turning under a resting camera, and does not project features past the horizon', () => {
+    browseLayer('science');
+    // Unturned, the camera looks at 0°E: the route (359–1°E) is in view, the targets near 77°E are past the horizon.
+    setInViewOnly(true);
+    expect(geo.inView).toEqual(new Set(['string:route']));
+    // Turn Mars so 77°E faces the camera; the camera itself does not move.
+    renderer!.spin.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -77.45 * Math.PI / 180);
+    vi.advanceTimersByTime(450);
+    expect(geo.inView).toEqual(new Set(['string:a', 'string:b']));
+    // Only the two targets (anchor and vertex each) were projected; the route was culled.
+    expect(renderer!.projected.at(-1)).toBe(4);
+    // Turn back: the targets leave and the route returns.
+    renderer!.spin.identity();
+    vi.advanceTimersByTime(450);
+    expect(geo.inView).toEqual(new Set(['string:route']));
+    setInViewOnly(false);
   });
 });
 
