@@ -37,6 +37,8 @@
     "test": "vitest run",
     "test:permalinks": "node scripts/test-view-permalinks.mjs",
     "test:instrument-window": "node scripts/test-instrument-window.mjs",
+    "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
+    "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",
@@ -44,7 +46,8 @@
     "validate:terrain": "node scripts/validate-terrain.mjs",
     "plan:surface": "tsc --build packages/core && node scripts/plan-surface.mjs",
     "test:dem": "python3 scripts/terrain/dem.py selftest",
-    "publish:data": "node scripts/publish-data.mjs"
+    "publish:data": "node scripts/publish-data.mjs",
+    "discover:surface": "tsc --build packages/core && node scripts/discover-surface.mjs"
   },
   "engines": {
     "node": ">=20"

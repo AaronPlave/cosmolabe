@@ -59,7 +59,7 @@ export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
 export type { BloomConfig } from './BloomEffect.js';
 export { StarField } from './StarField.js';
-export type { StarFieldOptions } from './StarField.js';
+export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';

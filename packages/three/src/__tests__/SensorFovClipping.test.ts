@@ -51,9 +51,10 @@ describe('SensorFovClipping (renderer-side owner)', () => {
     const { sampler, origin, directionAt, base } = scene();
     const clipping = new SensorFovClipping();
     clipping.begin(0, [0, 0, 0], [fakeMars(sampler)], atCenter);
+    const directionFor = (i: number) => (t: number) => directionAt(t + i / (base.length * 200));
     const sources: string[][] = [];
-    for (let i = 0; i < 40; i++) {
-      const samples = clipping.clipperFor(`Cam${i}`, 'target')(origin, directionAt, base, 1000);
+    for (let i = 0; i < 200; i++) {
+      const samples = clipping.clipperFor(`Cam${i}`, 'target')(origin, directionFor(i), base, 1000);
       expect(samples.every(s => s.hit?.candidateId === 'Mars')).toBe(true);
       // A sensor is terrain-clipped entirely or not at all: no seam mid-perimeter.
       sources.push([...new Set(samples.map(s => `${s.hit!.source}${s.hit!.fallback ? '+fallback' : ''}`))]);
@@ -68,10 +69,28 @@ describe('SensorFovClipping (renderer-side owner)', () => {
     // Next frame at the same epoch (paused): terrain results are reused at no
     // cost, so the budget now reaches sensors that were deferred last frame.
     clipping.begin(0, [0, 0, 0], [fakeMars(sampler)], atCenter);
-    for (let i = 0; i < firstDeferred; i++) clipping.clipperFor(`Cam${i}`, 'target')(origin, directionAt, base, 1000);
+    for (let i = 0; i < firstDeferred; i++) clipping.clipperFor(`Cam${i}`, 'target')(origin, directionFor(i), base, 1000);
     expect(clipping.terrainTrianglesThisFrame()).toBe(0);
-    const retried = clipping.clipperFor(`Cam${firstDeferred}`, 'target')(origin, directionAt, base, 1000);
+    const retried = clipping.clipperFor(`Cam${firstDeferred}`, 'target')(origin, directionFor(firstDeferred), base, 1000);
     expect(retried.every(s => s.hit?.source === 'terrain')).toBe(true);
+  });
+
+  it('shares terrain rays across overlapping instruments without spending the frame budget repeatedly', () => {
+    const { sampler, origin, directionAt, base } = scene();
+    const clipping = new SensorFovClipping();
+    clipping.begin(0, [0, 0, 0], [fakeMars(sampler)], atCenter);
+    const first = clipping.clipperFor('Cam0', 'target')(origin, directionAt, base, 1000);
+    const triangles = clipping.terrainTrianglesThisFrame();
+    expect(triangles).toBeGreaterThan(0);
+    for (let i = 1; i < 40; i++) {
+      const samples = clipping.clipperFor(`Cam${i}`, 'target')(origin, directionAt, base, 1000);
+      expect(samples).toEqual(first);
+      expect(clipping.terrainTrianglesThisFrame()).toBe(triangles);
+    }
+    // A new epoch must query the surface again, even with the same test rays.
+    clipping.begin(1, [0, 0, 0], [fakeMars(sampler)], atCenter);
+    clipping.clipperFor('Cam0', 'target')(origin, directionAt, base, 1000);
+    expect(clipping.terrainTrianglesThisFrame()).toBe(triangles);
   });
 
   it('ignores hidden bodies and the sensor\'s own body', () => {
