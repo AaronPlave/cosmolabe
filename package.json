@@ -43,7 +43,8 @@
     "validate:terrain": "node scripts/validate-terrain.mjs",
     "plan:surface": "tsc --build packages/core && node scripts/plan-surface.mjs",
     "test:dem": "python3 scripts/terrain/dem.py selftest",
-    "publish:data": "node scripts/publish-data.mjs"
+    "publish:data": "node scripts/publish-data.mjs",
+    "discover:surface": "tsc --build packages/core && node scripts/discover-surface.mjs"
   },
   "engines": {
     "node": ">=20"
