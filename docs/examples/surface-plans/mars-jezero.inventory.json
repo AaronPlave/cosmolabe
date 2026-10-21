@@ -1,0 +1,266 @@
+[
+  {
+    "descriptor": {
+      "id": "viking-mdim21-global",
+      "productId": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "nodata": "unknown",
+      "nativeGsdM": null,
+      "accuracyM": null,
+      "projection": "Simple cylindrical, planetocentric east-longitude; source pixel size varies",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "geodetic-normal"
+      },
+      "asset": {
+        "url": "https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.tif",
+        "version": "MDIM2.1"
+      },
+      "license": {
+        "name": "PDS archive—confirm reuse terms for downstream packaging",
+        "attribution": "USGS Astrogeology / NASA Viking Orbiter"
+      }
+    },
+    "kind": "controlled-mosaic",
+    "evidence": {
+      "url": "https://astrogeology.usgs.gov/search/map/mars_viking_colorized_global_mosaic_232m",
+      "footprint": "unknown",
+      "caveats": [
+        "Published global mosaic, but explicit valid-pixel geometry has not been ingested",
+        "232 m is output sampling; underlying source observations vary in resolution",
+        "Baked illumination differs across observations"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "mola-meg128-global",
+      "productId": "urn:nasa:pds:mgs_mola_topography_derived:data_meg128",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "nodata": "unknown",
+      "nativeGsdM": null,
+      "accuracyM": null,
+      "projection": "Global MOLA gridded topography 128 pixels per degree; individual tiles not resolved",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "geodetic-normal"
+      },
+      "asset": {
+        "retrieval": "PDS4 collection: resolve specific MEGT tile product before locking",
+        "version": "PDS4 MEG128 collection v1.0"
+      },
+      "license": {
+        "name": "PDS archive—confirm reuse terms for downstream packaging",
+        "attribution": "NASA GSFC / MGS MOLA / PDS Geosciences Node"
+      }
+    },
+    "kind": "gridded-elevation",
+    "evidence": {
+      "url": "https://pds-geosciences.wustl.edu/missions/mgs/megdr.html",
+      "footprint": "unknown",
+      "caveats": [
+        "Collection identifier, not a buildable individual product",
+        "Native sample spacing varies by latitude; counts/nodata must be inspected",
+        "Topography relative to areoid; datum transform not assumed"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "jezero-hirise-stereo-dtm",
+      "productId": "DTEEC_023524_1985_023379_1985_U01",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 1,
+      "accuracyM": null,
+      "projection": "Unconfirmed source projection; inspect primary label before build",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "geodetic-normal"
+      },
+      "asset": {
+        "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/DTEEC_023524_1985_023379_1985_U01.IMG",
+        "version": "2017-PDS-release",
+        "bytes": 700271460
+      },
+      "license": {
+        "name": "PDS archive—confirm reuse terms for downstream packaging",
+        "attribution": "NASA/JPL-Caltech/University of Arizona HiRISE (PDS archive)"
+      }
+    },
+    "kind": "stereo-dtm",
+    "evidence": {
+      "url": "https://hirise.lpl.arizona.edu/dtm/ESP_023524_1985",
+      "footprint": "unknown",
+      "caveats": [
+        "Published stereo DTM near 18.3 N, 77.53 E; map scale 1 m/pixel",
+        "DTM physical accuracy/vertical datum and valid raster coverage require label/raster inspection"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "jezero-hirise-red-ortho",
+      "productId": "ESP_023524_1985_RED_C_01_ORTHO",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 1.0096633268711,
+      "accuracyM": null,
+      "projection": "Equirectangular; planetocentric east; local spherical map radius in PDS label",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "geodetic-normal"
+      },
+      "asset": {
+        "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/ESP_023524_1985_RED_C_01_ORTHO.JP2",
+        "version": "1",
+        "bytes": 59563062
+      },
+      "license": {
+        "name": "PDS archive—confirm reuse terms for downstream packaging",
+        "attribution": "NASA/JPL-Caltech/University of Arizona HiRISE (PDS archive)"
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "label-envelope",
+            "properties": {
+              "source": "PDS3 label IMAGE_MAP_PROJECTION extent; not a pixel-validity mask"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.45290261,
+                    18.159317160581
+                  ],
+                  [
+                    77.59817341,
+                    18.159317160581
+                  ],
+                  [
+                    77.59817341,
+                    18.521550209326
+                  ],
+                  [
+                    77.45290261,
+                    18.521550209326
+                  ],
+                  [
+                    77.45290261,
+                    18.159317160581
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "kind": "orthoimage",
+    "evidence": {
+      "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/ESP_023524_1985_RED_C_01_ORTHO.LBL",
+      "footprint": "raster-envelope",
+      "caveats": [
+        "PDS label bounds describe image envelope; CORE_NULL=0 and validity mask not checked",
+        "Image is orthorectified against corresponding DTM; no independent registration/accuracy claimed"
+      ],
+      "footprintUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/ESP_023524_1985_RED_C_01_ORTHO.LBL"
+    }
+  }
+]
