@@ -6,7 +6,7 @@ import type { UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
   setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
-  toggleProbe, clearProbePin,
+  toggleProbe, clearProbePin, showNextInstrument,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell, openTool } from './shell.svelte';
@@ -56,16 +56,10 @@ function getBuiltinCommands(): Command[] {
     ...(vs.probePin ? [{ id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() }] : []),
 
     // Instrument
-    { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
-    // The old `I` behavior, kept explicit: step to the next sensor, in the
-    // window, rather than cycling through feeds nobody can see.
-    { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: (r) => {
-      const sensors = r.getSensorNames();
-      if (sensors.length === 0) return;
-      const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
-      vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
-      openTool('instrument');
-    }},
+    { id: 'instr:open', label: 'Open instrument view', category: 'Display', execute: () => openTool('instrument') },
+    // `I`: opens the window, then steps through sensors in it — never through
+    // feeds nobody can see.
+    { id: 'instr:cycle', label: 'Next instrument sensor', shortcut: 'I', category: 'Display', execute: () => showNextInstrument() },
   ];
 }
 

@@ -93,10 +93,14 @@ try {
     await page.waitForTimeout(1500);
     await page.evaluate(() => window.renderer.stop());
 
-    // `I` opens; a second press keeps it open (open/raise, not toggle).
-    await page.keyboard.press('i');
+    // `I` opens the window, then steps through sensors in it — never closes it.
     await page.keyboard.press('i');
     await win(page).waitFor();
+    await page.evaluate(() => window.renderer.renderFrame());
+    assert.equal((await info(page)).sensor, 'ISS NAC');
+    await page.keyboard.press('i');
+    await page.waitForFunction(() => window.renderer.getInstrumentViewInfo()?.sensor === 'ISS WAC');
+    await win(page).locator('select[aria-label="Instrument"]').selectOption('ISS NAC');
     await page.evaluate(() => window.renderer.renderFrame());
     assert.equal((await info(page)).sensor, 'ISS NAC');
     assert.ok(await feedSum(page) > 0, 'feed drawn into the window canvas');
@@ -217,7 +221,8 @@ try {
     await page.close();
   }
 
-  // ── Clipper: its sensors list, and a scene switch keeps the window ──
+  // ── Clipper: its sensors list; a scene switch keeps the window and starts
+  //    from the new scene's first instrument ──
   {
     const { page, errors } = await open('europa-clipper');
     await page.keyboard.press('i');
@@ -226,7 +231,8 @@ try {
     assert.deepEqual(options, ['EIS NAC', 'EIS WAC', 'MISE', 'E-THEMIS']);
     await page.evaluate(() => { history.pushState(null, '', '?catalog=test-catalogs/cassini-soi&test=1'); dispatchEvent(new PopStateEvent('popstate')); });
     await page.waitForFunction(() => window.renderer?.getSensorNames().includes('ISS NAC') && window.__cosmolabe.assetsReady, null, { timeout: 180000 });
-    await page.waitForFunction(() => document.querySelector('section.instrument')?.textContent.includes("isn't in this scene"));
+    await page.waitForFunction(() => document.querySelector('section.instrument select[aria-label="Instrument"]')?.value === 'ISS NAC');
+    await page.waitForFunction(() => window.renderer.getInstrumentViewInfo()?.sensor === 'ISS NAC');
     assert.deepEqual(errors, []);
     await page.close();
   }
