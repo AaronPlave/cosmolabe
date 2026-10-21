@@ -2,7 +2,7 @@
 // Browser regression for the Instrument View window (#192): composition and
 // z-order, clean scene captures, resize/DPR, sensor and script/scene
 // transitions, Escape over an expanded window, and the full-canvas camera mode.
-// Requires a running viewer (CL_VIEWER_URL) with the Cassini and Clipper test catalogs.
+// Requires a running viewer (CL_VIEWER_URL) with the Cassini, Clipper and LRO test catalogs.
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -233,6 +233,22 @@ try {
     await page.waitForFunction(() => window.renderer?.getSensorNames().includes('ISS NAC') && window.__cosmolabe.assetsReady, null, { timeout: 180000 });
     await page.waitForFunction(() => document.querySelector('section.instrument select[aria-label="Instrument"]')?.value === 'ISS NAC');
     await page.waitForFunction(() => window.renderer.getInstrumentViewInfo()?.sensor === 'ISS NAC');
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
+
+  // ── LRO: every sensor's FOV comes from its gzipped IK (LAMP's needs more
+  //    than getfov's customary 20 corners), not the 10° fallback ──
+  {
+    const { page, errors } = await open('lro-moon');
+    const fovs = await page.evaluate(() => {
+      const r = window.renderer;
+      return Object.fromEntries(['LAMP', 'Diviner', 'LEND', 'CRaTER'].map((n) => {
+        r.setInstrumentView(n);
+        return [n, r.getInstrumentViewInfo().fov.map((d) => +d.toFixed(2))];
+      }));
+    });
+    assert.deepEqual(fovs, { LAMP: [0.39, 9.64], Diviner: [4.04, 0.35], LEND: [5.6, 5.6], CRaTER: [65.9, 65.9] });
     assert.deepEqual(errors, []);
     await page.close();
   }

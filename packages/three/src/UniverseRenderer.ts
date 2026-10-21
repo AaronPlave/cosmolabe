@@ -38,7 +38,7 @@ import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { dskShapeProviderOf } from './DskShapeProvider.js';
-import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
+import { instrumentFovProviderOf, FOV_MAX_BOUNDS } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { geographicStatusPosition, geographicStatusText } from './geographic/GeographicStatus.js';
@@ -2083,7 +2083,7 @@ export class UniverseRenderer {
     const fovProvider = instrumentFovProviderOf(this.universe.spiceInstance);
     if (spiceId != null && fovProvider) {
       try {
-        const fov = fovProvider.getfov(spiceId);
+        const fov = fovProvider.getfov(spiceId, FOV_MAX_BOUNDS);
         fovBoundary = {
           shape: fov.shape,
           boresight: fov.boresight,
@@ -3946,7 +3946,7 @@ export class UniverseRenderer {
     if (!fovProvider) return;
 
     try {
-      const fov = fovProvider.getfov(spiceId);
+      const fov = fovProvider.getfov(spiceId, FOV_MAX_BOUNDS);
 
       // Cache the frame name for per-frame pxform calls (avoids calling getfov every frame)
       const fovFrame = fov.frame;
