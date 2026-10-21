@@ -97,7 +97,11 @@
     {#if info}
       <span title="Target">→ {info.target ?? 'no target'}</span>
       <span title="Live on the scene clock">Live · {vs.timeText}</span>
-      <span title="Sensor field of view. The image shows {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°, a small margin around it.">FOV {deg(info.fov[0])}° × {deg(info.fov[1])}°</span>
+      {#if info.fov}
+        <span title="Sensor field of view. The image shows {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°, a small margin around it.">FOV {deg(info.fov[0])}° × {deg(info.fov[1])}°</span>
+      {:else}
+        <span class="warn" title="Neither the catalog nor a loaded instrument kernel gives this sensor's field of view; the image shows a nominal {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°">FOV unknown</span>
+      {/if}
       <span title={POINTING[info.pointing].title} class:warn={info.pointing !== 'spice'}>{POINTING[info.pointing].text}</span>
     {/if}
   </div>

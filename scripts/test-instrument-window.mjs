@@ -249,6 +249,15 @@ try {
       }));
     });
     assert.deepEqual(fovs, { LAMP: [0.39, 9.64], Diviner: [4.04, 0.35], LEND: [5.6, 5.6], CRaTER: [65.9, 65.9] });
+    // A sensor with no catalog FOV and no IK says so rather than showing the fallback as fact.
+    await page.evaluate(() => {
+      const geo = window.renderer.sensorFrustums.get('LEND').body.geometryData;
+      geo.spiceId = -1; delete geo.horizontalFov; delete geo.verticalFov;
+    });
+    await page.keyboard.press('i');
+    await win(page).locator('select[aria-label="Instrument"]').selectOption('LEND');
+    await win(page).getByText('FOV unknown').waitFor();
+    assert.equal((await info(page)).fov, null);
     assert.deepEqual(errors, []);
     await page.close();
   }

@@ -2104,8 +2104,8 @@ export class UniverseRenderer {
    */
   getInstrumentViewInfo(): {
     sensor: string; spacecraft: string | null; target: string | null;
-    /** Sensor coverage, degrees. */
-    fov: [number, number];
+    /** Sensor coverage, degrees; null when neither the catalog nor an IK gives one. */
+    fov: [number, number] | null;
     /** Rendered image extent, degrees (coverage plus a small margin for SPICE boundaries). */
     viewFov: [number, number];
     pointing: 'spice' | 'target' | 'none';

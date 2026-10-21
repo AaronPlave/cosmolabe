@@ -107,6 +107,7 @@ export class InstrumentView {
   private layout: { surface: Rect; fit: Rect; image: Rect; clip: Rect } | null = null;
   private _pointing: 'spice' | 'target' | 'none' = 'none';
   private _fov: [number, number] = [0, 0];
+  private _fovKnown = false;
   private _viewFov: [number, number] = [0, 0];
   private _active = false;
   /** Instrument native aspect ratio (hFov / vFov). Used for letterboxing. */
@@ -187,8 +188,12 @@ export class InstrumentView {
 
   get active(): boolean { return this._active; }
   get sensorName(): string | undefined { return this.sensor?.body.name; }
-  /** The sensor's angular coverage, degrees [horizontal, vertical]: the SPICE boundary's extent, or the catalog FOV. */
-  get fov(): [number, number] { return this._fov; }
+  /**
+   * The sensor's angular coverage, degrees [horizontal, vertical]: the SPICE
+   * boundary's extent, or the catalog FOV. Null when neither gives one and the
+   * view falls back to a nominal 10°.
+   */
+  get fov(): [number, number] | null { return this._fovKnown ? this._fov : null; }
   /** Angular extent of the rendered image, degrees — the coverage plus padding when drawn from a SPICE boundary. */
   get viewFov(): [number, number] { return this._viewFov; }
   /** How the camera was pointed on the last update: SPICE attitude, aimed at the target, or not at all. */
@@ -217,9 +222,11 @@ export class InstrumentView {
     this.outline = null;
     this.fovCenterOffset = [0, 0];
     this._pointing = 'none';
+    this._fovKnown = false;
 
     if (sensor) {
       const geo = sensor.body.geometryData as Record<string, unknown> | undefined;
+      this._fovKnown = geo?.horizontalFov != null || (fovBoundary?.bounds.length ?? 0) >= 1;
       let hFov = (geo?.horizontalFov as number) ?? 10;
       let vFov = (geo?.verticalFov as number) ?? hFov;
       let padding = 1;
