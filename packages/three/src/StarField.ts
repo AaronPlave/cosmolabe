@@ -1,269 +1,189 @@
 import * as THREE from 'three';
+import { decodeStarCatalog, type DecodedStarCatalog } from './StarCatalog.js';
 
 export interface StarFieldOptions {
-  /** URL to the binary star catalog (stars.bin). If not provided, uses a random fallback. */
+  /** URL of the HYG STR2/legacy STAR catalog. Omit to show no stars, not random directions. */
   catalogUrl?: string;
-  /** Maximum point size in pixels (brightest stars). Default 3.5. */
+  /**
+   * Legacy size control. Now sets a single normalized optical PSF width for
+   * all stars, rather than linking magnitude to an invented visible disc.
+   * Defaults to 3.5 (sigma 0.875 CSS pixels).
+   */
   maxSize?: number;
-  /** Faintest magnitude to display. Default 6.5. */
+  /** Faintest apparent magnitude to decode (default: catalog limit). */
   magLimit?: number;
+  /**
+   * Provisional magnitude-zero linear-light signal in CSS-pixel units.
+   * This is a single normalization hook for #212's shared scene exposure, NOT
+   * a camera- or FOV-dependent star-specific auto exposure pipeline.
+   */
+  linearFluxScale?: number;
 }
 
+export type StarCatalogStatus =
+  | { state: 'unconfigured' }
+  | { state: 'loading'; url: string }
+  | { state: 'ready'; url: string; count: number; format: 'STR2' | 'STAR' }
+  | { state: 'error'; url: string; message: string };
+
 /**
- * Real star field using HYG catalog data with physically-based colors and brightness.
+ * HYG stars at infinity, with relative apparent-magnitude flux and a
+ * normalized Gaussian point-spread function (PSF) rather than visible disks.
  *
- * Star colors use black body chromaticity (pre-baked at build time from B-V index).
- * Brightness follows Pogson's law: flux = 10^(-m/2.5), giving correct logarithmic
- * dynamic range between bright and faint stars.
+ * m1 vs m2 in a common bandpass: F1/F2 = 10^(-0.4*(m1-m2)).
+ * STR2 B-V-derived RGB is only approximate chromaticity, not calibrated
+ * detector/spectral flux. The CSS-pixel integral of a star's pre-tone signal
+ * is relativeFlux * linearFluxScale, independent of DPR and subpixel phase.
+ * Unlike physical source radiance, this provisional signal normalization is
+ * intended to be connected to the common scene exposure policy in #212.
  *
- * Renders stars as a skybox: the vertex shader strips camera translation so
- * stars appear at infinity regardless of camera position.
+ * No Milky Way, twinkle, speculative stars, or Sun/bloom routing.
  */
 export class StarField extends THREE.Object3D {
-  private points: THREE.Points | null = null;
-  /** Daytime sky brightness 0..1; 1 fully hides stars, 0 leaves them at full intensity. */
+  private points: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
   private skyBrightness = 0;
-
-  /**
-   * Set daytime sky brightness 0..1. Multiplies star color by (1 - skyBrightness)
-   * so additive stars fade out under a bright atmosphere. Call once per frame
-   * before render.
-   */
-  setSkyBrightness(b: number): void {
-    this.skyBrightness = Math.max(0, Math.min(1, b));
-    if (this.points) {
-      const mat = this.points.material as THREE.ShaderMaterial;
-      mat.uniforms.uSkyBrightness.value = this.skyBrightness;
-    }
-  }
+  private fluxScale: number;
+  private readonly psfSigmaCss: number;
+  private requestId = 0;
+  private disposed = false;
+  private status: StarCatalogStatus = { state: 'unconfigured' };
 
   constructor(options: StarFieldOptions = {}) {
     super();
     this.renderOrder = -1000;
     this.frustumCulled = false;
+    this.fluxScale = StarField.safeFluxScale(options.linearFluxScale ?? 0.06);
+    const nominalSize = Number.isFinite(options.maxSize)
+      ? options.maxSize! : 3.5;
+    this.psfSigmaCss = Math.max(0.7, Math.min(2.5, nominalSize / 4));
 
-    if (options.catalogUrl) {
-      this.loadCatalog(options.catalogUrl, options);
-    } else {
-      this.buildRandom(options);
-    }
+    if (options.catalogUrl) void this.loadCatalog(options.catalogUrl, options);
   }
 
-  private async loadCatalog(url: string, options: StarFieldOptions): Promise<void> {
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      this.buildFromBinary(await resp.arrayBuffer(), options);
-    } catch (err) {
-      console.warn('[Cosmolabe] Failed to load star catalog, using random stars:', err);
-      this.buildRandom(options);
+  private static safeFluxScale(value: number): number {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error('StarField linear flux scale must be finite and nonnegative');
     }
+    return value;
   }
 
-  /**
-   * Parse binary star catalog.
-   * Supports v2 compact format (STR2 magic) and v1 legacy format (STAR magic).
-   */
-  private buildFromBinary(buffer: ArrayBuffer, options: StarFieldOptions): void {
-    const view = new DataView(buffer);
-    const magic = String.fromCharCode(
-      view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)
-    );
+  /** Metadata for diagnostics/UI; no random placeholder stars on failure. */
+  getCatalogStatus(): StarCatalogStatus {
+    return { ...this.status };
+  }
 
-    if (magic === 'STR2') {
-      this.parseCompactFormat(view, options);
-    } else if (magic === 'STAR') {
-      this.parseLegacyFormat(view, options);
-    } else {
-      console.warn('[Cosmolabe] Unknown star catalog format, using random stars');
-      this.buildRandom(options);
-    }
+  /** The fixed relative-flux normalization hook to be driven by #212. */
+  setLinearFluxScale(value: number): void {
+    this.fluxScale = StarField.safeFluxScale(value);
+    if (this.points) this.points.material.uniforms.uLinearFluxScale.value = value;
   }
 
   /**
-   * Parse v2 compact format (10 bytes/star, pre-baked black body colors).
-   * Header (16b): "STR2" + uint32 count + float32 magBright + float32 magFaint
-   * Per star (10b): 3×Int16 position + Uint8 magnitude + 3×Uint8 RGB
+   * Transitional scalar atmospheric attenuation, retained for compatibility.
+   * Replacing this with direction-dependent extinction is owned by #219.
    */
-  private parseCompactFormat(view: DataView, options: StarFieldOptions): void {
-    const count = view.getUint32(4, true);
-    const magBright = view.getFloat32(8, true);
-    const magFaint = view.getFloat32(12, true);
-    const maxSize = options.maxSize ?? 3.5;
-    const magLimit = options.magLimit ?? magFaint;
-    const HEADER = 16;
-    const STRIDE = 10;
-
-    // Filter stars within magnitude limit
-    const magRange = magFaint - magBright;
-    const magLimitNorm = magRange > 0 ? (magLimit - magBright) / magRange : 1;
-    let starCount = 0;
-    for (let i = 0; i < count; i++) {
-      if (view.getUint8(HEADER + i * STRIDE + 6) / 255 <= magLimitNorm) starCount++;
-    }
-
-    const positions = new Float32Array(starCount * 3);
-    const colors = new Float32Array(starCount * 3);
-    const mags = new Float32Array(starCount);
-    let idx = 0;
-
-    for (let i = 0; i < count; i++) {
-      const off = HEADER + i * STRIDE;
-      const magNorm = view.getUint8(off + 6) / 255;
-      if (magNorm > magLimitNorm) continue;
-
-      positions[idx * 3]     = view.getInt16(off, true) / 0x7FFF;
-      positions[idx * 3 + 1] = view.getInt16(off + 2, true) / 0x7FFF;
-      positions[idx * 3 + 2] = view.getInt16(off + 4, true) / 0x7FFF;
-      mags[idx] = magNorm;
-      colors[idx * 3]     = view.getUint8(off + 7) / 255;
-      colors[idx * 3 + 1] = view.getUint8(off + 8) / 255;
-      colors[idx * 3 + 2] = view.getUint8(off + 9) / 255;
-      idx++;
-    }
-
-    this.buildPoints(positions, colors, mags, idx, maxSize);
-    console.log(`[Cosmolabe] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magLimit.toFixed(1)})`);
-  }
-
-  /**
-   * Parse v1 legacy format (20 bytes/star: 5×Float32 x,y,z,mag,bv).
-   * Converts B-V to black body colors at load time.
-   */
-  private parseLegacyFormat(view: DataView, options: StarFieldOptions): void {
-    const count = view.getUint32(4, true);
-    const maxSize = options.maxSize ?? 3.5;
-    const magLimit = options.magLimit ?? 6.5;
-    const HEADER = 8;
-    const STRIDE = 20;
-
-    let magBright = 10;
-    let starCount = 0;
-    for (let i = 0; i < count; i++) {
-      const mag = view.getFloat32(HEADER + i * STRIDE + 12, true);
-      if (mag < -10 || mag > magLimit) continue;
-      if (mag < magBright) magBright = mag;
-      starCount++;
-    }
-
-    const magFaint = magLimit;
-    const magRange = magFaint - magBright;
-    const positions = new Float32Array(starCount * 3);
-    const colors = new Float32Array(starCount * 3);
-    const mags = new Float32Array(starCount);
-    let idx = 0;
-
-    for (let i = 0; i < count; i++) {
-      const off = HEADER + i * STRIDE;
-      const mag = view.getFloat32(off + 12, true);
-      if (mag < -10 || mag > magLimit) continue;
-
-      positions[idx * 3]     = view.getFloat32(off, true);
-      positions[idx * 3 + 1] = view.getFloat32(off + 4, true);
-      positions[idx * 3 + 2] = view.getFloat32(off + 8, true);
-      mags[idx] = magRange > 0 ? (mag - magBright) / magRange : 0;
-
-      const bv = view.getFloat32(off + 16, true);
-      const [r, g, b] = bvToBlackBodyRGB(isNaN(bv) ? 0.65 : bv);
-      colors[idx * 3] = r;
-      colors[idx * 3 + 1] = g;
-      colors[idx * 3 + 2] = b;
-      idx++;
-    }
-
-    this.buildPoints(positions, colors, mags, idx, maxSize);
-    console.log(`[Cosmolabe] StarField: ${idx} stars (mag ${magBright.toFixed(1)} to ${magFaint.toFixed(1)}), legacy format`);
-  }
-
-  private buildRandom(options: StarFieldOptions): void {
-    const count = 5000;
-    const maxSize = options.maxSize ?? 2.0;
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    const mags = new Float32Array(count);
-
-    for (let i = 0; i < count; i++) {
-      const theta = Math.random() * 2 * Math.PI;
-      const phi = Math.acos(2 * Math.random() - 1);
-      positions[i * 3] = Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = Math.cos(phi);
-      colors[i * 3] = 1;
-      colors[i * 3 + 1] = 1;
-      colors[i * 3 + 2] = 1;
-      mags[i] = Math.random();
-    }
-
-    this.buildPoints(positions, colors, mags, count, maxSize);
-  }
-
-  private buildPoints(
-    positions: Float32Array,
-    colors: Float32Array,
-    mags: Float32Array,
-    count: number,
-    maxSize: number,
-  ): void {
+  setSkyBrightness(value: number): void {
+    this.skyBrightness = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     if (this.points) {
-      this.points.geometry.dispose();
-      (this.points.material as THREE.Material).dispose();
-      this.remove(this.points);
+      this.points.material.uniforms.uSkyBrightness.value = this.skyBrightness;
     }
+  }
 
+  /**
+   * Load or reload a catalog. Old geometry is cleared at once so an invalid
+   * request never masquerades as a trusted sky. Async responses are guarded
+   * against disposal and out-of-order catalog reloads.
+   */
+  async loadCatalog(url: string, options: StarFieldOptions = {}): Promise<void> {
+    if (this.disposed) return;
+    const request = ++this.requestId;
+    this.clearPoints();
+    this.status = { state: 'loading', url };
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const decoded = decodeStarCatalog(await response.arrayBuffer(), options.magLimit);
+      if (this.disposed || request !== this.requestId) return;
+      this.buildPoints(decoded);
+      this.status = { state: 'ready', url, count: decoded.count, format: decoded.format };
+      console.info(`[Cosmolabe] StarField: ${decoded.count} HYG stars (${decoded.format})`);
+    } catch (err) {
+      if (this.disposed || request !== this.requestId) return;
+      const message = err instanceof Error ? err.message : String(err);
+      this.status = { state: 'error', url, message };
+      console.warn(`[Cosmolabe] Star catalog unavailable (${url}): ${message}. No stars rendered.`);
+    }
+  }
+
+  private buildPoints(data: DecodedStarCatalog): void {
+    if (data.count === 0) return;
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions.slice(0, count * 3), 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors.slice(0, count * 3), 3));
-    geometry.setAttribute('aMag', new THREE.BufferAttribute(mags.slice(0, count), 1));
+    geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+    geometry.setAttribute('aMagnitude', new THREE.BufferAttribute(data.magnitudes, 1));
 
     const material = new THREE.ShaderMaterial({
       uniforms: {
-        uMaxSize: { value: maxSize },
+        uSigmaCss: { value: this.psfSigmaCss },
+        uPixelRatio: { value: 1 },
+        uLinearFluxScale: { value: this.fluxScale },
         uSkyBrightness: { value: this.skyBrightness },
       },
       vertexShader: /* glsl */ `
-        attribute float aMag;
-        uniform float uMaxSize;
+        attribute float aMagnitude;
+        uniform float uSigmaCss;
+        uniform float uPixelRatio;
+        uniform float uLinearFluxScale;
         uniform float uSkyBrightness;
         varying vec3 vColor;
-        varying float vSkyFade;
+        varying float vSignal;
+        varying float vSigmaPx;
+        varying float vDiameterPx;
         void main() {
-          // aMag: 0 = brightest, 1 = faintest (normalized magnitude).
-          // Magnitude is already a log scale (each step = 2.512× flux),
-          // so linear-in-magnitude gives correct perceptual brightness on screen.
-          float t = 1.0 - aMag;
+          // Approximate V-band flux, represented in CSS pixel integral units.
+          // Divide packed chromaticity by its luminance so colors do not
+          // change the relative luminance-flux relationship.
+          float y = max(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.05);
+          vColor = color / y;
+          vSignal = uLinearFluxScale * pow(10.0, -0.4 * aMagnitude)
+                    * uPixelRatio * uPixelRatio * (1.0 - uSkyBrightness);
+          vSigmaPx = uSigmaCss * uPixelRatio;
+          // A 4-sigma footprint + guard pixels avoids clipping PSF energy.
+          // The hardware point size is *support*, not apparent star diameter.
+          vDiameterPx = ceil(8.0 * vSigmaPx + 2.0);
+          gl_PointSize = vDiameterPx;
 
-          // Brightness: linear ramp with floor so faintest stars remain visible
-          float brightness = 0.15 + 0.85 * t;
-
-          // Color: pre-baked spectral chromaticity × brightness
-          vColor = color * brightness;
-          vSkyFade = 1.0 - uSkyBrightness;
-
-          // Variable point size: cubic curve — only the brightest stars
-          // get noticeably larger, dim stars stay at minimum 2px.
-          gl_PointSize = 2.0 + (uMaxSize - 2.0) * t * t * t;
-
-          // Skybox: strip translation from modelView, keep only rotation.
-          // Stars are at infinity — camera movement doesn't affect them.
-          vec3 viewDir = mat3(modelViewMatrix) * position;
-          vec4 clipPos = projectionMatrix * vec4(viewDir, 1.0);
-          // Push to far plane so stars are always behind everything
-          clipPos.z = clipPos.w;
-          gl_Position = clipPos;
+          // Strip camera translation: directions are at infinity. Depth test
+          // against the real scene so limb/terrain/body silhouettes occlude.
+          vec3 direction = mat3(modelViewMatrix) * normalize(position);
+          vec4 clip = projectionMatrix * vec4(direction, 1.0);
+          if (clip.w <= 0.0) {
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            gl_PointSize = 0.0;
+          } else {
+            clip.z = clip.w;
+            gl_Position = clip;
+          }
         }
       `,
       fragmentShader: /* glsl */ `
         varying vec3 vColor;
-        varying float vSkyFade;
+        varying float vSignal;
+        varying float vSigmaPx;
+        varying float vDiameterPx;
         void main() {
-          // Soft circle via alpha — no discard, so no pixel-boundary flicker.
-          // Additive blending means black/transparent edges add nothing.
-          float d = length(gl_PointCoord - vec2(0.5));
-          float alpha = 1.0 - smoothstep(0.45, 0.5, d);
-          // Daytime sky fade: when camera is under a sunlit atmosphere, dim
-          // stars by (1 - skyBrightness). Additive blending means scaling vColor
-          // is enough — no need to also touch alpha.
-          gl_FragColor = vec4(vColor * alpha * vSkyFade, 1.0);
+          vec2 deltaPx = (gl_PointCoord - vec2(0.5)) * vDiameterPx;
+          float r2 = dot(deltaPx, deltaPx);
+          // Gaussian normalized to integral 1 over *physical* pixels.
+          // Sampled in a broad footprint for stable subpixel motion; vSignal
+          // includes DPR squared to preserve CSS-resolution integrated flux.
+          float kernel = exp(-0.5 * r2 / (vSigmaPx * vSigmaPx))
+                       / (6.28318530718 * vSigmaPx * vSigmaPx);
+          gl_FragColor = vec4(vColor * (vSignal * kernel), 1.0);
+          // Shared Three renderer output/tone convention, pending the full
+          // linear HDR intermediate and display contract in #212.
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
         }
       `,
       transparent: true,
@@ -271,52 +191,32 @@ export class StarField extends THREE.Object3D {
       depthTest: true,
       vertexColors: true,
       blending: THREE.AdditiveBlending,
+      toneMapped: true,
     });
 
-    this.points = new THREE.Points(geometry, material);
-    this.points.frustumCulled = false;
-    this.add(this.points);
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.renderOrder = -1000;
+    // Once per draw, not once per star. Supports live DPR changes as well as
+    // alternate viewers rendering through the same material.
+    points.onBeforeRender = renderer => {
+      material.uniforms.uPixelRatio.value = Math.max(1, renderer.getPixelRatio());
+    };
+    this.points = points;
+    this.add(points);
+  }
+
+  private clearPoints(): void {
+    if (!this.points) return;
+    this.points.geometry.dispose();
+    this.points.material.dispose();
+    this.remove(this.points);
+    this.points = null;
   }
 
   dispose(): void {
-    if (this.points) {
-      this.points.geometry.dispose();
-      (this.points.material as THREE.Material).dispose();
-    }
+    this.disposed = true;
+    ++this.requestId;
+    this.clearPoints();
   }
-}
-
-/**
- * B-V color index → linear sRGB unit chromaticity via black body radiation.
- * Used for legacy v1 format conversion at load time.
- */
-function bvToBlackBodyRGB(bv: number): [number, number, number] {
-  const bvClamped = Math.max(-0.4, Math.min(2.0, bv));
-  const T = 4600 * (1 / (0.92 * bvClamped + 1.7) + 1 / (0.92 * bvClamped + 0.62));
-
-  const T2 = T * T;
-  const u = (0.860117757 + 1.54118254e-4 * T + 1.28641212e-7 * T2) /
-            (1 + 8.42420235e-4 * T + 7.08145163e-7 * T2);
-  const v = (0.317398726 + 4.22806245e-5 * T + 4.20481691e-8 * T2) /
-            (1 - 2.89741816e-5 * T + 1.61456053e-7 * T2);
-
-  const denom = 2 * u - 8 * v + 4;
-  const x = (3 * u) / denom;
-  const y = (2 * v) / denom;
-
-  const Y = 1;
-  const X = y > 0 ? (x * Y) / y : 0;
-  const Z = y > 0 ? ((1 - x - y) * Y) / y : 0;
-
-  let r =  3.2406255 * X - 1.5372080 * Y - 0.4986286 * Z;
-  let g = -0.9689307 * X + 1.8757561 * Y + 0.0415175 * Z;
-  let b =  0.0557101 * X - 0.2040211 * Y + 1.0569959 * Z;
-
-  r = Math.max(0, r);
-  g = Math.max(0, g);
-  b = Math.max(0, b);
-
-  const maxC = Math.max(r, g, b);
-  if (maxC > 0) return [r / maxC, g / maxC, b / maxC];
-  return [1, 1, 1];
 }
