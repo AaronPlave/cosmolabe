@@ -44,6 +44,7 @@ export class StarField extends THREE.Object3D {
   private skyBrightness = 0;
   private fluxScale: number;
   private readonly psfSigmaCss: number;
+  private readonly magLimit: number | undefined;
   private requestId = 0;
   private disposed = false;
   private status: StarCatalogStatus = { state: 'unconfigured' };
@@ -53,6 +54,7 @@ export class StarField extends THREE.Object3D {
     this.renderOrder = -1000;
     this.frustumCulled = false;
     this.fluxScale = StarField.safeFluxScale(options.linearFluxScale ?? 0.06);
+    this.magLimit = options.magLimit;
     const nominalSize = Number.isFinite(options.maxSize)
       ? options.maxSize! : 3.5;
     this.psfSigmaCss = Math.max(0.7, Math.min(2.5, nominalSize / 4));
@@ -93,6 +95,8 @@ export class StarField extends THREE.Object3D {
    * Load or reload a catalog. Old geometry is cleared at once so an invalid
    * request never masquerades as a trusted sky. Async responses are guarded
    * against disposal and out-of-order catalog reloads.
+   * An omitted magnitude limit reuses the constructor's limit; a per-load
+   * override applies only to that request.
    */
   async loadCatalog(url: string, options: StarFieldOptions = {}): Promise<void> {
     if (this.disposed) return;
@@ -102,7 +106,7 @@ export class StarField extends THREE.Object3D {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const decoded = decodeStarCatalog(await response.arrayBuffer(), options.magLimit);
+      const decoded = decodeStarCatalog(await response.arrayBuffer(), options.magLimit ?? this.magLimit);
       if (this.disposed || request !== this.requestId) return;
       this.buildPoints(decoded);
       this.status = { state: 'ready', url, count: decoded.count, format: decoded.format };

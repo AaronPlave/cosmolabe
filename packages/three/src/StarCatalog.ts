@@ -15,6 +15,11 @@ export interface DecodedStarCatalog {
 }
 
 const MAX_STARS = 1_000_000;
+// Rounding each unit-vector component to int16 adds at most half a step.
+// The reverse triangle inequality bounds the resulting length error by
+// sqrt(3) half-steps. Legacy float32 directions need only rounding slack.
+const COMPACT_DIRECTION_TOLERANCE = Math.sqrt(3) / (2 * 0x7fff) + 1e-7;
+const LEGACY_DIRECTION_TOLERANCE = 1e-6;
 
 /** Relative flux within a common bandpass: m+2.5 has one tenth the flux. */
 export function magnitudeToRelativeFlux(magnitude: number): number {
@@ -82,7 +87,8 @@ export function decodeStarCatalog(buffer: ArrayBuffer, magLimit?: number): Decod
     const y = compact ? view.getInt16(o + 2, true) / 0x7fff : view.getFloat32(o + 4, true);
     const z = compact ? view.getInt16(o + 4, true) / 0x7fff : view.getFloat32(o + 8, true);
     const n = Math.hypot(x, y, z);
-    if (!Number.isFinite(n) || n < 0.5 || n > 1.5) {
+    const tolerance = compact ? COMPACT_DIRECTION_TOLERANCE : LEGACY_DIRECTION_TOLERANCE;
+    if (!Number.isFinite(n) || Math.abs(n - 1) > tolerance) {
       throw new Error(`Invalid star direction at record ${i}`);
     }
     const magnitude = compact
