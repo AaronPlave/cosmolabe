@@ -12,7 +12,6 @@
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
-  import GoToCoordinates from './components/GoToCoordinates.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
@@ -204,7 +203,7 @@
     if (commandPaletteOpen) return;
     // Likewise the catalog browser, which also handles its own Escape and
     // marks it handled, so the Escape does not go on to dismiss a panel too.
-    if (shell.catalogBrowserOpen || shell.coordinatesOpen || e.defaultPrevented) return;
+    if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
     // Text entry of any kind, contenteditable included — the script editor is
     // one, and a bare `t` typed into it must not toggle trajectories.
@@ -640,7 +639,6 @@
     {/if}
 
     <CommandPalette open={commandPaletteOpen} onClose={() => commandPaletteOpen = false} />
-    <GoToCoordinates bind:open={shell.coordinatesOpen} onClose={() => shell.coordinatesOpen = false} />
 
     {#if contextMenu}
       <ContextMenu

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CameraModeName } from '@cosmolabe/three';
   import type { PluginOverlay } from '@cosmolabe/three';
-  import { vs, clearLookAt, getRenderer, stopFlight } from '../lib/viewer-state.svelte';
+  import { vs, clearLookAt, getRenderer, stopFlight, releaseSurfaceTarget } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
 
   const frameLabel = $derived.by(() => {
@@ -75,6 +75,11 @@
         class="context-value truncate"
         title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
       >{t.coordinates}</span>
+      <!-- Lets go of the point: no pivot or terrain following; the camera,
+           tracking, selection and time stay as they are. -->
+      <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
+        <X size={12} />
+      </button>
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
     <span class="context-label">Frame</span>

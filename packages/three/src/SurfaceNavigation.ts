@@ -7,9 +7,10 @@
  * renderer's display radius.
  */
 import * as THREE from 'three';
-import { refineWithTerrain, type NavigationBodyShape, type SurfaceNavigationTarget, type SurfacePoint } from '@cosmolabe/core';
+import { refineWithTerrain, surfacePointTarget, type NavigationBodyShape, type SurfaceNavigationTarget, type SurfacePoint } from '@cosmolabe/core';
 import type { BodyMesh } from './BodyMesh.js';
 import type { SurfacePose } from './controls/CameraController.js';
+import { coordinateDecimals, formatLatitude, formatLongitude } from './SceneHit.js';
 
 type Vec3 = [number, number, number];
 
@@ -82,17 +83,14 @@ export const SURFACE_ZOOM_FRACTION = 0.25;
 export const SURFACE_ZOOM_MIN_RANGE_KM = 0.01;
 
 /**
- * "Zoom to here": the camera moved along its own line of sight to `point`,
- * a quarter of the way out from the point (never nearer than 10 m), the view
- * direction and up kept. That segment is the ray the point was seen along,
- * so the new position is clear of the surface by construction; no flight
- * over the globe is needed. Already nearer than that, the camera stays and
- * only pivots on the point. Null when the point is not on `bm`, or is a DSK
- * pick (`surfaceNavigable`).
+ * The camera on its own line of sight to `point`, at a range chosen from the
+ * current one (both scene units), keeping the view direction and up. Null
+ * when the point is not on `bm`, is a DSK pick (`surfaceNavigable`), or the
+ * camera is on it.
  */
-export function zoomTowardSurfacePoint(
+function alongLineOfSight(
   bm: BodyMesh, camera: THREE.Camera, point: SurfacePoint, scaleFactor: number,
-  fraction = SURFACE_ZOOM_FRACTION,
+  rangeFrom: (current: number) => number,
 ): SurfacePose | null {
   if (point.bodyName !== bm.body.name || !surfaceNavigable(point)) return null;
   const inv = bm.mesh.quaternion.clone().invert();
@@ -101,14 +99,59 @@ export function zoomTowardSurfacePoint(
   const back = eye.clone().sub(target);
   const range = back.length();
   if (!(range > 0) || !Number.isFinite(range)) return null;
-  const minRange = SURFACE_ZOOM_MIN_RANGE_KM * scaleFactor;
-  // Already that close: stay, and only re-anchor on the point.
-  const next = Math.min(range, Math.max(minRange, range * fraction));
   return {
-    position: target.clone().addScaledVector(back, next / range),
+    position: target.clone().addScaledVector(back, rangeFrom(range) / range),
     target,
     up: camera.up.clone().applyQuaternion(inv).normalize(),
   };
+}
+
+/**
+ * "Zoom to here": the camera moved along its own line of sight to `point`,
+ * a quarter of the way out from the point (never nearer than 10 m), the view
+ * direction and up kept. Incremental by design, so each use comes closer.
+ * That segment is the ray the point was seen along, so the new position is
+ * clear of the surface by construction; no flight over the globe is needed.
+ * Already nearer than that, the camera stays and only pivots on the point.
+ * Null when the point is not on `bm`, or is a DSK pick (`surfaceNavigable`).
+ */
+export function zoomTowardSurfacePoint(
+  bm: BodyMesh, camera: THREE.Camera, point: SurfacePoint, scaleFactor: number,
+  fraction = SURFACE_ZOOM_FRACTION,
+): SurfacePose | null {
+  const minRange = SURFACE_ZOOM_MIN_RANGE_KM * scaleFactor;
+  return alongLineOfSight(bm, camera, point, scaleFactor, (range) => Math.min(range, Math.max(minRange, range * fraction)));
+}
+
+/**
+ * "Frame here" / "Fly to here": the camera on its line of sight to `point`
+ * at a fixed `rangeKm` (core's `pointFrameRangeKm` by default), view
+ * direction and up kept. Idempotent: framed once, the line of sight is the
+ * same and so is the range, so framing again does not move the camera.
+ * Further out than the camera is, the eye goes back along the same ray it
+ * saw the point by, which leaves the ground behind it. Null as for
+ * `zoomTowardSurfacePoint`.
+ */
+export function frameSurfacePoint(
+  bm: BodyMesh, camera: THREE.Camera, point: SurfacePoint, scaleFactor: number, rangeKm: number,
+): SurfacePose | null {
+  if (!(Number.isFinite(rangeKm) && rangeKm > 0)) return null;
+  return alongLineOfSight(bm, camera, point, scaleFactor, () => rangeKm * scaleFactor);
+}
+
+/**
+ * `point` as a latitude, longitude pair to paste: "18.4447° N, 77.4508° E",
+ * with the decimals its pick resolution justifies (`coordinateDecimals`).
+ * Always planetocentric and east-positive, the coordinate input's defaults,
+ * so it pastes back into "Go to coordinates" at the same place; a geodetic
+ * pick is converted rather than copied under a convention the paste would
+ * not know.
+ */
+export function surfacePointCoordinatePair(point: SurfacePoint): string {
+  const d = coordinateDecimals(point);
+  const lat = surfacePointTarget(point).latCentricDeg;
+  const lon = ((point.lonDeg + 540) % 360) - 180;
+  return `${formatLatitude(lat, d.lat)}, ${formatLongitude(lon === -180 ? 180 : lon, d.lon)}`;
 }
 
 /** The terrain a `SurfaceTerrainAnchor` follows: a body's CPU terrain. */

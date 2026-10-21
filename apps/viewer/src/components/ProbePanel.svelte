@@ -94,10 +94,10 @@
          not re-entered coordinates. Separate from measuring. -->
     {#if surfaceNavigable(point)}
     <div class="mt-3 flex gap-1.5">
-      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: true, from: 'pin' })} title="Fly closer and orbit about this point">
+      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: true, from: 'pin', verb: 'frame' })} title="Fly to a local view of this point and orbit about it">
         <Navigation size={13} /> Fly to here
       </Button>
-      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: false, from: 'pin' })} title="Cut closer and orbit about this point">
+      <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => navigateToSurfacePoint(point, { animate: false, from: 'pin', verb: 'frame' })} title="Cut to a local view of this point and orbit about it">
         <Maximize size={13} /> Frame here
       </Button>
     </div>

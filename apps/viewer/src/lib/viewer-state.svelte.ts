@@ -6,14 +6,14 @@
  * whose properties are mutated. We use the latter.
  */
 import {
-  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement,
+  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
   type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
-  CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint,
+  CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
 } from '@cosmolabe/three';
 import * as THREE from 'three';
@@ -1104,23 +1104,38 @@ export function goToCoordinates(
 }
 
 /**
+ * How a picked surface point is navigated to (#190):
+ * - `zoom` ("Zoom to here"): a quarter of the way in along the line of
+ *   sight, incremental, so each use comes closer.
+ * - `frame` ("Frame here", "Fly to here"): a fixed range from the point for
+ *   its body (`pointFrameRangeKm`), idempotent, so using it twice does not
+ *   move again.
+ */
+export type SurfacePointVerb = 'zoom' | 'frame';
+
+/**
  * Navigate to a picked surface point (#127's `SurfacePoint`, from the scene
- * hit or the pinned probe): along the line of sight to it — "Zoom to here"
- * cuts, "Fly to here" animates — keeping the view direction, with the point
- * as the orbit pivot.
+ * hit or the pinned probe), keeping the view direction, with the point as
+ * the orbit pivot: `zoom` incrementally or `frame` at a fixed range
+ * (`SurfacePointVerb`); `animate` flies, otherwise it cuts.
  *
  * A point just clicked in the scene (`from: 'click'`) was seen along that
  * line, so the line is clear. A pinned probe point may since have turned
  * away; it gets the line only while it faces the camera, and otherwise an
- * overhead view by an arc around the body.
+ * overhead view at the same range by an arc around the body.
  */
-export function navigateToSurfacePoint(point: SurfacePoint, opts: { animate?: boolean; from?: 'click' | 'pin' } = {}): boolean {
+export function navigateToSurfacePoint(
+  point: SurfacePoint,
+  opts: { animate?: boolean; from?: 'click' | 'pin'; verb?: SurfacePointVerb } = {},
+): boolean {
   if (!_renderer || !surfaceNavigable(point)) return false;
   const bm = navigableMesh(point.bodyName);
   if (!bm) return false;
   _terrainAnchor = null;
   const target = surfacePointTarget(point);
   const sf = _renderer.scaleFactor;
+  const verb = opts.verb ?? 'frame';
+  const rangeKm = pointFrameRangeKm(target.scaleKm);
   let clear = opts.from === 'click';
   if (!clear) {
     const inv = bm.mesh.quaternion.clone().invert();
@@ -1130,14 +1145,32 @@ export function navigateToSurfacePoint(point: SurfacePoint, opts: { animate?: bo
     const facing = toEye[0] * target.up[0] + toEye[1] * target.up[1] + toEye[2] * target.up[2];
     clear = facing > 0.2 * Math.hypot(...toEye);
   }
-  const pose = clear ? zoomTowardSurfacePoint(bm, _renderer.camera, point, sf) : null;
-  if (!pose) return navigateToSurfaceTarget(target, { preset: 'overhead', animate: opts.animate }).ok;
+  const pose = !clear ? null
+    : verb === 'zoom' ? zoomTowardSurfacePoint(bm, _renderer.camera, point, sf)
+    : frameSurfacePoint(bm, _renderer.camera, point, sf, rangeKm);
+  if (!pose) return navigateToSurfaceTarget(target, { preset: 'overhead', animate: opts.animate, rangeKm }).ok;
   const cc = _renderer.cameraController;
   if (opts.animate) cc.flyToSurface(bm, pose, { path: 'line' });
   else cc.jumpToSurface(bm, pose);
   syncCameraState();
   vs.surfaceTarget = describeTarget(target, undefined, point);
   return true;
+}
+
+/**
+ * Clear the surface target (#190): no pivot on the ground, no terrain
+ * following, no Target readout. The camera keeps its position and view
+ * direction and keeps tracking the body; a flight still on its way stops
+ * where it is. Selection, time and panels are untouched. False when there
+ * was no target.
+ */
+export function releaseSurfaceTarget(): boolean {
+  const cc = _renderer?.cameraController;
+  _terrainAnchor = null;
+  const had = vs.surfaceTarget !== null || !!cc?.surfaceNavigating;
+  vs.surfaceTarget = null;
+  if (cc?.releaseSurface()) syncCameraState();
+  return had;
 }
 
 /** Release the tracked object. The camera stays where it is. */

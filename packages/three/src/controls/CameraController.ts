@@ -322,6 +322,16 @@ export class CameraController {
   private _surfacePivot: { body: BodyMesh; local: THREE.Vector3; lastQuat: THREE.Quaternion } | null = null;
   /** A pivot to install with the origin switch a surface flight lands with. */
   private _pendingSurfacePivot: THREE.Vector3 | null = null;
+  /**
+   * What a released surface target leaves (`releaseSurface`): the tracked
+   * body's orbit point kept off its centre, as a world-frame offset in scene
+   * units, so the view stays where it was. It translates with the body but
+   * does not turn with it, as the pivot did. Free orbit only; dropped by any
+   * other navigation and when the body stops being tracked.
+   */
+  private _orbitOffset: { body: BodyMesh; offset: THREE.Vector3 } | null = null;
+  /** An offset to install with the origin switch a released flight lands with. */
+  private _pendingOrbitOffset: THREE.Vector3 | null = null;
 
   /**
    * Navigation input from the person since the last `update()`: a drag past
@@ -679,6 +689,38 @@ export class CameraController {
   private _clearSurfacePivot(): void {
     this._surfacePivot = null;
     this._pendingSurfacePivot = null;
+    this._orbitOffset = null;
+    this._pendingOrbitOffset = null;
+  }
+
+  /**
+   * Let go of surface navigation without moving the camera: no pivot on the
+   * ground, no flight still heading there, nothing for terrain to retarget.
+   * The camera keeps its world position and view direction, and keeps
+   * tracking the body: the orbit point stays where it was on the line of
+   * sight (`_orbitOffset`) and follows the body from there, rather than
+   * snapping the view round to its centre. A flight stops where it is, and
+   * tracks its body as it would have on landing. False when there was no
+   * surface navigation to release.
+   */
+  releaseSurface(): boolean {
+    if (!this.surfaceNavigating) return false;
+    const flight = this._anim?.surface;
+    const pivot = this._surfacePivot;
+    const pendingPivot = this._pendingSurfacePivot;
+    const landing = this._pendingOriginSwitch;
+    this._clearSurfacePivot();
+    if (flight) {
+      this.cancelAnimation();
+      this._pendingOriginSwitch = flight.body;
+      this._pendingOrbitOffset = this.controls.target.clone().sub(flight.body.position);
+    } else if (pendingPivot && landing) {
+      this._pendingOrbitOffset = pendingPivot.applyQuaternion(landing.mesh.quaternion);
+    } else if (pivot && this._activeMode.name === CameraModeName.FREE_ORBIT && this._trackTarget === pivot.body) {
+      this._orbitOffset = { body: pivot.body, offset: this.controls.target.clone().sub(pivot.body.position) };
+    }
+    // A co-rotating frame already holds the target where it is.
+    return true;
   }
 
   /**
@@ -1446,13 +1488,19 @@ export class CameraController {
 
     const pivot = this._pendingSurfacePivot;
     this._pendingSurfacePivot = null;
+    const offset = this._pendingOrbitOffset;
+    this._pendingOrbitOffset = null;
+    // Under the new origin the body is at the origin (or still where it was
+    // drawn, when it already was the origin).
+    const center = wasAlreadyOrigin ? bodyPos : new THREE.Vector3();
     if (pivot) {
-      // Under the new origin the body is at the origin (or still where it was
-      // drawn, when it already was the origin).
-      const center = wasAlreadyOrigin ? bodyPos : new THREE.Vector3();
       this.controls.target.copy(pivot).applyQuaternion(body.mesh.quaternion).add(center);
       this._prevTargetPos.copy(this.controls.target);
       this._surfacePivot = { body, local: pivot, lastQuat: body.mesh.quaternion.clone() };
+    } else if (offset) {
+      this.controls.target.copy(offset).add(center);
+      this._prevTargetPos.copy(this.controls.target);
+      if (this._activeMode.name === CameraModeName.FREE_ORBIT) this._orbitOffset = { body, offset };
     }
 
     // Defer mode-state resync to after body positions are recomputed under
@@ -1932,7 +1980,9 @@ export class CameraController {
     // shifted off-origin by the renderer's terrain clamp — read bm.position
     // directly so the camera always looks at the body's rendered position.
     if (this._surfacePivot && this._surfacePivot.body !== this._trackTarget) this._surfacePivot = null;
+    if (this._orbitOffset && this._orbitOffset.body !== this._trackTarget) this._orbitOffset = null;
     const pivot = this._surfacePivot;
+    const offCentre = pivot !== null || this._orbitOffset !== null;
     if (pivot) {
       // Turn with the body so the ground under the pivot stays put on
       // screen, then hold the pivot on it.
@@ -1945,6 +1995,7 @@ export class CameraController {
       this.controls.target.copy(pivot.local).applyQuaternion(q).add(center);
     } else if (this._trackTarget) {
       this.controls.target.copy(this._trackTarget.position);
+      if (this._orbitOffset) this.controls.target.add(this._orbitOffset.offset);
     }
 
     // Surface clamp via TrackballControls is camera-to-*target* distance, which
@@ -1956,7 +2007,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    this._updateMinDistance(pivot ? null : this._trackTarget);
+    this._updateMinDistance(offCentre ? null : this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom
@@ -1987,7 +2038,7 @@ export class CameraController {
     // `clampCameraAboveSurfaces` does a proper terrain sample and handles the
     // "below reference but above actual terrain" case (Jezero, Hellas, etc.)
     // that this static reference-radius guard would otherwise break.
-    if (clampBody) this._guardSurface(clampBody, pivot !== null);
+    if (clampBody) this._guardSurface(clampBody, offCentre);
   }
 
   /**

@@ -156,9 +156,10 @@ It is hidden when the camera is in free orbit, tracking nothing and not flying.
 | Command palette — "Frame tracked body" | Frame |
 | <kbd>Esc</kbd>, view context ×, "Stop camera flight" | Stop the flight |
 | Display settings — viewpoint list | Fly to the viewpoint (one that tracks a body is placed at once; `viewpoint` in a script always jumps) |
-| Tool rail — map pin, or command palette — "Go to coordinates…" | Fly or Jump to a latitude/longitude on a body ([surface navigation](#surface-navigation)) |
-| Scene — right-click a surface | Zoom to here, Fly to here (beside the body's own actions) |
-| Point probe panel — Fly to here, Frame here; palette "Fly to probed point" | Fly or Jump to the pinned point |
+| Tool rail — Navigate (map pin), or command palette — "Go to coordinates…" | Fly or Jump to a latitude/longitude on a body ([surface navigation](#surface-navigation)) |
+| Scene — right-click a surface | Zoom to here (a step closer), Fly to here (a fixed local view), Copy coordinates |
+| Point probe panel — Fly to here, Frame here; palette "Fly to probed point" | Fly or Jump to a fixed local view of the pinned point |
+| View context — × beside Target | Clear the surface target; the camera stays |
 | Scripts and `ViewerControl` | All of the above by name |
 
 ## Surface navigation
@@ -167,16 +168,23 @@ Fly and Jump also take a **place on a body** rather than the body as a whole
 (#190). The place is the target — what the camera looks at and then orbits —
 never the camera's own position. Three surfaces name one:
 
-- **Go to coordinates…** (the map pin on the tool rail, beside Camera mode, in
-  both the side and the compact bottom rail; the command palette;
-  `gotoCoordinates` in a script and on `ViewerControl`): a body and one *Coordinates* field that takes a pasted
+- **Navigate** (the map pin among the tool rail's panels, in both the side
+  and the compact bottom rail; "Go to coordinates…" in the command palette;
+  `gotoCoordinates` in a script and on `ViewerControl`): a tool panel, so it
+  docks, floats, minimizes and stays open beside the scene after Jump or Fly
+  for trying the next place or view (on a phone the sheet minimizes, values
+  kept, so the scene shows). A body and one *Coordinates* field that takes a pasted
   pair — `18.4447, 77.4508`, `18.4447° N, 77.4508° E`, `77.4508E 18.4447N`.
   N/S and E/W letters mark which number is which, in either order; an
   unlettered pair is read latitude first unless *Lon, Lat* is chosen (GeoJSON
   and GIS order) — never guessed from the values. The conventions are
-  explicit and on screen: planetocentric or planetographic latitude, east- or
-  west-positive longitude, either −180…180 or 0…360. The dialog shows how it
-  read the pair before anything moves. Then a view:
+  explicit: the active ones (order, planetocentric or planetographic
+  latitude, east- or west-positive longitude, either −180…180 or 0…360) are
+  stated under the field and changed under *Advanced*. A pair that resolves
+  gets one quiet line naming the place, plus how it was read when that is not
+  obvious (by its letters, west-positive); errors and warnings — terrain not
+  loaded there yet, a pole — are always shown, and where the height comes
+  from is under *Details*. Then a view:
   - **Overhead** — straight down the surface normal, north up;
   - **Oblique** — 50° off vertical, from the south;
   - **Surface** — at a person's eye height (2 m; less on a body a few km
@@ -184,18 +192,31 @@ never the camera's own position. Three surfaces name one:
 
   Distances scale with the body; *Advanced* overrides the altitude or slant
   range (km) or the eye height (m).
-- **Right-click a surface** in the scene: **Zoom to here** cuts, and **Fly to
-  here** flies, along the line of sight the point was clicked on, a quarter
-  of the way out from it. That line is clear by construction, so neither
-  goes round the globe, and neither changes the camera frame. The menu offers
+- **Right-click a surface** in the scene, both along the line of sight the
+  point was clicked on, keeping the view direction:
+  - **Zoom to here** cuts a quarter of the way in, each time: incremental,
+    for closing in step by step.
+  - **Fly to here** flies to a **fixed local view** of the point: a
+    hundredth of the body's radius away (`pointFrameRangeKm`: 64 km on
+    Earth, 34 km on Mars, 17 km on the Moon and Europa; 0.5–500 km).
+    Idempotent — a second use lands in the same place, it does not zoom
+    again. For another distance, Navigate's *Advanced* range.
+  - **Copy coordinates** copies `18.4447° N, 77.4508° E`: planetocentric,
+    east-positive, to the precision the pick resolves, which pastes back into
+    Navigate at the same place. The full readout (elevation, datum,
+    provenance) is the Point Probe's, not the menu's.
+
+  The line of sight is clear by construction, so neither goes round the
+  globe, and neither changes the camera frame. The menu offers
   them only when the shared scene hit (#127) found a surface; a click into
   space or on a spacecraft gets the ordinary menu. A right-drag is still
   free look and opens no menu. A DSK shape model's surface is not offered
   yet: its picks are in the model's own frame, which surface navigation does
   not handle (#107).
-- **The pinned Point Probe**: *Fly to here* / *Frame here* go to the same
-  surface point, without re-entering it — along the line of sight while the
-  point faces the camera, otherwise overhead.
+- **The pinned Point Probe**: *Fly to here* flies and *Frame here* cuts to
+  the same fixed local view of the pinned point, without re-entering it —
+  along the line of sight while the point faces the camera, otherwise
+  overhead at that range. Both are idempotent.
 
 Where it lands:
 
@@ -239,7 +260,12 @@ How it moves:
   flight.
 - Time, the selection and measurements do not change. The view context shows
   **Target** with the place's coordinates (its tooltip: conventions and what
-  surface it is on).
+  surface it is on). Its **×** (*Clear surface target*) lets go of the place
+  without moving the camera: no pivot, no terrain following, no readout; the
+  camera keeps its position and view direction and keeps tracking the body,
+  orbiting from where the pivot was (which no longer turns with the body).
+  During a flight it stops the flight where it is. Selection, time and
+  panels stay as they are.
 
 ## Related mechanisms
 

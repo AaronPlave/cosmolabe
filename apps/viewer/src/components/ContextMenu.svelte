@@ -2,8 +2,9 @@
   // Every action here is one of the shared navigation verbs (docs/navigation.md):
   // the menu chooses which, and does not re-derive what any of them means.
   import { selectBody, trackBody, frameBody, flyToBody, lookAtBody, resetCamera, navigateToSurfacePoint } from '../lib/viewer-state.svelte';
-  import { coordinateDecimals, formatLatitude, formatLongitude, surfaceNavigable, type SurfacePoint } from '@cosmolabe/three';
-  import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route, ZoomIn, MapPin } from 'lucide-svelte';
+  import { surfaceNavigable, type SurfacePoint } from '@cosmolabe/three';
+  import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route, ZoomIn, Copy } from 'lucide-svelte';
+  import { copySurfacePointCoordinates } from '../lib/surface-coordinates';
 
   interface Props {
     x: number;
@@ -16,18 +17,21 @@
 
   let { x, y, bodyName, surfacePoint = null, onClose }: Props = $props();
 
-  const pointLabel = $derived.by(() => {
-    if (!surfacePoint) return '';
-    const d = coordinateDecimals(surfacePoint);
-    return `${formatLatitude(surfacePoint.latDeg, d.lat)}, ${formatLongitude(surfacePoint.lonDeg, d.lon)}`;
-  });
-
-  /** Navigate to the clicked point: camera only — no selection, time or mode change. */
-  function toPoint(animate: boolean) {
+  /**
+   * Navigate to the clicked point: camera only — no selection, time or mode
+   * change. Zoom comes a step closer each time; Fly to here lands at the same
+   * framing however often it is used.
+   */
+  function toPoint(verb: 'zoom' | 'frame', animate: boolean) {
     return () => {
-      if (surfacePoint) navigateToSurfacePoint(surfacePoint, { animate, from: 'click' });
+      if (surfacePoint) navigateToSurfacePoint(surfacePoint, { animate, from: 'click', verb });
       onClose();
     };
+  }
+
+  function copyPoint() {
+    if (surfacePoint) void copySurfacePointCoordinates(surfacePoint);
+    onClose();
   }
 
   /** Run `action` on the menu's body, then close. */
@@ -44,7 +48,7 @@
   }
 
   // Clamp position to viewport
-  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint && surfaceNavigable(surfacePoint) ? 370 : 290))}px;`);
+  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint && surfaceNavigable(surfacePoint) ? 360 : 290))}px;`);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -74,15 +78,15 @@
       <div class="h-px bg-border my-1"></div>
     {/if}
     {#if surfacePoint && surfaceNavigable(surfacePoint)}
-      <div class="px-3 py-1 text-[11px] text-text-muted uppercase tracking-wider flex items-center gap-1">
-        <MapPin size={11} /> {surfacePoint.bodyName} surface
-      </div>
-      <div class="px-3 pb-1 text-[11px] text-text-secondary font-mono">{pointLabel}</div>
-      <button class="ctx-item" onclick={toPoint(false)} title="Move closer along this line of sight and orbit about this point">
+      <!-- Actions on the point clicked; its full readout is the Point Probe's. -->
+      <button class="ctx-item" onclick={toPoint('zoom', false)} title="Move a step closer along this line of sight and orbit about this point">
         <ZoomIn size={13} /> Zoom to here
       </button>
-      <button class="ctx-item" onclick={toPoint(true)} title="Fly closer along this line of sight and orbit about this point">
+      <button class="ctx-item" onclick={toPoint('frame', true)} title="Fly to a local view of this point and orbit about it">
         <Navigation size={13} /> Fly to here
+      </button>
+      <button class="ctx-item" onclick={copyPoint} title="Copy latitude, longitude (planetocentric, east-positive) — pastes into Navigate">
+        <Copy size={13} /> Copy coordinates
       </button>
       <div class="h-px bg-border my-1"></div>
     {/if}

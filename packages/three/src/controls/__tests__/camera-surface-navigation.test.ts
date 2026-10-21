@@ -7,6 +7,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from '../CameraController.js';
 import type { BodyMesh } from '../../BodyMesh.js';
+import type { SurfacePoint } from '../../SceneHit.js';
+import { frameSurfacePoint } from '../../SurfaceNavigation.js';
 
 function fakeElement(width = 800, height = 600) {
   const noop = { addEventListener() {}, removeEventListener() {} };
@@ -33,6 +35,7 @@ function fakeGlobe(name: string, position: THREE.Vector3): BodyMesh {
     hasTerrain: false,
     mesh: { quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) },
     body: { name, rotation: undefined, rotationAt: () => undefined },
+    getDskMeshes: () => [],
   } as unknown as BodyMesh;
 }
 
@@ -217,5 +220,113 @@ describe('flyToSurface', () => {
       expect(Math.abs(camera.position.x) + Math.abs(camera.position.y)).toBeLessThan(1e-6);
     }
     expect(camera.position.z).toBeCloseTo(R + 10, 6);
+  });
+});
+
+describe('releaseSurface', () => {
+  const pose = () => ({ position: new THREE.Vector3(R + 100, 30, 0), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(0, 1, 0) });
+  const forward = (camera: THREE.PerspectiveCamera) => camera.getWorldDirection(new THREE.Vector3());
+
+  it('after landing: keeps the camera where it is, still tracking, with no pivot', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, pose());
+    frame(0.016);
+    const at = camera.position.clone(), dir = forward(camera);
+    expect(cc.releaseSurface()).toBe(true);
+    for (let i = 0; i < 5; i++) frame(0.016);
+    expect(cc.surfaceNavigating).toBe(false);
+    expect(cc.surfacePivot).toBeNull();
+    expect(cc.trackedBody).toBe(mars);
+    close(camera.position, at, 1e-9);
+    expect(forward(camera).dot(dir)).toBeCloseTo(1, 9);
+    // Released: the body turns under the camera rather than carrying it.
+    mars.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.5);
+    frame(0.016);
+    close(camera.position, at, 1e-9);
+    // Nothing left for terrain to retarget, and a second release is a no-op.
+    expect(cc.retargetSurface(mars, new THREE.Vector3(1, 0, 0))).toBe(false);
+    expect(cc.releaseSurface()).toBe(false);
+  });
+
+  it('holds the orbit point where it was, relative to the body, as the body moves', () => {
+    // The floating origin keeps a tracked body at the origin; the orbit
+    // point is what must follow it, off the centre where the view had it.
+    const { cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, pose());
+    frame(0.016);
+    cc.releaseSurface();
+    frame(0.016);
+    const offset = cc.controls.target.clone().sub(mars.position);
+    close(offset, new THREE.Vector3(R, 0, 0));
+    mars.position.set(50, -20, 10);
+    frame(0.016);
+    close(cc.controls.target.clone().sub(mars.position), offset, 1e-9);
+  });
+
+  it('keeps a 2 m eye height instead of pushing it up once released', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, { position: new THREE.Vector3(R + 0.002, 0, 0.014), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(1, 0, 0) });
+    frame(0.016);
+    cc.releaseSurface();
+    for (let i = 0; i < 5; i++) frame(0.016);
+    expect(camera.position.length() - R).toBeLessThan(0.0025);
+  });
+
+  it('during a flight: stops where it is, facing the same way, and lands tracking without a pivot', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.flyToSurface(mars, pose(), { duration: 2 });
+    frame(0.5);
+    const at = camera.position.clone(), dir = forward(camera);
+    expect(cc.releaseSurface()).toBe(true);
+    expect(cc.flight).toBeNull();
+    for (let i = 0; i < 5; i++) frame(0.016);
+    close(camera.position, at, 1e-9);
+    expect(forward(camera).dot(dir)).toBeCloseTo(1, 9);
+    expect(cc.trackedBody).toBe(mars);
+    expect(cc.surfaceNavigating).toBe(false);
+  });
+
+  it('ends with the next navigation', () => {
+    const { cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, pose());
+    frame(0.016);
+    cc.releaseSurface();
+    cc.frame(mars);
+    frame(0.016);
+    expect(cc.controls.target.length()).toBeLessThan(1e-9);
+  });
+});
+
+describe('framing a picked point repeatedly', () => {
+  const pick = { bodyName: 'Mars', bodyFixedPositionKm: [R, 0, 0], source: 'ellipsoid' } as unknown as SurfacePoint;
+
+  it('Frame here twice does not move the camera again', () => {
+    const { camera, cc, mars, frame } = setup();
+    camera.position.set(2 * R, 0, 2 * R);
+    camera.lookAt(0, 0, 0);
+    const poses: THREE.Vector3[] = [];
+    for (let i = 0; i < 3; i++) {
+      cc.jumpToSurface(mars, frameSurfacePoint(mars, camera, pick, 1, 34)!);
+      frame(0.016);
+      poses.push(camera.position.clone());
+    }
+    expect(poses[0].distanceTo(new THREE.Vector3(R, 0, 0))).toBeCloseTo(34, 6);
+    close(poses[1], poses[0], 1e-9);
+    close(poses[2], poses[0], 1e-9);
+  });
+
+  it('Fly to here lands at the same framing, not a further zoom', () => {
+    const { camera, cc, mars, frame } = setup();
+    camera.position.set(2 * R, 0, 2 * R);
+    camera.lookAt(0, 0, 0);
+    const landed: THREE.Vector3[] = [];
+    for (let i = 0; i < 2; i++) {
+      cc.flyToSurface(mars, frameSurfacePoint(mars, camera, pick, 1, 34)!, { path: 'line' });
+      for (let k = 0; k < 200 && cc.flight; k++) frame(0.05);
+      frame(0.016);
+      landed.push(camera.position.clone());
+    }
+    expect(landed[0].distanceTo(new THREE.Vector3(R, 0, 0))).toBeCloseTo(34, 6);
+    close(landed[1], landed[0], 1e-9);
   });
 });

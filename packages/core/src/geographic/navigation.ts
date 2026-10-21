@@ -410,6 +410,19 @@ export function defaultSurfaceRangeKm(preset: SurfaceViewPreset, scaleKm: number
   }
 }
 
+/**
+ * The range "Frame here" and "Fly to here" put the camera at from a point
+ * (#190): a point has no extent to fit, so this is a local view of the
+ * ground around it, a hundredth of the body's radius (64 km on Earth, 34 km
+ * on Mars, 17 km on the Moon and Europa), between 0.5 km and 500 km. Fixed
+ * for a body rather than taken from the camera's distance, so framing the
+ * same point twice lands in the same place; "Zoom to here" is the
+ * incremental verb.
+ */
+export function pointFrameRangeKm(scaleKm: number): number {
+  return clamp(0.01 * scaleKm, 0.5, 500);
+}
+
 /** Short "18.4400° N, 77.4500° E" label for a target. */
 export function describeNavigationTarget(target: SurfaceNavigationTarget, decimals: number | { lat: number; lon: number } = 4): string {
   const { origin } = target;

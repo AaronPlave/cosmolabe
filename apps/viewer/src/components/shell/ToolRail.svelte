@@ -22,7 +22,7 @@
    * The first button opens the catalog browser (#94). It is not the Catalog
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
-  import { Search, Crosshair, Camera, MapPin, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
+  import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { onDestroy } from 'svelte';
   import { copyViewLink } from '../../lib/view-link';
@@ -145,19 +145,6 @@
 
   <button class="rail-btn" aria-label="Camera mode" title="Camera mode (M)" onclick={() => cycleCamera()}>
     <Camera size={16} />
-  </button>
-
-  <!-- A place on a body by latitude and longitude (#190): the same dialog as
-       the palette's "Go to coordinates…", one click away in both layouts. -->
-  <button
-    class="rail-btn"
-    aria-label="Go to coordinates"
-    aria-haspopup="dialog"
-    aria-pressed={shell.coordinatesOpen}
-    title="Go to coordinates — fly to a latitude and longitude on a body (also in Cmd+K)"
-    onclick={() => { shell.coordinatesOpen = true; }}
-  >
-    <MapPin size={16} />
   </button>
 
   <button
