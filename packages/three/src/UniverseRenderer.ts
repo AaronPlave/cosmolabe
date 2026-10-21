@@ -1550,7 +1550,6 @@ export class UniverseRenderer {
     this._watchDevicePixelRatio();
   };
 
-  /** Get the bloom effect (null when disabled). */
   /**
    * Fixed mode freezes the HDR-to-display solar response across camera moves
    * and time seeking. Legacy catalogs continue to use observer normalization.
@@ -1574,6 +1573,7 @@ export class UniverseRenderer {
       : undefined;
   }
 
+  /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
     return this.bloomEffect;
   }
