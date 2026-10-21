@@ -53,9 +53,11 @@ export function bodyFixedToGeodetic(point: BodyFixedCartesian, datum: TerrainDat
   const [a,, c] = datum.referenceShape.radiiKm;
   const e2 = 1 - (c * c) / (a * a);
   let lat = Math.atan2(point.zKm, p * (1 - e2));
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 128; i++) {
     const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
-    lat = Math.atan2(point.zKm + e2 * n * Math.sin(lat), p);
+    const next = Math.atan2(point.zKm + e2 * n * Math.sin(lat), p);
+    if (Math.abs(next - lat) < 1e-15) { lat = next; break; }
+    lat = next;
   }
   const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
   // `p / cos(lat)` degenerates at the poles, where p → 0 and cos(lat) → 0 and

@@ -39,7 +39,8 @@ export type {
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
+export { fitImageRect } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary, FovOutline, Rect as InstrumentImageRect } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
 export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
@@ -58,7 +59,7 @@ export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
 export type { BloomConfig } from './BloomEffect.js';
 export { StarField } from './StarField.js';
-export type { StarFieldOptions } from './StarField.js';
+export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';

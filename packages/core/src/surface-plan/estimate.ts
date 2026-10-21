@@ -1,3 +1,4 @@
+import { surfaceSourceDownloadCost } from './source-metadata.js';
 import type { MultiPolygon } from 'polygon-clipping';
 import { intersectGeometry, subtractGeometry, surfaceAreaM2, surfaceFeatureGeometry, surfacePerimeterM, unionGeometry } from './geometry.js';
 import {
@@ -7,7 +8,7 @@ import {
 import { parseSurfaceSourceFootprint, planFail, resolveSurfacePlan, serializeSurfacePlan, surfacePlanIdentity, validateSurfaceSources } from './validation.js';
 import { geographicDatum } from '../geographic/import.js';
 
-export const SURFACE_ESTIMATOR_VERSION = '1.1.0';
+export const SURFACE_ESTIMATOR_VERSION = '1.1.1';
 export const DEFAULT_SURFACE_ASSUMPTIONS: Readonly<SurfaceEstimateAssumptions> = Object.freeze({
   tileSize: 256, gutter: 1, imageryBytesPerSample: 3, elevationBytesPerSample: 4,
   imageryCompression: [0.08, 0.5] as [number, number], elevationCompression: [0.25, 0.8] as [number, number],
@@ -38,7 +39,7 @@ function assumptions(input: Partial<SurfaceEstimateAssumptions>): SurfaceEstimat
   return JSON.parse(JSON.stringify(a)) as SurfaceEstimateAssumptions;
 }
 
-interface SourceGeometry { descriptor: SurfaceSourceDescriptor; geometry: MultiPolygon | null; compatible: boolean; datumKnown: boolean; }
+interface SourceGeometry { descriptor: SurfaceSourceDescriptor; geometry: MultiPolygon | null; validGeometry: MultiPolygon | null; compatible: boolean; datumKnown: boolean; }
 function compileSources(plan: DesiredSurfacePlan, sources: SurfaceSourceDescriptor[], diagnostics: SurfacePlanDiagnostic[]): SourceGeometry[] {
   return sources.map(s => {
     const compatible = s.body === plan.body && s.frame === plan.frame
@@ -48,7 +49,11 @@ function compileSources(plan: DesiredSurfacePlan, sources: SurfaceSourceDescript
     const datumKnown = serializeSurfacePlan(s.datum) === serializeSurfacePlan(geographicDatum(plan.coordinates));
     if (!datumKnown) diagnostics.push({ severity: 'warning', code: 'unsupported-source-datum', path: `sources.${s.id}.datum`, message: 'Source datum requires a transform; physical fidelity remains unknown until resolved.' });
     const footprint = parseSurfaceSourceFootprint(s);
-    return { descriptor: s, compatible, datumKnown, geometry: footprint === null ? null : unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, s.coordinates))) };
+    const geometry = footprint === null ? null : unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, s.coordinates)));
+    const mask = s.metadata?.validData ? parseSurfaceSourceFootprint({ ...s, footprint: s.metadata.validData.geometry }) : null;
+    const validGeometry = mask ? unionGeometry(mask.features.map(f => surfaceFeatureGeometry(f, s.coordinates)))
+      : s.metadata === undefined && s.nodata === 'none' ? geometry : null;
+    return { descriptor: s, compatible, datumKnown, geometry, validGeometry };
   });
 }
 
@@ -86,7 +91,7 @@ function estimateBands(plan: DesiredSurfacePlan, geometries: Map<string, MultiPo
         const rawTile = (a.tileSize + 2 * a.gutter) ** 2 * bytesPerSample;
         const publishedMax = levels === null ? null : safe(maxObjects * rawTile * compression[1]);
         const publishedMin = levels === null ? 0 : safe(minObjects * rawTile * compression[0]) ?? 0;
-        const adequate: MultiPolygon[] = [], unknown: MultiPolygon[] = [];
+        const adequate = new Map<string, MultiPolygon[]>(), unknown: MultiPolygon[] = [], knownInvalid: MultiPolygon[] = [];
         const candidates: SurfaceDetailBand['sourceEvidence']['candidates'] = [];
         for (const source of sources) {
           const s = source.descriptor;
@@ -96,15 +101,29 @@ function estimateBands(plan: DesiredSurfacePlan, geometries: Map<string, MultiPo
           candidates.push({ id: s.id, nativeGsdM: s.nativeGsdM, accuracyM: s.accuracyM });
           const resolutionKnown = s.nativeGsdM !== null && (accuracy === Infinity || s.accuracyM !== null);
           const sufficient = s.nativeGsdM !== null && s.nativeGsdM <= gsd && (accuracy === Infinity || (s.accuracyM !== null && s.accuracyM <= accuracy));
-          if (source.geometry === null || !resolutionKnown || s.nodata !== 'none' || !source.datumKnown) unknown.push(overlap);
-          else if (sufficient) adequate.push(overlap);
+          const validOverlap = source.validGeometry === null ? null : intersectGeometry(overlap, source.validGeometry);
+          const completeMask = s.metadata?.validData?.extent === 'complete-mask' && source.geometry !== null;
+          // A complete mask rules out the rest of this product, independent of its GSD/datum evidence.
+          // Other candidates can still supply valid or unknown pixels there; this is not archive-wide absence.
+          if (completeMask && validOverlap !== null) knownInvalid.push(subtractGeometry(overlap, validOverlap));
+          if (validOverlap === null || !resolutionKnown || !source.datumKnown || (s.metadata && !s.metadata.registration)) unknown.push(completeMask && validOverlap !== null ? validOverlap : overlap);
+          else {
+            if (!completeMask) unknown.push(subtractGeometry(overlap, validOverlap));
+            if (sufficient) {
+              const group = s.metadata?.registration?.group ?? 'legacy-identity';
+              adequate.set(group, [...(adequate.get(group) ?? []), validOverlap]);
+            }
+          }
         }
-        const adequateGeometry = unionGeometry(adequate);
+        const groups = [...adequate.entries()].map(([id, gs]) => ({ id, geometry: unionGeometry(gs) }));
+        groups.sort((a, b) => surfaceAreaM2(b.geometry, plan.coordinates) - surfaceAreaM2(a.geometry, plan.coordinates) || (a.id < b.id ? -1 : 1));
+        const adequateGeometry = groups[0]?.geometry ?? [];
+        for (const group of groups.slice(1)) unknown.push(group.geometry);
         const adequateAreaM2 = Math.min(area, surfaceAreaM2(adequateGeometry, plan.coordinates));
         // Missing evidence outside all footprints remains unknown, even in a source-aware estimate.
-        const knownInadequate = unionGeometry(sources.filter(s => s.compatible && s.descriptor.channel === channel && s.geometry !== null
+        const knownInadequate = unionGeometry([...knownInvalid, ...sources.filter(s => s.compatible && s.descriptor.channel === channel && s.geometry !== null
           && s.descriptor.nativeGsdM !== null && (accuracy === Infinity || s.descriptor.accuracyM !== null)
-          && s.descriptor.nodata === 'none' && s.datumKnown).map(s => s.geometry!));
+          && s.validGeometry !== null && s.datumKnown && (!s.descriptor.metadata || !!s.descriptor.metadata.registration)).map(s => s.validGeometry!)]);
         const unknownGeometry = subtractGeometry(unionGeometry([subtractGeometry(geometry, knownInadequate), ...unknown]), adequateGeometry);
         const unknownAreaM2 = Math.max(0, Math.min(area - adequateAreaM2, surfaceAreaM2(unknownGeometry, plan.coordinates)));
         const tolerance = Math.max(1e-6, area * 1e-8);
@@ -179,8 +198,7 @@ export async function estimateSurfacePlan(plan: DesiredSurfacePlan, options: {
   const publishedBytes = sumRanges([imagery.publishedBytes, elevation.publishedBytes]);
   const candidateIds = [...new Set(bands.flatMap(b => b.sourceEvidence.candidates.map(s => s.id)))].sort();
   const candidates = sources.filter(s => candidateIds.includes(s.descriptor.id)).map(s => s.descriptor);
-  const unknownSizeIds = candidates.filter(s => s.asset.bytes === undefined).map(s => s.id).sort();
-  const knownDownload = candidates.reduce((n, s) => n + (s.asset.bytes ?? 0), 0);
+  const { knownBytes: knownDownload, unknownSizeIds } = surfaceSourceDownloadCost(candidates);
   const allCoverageKnown = bands.every(b => b.sourceEvidence.unknownAreaM2 <= Math.max(1e-6, b.areaM2 * 1e-8));
   const rawSourceDownloadBytes = range(knownDownload, unknownSizeIds.length || !allCoverageKnown ? null : safe(knownDownload));
   const workingSamples = bands.some(b => b.pyramidSamples === null) ? null : bands.reduce((n, b) => n + b.pyramidSamples! * (b.channel === 'imagery' ? a.imageryBytesPerSample : a.elevationBytesPerSample), 0);

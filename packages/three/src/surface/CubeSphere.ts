@@ -100,7 +100,8 @@ export class CubeSphereSampler {
   private readonly tiles = new Map<string, CubeHeightTile>();
   /** Squared polar/equatorial radius ratio mapping a geodetic latitude to its geocentric ray. */
   private readonly zScale: number;
-  constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata) {
+  constructor(readonly datum: TerrainDatum, readonly source: TerrainSourceMetadata,
+    private readonly payload: 'datum-height' | 'radial-offset' = 'datum-height') {
     // Same boundary as the shared physical-surface proof: spheres and geodetic
     // oblate ellipsoids. A triaxial shape would otherwise be addressed as an
     // oblate substitute while still reporting the original datum.
@@ -143,6 +144,9 @@ export class CubeSphereSampler {
   }
 
   sample(latDeg: number, lonDeg: number): TerrainSample | null {
+    // Radial-offset products must be sampled through CubeGridSurface: scalar
+    // payload interpolation is not a height in their public geodetic datum.
+    if (this.payload === 'radial-offset') return null;
     const resident = this.finestResident(this.faceCoordinate(latDeg, lonDeg));
     if (!resident) return null;
     const { tile, localU, localV } = resident;

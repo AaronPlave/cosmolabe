@@ -241,6 +241,81 @@ describe('cube grid CPU triangles and ray queries', () => {
     expect(Math.hypot(hit.position.xKm, hit.position.yKm, hit.position.zKm) - R).toBeLessThan(0.05);
   });
 
+  it('keeps closed mixed-level edges queryable without reviving superseded interiors', async () => {
+    const m = manifest();
+    const source = new CubeSphereGridSource(m, async uri => {
+      const level = Number(uri.split('/')[2]);
+      return new Float32Array(W * W).fill(300 - 100 * level).buffer;
+    }, { residentLevel: 2 });
+    await source.ready;
+    const surface = new CubeGridSurface(source, '301', 'IAU_MOON');
+    // A parent edge below which fine detail owns only one incident side. Both
+    // source LOD heights are real; canonical half-open ownership cannot erase
+    // the coarse triangle's closed edge when the fine lattice has no hit.
+    for (const [u, v] of [[0, 0.5], [0.5, 0], [0, 0]]) {
+      const d = cubeFaceToDirection('nz', u, v);
+      const target = d.map(c => c * (R + 0.2));
+      const origin = target.map((c, i) => c + 2 * d[i] + [0.7, -0.4, 0][i]);
+      const ray = { origin: { xKm: origin[0], yKm: origin[1], zKm: origin[2] },
+        direction: target.map((c, i) => c - origin[i]) as [number, number, number], nearKm: 0, farKm: 10 };
+      const hit = surface.intersectRay(ray, { maxMeshErrorKm: 0.001 });
+      expect(hit.kind).toBe('hit');
+      if (hit.kind !== 'hit') throw new Error('closed edge must retain physical support');
+      expect(hit).toMatchObject({ detail: 'coarse', accuracy: { meshDeviationBoundKm: null } });
+    }
+    // If fine triangles do intersect, nearer superseded ancestor edges must
+    // not replace them merely because that ancestor has a closed footprint.
+    const d = cubeFaceToDirection('nz', 0.5, 0);
+    const fine = surface.intersectRay({ origin: { xKm: d[0] * (R + 2), yKm: 0, zKm: d[2] * (R + 2) },
+      direction: [-d[0], 0, -d[2]], nearKm: 0, farKm: 10 }, { maxMeshErrorKm: 0.001 });
+    expect(fine).toMatchObject({ kind: 'hit', tileId: expect.stringMatching(/^nz\/2\//), distanceKm: expect.closeTo(1.9, 6) });
+  });
+
+  it('hands a rejected fine-owner query back to real closed ancestor edges', async () => {
+    const m = manifest();
+    m.grid = { ...m.grid, width: 65, height: 65 };
+    m.heightRangeKm = [-4.002, -3.999];
+    m.maxLevel = 11;
+    m.tiles = faces.map(face => [face, 0, 0, 0, 0]);
+    const u = 0.22308349609375, v = -0.34375;
+    for (let level = 1; level <= 11; level++) {
+      const count = 2 ** (level - 1);
+      const x = Math.floor((u + 1) * count / 2), y = Math.floor((v + 1) * count / 2);
+      for (const dx of [0, 1]) for (const dy of [0, 1]) m.tiles.push(['py', level, 2 * x + dx, 2 * y + dy, 0]);
+    }
+    const source = new CubeSphereGridSource(m, async uri => {
+      const level = Number(uri.split('/')[2]);
+      return new Float32Array(65 * 65).fill(level === 11 ? -3999 : level === 10 ? -4000 : -4002).buffer;
+    }, { residentLevel: 11 });
+    await source.ready;
+    const surface = new CubeGridSurface(source, 'fixture', 'fixture');
+    const d = cubeFaceToDirection('py', u, v), target = d.map(c => c * (R - 4));
+    for (let az = 0; az < 16; az++) {
+      const origin = target.map((c, i) => c + 2 * d[i] + [Math.cos(az), 0, Math.sin(az)][i]);
+      const ray = { origin: { xKm: origin[0], yKm: origin[1], zKm: origin[2] }, direction: target.map((c, i) => c - origin[i]) as [number, number, number], nearKm: 0, farKm: 10 };
+      expect(surface.intersectRay(ray, { maxMeshErrorKm: 0.001 })).toMatchObject({ kind: 'hit', detail: 'coarse' });
+    }
+  });
+
+  it('loads incident face/corner tiles and preserves missing coverage at poles and the antimeridian', async () => {
+    const { source } = fixtureSource();
+    await source.ready;
+    const surface = new CubeGridSurface(source, '301', 'IAU_MOON');
+    for (const d of [[1, 0, -1], [-1, 0, -1], [1, 1, -1], [-1, -1, -1], [0, 0, -1], [0, 0, 1], [-1, 0, 0]]) {
+      const length = Math.hypot(...d), n = d.map(c => c / length);
+      const ray = { origin: { xKm: n[0] * (R + 2), yKm: n[1] * (R + 2), zKm: n[2] * (R + 2) },
+        direction: n.map(c => -c) as [number, number, number], nearKm: 0, farKm: 100 };
+      const hit = await requestSurfaceIntersection(surface, ray, { maxMeshErrorKm: 0.001 }, new AbortController().signal, surface);
+      expect(hit).toMatchObject({ kind: 'hit', detail: 'coarse' });
+    }
+    expect(source.sampler.getTile({ face: 'nz', level: 1, x: 0, y: 0 })).toBeDefined();
+    expect(source.sampler.getTile({ face: 'nz', level: 1, x: 1, y: 1 })).toBeDefined();
+    // A real absent face still cannot be answered from an unrelated face edge.
+    source.sampler.removeTile({ face: 'px', level: 0, x: 0, y: 0 });
+    expect(surface.intersectRay({ origin: { xKm: R + 2, yKm: 0, zKm: 0 }, direction: [-1, 0, 0], nearKm: 0, farKm: 10 }, { maxMeshErrorKm: 0.001 }))
+      .toMatchObject({ kind: 'unavailable', reason: 'not-resident' });
+  });
+
   it('discovers unloaded terrain above every resident grid when loading ray coverage', async () => {
     // 100 km sphere, flat roots at 0 m, an unloaded child 10 km up; a short inward ray at 110.05 km.
     const r = 100;

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CubeImageryLayer, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
+import { CubeImageryLayer, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
+import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
 import { injectAerialPerspectiveIntoShader } from '../AerialPerspective.js';
 import { injectShadowIntoShader, makeShadowUniforms } from '../EclipseShadow.js';
 import { cubeFaceToDirection, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
@@ -89,6 +90,193 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
 }
 
 describe('CubeImageryLayer', () => {
+  it('rejects decoded textures that exceed their manifest reservation', async () => {
+    let disposed = 0;
+    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', maxConcurrentRequests: 2 }, {
+      fetchManifest: async () => manifest(1),
+      loadTexture: async () => { const texture = new THREE.Texture(); texture.addEventListener('dispose', () => disposed++); return { texture, bytes: 1e9, downloadBytes: 1 }; },
+    });
+    await layer.ready;
+    await new Promise(r => setTimeout(r, 0));
+    expect(layer.stats.textureBytes).toBe(0);
+    expect(layer.stats.failures).toBe(2);
+    expect(disposed).toBe(2);
+    layer.dispose();
+  });
+
+  it('culls regional coverage conservatively across the antimeridian and poles', () => {
+    const tile = (lat: number, lon: number) => directionToTexel([Math.cos(lat*Math.PI/180)*Math.cos(lon*Math.PI/180), Math.cos(lat*Math.PI/180)*Math.sin(lon*Math.PI/180), Math.sin(lat*Math.PI/180)], 13, 256, 4).address;
+    expect(cubeBlockOverlapsBounds(tile(18.9,77.4), [77.16,18.21,77.7,18.72])).toBe(false);
+    expect(cubeBlockOverlapsBounds(tile(18.45,77.4), [77.16,18.21,77.7,18.72])).toBe(true);
+    expect(cubeBlockOverlapsBounds(tile(0,179.9), [170,-1,-170,1])).toBe(true);
+    expect(cubeBlockOverlapsBounds(tile(90,0), [170,89,-170,90])).toBe(true);
+  });
+
+  it('composites a four-source stack on shared geometry, with one request and residency budget', async () => {
+    const tileBytes = 264 * 264 * 4 * 4 / 3;
+    const layers = ['viking', 'ctx-global', 'jezero-ctx', 'hirise'].map(id => ({ type: 'cube' as const, id, name: id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 3, maxTextureBytes: 40 * tileBytes }, {
+      fetchManifest: async () => manifest(7),
+      loadTexture: async url => { const texture = new THREE.Texture(); texture.name = url; return { texture, bytes: tileBytes, downloadBytes: 1000 }; },
+    });
+    await layer.ready;
+    const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
+    const { scene, mesh } = geometryTile(address); tileSet.add(scene);
+    const position = mesh.geometry.getAttribute('position'), index = mesh.geometry.index;
+    layer.addTile(scene, scene, address);
+    const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
+    for (let i = 0; i < 60; i++) {
+      await tick();
+      expect(layer.stats.inFlight).toBeLessThanOrEqual(3);
+      expect(layer.stats.textureBytes + layer.stats.inFlight * tileBytes).toBeLessThanOrEqual(40 * tileBytes + 1);
+    }
+    expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(address.level);
+    expect(layer.stats.blocks).toBeLessThanOrEqual(64);
+    expect(mesh.geometry.getAttribute('position')).toBe(position);
+    expect(mesh.geometry.index).toBe(index);
+    const block = scene.children.find(c => c.name.startsWith('cube-imagery-block') && c.visible) as THREE.Mesh;
+    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+    (block.material as THREE.Material).onBeforeCompile(shader as never, undefined as never);
+    expect(Object.keys(shader.uniforms).filter(k => /^cubeLayer\d_map$/.test(k))).toHaveLength(4);
+    expect(layer.moveLayer('hirise', 1)).toBe(true);
+    expect(layer.setLayerOpacity('hirise', 0.25)).toBe(true);
+    expect(layer.setLayerVisible('ctx-global', false)).toBe(true);
+    expect(layer.setLayerVisible('viking', false)).toBe(false);
+    await tick();
+    expect(shader.uniforms.cubeLayer1_opacity.value).toBe(0.25);
+    expect(shader.uniforms.cubeLayer2_enabled.value).toBe(0);
+    expect(layer.imageryLayers.map(s => s.id)).toEqual(['viking', 'hirise', 'ctx-global', 'jezero-ctx']);
+    expect(layer.stats.textureBytes).toBeLessThanOrEqual(40 * tileBytes + 1);
+    layer.dispose();
+  });
+
+  it('keeps the lower layer when an optional source manifest fails or is incompatible', async () => {
+    const layers = ['base', 'outage', 'wrong-body'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
+      fetchManifest: async url => { if (url.includes('outage')) throw new Error('offline'); return { ...manifest(1), ...(url.includes('wrong-body') ? { bodyId: 'Mars' } : {}) }; },
+      loadTexture: async () => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }),
+    });
+    await layer.ready;
+    expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'failed', 'failed']);
+    layer.dispose();
+  });
+
+  it('requires a resident base ancestor even when a transparent optional root is resident', async () => {
+    let baseOffline = true;
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0 }, {
+      fetchManifest: async () => ({ ...manifest(0), maxLevel: 0, tiles: faces.map(face => cubeTileId({ face, level: 0, x: 0, y: 0 })) }),
+      loadTexture: async url => {
+        if (url.includes('//base/') && baseOffline) throw new Error('HTTP 404');
+        const alpha = url.includes('//base/') ? 255 : 0;
+        return { texture: new THREE.DataTexture(new Uint8Array([255, 255, 255, alpha]), 1, 1), bytes: 4, downloadBytes: 4 };
+      },
+    });
+    await layer.ready;
+    const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
+    const { scene } = geometryTile(address); tileSet.add(scene); layer.addTile(scene, scene, address);
+    const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
+    try {
+      for (let i = 0; i < 10; i++) await tick();
+      expect(layer.stats.ready).toBe(true); // manifest is valid
+      expect(layer.stats.textures).toBeGreaterThan(0); // transparent optional roots exist
+      expect(layer.stats.failedTiles).toBeGreaterThan(0);
+      expect(layer.stats.untexturedBlocks).toBe(0); // residency alone is insufficient
+      expect(layer.stats.baseUncoveredBlocks).toBe(layer.stats.blocks);
+      expect(layer.stats.baseUncoveredBlocks).toBeGreaterThan(0);
+      baseOffline = false; layer.retryFailed();
+      for (let i = 0; i < 10; i++) await tick();
+      expect(layer.stats.baseUncoveredBlocks).toBe(0); // real base ancestor restored
+      expect(layer.stats.untexturedBlocks).toBe(0);
+    } finally { layer.dispose(); }
+  });
+
+  it('rejects a missing mandatory base even when the optional manifest is valid', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => String(url).includes('base')
+      ? new Response('', { status: 404 }) : Response.json(manifest(1)));
+    vi.stubGlobal('fetch', fetchMock);
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers });
+    try {
+      await expect(layer.ready).rejects.toThrow('HTTP 404');
+      await Promise.resolve();
+      expect(layer.stats.ready).toBe(false);
+      expect(layer.manifest).toBeNull();
+      expect(layer.stats.textures).toBe(0);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { layer.dispose(); vi.unstubAllGlobals(); }
+  });
+
+  it('bounds persistent optional 503 retries and explicitly recovers its manifest later', async () => {
+    vi.useFakeTimers();
+    let offline = true, optionalRequests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('optional')) { optionalRequests++; if (offline) return new Response('', { status: 503 }); }
+      return Response.json(manifest(1));
+    }));
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
+      loadTexture: async () => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }),
+    });
+    try {
+      await vi.runAllTimersAsync();
+      await layer.ready;
+      expect(layer.stats.ready).toBe(true);
+      expect(layer.stats.textures).toBeGreaterThan(0);
+      expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'failed']);
+      expect(optionalRequests).toBe(4);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(optionalRequests).toBe(4);
+      offline = false;
+      layer.retryFailed(); layer.retryFailed(); // overlapping recovery calls share one request
+      await vi.runAllTimersAsync();
+      expect(optionalRequests).toBe(5);
+      expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'ok']);
+    } finally { layer.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+  });
+
+  it('preserves source contour heights through imagery clipping, toggles and eviction', async () => {
+    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, heightConvention: 'radial', verticalDatum: 'reference-sphere' });
+    const tileSet = new THREE.Group(), loader = controlledLoader();
+    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json' }, {
+      fetchManifest: async () => manifest(), loadTexture: loader.loadTexture,
+    });
+    await layer.ready;
+    const address = directionToTexel(southPole, 3, 256, 4).address;
+    const { scene, mesh } = geometryTile(address, 5);
+    mesh.geometry.userData.surfaceTriangles = mesh.geometry.index!.count / 3;
+    // A coarse reference sphere: its chord interiors are below the datum, but
+    // its interpolated source heights remain ~zero. Recomputing at imagery
+    // clip vertices would invent many metres of false contour relief.
+    tileSet.add(scene); layer.addTile(scene, scene, address);
+    layer.surfaceAppearance = style; style.attach(mesh, mesh.matrix.clone(), scene);
+    const tick = () => { style.update(Infinity); layer.update(camera(3_000), tileSet.matrixWorld, 2 * Math.tan(Math.PI / 6) / 800, null); };
+    style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true });
+    for (let i = 0; i < 10; i++) { tick(); await loader.settle(); }
+    const blocks = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block')) as THREE.Mesh[];
+    expect(blocks().length).toBeGreaterThan(1);
+    for (const block of blocks()) {
+      const heights = block.geometry.getAttribute('surfaceHeightKm');
+      expect(heights).toBeDefined();
+      for (let i = 0; i < heights.count; i++) expect(Math.abs(heights.getX(i))).toBeLessThan(0.00001);
+      const material = block.material as THREE.Material;
+      const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+      material.onBeforeCompile(shader as never, undefined as never);
+      expect(shader.fragmentShader).toContain('cubeImageryTexel');
+      expect(shader.fragmentShader).toContain('saContourLine');
+      expect(shader.fragmentShader.indexOf('float saDelta')).toBeGreaterThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor'));
+    }
+    style.set({ ...DEFAULT_SURFACE_APPEARANCE }); tick();
+    expect(blocks().length).toBeGreaterThan(0);
+    for (const block of blocks()) expect(block.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true }); tick();
+    expect(blocks().every(b => b.geometry.hasAttribute('surfaceHeightKm'))).toBe(true);
+    layer.removeTile(scene);
+    style.forget(scene);
+    layer.dispose();
+  });
+
+
   it('gives a tile the terrain draw cull hid resident imagery for other views, without splitting, requesting or counting it', async () => {
     const { layer, loader, scene, mesh, address, tick } = await setup();
     await loader.settle();
@@ -120,15 +308,15 @@ describe('CubeImageryLayer', () => {
   it('refines imagery far below a fixed coarse geometry tile, falling back while finer tiles load', async () => {
     const { layer, loader, scene, mesh, address, tick } = await setup({ maxConcurrentRequests: 4 });
     const positions = mesh.geometry.getAttribute('position');
-    // Pinned coarse levels requested up front (levels 0–1 on every face).
-    expect(layer.stats.inFlight).toBe(30);
+    // Coarse fallback uses the same bounded request queue as finer imagery.
+    expect(layer.stats.inFlight).toBe(4);
     tick(camera(5_000));
     expect(layer.stats.untexturedBlocks).toBeGreaterThan(0); // nothing resident yet: untextured, not wrong
     await loader.settle();
     let deepest = -1;
     for (let round = 0; round < 40; round++) {
       tick(camera(5_000));
-      expect(layer.stats.inFlight).toBeLessThanOrEqual(30 + 4);
+      expect(layer.stats.inFlight).toBeLessThanOrEqual(4);
       deepest = Math.max(deepest, layer.stats.maxDisplayedLevel);
       await loader.settle();
     }
@@ -164,6 +352,7 @@ describe('CubeImageryLayer', () => {
     const { layer, loader, tick } = await setup({ retryFailedMs: 60_000 });
     await loader.settle();
     const cam = camera(20_000);
+    for (let i = 0; i < 6; i++) { tick(camera(5_000_000)); await loader.settle(); }
     tick(cam);
     // Fail every level-4+ request.
     for (let i = 0; i < 6; i++) { await loader.settle(id => Number(id.split('/')[1]) >= 4, true); tick(cam); }
@@ -225,6 +414,7 @@ describe('CubeImageryLayer', () => {
   it('aborts requests nobody wants any more and stays bounded under camera motion', async () => {
     const { layer, loader, tick } = await setup({ maxConcurrentRequests: 6 });
     await loader.settle();
+    for (let i = 0; i < 6; i++) { tick(camera(5_000_000)); await loader.settle(); }
     const low = new THREE.PerspectiveCamera(60, 1.6, 1, 1e8);
     low.position.set(-30_000, 30_000, -(R + 3_000)); // inside the nz/3/4/4 quadrant (nz: u = x/z, v = -y/z), several deep tiles in view
     low.lookAt(-30_000, 30_000, -R);
@@ -331,7 +521,7 @@ describe('cube imagery with shared surface appearance', () => {
       const shader = compile(block.material);
       expect(shader.vertexShader.match(/attribute float surfaceHeightKm;/g)).toHaveLength(1);
       expect(shader.vertexShader.match(/attribute vec3 surfaceReliefNormal;/g)).toHaveLength(1);
-      expect(shader.fragmentShader).toContain('cubeImageryTexel = texture2D');
+      expect(shader.fragmentShader).toContain('sampleValue = texture2D');
       const p = block.geometry.getAttribute('position'), h = block.geometry.getAttribute('surfaceHeightKm');
       // Locate every clipped vertex on the original geometry and compare the
       // exact barycentric color field, including vertices newly added by clipping.

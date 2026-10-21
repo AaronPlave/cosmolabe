@@ -392,6 +392,38 @@ describe('hosted catalog rewriting', () => {
   };
   const base = 'https://data.example.org';
 
+  it('omits the real local-only Jezero experiment without making hosted builds require its product', async () => {
+    const all = loadDatasets().datasets;
+    const id = 'cube-terrain/mars-terrain-cube-jezero';
+    const ds = all[id];
+    expect(ds.localOnly).toBe(true);
+    expect(ds.build).toBeNull();
+    const dist = tmp('local-experiment');
+    const pub = join(dist, 'test-catalogs');
+    const cat = ds.catalogs[0];
+    mkdirSync(join(pub, 'experiments'), { recursive: true });
+    mkdirSync(join(pub, ds.catalogPrefix), { recursive: true });
+    const original = readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8');
+    writeFileSync(join(pub, cat), original);
+    writeFileSync(join(pub, ds.catalogPrefix, 'cpu-grids.json'), '{}');
+    // Both local-data and hosted-data deployment copy modes omit this experiment.
+    for (const sets of [{ [id]: ds }, all]) {
+      const keep = publicDirCopyFilter(sets, pub);
+      expect(keep(join(pub, cat))).toBe(false);
+      expect(keep(join(pub, ds.catalogPrefix))).toBe(false);
+      expect(keep(join(pub, ds.catalogPrefix, 'cpu-grids.json'))).toBe(false);
+      expect(keep(join(pub, 'experiments/other.json'))).toBe(true);
+    }
+    const rec = await buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet });
+    expect(rec.datasets).toEqual({});
+    expect(existsSync(join(pub, cat))).toBe(false);
+    expect(existsSync(join(pub, ds.catalogPrefix))).toBe(false);
+    expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(original);
+    // A production catalog accidentally using the unpublished local product must still fail.
+    writeFileSync(join(pub, 'production.json'), JSON.stringify({ url: `${ds.catalogPrefix}cpu-grids.json` }));
+    await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet })).rejects.toThrow(id);
+  });
+
   it('resolves paths the way the viewer does', () => {
     expect(resolveLocalPath('kernels/a.bsp', 'x.json')).toBe('kernels/a.bsp');
     expect(resolveLocalPath('../kernels/a.bsp', 'base/x.json')).toBe('kernels/a.bsp');

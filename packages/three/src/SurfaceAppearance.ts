@@ -1,10 +1,20 @@
 import * as THREE from 'three';
+import { injectTerrainContours } from './TerrainContours.js';
+import { estimateContourInterval } from './ContourIntervals.js';
 import { bodyFixedToGeodetic, type TerrainDatum } from './TerrainSampler.js';
 
 export type SurfaceBaseColor = 'imagery' | 'elevation' | 'neutral';
 export type ElevationPalette = 'terrain' | 'blue-gold' | 'grayscale';
 export interface SurfaceAppearanceSettings {
   hillshade: boolean;
+  /** Visual bands on loaded geometry; spacing adapts to the screen footprint. */
+  contours?: boolean;
+  contourOpacity?: number;
+  contourColor?: string;
+  contourDensity?: number;
+  /** Zero retains automatic spacing; positive values are fixed kilometres. */
+  contourIntervalKm?: number;
+  contourLabels?: boolean;
   azimuthDeg: number;
   elevationDeg: number;
   contrast: number;
@@ -15,6 +25,7 @@ export interface SurfaceAppearanceSettings {
   maxKm: number;
 }
 export const DEFAULT_SURFACE_APPEARANCE: Readonly<SurfaceAppearanceSettings> = Object.freeze({
+  contours: false, contourOpacity: 0.35, contourColor: '#f2e6c9', contourDensity: 1, contourIntervalKm: 0, contourLabels: false,
   hillshade: false, azimuthDeg: 315, elevationDeg: 45, contrast: 1,
   baseColor: 'imagery', imageryAmount: 0.25, palette: 'terrain',
   minKm: -10, maxKm: 15,
@@ -34,6 +45,12 @@ export function normalizeSurfaceAppearance(s: SurfaceAppearanceSettings): Surfac
     azimuthDeg: clamp(s.azimuthDeg, 0, 360, 315), elevationDeg: clamp(s.elevationDeg, 5, 90, 45),
     contrast: clamp(s.contrast, 0.25, 3, 1), imageryAmount: clamp(s.imageryAmount, 0, 1, 0.25),
     palette: Object.hasOwn(ELEVATION_PALETTES, s.palette) ? s.palette : 'terrain',
+    contours: !!s.contours,
+    contourOpacity: clamp(s.contourOpacity ?? 0.35, 0, 1, 0.35),
+    contourDensity: clamp(s.contourDensity ?? 1, 0.25, 2, 1),
+    contourIntervalKm: s.contourIntervalKm && s.contourIntervalKm > 0 ? Math.round(clamp(s.contourIntervalKm, 0.001, 100, 1) * 1000) / 1000 : 0,
+    contourLabels: !!s.contourLabels,
+    contourColor: /^#[0-9a-f]{6}$/i.test(s.contourColor ?? '') ? s.contourColor : '#f2e6c9',
     minKm,
     maxKm: Math.max(minKm + 0.001, clamp(s.maxKm, -1000, 1000, 15)),
   };
@@ -86,10 +103,15 @@ export class SurfaceAppearance {
   private settings: SurfaceAppearanceSettings = { ...DEFAULT_SURFACE_APPEARANCE };
   private readonly meshes = new Map<THREE.Mesh, StyledMesh>();
   private readonly normalNodes = new Map<string, NormalNode>();
+  private autoContourIntervalKm = 0.1;
+  private nextContourIntervalUpdate = 0;
+  private contourScale?: { eye: THREE.Vector3; altitude: number; projection: number; height: number; density: number };
   private readonly uniforms = {
     saLight: { value: new THREE.Vector3() }, saContrast: { value: 1 },
     saImageryAmount: { value: 0.25 }, saRange: { value: new THREE.Vector2(-10, 15) },
     saLow: { value: new THREE.Color() }, saMid: { value: new THREE.Color() }, saHigh: { value: new THREE.Color() },
+    saContourColor: { value: new THREE.Color() }, saContourOpacity: { value: 0.35 }, saContourDensity: { value: 1 },
+    saContourIntervalKm: { value: 0 },
     saUpScale: { value: new THREE.Vector3(1, 1, 1) },
   };
 
@@ -101,11 +123,61 @@ export class SurfaceAppearance {
     this.updateUniforms();
   }
   get current(): SurfaceAppearanceSettings { return { ...this.settings }; }
-  get active(): boolean { return this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
+  get active(): boolean { return !!this.settings.contours || this.settings.hillshade || this.settings.baseColor !== 'imagery'; }
+
+  /** Actual interval shared by every tile shader and contour path labels. */
+  get contourIntervalKm(): number { return this.uniforms.saContourIntervalKm.value; }
+
+  updateContourInterval(camera: THREE.Camera, width: number, height: number, sources: THREE.Mesh[]): void {
+    if (!this.settings.contours || this.settings.contourIntervalKm || performance.now() < this.nextContourIntervalUpdate) return;
+    this.nextContourIntervalUpdate = performance.now() + 250;
+    const source = sources.find(mesh => this.meshes.has(mesh));
+    if (!source) return;
+    source.updateWorldMatrix(true, false); camera.updateWorldMatrix(true, false);
+    const localToBody = this.meshes.get(source)!.matrix;
+    const bodyWorld = new THREE.Matrix4().multiplyMatrices(source.matrixWorld, localToBody.clone().invert());
+    const eyeWorld = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
+    const eye = eyeWorld.clone().applyMatrix4(bodyWorld.clone().invert()).multiplyScalar(0.001);
+    const altitude = Math.max(0.1, Math.abs(renderedHeightKm(eye, this.datum)));
+    const projection = camera.projectionMatrix.elements[5], density = this.settings.contourDensity ?? 1;
+    const old = this.contourScale;
+    // Looking up/down and source-tile churn must not change the interval.
+    // Reconsider it only after meaningful travel or a change of map scale.
+    if (old && old.eye.distanceTo(eye) < Math.max(0.1, old.altitude * 0.5)
+      && altitude / old.altitude > 0.75 && altitude / old.altitude < 1.33
+      && Math.abs(old.projection / projection - 1) < 0.1 && old.height === height && old.density === density) return;
+    const samplingCamera = camera.clone();
+    samplingCamera.matrixAutoUpdate = true;
+    samplingCamera.position.copy(eyeWorld);
+    samplingCamera.up.set(0, 0, 1).transformDirection(bodyWorld);
+    samplingCamera.lookAt(new THREE.Vector3().setFromMatrixPosition(bodyWorld));
+    samplingCamera.updateMatrixWorld(true);
+    const interval = estimateContourInterval(samplingCamera, width, height, sources, density, old && old.density === density ? this.autoContourIntervalKm : 0);
+    if (interval === undefined) return; // Do not lock an empty/sky-only sample.
+    this.autoContourIntervalKm = interval;
+    this.contourScale = { eye, altitude, projection, height, density };
+    this.uniforms.saContourIntervalKm.value = interval;
+  }
+
+  /** Original terrain only. Cube imagery may hide its source mesh while drawing
+   * clipped children; the tile scene, rather than that mesh, owns visibility. */
+  contourSources(): THREE.Mesh[] {
+    const result: THREE.Mesh[] = [];
+    for (const [mesh, entry] of this.meshes) {
+      if (entry.derived || !entry.ready || (entry.visibilityRoot && !entry.visibilityRoot.parent)) continue;
+      let visible = true;
+      for (let node: THREE.Object3D | null = entry.visibilityRoot ?? mesh; node; node = node.parent) {
+        if (!node.visible) { visible = false; break; }
+      }
+      if (visible) result.push(mesh);
+    }
+    return result;
+  }
 
   set(settings: SurfaceAppearanceSettings): void {
     const before = this.key();
     this.settings = normalizeSurfaceAppearance(settings);
+    this.nextContourIntervalUpdate = 0;
     this.updateUniforms();
     if (!this.settings.hillshade) this.normalNodes.clear();
     for (const [mesh, entry] of this.meshes) {
@@ -113,8 +185,9 @@ export class SurfaceAppearance {
       entry.ready = this.isPrepared(mesh);
       if (this.key() !== before) entry.materials.forEach(m => { m.needsUpdate = true; });
       const unused = [
-        ...(this.settings.baseColor !== 'elevation' ? ['surfaceHeightKm'] : []),
-        ...(!this.settings.hillshade ? ['surfaceGround', 'surfaceReliefNormal'] : []),
+        ...(!this.needsHeights ? ['surfaceHeightKm'] : []),
+        ...(!this.settings.hillshade && !this.settings.contours ? ['surfaceGround'] : []),
+        ...(!this.settings.hillshade ? ['surfaceReliefNormal'] : []),
       ].filter(name => mesh.geometry.hasAttribute(name));
       if (unused.length) {
         // Release GPU buffers while the attribute is still registered. Merely
@@ -126,8 +199,11 @@ export class SurfaceAppearance {
     }
   }
 
+  private get needsHeights(): boolean { return !!this.settings.contours || this.settings.baseColor === 'elevation'; }
+
   private isPrepared(mesh: THREE.Mesh): boolean {
-    return (this.settings.baseColor !== 'elevation' || mesh.geometry.hasAttribute('surfaceHeightKm')) &&
+    return (!this.needsHeights || mesh.geometry.hasAttribute('surfaceHeightKm')) &&
+      (!this.settings.contours || mesh.geometry.hasAttribute('surfaceGround')) &&
       (!this.settings.hillshade || mesh.geometry.hasAttribute('surfaceReliefNormal'));
   }
 
@@ -153,7 +229,8 @@ export class SurfaceAppearance {
     touched.forEach(node => this.publishNormal(node));
     for (const [mesh, entry] of visibleMeshes) {
       const tileStart = performance.now();
-      if (this.settings.baseColor === 'elevation') this.prepareHeights(mesh, entry.matrix);
+      if (this.needsHeights) this.prepareHeights(mesh, entry.matrix);
+      if (this.settings.contours) this.prepareGroundMask(mesh);
       if (this.settings.hillshade) this.prepareReliefNormals(mesh, entry);
       entry.ready = true;
       entry.materials.forEach(m => { m.needsUpdate = true; });
@@ -166,7 +243,7 @@ export class SurfaceAppearance {
   }
 
   private key(): string {
-    return this.active ? `_surface_v4_${Number(this.settings.hillshade)}_${this.settings.baseColor}` : '';
+    return this.active ? `_surface_v9_${Number(this.settings.hillshade)}_${this.settings.baseColor}_${Number(!!this.settings.contours)}` : '';
   }
 
   /** Matrix maps mesh local coordinates into the tiles renderer's ECEF frame,
@@ -397,6 +474,10 @@ export class SurfaceAppearance {
     const s = this.settings, az = THREE.MathUtils.degToRad(s.azimuthDeg), el = THREE.MathUtils.degToRad(s.elevationDeg);
     // Local east, north, up; azimuth clockwise from geographic north.
     this.uniforms.saLight.value.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el));
+    this.uniforms.saContourColor.value.set(s.contourColor ?? '#f2e6c9');
+    this.uniforms.saContourOpacity.value = s.contourOpacity ?? 0.35;
+    this.uniforms.saContourDensity.value = s.contourDensity ?? 1;
+    this.uniforms.saContourIntervalKm.value = s.contourIntervalKm || this.autoContourIntervalKm;
     this.uniforms.saContrast.value = s.contrast;
     this.uniforms.saImageryAmount.value = s.imageryAmount;
     this.uniforms.saRange.value.set(s.minKm, s.maxKm);
@@ -405,12 +486,14 @@ export class SurfaceAppearance {
   }
 
   private inject(shader: Shader, localToBody: { value: THREE.Matrix4 }): void {
-    Object.assign(shader.uniforms, this.uniforms, { saLocalToBody: localToBody });
-    if (this.settings.baseColor === 'elevation') {
+    Object.assign(shader.uniforms, this.uniforms, { saLocalToBody: localToBody, saContourLocalToBody: localToBody });
+    if (this.needsHeights) {
       shader.vertexShader = 'attribute float surfaceHeightKm; varying float vSAHeight;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSAHeight = surfaceHeightKm;');
-      shader.fragmentShader = `varying float vSAHeight;
-uniform vec2 saRange; uniform float saImageryAmount; uniform vec3 saLow, saMid, saHigh;
+      shader.fragmentShader = 'varying float vSAHeight;\n' + shader.fragmentShader;
+    }
+    if (this.settings.baseColor === 'elevation') {
+      shader.fragmentShader = `uniform vec2 saRange; uniform float saImageryAmount; uniform vec3 saLow, saMid, saHigh;
 ` + shader.fragmentShader;
       // After current imagery overlays have composed diffuseColor, before lighting.
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
@@ -424,6 +507,7 @@ diffuseColor.rgb = mix(saTint, diffuseColor.rgb, saImageryAmount);
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
         'diffuseColor.rgb = mix(vec3(1.0), diffuseColor.rgb, saImageryAmount);\n#include <roughnessmap_fragment>');
     }
+    if (this.settings.contours) injectTerrainContours(shader);
     if (this.settings.hillshade) {
       shader.vertexShader = 'attribute vec3 surfaceReliefNormal; varying vec3 vSALocal, vSAReliefNormal; uniform mat4 saLocalToBody;\n' + shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvSALocal = position; vSAReliefNormal = surfaceReliefNormal;');

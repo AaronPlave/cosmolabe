@@ -26,7 +26,7 @@
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5173/), CHROMIUM_PATH.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { cpus, totalmem, platform, release } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +43,8 @@ const PRODUCTS = {
   geographic: { catalog: 'test-catalogs/experiments/moon-terrain-geographic', data: 'moon-terrain-fused/' },
 };
 const productName = args.product ?? 'cube';
-const product = PRODUCTS[productName];
+const product = args.catalog ? { catalog: args.catalog, data: args.data ?? '' } : PRODUCTS[productName];
+const BODY = args.body ?? 'Moon';
 if (!product) throw new Error(`--product must be one of ${Object.keys(PRODUCTS)}`);
 const BASE = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5173/';
 const OUT = resolve(args.out ?? join(ROOT, 'work/cube-terrain/captures'));
@@ -51,7 +52,7 @@ const VIEWPORT = { width: Number(args.width ?? 1280), height: Number(args.height
 const MODES = String(args.modes ?? 'shaded,lod').split(',');
 const STABLE = Number(args.stable ?? 8);
 const TIMEOUT_MS = Number(args.timeout ?? 900_000);
-const R = 1737.4;
+const R = Number(args['radius-km'] ?? 1737.4);
 
 /** Body-fixed point at geocentric lat/lon and height above the 1737.4 km sphere (km). */
 const at = (latDeg, lonDeg, hKm) => {
@@ -72,6 +73,7 @@ const VIEWS = {
   // The px/py/nz corner (35.26°S 45°E) from 60 km: three faces and mixed-LOD transitions.
   'face-boundary': { eye: at(-34.6, 45.6, 60), target: at(-35.26438968, 45, 0), fov: 60 },
 };
+if (args['views-file']) Object.assign(VIEWS, JSON.parse(readFileSync(resolve(args['views-file']), 'utf8')));
 const viewNames = String(args.views ?? Object.keys(VIEWS).join(',')).split(',');
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH,
@@ -86,11 +88,11 @@ try {
       // A fresh page per capture: a cold tile cache, so request and time counts are comparable.
       const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
       // The dev server's module graph alone overflows the default 250-entry buffer.
-      await page.addInitScript(() => performance.setResourceTimingBufferSize(1_000_000));
+      await page.addInitScript(body => { window.cubeBody = body; performance.setResourceTimingBufferSize(1_000_000); }, BODY);
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
       page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-      await page.goto(new URL(`?catalog=${product.catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded' });
+      await page.goto(new URL(`?catalog=${product.catalog}&test=1`, BASE).href, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, { timeout: 180_000 });
       await page.evaluate(async () => {
         const source = await (await fetch('/src/lib/commands.ts')).text();
@@ -110,9 +112,9 @@ try {
       // set once can be overridden by controls before the tiles settle.
       const pose = async () => page.evaluate(({ view, mode }) => {
         const { getRenderer } = window.cubeCapture;
-        const r = getRenderer(), bm = r.getBodyMesh('Moon');
+        const r = getRenderer(), bm = r.getBodyMesh(window.cubeBody);
         window.cosmo.setPlaying(false); window.cosmo.untrack();
-        r.setTerrainDebugMode(mode === 'shaded' ? 'none' : mode, 'Moon');
+        r.setTerrainDebugMode(mode === 'shaded' ? 'none' : mode, window.cubeBody);
         const THREE = r.camera.position.constructor;
         const centre = new THREE(); bm.getWorldPosition(centre);
         const toWorld = ([x, y, z]) => new THREE(x, z, -y).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
@@ -130,7 +132,7 @@ try {
         await page.waitForTimeout(500);
         await pose();
         ({ metrics, cube } = await page.evaluate(() => {
-          const bm = window.cubeCapture.getRenderer().getBodyMesh('Moon');
+          const bm = window.cubeCapture.getRenderer().getBodyMesh(window.cubeBody);
           return { metrics: bm.terrainMetrics, cube: bm.terrainCubeStats };
         }));
         polls++;
@@ -143,7 +145,7 @@ try {
       const settleMs = Date.now() - start;
       const finished = stable >= STABLE;
       const detail = await page.evaluate((data) => {
-        const r = window.cubeCapture.getRenderer(), tiles = r.getBodyMesh('Moon').terrainManager?.tiles ?? null;
+        const r = window.cubeCapture.getRenderer(), tiles = r.getBodyMesh(window.cubeBody).terrainManager?.tiles ?? null;
         const levels = {};
         let finest = -1;
         tiles?.visibleTiles?.forEach((tile) => {
@@ -169,9 +171,10 @@ try {
       // finest grid there, independently of what the renderer drew. Record the
       // first answer, then wait (bounded) for the finest level and record again.
       const readout = () => page.evaluate(({ target }) => {
-        const bm = window.cubeCapture.getRenderer().getBodyMesh('Moon');
+        const bm = window.cubeCapture.getRenderer().getBodyMesh(window.cubeBody);
         const [x, y, z] = target, r = Math.hypot(x, y, z);
-        const lat = Math.asin(z / r) * 180 / Math.PI, lon = Math.atan2(y, x) * 180 / Math.PI;
+        const geo = bm.terrainBodyFixedToGeodetic({ xKm: x, yKm: y, zKm: z });
+        const lat = geo?.latDeg ?? Math.asin(z / r) * 180 / Math.PI, lon = geo?.lonDeg ?? Math.atan2(y, x) * 180 / Math.PI;
         const s = bm.sampleTerrain(lat, lon);
         return { latDeg: lat, lonDeg: lon, elevationKm: s?.elevationKm ?? null, tileId: s?.tileId ?? null,
           source: s?.source?.version ?? s?.source?.id ?? null, coverage: bm.terrainCubeCoverage(lat, lon) };
@@ -193,13 +196,13 @@ try {
       const firstPick = await pickOnce();
       for (let i = 0; i < 40 && firstPick?.physical; i++) {
         await page.waitForTimeout(250);
-        if ((await page.evaluate(() => window.cubeCapture.getRenderer().getBodyMesh('Moon').terrainCubeStats?.inFlight)) === 0) break;
+        if ((await page.evaluate(() => window.cubeCapture.getRenderer().getBodyMesh(window.cubeBody).terrainCubeStats?.inFlight)) === 0) break;
       }
       const pick = firstPick?.physical ? await pickOnce() : firstPick;
       const file = `${productName}-${viewName}-${mode}.jpg`;
       await page.screenshot({ path: join(OUT, file), type: 'jpeg', quality: 88 });
       const row = { product: productName, view: viewName, mode, file, finished, settleMs, polls,
-        pose: { frame: 'IAU_MOON body-fixed, km, Z-up', ...view, epoch: 'catalog defaultTime 2028-12-15T10:04:00Z, paused' },
+        pose: { frame: `${args.frame ?? 'IAU_MOON'} body-fixed, km, Z-up`, ...view, epoch: 'catalog defaultTime, paused' },
         errorTarget: 2, finestVisibleLevel: detail.finest, finestVertexSpacingM: spacingM, visibleByLevel: detail.levels,
         requests: detail.requests, bytes: detail.bytes, cpuGridRequests: detail.cpuGridRequests,
         tiles: metrics.tiles, network: metrics.network, memory: metrics.memory, update: metrics.update, parse: metrics.parse,
