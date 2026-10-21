@@ -24,6 +24,7 @@ vi.mock('../loader', () => ({ getUniverse: () => universe }));
 const {
   geo, selectFeature, setLayerVisible, layerVisible, isolateLayer, isIsolated, showAllLayers, listedFeatures,
   browseLayer, syncSceneFilter, setInViewOnly, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature, showSelectedDetails,
+  surfacePanelView, openLayer, openImagery, showLayerList, backToLayer, stepFeature, featureSteps, searchAllFeatures,
 } = await import('../geographic-layers.svelte');
 const { shell, closeAllTools } = await import('../shell.svelte');
 
@@ -98,9 +99,11 @@ describe('geographic selection shared by scene and list', () => {
     showSelectedDetails();
     expect(shell.openTools).toContain('layers');
     expect(geo.activeLayerId).toBe('regions');
-    // With the panel open, a scene click lists the clicked feature's layer.
+    // A scene click (select, then click) shows the clicked feature, with its layer behind it.
+    renderer!.emit('geographic:select', ref('science', 'string:a'));
     renderer!.emit('geographic:click', ref('science', 'string:a'));
     expect(geo.activeLayerId).toBe('science');
+    expect(surfacePanelView()).toMatchObject({ kind: 'feature', feature: { id: 'string:a' } });
   });
 
   it('selecting from the list highlights it in the scene without moving the camera', () => {
@@ -242,5 +245,67 @@ describe('navigation', () => {
     expect(goToFeature(ref('phobos', 'string:d', 'Phobos'))).toBe(false);
     expect(flyOverSurface).not.toHaveBeenCalled();
     expect(geo.notice).toMatch(/Phobos/);
+  });
+});
+
+describe('the panel view follows the selection', () => {
+  const kind = () => surfacePanelView().kind;
+
+  it('goes Layers → Layer → Feature and back, landing on the feature last shown', () => {
+    expect(kind()).toBe('layers');
+    openLayer('science');
+    expect(surfacePanelView()).toMatchObject({ kind: 'layer', layer: { id: 'science' } });
+    selectFeature(ref('science', 'string:b'));
+    expect(kind()).toBe('feature');
+    backToLayer();
+    expect(geo.selected).toBeNull();
+    expect(surfacePanelView()).toMatchObject({ kind: 'layer', layer: { id: 'science' } });
+    expect(geo.recent).toEqual(ref('science', 'string:b'));
+    showLayerList();
+    expect(kind()).toBe('layers');
+  });
+
+  it('clearing the selection (Escape) shows its layer; hiding the layer does too', () => {
+    selectFeature(ref('regions', 'string:c'));
+    clearGeographicSelection();
+    expect(surfacePanelView()).toMatchObject({ kind: 'layer', layer: { id: 'regions' } });
+    selectFeature(ref('regions', 'string:c'));
+    setLayerVisible('regions', false);
+    renderer!.frame();
+    expect(surfacePanelView()).toMatchObject({ kind: 'layer', layer: { id: 'regions' } });
+    expect(geo.notice).toMatch(/hidden/);
+  });
+
+  it('a selection made anywhere replaces the imagery view', () => {
+    openImagery('Mars');
+    expect(surfacePanelView()).toEqual({ kind: 'imagery', body: 'Mars' });
+    selectFeature(ref('science', 'string:a'));
+    expect(kind()).toBe('feature');
+    backToLayer();
+    expect(kind()).toBe('layer');
+  });
+
+  it('steps through the layer\'s current list from the selected feature', () => {
+    openLayer('science');
+    selectFeature(ref('science', 'string:a'));
+    expect(featureSteps()).toEqual([false, true]);
+    expect(stepFeature(1)).toBe(true);
+    expect(geo.selected).toEqual(ref('science', 'string:b'));
+    expect(featureSteps()).toEqual([true, true]);
+    expect(stepFeature(1)).toBe(true);
+    expect(geo.selected?.featureId).toBe('string:route');
+    expect(stepFeature(1)).toBe(false);
+  });
+
+  it('searches every layer, visible layers first, and a result opens its feature', () => {
+    setLayerVisible('science', false);
+    const { matches, total } = searchAllFeatures('c');
+    expect(total).toBeGreaterThan(0);
+    expect(matches[0].layer.id).not.toBe('science');
+    expect(searchAllFeatures('Traverse').matches.map((m) => m.entry.feature.id)).toEqual(['string:route']);
+    expect(searchAllFeatures('   ').total).toBe(0);
+    selectFeature(ref('science', 'string:route'));
+    expect(layerVisible('science')).toBe(true);
+    expect(surfacePanelView()).toMatchObject({ kind: 'feature', layer: { id: 'science' } });
   });
 });

@@ -24,10 +24,13 @@
   interface Props {
     /** A specific body, instead of following the selection. */
     bodyName?: string;
+    /** Open regardless of the remembered state (the Surface layers imagery view). */
+    startOpen?: boolean;
   }
-  let { bodyName }: Props = $props();
+  let { bodyName, startOpen = false }: Props = $props();
 
-  let open = $state(rememberedOpen);
+  // svelte-ignore state_referenced_locally
+  let open = $state(startOpen || rememberedOpen);
   $effect(() => { rememberedOpen = open; });
 
   /** Layers whose details are expanded, by id. */
