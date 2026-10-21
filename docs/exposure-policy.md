@@ -103,7 +103,7 @@ const metadata = renderer.getSolarExposureMetadata();
 
 The Svelte viewer has `?solarExposure=fixed`, including in
 `?test=1&solarExposure=fixed` captures. Its test hook reports
-`exposureMetadata`. The metadata records the mode, fixed multiplier,
+`getExposureMetadata()`. The metadata records the mode, fixed multiplier,
 response name, units convention and 1 AU reference distance. For legacy
 observer-adapted mode `exposure=null` intentionally warns the viewer that
 no single reproducible multiplier was used.
