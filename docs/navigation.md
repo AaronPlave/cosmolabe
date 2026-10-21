@@ -184,14 +184,25 @@ never the camera's own position. Three surfaces name one:
   gets one quiet line naming the place, plus how it was read when that is not
   obvious (by its letters, west-positive); errors and warnings — terrain not
   loaded there yet, a pole — are always shown, and where the height comes
-  from is under *Details*. Then a view:
+  from is available from the info icon beside the compact terrain/elevation status. Then a view:
   - **Overhead** — straight down the surface normal, north up;
   - **Oblique** — 50° off vertical, from the south;
   - **Surface** — at a person's eye height (2 m; less on a body a few km
     across) just south of the place, looking north at it.
 
   Distances scale with the body; *Advanced* overrides the altitude or slant
-  range (km) or the eye height (m).
+  range (km) or the eye height (m). Repeating **Fly to** at the same view
+  keeps the camera there; repeated clicks during a flight leave it running.
+  Nearby destinations (within one degree) follow a local radial path without
+  a cruise climb. Distant traversals still arc around the globe.
+
+  Near terrain, orbit and wheel/pinch operate at the local pivot's scale;
+  keyboard movement uses the terrain clearance with a 2 m/s walking floor
+  (Shift accelerates, Alt slows). Clearing Target keeps the camera location
+  and body tracking, aims at the body's centre, and resumes body-centred
+  orbit sensitivity. The HUD uses four decimal places, or two on
+  narrow screens, with normalized N/S/E/W coordinates; the form and target
+  metadata retain the input precision and conventions.
 - **Right-click a surface** in the scene, both along the line of sight the
   point was clicked on, keeping the view direction:
   - **Zoom to here** cuts a quarter of the way in, each time: incremental,
@@ -262,8 +273,8 @@ How it moves:
   **Target** with the place's coordinates (its tooltip: conventions and what
   surface it is on). Its **×** (*Clear surface target*) lets go of the place
   without moving the camera: no pivot, no terrain following, no readout; the
-  camera keeps its position and view direction and keeps tracking the body,
-  orbiting from where the pivot was (which no longer turns with the body).
+  camera keeps its position and turns to face the body centre, which becomes
+  the orbit target again.
   During a flight it stops the flight where it is. Selection, time and
   panels stay as they are.
 

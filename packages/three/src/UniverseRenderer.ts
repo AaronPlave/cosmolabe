@@ -2957,8 +2957,8 @@ export class UniverseRenderer {
     return point;
   }
 
-  /** Cached terrain elevation per body for camera clamp (samples every 5 frames). */
-  private _terrainClampCache = new Map<string, { elevationKm: number; frame: number }>();
+  /** Cached clamp elevation, valid only at the same location and CPU terrain revision. */
+  private _terrainClampCache = new Map<string, { elevationKm: number; frame: number; latDeg: number; lonDeg: number; revision: number | null }>();
   /** Cached terrain elevation per surface-locked body (samples every 10 frames). */
   private _surfaceLockElevCache = new Map<string, { elevationKm: number; frame: number }>();
   /** Per-waypoint terrain elevations cached for WaypointTrajectory bodies in
@@ -3306,18 +3306,21 @@ export class UniverseRenderer {
           if (!terrainPosition) continue;
           const latDeg = terrainPosition.latDeg;
 
-          // Sample terrain every 5 frames, use cached value between samples.
+          // Never carry a previous flight location's height into a new one,
+          // or keep a coarse height after the grids refine. At metre eye heights
+          // even a single frame of that stale floor can put the eye underground.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
           // elevations so the camera can descend into regions below the reference sphere
           // (e.g., Dingo Gap on Mars at ~-4.5 km below the reference sphere).
           const bodyName = bm.body.name;
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
-          if (!cached || frame - cached.frame >= 5) {
+          if (!cached || frame - cached.frame >= 5 || cached.latDeg !== terrainPosition.latDeg
+            || cached.lonDeg !== terrainPosition.lonDeg || cached.revision !== bm.terrainRevision) {
             const sample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
             if (sample) {
               const elev = sample.elevationKm;
-              this._terrainClampCache.set(bodyName, { elevationKm: elev, frame });
+              this._terrainClampCache.set(bodyName, { elevationKm: elev, frame, latDeg: terrainPosition.latDeg, lonDeg: terrainPosition.lonDeg, revision: bm.terrainRevision });
               clampRadiusKm = bm.terrainReferenceRadiusAt(latDeg) + elev;
               hasTerrainSample = true;
             }

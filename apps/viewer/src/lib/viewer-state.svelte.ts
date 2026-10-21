@@ -5,6 +5,7 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
+import { compactTargetCoordinates } from './surface-coordinates';
 import {
   etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
@@ -154,6 +155,9 @@ export interface SurfaceTargetInfo {
   bodyName: string;
   /** "18.4447° N, 77.4508° E", in the convention it was named in. */
   coordinates: string;
+  /** HUD precision only; coordinates above keeps the full input convention. */
+  compactCoordinates: string;
+  narrowCoordinates: string;
   /** How the coordinates were stated ("planetocentric, east-positive"), or the pick's source. */
   convention: string;
   /** Where the target's height came from. */
@@ -1000,6 +1004,7 @@ export function coordinateBodies(): string[] {
 function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint): SurfaceTargetInfo {
   const { origin } = target;
   const input = origin.kind === 'coordinates' ? origin.input : null;
+  const latitude = input?.latDeg ?? (origin.kind === 'surface-point' ? origin.latDeg : target.latGraphicDeg);
   const shape = target.datum?.origin === 'terrain' ? 'terrain datum' : 'reference shape';
   return {
     bodyName: target.bodyName,
@@ -1007,6 +1012,8 @@ function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDe
     coordinates: describeNavigationTarget(target, input
       ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
       : picked ? coordinateDecimals(picked) : 4),
+    compactCoordinates: compactTargetCoordinates(latitude, target.lonEastDeg),
+    narrowCoordinates: compactTargetCoordinates(latitude, target.lonEastDeg, 2),
     convention: input
       ? `${input.latitude}, ${input.longitudeDirection}-positive`
       : origin.kind === 'surface-point' ? `${origin.latitudeKind}, east-positive; picked on ${origin.source}` : '',
@@ -1159,8 +1166,8 @@ export function navigateToSurfacePoint(
 
 /**
  * Clear the surface target (#190): no pivot on the ground, no terrain
- * following, no Target readout. The camera keeps its position and view
- * direction and keeps tracking the body; a flight still on its way stops
+ * following, no Target readout. The camera keeps its position and resumes
+ * tracking the body centre; a flight still on its way stops
  * where it is. Selection, time and panels are untouched. False when there
  * was no target.
  */

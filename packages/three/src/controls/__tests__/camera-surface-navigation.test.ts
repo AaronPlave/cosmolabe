@@ -6,6 +6,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from '../CameraController.js';
+import { CameraModeName } from '../CameraModes.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 import type { SurfacePoint } from '../../SceneHit.js';
 import { frameSurfacePoint } from '../../SurfaceNavigation.js';
@@ -227,18 +228,19 @@ describe('releaseSurface', () => {
   const pose = () => ({ position: new THREE.Vector3(R + 100, 30, 0), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(0, 1, 0) });
   const forward = (camera: THREE.PerspectiveCamera) => camera.getWorldDirection(new THREE.Vector3());
 
-  it('after landing: keeps the camera where it is, still tracking, with no pivot', () => {
+  it('after landing: keeps the camera location and tracks the body centre, with no pivot', () => {
     const { camera, cc, mars, frame } = setup();
     cc.jumpToSurface(mars, pose());
     frame(0.016);
-    const at = camera.position.clone(), dir = forward(camera);
+    const at = camera.position.clone();
     expect(cc.releaseSurface()).toBe(true);
     for (let i = 0; i < 5; i++) frame(0.016);
     expect(cc.surfaceNavigating).toBe(false);
     expect(cc.surfacePivot).toBeNull();
     expect(cc.trackedBody).toBe(mars);
     close(camera.position, at, 1e-9);
-    expect(forward(camera).dot(dir)).toBeCloseTo(1, 9);
+    close(cc.controls.target, mars.position, 1e-9);
+    expect(forward(camera).dot(mars.position.clone().sub(camera.position).normalize())).toBeCloseTo(1, 9);
     // Released: the body turns under the camera rather than carrying it.
     mars.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.5);
     frame(0.016);
@@ -248,16 +250,16 @@ describe('releaseSurface', () => {
     expect(cc.releaseSurface()).toBe(false);
   });
 
-  it('holds the orbit point where it was, relative to the body, as the body moves', () => {
+  it('holds the orbit point at the body centre as the body moves', () => {
     // The floating origin keeps a tracked body at the origin; the orbit
-    // point is what must follow it, off the centre where the view had it.
+    // point must follow that body, without the released coordinate offset.
     const { cc, mars, frame } = setup();
     cc.jumpToSurface(mars, pose());
     frame(0.016);
     cc.releaseSurface();
     frame(0.016);
     const offset = cc.controls.target.clone().sub(mars.position);
-    close(offset, new THREE.Vector3(R, 0, 0));
+    close(offset, new THREE.Vector3());
     mars.position.set(50, -20, 10);
     frame(0.016);
     close(cc.controls.target.clone().sub(mars.position), offset, 1e-9);
@@ -272,18 +274,46 @@ describe('releaseSurface', () => {
     expect(camera.position.length() - R).toBeLessThan(0.0025);
   });
 
-  it('during a flight: stops where it is, facing the same way, and lands tracking without a pivot', () => {
+  it('during a flight: stops where it is and resumes body-centred tracking without a pivot', () => {
     const { camera, cc, mars, frame } = setup();
     cc.flyToSurface(mars, pose(), { duration: 2 });
     frame(0.5);
-    const at = camera.position.clone(), dir = forward(camera);
+    const at = camera.position.clone();
     expect(cc.releaseSurface()).toBe(true);
     expect(cc.flight).toBeNull();
     for (let i = 0; i < 5; i++) frame(0.016);
     close(camera.position, at, 1e-9);
-    expect(forward(camera).dot(dir)).toBeCloseTo(1, 9);
+    close(cc.controls.target, mars.position, 1e-9);
+    expect(forward(camera).dot(mars.position.clone().sub(camera.position).normalize())).toBeCloseTo(1, 9);
     expect(cc.trackedBody).toBe(mars);
     expect(cc.surfaceNavigating).toBe(false);
+  });
+
+  it('clears a completed flight before its deferred origin switch', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.flyToSurface(mars, pose(), { duration: 1 });
+    frame(1);
+    const at = camera.position.clone();
+    expect(cc.releaseSurface()).toBe(true);
+    frame(0.016);
+    expect(cc.trackedBody).toBe(mars);
+    expect(cc.surfaceNavigating).toBe(false);
+    close(cc.controls.target, mars.position, 1e-9);
+    close(camera.position, at, 1e-9);
+  });
+
+  it('returns a body-fixed orbit to the body centre too', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.setMode(CameraModeName.BODY_FIXED, { bodyName: 'Mars' });
+    cc.jumpToSurface(mars, pose());
+    frame(0.016);
+    const at = camera.position.clone();
+    expect(cc.releaseSurface()).toBe(true);
+    frame(0.016);
+    expect(cc.trackedBody).toBe(mars);
+    expect(cc.surfaceNavigating).toBe(false);
+    close(cc.controls.target, mars.position, 1e-9);
+    close(camera.position, at, 1e-9);
   });
 
   it('ends with the next navigation', () => {
@@ -328,5 +358,80 @@ describe('framing a picked point repeatedly', () => {
     }
     expect(landed[0].distanceTo(new THREE.Vector3(R, 0, 0))).toBeCloseTo(34, 6);
     close(landed[1], landed[0], 1e-9);
+  });
+});
+
+
+describe('Navigate panel flights and local controls', () => {
+  it('does not launch an arc at a landed destination, including below the datum', () => {
+    const { cc, mars, camera, frame } = setup();
+    Object.assign(mars, { hasTerrain: true });
+    const pose = overheadX();
+    pose.target.set(R - 5.3, 0, 0);
+    pose.position.set(R - 5.3 + 0.002, 0, 0.014);
+    cc.jumpToSurface(mars, pose);
+    frame(0.016);
+    const at = camera.position.clone();
+    for (let i = 0; i < 3; i++) {
+      cc.flyToSurface(mars, pose);
+      expect(cc.flight).toBeNull();
+      frame(0.016);
+      close(camera.position, at, 1e-12);
+    }
+    expect(cc.surfacePivot).not.toBeNull();
+  });
+
+  it('ignores identical clicks while flying instead of restarting the clock', () => {
+    const { cc, mars, frame } = setup();
+    cc.flyToSurface(mars, overheadX(), { duration: 1 });
+    for (let i = 0; i < 11; i++) {
+      frame(0.1);
+      if (cc.flight) cc.flyToSurface(mars, overheadX(), { duration: 1 });
+    }
+    expect(cc.flight).toBeNull();
+  });
+
+  it('keeps nearby surface travel local, with no planetary cruise lift', () => {
+    const { cc, mars, camera, frame } = setup();
+    const from = overheadX(); from.position.x = R + 0.01;
+    cc.jumpToSurface(mars, from);
+    frame(0.016);
+    const to = { position: from.position.clone(), target: from.target.clone(), up: from.up.clone() };
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.001);
+    to.position.applyQuaternion(q); to.target.applyQuaternion(q);
+    cc.flyToSurface(mars, to, { duration: 1 });
+    for (let i = 0; i < 11; i++) {
+      frame(0.1);
+      expect(camera.position.length() - R).toBeCloseTo(0.01, 6);
+    }
+  });
+
+  it('keeps local clearance while returning released controls to body-centred speeds', () => {
+    const { cc, mars, camera, frame } = setup();
+    Object.assign(mars.body, { geometryType: 'Globe' });
+    Object.assign(mars, {
+      hasTerrain: true,
+      sampleTerrainBodyFixed: () => ({ elevationKm: -5.3 }),
+      terrainBodyFixedToGeodetic: () => ({ heightKm: camera.position.length() - R }),
+    });
+    const pose = overheadX(); pose.target.x = R - 5.3;
+    pose.position.set(R - 5.3 + 0.002, 0, 0.014);
+    cc.jumpToSurface(mars, pose); frame(0.016);
+    cc.adaptSpeeds([mars], 1);
+    const rotate = cc.controls.rotateSpeed, zoom = cc.controls.zoomSpeed;
+    expect(rotate).toBeGreaterThan(0.5);
+    expect(zoom).toBeGreaterThan(0.5);
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.002, 5);
+    cc.releaseSurface(); frame(0.016); cc.adaptSpeeds([mars], 1);
+    close(cc.controls.target, mars.position, 1e-9);
+    expect(cc.controls.rotateSpeed).toBeGreaterThan(0);
+    expect(cc.controls.rotateSpeed).toBeLessThan(rotate);
+    expect(cc.controls.zoomSpeed).toBeGreaterThan(0);
+    expect(cc.controls.zoomSpeed).toBeLessThan(zoom);
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.002, 5);
+    // A higher eye in the same below-datum basin uses its actual 10 m clearance.
+    camera.position.x += 0.008;
+    cc.adaptSpeeds([mars], 1);
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.01, 5);
   });
 });

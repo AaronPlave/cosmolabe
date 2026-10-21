@@ -70,16 +70,18 @@
       <!-- The surface point navigated to (#190): the target on the body,
            not the camera's position, which the readout never shows. -->
       {@const t = vs.surfaceTarget}
-      <span class="context-label">Target</span>
-      <span
-        class="context-value truncate"
-        title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
-      >{t.coordinates}</span>
-      <!-- Lets go of the point: no pivot or terrain following; the camera,
-           tracking, selection and time stay as they are. -->
-      <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
-        <X size={12} />
-      </button>
+      <span class="surface-context">
+        <span class="context-label">Target</span>
+        <span
+          class="context-value target-coordinates"
+          title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
+        ><span class="target-desktop">{t.compactCoordinates}</span><span class="target-narrow">{t.narrowCoordinates}</span></span>
+        <!-- Releases the coordinate and returns the orbit target to the body
+             centre, keeping the camera location, selection and time. -->
+        <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
+          <X size={12} />
+        </button>
+      </span>
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
     <span class="context-label">Frame</span>
@@ -139,6 +141,10 @@
     backdrop-filter: blur(8px);
     color: var(--color-text-secondary);
   }
+
+  .surface-context { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  .target-coordinates { max-width: none; white-space: nowrap; }
+  .target-narrow { display: none; }
 
   .context-label {
     flex: none;
@@ -216,7 +222,14 @@
       top: 8px;
       max-width: none;
       transform: none;
+      translate: none;
+      flex-wrap: wrap;
+      padding: 7px 10px;
+      row-gap: 8px;
     }
+
+    .target-desktop { display: none; }
+    .target-narrow { display: inline; }
 
     .context-value,
     .frame-value {

@@ -28,8 +28,9 @@
    * field, and nothing moves until they resolve.
    */
   import { onMount, untrack } from 'svelte';
-  import { Navigation } from 'lucide-svelte';
+  import { Info, Navigation } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
+  import * as Popover from '$lib/components/ui/popover';
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import { parseCoordinatePair, describeNavigationTarget, defaultSurfaceRangeKm } from '@cosmolabe/core';
   import { vs, coordinateBodies, resolveCoordinateTarget, goToCoordinates } from '../lib/viewer-state.svelte';
@@ -166,6 +167,7 @@
           placeholder={form.order === 'lat-lon' ? '18.4447, 77.4508' : '77.4508, 18.4447'}
           autocomplete="off"
           spellcheck="false"
+          aria-label="Coordinates"
           aria-describedby="navigate-conventions navigate-status"
           use:focusOnMount
         />
@@ -217,10 +219,19 @@
           {#each resolved.target.notes as note (note)}
             <div class="text-[var(--color-warning,#fbbf24)]">{note}</div>
           {/each}
-          <details class="mt-0.5">
-            <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Details</summary>
-            <p class="mt-1 text-text-muted">{provenance}</p>
-          </details>
+          <div class="mt-1 flex items-center gap-1 text-text-muted">
+            <span>{resolved.target.height.from === 'terrain-sample'
+              ? `Terrain loaded · Elevation ${(resolved.target.height.km ?? 0).toFixed(2)} km`
+              : resolved.target.awaitingTerrain ? 'Terrain pending' : 'Reference surface'}</span>
+            <Popover.Root>
+              <Popover.Trigger class="inline-flex rounded hover:text-text-primary focus-visible:outline" aria-label="Surface source and datum">
+                <Info size={12} />
+              </Popover.Trigger>
+              <Popover.Content class="max-w-[calc(100vw-2rem)] break-words text-xs text-text-secondary" side="top">
+                {provenance}
+              </Popover.Content>
+            </Popover.Root>
+          </div>
         {/if}
       </div>
 
