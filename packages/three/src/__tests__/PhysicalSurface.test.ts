@@ -18,7 +18,7 @@ const metadata: PhysicalSurfaceMetadata = {
 
 it('retains a metre-scale lattice edge at Mars body-fixed scale without admitting points outside it', () => {
   const fixture = JSON.parse(readFileSync(new URL('./fixtures/mars-cube-edge-triangle.json', import.meta.url), 'utf8'));
-  const surface = new CpuMeshSurface(metadata, { positionsKm: new Float64Array(fixture.positionsKm), indices: new Uint32Array([0, 1, 2]) }, { meshDeviationBoundKm: null });
+  const surface = new CpuMeshSurface(metadata, { positionsKm: new Float64Array(fixture.positionsKm), indices: new Uint32Array([0, 1, 2]) }, { meshDeviationBoundKm: null }, 8 * 1024 * 1024, true);
   const hit = surface.intersectRay(fixture.ray, { maxMeshErrorKm: 0.001 });
   expect(hit).toMatchObject({ kind: 'hit', distanceKm: expect.closeTo(2, 9), detail: 'coarse' });
   // Move the target 1 mm beyond the endpoint along the bottom edge. Roundoff
@@ -28,6 +28,26 @@ it('retains a metre-scale lattice edge at Mars body-fixed scale without admittin
   const outside = [0, 1, 2].map(i => p[3 + i] + (p[3 + i] - p[i]) * 1e-6 / length);
   const o = fixture.ray.origin;
   expect(surface.intersectRay({ ...fixture.ray, direction: [outside[0] - o.xKm, outside[1] - o.yKm, outside[2] - o.zKm] }, { maxMeshErrorKm: 0.001 }).kind).toBe('miss');
+});
+
+it('rejects unrelated triangle groups while retaining the nearest hit and source triangle index', () => {
+  const positions: number[] = [], indices: number[] = [];
+  for (let x = 0; x < 64; x++) {
+    const i = positions.length / 3;
+    positions.push(x, 0, 0, x + 1, 0, 0, x, 1, 0, x + 1, 1, 0);
+    indices.push(i, i + 1, i + 2, i + 1, i + 3, i + 2);
+  }
+  const surface = new CpuMeshSurface(metadata, {
+    positionsKm: new Float64Array(positions), indices: new Uint32Array(indices),
+  }, { meshDeviationBoundKm: 0 }, 8 * 1024 * 1024, true);
+  const query: SurfaceRay = { origin: { xKm: 16.25, yKm: 0.25, zKm: 10 }, direction: [0, 0, -1], nearKm: 0, farKm: 10 };
+  expect(surface.intersectRay(query, { maxMeshErrorKm: 0 })).toMatchObject({ kind: 'hit', distanceKm: 10, triangleIndex: 32 });
+  expect(surface.trianglesTested).toBeLessThan(indices.length / 3);
+  expect(surface.trianglesTested).toBeGreaterThan(0);
+  // Parallel slab axes and an exact group boundary still admit the shared edge.
+  expect(surface.intersectRay({ ...query, origin: { xKm: 16, yKm: 0, zKm: 10 } }, { maxMeshErrorKm: 0 })).toMatchObject({ kind: 'hit', distanceKm: 10 });
+  expect(surface.intersectRay({ ...query, origin: { xKm: 16, yKm: -1e-6, zKm: 10 } }, { maxMeshErrorKm: 0 }).kind).toBe('miss');
+  expect(surface.trianglesTested).toBe(0);
 });
 
 const options = { maxMeshErrorKm: 0.001 };
