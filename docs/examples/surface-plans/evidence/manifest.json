@@ -1,0 +1,113 @@
+{
+  "capturedDate": "2026-10-21",
+  "contractUrl": "https://oderest.rsl.wustl.edu/ODE_REST_V2.1.5.pdf",
+  "entries": [
+    {
+      "file": "jezero-ctx.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=mro&iid=ctx&limit=2&maxlat=18.6&minlat=18.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=77.2",
+      "responseUtc": "2026-10-21T12:30:50.994",
+      "sha256": "106edfde57c128e8bd42555ac320ae58d7f0b615a67f680b6bd646d8124b63da",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "gale-ctx.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+      "responseUtc": "2026-10-21T12:30:51.276",
+      "sha256": "2d3f556a86d9750d62aac51172026d7bc8853b646e49f1e4a8e3260bb9cc556a",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "jezero-hirise.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_023524_1985_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "responseUtc": "2026-10-21T12:30:51.510",
+      "sha256": "c2be0659e188a1a45c25b914a5f8e846cd76419f6776cd936928aef31eeb2602",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "gale-hirise.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "responseUtc": "2026-10-21T12:30:51.463",
+      "sha256": "fbeb970fe915af5c51cd168e19191738e3adcd5821071f9f4454978b806e343d",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "jezero-hrsc.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=mex&iid=hrsc&limit=2&maxlat=18.6&minlat=18.3&offset=1&output=json&productId=%25DT4%25&pt=dtmrdr&query=product&results=copmfl&target=mars&westernlon=77.2",
+      "responseUtc": "2026-10-21T12:31:50.544",
+      "sha256": "cabd048c557433c3fac32881f06d0496d29016449584efe322ab3334b9773278",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "gale-hrsc.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mex&iid=hrsc&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&productId=%25DT4%25&pt=dtmrdr&query=product&results=copmfl&target=mars&westernlon=137",
+      "responseUtc": "2026-10-21T12:31:51.435",
+      "sha256": "20ff81d2141d69288ffd74d97a9c0360507c34ad63bfb919684810cafbe7fc22",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "viking-jezero.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=vo&iid=visab&limit=2&maxlat=18.6&minlat=18.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=77.2",
+      "responseUtc": "2026-10-21T12:32:30.406",
+      "sha256": "a88cd0a3d52a91c2f260fa3478aedfa03d7cac39a77d50b4d867d7bda5af3cf6",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "viking-gale.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=vo&iid=visab&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=137",
+      "responseUtc": "2026-10-21T12:32:29.452",
+      "sha256": "b68e346cc7f9f85d72f03fa6bb51fa0af80da24f354af85264267ba4b5e9b90d",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "mola-jezero-tile.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mgs&iid=mola&limit=2&offset=1&output=json&productId=megt44n%25&pt=megdr&query=product&results=copmfl&target=mars",
+      "responseUtc": "2026-10-21T12:32:30.796",
+      "sha256": "3fd692f1ac295cce7c3acdef3fd68d9e651065750502e1bdde2dbbdbc1e64105",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "mola-gale128.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=megt00n090hb&query=product&results=copmfl&target=mars&offset=1",
+      "responseUtc": "2026-10-21T12:35:39.868",
+      "sha256": "a27ca3b125e89e61913b66f93fa7004b44b88cb23ef1c8b1139bb5a1da985e31",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "jezero-dtm-ode.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_023524_1985_023379_1985_U01&query=product&results=copmfl&target=mars&offset=1",
+      "responseUtc": "2026-10-21T12:31:18.902",
+      "sha256": "1b131d0147ffa012b9dbc17556298518945b867fe06045aa85475c573e223e1f",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "gale-dtm-ode.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+      "responseUtc": "2026-10-21T12:31:18.855",
+      "sha256": "7deb9a899729891a0de127a01b422bafd677531f36491b8382944bf7a68f4ca0",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "ctx-page2.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=mro&iid=ctx&limit=2&maxlat=18.6&minlat=18.3&offset=3&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=77.2",
+      "responseUtc": "2026-10-21T12:35:40.931",
+      "sha256": "2d8ae05bce1382433a0c8db1a6d8dbf88c412058850aa7cf8de7c07d6ef69ba3",
+      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+    },
+    {
+      "file": "mola-jezero-label.xml",
+      "metadataUrl": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt44n000hb.xml",
+      "sha256": "f6de640ed5603eb03395616214c9a5707c9d49273f699d2cbeec53e93df6bd08"
+    },
+    {
+      "file": "mola-gale-label.xml",
+      "metadataUrl": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
+      "sha256": "a5dcc68f1a4ce98bf7dc4aa3cc85cf2939f5a5f700408e7dfffc017d95e65b7b"
+    },
+    {
+      "file": "jezero-ctx-live.cache.json",
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/",
+      "sha256": "1c7862eb304dff1d8f2083ee1478c5cb104474e0b0f2e6f31c2cbe594aaeb801",
+      "note": "Adapter integration smoke: exact request URLs and raw responses, two pages x two products."
+    }
+  ]
+}

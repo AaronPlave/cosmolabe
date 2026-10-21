@@ -144,7 +144,7 @@ export function validateSurfaceSources(v: unknown): SurfaceSourceDescriptor[] {
   const ids = new Set<string>();
   for (const [i, s] of v.entries()) {
     const p = `$.sources[${i}]`; object(s, p);
-    keys(s, ['id', 'productId', 'channel', 'body', 'frame', 'coordinates', 'footprint', 'nodata', 'nativeGsdM', 'accuracyM', 'projection', 'datum', 'asset', 'license'], p);
+    keys(s, ['id', 'productId', 'channel', 'body', 'frame', 'coordinates', 'footprint', 'nodata', 'nativeGsdM', 'accuracyM', 'projection', 'datum', 'asset', 'license', 'metadata'], p);
     for (const k of ['id', 'productId', 'body', 'frame', 'projection']) string(s[k], `${p}.${k}`);
     if (ids.has(s.id as string)) planFail('duplicate-id', p, 'Duplicate source ID'); ids.add(s.id as string);
     if (!['imagery', 'elevation'].includes(String(s.channel))) planFail('schema', `${p}.channel`, 'Expected imagery or elevation');
@@ -168,6 +168,7 @@ export function validateSurfaceSources(v: unknown): SurfaceSourceDescriptor[] {
     object(s.license, `${p}.license`); keys(s.license, ['name', 'attribution', 'url'], `${p}.license`);
     string(s.license.name, `${p}.license.name`); string(s.license.attribution, `${p}.license.attribution`);
     if (s.license.url !== undefined) string(s.license.url, `${p}.license.url`);
+    if (s.metadata !== undefined) validateSourceMetadata(s as unknown as SurfaceSourceDescriptor, p);
     if (s.footprint !== undefined) parseSurfaceSourceFootprint(s as unknown as SurfaceSourceDescriptor);
   }
   return v as unknown as SurfaceSourceDescriptor[];
@@ -242,7 +243,8 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
         planFail('unsupported-transform', p, `Identity cannot transform source ${source.id}: frame, coordinates and datum must match the desired plan`);
       }
       if (source.nodata !== 'none') planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata; v1 locks require resolved, unmasked coverage`);
-      const footprint = parseSurfaceSourceFootprint(source)!;
+      if (source.metadata && !source.metadata.validData) planFail('unresolved-coverage', p, 'Discovery sources require independently evidenced valid pixels before locking');
+      const footprint = parseSurfaceSourceFootprint(source.metadata?.validData ? { ...source, footprint: source.metadata.validData.geometry } : source)!;
       const geometry = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
       const overlap = intersectGeometry(roi, geometry);
       if (!overlap.length || surfaceAreaM2(overlap, desired.coordinates) <= 0) planFail('disjoint-source', p, `Source ${source.id} does not intersect the selected ROI with positive area`);
@@ -268,4 +270,68 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
   const { identity, ...payload } = v;
   if (v.desiredIdentity !== await surfacePlanIdentity(desired) || identity !== await surfacePlanIdentity(payload)) planFail('identity-mismatch', '$', 'Content changed: create a new lock identity');
   return v as unknown as LockedSurfacePlan;
+}
+
+/** Validate the shared optional provenance seam before discovery, estimates or locks consume it. */
+function validateSourceMetadata(source: SurfaceSourceDescriptor, path: string): void {
+  const m = source.metadata!;
+  const p = path + '.metadata';
+  object(m, p);
+  keys(m as unknown as Record<string, unknown>, ['evidenceUrl', 'labelUrl', 'confidence', 'unknowns', 'rasterGsdM',
+    'dataType', 'bands', 'acquisitionUtc', 'observationId', 'sourceProjection', 'sourceCoordinates', 'sourceDatum',
+    'registration', 'illumination', 'stereoProductIds', 'assets', 'reuse', 'validData', 'tiled'], p);
+  const https = (v: unknown, at: string) => { string(v, at); if (!/^https:\/\//.test(v as string)) planFail('schema', at, 'Expected HTTPS evidence URL'); };
+  https(m.evidenceUrl, p + '.evidenceUrl');
+  if (m.labelUrl !== undefined) https(m.labelUrl, p + '.labelUrl');
+  if (!['archive', 'label', 'verified-mask', 'unknown'].includes(m.confidence)) planFail('schema', p, 'Unknown confidence');
+  for (const k of ['unknowns', 'stereoProductIds'] as const) { array(m[k], p + '.' + k, 64, 0); m[k].forEach(v => string(v, p + '.' + k)); }
+  if (m.bands !== null) { array(m.bands, p + '.bands', 64, 1); m.bands.forEach(v => string(v, p + '.bands')); }
+  for (const k of ['dataType', 'acquisitionUtc', 'observationId', 'sourceProjection', 'sourceCoordinates', 'sourceDatum'] as const)
+    if (m[k] !== null) string(m[k], p + '.' + k);
+  if (m.rasterGsdM !== null) positive(m.rasterGsdM, p + '.rasterGsdM');
+  if (m.registration !== null) {
+    object(m.registration, p + '.registration'); string(m.registration.group, p + '.registration.group');
+    https(m.registration.evidenceUrl, p + '.registration.evidenceUrl');
+    if (m.registration.accuracyM !== null) positive(m.registration.accuracyM, p + '.registration.accuracyM');
+  }
+  if (m.illumination !== null) {
+    object(m.illumination, p + '.illumination');
+    for (const k of ['incidenceDeg', 'emissionDeg', 'phaseDeg'] as const)
+      if (m.illumination[k] !== null && (!Number.isFinite(m.illumination[k]) || m.illumination[k]! < 0 || m.illumination[k]! > 180))
+        planFail('schema', p, 'Illumination angles must be null or 0..180 degrees');
+    if (m.illumination.photometry !== null) string(m.illumination.photometry, p + '.illumination.photometry');
+  }
+  array(m.assets, p + '.assets', 64, 0);
+  for (const a of m.assets) {
+    object(a, p + '.assets'); https(a.url, p + '.assets.url');
+    if (!['raster', 'label', 'quality'].includes(a.role)) planFail('schema', p, 'Unknown asset role');
+    if (a.bytes !== null) integer(a.bytes, p + '.assets.bytes');
+    if (a.sizeEvidence !== null) string(a.sizeEvidence, p + '.assets.sizeEvidence');
+  }
+  object(m.reuse, p + '.reuse');
+  if (!['allowed', 'restricted', 'unknown'].includes(m.reuse.status)) planFail('schema', p, 'Unknown reuse status');
+  if (m.reuse.evidenceUrl !== null) https(m.reuse.evidenceUrl, p + '.reuse.evidenceUrl');
+  if (m.validData !== undefined) {
+    object(m.validData, p + '.validData');
+    https(m.validData.evidenceUrl, p + '.validData.evidenceUrl'); string(m.validData.method, p + '.validData.method');
+    if (!['complete-mask', 'known-valid-subset'].includes(m.validData.extent)) planFail('schema', p, 'Unknown valid-mask extent');
+    const mask = parseSurfaceSourceFootprint({ ...source, footprint: m.validData.geometry })!;
+    const footprint = parseSurfaceSourceFootprint(source);
+    if (m.validData.extent === 'complete-mask' && !footprint) planFail('schema', p, 'Complete mask requires product footprint');
+    if (footprint) {
+      const valid = unionGeometry(mask.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
+      const envelope = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
+      if (surfaceAreaM2(subtractGeometry(valid, envelope), source.coordinates) > Math.max(1e-4, surfaceAreaM2(valid, source.coordinates) * 1e-8))
+        planFail('schema', p, 'Valid-pixel mask exceeds product footprint');
+    }
+  }
+  if (m.tiled !== undefined) {
+    const t = m.tiled; object(t, p + '.tiled');
+    if (!['xyz', 'wmts'].includes(t.scheme)) planFail('schema', p, 'Unknown tiled scheme');
+    for (const k of ['urlTemplate', 'grid', 'projection', 'coordinates', 'origin', 'order'] as const) string(t[k], p + '.tiled.' + k);
+    for (const k of ['ellipsoid', 'nodata', 'nativeResolution', 'identity', 'cors', 'access', 'usage'] as const)
+      if (t[k] !== null) string(t[k], p + '.tiled.' + k);
+    for (const k of ['tileWidth', 'tileHeight', 'minZoom', 'maxZoom'] as const) integer(t[k], p + '.tiled.' + k);
+    if (!t.tileWidth || !t.tileHeight || t.minZoom > t.maxZoom || t.maxZoom > 32) planFail('limits', p, 'Invalid tile grid bounds');
+  }
 }

@@ -1,0 +1,260 @@
+{
+  "ODEResults": {
+    "Count": "2",
+    "Products": {
+      "Product": [
+        {
+          "BB_georeferenced": "True",
+          "Center_georeferenced": "True",
+          "Center_latitude": "-5.0751",
+          "Center_longitude": "137.4102",
+          "Comment": "Gale Crater landforms",
+          "Data_Set_Id": "MRO-M-CTX-2-EDR-L0-V1.0",
+          "Easternmost_longitude": "137.74",
+          "Emission_angle": "0.08",
+          "External_url2": "http://viewer.mars.asu.edu/planetview/inst/ctx/T01_000815_1749_XN_05S222W#start",
+          "FilesURL": "https://ode.rsl.wustl.edu/mars/productfiles.aspx?product_id=T01_000815_1749_XN_05S222W&product_idGeo=9030089",
+          "Footprint_C0_geometry": "POLYGON ((137.52 -4.1212, 137.74 -5.9696, 137.3 -6.0289, 137.07 -4.1805, 137.52 -4.1212))",
+          "Footprint_geometry": "POLYGON ((137.52 -4.1212, 137.74 -5.9696, 137.3 -6.0289, 137.07 -4.1805, 137.52 -4.1212))",
+          "Footprint_GL_geometry": "POLYGON ((137.52 -4.1212, 137.74 -5.9696, 137.3 -6.0289, 137.07 -4.1805, 137.52 -4.1212))",
+          "Footprint_NP_geometry": "MULTIPOLYGON EMPTY",
+          "Footprint_souce": "PDS Archive Index Table",
+          "Footprint_SP_geometry": "MULTIPOLYGON EMPTY",
+          "Footprints_cross_meridian": "False",
+          "ihid": "MRO",
+          "iid": "CTX",
+          "Incidence_angle": "58.16",
+          "LabelFileName": "t01_000815_1749_xn_05s222w.img",
+          "LabelURL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
+          "Map_scale": "5.27",
+          "Maximum_latitude": "-4.1212",
+          "Minimum_latitude": "-6.0289",
+          "Observation_time": "2006-09-29T00:20:27.612",
+          "ode_id": "9030089",
+          "ODE_notes": {
+            "ODE_note": [
+              "NOTE: Product Type set by ODE",
+              "NOTE: Instrument Host Id set by ODE",
+              "NOTE: No SC Clock Stop Count so SC Clock Start Count used for Stop Count",
+              "NOTE: Label keyword Orbit number value used for start orbit number value",
+              "NOTE: Label keyword Orbit number value used for stop orbit number value",
+              "NOTE: Observation time set to mid-point between start time and stop time",
+              "NOTE: Index Record:",
+              "\"MROX_0003\",\"DATA/T01_000815_1749_XN_05S222W.IMG\",\"4A_04_1000001C00\",\"T01_000815_1749_XN_05S222W\",\"2006-09-29T00:20:10.316\",\"CTX   \",\"NIFL \",5056, 18417, 1,    5.27,  1.15,  0.08, 58.16, 58.10,222.59, -5.14,222.70, -6.10,222.26, -6.04,222.93, -4.23,222.48, -4.17,\"TRANSITION\",\"MARS  \",\"0843956429:032 \",290.8,   1.877,\"195/234/232\",   0,  26.38,  111.67, 263.28,3659.31, 263.28,\"N\",276.91,218.37,274.73, 23.26,222.59, -5.13,242747412.1,113.26,15.48, 90.1,\"Gale Crater landforms                                                           \",\"ERROR \",   815",
+              "NOTE: Map scale set from index table entry",
+              "NOTE: Emission angle set from index table entry",
+              "NOTE: Incidence angle set from index table entry",
+              "NOTE: Phase set from index table entry",
+              "NOTE: Solar distance set from index table entry",
+              "NOTE: Solar longitude set from index table entry",
+              "NOTE: CTX location data updated from index table entry"
+            ]
+          },
+          "pdsid": "T01_000815_1749_XN_05S222W",
+          "PDSVolume_Id": "MROX_0003",
+          "Phase_angle": "58.1",
+          "Pole_state": "none",
+          "Producer_id": "MRO_CTX_TEAM",
+          "Product_creation_time": "2007-05-17T23:22:27.000",
+          "Product_files": {
+            "Product_file": [
+              {
+                "Description": "PRODUCT DATA FILE WITH LABEL",
+                "FileName": "T01_000815_1749_XN_05S222W.IMG",
+                "KBytes": "89001",
+                "Type": "Product",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG"
+              },
+              {
+                "Description": "BROWSE IMAGE",
+                "FileName": "T01_000815_1749_XN_05S222W.IMG.JPEG",
+                "KBytes": "50",
+                "Type": "Browse",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/extras/browse/T01_000815_1749_XN_05S222W.IMG.jpeg"
+              },
+              {
+                "Description": "THUMBNAIL IMAGE",
+                "FileName": "T01_000815_1749_XN_05S222W.IMG.JPEG_SMALL",
+                "KBytes": "5",
+                "Type": "Browse",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/extras/thumbnail/T01_000815_1749_XN_05S222W.IMG.jpeg_small"
+              },
+              {
+                "Creation_date": "2020-01-16T14:17:29.446",
+                "Description": "PRODUCT KML FILE <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000815_1749_XN_05S222W_IMG.KML",
+                "KBytes": "3",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/kmlfiles/mro-m-ctx-2-edr-l0-v1/mrox_0003/data/t01_000815_1749_xn_05s222w_img.kml"
+              },
+              {
+                "Creation_date": "2020-01-16T14:17:29.359",
+                "Description": "PRODUCT FOOTPRINT SHAPEFILES (TAR.GZ) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000815_1749_XN_05S222W_IMG.TAR.GZ",
+                "KBytes": "4",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-ctx-2-edr-l0-v1/mrox_0003/data/t01_000815_1749_xn_05s222w_img.tar.gz"
+              },
+              {
+                "Creation_date": "2020-01-16T14:17:29.267",
+                "Description": "PRODUCT FOOTPRINT SHAPEFILES (ZIP) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000815_1749_XN_05S222W_IMG.ZIP",
+                "KBytes": "26",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-ctx-2-edr-l0-v1/mrox_0003/data/t01_000815_1749_xn_05s222w_img.zip"
+              }
+            ]
+          },
+          "ProductURL": "https://ode.rsl.wustl.edu/mars/indexproductpage.aspx?product_id=T01_000815_1749_XN_05S222W&product_idGeo=9030089",
+          "pt": "EDR",
+          "RelativePathtoVol": "data\\",
+          "Solar_distance": "242747412.1",
+          "Solar_longitude": "113.26",
+          "SpaceCraft_clock_start_count": "0843956429:032",
+          "SpaceCraft_clock_stop_count": "0843956429:032",
+          "Start_orbit_number": "815",
+          "Stop_orbit_number": "815",
+          "Target_name": "MARS",
+          "UTC_start_time": "2006-09-29T00:20:10.316",
+          "UTC_stop_time": "2006-09-29T00:20:44.908",
+          "Westernmost_longitude": "137.07"
+        },
+        {
+          "BB_georeferenced": "True",
+          "Center_georeferenced": "True",
+          "Center_latitude": "-4.8181",
+          "Center_longitude": "137.0402",
+          "Comment": "Gale Crater",
+          "Data_Set_Id": "MRO-M-CTX-2-EDR-L0-V1.0",
+          "Easternmost_longitude": "137.38",
+          "Emission_angle": "2.91",
+          "External_url2": "http://viewer.mars.asu.edu/planetview/inst/ctx/T01_000881_1752_XI_04S223W#start",
+          "FilesURL": "https://ode.rsl.wustl.edu/mars/productfiles.aspx?product_id=T01_000881_1752_XI_04S223W&product_idGeo=9031025",
+          "Footprint_C0_geometry": "POLYGON ((137.15 -3.8642, 137.38 -5.7225, 136.93 -5.7719, 136.71 -3.9235, 137.15 -3.8642))",
+          "Footprint_geometry": "POLYGON ((137.15 -3.8642, 137.38 -5.7225, 136.93 -5.7719, 136.71 -3.9235, 137.15 -3.8642))",
+          "Footprint_GL_geometry": "POLYGON ((137.15 -3.8642, 137.38 -5.7225, 136.93 -5.7719, 136.71 -3.9235, 137.15 -3.8642))",
+          "Footprint_NP_geometry": "MULTIPOLYGON EMPTY",
+          "Footprint_souce": "PDS Archive Index Table",
+          "Footprint_SP_geometry": "MULTIPOLYGON EMPTY",
+          "Footprints_cross_meridian": "False",
+          "ihid": "MRO",
+          "iid": "CTX",
+          "Incidence_angle": "58.09",
+          "LabelFileName": "t01_000881_1752_xi_04s223w.img",
+          "LabelURL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0005/data/T01_000881_1752_XI_04S223W.IMG",
+          "Map_scale": "5.29",
+          "Maximum_latitude": "-3.8642",
+          "Minimum_latitude": "-5.7719",
+          "Observation_time": "2006-10-04T03:40:20.347",
+          "ode_id": "9031025",
+          "ODE_notes": {
+            "ODE_note": [
+              "NOTE: Product Type set by ODE",
+              "NOTE: Instrument Host Id set by ODE",
+              "NOTE: No SC Clock Stop Count so SC Clock Start Count used for Stop Count",
+              "NOTE: Label keyword Orbit number value used for start orbit number value",
+              "NOTE: Label keyword Orbit number value used for stop orbit number value",
+              "NOTE: Observation time set to mid-point between start time and stop time",
+              "NOTE: Index Record:",
+              "\"MROX_0005\",\"DATA/T01_000881_1752_XI_04S223W.IMG\",\"4A_04_1001005500\",\"T01_000881_1752_XI_04S223W\",\"2006-10-04T03:40:03.051\",\"CTX   \",\"ITL  \",5056, 18432, 1,    5.29,  1.15,  2.91, 58.09, 55.74,222.96, -4.88,223.07, -5.84,222.62, -5.79,223.29, -3.97,222.85, -3.91,\"TRANSITION\",\"MARS  \",\"0844400421:221 \",291.1,   1.877,\"195/234/232\",   0,  26.48,  111.75, 263.64,3659.68, 263.95,\"N\",276.92,217.64,275.37, 22.81,223.17, -4.90,242056770.2,115.63,15.50, 90.1,\"Gale Crater                                                                     \",\"OK    \",   881",
+              "NOTE: Map scale set from index table entry",
+              "NOTE: Emission angle set from index table entry",
+              "NOTE: Incidence angle set from index table entry",
+              "NOTE: Phase set from index table entry",
+              "NOTE: Solar distance set from index table entry",
+              "NOTE: Solar longitude set from index table entry",
+              "NOTE: CTX location data updated from index table entry"
+            ]
+          },
+          "pdsid": "T01_000881_1752_XI_04S223W",
+          "PDSVolume_Id": "MROX_0005",
+          "Phase_angle": "55.74",
+          "Pole_state": "none",
+          "Producer_id": "MRO_CTX_TEAM",
+          "Product_creation_time": "2007-05-18T01:04:26.000",
+          "Product_files": {
+            "Product_file": [
+              {
+                "Description": "PRODUCT DATA FILE WITH LABEL",
+                "FileName": "T01_000881_1752_XI_04S223W.IMG",
+                "KBytes": "89001",
+                "Type": "Product",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0005/data/T01_000881_1752_XI_04S223W.IMG"
+              },
+              {
+                "Description": "BROWSE IMAGE",
+                "FileName": "T01_000881_1752_XI_04S223W.IMG.JPEG",
+                "KBytes": "41",
+                "Type": "Browse",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0005/extras/browse/T01_000881_1752_XI_04S223W.IMG.jpeg"
+              },
+              {
+                "Description": "THUMBNAIL IMAGE",
+                "FileName": "T01_000881_1752_XI_04S223W.IMG.JPEG_SMALL",
+                "KBytes": "5",
+                "Type": "Browse",
+                "URL": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0005/extras/thumbnail/T01_000881_1752_XI_04S223W.IMG.jpeg_small"
+              },
+              {
+                "Creation_date": "2020-01-15T17:14:21.303",
+                "Description": "PRODUCT KML FILE <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000881_1752_XI_04S223W_IMG.KML",
+                "KBytes": "3",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/kmlfiles/mro-m-ctx-2-edr-l0-v1/mrox_0005/data/t01_000881_1752_xi_04s223w_img.kml"
+              },
+              {
+                "Creation_date": "2020-01-15T17:14:21.216",
+                "Description": "PRODUCT FOOTPRINT SHAPEFILES (TAR.GZ) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000881_1752_XI_04S223W_IMG.TAR.GZ",
+                "KBytes": "4",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-ctx-2-edr-l0-v1/mrox_0005/data/t01_000881_1752_xi_04s223w_img.tar.gz"
+              },
+              {
+                "Creation_date": "2020-01-15T17:14:21.125",
+                "Description": "PRODUCT FOOTPRINT SHAPEFILES (ZIP) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+                "FileName": "T01_000881_1752_XI_04S223W_IMG.ZIP",
+                "KBytes": "26",
+                "Type": "Derived",
+                "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-ctx-2-edr-l0-v1/mrox_0005/data/t01_000881_1752_xi_04s223w_img.zip"
+              }
+            ]
+          },
+          "ProductURL": "https://ode.rsl.wustl.edu/mars/indexproductpage.aspx?product_id=T01_000881_1752_XI_04S223W&product_idGeo=9031025",
+          "pt": "EDR",
+          "RelativePathtoVol": "data\\",
+          "Solar_distance": "242056770.2",
+          "Solar_longitude": "115.63",
+          "SpaceCraft_clock_start_count": "0844400421:221",
+          "SpaceCraft_clock_stop_count": "0844400421:221",
+          "Start_orbit_number": "881",
+          "Stop_orbit_number": "881",
+          "Target_name": "MARS",
+          "UTC_start_time": "2006-10-04T03:40:03.051",
+          "UTC_stop_time": "2006-10-04T03:40:37.644",
+          "Westernmost_longitude": "136.71"
+        }
+      ]
+    },
+    "QuerySummary": {
+      "Date": "2026-10-21T12:30:51.276",
+      "easternlon": "139",
+      "ihid": "mro",
+      "iid": "ctx",
+      "limit": "2",
+      "maxlat": "-4.3",
+      "minlat": "-5.3",
+      "offset": "1",
+      "order": "NONE",
+      "output": "JSON",
+      "pt": "edr",
+      "query": "PRODUCT",
+      "Query_Elapsed_Time": "00:00:00.3906232",
+      "results": "COPMF",
+      "target": "mars",
+      "westernlon": "137"
+    },
+    "Status": "Success"
+  }
+}

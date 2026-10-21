@@ -1,112 +1,209 @@
-# Mars source discovery (issue #249)
+# Mars source discovery (#249)
 
-This is an **offline-first, bounded source metadata planner**. It supplements
-[#248](surface-data-plans.md); it does not download rasters, generate terrain,
-reproject datums or certify an archive product as build-ready. The discovery
-report is deterministic given a desired plan and an evidence-linked inventory.
+The renderer-free `recommendSurfaceSources` query consumes a desired #248 plan
+and up to 32 evidenced upstream source records. It returns **1–3 exploratory
+imagery + terrain combinations per region**, channel candidates/fallbacks,
+coverage polygons, costs, quality tradeoffs, and diagnostics. It never creates
+a build lock, downloads rasters, reprojects, fuses images, or generates stereo.
+No archive service runs in the viewer. All normal operations are offline.
 
-## Run with checked-in evidence
+## Run the two acceptance cases
 
 ```bash
+npm run build
+node scripts/build-mars-discovery-inventories.mjs
 npm run --silent discover:surface -- \
   docs/examples/surface-plans/jezero.plan.json \
   --inventory docs/examples/surface-plans/mars-jezero.inventory.json \
-  --policy consistent \
   --out /tmp/jezero-discovery.json \
-  --sources-out /tmp/jezero-source-descriptors.json
-
+  --sources-out /tmp/jezero-recommended-sources.json \
+  --inventory-out /tmp/jezero-full-inventory.json
 npm run --silent plan:surface -- \
   docs/examples/surface-plans/jezero.plan.json \
-  --sources /tmp/jezero-source-descriptors.json
+  --sources /tmp/jezero-recommended-sources.json
 ```
 
-Use `--policy finest-imagery` or `--policy physical-accuracy` for alternate,
-stable ranking biases. Default output lists no more than three candidate
-**single source products per region/channel**. The returned JSON has product
-IDs, evidence URLs, independent imagery/physical elevation sampling,
-requested resolution and accuracy, overlap fraction when a footprint exists,
-unknown coverage and reasons. It does **not** fuse/choose a build lock. The
-`--sources-out` file uses the existing `SurfaceSourceDescriptor[]` validator
-contract from #248. The estimator will keep unresolved coverage and absent
-accuracy explicit.
+Repeat with `gale` replacing `jezero`. The plans contain **synthetic regions**,
+not mission landing/operations geometry. Use `--policy consistent`,
+`finest-imagery`, or `physical-accuracy`. The first favors controlled products,
+the second source image sampling, the third documented terrain accuracy.
+Known insufficiency, coverage, registration, reuse restrictions, and cost
+also affect ranking. Unknown accuracy remains unknown at every pixel size.
 
-The example plans are **synthetic regions**, not Mars mission landing
-geometry. These four-entry Mars inventory files are deliberately small
-research fixtures. They list MOLA gridded elevation, Viking MDIM2.1 imagery
-and a published HiRISE stereo DTM with a corresponding separate orthoimage
-for Jezero or Gale. MOLA's entry is a **collection-level lead**, not an
-individual, buildable raster; consult the collection to resolve the actual
-regional tiles. Viking's native acquisition quality varies; its nominal
-published mosaic pixel size is not evidence of uniform native 232 m quality.
-For HiRISE Jezero, the `ESP_023524_1985_RED_C_01_ORTHO` envelope comes
-directly from the PDS label (`MINIMUM_LATITUDE`, `MAXIMUM_LATITUDE`,
-`WESTERNMOST_LONGITUDE`, `EASTERNMOST_LONGITUDE`). Its `CORE_NULL`
-means untested pixel validity, *not* a proof of full useful coverage.
-The corresponding `DTEEC_023524_1985_023379_1985_U01` DTM is a separate
-source with an independently unresolved footprint/datum/accuracy.
+`--sources-out` exports only the **top combination per region**, de-duplicated,
+with source identity, metadata/evidence and uncertainty preserved. The report's
+`estimatorHandoff` identifies each recommended combination. This is an explicit
+candidate handoff for cost estimation, not an approved or locked selection.
+`--inventory-out` separately exports the full normalized records, including
+unselected alternatives. It is never implicitly fed to the estimator.
 
-Evidence and labels:
-- [Jezero DTM and matching orthoimages](https://hirise.lpl.arizona.edu/dtm/ESP_023524_1985)
-- [Jezero orthoimage PDS label](https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/ESP_023524_1985_RED_C_01_ORTHO.LBL)
-- [Gale DTM and associated images](https://hirise.lpl.arizona.edu/dtm/ESP_016520_1750)
-- [Viking MDIM2.1 global mosaic](https://astrogeology.usgs.gov/search/map/mars_viking_colorized_global_mosaic_232m)
-- [MOLA MEGDR documentation and tile/product naming](https://pds-geosciences.wustl.edu/missions/mgs/megdr.html)
+The combination download range concerns its selected raster assets. Missing
+sizes leave the upper bound unknown; shared URL/version assets count once.
+`requestedBaseGridBytes` is a transparent work proxy: ROI area / requested GSD²,
+times 3 imagery or 4 terrain bytes/sample. It excludes pyramids, gutters,
+compression, reprojection, input decode/scratch, and overlapping-region reuse;
+use #248 for those output scenarios. The estimator may leave its download
+upper bound unknown even for sized candidates when additional coverage is
+unresolved. These are planning estimates, not achieved output or timings.
 
-## Source-evidence semantics
+## Independently verifiable inventory
 
-The `SurfaceDiscoveryRecord` references a validated #248
-`SurfaceSourceDescriptor` and separate evidence about source type, footprint
-status, timing, illumination and registration. Each candidate reports:
-- `footprintFraction: null` for unknown extent; a numeric overlap ratio when
-  an evidenced footprint is present. An envelope is **not** a valid mask.
-- `verifiedValidFraction: null` unless the input explicitly represents a
-  validated *valid-data* mask with `nodata: "none"`. Zero is not silently
-  substituted for missing evidence.
-- `meetsTarget: null` for unknown physical sampling or accuracy. A 1 m
-  DEM tile interval does not assert 0.5 m elevation accuracy.
-- Archive-relative absences mean **unknown products/coverage**, not proof the
-  planet has no finer observation.
+Both seven-product inventories are rebuilt **without network access** from
+checked-in [primary captures](examples/surface-plans/evidence/manifest.json).
+The manifest records response times, metadata URLs and SHA-256 hashes. Raw
+ODE JSON includes original `LabelURL`, assets, archive/index footprint WKT,
+illumination/time fields, and original labels where ODE supplied them. MOLA's
+original PDS4 XML labels are also cached. The generator never invents IDs or
+copies a DTM's geometry into its orthoimage.
 
-Source descriptors with mismatched frames or coordinates are not silently
-transformed. The #248 v1 lock permits identity-only transformations and
-requires complete verified coverage. Do not convert this exploratory report
-to a build lock without inspecting labels, datums and masks.
+| Source | Jezero example | Gale example | Evidence/limits |
+| --- | --- | --- | --- |
+| Viking global MDIM baseline tiles | `mg15n277.img` | `mg00n217.img` | Real regional tiles from the global baseline, original labels/footprints; raster scale differs from observation-native resolution and illumination |
+| MOLA MEG128 topography | `megt44n000hb` | `megt00n090hb` | Individual PDS4 products, label extents, 463.0576672 m grid interval, radial heights above GMM3 areoid; empty shot bins interpolated |
+| CTX | `P02_001820_1984_XI_18N282W` | `T01_000815_1749_XN_05S222W` | Original EDR assets/labels, ODE index polygons and acquisition sampling; unprojected images require camera-model work |
+| HRSC terrain | `H0988_0000_DT4.IMG` | `H4235_0001_DT4.IMG` | Archived original labels, irregular footprints, 75/50 m grids, sinusoidal, 3396 km spheroid heights, `MEX:DTM_MISSING_DN=-32768` |
+| HiRISE image | `ESP_023524_1985_RED` | `ESP_016520_1750_RED` | Released RDR image, separate archive footprint, 0.25 m source raster grid, acquisition/illumination; sampling is not measured accuracy |
+| Released HiRISE DTM | `DTEEC_023524_1985_023379_1985_U01` | `DTEEC_016520_1750_016375_1750_A01` | Separate released DTM records, real footprint polygons, original attached-label URLs and file sizes; physical accuracy/datum unresolved |
+| Matching orthoimage | `ESP_023524_1985_RED_C_01_ORTHO` | `ESP_016520_1750_RED_C_01_ORTHO` | Existence/asset/label URL independently established by the released DTM asset listing; per-image geometry/scale unknown while direct labels are unreachable |
 
-## Optional PDS ODE REST metadata scouting
+MOLA labels describe gridding, interpolation and shot gaps up to 12 km. They
+are not a mask audit. HRSC labels explicitly identify missing DN. ODE footprint
+polygons and image bounding rectangles establish product extent, **not valid
+raster pixels**. Accordingly these real fixtures report **no verified valid
+pixel coverage**, rather than claiming full coverage from archive overlap.
+Native/source raster sampling, underlying observation detail, requested output
+GSD, and physical height/registration accuracy remain distinct.
 
-PDS Orbital Data Explorer has [documented REST metadata search endpoints](https://pilot.rsl.wustl.edu/Help/Api/GET-api-v1-search-products-metadata-target-mission-instrument-prodType-productIdentifier-minLat-maxLat-westernLon-easternLon-wkt-featureType-feature-sortKey-offset-pageSize-pageNum-outputFormat).
-It catalogs PDS3 and PDS4, including [planetary spatial searches](https://ode.rsl.wustl.edu/mars/pagehelp/Content/Frequently_Asked_Questions/Differences_Between_ODEandPDS_api.htm).
-Route/version assumptions differ between ODE deployments: verify an actual
-endpoint URL in the official documentation before passing it to this CLI.
-There is **no background polling** and no archive traffic in the normal viewer.
+Direct HiRISE archive hosts were unreachable from the integration environment
+on 2026-10-21; ODE returned `label.Line: "not found"` for attached DTM labels.
+The caches retain this failure. No Gale ortho footprint is invented, and the previous collection-only MOLA
+lead is replaced with an individual product. Actual high-resolution image/DTM
+footprints now come from the separately identified archive products; ortho
+coverage stays unknown until its own label or mask can be verified.
 
-An explicit `--ode-template 'https://pilot.rsl.wustl.edu/.../mars/.../{pageSize}/.../{page}/json'`
-makes up to **two sequential GET requests of 25 records each**.
-Only ODE Mars HTTPS hosts are allowed; redirects are not followed.
-The optional output lists ODE-observed product IDs/version/mission/instrument
-and metadata errors, with *null* footprint, datum, GSD, mask and accuracy.
-It does not automatically promote unknown search results to verified
-source descriptors. Unsupported JSON envelopes, page repeats, HTTP errors
-or service outages produce diagnostic partial results; no fabricated coverage.
+## Shared provenance and coverage contract
 
-The adapter also supports test fixtures through a supplied `fetchImpl` and
-bounded page controls. For real work, cache reviewed metadata into an
-evidence-linked inventory and rerun offline. Only known verified assets and
-footprints should be pinned to a locked plan.
+`SurfaceSourceDescriptor.metadata` is the upstream metadata seam shared with
+#248/#250/#251 and #136. It includes label/evidence URLs, confidence/unknowns,
+source raster grid interval, bands/type, acquisition/observation, original
+projection/coordinate/datum descriptions, registration evidence, illumination
+and photometry, related **released** stereo products, assets/size evidence and
+reuse terms. Optional XYZ/WMTS metadata describes grid/projection/coordinates,
+ellipsoid assumptions, template, tile dimensions, origin/order, zoom limits,
+nodata, native-resolution claims, immutable identity and CORS/access/usage.
+Unknown provider properties are null. No published-cube availability is
+inferred or stored in the upstream descriptor.
 
-## Deliberate boundaries / follow-up for closing #249
+Normalized geographic footprints use the declared planner coordinate system;
+original raster conventions remain separate metadata. HRSC sphere heights and
+MOLA areoid/radial topography retain their actual datums. They are not relabeled
+as ellipsoid/geodetic heights. Transform/projection/registration warnings remain
+visible; #248's identity-only lock validation still rejects unresolved datums.
+A HiRISE image alone never establishes a matching DTM; relationships are added
+only from separately cached released products and their asset listings.
 
-This first pass is **not** the full source catalog or automatic best-coverage
-mosaic selector. Follow-up work should:
-1. Enrich CTX and HRSC/MOLA regional sources with verified **product** IDs,
-   true projected footprints, nodata masks, photometry and native resolution.
-2. Parse downloadable PDS labels or trusted ODE footprints for documented
-   products, with coordinate/datum translation **explicit**, not inferred.
-3. Union known valid-data masks for achieved/gap area and recommend compatible
-   pairs/sets with actual download/work costs and clear registration limitations.
-4. Promote curated records only through the #248 source validation and
-   reproducible lockfile/build process. #250 consumes these same JSON reports.
+Pixel evidence requires `metadata.validData.geometry`, an HTTPS evidence URL,
+a method and `extent`. `complete-mask` also identifies invalid pixels within
+the source envelope; `known-valid-subset` leaves its remainder unknown.
+`nodata: "none"` alone is insufficient. Both forms preserve holes and dateline
+splits through the same polygon/planetary area implementation as #248.
+Masks outside a product footprint are rejected. Metadata-bearing sources need
+independent validity evidence before an estimator can establish fidelity or a
+lock can accept coverage; legacy #248 descriptors retain their existing contract.
 
-No live ODE endpoint has been certified in this first pass; the opt-in path
-is deliberately kept separate from default operations and returns diagnostics
-when unavailable.
+Each combination/channel has disjoint `verifiedGeometry`, `unknownGeometry`,
+`gapGeometry` and their ROI fractions. They sum to the requested ROI; overlaps
+are counted once. Gaps mean absent from **these selected products**, never that
+the archive has no other products. `targetVerifiedFraction` additionally requires
+native sampling, requested physical accuracy, and the matching target datum.
+Coverage status is complete, partial, empty or unknown; a 1% sliver remains
+partial with 99% visibly unresolved/missing. Complete pixel availability can
+still fail target fidelity. Unregistered or datum-mismatched masks are not
+unioned to manufacture complete coverage. Separate observations, illumination
+mismatches (>10 degrees incidence), source projections, unknown photometry,
+registration and reuse terms appear in combination warnings. Alternatives with
+unknown joint registration remain exploratory and explicitly unverified.
+
+The bounded selector starts from ranked independent products and grows sets
+of at most three compatible products only for incremental verified coverage.
+It compares imagery/terrain choices and returns the best three deterministic
+alternatives. This bounded heuristic is not an exhaustive mosaic optimizer.
+Channel fallback lists separately identify finer/equal, coarser and unknown
+source sampling; `require-target`/`leave-unavailable` do not silently select a
+known coarser source. An empty/offline inventory returns explicit missing
+candidates and partial-plan diagnostics.
+
+## Optional live ODE and deterministic replay
+
+The adapter uses the documented
+[ODE REST v2.1.5 contract](https://oderest.rsl.wustl.edu/ODE_REST_V2.1.5.pdf),
+`https://oderest.rsl.wustl.edu/live2/`, `query=product`, `target=mars`,
+`results=copmf`, `output=json`. It reads actual `ODEResults.Products.Product`
+singleton/array responses, `pdsid`/`Product_lid`, `Footprint_geometry`,
+`Map_scale`, `Product_files.Product_file`, and service status. Supported bounded
+product families are CTX EDR, HiRISE RDRV11/DTM, HRSC DTMRDR terrain, MOLA
+MEGDR topography, and Viking MDIM/MDIMC. Other families are diagnosed, not guessed.
+MOLA's ODE `Map_scale` is pixels/degree, not metres; its original XML label
+supplies the curated grid scale.
+
+A full **mission/instrument/productType tuple** is mandatory: the service can
+silently ignore spatial limits for incomplete tuples or product-only searches.
+Supply planetocentric latitude and east longitude 0..360 bounds (west > east is
+a longitude-seam search), or a product ID within the tuple. Example query file:
+
+```json
+{"mission":"mro","instrument":"ctx","productType":"edr","minLat":18.3,"maxLat":18.6,"westernLon":77.2,"easternLon":77.7}
+```
+
+```bash
+node scripts/discover-surface.mjs docs/examples/surface-plans/jezero.plan.json \
+  --inventory docs/examples/surface-plans/mars-jezero.inventory.json \
+  --ode-query /tmp/jezero-ctx-query.json --ode-cache-out /tmp/ode-cache.json
+
+# Exact same adapter/recommendation path, offline:
+node scripts/discover-surface.mjs docs/examples/surface-plans/jezero.plan.json \
+  --inventory docs/examples/surface-plans/mars-jezero.inventory.json \
+  --ode-cache docs/examples/surface-plans/evidence/jezero-ctx-live.cache.json
+
+# Explicit integration smoke: 2 pages x 2 products; writes replayable raw metadata.
+node scripts/smoke-ode-mars.mjs /tmp/ode-smoke.json
+```
+
+The live smoke succeeded on 2026-10-21 with four distinct CTX IDs over two
+advancing pages. Its checked-in cache is tested offline. Despite the manual's
+0-based description, the live service echoed offset 0 as 1; the validated
+adapter uses **1, 1+pageSize** (smoke: 1 and 3). `Count` described the returned
+page in these captures, so termination uses short pages, caps, and repeated
+identities rather than treating it as the archive total. Archive ordering is
+not a cross-date lock; cache the metadata for deterministic decisions.
+
+Live access is CLI opt-in: at most **2 pages x 16 products**, 1 MiB/page,
+12 seconds/page by default. Fixed HTTPS metadata endpoint, no redirects,
+credentials, browse/raster requests, arbitrary URL templates, or polling.
+Timeouts, HTTP/service errors, malformed/oversized payloads, unsupported
+products, repeats and caps return diagnostics and preserve available offline
+records. The combined inventory stays capped at 32, with reviewed curated
+metadata taking precedence over duplicate live identities. Old arbitrary
+`--ode-template` URLs are replaced by validated query files.
+
+## Verification
+
+```bash
+npm run build
+npm run typecheck:tests
+npm run lint
+npm run lint:purity
+npx vitest run packages/core/src/__tests__/surface-discovery.test.ts \
+  packages/core/src/__tests__/surface-plan.test.ts scripts/surface-discovery.test.mjs
+```
+
+Regressions cover primary-capture hashes and inventory regeneration, Jezero/Gale
+reports, determinism, the partial-sliver bug, compatible coverage union, overlap,
+holes/dateline, unknown/complete masks, datum/registration/projection conflicts,
+illumination/observation warnings, policy choices, candidate download costs,
+source sampling versus accuracy, ODE page formats/errors/caps/offline replay,
+and discovery → selected candidates → #248 estimator. No scientific mask,
+accuracy, registration transform or product availability is fabricated to make
+an example pass. Human acceptance of #249 and any subsequent source build
+selection remain separate from this implementation; keep the issue open until
+that evidence is reviewed.

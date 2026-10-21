@@ -1,0 +1,329 @@
+{
+  "ODEResults": {
+    "Count": "1",
+    "Products": {
+      "Product": {
+        "BB_georeferenced": "True",
+        "Center_georeferenced": "True",
+        "Center_latitude": "-5.1496",
+        "Center_longitude": "138.4971",
+        "Comment": "Potential rhythmic layering in east Gale Crater with hydrated signature",
+        "Data_Set_Id": "MRO-M-HIRISE-5-DTM-V1.0",
+        "Easternmost_longitude": "138.5665",
+        "External_url": "https://www.uahirise.org/ESP_016520_1750",
+        "FilesURL": "https://ode.rsl.wustl.edu/mars/productfiles.aspx?product_id=DTEEC_016520_1750_016375_1750_A01&product_idGeo=47814551",
+        "Footprint_C0_geometry": "POLYGON ((138.4278 -4.9347, 138.5114 -4.9271, 138.5665 -5.3644, 138.4835 -5.3753, 138.4278 -4.9347))",
+        "Footprint_geometry": "POLYGON ((138.4278 -4.9347, 138.5114 -4.9271, 138.5665 -5.3644, 138.4835 -5.3753, 138.4278 -4.9347))",
+        "Footprint_GL_geometry": "POLYGON ((138.4278 -4.9347, 138.5114 -4.9271, 138.5665 -5.3644, 138.4835 -5.3753, 138.4278 -4.9347))",
+        "Footprint_NP_geometry": "GEOMETRYCOLLECTION EMPTY",
+        "Footprint_souce": "PDS Archive Index Table",
+        "Footprint_SP_geometry": "GEOMETRYCOLLECTION EMPTY",
+        "Footprints_cross_meridian": "False",
+        "ihid": "MRO",
+        "iid": "HIRISE",
+        "label": {
+          "Line": "not found"
+        },
+        "LabelFileName": "dteec_016520_1750_016375_1750_a01.img",
+        "LabelURL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
+        "Map_resolution": "58587.44122336",
+        "Map_scale": "1.0116848024285",
+        "Maximum_latitude": "-4.9271",
+        "Minimum_latitude": "-5.3753",
+        "ode_id": "47814551",
+        "ODE_notes": {
+          "ODE_note": [
+            "NOTE: Product Type set by ODE",
+            "NOTE: Map Resolution set from label map projection object",
+            "NOTE: Map scale from the label map projection object",
+            "NOTE: No observation time available",
+            "NOTE: Index Record:",
+            "\"MROHR_0001\",\"DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG\",\"MRO\",\"HIRISE\",\"DTEEC_016520_1750_016375_1750_A01\",\"1  \",\"MARS                            \",\"Potential rhythmic layering in east Gale Crater with hydrated signature    \",\"ESP_016520_1750\",\"ESP_016375_1750\",\"NA                               \",\"DTM             \", 26375,  8102,  270.0000,   -5.3754,   -4.9252,  138.4278,  138.5666, 1.01, 58587.441,\"EQUIRECTANGULAR    \", -5.0, 180.000,   -288557.5,      4214.5,   -4.9347,  138.4278,   -4.9271,  138.5114,   -5.3644,  138.5665,   -5.3753,  138.4835",
+            "NOTE: HIRISE location data updated from index table entry"
+          ]
+        },
+        "pdsid": "DTEEC_016520_1750_016375_1750_A01",
+        "PDSVolume_Id": "MROHR_0001",
+        "Pole_state": "none",
+        "Producer_id": "UA",
+        "Product_creation_time": "0000-00-00T00:00:00.000",
+        "Product_files": {
+          "Product_file": [
+            {
+              "Description": "MAP PROJECTION FILE",
+              "FileName": "DSMAP.CAT",
+              "KBytes": "7",
+              "Type": "Referenced",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/CATALOG/DSMAP.CAT"
+            },
+            {
+              "Description": "BROWSE AB",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01.AB.JPG",
+              "KBytes": "175",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.ab.jpg"
+            },
+            {
+              "Description": "BROWSE BR",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01.BR.JPG",
+              "KBytes": "152",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.br.jpg"
+            },
+            {
+              "Description": "PRODUCT DATA FILE WITH LABEL",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01.IMG",
+              "KBytes": "854794",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG"
+            },
+            {
+              "Description": "BROWSE TH",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01.TH.JPG",
+              "KBytes": "60",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.th.jpg"
+            },
+            {
+              "Creation_date": "2026-10-08T14:17:03.460",
+              "Description": "PRODUCT KML FILE <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01_IMG.KML",
+              "KBytes": "3",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/kmlfiles/mro-m-hirise-5-dtm-v1/mrohr_0001/dtm/esp/orb_016500_016599/esp_016520_1750_esp_016375_1750/dteec_016520_1750_016375_1750_a01_img.kml"
+            },
+            {
+              "Creation_date": "2026-10-08T14:17:03.311",
+              "Description": "PRODUCT FOOTPRINT SHAPEFILES (TAR.GZ) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01_IMG.TAR.GZ",
+              "KBytes": "3",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-hirise-5-dtm-v1/mrohr_0001/dtm/esp/orb_016500_016599/esp_016520_1750_esp_016375_1750/dteec_016520_1750_016375_1750_a01_img.tar.gz"
+            },
+            {
+              "Creation_date": "2026-10-08T14:17:03.167",
+              "Description": "PRODUCT FOOTPRINT SHAPEFILES (ZIP) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "DTEEC_016520_1750_016375_1750_A01_IMG.ZIP",
+              "KBytes": "18",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mro-m-hirise-5-dtm-v1/mrohr_0001/dtm/esp/orb_016500_016599/esp_016520_1750_esp_016375_1750/dteec_016520_1750_016375_1750_a01_img.zip"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016375_1750_IRB_A_01_ORTHO.JP2",
+              "KBytes": "321647",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_A_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016375_1750_IRB_A_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_A_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE AB",
+              "FileName": "ESP_016375_1750_IRB_C_01_ORTHO.AB.JPG",
+              "KBytes": "222",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_C_01_ORTHO.ab.jpg"
+            },
+            {
+              "Description": "ORTHO BROWSE BR",
+              "FileName": "ESP_016375_1750_IRB_C_01_ORTHO.BR.JPG",
+              "KBytes": "238",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_C_01_ORTHO.br.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016375_1750_IRB_C_01_ORTHO.JP2",
+              "KBytes": "24084",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_C_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016375_1750_IRB_C_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_C_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE TH",
+              "FileName": "ESP_016375_1750_IRB_C_01_ORTHO.TH.JPG",
+              "KBytes": "78",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_IRB_C_01_ORTHO.th.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016375_1750_RED_A_01_ORTHO.JP2",
+              "KBytes": "606546",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_A_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016375_1750_RED_A_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_A_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE AB",
+              "FileName": "ESP_016375_1750_RED_C_01_ORTHO.AB.JPG",
+              "KBytes": "698",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_C_01_ORTHO.ab.jpg"
+            },
+            {
+              "Description": "ORTHO BROWSE BR",
+              "FileName": "ESP_016375_1750_RED_C_01_ORTHO.BR.JPG",
+              "KBytes": "725",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_C_01_ORTHO.br.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016375_1750_RED_C_01_ORTHO.JP2",
+              "KBytes": "48283",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_C_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016375_1750_RED_C_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_C_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE TH",
+              "FileName": "ESP_016375_1750_RED_C_01_ORTHO.TH.JPG",
+              "KBytes": "215",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016375_1750_RED_C_01_ORTHO.th.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016520_1750_IRB_A_01_ORTHO.JP2",
+              "KBytes": "359603",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_A_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016520_1750_IRB_A_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_A_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE AB",
+              "FileName": "ESP_016520_1750_IRB_C_01_ORTHO.AB.JPG",
+              "KBytes": "236",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_C_01_ORTHO.ab.jpg"
+            },
+            {
+              "Description": "ORTHO BROWSE BR",
+              "FileName": "ESP_016520_1750_IRB_C_01_ORTHO.BR.JPG",
+              "KBytes": "252",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_C_01_ORTHO.br.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016520_1750_IRB_C_01_ORTHO.JP2",
+              "KBytes": "26988",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_C_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016520_1750_IRB_C_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_C_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE TH",
+              "FileName": "ESP_016520_1750_IRB_C_01_ORTHO.TH.JPG",
+              "KBytes": "81",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_IRB_C_01_ORTHO.th.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016520_1750_RED_A_01_ORTHO.JP2",
+              "KBytes": "584073",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_A_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016520_1750_RED_A_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_A_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE AB",
+              "FileName": "ESP_016520_1750_RED_C_01_ORTHO.AB.JPG",
+              "KBytes": "689",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.ab.jpg"
+            },
+            {
+              "Description": "ORTHO BROWSE BR",
+              "FileName": "ESP_016520_1750_RED_C_01_ORTHO.BR.JPG",
+              "KBytes": "714",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.br.jpg"
+            },
+            {
+              "Description": "ORTHO IMAGE",
+              "FileName": "ESP_016520_1750_RED_C_01_ORTHO.JP2",
+              "KBytes": "47683",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.JP2"
+            },
+            {
+              "Description": "ORTHO IMAGE LABEL",
+              "FileName": "ESP_016520_1750_RED_C_01_ORTHO.LBL",
+              "KBytes": "6",
+              "Type": "Product",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL"
+            },
+            {
+              "Description": "ORTHO BROWSE TH",
+              "FileName": "ESP_016520_1750_RED_C_01_ORTHO.TH.JPG",
+              "KBytes": "211",
+              "Type": "Browse",
+              "URL": "https://hirise.lpl.arizona.edu/PDS/EXTRAS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.th.jpg"
+            }
+          ]
+        },
+        "Product_version_id": "1",
+        "ProductURL": "https://ode.rsl.wustl.edu/mars/indexproductpage.aspx?product_id=DTEEC_016520_1750_016375_1750_A01&product_idGeo=47814551",
+        "pt": "DTM",
+        "RelativePathtoVol": "dtm\\esp\\orb_016500_016599\\esp_016520_1750_esp_016375_1750\\",
+        "Target_name": "MARS",
+        "Westernmost_longitude": "138.4278"
+      }
+    },
+    "QuerySummary": {
+      "Date": "2026-10-21T12:31:18.855",
+      "limit": "1",
+      "output": "JSON",
+      "productId": "DTEEC_016520_1750_016375_1750_A01",
+      "query": "PRODUCT",
+      "Query_Elapsed_Time": "00:00:02.6407656",
+      "results": "COPMFL",
+      "target": "mars"
+    },
+    "Status": "Success"
+  }
+}

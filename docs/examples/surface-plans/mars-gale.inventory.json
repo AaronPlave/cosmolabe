@@ -1,119 +1,7 @@
 [
   {
     "descriptor": {
-      "id": "viking-mdim21-global",
-      "productId": "Mars_Viking_MDIM21_ClrMosaic_global_232m",
-      "channel": "imagery",
-      "body": "Mars",
-      "frame": "IAU_MARS",
-      "coordinates": {
-        "latitude": "planetocentric",
-        "longitudeDirection": "east",
-        "longitudeDomain": "0..360",
-        "referenceShape": {
-          "kind": "ellipsoid",
-          "radiiKm": [
-            3396.19,
-            3396.19,
-            3376.2
-          ]
-        }
-      },
-      "nodata": "unknown",
-      "nativeGsdM": null,
-      "accuracyM": null,
-      "projection": "Simple cylindrical, planetocentric east-longitude; source pixel size varies",
-      "datum": {
-        "referenceShape": {
-          "kind": "ellipsoid",
-          "radiiKm": [
-            3396.19,
-            3396.19,
-            3376.2
-          ]
-        },
-        "verticalDatum": "unknown",
-        "heightConvention": "geodetic-normal"
-      },
-      "asset": {
-        "url": "https://planetarymaps.usgs.gov/mosaic/Mars_Viking_MDIM21_ClrMosaic_global_232m.tif",
-        "version": "MDIM2.1"
-      },
-      "license": {
-        "name": "PDS archive—confirm reuse terms for downstream packaging",
-        "attribution": "USGS Astrogeology / NASA Viking Orbiter"
-      }
-    },
-    "kind": "controlled-mosaic",
-    "evidence": {
-      "url": "https://astrogeology.usgs.gov/search/map/mars_viking_colorized_global_mosaic_232m",
-      "footprint": "unknown",
-      "caveats": [
-        "Published global mosaic, but explicit valid-pixel geometry has not been ingested",
-        "232 m is output sampling; underlying source observations vary in resolution",
-        "Baked illumination differs across observations"
-      ]
-    }
-  },
-  {
-    "descriptor": {
-      "id": "mola-meg128-global",
-      "productId": "urn:nasa:pds:mgs_mola_topography_derived:data_meg128",
-      "channel": "elevation",
-      "body": "Mars",
-      "frame": "IAU_MARS",
-      "coordinates": {
-        "latitude": "planetocentric",
-        "longitudeDirection": "east",
-        "longitudeDomain": "0..360",
-        "referenceShape": {
-          "kind": "ellipsoid",
-          "radiiKm": [
-            3396.19,
-            3396.19,
-            3376.2
-          ]
-        }
-      },
-      "nodata": "unknown",
-      "nativeGsdM": null,
-      "accuracyM": null,
-      "projection": "Global MOLA gridded topography 128 pixels per degree; individual tiles not resolved",
-      "datum": {
-        "referenceShape": {
-          "kind": "ellipsoid",
-          "radiiKm": [
-            3396.19,
-            3396.19,
-            3376.2
-          ]
-        },
-        "verticalDatum": "unknown",
-        "heightConvention": "geodetic-normal"
-      },
-      "asset": {
-        "retrieval": "PDS4 collection: resolve specific MEGT tile product before locking",
-        "version": "PDS4 MEG128 collection v1.0"
-      },
-      "license": {
-        "name": "PDS archive—confirm reuse terms for downstream packaging",
-        "attribution": "NASA GSFC / MGS MOLA / PDS Geosciences Node"
-      }
-    },
-    "kind": "gridded-elevation",
-    "evidence": {
-      "url": "https://pds-geosciences.wustl.edu/missions/mgs/megdr.html",
-      "footprint": "unknown",
-      "caveats": [
-        "Collection identifier, not a buildable individual product",
-        "Native sample spacing varies by latitude; counts/nodata must be inspected",
-        "Topography relative to areoid; datum transform not assumed"
-      ]
-    }
-  },
-  {
-    "descriptor": {
-      "id": "gale-hirise-stereo-dtm",
+      "id": "ode:DTEEC_016520_1750_016375_1750_A01@1",
       "productId": "DTEEC_016520_1750_016375_1750_A01",
       "channel": "elevation",
       "body": "Mars",
@@ -131,10 +19,49 @@
           ]
         }
       },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    138.4278,
+                    -4.9347
+                  ],
+                  [
+                    138.5114,
+                    -4.9271
+                  ],
+                  [
+                    138.5665,
+                    -5.3644
+                  ],
+                  [
+                    138.4835,
+                    -5.3753
+                  ],
+                  [
+                    138.4278,
+                    -4.9347
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
       "nodata": "unknown",
-      "nativeGsdM": 1.01,
+      "nativeGsdM": 1.0116848024285,
       "accuracyM": null,
-      "projection": "Unconfirmed source projection; inspect primary label before build",
+      "projection": "EQUIRECTANGULAR (archive index record)",
       "datum": {
         "referenceShape": {
           "kind": "ellipsoid",
@@ -145,30 +72,228 @@
           ]
         },
         "verticalDatum": "unknown",
-        "heightConvention": "geodetic-normal"
+        "heightConvention": "radial"
       },
       "asset": {
-        "retrieval": "See HiRISE DTM page for verified asset links",
-        "version": "HiRISE archive released"
+        "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
+        "version": "1",
+        "bytes": 854794000
       },
       "license": {
-        "name": "PDS archive—confirm reuse terms for downstream packaging",
-        "attribution": "NASA/JPL-Caltech/University of Arizona HiRISE (PDS archive)"
+        "name": "Archive reuse terms unverified",
+        "attribution": "UA / MRO / HIRISE / MRO-M-HIRISE-5-DTM-V1.0"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+        "labelUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
+        "confidence": "archive",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        ],
+        "rasterGsdM": 1.0116848024285,
+        "dataType": null,
+        "bands": [
+          "height; datum unverified"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "EQUIRECTANGULAR (archive index record)",
+        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
+        "sourceDatum": null,
+        "registration": {
+          "group": "DTEEC_016520_1750_016375_1750_A01",
+          "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+          "accuracyM": null
+        },
+        "illumination": {
+          "incidenceDeg": null,
+          "emissionDeg": null,
+          "phaseDeg": null,
+          "photometry": null
+        },
+        "stereoProductIds": [
+          "ESP_016520_1750_RED_C_01_ORTHO"
+        ],
+        "assets": [
+          {
+            "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
+            "role": "label",
+            "bytes": 854794000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
       }
     },
     "kind": "stereo-dtm",
     "evidence": {
-      "url": "https://hirise.lpl.arizona.edu/dtm/ESP_016520_1750",
-      "footprint": "unknown",
+      "url": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
       "caveats": [
-        "Published stereo DTM near -5.15 N, 138.5 E, 1.01 m/pixel map scale",
-        "Exact pixel-valid coverage, vertical datum and height accuracy not yet extracted"
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
       ]
     }
   },
   {
     "descriptor": {
-      "id": "gale-hirise-red-ortho",
+      "id": "ode:ESP_016520_1750_RED@2.0",
+      "productId": "ESP_016520_1750_RED",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    138.576,
+                    -5.3941
+                  ],
+                  [
+                    138.475,
+                    -5.406
+                  ],
+                  [
+                    138.411,
+                    -4.9317
+                  ],
+                  [
+                    138.511,
+                    -4.9199
+                  ],
+                  [
+                    138.576,
+                    -5.3941
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 0.25,
+      "accuracyM": null,
+      "projection": "EQUIRECTANGULAR (archive index record)",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "url": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.JP2",
+        "version": "2.0",
+        "bytes": 1719767000
+      },
+      "license": {
+        "name": "Archive reuse terms unverified",
+        "attribution": "UA / MRO / HIRISE / MRO-M-HIRISE-3-RDR-V1.1"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+        "labelUrl": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.LBL",
+        "confidence": "archive",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        ],
+        "rasterGsdM": 0.25,
+        "dataType": null,
+        "bands": [
+          "HiRISE RED"
+        ],
+        "acquisitionUtc": "2010-02-03T17:56:12.806",
+        "observationId": "ESP_016520_1750",
+        "sourceProjection": "EQUIRECTANGULAR (archive index record)",
+        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
+        "sourceDatum": null,
+        "registration": null,
+        "illumination": {
+          "incidenceDeg": 48.245452,
+          "emissionDeg": 19.501828,
+          "phaseDeg": 64.658998,
+          "photometry": null
+        },
+        "stereoProductIds": [
+          "DTEEC_016520_1750_016375_1750_A01"
+        ],
+        "assets": [
+          {
+            "url": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.JP2",
+            "role": "raster",
+            "bytes": 1719767000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          },
+          {
+            "url": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.LBL",
+            "role": "label",
+            "bytes": 9000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
+      }
+    },
+    "kind": "observation-image",
+    "evidence": {
+      "url": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "caveats": [
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "ode:ESP_016520_1750_RED_C_01_ORTHO@01",
       "productId": "ESP_016520_1750_RED_C_01_ORTHO",
       "channel": "imagery",
       "body": "Mars",
@@ -189,7 +314,7 @@
       "nodata": "unknown",
       "nativeGsdM": null,
       "accuracyM": null,
-      "projection": "Unconfirmed source projection; inspect primary label before build",
+      "projection": "Unknown until ortho label accessible",
       "datum": {
         "referenceShape": {
           "kind": "ellipsoid",
@@ -200,23 +325,1247 @@
           ]
         },
         "verticalDatum": "unknown",
-        "heightConvention": "geodetic-normal"
+        "heightConvention": "radial"
       },
       "asset": {
-        "retrieval": "See HiRISE DTM page for verified asset links",
-        "version": "HiRISE archive released"
+        "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.JP2",
+        "bytes": 47683000,
+        "version": "01"
       },
       "license": {
-        "name": "PDS archive—confirm reuse terms for downstream packaging",
-        "attribution": "NASA/JPL-Caltech/University of Arizona HiRISE (PDS archive)"
+        "name": "Archive reuse terms unverified",
+        "attribution": "UA / MRO / HIRISE / MRO-M-HIRISE-5-DTM-V1.0"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+        "labelUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
+        "confidence": "archive",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+          "Ortho label unreachable during metadata smoke; no DTM footprint or scale copied to image"
+        ],
+        "rasterGsdM": null,
+        "dataType": null,
+        "bands": [
+          "HiRISE RED ortho"
+        ],
+        "acquisitionUtc": null,
+        "observationId": "ESP_016520_1750",
+        "sourceProjection": null,
+        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
+        "sourceDatum": null,
+        "registration": {
+          "group": "DTEEC_016520_1750_016375_1750_A01",
+          "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
+          "accuracyM": null
+        },
+        "illumination": {
+          "incidenceDeg": null,
+          "emissionDeg": null,
+          "phaseDeg": null,
+          "photometry": null
+        },
+        "stereoProductIds": [
+          "DTEEC_016520_1750_016375_1750_A01"
+        ],
+        "assets": [
+          {
+            "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.JP2",
+            "role": "raster",
+            "bytes": 47683000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          },
+          {
+            "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
+            "role": "label",
+            "bytes": 6000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
       }
     },
     "kind": "orthoimage",
     "evidence": {
-      "url": "https://hirise.lpl.arizona.edu/dtm/ESP_016520_1750",
+      "url": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
       "footprint": "unknown",
       "caveats": [
-        "Released orthorectified image associated with Gale stereo DTM; per-image GSD and footprint require label verification"
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "Ortho label unreachable during metadata smoke; no DTM footprint or scale copied to image",
+        "Existence established independently by released DTM Product_files; label URL preserved"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "ode:H4235_0001_DT4.IMG",
+      "productId": "H4235_0001_DT4.IMG",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.871,
+                    -7.1146
+                  ],
+                  [
+                    136.577,
+                    -7.1158
+                  ],
+                  [
+                    136.576,
+                    -7.0922
+                  ],
+                  [
+                    136.577,
+                    -7.0827
+                  ],
+                  [
+                    136.576,
+                    -7.0298
+                  ],
+                  [
+                    136.578,
+                    -7.0203
+                  ],
+                  [
+                    136.525,
+                    -4.5701
+                  ],
+                  [
+                    136.526,
+                    -4.5594
+                  ],
+                  [
+                    136.523,
+                    -4.463
+                  ],
+                  [
+                    136.524,
+                    -4.4531
+                  ],
+                  [
+                    136.518,
+                    -4.3633
+                  ],
+                  [
+                    136.519,
+                    -4.3529
+                  ],
+                  [
+                    136.519,
+                    -4.3312
+                  ],
+                  [
+                    136.52,
+                    -4.3204
+                  ],
+                  [
+                    136.519,
+                    -4.2821
+                  ],
+                  [
+                    136.52,
+                    -4.2722
+                  ],
+                  [
+                    136.519,
+                    -4.2392
+                  ],
+                  [
+                    136.517,
+                    -4.2279
+                  ],
+                  [
+                    136.505,
+                    -3.1084
+                  ],
+                  [
+                    137.899,
+                    -3.108
+                  ],
+                  [
+                    137.899,
+                    -3.739
+                  ],
+                  [
+                    137.897,
+                    -3.7525
+                  ],
+                  [
+                    137.898,
+                    -3.9526
+                  ],
+                  [
+                    137.897,
+                    -3.9621
+                  ],
+                  [
+                    137.897,
+                    -3.9746
+                  ],
+                  [
+                    137.898,
+                    -3.9855
+                  ],
+                  [
+                    137.9,
+                    -4.0927
+                  ],
+                  [
+                    137.899,
+                    -4.1022
+                  ],
+                  [
+                    137.9,
+                    -4.1395
+                  ],
+                  [
+                    137.899,
+                    -4.1496
+                  ],
+                  [
+                    137.9,
+                    -4.2755
+                  ],
+                  [
+                    137.899,
+                    -4.2869
+                  ],
+                  [
+                    137.899,
+                    -4.3171
+                  ],
+                  [
+                    137.9,
+                    -4.3272
+                  ],
+                  [
+                    137.9,
+                    -4.3641
+                  ],
+                  [
+                    137.899,
+                    -4.3751
+                  ],
+                  [
+                    137.898,
+                    -4.4073
+                  ],
+                  [
+                    137.9,
+                    -4.417
+                  ],
+                  [
+                    137.899,
+                    -4.4674
+                  ],
+                  [
+                    137.9,
+                    -4.4763
+                  ],
+                  [
+                    137.899,
+                    -4.6505
+                  ],
+                  [
+                    137.9,
+                    -4.6612
+                  ],
+                  [
+                    137.898,
+                    -4.795
+                  ],
+                  [
+                    137.896,
+                    -4.8055
+                  ],
+                  [
+                    137.897,
+                    -4.8135
+                  ],
+                  [
+                    137.895,
+                    -4.9088
+                  ],
+                  [
+                    137.893,
+                    -4.9183
+                  ],
+                  [
+                    137.893,
+                    -4.9609
+                  ],
+                  [
+                    137.891,
+                    -4.9696
+                  ],
+                  [
+                    137.891,
+                    -5.0225
+                  ],
+                  [
+                    137.89,
+                    -5.0314
+                  ],
+                  [
+                    137.89,
+                    -5.0472
+                  ],
+                  [
+                    137.887,
+                    -5.0676
+                  ],
+                  [
+                    137.887,
+                    -5.083
+                  ],
+                  [
+                    137.886,
+                    -5.0938
+                  ],
+                  [
+                    137.886,
+                    -5.0978
+                  ],
+                  [
+                    137.884,
+                    -5.1079
+                  ],
+                  [
+                    137.885,
+                    -5.1794
+                  ],
+                  [
+                    137.884,
+                    -5.1885
+                  ],
+                  [
+                    137.884,
+                    -5.2208
+                  ],
+                  [
+                    137.885,
+                    -5.23
+                  ],
+                  [
+                    137.885,
+                    -5.2712
+                  ],
+                  [
+                    137.886,
+                    -5.2796
+                  ],
+                  [
+                    137.886,
+                    -5.2813
+                  ],
+                  [
+                    137.887,
+                    -5.2895
+                  ],
+                  [
+                    137.888,
+                    -5.4023
+                  ],
+                  [
+                    137.887,
+                    -5.4104
+                  ],
+                  [
+                    137.888,
+                    -5.4492
+                  ],
+                  [
+                    137.887,
+                    -5.4567
+                  ],
+                  [
+                    137.888,
+                    -5.4888
+                  ],
+                  [
+                    137.887,
+                    -5.497
+                  ],
+                  [
+                    137.888,
+                    -5.5282
+                  ],
+                  [
+                    137.887,
+                    -5.5375
+                  ],
+                  [
+                    137.888,
+                    -5.7328
+                  ],
+                  [
+                    137.887,
+                    -5.7434
+                  ],
+                  [
+                    137.887,
+                    -5.7453
+                  ],
+                  [
+                    137.888,
+                    -5.7552
+                  ],
+                  [
+                    137.884,
+                    -6.0812
+                  ],
+                  [
+                    137.885,
+                    -6.0915
+                  ],
+                  [
+                    137.884,
+                    -6.1928
+                  ],
+                  [
+                    137.885,
+                    -6.2023
+                  ],
+                  [
+                    137.884,
+                    -6.2514
+                  ],
+                  [
+                    137.885,
+                    -6.2607
+                  ],
+                  [
+                    137.884,
+                    -6.3062
+                  ],
+                  [
+                    137.886,
+                    -6.3155
+                  ],
+                  [
+                    137.88,
+                    -6.4686
+                  ],
+                  [
+                    137.879,
+                    -6.5633
+                  ],
+                  [
+                    137.88,
+                    -6.572
+                  ],
+                  [
+                    137.878,
+                    -6.6706
+                  ],
+                  [
+                    137.877,
+                    -6.6799
+                  ],
+                  [
+                    137.875,
+                    -6.7976
+                  ],
+                  [
+                    137.874,
+                    -6.8058
+                  ],
+                  [
+                    137.873,
+                    -6.8162
+                  ],
+                  [
+                    137.873,
+                    -6.8649
+                  ],
+                  [
+                    137.872,
+                    -6.8769
+                  ],
+                  [
+                    137.873,
+                    -7.1108
+                  ],
+                  [
+                    137.871,
+                    -7.1146
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 50,
+      "accuracyM": null,
+      "projection": "SINUSOIDAL (source label; footprint separately normalized by ODE)",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "url": "https://pds-geosciences.wustl.edu/mex/mex-m-hrsc-5-refdr-dtm-v1/mexhrs_2001/data/4235/h4235_0001_dt4.img",
+        "bytes": 15733254
+      },
+      "license": {
+        "name": "Archive reuse terms unverified",
+        "attribution": "MEX / HRSC / MEX-M-HRSC-5-REFDR-DTM-V1.0"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mex&iid=hrsc&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&productId=%25DT4%25&pt=dtmrdr&query=product&results=copmfl&target=mars&westernlon=137",
+        "labelUrl": "https://pds-geosciences.wustl.edu/mex/mex-m-hrsc-5-refdr-dtm-v1/mexhrs_2001/data/4235/h4235_0001_dt4.img",
+        "confidence": "label",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        ],
+        "rasterGsdM": 50,
+        "dataType": "MSB_INTEGER",
+        "bands": [
+          "height above spheroid, metres"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "SINUSOIDAL",
+        "sourceCoordinates": "Planetocentric, positive east, 3396 km sphere",
+        "sourceDatum": "HEIGHT_ABOVE_SPHEROID; 3396 km sphere, from MEX:DTM label group",
+        "registration": null,
+        "illumination": {
+          "incidenceDeg": null,
+          "emissionDeg": null,
+          "phaseDeg": null,
+          "photometry": null
+        },
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://pds-geosciences.wustl.edu/mex/mex-m-hrsc-5-refdr-dtm-v1/mexhrs_2001/data/4235/h4235_0001_dt4.img",
+            "role": "label",
+            "bytes": 15734000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
+      }
+    },
+    "kind": "gridded-elevation",
+    "evidence": {
+      "url": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mex&iid=hrsc&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&productId=%25DT4%25&pt=dtmrdr&query=product&results=copmfl&target=mars&westernlon=137",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mex&iid=hrsc&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&productId=%25DT4%25&pt=dtmrdr&query=product&results=copmfl&target=mars&westernlon=137",
+      "caveats": [
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "MEX:DTM_MISSING_DN=-32768; footprint is not a valid-data mask"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "ode:T01_000815_1749_XN_05S222W",
+      "productId": "T01_000815_1749_XN_05S222W",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.52,
+                    -4.1212
+                  ],
+                  [
+                    137.74,
+                    -5.9696
+                  ],
+                  [
+                    137.3,
+                    -6.0289
+                  ],
+                  [
+                    137.07,
+                    -4.1805
+                  ],
+                  [
+                    137.52,
+                    -4.1212
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 5.27,
+      "accuracyM": null,
+      "projection": "Unprojected EDR; camera model/orthorectification required",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "url": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
+        "bytes": 89001000
+      },
+      "license": {
+        "name": "Archive reuse terms unverified",
+        "attribution": "MRO_CTX_TEAM / MRO / CTX / MRO-M-CTX-2-EDR-L0-V1.0"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+        "labelUrl": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
+        "confidence": "archive",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        ],
+        "rasterGsdM": 5.27,
+        "dataType": null,
+        "bands": [
+          "CTX panchromatic"
+        ],
+        "acquisitionUtc": "2006-09-29T00:20:10.316",
+        "observationId": "T01_000815_1749_XN_05S222W",
+        "sourceProjection": "Unprojected EDR",
+        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
+        "sourceDatum": null,
+        "registration": null,
+        "illumination": {
+          "incidenceDeg": 58.16,
+          "emissionDeg": 0.08,
+          "phaseDeg": 58.1,
+          "photometry": null
+        },
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
+            "role": "label",
+            "bytes": 89001000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
+      }
+    },
+    "kind": "observation-image",
+    "evidence": {
+      "url": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+      "caveats": [
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "\"MROX_0003\",\"DATA/T01_000815_1749_XN_05S222W.IMG\",\"4A_04_1000001C00\",\"T01_000815_1749_XN_05S222W\",\"2006-09-29T00:20:10.316\",\"CTX   \",\"NIFL \",5056, 18417, 1,    5.27,  1.15,  0.08, 58.16, 58.10,222.59, -5.14,222.70, -6.10,222.26, -6.04,222.93, -4.23,222.48, -4.17,\"TRANSITION\",\"MARS  \",\"0843956429:032 \",290.8,   1.877,\"195/234/232\",   0,  26.38,  111.67, 263.28,3659.31, 263.28,\"N\",276.91,218.37,274.73, 23.26,222.59, -5.13,242747412.1,113.26,15.48, 90.1,\"Gale Crater landforms                                                           \",\"ERROR \",   815",
+        "CTX EDR is not an orthophoto; no automatic fusion or released DTM inferred"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "ode:mg00n217.img",
+      "productId": "mg00n217.img",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    135,
+                    -7.413
+                  ],
+                  [
+                    135,
+                    -6.413
+                  ],
+                  [
+                    135,
+                    -5.413
+                  ],
+                  [
+                    135,
+                    -4.413
+                  ],
+                  [
+                    135,
+                    -3.413
+                  ],
+                  [
+                    135,
+                    -2.413
+                  ],
+                  [
+                    135,
+                    -1.413
+                  ],
+                  [
+                    135,
+                    -0.413
+                  ],
+                  [
+                    135,
+                    0.587
+                  ],
+                  [
+                    135,
+                    1.587
+                  ],
+                  [
+                    135,
+                    2.587
+                  ],
+                  [
+                    135,
+                    3.587
+                  ],
+                  [
+                    135,
+                    4.587
+                  ],
+                  [
+                    135,
+                    5.587
+                  ],
+                  [
+                    135,
+                    6.587
+                  ],
+                  [
+                    135,
+                    7.413
+                  ],
+                  [
+                    136,
+                    7.413
+                  ],
+                  [
+                    137,
+                    7.413
+                  ],
+                  [
+                    138,
+                    7.413
+                  ],
+                  [
+                    139,
+                    7.413
+                  ],
+                  [
+                    140,
+                    7.413
+                  ],
+                  [
+                    141,
+                    7.413
+                  ],
+                  [
+                    142,
+                    7.413
+                  ],
+                  [
+                    143,
+                    7.413
+                  ],
+                  [
+                    144,
+                    7.413
+                  ],
+                  [
+                    145,
+                    7.413
+                  ],
+                  [
+                    146,
+                    7.413
+                  ],
+                  [
+                    147,
+                    7.413
+                  ],
+                  [
+                    148,
+                    7.413
+                  ],
+                  [
+                    149,
+                    7.413
+                  ],
+                  [
+                    150,
+                    7.413
+                  ],
+                  [
+                    150.0625,
+                    7.413
+                  ],
+                  [
+                    150.0625,
+                    6.413
+                  ],
+                  [
+                    150.0625,
+                    5.413
+                  ],
+                  [
+                    150.0625,
+                    4.413
+                  ],
+                  [
+                    150.0625,
+                    3.413
+                  ],
+                  [
+                    150.0625,
+                    2.413
+                  ],
+                  [
+                    150.0625,
+                    1.413
+                  ],
+                  [
+                    150.0625,
+                    0.413
+                  ],
+                  [
+                    150.0625,
+                    -0.587
+                  ],
+                  [
+                    150.0625,
+                    -1.587
+                  ],
+                  [
+                    150.0625,
+                    -2.587
+                  ],
+                  [
+                    150.0625,
+                    -3.587
+                  ],
+                  [
+                    150.0625,
+                    -4.587
+                  ],
+                  [
+                    150.0625,
+                    -5.587
+                  ],
+                  [
+                    150.0625,
+                    -6.587
+                  ],
+                  [
+                    150.0625,
+                    -7.413
+                  ],
+                  [
+                    149.0625,
+                    -7.413
+                  ],
+                  [
+                    148.0625,
+                    -7.413
+                  ],
+                  [
+                    147.0625,
+                    -7.413
+                  ],
+                  [
+                    146.0625,
+                    -7.413
+                  ],
+                  [
+                    145.0625,
+                    -7.413
+                  ],
+                  [
+                    144.0625,
+                    -7.413
+                  ],
+                  [
+                    143.0625,
+                    -7.413
+                  ],
+                  [
+                    142.0625,
+                    -7.413
+                  ],
+                  [
+                    141.0625,
+                    -7.413
+                  ],
+                  [
+                    140.0625,
+                    -7.413
+                  ],
+                  [
+                    139.0625,
+                    -7.413
+                  ],
+                  [
+                    138.0625,
+                    -7.413
+                  ],
+                  [
+                    137.0625,
+                    -7.413
+                  ],
+                  [
+                    136.0625,
+                    -7.413
+                  ],
+                  [
+                    135.0625,
+                    -7.413
+                  ],
+                  [
+                    135,
+                    -7.413
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "unknown",
+      "nativeGsdM": null,
+      "accuracyM": null,
+      "projection": "SINUSOIDAL (source label; footprint separately normalized by ODE)",
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "unknown",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "url": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
+        "bytes": 909000
+      },
+      "license": {
+        "name": "Archive reuse terms unverified",
+        "attribution": "VO / VISAB / VO1/VO2-M-VIS-5-DIM-V1.0"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=vo&iid=visab&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=137",
+        "labelUrl": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
+        "confidence": "archive",
+        "unknowns": [
+          "Valid-pixel mask unverified",
+          "Physical accuracy unverified",
+          "Source datum requires original label verification",
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        ],
+        "rasterGsdM": 925.406,
+        "dataType": "UNSIGNED_INTEGER",
+        "bands": null,
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "SINUSOIDAL",
+        "sourceCoordinates": "Original label: positive west, ellipsoid; ODE footprint is planetocentric east",
+        "sourceDatum": "Original label axes must be retained for any raster reprojection; target transform unverified",
+        "registration": null,
+        "illumination": {
+          "incidenceDeg": null,
+          "emissionDeg": null,
+          "phaseDeg": null,
+          "photometry": null
+        },
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
+            "role": "label",
+            "bytes": 909000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
+      }
+    },
+    "kind": "controlled-mosaic",
+    "evidence": {
+      "url": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=vo&iid=visab&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=137",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=vo&iid=visab&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=137",
+      "caveats": [
+        "Valid-pixel mask unverified",
+        "Physical accuracy unverified",
+        "Source datum requires original label verification",
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "Viking MDIM is a controlled regional baseline tile; no uniform native acquisition resolution or photometric consistency is claimed"
+      ]
+    }
+  },
+  {
+    "descriptor": {
+      "id": "ode:urn:nasa:pds:mgs_mola_topography_derived:data_meg128:megt00n090hb@1.1",
+      "productId": "urn:nasa:pds:mgs_mola_topography_derived:data_meg128:megt00n090hb",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "ode-footprint",
+            "properties": {
+              "provenance": "ODE archive footprint, not valid pixels"
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    90,
+                    -44
+                  ],
+                  [
+                    90,
+                    0
+                  ],
+                  [
+                    180,
+                    0
+                  ],
+                  [
+                    180,
+                    -44
+                  ],
+                  [
+                    90,
+                    -44
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "unknown",
+      "nativeGsdM": 463.0576672,
+      "accuracyM": null,
+      "projection": "Equirectangular (3396 km reference sphere)",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.hdr",
+        "version": "1.1",
+        "bytes": 2000
+      },
+      "license": {
+        "name": "Archive reuse terms unverified",
+        "attribution": "MGS / MOLA / mgs_mola_topography_derived-data_meg128"
+      },
+      "metadata": {
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=megt00n090hb&query=product&results=copmfl&target=mars&offset=1",
+        "labelUrl": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
+        "confidence": "label",
+        "unknowns": [
+          "Valid-pixel mask not audited",
+          "Native shot spacing/coverage differs from gridded source sampling",
+          "Accuracy and areoid-to-target transform unresolved"
+        ],
+        "rasterGsdM": 463.0576672,
+        "dataType": "SignedMSB2",
+        "bands": [
+          "topography (planetary radius minus areoid radius), metres"
+        ],
+        "acquisitionUtc": "1997-09-15T19:10:00.000Z",
+        "observationId": null,
+        "sourceProjection": "Equirectangular",
+        "sourceCoordinates": "Planetocentric, positive east, 3396 km reference sphere",
+        "sourceDatum": "GMM-3 areoid; radial height (PDS4 label)",
+        "registration": null,
+        "illumination": {
+          "incidenceDeg": null,
+          "emissionDeg": null,
+          "phaseDeg": null,
+          "photometry": null
+        },
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.hdr",
+            "role": "raster",
+            "bytes": 2000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          },
+          {
+            "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.img",
+            "role": "raster",
+            "bytes": 126720000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          },
+          {
+            "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.lbl",
+            "role": "label",
+            "bytes": 5000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          },
+          {
+            "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
+            "role": "label",
+            "bytes": 16000,
+            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+          }
+        ],
+        "reuse": {
+          "status": "unknown",
+          "evidenceUrl": null
+        }
+      }
+    },
+    "kind": "gridded-elevation",
+    "evidence": {
+      "url": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=megt00n090hb&query=product&results=copmfl&target=mars&offset=1",
+      "footprint": "archive-footprint",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=megt00n090hb&query=product&results=copmfl&target=mars&offset=1",
+      "caveats": [
+        "PDS4: bins without observations are interpolated; equatorial shot occupancy about 55%, profile gaps up to 12 km",
+        "Valid-pixel mask not audited",
+        "Native shot spacing/coverage differs from gridded source sampling",
+        "Accuracy and areoid-to-target transform unresolved"
       ]
     }
   }
