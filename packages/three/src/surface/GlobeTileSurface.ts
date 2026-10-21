@@ -38,6 +38,8 @@ export class GlobeTileSurface implements PhysicalSurface {
     }
     const vertexCount = tile.kind === 'mesh' ? tile.u.length : tile.width * tile.height;
     const indexCount = tile.kind === 'mesh' ? tile.indices.length : (tile.width - 1) * (tile.height - 1) * 6;
+    // CpuMeshSurface fits optional acceleration into the remaining budget.
+    // Only the physical mesh is required for admission in both checks.
     if (vertexCount * 24 + indexCount * 4 > this.maxBytes) {
       return { kind: 'unavailable', reason: 'budget', metadata: this.metadata };
     }

@@ -30,6 +30,34 @@ it('retains a metre-scale lattice edge at Mars body-fixed scale without admittin
   expect(surface.intersectRay({ ...fixture.ray, direction: [outside[0] - o.xKm, outside[1] - o.yKm, outside[2] - o.zKm] }, { maxMeshErrorKm: 0.001 }).kind).toBe('miss');
 });
 
+it('fits acceleration into spare memory without excluding a near-budget globe grid', () => {
+  const width = 385, indexCount = (width - 1) ** 2 * 6;
+  const meshBytes = width ** 2 * 24 + indexCount * 4;
+  const datum: TerrainDatum = { referenceShape: { kind: 'sphere', radiusKm: 1 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' };
+  const sampler = new TerrainSampler(datum, { id: 'near-budget', kind: 'height-grid' });
+  sampler.addTile({ id: 'grid', westDeg: -1, eastDeg: 1, southDeg: -1, northDeg: 1,
+    width, height: width, elevationsKm: new Float32Array(width ** 2) });
+  const query: SurfaceRay = { origin: { xKm: 2, yKm: 0, zKm: 0 }, direction: [-1, 0, 0], nearKm: 0, farKm: 2 };
+  const accelerated = new GlobeTileSurface(sampler, 'grid', 'sphere', 'FIXED');
+  const hit = accelerated.intersectRay(query, options);
+  expect(hit).toMatchObject({ kind: 'hit', distanceKm: expect.closeTo(1, 12) });
+  expect(accelerated.trianglesTested).toBeLessThan(indexCount / 30);
+  // Exactly enough bytes for the old mesh: optional bounds cannot reject it.
+  const scan = new GlobeTileSurface(sampler, 'grid', 'sphere', 'FIXED', meshBytes);
+  expect(scan.intersectRay(query, options)).toEqual(hit);
+  expect(scan.trianglesTested).toBe(indexCount / 3);
+  expect(new GlobeTileSurface(sampler, 'grid', 'sphere', 'FIXED', meshBytes - 1)
+    .intersectRay(query, options)).toMatchObject({ kind: 'unavailable', reason: 'budget' });
+
+  const mesh = concaveSurface(), bytes = mesh.positionsKm.byteLength + mesh.indices.byteLength;
+  for (const budget of [bytes, bytes + 47, bytes + 48, bytes + 1024]) {
+    const surface = new CpuMeshSurface(metadata, mesh, { meshDeviationBoundKm: 0 }, budget, true);
+    expect(surface.retainedBytes).toBeGreaterThanOrEqual(bytes);
+    expect(surface.retainedBytes).toBeLessThanOrEqual(budget);
+    expect(surface.intersectRay(ray(), options)).toMatchObject({ kind: 'hit', distanceKm: 1 });
+  }
+});
+
 it('rejects unrelated triangle groups while retaining the nearest hit and source triangle index', () => {
   const positions: number[] = [], indices: number[] = [];
   for (let x = 0; x < 64; x++) {

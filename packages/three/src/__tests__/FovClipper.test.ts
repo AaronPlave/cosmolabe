@@ -152,6 +152,35 @@ describe('FOV clipping against physical surfaces', () => {
     expect(evaluations).toBeLessThan(2000);
   });
 
+  it('finds an off-center physical ridge when base rays and closest approach miss', () => {
+    const reference = sphere('terrain', [0, 0, -10], 0.1);
+    const ridge = new CpuMeshSurface({
+      ...reference.surfaces[0].metadata,
+      source: { id: 'ridge', kind: 'height-grid' }, coverage: 'partial-product',
+    }, {
+      // Body-fixed triangle: world z=-9, centred on t=0.125, away
+      // from closest approach at t=0.25. No interpolated/fabricated hit.
+      positionsKm: new Float64Array([-1.2, -0.1, 1, -1.05, -0.1, 1, -1.125, 0.1, 1]),
+      indices: new Uint32Array([0, 1, 2]),
+    }, { meshDeviationBoundKm: null });
+    const terrain = { ...reference, boundingRadiusKm: 2, surfaces: [ridge, ...reference.surfaces] };
+    const directionAt = (t: number): Vec3 => [t - 0.25, 0, -1];
+    const samples = clipFovPerimeter([0, 0, 0], directionAt, [0, 0.5], [terrain], { maxRangeKm: 9.5 });
+    expect(samples.filter(s => s.base).every(s => !s.hit)).toBe(true);
+    expect(resolveFovRay([0, 0, 0], normalize(directionAt(0.25)), [terrain], 9.5)).toBeNull();
+    expect(samples.some(s => s.hit?.source === 'terrain')).toBe(true);
+    expect(samples.length).toBeLessThan(128);
+
+    // Same padded bounds, no resident ridge: failed searches remain bounded.
+    const empty = { ...terrain, surfaces: [{ ...ridge, metadata: ridge.metadata,
+      intersectRay: () => ({ kind: 'unavailable' as const, reason: 'not-resident' as const, metadata: ridge.metadata }),
+    }, ...reference.surfaces] };
+    let evaluations = 0;
+    const misses = clipFovPerimeter([0, 0, 0], t => { evaluations++; return directionAt(t); }, [0, 0.5], [empty], { maxRangeKm: 9.5 });
+    expect(misses).toHaveLength(2);
+    expect(evaluations).toBeLessThan(150);
+  });
+
   it('still probes other bodies after a padded candidate produces no hit', () => {
     const toWorld = pointing([0, 0, -1]);
     const off = 7.98 * Math.PI / 180, az = 5.625 * Math.PI / 180;

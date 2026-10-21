@@ -17,19 +17,29 @@ export class CpuMeshSurface implements PhysicalSurface {
   private readonly groupBounds: Float64Array;
   /** Actual triangle tests in the last query, excluding groups rejected by bounds. */
   trianglesTested = 0;
+  private readonly trianglesPerGroup: number;
   constructor(
     readonly metadata: PhysicalSurfaceMetadata,
     mesh: CpuSurfaceMesh,
     readonly accuracy: SurfaceAccuracy,
     maxBytes = 8 * 1024 * 1024,
-    private readonly rejectGroups = false,
+    rejectGroups = false,
   ) {
     if (!Number.isFinite(maxBytes) || maxBytes < 0) throw new Error('Invalid CPU mesh budget');
     if (accuracy.meshDeviationBoundKm != null && (!Number.isFinite(accuracy.meshDeviationBoundKm) || accuracy.meshDeviationBoundKm < 0)) {
       throw new Error('Invalid mesh deviation bound');
     }
-    const groupCount = rejectGroups ? Math.ceil(mesh.indices.length / (3 * TRIANGLES_PER_GROUP)) : 0;
-    const bytes = mesh.positionsKm.byteLength + mesh.indices.byteLength + groupCount * 6 * 8;
+    const meshBytes = mesh.positionsKm.byteLength + mesh.indices.byteLength;
+    // Acceleration uses only spare budget. Coarsen groups before sacrificing a
+    // previously queryable mesh; with less than one bound available, scan it.
+    const spareBytes = maxBytes - meshBytes;
+    let groupSize = TRIANGLES_PER_GROUP;
+    if (rejectGroups && spareBytes >= 48) {
+      while (Math.ceil(mesh.indices.length / (3 * groupSize)) * 48 > spareBytes) groupSize *= 2;
+    }
+    const groupCount = rejectGroups && spareBytes >= 48 ? Math.ceil(mesh.indices.length / (3 * groupSize)) : 0;
+    this.trianglesPerGroup = groupSize;
+    const bytes = meshBytes + groupCount * 48;
     this.retainedBytes = bytes <= maxBytes ? bytes : 0;
     this.mesh = bytes <= maxBytes ? { positionsKm: mesh.positionsKm.slice(), indices: mesh.indices.slice() } : null;
     this.groupBounds = new Float64Array(this.mesh ? groupCount * 6 : 0);
@@ -42,8 +52,8 @@ export class CpuMeshSurface implements PhysicalSurface {
     for (let group = 0; group < groupCount; group++) {
       const b = group * 6;
       this.groupBounds.set([Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], b);
-      const end = Math.min(indices.length, (group + 1) * TRIANGLES_PER_GROUP * 3);
-      for (let i = group * TRIANGLES_PER_GROUP * 3; i < end; i++) {
+      const end = Math.min(indices.length, (group + 1) * this.trianglesPerGroup * 3);
+      for (let i = group * this.trianglesPerGroup * 3; i < end; i++) {
         for (let axis = 0; axis < 3; axis++) {
           const v = positionsKm[indices[i] * 3 + axis];
           this.groupBounds[b + axis] = Math.min(this.groupBounds[b + axis], v);
@@ -66,9 +76,9 @@ export class CpuMeshSurface implements PhysicalSurface {
     let nx = 0, ny = 0, nz = 0;
     // Scalar Möller–Trumbore: no per-triangle allocation, so the scan stays
     // cheap enough for renderer consumers that cast many rays per frame.
-    const groupCount = this.rejectGroups ? this.groupBounds.length / 6 : 1;
+    const groupCount = this.groupBounds.length > 0 ? this.groupBounds.length / 6 : 1;
     for (let group = 0; group < groupCount; group++) {
-      if (this.rejectGroups) {
+      if (this.groupBounds.length > 0) {
         const b = group * 6;
         let near = ray.nearKm, far = nearest;
         for (let axis = 0; axis < 3 && near <= far; axis++) {
@@ -89,8 +99,8 @@ export class CpuMeshSurface implements PhysicalSurface {
         }
         if (near > far) continue;
       }
-      const end = this.rejectGroups ? Math.min(indices.length, (group + 1) * TRIANGLES_PER_GROUP * 3) : indices.length;
-      for (let t = group * TRIANGLES_PER_GROUP * 3; t < end; t += 3) {
+      const end = this.groupBounds.length > 0 ? Math.min(indices.length, (group + 1) * this.trianglesPerGroup * 3) : indices.length;
+      for (let t = group * this.trianglesPerGroup * 3; t < end; t += 3) {
         this.trianglesTested++;
         const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
         const ax = positionsKm[ia], ay = positionsKm[ia + 1], az = positionsKm[ia + 2];

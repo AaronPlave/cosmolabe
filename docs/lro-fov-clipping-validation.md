@@ -61,3 +61,25 @@ More perimeter samples cannot supply that geometry. Instrument-driven coverage
 requests, cancellation, shared loading budgets and recovery are tracked separately
 in [#280](https://github.com/AaronPlave/cosmolabe/issues/280). No terrain loading,
 interpolated gap filling, or scientific footprint certification is added here.
+
+## PR review follow-up
+
+Terrain/mesh candidates now try at most three fixed interior probes in addition to
+closest approach when an all-miss interval overlaps their bounds. Failed probes
+still never recurse. A deterministic physical-triangle regression covers a ridge
+at the quarter point while both base rays and the closest-approach ray miss.
+Finite rendering samples cannot guarantee discovery of arbitrarily narrow ridges.
+
+Triangle bounds now use only spare mesh memory: groups coarsen from four triangles
+as needed, or bounds are omitted when fewer than 48 bytes remain. Physical mesh
+admission therefore matches the globe precheck. A 385×385 grid remains queryable
+under the default 8 MiB budget with acceleration; at its exact positions+indices
+budget it returns the identical physical hit through a full scan. Retained bytes
+include all allocated bounds and stay within the existing budget.
+
+The 60 focused tests pass. A repeat Chrome/ANGLE Metal run on Apple M4 Max at
+00:51:34, covering 120 paused, 120 playing at 30x and 120 paused-after frames,
+measured 1.9 ms p95 CPU clipping per sensor during playback (previous run 1.8 ms).
+The initial paused perimeter still has at most 78 samples, with no tall notches in
+the rendered check. Playback peak actual triangle tests were 100,447; the unchanged
+100,000 budget can finish its current tile query before deferring further work.
