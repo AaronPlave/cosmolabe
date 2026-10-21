@@ -132,6 +132,7 @@ interface SourceUniforms {
   level: { value: number };
   srgb: { value: number };
   opacity: { value: number };
+  bounded: { value: number };
   bounds: { value: THREE.Vector4 };
 }
 interface Uniforms {
@@ -193,26 +194,32 @@ function injectImagery(shader: THREE.WebGLProgramParametersWithUniforms, uniform
   shader.vertexShader = VERTEX_PARS + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCubeImageryUvw = cubeImageryUvw;');
   const pars = layers.map((_, i) => `uniform sampler2D cubeLayer${i}_map;
     uniform vec4 cubeLayer${i}_transform; uniform float cubeLayer${i}_enabled;
-    uniform vec4 cubeLayer${i}_bounds; uniform float cubeLayer${i}_level; uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity;`).join('\n');
+    uniform float cubeLayer${i}_bounded; uniform vec4 cubeLayer${i}_bounds; uniform float cubeLayer${i}_level; uniform float cubeLayer${i}_srgb; uniform float cubeLayer${i}_opacity;`).join('\n');
   let fragment = FRAGMENT_PARS + pars + '\n' + shader.fragmentShader;
   fragment = fragment.replace('void main() {', 'void main() {\n  vec4 cubeImageryTexel = vec4(0.0);');
+  const coordinates = `
+  vec2 cubeImageryLonLat = vec2(0.0);
+  if (${layers.map((_, i) => `(cubeLayer${i}_enabled > 0.5 && cubeLayer${i}_bounded > 0.5)`).join(' || ')}) {
+    vec3 direction = cubeImageryToBody * vCubeImageryUvw;
+    cubeImageryLonLat = degrees(vec2(atan(direction.y, direction.x), atan(direction.z, length(direction.xy))));
+  }`;
   const samples = layers.map((_, i) => `
   if (cubeLayer${i}_enabled > 0.5) {
     vec2 cubeImagerySt = vCubeImageryUvw.xy / vCubeImageryUvw.z * cubeLayer${i}_transform.xy + cubeLayer${i}_transform.zw;
     vec4 sampleValue = texture2D(cubeLayer${i}_map, cubeImagerySt);
     float alpha = sampleValue.a * cubeLayer${i}_opacity;
-    vec3 direction = cubeImageryToBody * vCubeImageryUvw;
-    float lon = degrees(atan(direction.y, direction.x));
-    float lat = degrees(atan(direction.z, length(direction.xy)));
-    vec4 bounds = cubeLayer${i}_bounds;
-    bool coveredLon = bounds.x <= bounds.z ? lon >= bounds.x && lon <= bounds.z : lon >= bounds.x || lon <= bounds.z;
-    if (!coveredLon || lat < bounds.y || lat > bounds.w) alpha = 0.0;
+    if (cubeLayer${i}_bounded > 0.5) {
+      vec4 bounds = cubeLayer${i}_bounds;
+      float lon = cubeImageryLonLat.x, lat = cubeImageryLonLat.y;
+      bool coveredLon = bounds.x <= bounds.z ? lon >= bounds.x && lon <= bounds.z : lon >= bounds.x || lon <= bounds.z;
+      if (!coveredLon || lat < bounds.y || lat > bounds.w) alpha = 0.0;
+    }
     vec3 cubeImageryColor = cubeLayer${i}_srgb > 0.5 ? cubeImagerySrgbToLinear(sampleValue.rgb) : sampleValue.rgb;
     diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor, alpha);
     cubeImageryTexel.rgb = mix(cubeImageryTexel.rgb, sampleValue.rgb, alpha);
     cubeImageryTexel.a = alpha + cubeImageryTexel.a * (1.0 - alpha);
   }`).join('\n');
-  fragment = fragment.replace('#include <map_fragment>', '#include <map_fragment>\n' + samples);
+  fragment = fragment.replace('#include <map_fragment>', '#include <map_fragment>\n' + coordinates + samples);
   // Debug views write the texel itself (unlit, no tone mapping or colour conversion),
   // or its imagery level as a hue, after every other fragment chunk.
   fragment = fragment.replace('#include <dithering_fragment>', `#include <dithering_fragment>
@@ -269,6 +276,7 @@ export class CubeImageryLayer {
   private readonly loadTexture: TextureLoader;
   private readonly sources: Source[];
   private readonly order: Source[];
+  private retryManifests: () => void = () => {};
   private frame = 0;
   private anisotropy = 1;
   private disposed = false;
@@ -296,28 +304,30 @@ export class CubeImageryLayer {
     }));
     this.order = [...this.sources];
     this.loadTexture = deps.loadTexture ?? loadImageBitmapTexture;
-    // The manifest gates every tile, so like the geometry it waits out an outage
-    // rather than leaving the session without imagery; dispose() ends the wait.
-    const fetchManifest = deps.fetchManifest ?? (async (url: string) => {
-      const response = await fetchWithRetry(url, { signal: this.manifestAbort.signal }, { tries: Infinity });
+    // Only the mandatory base waits out an outage. Optional sources settle after
+    // four attempts and retry only through retryFailed(), avoiding background storms.
+    const fetchManifest = deps.fetchManifest ?? (async (url: string, required = false) => {
+      const response = await fetchWithRetry(url, { signal: this.manifestAbort.signal }, { tries: required ? Infinity : 4 });
       if (!response.ok) throw new Error(`Cube imagery manifest ${url}: HTTP ${response.status}`);
       return response.json() as Promise<CubeImageryManifest>;
     });
-    const manifests = this.sources.map(source => fetchManifest(source.baseUrl).then(validateCubeImageryManifest));
-    const baseManifest = manifests[0].catch(() => null);
-    this.ready = Promise.all(this.sources.map(async (source, index) => {
+    const baseManifest = fetchManifest(this.sources[0].baseUrl, true).then(validateCubeImageryManifest);
+    const loading = new Set<Source>();
+    const loadSource = async (source: Source): Promise<void> => {
+      loading.add(source);
       try {
-        const manifest = await manifests[index];
-        const base = await baseManifest;
+        const manifest = await (source.index === 0 ? baseManifest : fetchManifest(source.baseUrl).then(validateCubeImageryManifest));
+        const reference = await baseManifest;
         if (this.disposed) return;
-        const reference = base ?? this.manifest;
-        if (reference && (reference.bodyId !== manifest.bodyId || reference.registration.crsId !== manifest.registration.crsId ||
-          reference.tileSize !== manifest.tileSize || reference.gutter !== manifest.gutter)) {
+        if (reference.bodyId !== manifest.bodyId || reference.registration.crsId !== manifest.registration.crsId ||
+          reference.tileSize !== manifest.tileSize || reference.gutter !== manifest.gutter) {
           throw new Error('Cube imagery sources must share body, registration, tile size and gutter');
         }
-        this.manifest ??= manifest;
+        // Optional sources never establish readiness or replace the base reference.
+        if (source.index === 0) this.manifest = manifest;
         source.manifest = manifest;
         source.availability = this.availabilityFor(manifest);
+        source.setupFailed = false;
         source.info.maxLevel = manifest.maxLevel;
         source.info.minZoom = manifest.minLevel;
         source.info.metersPerPixel = deps.radiusKm ? 2 * deps.radiusKm * 1000 / (manifest.tileSize * 2 ** manifest.maxLevel) : null;
@@ -325,9 +335,18 @@ export class CubeImageryLayer {
         this.rebuildAvailability();
       } catch (error) {
         source.setupFailed = true;
-        if (this.sources.length === 1) throw error;
+        if (source.index === 0) throw error;
+      } finally {
+        loading.delete(source);
       }
-    })).then(() => { if (!this.disposed) this.schedule(this.coarseWanted()); });
+    };
+    this.retryManifests = () => {
+      if (this.disposed || !this.manifest) return;
+      for (const source of this.sources) if (source.index > 0 && source.setupFailed && !loading.has(source)) {
+        void loadSource(source).then(() => { if (!this.disposed) this.schedule(this.coarseWanted()); });
+      }
+    };
+    this.ready = Promise.all(this.sources.map(loadSource)).then(() => { if (!this.disposed) this.schedule(this.coarseWanted()); });
   }
 
   /** Source state uses the same Globe.imagery UI contract as geographic overlays. */
@@ -568,7 +587,10 @@ export class CubeImageryLayer {
   resetCounters(): void { this.counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 }; }
 
   /** Forget failures so the next frames retry them (e.g. after a network outage). */
-  retryFailed(): void { for (const [id, e] of this.entries) if (e.state === 'failed') this.entries.delete(id); }
+  retryFailed(): void {
+    for (const [id, e] of this.entries) if (e.state === 'failed') this.entries.delete(id);
+    this.retryManifests();
+  }
 
   dispose(): void {
     if (this.disposed) return;
@@ -603,7 +625,7 @@ export class CubeImageryLayer {
     return {
       cubeImageryToBody: { value: toBody },
       layers: this.sources.map(() => ({ map: { value: null }, transform: { value: new THREE.Vector4() }, enabled: { value: 0 },
-        level: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) } })),
+        level: { value: 0 }, srgb: { value: 1 }, opacity: { value: 1 }, bounded: { value: 0 }, bounds: { value: new THREE.Vector4(-180, -90, 180, 90) } })),
       cubeImageryMap: { value: null }, cubeImageryTransform: { value: new THREE.Vector4(1, 1, 0, 0) },
       cubeImageryEnabled: { value: 0 }, cubeImageryLevel: { value: 0 },
       cubeImageryDebug: this.shared.debug, cubeImagerySrgb: this.shared.srgb,
@@ -659,6 +681,7 @@ export class CubeImageryLayer {
       u.level.value = shown.address.level;
       u.srgb.value = source.manifest.colorSpace === 'srgb' ? 1 : 0;
       u.opacity.value = source.info.opacity;
+      u.bounded.value = source.info.bounds ? 1 : 0;
       u.bounds.value.fromArray(source.info.bounds ?? [-180, -90, 180, 90]);
     }
     uniforms.cubeImageryEnabled.value = maxShown >= 0 ? 1 : 0;

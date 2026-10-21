@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CubeImageryLayer, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
 import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
@@ -159,6 +159,50 @@ describe('CubeImageryLayer', () => {
     await layer.ready;
     expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'failed', 'failed']);
     layer.dispose();
+  });
+
+  it('rejects a missing mandatory base even when the optional manifest is valid', async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => String(url).includes('base')
+      ? new Response('', { status: 404 }) : Response.json(manifest(1)));
+    vi.stubGlobal('fetch', fetchMock);
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers });
+    try {
+      await expect(layer.ready).rejects.toThrow('HTTP 404');
+      await Promise.resolve();
+      expect(layer.stats.ready).toBe(false);
+      expect(layer.manifest).toBeNull();
+      expect(layer.stats.textures).toBe(0);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { layer.dispose(); vi.unstubAllGlobals(); }
+  });
+
+  it('bounds persistent optional 503 retries and explicitly recovers its manifest later', async () => {
+    vi.useFakeTimers();
+    let offline = true, optionalRequests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('optional')) { optionalRequests++; if (offline) return new Response('', { status: 503 }); }
+      return Response.json(manifest(1));
+    }));
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
+      loadTexture: async () => ({ texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }),
+    });
+    try {
+      await vi.runAllTimersAsync();
+      await layer.ready;
+      expect(layer.stats.ready).toBe(true);
+      expect(layer.stats.textures).toBeGreaterThan(0);
+      expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'failed']);
+      expect(optionalRequests).toBe(4);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(optionalRequests).toBe(4);
+      offline = false;
+      layer.retryFailed(); layer.retryFailed(); // overlapping recovery calls share one request
+      await vi.runAllTimersAsync();
+      expect(optionalRequests).toBe(5);
+      expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'ok']);
+    } finally { layer.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
   });
 
   it('preserves source contour heights through imagery clipping, toggles and eviction', async () => {

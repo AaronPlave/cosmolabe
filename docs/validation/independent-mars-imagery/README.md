@@ -9,13 +9,20 @@ disabling a source aborts its requests and releases its textures. Source bounds
 are clipped per fragment, including antimeridian bounds. Physical terrain,
 CPU grids, picking targets and sampled heights are unchanged.
 
-The existing single `terrain.cubeSphere.imagery.url` remains supported.
+The existing single `terrain.cubeSphere.imagery.url` remains supported. Combining
+that legacy URL with geographic XYZ/WMTS `Globe.imagery` now throws a clear
+configuration error; use an all-cube stack or remove the legacy cube URL.
 With a sibling cube stack, `terrain.cubeSphere.imagery` supplies shared options
 without needing a URL. Four sources default to six pinned roots per source;
 a single source keeps the previous levels 0–1 fallback. Coarse loads now obey
 the same concurrency and texture reservations as finer imagery. Cube shader
 textures are included in terrain memory diagnostics. The static map remains
-until visible imagery blocks have resident textures.
+until visible imagery blocks have resident textures and the mandatory base
+manifest is valid. Optional manifests never establish the stack reference or
+readiness. Optional transient manifest failures stop after four attempts
+(500/1000/2000 ms backoff); `retryFailed()` explicitly retries failed optional
+manifests, coalescing overlapping recovery calls. Only the required base retains
+infinite transient retries; permanent failures retain the static map.
 
 ## Source strategy and coverage boundary
 
@@ -91,8 +98,12 @@ camera-matched imagery caps at the centre's terrain level for the baseline.
 It checks exact terrain identity and CPU-hit preservation, zero geometry
 requests during imagery-only refinement, centre source level and output texel
 size, memory, warm frame timing, zoom cycles, eviction, pixel-exact controls
-restoration, and missing-source recovery. Warm timings are CPU submission
-measurements in the animation loop, not fenced GPU timings or cold-load FPS.
+restoration, and missing-source recovery. It records CPU submission separately
+from hardware `EXT_disjoint_timer_query_webgl2` GPU elapsed time and total
+`gl.finish`-completed frame time. Timer-query availability and disjoint status
+are recorded; unavailable queries use the completed-frame cost as an upper
+bound. Local motion measurements use real left-button trackball drags.
+These are warm scene measurements, not cold-load FPS or a universal GPU budget.
 
 ## Cost and maintenance limits
 
@@ -125,7 +136,23 @@ untextured blocks, do not retry repeatedly inside the backoff window, and
 recover native detail after clearing the failures. Geometry and CPU hits stay
 identical through recovery. No browser or shader errors were recorded.
 
-- Renderer suites: 64 files, 734 tests passed.
+Review follow-up on Apple M4 Max, Metal at 1400×900 (119 available hardware
+queries over 120 rendered frames, no disjoint results):
+
+| View | Capped GPU median / p95 | Refined GPU median / p95 | Local drag GPU median / p95 |
+| --- | --- | --- | --- |
+| Inside Jezero | 0.39 / 0.85 ms | 0.43 / 0.77 ms | 0.37 / 0.59 ms |
+| Outside Jezero | 0.30 / 0.56 ms | 0.27 / 0.86 ms | 0.29 / 0.46 ms |
+
+Refined completed-frame p95 was 2.5 / 2.8 ms; animation frame intervals had
+8.3 ms median and 9.3–9.4 ms p95. Pointer drags moved the camera about 7.7 m
+at 1.2 km altitude. The benchmark drains the GPU around each frame, so it is a
+synchronized per-frame cost measurement rather than unconstrained throughput.
+Bounds use one shared longitude/latitude calculation per fragment; unbounded
+stacks skip it. The bounded regional coverage and production rollout limits
+above remain unchanged.
+
+- Renderer suites: 64 files, 737 tests passed.
 - Focused renderer/catalog-policy suites: 75 tests passed.
 - XYZ adapter: five offline regressions passed; existing cube-imagery selftest passed.
 - Build, lint, test/viewer typechecks and Svelte checks passed (0 errors/warnings).

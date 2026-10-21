@@ -329,13 +329,51 @@
       },
       "coarseTiming": {
         "frames": 120,
-        "medianMs": 0.9000000059604645,
-        "p95Ms": 1.399999976158142
+        "medianMs": 1.0999999940395355,
+        "p95Ms": 2.5999999940395355,
+        "completedFrame": {
+          "frames": 120,
+          "medianMs": 1.0999999940395355,
+          "p95Ms": 2.5999999940395355
+        },
+        "frameIntervals": {
+          "frames": 119,
+          "medianMs": 8.300000011920929,
+          "p95Ms": 9.400000005960464
+        },
+        "gpu": {
+          "frames": 119,
+          "medianMs": 0.389374,
+          "p95Ms": 0.845
+        },
+        "timerQueryAvailable": true,
+        "disjoint": false,
+        "motion": false,
+        "cameraDistance": 0
       },
       "fineTiming": {
         "frames": 120,
-        "medianMs": 1.199999988079071,
-        "p95Ms": 1.699999988079071
+        "medianMs": 1.5,
+        "p95Ms": 2.5,
+        "completedFrame": {
+          "frames": 120,
+          "medianMs": 1.5,
+          "p95Ms": 2.5
+        },
+        "frameIntervals": {
+          "frames": 119,
+          "medianMs": 8.300000011920929,
+          "p95Ms": 9.300000011920929
+        },
+        "gpu": {
+          "frames": 119,
+          "medianMs": 0.434624,
+          "p95Ms": 0.771749
+        },
+        "timerQueryAvailable": true,
+        "disjoint": false,
+        "motion": false,
+        "cameraDistance": 0
       },
       "unchangedTerrainIds": true,
       "unchangedMeshes": true,
@@ -658,13 +696,51 @@
       },
       "coarseTiming": {
         "frames": 120,
-        "medianMs": 0.699999988079071,
-        "p95Ms": 1
+        "medianMs": 0.9000000059604645,
+        "p95Ms": 2.0999999940395355,
+        "completedFrame": {
+          "frames": 120,
+          "medianMs": 0.9000000059604645,
+          "p95Ms": 2.0999999940395355
+        },
+        "frameIntervals": {
+          "frames": 119,
+          "medianMs": 8.300000011920929,
+          "p95Ms": 9.400000005960464
+        },
+        "gpu": {
+          "frames": 119,
+          "medianMs": 0.30275,
+          "p95Ms": 0.55675
+        },
+        "timerQueryAvailable": true,
+        "disjoint": false,
+        "motion": false,
+        "cameraDistance": 0
       },
       "fineTiming": {
         "frames": 120,
-        "medianMs": 0.7999999821186066,
-        "p95Ms": 1.0999999940395355
+        "medianMs": 1,
+        "p95Ms": 2.699999988079071,
+        "completedFrame": {
+          "frames": 120,
+          "medianMs": 1,
+          "p95Ms": 2.7999999821186066
+        },
+        "frameIntervals": {
+          "frames": 119,
+          "medianMs": 8.300000011920929,
+          "p95Ms": 9.299999982118607
+        },
+        "gpu": {
+          "frames": 119,
+          "medianMs": 0.273249,
+          "p95Ms": 0.864499
+        },
+        "timerQueryAvailable": true,
+        "disjoint": false,
+        "motion": false,
+        "cameraDistance": 0
       },
       "unchangedTerrainIds": true,
       "unchangedMeshes": true,
@@ -1396,5 +1472,64 @@
       }
     }
   },
-  "errors": []
+  "errors": [],
+  "motionTiming": {
+    "inside": {
+      "frames": 120,
+      "medianMs": 1.5,
+      "p95Ms": 2,
+      "completedFrame": {
+        "frames": 120,
+        "medianMs": 1.5,
+        "p95Ms": 2
+      },
+      "frameIntervals": {
+        "frames": 119,
+        "medianMs": 8.300000011920929,
+        "p95Ms": 9.400000005960464
+      },
+      "gpu": {
+        "frames": 119,
+        "medianMs": 0.368,
+        "p95Ms": 0.594333
+      },
+      "timerQueryAvailable": true,
+      "disjoint": false,
+      "motion": true,
+      "cameraDistance": 7.729389358083214e-09
+    },
+    "outside": {
+      "frames": 120,
+      "medianMs": 1,
+      "p95Ms": 2.199999988079071,
+      "completedFrame": {
+        "frames": 120,
+        "medianMs": 1.0999999940395355,
+        "p95Ms": 2.199999988079071
+      },
+      "frameIntervals": {
+        "frames": 119,
+        "medianMs": 8.299999982118607,
+        "p95Ms": 9.300000011920929
+      },
+      "gpu": {
+        "frames": 119,
+        "medianMs": 0.285041,
+        "p95Ms": 0.461999
+      },
+      "timerQueryAvailable": true,
+      "disjoint": false,
+      "motion": true,
+      "cameraDistance": 7.807491725127133e-09
+    }
+  },
+  "timingMethod": {
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "completedFrame": "gl.finish before submission and after renderFrame; CPU plus GPU completion upper bound",
+    "motion": "Real Playwright left-button trackball drags; camera displacement about 7.7 metres at 1.2 km altitude",
+    "resolution": [
+      1400,
+      900
+    ]
+  }
 }

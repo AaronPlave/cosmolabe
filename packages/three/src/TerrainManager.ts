@@ -779,11 +779,14 @@ export class TerrainManager {
     this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
-    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
     const cubeSources = imageryConfigs.some(c => c.type === 'cube');
     if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
+    if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
+      throw new Error('Legacy cube imagery cannot be combined with geographic imagery; use an entirely cube imagery stack or remove cubeSphere.imagery.url');
+    }
+    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery?.url || cubeSources) {
       const cubeConfig = config.cubeSphere?.imagery ?? {};
       this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm });

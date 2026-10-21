@@ -78,13 +78,50 @@ async function snapshot() {
   }, '/@fs' + process.cwd());
 }
 async function cap(level) { await page.evaluate(maxLevel => window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.setOptions({ maxLevel }), level); }
-async function timing() {
-  return page.evaluate(async () => {
-    const r = window.renderer, old = r.renderFrame, samples = [];
-    r.renderFrame = function (...args) { const start = performance.now(); const value = old.apply(this, args); samples.push(performance.now()-start); return value; };
-    try { for (let i=0; i<120; i++) await new Promise(requestAnimationFrame); } finally { r.renderFrame = old; }
-    samples.sort((a,b)=>a-b); return { frames: samples.length, medianMs: samples[samples.length>>1], p95Ms: samples[Math.floor(samples.length*.95)] };
-  });
+async function timing(motion = false) {
+  const measurement = page.evaluate(async motion => {
+    const r = window.renderer, old = r.renderFrame, gl = r.getContext().webglRenderer.getContext();
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+    const cpu = [], completed = [], timestamps = [], queries = [];
+    const startEye = r.camera.position.clone();
+    r.renderFrame = function (...args) {
+      // Drain earlier submissions; finish includes actual GPU completion, giving
+      // a conservative total frame cost when hardware timer queries are unavailable.
+      gl.finish();
+      const query = ext ? gl.createQuery() : null;
+      const start = performance.now();
+      if (query) gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+      const value = old.apply(this, args);
+      if (query) { gl.endQuery(ext.TIME_ELAPSED_EXT); queries.push(query); }
+      const submitted = performance.now(); gl.finish();
+      cpu.push(submitted-start); completed.push(performance.now()-start); timestamps.push(start);
+      return value;
+    };
+    try { for (let i=0; i<120; i++) await new Promise(requestAnimationFrame); }
+    finally { r.renderFrame = old; }
+    const gpu = [];
+    const disjoint = ext ? gl.getParameter(ext.GPU_DISJOINT_EXT) : null;
+    for (const query of queries) {
+      if (!disjoint && gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) gpu.push(gl.getQueryParameter(query, gl.QUERY_RESULT)/1e6);
+      gl.deleteQuery(query);
+    }
+    const summarize = samples => { samples.sort((a,b)=>a-b); return { frames: samples.length, medianMs: samples[samples.length>>1], p95Ms: samples[Math.floor(samples.length*.95)] }; };
+    const intervals = timestamps.slice(1).map((t,i)=>t-timestamps[i]);
+    const cameraDistance = startEye.distanceTo(r.camera.position);
+    if (motion && cameraDistance === 0) throw new Error('Motion benchmark camera did not move');
+    return { ...summarize(cpu), completedFrame: summarize(completed), frameIntervals: summarize(intervals),
+      gpu: gpu.length ? summarize(gpu) : null, timerQueryAvailable: !!ext, disjoint, motion, cameraDistance };
+  }, motion);
+  if (motion) {
+    await page.mouse.move(600,450); await page.mouse.down();
+    try {
+      for (let i=0; i<100; i++) {
+        await page.mouse.move(600+i*2,450+i*.3);
+        await page.evaluate(() => new Promise(requestAnimationFrame));
+      }
+    } finally { await page.mouse.up(); }
+  }
+  return measurement;
 }
 try {
   await page.goto(`${base}/?catalog=test-catalogs/mars-cube-imagery-experiment`, { timeout: 120000 });
@@ -167,6 +204,11 @@ try {
   assert.deepEqual(recovered.cpuHit,missing.cpuHit);
   await page.locator('canvas').first().screenshot({path:`${output}/outside-recovered.png`});
   result.missingSource={expectedFaults,missing,recovered,noRetryStorm:true};
+  result.motionTiming = {};
+  for (const [name, lat, lon] of [['inside',18.4447,77.4508], ['outside',18.9,77.4]]) {
+    await pose(lat,lon,1.2); await settle();
+    result.motionTiming[name] = await timing(true);
+  }
   assert.equal(errors.length,0,errors.join('\n'));
   await writeFile(`${output}/metrics.json`,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify({ gpu: result.views.inside.fine.gpu, views: Object.fromEntries(Object.entries(result.views).map(([k,v])=>[k,{levels:v.fine.imagery.displayedLevels,bytes:v.fine.imagery.textureBytes,draws:v.fine.draws,p95Ms:v.fineTiming.p95Ms}])) },null,2));
