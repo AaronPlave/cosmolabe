@@ -135,8 +135,11 @@ export function recommendSurfaceSources(
           accuracyM: s.accuracyM, footprintFraction: fraction, verifiedValidFraction: valid,
           meetsTarget, reasons, evidenceUrl: evidence.url, score });
       }
-      candidates.sort((a, b) => b.score - a.score || a.sourceId.localeCompare(b.sourceId));
-      const selected = candidates.slice(0, limit).map(({ score: _score, ...candidate }) => candidate);
+      candidates.sort((a, b) => b.score - a.score || (a.sourceId < b.sourceId ? -1 : a.sourceId > b.sourceId ? 1 : 0));
+      const selected = candidates.slice(0, limit).map(c => ({ sourceId: c.sourceId, productId: c.productId,
+        kind: c.kind, nativeGsdM: c.nativeGsdM, accuracyM: c.accuracyM,
+        footprintFraction: c.footprintFraction, verifiedValidFraction: c.verifiedValidFraction,
+        meetsTarget: c.meetsTarget, reasons: c.reasons, evidenceUrl: c.evidenceUrl }));
       const status: SurfaceRegionDiscovery['status'] = selected.some(c => c.meetsTarget === true && c.verifiedValidFraction !== null && c.verifiedValidFraction > 0)
         ? 'verified-candidate' : selected.length ? 'unverified-candidates' : 'no-matching-candidate';
       if (status !== 'verified-candidate') diagnostics.push({ severity: 'warning',
