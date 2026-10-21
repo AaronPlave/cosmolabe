@@ -85,14 +85,15 @@ matching features. The list is virtualized (only visible rows are rendered)
 and searches an in-memory index built once per layer, bounded by the import
 limits. There is no GIS backend.
 
-Selection is shared with the scene. Clicking a feature in 3D selects it, opens
-the panel on its layer and scrolls to it; clicking a row selects it in the
-scene. Selecting never moves the camera. Double-click a row, press Enter, or
+Selection is shared with the scene. Clicking a feature in 3D selects and
+highlights it without opening anything over the scene; its callout opens its
+details here, and an open panel lists its layer and scrolls to it. Clicking a
+row selects it in the scene. Selecting never moves the camera. Double-click a row, press Enter, or
 use **Fly to** to fly over the feature's extent, or **Frame** to cut there,
 through the shared navigation (docs/navigation.md). Bodies that are not globes
 disable both, with the reason. Arrow keys move the selection in the list;
-Escape clears it. One callout names the selected feature in the scene; it
-hides past the horizon.
+Escape clears it. One callout names the selected feature in the scene (click
+it for details); it hides past the horizon.
 
 The rules that keep list, scene and details consistent:
 

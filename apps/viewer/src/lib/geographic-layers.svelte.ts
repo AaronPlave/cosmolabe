@@ -235,6 +235,15 @@ export function clearGeographicSelection(): boolean {
   return true;
 }
 
+/** Open Surface layers on the selected feature: its layer listed, the row in view. */
+export function showSelectedDetails(): void {
+  const ref = geo.selected;
+  if (!ref) return;
+  if (!isToolOpen('layers')) openTool('layers');
+  if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
+  geo.reveal++;
+}
+
 export function hoverFeature(ref: GeographicFeatureRef | null): void {
   if (sameGeographicFeature(geo.hovered, ref)) return;
   geo.hovered = ref;
@@ -293,8 +302,7 @@ onToolClose('layers', () => {
   if (geo.inViewOnly) setInViewOnly(false);
 });
 
-// Subscribed at module scope rather than from the panel: a scene click must
-// open the panel on the feature whether or not it is already open.
+// Subscribed at module scope rather than from the panel, which may be closed.
 onViewerEvent('load', () => {
   resetForScene();
   const renderer = getRenderer();
@@ -305,11 +313,12 @@ onViewerEvent('load', () => {
   unsubscribers.push(
     renderer.events.on('geographic:select', (ref) => { geo.selected = ref; }),
     renderer.events.on('geographic:click', (ref) => {
-      // A scene click lists the feature's layer and scrolls to it.
+      // A scene click selects without opening anything over the scene; an open
+      // panel lists the feature's layer and scrolls to it. The callout opens it.
+      if (!isToolOpen('layers')) return;
       if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
       geo.notice = '';
       geo.reveal++;
-      if (!isToolOpen('layers')) openTool('layers');
     }),
     renderer.events.on('geographic:hover', (ref) => { geo.hovered = ref; }),
     scene.events.on('geographic:changed', () => { geo.revision++; }),
