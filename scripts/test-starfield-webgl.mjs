@@ -47,7 +47,7 @@ try {
     if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('Float readback unavailable');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    const field = new StarField({ linearFluxScale: 1 });
+    const field = new StarField();
     scene.add(field);
     async function load(mag) {
       const buffer = new ArrayBuffer(28), view = new DataView(buffer);
@@ -75,6 +75,9 @@ try {
       }
       return { flux, centroid: flux > 0 ? centroid / flux : null, litPixels, peakByte };
     }
+    await load(0);
+    const defaultFluxScale = field.children[0].material.uniforms.uLinearFluxScale.value;
+    field.setLinearFluxScale(1);
     const linear = [], display = [];
     for (const size of [128, 192]) for (const dpr of [1, 2]) {
       renderer.setPixelRatio(dpr); renderer.setSize(size, size);
@@ -95,9 +98,7 @@ try {
       }
       renderer.setRenderTarget(null); target.dispose();
     }
-    // Read the actual 8-bit sRGB default framebuffer at the provisional scale.
-    // Keep quantization results as measurements, not a fake visibility pass.
-    field.setLinearFluxScale(0.06);
+    // Compare fixed diagnostic scales in the actual 8-bit sRGB framebuffer.
     camera.fov = 60; camera.updateProjectionMatrix();
     const size = 128;
     const toLinear = byte => {
@@ -106,13 +107,15 @@ try {
     };
     const toSrgb = linear => linear <= 0.0031308
       ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055;
-    for (const dpr of [1, 2]) {
+    const scales = [...new Set([0.06, 0.3, 0.6, defaultFluxScale])];
+    for (const scale of scales) for (const dpr of [1, 2]) {
+      field.setLinearFluxScale(scale);
       renderer.setPixelRatio(dpr); renderer.setSize(size, size);
       const n = size * dpr;
       for (const tone of ['none', 'ACES']) {
         renderer.toneMapping = tone === 'ACES' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
         renderer.toneMappingExposure = 1;
-        for (const mag of [-1.44, 0, 2.5, 4, 5, 6.5]) {
+        for (const mag of [-1.44, 0, 2.5, 3, 4, 5, 6.5]) {
           await load(mag);
           const color = field.children[0].geometry.getAttribute('color');
           const rgb = [color.getX(0), color.getY(0), color.getZ(0)];
@@ -128,7 +131,7 @@ try {
                 const dx = i + 0.5 - (size / 2 + phase) * dpr;
                 const dy = j + 0.5 - n / 2;
                 const sigma = 0.875 * dpr;
-                const signal = 0.06 * 10 ** (-0.4 * mag) * dpr * dpr *
+                const signal = scale * 10 ** (-0.4 * mag) * dpr * dpr *
                   Math.exp(-(dx * dx + dy * dy) / (2 * sigma * sigma)) / (2 * Math.PI * sigma * sigma);
                 for (let c = 0; c < 3; c++) {
                   const reference = Math.round(255 * toSrgb(signal * rgb[c] / y));
@@ -136,7 +139,7 @@ try {
                 }
               }
             }
-            display.push({ dpr, tone, mag, phase, maxReferenceError, ...measure(pixels, n, dpr, toLinear) });
+            display.push({ scale, dpr, tone, mag, phase, maxReferenceError, ...measure(pixels, n, dpr, toLinear) });
           }
         }
       }
@@ -169,25 +172,38 @@ try {
     }
     await field.loadCatalog('/packages/three/src/data/stars.bin');
     const catalog = field.getCatalogStatus();
-    field.setLinearFluxScale(0.06);
-    renderer.setSize(640, 480); camera.aspect = 640 / 480;
-    camera.fov = 60; camera.updateProjectionMatrix(); renderer.render(scene, camera);
-    const screenshot = renderer.domElement.toDataURL();
+    renderer.setSize(1280, 720); camera.aspect = 1280 / 720;
+    camera.fov = 60; camera.updateProjectionMatrix();
+    camera.lookAt(new THREE.Vector3().fromBufferAttribute(field.children[0].geometry.getAttribute('position'), 0));
+    const screenshots = [];
+    for (const scale of scales) {
+      field.setLinearFluxScale(scale); renderer.render(scene, camera);
+      screenshots.push({ scale, png: renderer.domElement.toDataURL() });
+    }
     const translationInvariant = baseline.every((value, i) => value === translated[i]);
     field.dispose(); renderer.dispose();
-    return { gpu, linear, display, translationInvariant, behind, occlusion, catalog, screenshot };
+    return { gpu, defaultFluxScale, linear, display, translationInvariant, behind, occlusion, catalog, screenshots };
   });
-  const { screenshot, ...metrics } = result;
+  const { screenshots, ...metrics } = result;
   await writeFile(`${output}/readback.json`, JSON.stringify({ browser: browser.version(), ...metrics, errors }, null, 2));
-  await writeFile(`${output}/catalog.png`, Buffer.from(screenshot.split(',')[1], 'base64'));
+  for (const { scale, png } of screenshots) {
+    await writeFile(`${output}/catalog-scale-${scale}.png`, Buffer.from(png.split(',')[1], 'base64'));
+  }
   assert.deepEqual(errors, []);
   for (const row of result.linear) {
     assert.ok(Math.abs(row.flux / 10 ** (-0.4 * row.mag) - 1) < 0.001, JSON.stringify(row));
     assert.ok(Math.abs(row.centroid - (row.size / 2 + row.phase)) < 0.03, JSON.stringify(row));
   }
   for (const row of result.display) assert.ok(row.maxReferenceError <= 1, JSON.stringify(row));
+  // Visible-output guard for the production default, not just Gaussian math.
+  // Magnitude 3 must be distinct on black; magnitude 4 must survive every
+  // sampled phase with less than 10% loss/error in recovered linear signal.
+  for (const row of result.display.filter(row => row.scale === result.defaultFluxScale && row.tone === 'none' && row.mag <= 4)) {
+    assert.ok(row.peakByte >= (row.mag <= 3 ? 16 : 7), JSON.stringify(row));
+    assert.ok(Math.abs(row.flux / (result.defaultFluxScale * 10 ** (-0.4 * row.mag)) - 1) < 0.1, JSON.stringify(row));
+  }
   for (const dpr of [1, 2]) {
-    const sample = tone => result.display.find(row => row.dpr === dpr && row.tone === tone && row.mag === 0 && row.phase === 0);
+    const sample = tone => result.display.find(row => row.scale === result.defaultFluxScale && row.dpr === dpr && row.tone === tone && row.mag === 0 && row.phase === 0);
     assert.ok(sample('ACES').flux > 0 && sample('ACES').flux < sample('none').flux,
       'Shared renderer tone mapping must affect the display signal');
   }
@@ -197,11 +213,12 @@ try {
   assert.equal(result.catalog.state, 'ready');
   console.log(JSON.stringify({ output, gpu: result.gpu, linearSamples: result.linear.length,
     displaySamples: result.display.length, catalog: result.catalog, occlusion: result.occlusion,
-    display: [1, 2].flatMap(dpr => [-1.44, 0, 2.5, 4, 5, 6.5].map(mag => {
-      const rows = result.display.filter(row => row.dpr === dpr && row.mag === mag && row.tone === 'none');
-      return { dpr, mag, fluxRange: [Math.min(...rows.map(r => r.flux)), Math.max(...rows.map(r => r.flux))],
+    display: [0.06, 0.3, 0.6].flatMap(scale => [1, 2].flatMap(dpr => [-1.44, 0, 2.5, 3, 4, 5, 6.5].map(mag => {
+      const rows = result.display.filter(row => row.scale === scale && row.dpr === dpr && row.mag === mag && row.tone === 'none');
+      return { scale, dpr, mag, fluxRange: [Math.min(...rows.map(r => r.flux)), Math.max(...rows.map(r => r.flux))],
+        peakByteRange: [Math.min(...rows.map(r => r.peakByte)), Math.max(...rows.map(r => r.peakByte))],
         litPixelRange: [Math.min(...rows.map(r => r.litPixels)), Math.max(...rows.map(r => r.litPixels))] };
-    })) }, null, 2));
+    }))) }, null, 2));
 } finally {
   await browser?.close();
   await server.close();

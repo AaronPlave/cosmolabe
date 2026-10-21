@@ -202,6 +202,7 @@ jobs:
             sleep 1
           done
           node scripts/test-geographic-global.mjs
+          CL_STAR_SMOKE=1 npm run capture:stars
 
       - name: Save global geographic smoke evidence
         if: always()
@@ -218,5 +219,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: starfield-webgl
-          path: /tmp/starfield-webgl/
+          path: |
+            /tmp/starfield-webgl/
+            /tmp/starfield-viewer/
           if-no-files-found: ignore

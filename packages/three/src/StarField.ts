@@ -14,6 +14,7 @@ export interface StarFieldOptions {
   magLimit?: number;
   /**
    * Provisional magnitude-zero linear-light signal in CSS-pixel units.
+   * Default 0.6, evaluated with the viewer's fixed no-tone-mapping sRGB output.
    * This is a single normalization hook for #212's shared scene exposure, NOT
    * a camera- or FOV-dependent star-specific auto exposure pipeline.
    */
@@ -53,7 +54,7 @@ export class StarField extends THREE.Object3D {
     super();
     this.renderOrder = -1000;
     this.frustumCulled = false;
-    this.fluxScale = StarField.safeFluxScale(options.linearFluxScale ?? 0.06);
+    this.fluxScale = StarField.safeFluxScale(options.linearFluxScale ?? 0.6);
     this.magLimit = options.magLimit;
     const nominalSize = Number.isFinite(options.maxSize)
       ? options.maxSize! : 3.5;

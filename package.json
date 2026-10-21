@@ -37,6 +37,7 @@
     "test": "vitest run",
     "test:permalinks": "node scripts/test-view-permalinks.mjs",
     "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
+    "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",

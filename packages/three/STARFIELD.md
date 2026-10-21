@@ -37,7 +37,8 @@ boost, synthetic scintillation, or diffraction spikes.
 
 For the current display sampling contract, a star contributes total
 **pre-tone linear signal per CSS-pixel image** of
-`linearFluxScale * F(m)`. The default provisional scale is `0.06`.
+`linearFluxScale * F(m)`. The default provisional scale is `0.6`, selected
+by the fixed-output calibration below; explicit caller values still override it.
 The PSF sigma is 0.875 CSS pixels by default. At DPR `d`, the shader draws
 a Gaussian with sigma `d * sigmaCSS` physical pixels and weights the
 per-pixel signal by `d²`. Summing physical-pixel values with area `1/d²`
@@ -94,58 +95,91 @@ Run actual browser readback with `npm run test:stars:webgl` (install Chromium
 with `npx playwright install chromium`, or set `CL_CHROMIUM` to its executable).
 The script starts/stops its own Vite server, exercises the production
 StarField shaders and writes `/tmp/starfield-webgl/readback.json` and
-`catalog.png`; `CL_STAR_OUTPUT` selects another directory. CI runs it and
+`catalog-scale-*.png`; `CL_STAR_OUTPUT` selects another directory. CI runs it and
 uploads a `starfield-webgl` artifact. It verifies:
 - Float-target integrated flux and centroids at DPR 1/2, 128/192 CSS-pixel
   viewports, 1°/60°/120° FOV and subpixel offsets, including 10:1 magnitude pairs.
 - The actual 8-bit sRGB default framebuffer against a Gaussian + sRGB
   quantization reference (within one code value). A 16-phase pan measures
-  magnitudes -1.44, 0, 2.5, 4, 5 and 6.5 under both the viewer's default
-  no-tone-mapping output and ACES at renderer exposure 1.
+  magnitudes -1.44, 0, 2.5, 3, 4, 5 and 6.5 at scales 0.06/0.3/0.6 under
+  both the viewer's default no-tone-mapping output and ACES at renderer exposure 1.
+- Visible-output regressions for the production default: magnitude 3 peaks
+  at least 16/255 on black, magnitude 4 at least 7/255, and recovered linear
+  signal through magnitude 4 stays within 10% of its expected integral
+  across every sampled DPR/subpixel phase. This guard fails with default 0.06.
 - Camera-translation invariance, behind-camera rejection, opaque sphere and
   displaced mesh occlusion with logarithmic depth enabled, and the real catalog.
 
-### Measured display precision limit (2026-10-21)
+### Fixed-output display calibration (2026-10-21)
 
-Chromium 151 / ANGLE SwiftShader readback passed all 96 float and 384 display
-samples. Maximum relative float flux error was 0.00093%; maximum centroid
-error was 0.013 CSS pixels. The no-tone-mapping 8-bit reference matched exactly.
-These are software WebGL measurements, not physical GPU/mobile performance.
+The original 0.06 normalization failed visual acceptance: even magnitude-3
+stars were only 2–3 sRGB code values above black, and magnitudes 5/6.5 vanished.
+We compared 0.06, 0.3 and 0.6 with **the same PSF, camera, catalog and output**.
+The default is now **0.6**, the smallest tested scale meeting the visible-output
+guard above. It restores reasonably bright naked-eye stars while retaining a
+restrained sky around sunlit globes. This is a provisional display normalization,
+not an absolute photometric/exposure calibration or a claim that every catalog
+star should be visible.
 
-**This does not establish faint-star display acceptance.** At the provisional
-scale 0.06, the isolated-star fixture produced the following recovered linear
-CSS-pixel signal after sRGB readback (ranges cover subpixel phases):
+Chromium 151 / ANGLE SwiftShader: 96 float and 1,344 display readbacks passed.
+Maximum relative pre-tone flux error was 0.00093%; maximum centroid error was
+0.013 CSS pixels. Magnitude-pair flux remains 10:1 before tone mapping. The
+8-bit no-tone-mapping reference differs by at most one code value.
 
-| Magnitude | Pre-tone signal | 8-bit signal, DPR 1 | 8-bit signal, DPR 2 |
-| --- | --- | --- | --- |
-| 0 | 0.06 | 0.05834–0.06013 | 0.05898–0.05955 |
-| 2.5 | 0.006 | 0.00511–0.00616 | 0.00530–0.00581 |
-| 4 | 0.001507 | 0.00074–0.00121 | 0.00098–0.00119 |
-| 5 | 0.0006 | 0 | 0 |
-| 6.5 | 0.000151 | 0 | 0 |
+| Scale | Magnitude | Peak sRGB byte, DPR 1/2 phases | Signal swing, DPR 1 | Signal swing, DPR 2 |
+| --- | --- | --- | --- | --- |
+| 0.06 | 3 | 2–3 | 20.7% | 9.5% |
+| 0.3 | 3 | 10–13 | 9.7% | 2.4% |
+| **0.6** | **3** | **19–23** | **4.3%** | **2.5%** |
+| 0.06 | 4 | 1 | 31.7% | 14.4% |
+| 0.3 | 4 | 4–6 | 9.2% | 6.2% |
+| **0.6** | **4** | **8–11** | **6.1%** | **5.1%** |
 
-The default framebuffer quantizes faint sources away, and magnitude-4 signal
-varies substantially during the pan. At exposure 1, ACES further suppresses
-the fixture (magnitude 2.5 and fainter quantize to zero). Magnitude-pair
-photometry is therefore a **pre-tone** claim, not a display-pixel ratio or a
-guarantee that every decoded catalog star is visible. No artificial intensity
-floor, separate exposure adaptation or temporal dither is added to mask this.
-The output limitation must remain visible during visual acceptance and the
-shared HDR/exposure work in #212.
+Signal swing is `(max - min) / expectedPreToneSignal` across 16 pan phases,
+after converting the framebuffer sRGB bytes back to linear values. With 0.6,
+magnitude-4 recovered signal is 0.01413–0.01504 (DPR 1) and 0.01415–0.01492
+(DPR 2), versus expected 0.015071. The magnitude-zero star peaks at 89–102/255,
+without saturating, at the unchanged sigma of 0.875 CSS pixels.
 
-Viewer smoke on the same software renderer also captured the existing
-`atmosphere-earth-textured` whole-disc view, `atmosphere-saturn-shadow`
-clouds/rings view, and the `geographic-vectors` textured Moon (overlays hidden,
-camera facing its sunlit hemisphere), at 800×600 CSS pixels and DPR 1/2.
-Playback was paused; these catalogs use fixed body poses. Renderer exposure
-remained 1, tone mapping off, and flux scale 0.06. All assets and 8,826 stars
-loaded without page/shader errors. Stars remained restrained against the
-sunlit globes. Earth-view sky-only and 1° sky views were also sampled through
-16 subpixel pan steps. These captures exercise actual viewer compositing,
-but do **not** certify streamed lunar terrain (absent from this checkout),
-instrument sensor semantics, physical GPU/mobile timing or visual acceptance
-of the quantified faint-star limitation above. Keep the PR in draft until
-the remaining acceptance work is reviewed.
+The actual viewer uses `NoToneMapping` and sRGB output. We record renderer
+exposure 1, although Three's no-tone-mapping path does not apply that property.
+The fixed signal normalization is therefore the operative gain. ACES at
+exposure 1 is measured as an alternative output diagnostic; it still suppresses
+faint stars, and we do not adapt star gain to the tone mapper. Accumulation still
+occurs in the existing display framebuffer; #212 owns shared linear HDR blending.
+
+For repeatable full-viewer captures, start the normal viewer on port 5188 and run
+`npm run capture:stars` (`CL_CHROMIUM`, `CL_VIEWER_URL`, `CL_STAR_OUTPUT` optional).
+The script uses ET **773366400**, exposure **1**, a fixed camera per pose, all
+three trial scales, 800×600/1280×720 CSS viewports and DPR 1/2. It writes the
+60 before/trial/after PNGs and `matrix.json` to `/tmp/starfield-viewer`. CI also
+runs the 800×600 DPR-1 subset (`CL_STAR_SMOKE=1`) and uploads it with WebGL evidence.
+
+Poses are the existing textured Earth whole disc, Saturn clouds/rings, a
+sunlit textured Moon globe (geographic overlays hidden), dark sky and 1° sky.
+Sky poses also include an eight-phase subpixel pan at 0.6. Detection is measured
+against a no-stars baseline: magnitude ≤3 needs a peak delta ≥16 bytes;
+magnitude ≤4 needs ≥7. In the 800×600 dark-sky view at DPR 1, the scales yielded:
+
+| Scale | Detected through magnitude 3 | Detected through magnitude 4 |
+| --- | --- | --- |
+| 0.06 | 4 / 22 | 9 / 67 |
+| 0.3 | 19 / 22 | 51 / 67 |
+| **0.6** | **22 / 22** | **67 / 67** |
+
+The same 0.6 counts hold at DPR 2. Foreground-occluded stars are excluded from
+this sky-only guard, not artificially shown through bodies. Sunlit-scene
+captures retain the same global scale; no body-, direction- or FOV-driven gain
+is introduced. [Before/trial/after and sunlit screenshots](../../docs/validation/starfield/README.md)
+are checked in for review; the full capture script preserves the original pixels.
+
+At magnitude 6.5, peaks remain around one code value, with substantial relative
+quantization variation. This is a real residual limit near the catalog cutoff,
+not a claim of stable instrument photometry. No brightness floor, inflated PSF,
+temporal dither, synthetic twinkle or auto exposure is added. Software WebGL
+captures do not certify physical GPU/mobile performance or streamed lunar
+terrain (absent here). Keep the PR draft pending review of the visual results
+and the remaining physical-device/terrain/instrument acceptance matrix.
 
 Manual GPU/visual acceptance still needed on a real browser/WebGL device:
 - Fix camera, time and display exposure across screenshot runs; compare a
