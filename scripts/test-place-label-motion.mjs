@@ -8,6 +8,11 @@ const root=resolve('.'), base=process.env.CL_VIEWER_URL??'http://127.0.0.1:5189/
 const output=process.env.CL_OUTPUT??'/tmp/planetary-places-motion';
 await mkdir(output,{recursive:true});
 const hardware=process.env.CL_GPU==='hardware';
+// CI's software renderer needs fewer samples of the same complete camera path.
+// Physical recording retains the full temporal sequence.
+const orbitFrames=process.env.CL_SMOKE==='1'?90:240;
+const sweepFrames=process.env.CL_SMOKE==='1'?60:180;
+const fovFrames=process.env.CL_SMOKE==='1'?6:20;
 const browser=await chromium.launch({executablePath:hardware?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':undefined,
   args:hardware?['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist']:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const context=await browser.newContext({viewport:{width:1440,height:900},...(process.env.CL_RECORD?{recordVideo:{dir:output,size:{width:1440,height:900}}}:{})});
@@ -36,16 +41,17 @@ try {
     await page.waitForTimeout(500);
     await page.screenshot({path:`${output}/${body.toLowerCase()}-global.png`});
     // A continuously moving camera, then stop/start and minuscule movement.
-    const motion=await page.evaluate(async body=>{
+    const motion=await page.evaluate(async ({body,orbitFrames})=>{
       const r=window.renderer,cc=r.cameraController,bm=r.getBodyMesh(body),cpu=[],frames=[],samples=[];
       const oldNodes=new Map();let identityChanges=0,pickChecks=0,last=performance.now();
       const initial={enters:r.placeNames.metrics.enters,exits:r.placeNames.metrics.exits};
       const relative=r.camera.position.clone().sub(bm.position);
       const axis=r.camera.up.clone().normalize();
-      for(let i=0;i<240;i++) {
+      for(let i=0;i<orbitFrames;i++) {
         await new Promise(requestAnimationFrame);
         const now=performance.now();frames.push(now-last);last=now;
-        const angle=i<100 ? .0007 : i<140 ? 0 : .000003;
+        const fraction=i/orbitFrames;
+        const angle=(fraction<100/240 ? .0007 : fraction<140/240 ? 0 : .000003)*240/orbitFrames;
         relative.applyAxisAngle(axis,angle);r.camera.position.copy(relative).add(bm.position);cc.controls.target.copy(bm.position);
         r.camera.lookAt(cc.controls.target);r.camera.updateMatrixWorld(true);
         const m=r.placeNames.metrics;cpu.push(m.cpuMs);
@@ -64,14 +70,14 @@ try {
       const stats=a=>{a.sort((x,y)=>x-y);return{median:a[Math.floor(a.length/2)],p95:a[Math.floor(a.length*.95)]};};
       return {body,phase:'slow orbit, stop/start, tiny motion',frames:stats(frames),cpu:stats(cpu),identityChanges,pickChecks,
         enters:r.placeNames.metrics.enters-initial.enters,exits:r.placeNames.metrics.exits-initial.exits,samples};
-    },body);
+    },{body,orbitFrames});
     assert.equal(motion.identityChanges,0,'a continuously retained label keeps its DOM identity');
     assert.ok(motion.enters<20&&motion.exits<20,'slow orbit must not churn the whole label set');
     results.push(motion);
-    await page.evaluate(async()=>{
+    await page.evaluate(async fovFrames=>{
       const r=window.renderer;
-      for(const fov of [45,75,60]){r.camera.fov=fov;r.camera.updateProjectionMatrix();for(let i=0;i<20;i++)await new Promise(requestAnimationFrame);}
-    });
+      for(const fov of [45,75,60]){r.camera.fov=fov;r.camera.updateProjectionMatrix();for(let i=0;i<fovFrames;i++)await new Promise(requestAnimationFrame);}
+    },fovFrames);
     // Traverse all apparent-size tiers with the actual shared surface pivot.
     await page.evaluate(async({root,body,query})=>{
       const {goToCoordinates}=await window.__placeModule('/src/lib/viewer-state.svelte.ts');
@@ -79,12 +85,12 @@ try {
       const result=goToCoordinates({bodyName:body,latDeg:pos.latDeg,lonDeg:pos.lonDeg,latitude:'planetographic',longitudeDirection:'east'},{animate:false,rangeKm:r.getBodyMesh(body).displayRadius*2});
       if(!result.ok)throw new Error(result.error);
     },{root,body,query});
-    const sweep=async(from,to,phase)=>page.evaluate(async({from,to,phase,body})=>{
+    const sweep=async(from,to,phase)=>page.evaluate(async({from,to,phase,body,sweepFrames})=>{
       const r=window.renderer,cc=r.cameraController,bm=r.getBodyMesh(body),target=cc.controls.target.clone();
       const ray=r.camera.position.clone().sub(target).normalize(),start=performance.now(),samples=[];
-      for(let i=0;i<180;i++){
+      for(let i=0;i<sweepFrames;i++){
         await new Promise(requestAnimationFrame);
-        const t=i/179,range=Math.exp(Math.log(from)*(1-t)+Math.log(to)*t)*r.scaleFactor;
+        const t=i/(sweepFrames-1),range=Math.exp(Math.log(from)*(1-t)+Math.log(to)*t)*r.scaleFactor;
         r.camera.position.copy(target).addScaledVector(ray,range);
         // Small pan changes the line of sight throughout the zoom.
         r.camera.position.addScaledVector(r.camera.up,Math.sin(t*Math.PI*2)*range*.015);
@@ -92,7 +98,7 @@ try {
         samples.push({...r.placeNames.metrics});
       }
       return{body,phase,elapsedMs:performance.now()-start,samples};
-    },{from,to,phase,body});
+    },{from,to,phase,body,sweepFrames});
     const radius=await page.evaluate(body=>window.renderer.getBodyMesh(body).displayRadius,body);
     results.push(await sweep(radius*2,radius*.15,'zoom global to regional'));
     await page.waitForTimeout(300);await page.screenshot({path:`${output}/${body.toLowerCase()}-regional.png`});
@@ -146,7 +152,7 @@ try {
   }
   assert.deepEqual(errors,[]);
 }finally{
-  await writeFile(`${output}/motion-metrics.json`,JSON.stringify({results,errors},null,2)+'\n');
+  await writeFile(`${output}/motion-metrics.json`,JSON.stringify({sampling:{orbitFrames,sweepFrames,fovFrames},results,errors},null,2)+'\n');
   await context.close();await browser.close();
 }
 console.log(JSON.stringify({phases:results.map(({samples,...r})=>r),errors},null,2));
