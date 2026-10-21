@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'events', 'measure', 'script', 'display', 'debug', 'places'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -88,6 +88,7 @@ export interface ToolDef {
  * list between `App.svelte` and `BottomBar.svelte`.
  */
 export const TOOLS: readonly ToolDef[] = [
+  { id: 'places', label: 'Places', icon: MapPin, presentation: 'panel', dock: 'right', width: 300 },
   { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.

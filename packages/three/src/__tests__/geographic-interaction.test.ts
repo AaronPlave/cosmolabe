@@ -5,6 +5,7 @@ import type { SceneHit } from '../SceneHit.js';
 const feature = { layerId: 'science', featureId: 'string:target', bodyName: 'Mars' };
 function harness(featureCount = 0) {
   const state = {
+    placeNames: { pick: vi.fn(() => null as typeof feature | null) },
     geographicVectors: { featureCount, pick: vi.fn(() => null as typeof feature | null), setHovered: vi.fn(), setSelected: vi.fn() },
     hoveredGeographicFeature: null, _hoveredBody: null, _hoveredSceneEvent: null, _lastPointer: { x: 40, y: 50 },
     pointerTool: null, _probeActive: false, universe: { time: 123 },
@@ -23,6 +24,12 @@ function harness(featureCount = 0) {
 }
 
 describe('geographic and rendered-surface picking integration', () => {
+  it('selects a geographic name through the shared geographic feature channel without a surface cast', () => {
+    const h = harness(0);
+    h.state.placeNames.pick.mockReturnValue(feature);
+    expect(h.renderer.pickScene(40, 50, 'select')).toEqual({ kind: 'geographic-feature', ...feature });
+    expect(h.state._discoverSurface).not.toHaveBeenCalled();
+  });
   it.each([false,true])('preserves body exclusion and renderedOnly=%s together', renderedOnly => {
     const h = harness(1);
     expect(h.renderer.pickScene(40,50,'select',{bodyMeshes:false,renderedOnly})).toBeNull();

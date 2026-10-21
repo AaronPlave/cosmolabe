@@ -67,6 +67,7 @@ import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
 import { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
+import { PlaceNames } from './geographic/PlaceNames.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -309,6 +310,7 @@ export class UniverseRenderer {
   private readonly spatialScene = new THREE.Scene();
   /** Batched geographic rendering, placement, selection and accuracy status. */
   readonly geographicVectors: GeographicVectorLayer;
+  readonly placeNames: PlaceNames;
   private hoveredGeographicFeature: GeographicFeatureRef | null = null;
   private lastGeographicHoverMs = -Infinity;
   private readonly geographicStatus: HTMLDivElement;
@@ -543,6 +545,7 @@ export class UniverseRenderer {
     );
     this.spatialRelationships.attach(this.spatialScene);
     this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor);
+    this.placeNames = new PlaceNames(universe, this.labelContainer);
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
     this.geographicStatus.style.cssText = 'position:absolute;width:max-content;max-width:min(330px,calc(100% - 32px));padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
@@ -1162,6 +1165,18 @@ export class UniverseRenderer {
       ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
       ...(this._screenOccluders?.() ?? []),
     ];
+    this.placeNames.update(this.camera, this.bodyMeshes, this.scaleFactor,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
+      contourLabelObstacles, world => {
+        const direction = world.clone().sub(this.camera.position);
+        const distance = direction.length();
+        this._surfaceRaycaster.set(this.camera.position, direction.divideScalar(distance));
+        this._surfaceRaycaster.far = distance;
+        const hit = this._castSurfaces();
+        this._surfaceRaycaster.far = Infinity;
+        return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
+      });
+    contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
@@ -2643,6 +2658,8 @@ export class UniverseRenderer {
         return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
       },
       'geographic-feature': () => {
+        const label = this.placeNames.pick(screenX, screenY);
+        if (label) return { kind: 'geographic-feature', ...label };
         if (!this.geographicVectors.featureCount) return null;
         const surface = this._discoverSurface(ndcX, ndcY, !options.renderedOnly);
         const feature = this.geographicVectors.pick(screenX, screenY, rect.width, rect.height, this.camera, this.bodyMeshes, surface);
@@ -3427,6 +3444,7 @@ export class UniverseRenderer {
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
     this._dprMediaQuery?.removeEventListener('change', this._onDprChange);

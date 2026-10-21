@@ -282,6 +282,7 @@ function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
   const all = [...objects, ...catalogOnly];
   const universe = {
+    events: { on: () => () => {} },
     getTimeRange: () => null,
     getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
   } as unknown as Universe;

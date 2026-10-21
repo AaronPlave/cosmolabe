@@ -95,6 +95,8 @@ export interface FlyToOptions {
    * `distanceMultiplier`; the camera then looks at the body's centre.
    */
   offset?: THREE.Vector3;
+  /** Optional look-at point in the same mesh frame, for a named surface place. */
+  targetOffset?: THREE.Vector3;
   /** Camera up on landing, in the body's mesh frame. Defaults to the current up. */
   up?: THREE.Vector3;
 }
@@ -141,6 +143,7 @@ export class CameraController {
   private readonly _baseZoomSpeed = 1.2;
 
   private _trackTarget: BodyMesh | null = null;
+  private _trackOffset: THREE.Vector3 | null = null;
   /** The body the camera is orbiting (orbit target locked to origin) */
   get trackedBody(): BodyMesh | null { return this._trackTarget; }
 
@@ -211,6 +214,7 @@ export class CameraController {
     phase?: 'overview' | 'approach';
     /** Landing pose in the followed body's mesh frame (`FlyToOptions.offset`/`up`). */
     followOffset?: THREE.Vector3;
+    followTargetOffset?: THREE.Vector3;
     followUp?: THREE.Vector3;
   } | null = null;
   private _lastAnimMs = 0;
@@ -428,7 +432,7 @@ export class CameraController {
    * camera itself is left for free orbit; a body-fixed or SC-fixed one moves
    * onto the body.
    */
-  frame(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number } = {}): void {
+  frame(bodyMesh: BodyMesh, opts: FlyToOptions = {}): void {
     this._beginNavigation();
     // A frame that places the camera itself would take it straight back.
     if (this._frameOwnsCamera) this.setMode(CameraModeName.FREE_ORBIT);
@@ -437,6 +441,14 @@ export class CameraController {
     const center = this._rebaseOnto(bodyMesh);
     this.camera.position.copy(center).addScaledVector(dir, dist);
     this._anchorOn(bodyMesh, center);
+    if (opts.offset) {
+      const q = bodyMesh.mesh.quaternion;
+      this.camera.position.copy(opts.offset).applyQuaternion(q).add(center);
+      this.controls.target.copy(opts.targetOffset ?? new THREE.Vector3()).applyQuaternion(q).add(center);
+      if (opts.up) this.camera.up.copy(opts.up).applyQuaternion(q);
+      this.camera.lookAt(this.controls.target);
+      this._trackOffset = opts.targetOffset?.clone() ?? null;
+    }
   }
 
   /** @deprecated Use `frame`, which this is. */
@@ -471,6 +483,7 @@ export class CameraController {
     // applied belongs to a flight this one replaces; applied later, it would
     // move the camera's coordinates out from under this one.
     this._trackTarget = null;
+    this._trackOffset = null;
     this._pendingOriginSwitch = null;
     // A look-at would override the view the flight lands on.
     this.clearLookAt();
@@ -519,7 +532,7 @@ export class CameraController {
 
   private _startApproach(
     bodyMesh: BodyMesh, dist: number, up: THREE.Vector3, duration: number, path: FlightPath,
-    landing?: Pick<FlyToOptions, 'offset' | 'up'>,
+    landing?: Pick<FlyToOptions, 'offset' | 'up' | 'targetOffset'>,
   ): void {
     // Approach from the camera's current side of the body.
     const dir = this._approachDirection(bodyMesh);
@@ -531,6 +544,7 @@ export class CameraController {
         // (already computed this frame with the old origin) won't match the
         // camera's new coordinates, causing a one-frame flash.
         this._pendingOriginSwitch = bodyMesh;
+        this._trackOffset = landing?.targetOffset?.clone() ?? null;
       },
     );
     // Track the body each frame so endpoints follow its motion
@@ -542,6 +556,7 @@ export class CameraController {
     anim.phase = 'approach';
     if (landing?.offset) {
       anim.followOffset = landing.offset.clone();
+      anim.followTargetOffset = landing.targetOffset?.clone();
       anim.followUp = landing.up?.clone();
     }
   }
@@ -596,6 +611,7 @@ export class CameraController {
 
   /** A cut navigation takes the camera over: nothing still in flight, no look-at. */
   private _beginNavigation(): void {
+    this._trackOffset = null;
     this.cancelAnimation();
     this._pendingOriginSwitch = null;
     this.clearLookAt();
@@ -1201,6 +1217,7 @@ export class CameraController {
     // would put it there; left on the body the flight left, it would carry
     // the camera around that one.
     this._carryOrbitFrameTo(body);
+    if (this._trackOffset) this.controls.target.copy(this._trackOffset).applyQuaternion(body.mesh.quaternion).add(wasAlreadyOrigin ? bodyPos : new THREE.Vector3());
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce
@@ -1567,6 +1584,7 @@ export class CameraController {
         if (this._anim.followOffset) {
           const q = this._anim.followBody.mesh.quaternion;
           this._anim.endPos.copy(this._anim.followOffset).applyQuaternion(q).add(bodyPos);
+          if (this._anim.followTargetOffset) this._anim.endTarget.copy(this._anim.followTargetOffset).applyQuaternion(q).add(bodyPos);
           if (this._anim.followUp) this._anim.endUp.copy(this._anim.followUp).applyQuaternion(q);
         }
       }
@@ -1668,6 +1686,7 @@ export class CameraController {
     // directly so the camera always looks at the body's rendered position.
     if (this._trackTarget) {
       this.controls.target.copy(this._trackTarget.position);
+      if (this._trackOffset) this.controls.target.add(this._trackOffset.clone().applyQuaternion(this._trackTarget.mesh.quaternion));
     }
 
     // Surface clamp via TrackballControls is camera-to-*target* distance, which
@@ -1679,7 +1698,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    this._updateMinDistance(this._trackTarget);
+    this._updateMinDistance(this._trackOffset ? null : this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom

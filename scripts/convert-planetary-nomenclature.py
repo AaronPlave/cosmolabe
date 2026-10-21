@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 import re
 import sys
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
 import zipfile
 
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
@@ -71,9 +72,35 @@ def input_kml(path: Path) -> bytes:
         raise ValueError('Expected .kml or .kmz input')
     if len(data) > MAX_XML_BYTES:
         raise ValueError('KML exceeds the 16 MiB XML limit')
-    if re.search(rb'<!\s*(?:DOCTYPE|ENTITY)\b', data, flags=re.I):
-        raise ValueError('DTD and entity declarations are not allowed in KML')
+    validate_xml(data)
     return data
+
+
+def validate_xml(data: bytes) -> None:
+    """Expat detects declarations after decoding, including UTF-16 input."""
+    parser = expat.ParserCreate()
+    def reject(*_args):
+        raise ValueError('DTD and entity declarations are not allowed in KML')
+    parser.StartDoctypeDeclHandler = reject
+    parser.EntityDeclHandler = reject
+    parser.ExternalEntityRefHandler = reject
+    depth = 0
+    elements = 0
+    def start(_name, _attributes):
+        nonlocal depth, elements
+        depth += 1
+        elements += 1
+        if depth > 64 or elements > 300_000:
+            raise ValueError('KML exceeds the XML depth/element limit')
+    def end(_name):
+        nonlocal depth
+        depth -= 1
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError as exc:
+        raise ValueError(f'Invalid KML XML: {exc}') from exc
 
 
 def source_fields(placemark: ET.Element) -> dict[str, str]:
@@ -102,7 +129,7 @@ def lookup(fields: dict[str, str], keys: tuple[str, ...]) -> str:
 
 def point_position(pm: ET.Element, domain: str) -> list[float] | None:
     # MultiGeometry/LineString/Polygon are not reduced to invented centroids.
-    geometries = [node for node in pm.iter() if local(node.tag) in ('Point', 'LineString', 'Polygon', 'MultiGeometry', 'Model', 'gx:Track')]
+    geometries = [node for node in pm.iter() if local(node.tag) in ('Point', 'LineString', 'Polygon', 'MultiGeometry', 'Model', 'Track', 'MultiTrack')]
     if len(geometries) != 1 or local(geometries[0].tag) != 'Point':
         return None
     raw = child_text(geometries[0], 'coordinates').split()
@@ -126,6 +153,7 @@ def point_position(pm: ET.Element, domain: str) -> list[float] | None:
 
 
 def to_features(xml: bytes, domain: str) -> tuple[list[dict], dict[str, int]]:
+    validate_xml(xml)
     try:
         root = ET.fromstring(xml)
     except ET.ParseError as exc:
@@ -134,7 +162,7 @@ def to_features(xml: bytes, domain: str) -> tuple[list[dict], dict[str, int]]:
         raise ValueError('Expected a KML root element')
     placemarks = (node for node in root.iter() if local(node.tag) == 'Placemark')
     features: list[dict] = []
-    skipped = {'unnamed': 0, 'non_point_or_invalid_coordinate': 0, 'duplicate': 0}
+    skipped = {'unnamed': 0, 'non_point_or_invalid_coordinate': 0, 'duplicate': 0, 'longitude_domain_mismatch': 0}
     seen: set[str] = set()
     for count, pm in enumerate(placemarks, 1):
         if count > MAX_PLACEMARKS:
@@ -149,13 +177,14 @@ def to_features(xml: bytes, domain: str) -> tuple[list[dict], dict[str, int]]:
             continue
         coords = point_position(pm, domain)
         if coords is None:
-            skipped['non_point_or_invalid_coordinate'] += 1
+            other = '-180..180' if domain == '0..360' else '0..360'
+            skipped['longitude_domain_mismatch' if point_position(pm, other) is not None else 'non_point_or_invalid_coordinate'] += 1
             continue
         kind = lookup(fields, ('Feature_Type', 'Feature Type', 'Type', 'FeatureClass'))
-        official_id = lookup(fields, ('Feature_ID', 'Feature ID', 'Gazetteer_ID', 'Gazetteer ID', 'ID')) or pm.attrib.get('id', '').strip()
+        # USGS Placemark IDs are row numbers, whereas its Feature URL is durable.
+        link_id = re.fullmatch(r'https?://planetarynames\.wr\.usgs\.gov/Feature/(\d+)/?', lookup(fields, ('link',)))
+        official_id = lookup(fields, ('Feature_ID', 'Feature ID', 'Gazetteer_ID', 'Gazetteer ID', 'ID')) or (link_id[1] if link_id else pm.attrib.get('id', '').strip())
         fallback = hashlib.sha256(json.dumps([name, kind, coords], ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()[:20]
-        # Include a content key even with an official ID: identity is stable
-        # across ordering, and a source typo cannot collapse two place records.
         place_id = f'gazetteer:{official_id}' if official_id and len(official_id) <= 128 else f'gazetteer:anchor:{fallback}'
         if place_id in seen:
             skipped['duplicate'] += 1
@@ -227,6 +256,8 @@ def parser() -> argparse.ArgumentParser:
 
 
 def convert(args: argparse.Namespace) -> dict:
+    if args.input.resolve() == args.output_catalog.resolve() or (args.output_catalog.exists() and args.input.samefile(args.output_catalog)):
+        raise ValueError('Input and output paths overlap')
     if not args.body.strip() or not args.attribution.strip():
         raise ValueError('Body and attribution cannot be empty')
     if args.sphere_radius_km is not None:
@@ -241,17 +272,24 @@ def convert(args: argparse.Namespace) -> dict:
         shape = {'kind': 'ellipsoid', 'radiiKm': [a, b, c]}
     data = input_kml(args.input)
     features, skipped = to_features(data, args.longitude_domain)
+    if skipped['longitude_domain_mismatch']:
+        raise ValueError(f"Longitude domain mismatch: {skipped['longitude_domain_mismatch']} placemarks outside {args.longitude_domain}; verify --longitude-domain before converting")
     if not features:
         raise ValueError(f'No usable point placemarks; skipped={skipped}')
-    parts = chunks(features)
     output = args.output_catalog
     prefix = args.layer_id or f'{args.body.lower()}:{args.input.stem.lower().replace(" ", "-")}'
     if not prefix.strip():
         raise ValueError('layer-id must not be empty')
+    # Logical references are independent of transport-layer chunk boundaries.
+    for feature in features:
+        feature['properties']['placeRef'] = f'{prefix}/{feature["id"]}'
+    parts = chunks(sorted(features, key=lambda f: f['id']))
     names = [f'{output.stem}-{i + 1:03}.geojson' for i in range(len(parts))]
     for name in names:
         if (output.parent / name).resolve() == output.resolve():
             raise ValueError('Output paths overlap')
+        if (output.parent / name).resolve() == args.input.resolve() or ((output.parent / name).exists() and args.input.samefile(output.parent / name)):
+            raise ValueError('Input and output paths overlap')
     catalog = {
         'name': f'{args.body} nomenclature ({args.input.stem})',
         'geographicCoordinates': {
@@ -264,7 +302,7 @@ def convert(args: argparse.Namespace) -> dict:
             'provenance': {
                 'attribution': args.attribution, 'sourceUrl': args.source_url,
                 'sourceFile': args.input.name, 'sourceSha256': hashlib.sha256(args.input.read_bytes()).hexdigest(),
-                'converter': 'cosmolabe:191:v1', 'geometrySemantics': 'point-anchor-not-feature-boundary',
+                'converter': 'cosmolabe:191:v2', 'geometrySemantics': 'point-anchor-not-feature-boundary',
             },
         } for i, name in enumerate(names)],
     }

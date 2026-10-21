@@ -1,53 +1,91 @@
-# Planetary named-place source proof (#191)
+# Planetary named places (#191)
 
-The initial nomenclature ingest path is deliberately **static and offline**. A catalog author downloads per-body placemark KML/KMZ, runs the optional standard-library converter, and references its **ordinary GeoJSON** outputs through the existing `geographicLayers` contract. The deployed viewer needs no GIS service, dynamic USGS calls, special nomenclature schema, or Python runtime. This is a **data/format proof**, not yet named-place search or the 3D geographic-name layer.
+Open **Catalog → Mars and Moon places**, then use the command palette (Ctrl/Command K) to search **Jezero**, **Shackleton**, or **Alpha**. Select a result to open Places, inspect its provenance, **Fly to**, **Jump to**, or **Copy coordinates**. Body/type filters, word prefixes, accent folding and catalog-provided aliases work in the existing palette. The tracked body sorts first. Names are indexed even when their drawings are hidden.
 
-## Download and convert
+The shipped scene loads ordinary, preconverted static GeoJSON through the existing `geographicLayers` loader. There is no account, GIS backend, Gazetteer API dependency, runtime KML parser, Python dependency, or required build/conversion step for viewers. Its body positions are illustrative; its example mission/user site is explicitly synthetic, not a claim about a real mission observation.
 
-1. Download **point/center nomenclature** for a single body from the [USGS/IAU planetary nomenclature downloads](https://planetarynames.wr.usgs.gov/GIS_Downloads). Do **not** choose extent/boundary files and then interpret those polygons as authoritative feature rims.
-2. Verify the selected file's published **latitude kind, longitude sign/domain, reference shape**, version and attribution from its source documentation. KML by itself does not establish correct planetary coordinate conventions. The converter **preserves** longitude/latitude values as source coordinates; it does not infer or silently flip them.
-3. Run the converter with explicit conventions. For an east-positive planetocentric Mars point file using `0..360` longitudes, for example:
+## Geographic names and source semantics
+
+Open **Places** to enable geographic names separately for Mars and Moon. These toggles are independent of body labels and graticules, and start off. Dataset checkboxes control the name annotations; hidden datasets remain searchable. A selected place retains a highlighted name independently of those toggles. Clear it with the × beside its name. Clicking a geographic name selects the same imported feature through the shared scene-picking channel. Probe and measurement gestures retain their existing precedence.
+
+Names use a bounded spatial candidate query, deterministic diameter/identity priority, screen-space collision checks, and rendered-surface line-of-sight checks. Body labels, measurement/probe/event callouts and shell panels reserve screen space before ordinary place names; terrain contours avoid the resulting place labels. At most 512 candidates per enabled body and 32 labels are considered for drawing in a frame, with a 2 ms scheduling allowance for line-of-sight queries (an individual surface query can exceed it). Unchecked visibility is hidden. Stationary visibility results are reused only while both camera and anchor positions match exactly, for at most 250 ms before terrain visibility is rechecked. Coordinates and visibility are recalculated during camera motion; backside anchors are rejected. Global views favor broad named features; regional/surface views query progressively smaller spatial neighborhoods. No full-body cloud of markers or invented crater rims is drawn.
+
+Anchors use the same normalized geographic coordinates and physical terrain sampling as other surface consumers. A resident terrain sample with a supported vertical datum provides the anchor. Otherwise the declared reference shape is an explicit fallback. Source heights, when supplied with the required datum, remain source heights. Unsupported areoid heights are not silently reinterpreted as ellipsoid elevations. Labels do not inherit visual terrain exaggeration. The selected-place details describe this fallback; the source point is never presented as a surveyed landing location, measured terrain elevation or authoritative feature boundary.
+
+Fly and Jump use `CameraController.flyTo` and `frame` with the same body-relative target and offset. Flight endpoints follow body motion/rotation, the normal origin switch applies on arrival, manual input interrupts a flight, and subsequent body navigation clears the place target. A positive source diameter guides framing only; it does not define geometry.
+
+## Static catalog workflows
+
+The example is [`apps/viewer/test-catalogs/planetary-places.json`](../apps/viewer/test-catalogs/planetary-places.json). It requires `places/mars.json` and `places/moon.json`, each of which references adjacent GeoJSON chunks. Any scene with matching body names can require either companion catalog. See [geographic-layers.md](geographic-layers.md) for the shared coordinate and provenance contract.
+
+- **Catalog-relative files:** retain the declaring catalog's relative paths and load the scene normally.
+- **Hosted HTTPS:** host the JSON/GeoJSON as static files. Cross-origin hosts must permit the viewer origin through CORS. `require` and layer sources resolve relative to their declaring catalog, not the viewer page.
+- **Local multiple files:** open the scene, required catalog JSONs and all referenced GeoJSON files together. Include referenced textures/models if the scene uses them. The supported flat-file workflow requires unambiguous basenames.
+- **Local directory:** open/drop the containing directory to retain relative paths. Missing exact directory paths do not fall through to another same-named file or a network fallback.
+
+Missing, malformed, CORS-blocked, timed-out and oversized geographic files are optional-source failures. They retain diagnostics in Places and the geographic layer store; other valid sources and the body scene still load. The entire geographic `require` graph shares a **15-second deadline**, 64 source attempts and a 16 MiB scene byte budget. Per-catalog limits remain 16 layers/8 MiB; each source remains below 2 MiB/5,000 features. Sources are parsed sequentially in disposable workers. The place index keeps at most 20,000 named points and reports overflow instead of silently claiming full search coverage.
+
+## Verified USGS snapshots
+
+Source: [USGS/IAU Gazetteer GIS Downloads](https://planetarynames.wr.usgs.gov/GIS_Downloads), retrieved **2026-10-21**. These are rolling downloads; the webpage says nightly generation, while the packaged metadata contains older publication/maintenance dates. The archive SHA-256 identifies the tested snapshot; an old metadata publication date is not treated as a current release version. Attribution: **USGS/IAU Gazetteer of Planetary Nomenclature** (USGS Astrogeology, on behalf of the IAU WGPSN, supported by NASA).
+
+The [USGS KML guidance](https://planetarynames.wr.usgs.gov/Page/Website#CoordinateSystems) declares **east-positive, planetocentric, −180..180 coordinates**. The actual KML `<Point><coordinates>` values conform. Its `center_lon` metadata field can instead contain 0..360 values: it must not replace the point geometry. The packaged `.prj` declares Mars 2000 equatorial radius 3396.19 km/inverse flattening 169.8944472236118 (polar radius 3376.2 km), and a Moon 2000 sphere of 1737.4 km.
+
+| Snapshot | Archive bytes | KML bytes | Placemark records | Converted points | Skips | GeoJSON bytes / chunks |
+|---|---:|---:|---:|---:|---|---:|
+| `MARS_nomenclature_center_pts.kmz` | 2,613,250 | 2,577,370 | 2,052 | 2,051 | 1 exact duplicate Bohar, feature 16054 | 1,558,267 / 1 |
+| `MOON_nomenclature_center_pts.kmz` | 11,718,225 | 11,682,362 | 9,087 | 9,087 | 0 | 7,196,489 / 4 |
+
+Archive SHA-256:
+
+```text
+Mars 3175bcd14991fe875ab0ca2d04db2e5cb1fc2f15b10271fca91ccc92cf6091b7
+Moon 03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e
+```
+
+Each archive contains one KML, one `.prj` and one metadata XML, stored without ZIP compression. Field layout is `<ExtendedData><SchemaData><SimpleData name="…">`; real fields include `clean_name`, `type`, `diameter`, `link`, approval, origin, bounds and quadrangle metadata. Names come from `<name>`. Gazetteer `link` URLs provide durable feature IDs; the KML Placemark IDs are generated row numbers.
+
+Concrete anchors from these snapshots:
+
+| Place | Gazetteer ID | Source east longitude | Source planetocentric latitude | Indicative diameter, km |
+|---|---:|---:|---:|---:|
+| Jezero | 14300 | 77.6873 | 18.4082 | 47.521198 |
+| Shackleton | 5450 | 129.78 | −89.67 | 20.924982 |
+
+The normalized Jezero latitude shown in the viewer is **geodetic**, approximately 18.61185°, on the declared Mars ellipsoid. That difference from source planetocentric latitude is intentional. Original coordinates and metadata remain in the imported feature. Small real-source KML excerpts exercise these records and negative longitudes in offline CI. Full static snapshots, sizes, per-chunk hashes and provenance are recorded in [`places/sources.json`](../apps/viewer/test-catalogs/places/sources.json).
+
+Moon currently fits just below the converter's conservative 7.5 MB budget. Future full-body snapshots may grow beyond it: conversion must fail explicitly instead of dropping records or relaxing renderer budgets. Split larger datasets into independently loaded regional catalogs after profiling.
+
+## Optional offline converter
+
+Authors refreshing static data can download the exact per-body **center point** archive and run the standard-library converter. Direct runtime KMZ ingestion is deliberately omitted: static GeoJSON reuses existing load guards/workers and avoids shipping another archive/XML parser in the viewer. Broader interchange belongs to #201.
 
 ```bash
 python3 scripts/convert-planetary-nomenclature.py \
   /path/to/MARS_nomenclature_center_pts.kmz \
-  --output-catalog /path/to/mars-names/mars-places.json \
-  --body Mars \
-  --latitude planetocentric \
-  --longitude-direction east \
-  --longitude-domain 0..360 \
+  --output-catalog /path/to/places/mars.json \
+  --body Mars --latitude planetocentric --longitude-direction east \
+  --longitude-domain=-180..180 \
   --ellipsoid-radii-km 3396.19 3396.19 3376.2 \
   --layer-id mars:usgs:places \
   --attribution 'USGS/IAU Gazetteer of Planetary Nomenclature' \
-  --source-url 'https://planetarynames.wr.usgs.gov/GIS_Downloads'
+  --source-url 'https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MARS_nomenclature_center_pts.kmz'
 ```
 
-For a **Moon** source using an explicitly verified spherical reference convention, use `--body Moon --sphere-radius-km 1737.4` instead of the ellipsoid argument, and set its actual latitude/longitude options. The radius is a declared **reference sphere**, not a terrain height. These numeric examples are not evidence that a particular archive uses these conventions: verify before importing.
+For Moon, use its actual archive URL, `--body Moon --sphere-radius-km 1737.4 --layer-id moon:usgs:places` with the same latitude/longitude options. Other sources require independently verified conventions. `--longitude-domain=-180..180` needs the equals sign because its value begins with a minus sign.
 
-4. The command writes a `mars-places.json` catalog and numbered `mars-places-001.geojson` files beside it. A catalog can `require` the generated catalog, or a scene can load it alongside its normal body catalog. Keep the GeoJSON files beside their referencing catalog. The viewer already handles catalog-relative static URLs, HTTPS/CORS and supported local multi-file/directory opening. It will not automatically discover arbitrary files on disk. You can also host the catalog and GeoJSON on an ordinary static asset server.
-5. Check the converter's `features` and `skipped` summary. **Skipped non-point placemarks are intentional.** If the source has unexpectedly few entries, examine its KML structure before using the result. Conversion failing due to a size limit is not permission to silently drop records.
+Conversion fails conspicuously if valid points fall into the other longitude domain. Review every skip count. Z is omitted because arbitrary KML altitude lacks a planetary vertical datum. Unsupported/malformed/non-point placemarks are counted, not reduced to invented centroids. DTD/entity declarations are rejected at the decoded XML parser boundary, including UTF-16; archive traversal, symlinks, excessive size/ratio/entries, XML depth/elements, field lengths and record counts are bounded. Input/output path collisions are rejected before writing.
 
-The companion catalog uses the same `geographicCoordinates` and `geographicLayers` definitions documented in [geographic-layers.md](geographic-layers.md). It defaults `display.visible` to `false`, because thousands of points are not an acceptable automatic global visualization. Place search and a dedicated density-controlled geographic-name toggle will be implemented in the later #191 slices; generic geographic-layer inspection is tracked by #198.
+`properties.placeRef` combines dataset identity (`--layer-id`) and durable feature identity, independent of numbered transport chunks. Source reordering or insertion can change a feature's chunk without changing its logical place reference. Generic source IDs are retained when supplied; otherwise the deterministic name/type/coordinate hash changes if the record is renamed or moved. Duplicate IDs are skipped and counted. Keep `--layer-id` stable when refreshing the same dataset.
 
-## Output semantics
-
-- Each feature is a GeoJSON `Point` with a 2D `[source longitude, source latitude]` coordinate tuple, `properties.name`, optional `properties.featureClass`, and `properties.sourceFields` copied from KML `<ExtendedData>` simple values. Catalog provenance records the input filename/SHA-256, optional original URL, attribution and converter version.
-- `properties.coordinateRole` is `source-placemark-anchor`. A point is **not** a feature's exact extent, authoritative rim, elevation, surveyed landing location or terrain sample. KML altitude is intentionally discarded because an arbitrary third coordinate lacks an unambiguous planetary vertical datum.
-- IDs prefer `Feature_ID`, `Gazetteer_ID`, `ID` or KML Placemark `id`; otherwise a deterministic hash of name/type/coordinates is used. The existing geographic layer ID namespaces these feature IDs. Missing identifiers are stable against **row reordering**, but a renamed or moved feature changes its fallback ID. Duplicate IDs are **skipped and counted**, not silently renumbered.
-- A user/mission site layer may use the **same** geographic model with ordinary GeoJSON points and `properties.name`; mission-specific provenance stays with its layer. The future place index will distinguish official nomenclature from mission/user sites rather than claiming that every geographic feature is an official name.
-
-## Safety, limits, and support
-
-Only single-KML-document `.kml` or `.kmz` point placemarks are supported. KML `MultiGeometry`, `LineString`, `Polygon`, network links, extrusions, styling and XML descriptions are not interpreted. KML archive resources are not fetched. The converter rejects DTD/entity declarations, ZIP path traversal, symlinks, oversized and extreme-ratio members; it limits input (32 MiB archive/16 MiB decoded XML), archive entries, record count, field count and field length. Malformed coordinates and unsupported geometry are counted and skipped; a wholly unusable source fails.
-
-The converter chunks its results to stay below the geographic loader's **2 MiB and 5,000-feature per-layer ceilings**, plus the **8 MiB per-catalog limit**. If even a split body source exceeds the catalog budget, conversion fails explicitly; separate regional catalogs are a follow-up, rather than raising general-purpose renderer bounds without profiling. Existing viewer GeoJSON load guards, worker budgets and structured error reporting still apply to generated files.
-
-## Testing and remaining verification
+## Validation
 
 ```bash
-python3 -m unittest discover -s scripts/__tests__ -p 'test_convert_planetary_nomenclature.py' -v
+python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
+npx vitest run packages/core/src/__tests__/places.test.ts \
+  packages/three/src/controls/__tests__/camera-navigation.test.ts \
+  packages/three/src/__tests__/geographic-interaction.test.ts
+CL_VIEWER_URL=http://127.0.0.1:5189/ node scripts/test-planetary-places.mjs
 ```
 
-These tests exercise namespace-bearing KML, both `<SimpleData>`/`<Data>` metadata layouts, `.kmz` archive handling, coordinate preservation, KML Z omission, stable IDs, output chunking and hostile input rejection. They use **synthetic** samples; **real full-body USGS Mars and Moon KMZ inspection and browser acceptance testing remain an explicit follow-up/gate before declaring Gazetteer support production-ready**. Record tested archive SHA-256, actual names/counts, source coordinate semantics, converted bytes/chunks, loaded/skipped features, elapsed load time and viewer memory/label performance. Ensure Jezero/Shackleton land correctly before wiring Fly/Jump from #190.
-
-The following slices are not part of this converter: shared place index and UX (#191/#198), Fly/Jump integration (#190), in-scene name density/occlusion (#191/#56), and general-purpose runtime KML/KMZ adapters (#201). Reuse the converter's metadata, not a second independent place feature model.
+Python, TypeScript regressions and the normal-viewer browser smoke run in CI. The browser test loads the actual full snapshots through workers; tests search/selection, Fly/Jump equivalence, clipboard, body/type filtering, geographic label picking and compact presentation; then exercises a real temporary cross-origin HTTPS server with CORS, flat-file/directory opening, and isolated optional-source failures. It writes screenshots and `metrics.json` with source counts/skips, import/worker round trips, index construction time, heap usage, main-thread long tasks, label candidates/CPU, renderer CPU and frame intervals. `CL_GPU=hardware` uses Chrome/Metal at a 3840×2160 drawing buffer for physical-GPU evidence; SwiftShader smoke timings are not hardware performance claims.

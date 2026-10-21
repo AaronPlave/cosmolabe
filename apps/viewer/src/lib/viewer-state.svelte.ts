@@ -5,13 +5,14 @@
  * that exported $state is either never reassigned, or wrapped in an object
  * whose properties are mutated. We use the latter.
  */
-import { etToDate, type Universe } from '@cosmolabe/core';
+import { etToDate, type Universe, type PlaceIndex } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import { CameraModeName, rateLabel } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
+import { openTool } from './shell.svelte';
 
 // ── Exported types ──
 
@@ -121,6 +122,11 @@ export const vs = $state({
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+  places: null as PlaceIndex | null,
+  selectedPlaceRef: null as string | null,
+  placeBodies: [] as string[],
+  hiddenPlaceLayers: [] as string[],
+  placeFailures: [] as string[],
 
   /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
   probeActive: false,
@@ -413,6 +419,20 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _renderer = renderer;
   _universe = universe;
   vs.catalogName = vs.loadingCatalog || null;
+  const syncPlaces = () => {
+    vs.places = renderer.placeNames?.index ?? null;
+    if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) vs.selectedPlaceRef = null;
+    vs.placeFailures = universe.geographicLayers?.loads.flatMap(load => load.status === 'error' ? load.diagnostics.map(d => `${load.id}: ${d.message}`) : []) ?? [];
+  };
+  syncPlaces();
+  _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  _unsubscribers.push(renderer.events.on('geographic:click', ref => {
+    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
+    if (!place) return;
+    vs.selectedPlaceRef = place.ref;
+    renderer.placeNames.selectedRef = place.ref;
+    openTool('places');
+  }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // A pinned point belongs to the scene it was probed in; the mode carries over.
@@ -518,6 +538,11 @@ export function unbindRenderer() {
   _unsubscribers = [];
   _renderer = null;
   _universe = null;
+  vs.places = null;
+  vs.selectedPlaceRef = null;
+  vs.placeBodies = [];
+  vs.hiddenPlaceLayers = [];
+  vs.placeFailures = [];
   // The pins went with the renderer; keeping the names would unpin bodies in
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];

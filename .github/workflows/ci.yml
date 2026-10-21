@@ -180,6 +180,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Planetary nomenclature converter regressions
+        run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
+
       - name: Install Chromium for global geographic smoke
         run: npx playwright install --with-deps chromium
 
@@ -199,6 +202,7 @@ jobs:
             sleep 1
           done
           node scripts/test-geographic-global.mjs
+          CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
 
       - name: Save global geographic smoke evidence
         if: always()
@@ -207,5 +211,6 @@ jobs:
           name: geographic-global-smoke
           path: |
             /tmp/geographic-global-smoke/
+            /tmp/planetary-places/
             /tmp/geographic-global-vite.log
           if-no-files-found: ignore

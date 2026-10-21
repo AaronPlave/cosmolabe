@@ -109,7 +109,11 @@ function getPluginCommands(): Command[] {
 
 /** All commands (built-in + plugin) */
 export function getCommands(): Command[] {
-  return [...getBuiltinCommands(), ...getReferenceCommands(), ...getPluginCommands()];
+  const viewpoints: Command[] = (getRenderer()?.cameraController.getViewpoints() ?? []).map(v => ({
+    id: `viewpoint:${v.name}`, label: v.name, category: 'Viewpoints',
+    execute: r => { r.applyNamedViewpoint(v.name, { animate: true }); },
+  }));
+  return [...getBuiltinCommands(), ...viewpoints, ...getReferenceCommands(), ...getPluginCommands()];
 }
 
 /** All command categories (for palette grouping) */
