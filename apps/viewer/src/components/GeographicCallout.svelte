@@ -5,10 +5,12 @@
    * feature's anchor (a point's own position, otherwise its extent's centre) on
    * resident terrain where there is some, follows the body every frame, and
    * hides past the horizon or off screen rather than showing through the planet.
+   * Selecting in the scene opens nothing; clicking the callout opens the
+   * feature's details in Surface layers.
    */
   import { geographicFeatureAnchor, geographicFeatureName } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
-  import { geo, findFeature } from '../lib/geographic-layers.svelte';
+  import { geo, findFeature, showSelectedDetails } from '../lib/geographic-layers.svelte';
 
   let found = $derived(findFeature(geo.selected));
   let anchor = $derived(found ? geographicFeatureAnchor(found.feature) : null);
@@ -26,9 +28,9 @@
 </script>
 
 {#if found && position}
-  <div class="callout" style:transform="translate({position.x}px, {position.y}px)" aria-hidden="true">
+  <div class="callout" style:transform="translate({position.x}px, {position.y}px)">
     <span class="leader"></span>
-    <span class="label">{geographicFeatureName(found.feature)}</span>
+    <button class="label" onclick={showSelectedDetails} title="Show details in Surface layers">{geographicFeatureName(found.feature)}</button>
   </div>
 {/if}
 
@@ -56,7 +58,10 @@
     max-width: 220px;
     overflow: hidden;
     padding: 2px 6px;
+    border: none;
     border-radius: 3px;
+    pointer-events: auto;
+    cursor: pointer;
     background: #111b24d9;
     color: #f5e6b8;
     font: 11px/1.4 var(--font-sans, sans-serif);

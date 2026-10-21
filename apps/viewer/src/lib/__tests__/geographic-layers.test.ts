@@ -22,7 +22,7 @@ vi.mock('../loader', () => ({ getUniverse: () => universe }));
 
 const {
   geo, selectFeature, setLayerVisible, layerVisible, isolateLayer, isIsolated, showAllLayers, listedFeatures,
-  browseLayer, syncSceneFilter, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature,
+  browseLayer, syncSceneFilter, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature, showSelectedDetails,
 } = await import('../geographic-layers.svelte');
 const { shell, closeAllTools } = await import('../shell.svelte');
 
@@ -76,13 +76,18 @@ afterEach(() => {
 });
 
 describe('geographic selection shared by scene and list', () => {
-  it('follows scene selection and opens the panel on the clicked feature’s layer', () => {
+  it('follows scene selection without opening the panel; the callout opens it on the feature’s layer', () => {
     renderer!.emit('geographic:select', ref('regions', 'string:c'));
     renderer!.emit('geographic:click', ref('regions', 'string:c'));
     expect(geo.selected).toEqual(ref('regions', 'string:c'));
-    expect(geo.activeLayerId).toBe('regions');
-    expect(shell.openTools).toContain('layers');
+    expect(shell.openTools).not.toContain('layers');
     expect(findFeature(geo.selected)?.feature.id).toBe('string:c');
+    showSelectedDetails();
+    expect(shell.openTools).toContain('layers');
+    expect(geo.activeLayerId).toBe('regions');
+    // With the panel open, a scene click lists the clicked feature's layer.
+    renderer!.emit('geographic:click', ref('science', 'string:a'));
+    expect(geo.activeLayerId).toBe('science');
   });
 
   it('selecting from the list highlights it in the scene without moving the camera', () => {
