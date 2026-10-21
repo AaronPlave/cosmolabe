@@ -94,6 +94,14 @@ try {
   assert.equal(under?.layerId, marsId);
   assert.ok(Math.abs(point[0] - 77.43) < 0.01 && Math.abs(point[1] - 18.43) < 0.01, `near the intended place on the rendered reference globe: ${point}`);
 
+  // Closing Draw from the rail (not its own button) gives scene clicks back.
+  if (await page.getByRole('toolbar', { name: 'Drawing tools' }).getByRole('button', { name: 'Point', exact: true }).getAttribute('aria-pressed') !== 'true') await tool('Point');
+  assert.equal(await page.evaluate(() => !!window.renderer.pointerTool), true);
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  assert.equal(await page.evaluate(() => !!window.renderer.pointerTool), false, 'rail close releases the draw tool');
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await page.getByRole('toolbar', { name: 'Drawing tools' }).waitFor();
+
   // Path, finished with Enter. A camera drag while drawing navigates and adds no vertex.
   await tool('Path');
   await clickAt(marsId, 77.41, 18.41);
@@ -178,6 +186,32 @@ try {
   const saved = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
   assert.equal(saved.name, 'Delta sample area');
   assert.equal(saved.category, 'sampling');
+  // New properties take the type chosen for them, and keep it.
+  const addProperty = async (name, type, set) => {
+    await attrs.getByRole('button', { name: 'Property', exact: true }).click();
+    const row = attrs.locator('.pair').last();
+    await row.getByLabel('Property name').fill(name);
+    await row.getByLabel(`Type of ${name}`).selectOption(type);
+    if (set) await set(row);
+  };
+  await addProperty('sampled', 'boolean', row => row.getByLabel('Value of sampled').check());
+  await addProperty('depth', 'null');
+  await addProperty('tags', 'json', row => row.getByLabel('Value of tags').fill('["delta", 2, {"ok": true}]'));
+  await addProperty('sol', 'number', row => row.getByLabel('Value of sol').fill('412'));
+  await attrs.getByRole('button', { name: 'Save attributes' }).click();
+  await page.waitForTimeout(300);
+  const typed = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
+  results.typedAttributes = typed;
+  assert.deepEqual({ sampled: typed.sampled, depth: typed.depth, tags: typed.tags, sol: typed.sol }, { sampled: true, depth: null, tags: ['delta', 2, { ok: true }], sol: 412 });
+  // Editing other fields keeps those types; broken JSON is refused, not saved as text.
+  await attrs.getByLabel('Value of tags').fill('["delta",');
+  assert.equal(await attrs.getByRole('button', { name: 'Save attributes' }).isDisabled(), true);
+  await attrs.getByLabel('Value of tags').fill('["delta"]');
+  await attrs.getByLabel('name', { exact: true }).fill('Delta sample area 2');
+  await attrs.getByRole('button', { name: 'Save attributes' }).click();
+  await page.waitForTimeout(300);
+  const retyped = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
+  assert.deepEqual({ sampled: retyped.sampled, depth: retyped.depth, tags: retyped.tags, sol: retyped.sol }, { sampled: true, depth: null, tags: ['delta'], sol: 412 });
   await attrs.getByRole('button', { name: /Edit shape/ }).click();
   await page.waitForTimeout(500);
   const handles = await page.locator('.edit-overlay .handle.vertex').count();
@@ -225,6 +259,24 @@ try {
   const imported = await page.evaluate(() => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits')).layers.at(-1));
   assert.notEqual(imported.id, before.id);
   assert.deepEqual(imported.features, before.features);
+
+  // Plain GeoJSON says nothing of body or convention: Import asks, and reads it in the chosen one.
+  const plain = { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'c1', properties: { name: 'West crater', rim: true }, geometry: { type: 'Point', coordinates: [282.55, 18.45] } }] };
+  await page.locator('input[type=file]').setInputFiles({ name: 'craters.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(JSON.stringify(plain)) });
+  const importForm = page.getByRole('group', { name: 'Import GeoJSON' });
+  await importForm.waitFor();
+  await importForm.getByRole('radio', { name: 'west' }).click();
+  await importForm.getByRole('radio', { name: '0..360' }).click();
+  await importForm.getByRole('button', { name: 'Import' }).click();
+  await page.waitForTimeout(500);
+  const craters = await page.evaluate(() => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits')).layers.find(l => l.name === 'craters'));
+  results.plainImport = { body: craters.body, coordinates: craters.coordinates, feature: craters.features[0] };
+  assert.equal(craters.body, 'Mars');
+  assert.equal(craters.coordinates.longitudeDirection, 'west');
+  assert.deepEqual(craters.features[0].geometry.coordinates, [282.55, 18.45], 'coordinates kept as written');
+  assert.equal(craters.features[0].properties.rim, true);
+  const craterLon = await page.evaluate((id) => window.renderer.universe.geographicLayers.get(id).features[0].geometry.coordinates.lonDeg, craters.id);
+  assert.ok(Math.abs(craterLon - 77.45) < 1e-9, `282.55°W is 77.45°E: ${craterLon}`);
 
   // Read-only data gets an editable copy; the original is hidden and unchanged.
   const original = await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features));

@@ -43,7 +43,10 @@ Selecting a feature of an editable layer (from the scene or Surface layers)
 shows, in its details:
 
 - **Attributes**: name, category, description and notes, plus any other
-  properties. Values keep their JSON type unless retyped.
+  properties. Every other property has an explicit type (text, number,
+  true/false, null or JSON) shown beside it, and keeps it while its value is
+  edited; a new property takes the type chosen for it. A number that does not
+  parse, or broken JSON, is refused (Save stays off) rather than saved as text.
 - **Edit shape**: handles on the feature. Drag a vertex to move it; drag a
   hollow midpoint to insert one; drag the cross to move the whole feature,
   which rotates it about the body's centre so its shape is preserved; tap a
@@ -91,8 +94,26 @@ stored, so export → import returns the same numbers. Software that follows RFC
 loads the GeoJSON through the ordinary path with the declared convention.
 **Import** (in Draw) reads GeoJSON that carries the extension member as a new
 editable layer, keeping IDs, properties, shapes and foreign members. Plain
-GeoJSON without it is refused rather than guessed; open it with a companion
-catalog instead.
+GeoJSON without it is never guessed (RFC 7946 would mean Earth WGS84): Import
+opens a form for the body, latitude convention and longitude direction and
+range it was written in. The coordinates are read in that convention and kept
+as written, never reprojected, and the layer is stored and exported with it.
+A companion catalog remains the way to load such a file read-only.
+
+## Performance
+
+Edits are committed when a drag ends, not while it moves. Measured in Node on
+a working copy of the dense Jezero fixture (median of 15):
+
+| Working copy | Drag preview (per move) | Commit | Vector rebuild (per commit) | Stored |
+| --- | --- | --- | --- | --- |
+| 1,601 features, 1,761 vertices | 1.6 ms | 17–20 ms | ~50 ms | 194 KiB |
+| 4,803 features, 5,283 vertices | 1.6 ms | 40–45 ms | ~50 ms | 581 KiB |
+
+A commit is the core edit (about 1.6 ms, only the changed feature is
+validated), converting the working copy into a scene layer (15 ms and 44 ms;
+the whole layer is re-read), saving (2–7 ms), then one rebuild of the
+renderer's vector index. Undo and redo cost the same as a commit.
 
 ## Library
 

@@ -23,7 +23,7 @@
   import { getUniverse } from '../lib/loader';
   import {
     edits, editLayers, editLayer, setDrawTool, finishDraft, removeLastVertex, cancelDrawing, undo, redo, canUndo, canRedo,
-    createLayer, deleteLayer, renameLayer, exportLayer, exportCompanionCatalog, importLayerText, bodyReferenceShape,
+    createLayer, deleteLayer, renameLayer, exportLayer, exportCompanionCatalog, importLayerText, importNeedsConventions, bodyReferenceShape,
     draftShape, stopEditingFeature, deleteSelectedVertex, type DrawTool,
   } from '../lib/geographic-editing.svelte';
 
@@ -36,6 +36,8 @@
 
   // ── New layer ──
   let creating = $state(false);
+  /** Plain GeoJSON waiting for the body and convention it was written in; the form imports it instead of creating. */
+  let pendingImport = $state<{ text: string; fileName: string } | null>(null);
   let newBody = $state('');
   let newName = $state('');
   let latitude = $state<GeographicCoordinates['latitude']>('planetocentric');
@@ -47,6 +49,7 @@
 
   function startCreate() {
     creating = true;
+    pendingImport = null;
     newBody = drawable.includes(vs.selectedBodyName ?? '') ? vs.selectedBodyName! : vs.trackedBodyName && drawable.includes(vs.trackedBodyName) ? vs.trackedBodyName : drawable[0] ?? '';
     newName = '';
     // Match a layer already on that body, so new and existing data agree.
@@ -55,6 +58,12 @@
   }
   function create() {
     if (!newShape) return;
+    if (pendingImport) {
+      const coordinates = { latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: newShape };
+      const id = importLayerText(pendingImport.text, { body: newBody, name: newName || pendingImport.fileName.replace(/\.(geo)?json$/i, ''), coordinates });
+      if (id) { creating = false; pendingImport = null; }
+      return;
+    }
     const id = createLayer({ body: newBody, name: newName || `${newBody} notes`, coordinates: { latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: newShape } });
     if (id) creating = false;
   }
@@ -101,8 +110,17 @@
     (e.currentTarget as HTMLInputElement).value = '';
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { edits.message = 'GeoJSON over 2 MiB cannot be imported for editing.'; return; }
-    importLayerText(await file.text());
+    const text = await file.text();
+    if (importNeedsConventions(text)) {
+      // Plain GeoJSON would mean Earth WGS84: ask which body and convention it is in, never guess.
+      startCreate();
+      pendingImport = { text, fileName: file.name };
+      edits.message = '';
+      return;
+    }
+    importLayerText(text);
   }
+  function cancelCreate() { creating = false; pendingImport = null; }
 
   function close() {
     setDrawTool(null);
@@ -131,7 +149,7 @@
       <div class="row">
         <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={startCreate} disabled={!drawable.length}
           title={drawable.length ? 'A new layer on a body in this scene' : 'No body here has a sphere or oblate reference shape to draw on'}>New layer</Button>
-        <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => fileInput?.click()} title="Import planetary GeoJSON exported from Cosmolabe">
+        <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => fileInput?.click()} title="Import GeoJSON: Cosmolabe exports carry their body and convention; for plain GeoJSON you choose them">
           <Upload size={13} /> Import
         </Button>
         <input bind:this={fileInput} type="file" accept=".geojson,.json,application/geo+json,application/json" class="hidden" onchange={importFile} />
@@ -141,8 +159,11 @@
   </div>
 
   {#if creating}
-    <div class="section form" role="group" aria-label="New layer">
-      <label class="field"><span class="ui-label">Name</span><input class="text" bind:value={newName} placeholder="{newBody} notes" /></label>
+    <div class="section form" role="group" aria-label={pendingImport ? 'Import GeoJSON' : 'New layer'}>
+      {#if pendingImport}
+        <p class="ui-helper">{pendingImport.fileName} does not say which body or coordinate convention it uses (plain GeoJSON means Earth WGS84). Choose what it was written in; coordinates are read in that convention, never reprojected.</p>
+      {/if}
+      <label class="field"><span class="ui-label">Name</span><input class="text" bind:value={newName} placeholder={pendingImport ? pendingImport.fileName.replace(/\.(geo)?json$/i, '') : `${newBody} notes`} /></label>
       <span class="ui-label">Body</span>
       <Select.Root type="single" value={newBody} onValueChange={(v) => (newBody = v)}>
         <Select.Trigger size="sm" class="ui-control h-7 w-full rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Body">
@@ -160,11 +181,11 @@
         <SegmentedControl value={domain} options={['-180..180', '0..360']} label="Longitude range" onValueChange={(v) => (domain = v as typeof domain)} />
       </div>
       {#if newShape}
-        <p class="ui-helper muted">{describeGeographicCoordinates({ latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: newShape })}. Coordinates are stored and exported in this convention.</p>
+        <p class="ui-helper muted">{describeGeographicCoordinates({ latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: newShape })}. Coordinates are {pendingImport ? 'read,' : ''} stored and exported in this convention.</p>
       {/if}
       <div class="row">
-        <Button size="sm" class="ui-control flex-1" onclick={create} disabled={!newShape}>Create</Button>
-        <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => (creating = false)}>Cancel</Button>
+        <Button size="sm" class="ui-control flex-1" onclick={create} disabled={!newShape}>{pendingImport ? 'Import' : 'Create'}</Button>
+        <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={cancelCreate}>Cancel</Button>
       </div>
     </div>
   {/if}

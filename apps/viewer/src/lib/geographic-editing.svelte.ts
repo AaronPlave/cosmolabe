@@ -22,7 +22,7 @@ import {
   GeographicEditSession, bodyFixedToGeodetic, createGeographicEditLayer, createGeographicWorkingCopy, exportGeographicEditLayer,
   geodesicDistanceKm, geographicDatum, geographicEditCompanionCatalog, geographicEditFeatureRefId, geographicEditLayerToLayer,
   geographicPositionInConvention, importGeographicEditLayer, normalizeGeographicPosition, parseGeographicEditDocument,
-  serializeGeographicEditDocument, GEOGRAPHIC_EDIT_MAX_LAYERS,
+  serializeGeographicEditDocument, GEOGRAPHIC_EDIT_MAX_LAYERS, GEOGRAPHIC_GEOJSON_EXTENSION,
   type GeographicCoordinates, type GeographicEditFeature, type GeographicEditLayer, type GeographicEditOperation,
   type GeographicLayer, type GeographicLayerLoad, type GeographicShapeParameters, type GeoPosition, type JsonValue,
 } from '@cosmolabe/core';
@@ -31,6 +31,7 @@ import { excludeFromProbe, getRenderer, onViewerEvent, setProbeActive } from './
 import { cancelMeasurementPick } from './spatial-measurements.svelte';
 import { getUniverse } from './loader';
 import { geo, selectFeature } from './geographic-layers.svelte';
+import { onToolClose } from './shell.svelte';
 
 const STORAGE_KEY = 'cosmolabe-geographic-edits';
 /** The scene-store owner for authored layers. */
@@ -260,6 +261,13 @@ export function setDrawTool(tool: DrawTool | null): void {
 
 excludeFromProbe(() => { if (edits.tool) setDrawTool(null); });
 
+// However Draw closes (its button, the rail, Escape or closing every tool), the
+// draw tool gives scene clicks back and vertex editing ends; minimizing keeps them.
+onToolClose('draw', () => {
+  if (edits.tool || edits.draft) setDrawTool(null);
+  stopEditingFeature();
+});
+
 function drawPick(x: number, y: number): void {
   const renderer = getRenderer();
   const layer = editLayer(edits.target);
@@ -382,6 +390,17 @@ export function exportCompanionCatalog(id: string): void {
 }
 
 /** Import planetary GeoJSON exported here (or plain GeoJSON with an explicit body and convention) as an editable layer. */
+/**
+ * Whether this text is a GeoJSON FeatureCollection that does not say which
+ * body or convention it uses, so importing it needs the user to choose them.
+ */
+export function importNeedsConventions(text: string): boolean {
+  try {
+    const data = JSON.parse(text) as { type?: unknown; features?: unknown; [key: string]: unknown };
+    return data?.type === 'FeatureCollection' && Array.isArray(data.features) && !(GEOGRAPHIC_GEOJSON_EXTENSION in data);
+  } catch { return false; }
+}
+
 export function importLayerText(text: string, fallback?: { body: string; name: string; coordinates: GeographicCoordinates }): string | null {
   try {
     const { layer, diagnostics } = importGeographicEditLayer(text, fallback ? { id: `user:${fallback.body.toLowerCase()}:import`, ...fallback } : undefined);

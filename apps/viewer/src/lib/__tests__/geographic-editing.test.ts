@@ -4,7 +4,9 @@ import { GeographicVectorLayer } from '@cosmolabe/three';
 
 /** Editing state against a real Universe store and vector layer, and an in-memory localStorage. */
 const loadHandlers: (() => void)[] = [];
-let renderer: { geographicVectors: GeographicVectorLayer; setSurfacePointerTool: () => void; events: { on: () => () => void } } | null = null;
+let renderer: { geographicVectors: GeographicVectorLayer; setSurfacePointerTool: (tool: unknown) => void; events: { on: () => () => void } } | null = null;
+/** The surface pointer tool the renderer currently holds. */
+let pointerTool: unknown = null;
 let universe: Universe | null = null;
 
 vi.mock('../viewer-state.svelte', async (importOriginal) => ({
@@ -12,7 +14,7 @@ vi.mock('../viewer-state.svelte', async (importOriginal) => ({
   getRenderer: () => renderer,
   onViewerEvent: (name: string, handler: () => void) => { if (name === 'load') loadHandlers.push(handler); return () => {}; },
 }));
-vi.mock('../loader', () => ({ getUniverse: () => universe }));
+vi.mock('../loader', () => ({ getUniverse: () => universe, getCurrentRenderer: () => null }));
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -24,6 +26,7 @@ const storage = new MemoryStorage();
 vi.stubGlobal('localStorage', storage);
 
 const editing = await import('../geographic-editing.svelte');
+const shell = await import('../shell.svelte');
 const { edits, createLayer, applyEdit, makeWorkingCopy, editLayer, isEditable, undo, redo, deleteLayer, importLayerText, EDIT_OWNER } = editing;
 
 const mars: GeographicCoordinates = {
@@ -40,7 +43,7 @@ function scene() {
     { type: 'Feature', id: 'a', properties: { name: 'A' }, geometry: { type: 'Polygon', coordinates: [[[77, 18], [78, 18], [78, 19], [77, 19], [77, 18]], [[77.2, 18.2], [77.4, 18.2], [77.4, 18.4], [77.2, 18.4], [77.2, 18.2]]] } },
   ] }), { id: 'science', name: 'Science', body: 'Mars', source: 's.geojson', coordinates: mars }, { kind: 'catalog', identity: 'https://x/s.geojson' });
   universe.geographicLayers.replaceCatalog('scene', [{ id: science.id, status: 'ready', layer: science, source: science.source, diagnostics: [] }]);
-  renderer = { geographicVectors: new GeographicVectorLayer(universe, 1), setSurfacePointerTool: () => {}, events: { on: () => () => {} } };
+  renderer = { geographicVectors: new GeographicVectorLayer(universe, 1), setSurfacePointerTool: (tool: unknown) => { pointerTool = tool; }, events: { on: () => () => {} } };
   for (const handler of loadHandlers) handler();
 }
 
@@ -123,5 +126,69 @@ describe('import', () => {
     const id = importLayerText(text)!;
     expect(editLayer(id)!.nextId).toBe(5);
     expect(universe!.geographicLayers.get(id)!.features).toHaveLength(1);
+  });
+
+  it('imports plain GeoJSON in the body and convention the user chose, without reprojecting', () => {
+    const plain = JSON.stringify({ type: 'FeatureCollection', features: [
+      { type: 'Feature', id: 7, properties: { name: 'Crater', active: true, depth: null }, geometry: { type: 'Point', coordinates: [-77.5, 18.4] } },
+    ] });
+    expect(editing.importNeedsConventions(plain)).toBe(true);
+    expect(editing.importNeedsConventions('{"type":"FeatureCollection","features":[],"cosmolabe:geographic":{}}')).toBe(false);
+    expect(editing.importNeedsConventions('not json')).toBe(false);
+    const west: GeographicCoordinates = { ...mars, latitude: 'planetographic', longitudeDirection: 'west', longitudeDomain: '-180..180' };
+    const id = importLayerText(plain, { body: 'Mars', name: 'craters', coordinates: west })!;
+    const layer = editLayer(id)!;
+    expect(layer).toMatchObject({ body: 'Mars', name: 'craters', coordinates: west });
+    expect(layer.features[0]).toMatchObject({ id: 7, properties: { name: 'Crater', active: true, depth: null }, geometry: { coordinates: [-77.5, 18.4] } });
+    // West-positive -77.5 is 77.5°E in the scene.
+    const [f] = universe!.geographicLayers.get(id)!.features;
+    expect((f.geometry.coordinates as { lonDeg: number }).lonDeg).toBeCloseTo(77.5, 9);
+  });
+});
+
+describe('closing Draw', () => {
+  const draw = () => {
+    const id = createLayer({ body: 'Mars', name: 'Notes', coordinates: mars })!;
+    shell.openTool('draw');
+    editing.setDrawTool('line');
+    expect(pointerTool).not.toBeNull();
+    return id;
+  };
+  const released = () => {
+    expect(pointerTool).toBeNull();
+    expect(edits.tool).toBeNull();
+    expect(edits.draft).toBeNull();
+    expect(edits.editing).toBeNull();
+  };
+
+  it('gives scene clicks back when closed by its button or Escape (closeTool)', () => {
+    draw();
+    shell.closeTool('draw');
+    released();
+  });
+
+  it('gives scene clicks back when closed from the rail', () => {
+    shell.setLayout('desktop');
+    draw();
+    shell.toggleTool('draw');
+    expect(shell.isToolOpen('draw')).toBe(false);
+    released();
+  });
+
+  it('gives scene clicks back when every tool closes, and ends vertex editing', () => {
+    const id = draw();
+    applyEdit(id, { type: 'add', geometry: { type: 'Point', coordinates: [77.5, 18.5] } });
+    editing.startEditingFeature(id, 'user-1');
+    shell.closeAllTools();
+    released();
+  });
+
+  it('keeps the tool while Draw is only minimized', () => {
+    draw();
+    shell.minimizePanel('draw');
+    expect(edits.tool).toBe('line');
+    expect(pointerTool).not.toBeNull();
+    shell.closeTool('draw');
+    released();
   });
 });

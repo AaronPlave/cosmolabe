@@ -10,9 +10,10 @@
   import { Copy, PencilLine, Trash2, Plus, X } from 'lucide-svelte';
   import {
     geographicPathLengthKm, geographicPolygonAreaKm2, normalizeGeographicPosition, geographicDatum,
-    type GeographicEditFeature, type GeographicEditLayer, type GeoPosition, type JsonValue,
+    type GeographicEditFeature, type GeographicEditLayer, type GeoPosition,
   } from '@cosmolabe/core';
   import { Button } from '$lib/components/ui/button';
+  import { ATTRIBUTE_TYPES, attributeRow, attributesToProperties, retypeAttribute, type AttributeRow } from '../lib/geographic-attributes';
   import { geo, findFeature } from '../lib/geographic-layers.svelte';
   import { isToolOpen, openTool } from '../lib/shell.svelte';
   import {
@@ -28,9 +29,11 @@
   let feature = $derived((void edits.revision, editFeatureOf(geo.selected)));
   let editingThis = $derived(!!feature && edits.editing?.layerId === layer?.id && edits.editing?.featureId === feature.id);
 
-  // Form state, reset whenever another feature (or a new revision of it) is shown.
-  let form = $state<Record<string, string>>({});
-  let extra = $state<{ key: string; value: string }[]>([]);
+  // Form state, reset whenever another feature (or a new revision of it) is
+  // shown. The standard fields hold text or numbers; any other value, and every
+  // other property, is a row with its own JSON type.
+  let form = $state<Record<string, AttributeRow>>({});
+  let extra = $state<AttributeRow[]>([]);
   let confirmDelete = $state(false);
   let shownKey = '';
   $effect(() => {
@@ -39,28 +42,17 @@
     shownKey = key;
     confirmDelete = false;
     const props = feature?.properties ?? {};
-    form = Object.fromEntries(STANDARD.map((k) => [k, typeof props[k] === 'string' || typeof props[k] === 'number' ? String(props[k]) : '']));
-    extra = Object.entries(props).filter(([k]) => !(STANDARD as readonly string[]).includes(k))
-      .map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }));
+    const plain = (k: string) => props[k] === undefined || typeof props[k] === 'string' || typeof props[k] === 'number';
+    form = Object.fromEntries(STANDARD.filter(plain).map((k) => [k, props[k] === undefined ? { key: k, type: 'text', text: '' } : attributeRow(k, props[k])]));
+    extra = Object.entries(props).filter(([k]) => !(k in form)).map(([k, v]) => attributeRow(k, v));
   });
 
-  /** Back to JSON: an unchanged value keeps its type; numbers typed into a numeric field stay numbers. */
-  function properties(): { [key: string]: JsonValue } {
-    const before = feature?.properties ?? {};
-    const out: { [key: string]: JsonValue } = {};
-    const value = (key: string, text: string): JsonValue => {
-      const old = before[key];
-      if (old !== undefined && (typeof old === 'string' ? old : JSON.stringify(old)) === text) return old;
-      if (typeof old === 'number' && text.trim() !== '' && Number.isFinite(Number(text))) return Number(text);
-      if (old !== null && typeof old === 'object') { try { return JSON.parse(text) as JsonValue; } catch { return text; } }
-      return text;
-    };
-    // The form is filled by an effect after the first render; until then it is empty.
-    for (const k of STANDARD) if ((form[k] ?? '').trim() !== '') out[k] = value(k, form[k]);
-    for (const { key, value: text } of extra) if (key.trim()) out[key.trim()] = value(key.trim(), text);
-    return out;
-  }
-  const dirty = $derived(!!feature && JSON.stringify(properties()) !== JSON.stringify(feature.properties));
+  // The form is filled by an effect after the first render; until then it is empty.
+  let converted = $derived(attributesToProperties([...Object.values(form), ...extra], new Set(STANDARD)));
+  /** Errors by extra row (standard fields hold only text or numbers). */
+  let rowError = (i: number) => converted.errors.get(Object.keys(form).length + i);
+  const properties = () => converted.properties;
+  const dirty = $derived(!!feature && converted.errors.size === 0 && JSON.stringify(properties()) !== JSON.stringify(feature.properties));
 
   function save() {
     if (layer && feature) setFeatureProperties(layer.id, feature.id, properties());
@@ -95,25 +87,35 @@
 {#if found && editable && layer && feature}
   <div class="editor" role="group" aria-label="Edit feature">
     <div class="ui-section-label">Attributes</div>
-    {#each STANDARD as key (key)}
+    {#each STANDARD.filter((k) => k in form) as key (key)}
       <label class="field">
         <span class="ui-meta">{key[0].toUpperCase() + key.slice(1)}</span>
         {#if key === 'description' || key === 'notes'}
-          <textarea rows="2" bind:value={form[key]} aria-label={key}></textarea>
+          <textarea rows="2" bind:value={form[key].text} aria-label={key}></textarea>
         {:else}
-          <input bind:value={form[key]} aria-label={key} />
+          <input bind:value={form[key].text} aria-label={key} inputmode={form[key].type === 'number' ? 'decimal' : undefined} />
         {/if}
       </label>
     {/each}
     {#each extra as row, i (i)}
       <div class="pair">
         <input bind:value={row.key} aria-label="Property name" placeholder="property" />
-        <input bind:value={row.value} aria-label="Property value" placeholder="value" />
+        <select value={row.type} aria-label="Type of {row.key || 'new property'}" onchange={(e) => (extra[i] = retypeAttribute(row, e.currentTarget.value as AttributeRow['type']))}>
+          {#each ATTRIBUTE_TYPES as t (t)}<option value={t}>{t === 'boolean' ? 'true/false' : t === 'json' ? 'JSON' : t}</option>{/each}
+        </select>
+        {#if row.type === 'boolean'}
+          <label class="check"><input type="checkbox" checked={row.text === 'true'} onchange={(e) => (row.text = e.currentTarget.checked ? 'true' : 'false')} aria-label="Value of {row.key}" /> {row.text}</label>
+        {:else if row.type === 'null'}
+          <span class="ui-meta muted">null</span>
+        {:else}
+          <input bind:value={row.text} aria-label="Value of {row.key}" placeholder={row.type === 'json' ? '{ } or [ ]' : 'value'} class:invalid={!!rowError(i)} title={rowError(i) ?? ''} />
+        {/if}
         <button class="icon" onclick={() => (extra = extra.filter((_, j) => j !== i))} aria-label="Remove property {row.key}"><X size={12} /></button>
       </div>
+      {#if rowError(i)}<p class="ui-helper error">{row.key || 'New property'}: {rowError(i)}. Fix it to save.</p>{/if}
     {/each}
     <div class="row">
-      <button class="link" onclick={() => (extra = [...extra, { key: '', value: '' }])}><Plus size={11} /> Property</button>
+      <button class="link" onclick={() => (extra = [...extra, { key: '', type: 'text', text: '' }])}><Plus size={11} /> Property</button>
       <span class="grow"></span>
       <Button size="sm" class="ui-control" disabled={!dirty} onclick={save}>Save attributes</Button>
     </div>
@@ -150,8 +152,11 @@
     border-top: 1px solid var(--color-border);
   }
   .field { display: grid; grid-template-columns: 76px 1fr; gap: 6px; align-items: start; }
-  .pair { display: grid; grid-template-columns: 1fr 1.4fr 24px; gap: 4px; }
-  input, textarea {
+  .pair { display: grid; grid-template-columns: 1fr 64px 1.2fr 24px; gap: 4px; align-items: center; }
+  .check { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-metadata); }
+  .invalid { border-color: var(--color-error); }
+  .error { color: var(--color-error); }
+  input:not([type='checkbox']), textarea, select {
     min-width: 0;
     padding: 2px 6px;
     border: 1px solid var(--color-border);
