@@ -12,6 +12,7 @@
 import { snapshotScript } from '../snapshot.js';
 import type {
   CircleDirection,
+  CoordinateNavigationOptions,
   FlightPath,
   ScriptCamera,
   ScriptEventMap,
@@ -137,6 +138,14 @@ export class FakeViewer implements ViewerControl {
   jumpTo(name: string): boolean {
     this.log('jumpTo', name);
     if (!this.known(name)) return false;
+    this.tracked = name;
+    return this.ok(true);
+  }
+
+  gotoCoordinates(name: string, latDeg: number, lonDeg: number, opts?: CoordinateNavigationOptions): boolean {
+    this.log('gotoCoordinates', name, latDeg, lonDeg, opts?.view, opts?.seconds);
+    if (!this.known(name)) return false;
+    if (Math.abs(latDeg) > 90) throw new Error('Latitude must be between 90° S and 90° N');
     this.tracked = name;
     return this.ok(true);
   }

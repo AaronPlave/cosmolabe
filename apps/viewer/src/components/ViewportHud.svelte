@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CameraModeName } from '@cosmolabe/three';
   import type { PluginOverlay } from '@cosmolabe/three';
-  import { vs, clearLookAt, getRenderer, stopFlight } from '../lib/viewer-state.svelte';
+  import { vs, clearLookAt, getRenderer, stopFlight, releaseSurfaceTarget } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
 
   const frameLabel = $derived.by(() => {
@@ -43,7 +43,7 @@
 <!-- View context belongs to the viewport rather than either panel dock. Keeping
      it top-centred gives tracking, look-at, a flight in progress and reference
      frame one stable home without competing with the rail or timeline. -->
-{#if vs.flight || vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
+{#if vs.flight || vs.trackedBodyName || vs.lookAtBodyName || vs.surfaceTarget || vs.cameraMode !== CameraModeName.FREE_ORBIT}
   <div data-scene-occluder class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
     {#if vs.flight}
       <!-- The flight owns the camera until it lands; a drag, a zoom, a movement
@@ -64,6 +64,22 @@
           <X size={12} />
         </button>
       {/if}
+      <span class="context-divider" aria-hidden="true"></span>
+    {/if}
+    {#if vs.surfaceTarget}
+      <!-- The surface point navigated to (#190): the target on the body,
+           not the camera's position, which the readout never shows. -->
+      {@const t = vs.surfaceTarget}
+      <span class="context-label">Target</span>
+      <span
+        class="context-value truncate"
+        title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
+      >{t.coordinates}</span>
+      <!-- Lets go of the point: no pivot or terrain following; the camera,
+           tracking, selection and time stay as they are. -->
+      <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
+        <X size={12} />
+      </button>
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
     <span class="context-label">Frame</span>

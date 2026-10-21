@@ -7,7 +7,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
-import type { Universe } from '@cosmolabe/core';
+import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe } from '@cosmolabe/core';
+import { placeCoordinates, selectPlace } from '../places';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
@@ -257,6 +258,7 @@ function makeFakeRenderer(objects: string[]) {
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
     // Point Probe: bound on every scene, not a script verb.
+    placeNames: { selectedRef: null as string | null },
     setPointProbeActive: () => {},
     setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
@@ -513,6 +515,28 @@ describe('navigation verbs', () => {
     expect(control.getTracked()).toBe('Titan');
     expect(vs.trackedBodyName).toBe('Titan');
     expect(control.getSelected()).toBeNull();
+  });
+
+  it('keeps a place on the current body and clears both highlight and details on another body', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    vs.places=new PlaceIndex([layer]);const place=vs.places.places[0];
+    selectPlace(place);const control=createViewerControl();control.track('Titan');
+    expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);
+    expect(parseCoordinatePair(placeCoordinates(place))).toMatchObject({ok:true,latDeg:-30.12345678,lonDeg:-120.12345678});
+    control.track('Saturn');expect(vs.selectedPlaceRef).toBeNull();expect(renderer.placeNames.selectedRef).toBeNull();
+  });
+
+  it('converts copied oblate-place latitude to the coordinate input convention', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Oblate site'},geometry:{type:'Point',coordinates:[77,30]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'ellipsoid',radiiKm:[2,2,1]}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];
+    const copied=parseCoordinatePair(placeCoordinates(place),{order:'lon-lat',direction:'west'});
+    if(!copied.ok)throw new Error(copied.error);
+    expect(copied.latDeg).toBeLessThan(30);
+    const target=resolveGeographicTarget({bodyName:'Titan',latDeg:copied.latDeg,lonDeg:copied.lonDeg,latitude:'planetocentric',longitudeDirection:'west'},
+      {bodyName:'Titan',shape:'oblate',datum:{...layer.datum,origin:'body-shape'}});
+    expect(target.latGraphicDeg).toBeCloseTo(30,6);expect(target.lonEastDeg).toBeCloseTo(77,6);
   });
 
   it('frameObject frames what is tracked when not told what, and refuses with nothing tracked', () => {

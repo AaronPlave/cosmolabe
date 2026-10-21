@@ -205,6 +205,7 @@ jobs:
           done
           node scripts/test-geographic-global.mjs
           CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
+          CL_OUTPUT=/tmp/planetary-places-motion node scripts/test-place-label-motion.mjs
 
       - name: Save global geographic smoke evidence
         if: always()
@@ -214,5 +215,6 @@ jobs:
           path: |
             /tmp/geographic-global-smoke/
             /tmp/planetary-places/
+            /tmp/planetary-places-motion/
             /tmp/geographic-global-vite.log
           if-no-files-found: ignore

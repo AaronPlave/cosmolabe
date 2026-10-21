@@ -56,6 +56,7 @@
         <Button size="sm" variant="secondary" onclick={() => navigate('jump')}>Jump to</Button>
         <Button size="sm" variant="secondary" onclick={copy}>Copy coordinates</Button>
       </div>
+      <p class="text-xs text-text-secondary">Copy uses planetocentric latitude for Navigate.</p>
       {#if navError}<p role="status">{navError}</p>{/if}
       {#if copyStatus}<p role="status">{copyStatus}</p>{/if}
       <details open>

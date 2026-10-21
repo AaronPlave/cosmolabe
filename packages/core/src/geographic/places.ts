@@ -11,6 +11,32 @@ export interface Place {
   origin: 'nomenclature' | 'mission/user';
   aliases: string[];
   diameterKm?: number;
+  /** Viewer policy, independent of the scientific extent. */
+  label: PlaceLabelStyle;
+}
+export type PlaceLabelClass = 'major' | 'regional' | 'local' | 'site';
+export interface PlaceLabelStyle {
+  importance: number;
+  class: PlaceLabelClass;
+  minPixels: number;
+}
+
+/** Cartographic defaults, not an authoritative Gazetteer ranking. Catalogs may
+ * override these visualization properties without changing source geometry. */
+export function placeLabelStyle(kind: string, diameterKm: number | undefined, origin: Place['origin'], p: Record<string, unknown>): PlaceLabelStyle {
+  const extent = diameterKm ?? 0;
+  let cls: PlaceLabelClass = 'local', importance = 25, minPixels = 70;
+  if (origin === 'mission/user') { cls = 'site'; importance = 55; minPixels = 100; }
+  else if (/mons|montes|vallis|valles|chasma|chasmata/i.test(kind)) {
+    cls = extent >= 100 ? 'major' : 'regional'; importance = cls === 'major' ? 90 : 65; minPixels = cls === 'major' ? 24 : 70;
+  } else if (/mare|maria|oceanus|terra|regio|planum|planitia/i.test(kind)) {
+    cls = extent >= 1000 ? 'major' : 'regional'; importance = cls === 'major' ? 80 : 60; minPixels = cls === 'major' ? 45 : 100;
+  } else if (/crater/i.test(kind) && extent >= 150) { cls = 'regional'; importance = 45; minPixels = 120; }
+  const override = p.labelClass;
+  if (override === 'major' || override === 'regional' || override === 'local' || override === 'site') cls = override;
+  if (typeof p.labelImportance === 'number' && Number.isFinite(p.labelImportance)) importance = Math.max(0, Math.min(100, p.labelImportance));
+  if (typeof p.labelMinPixels === 'number' && Number.isFinite(p.labelMinPixels)) minPixels = Math.max(4, Math.min(2000, p.labelMinPixels));
+  return { class: cls, importance, minPixels };
 }
 export const PLACE_LIMIT = 20_000;
 export const placeText = (s: string): string => s.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -41,10 +67,11 @@ export class PlaceIndex {
         continue;
       }
       const diameter = Number(p.diameterKm ?? fields.diameter);
+      const kind = text(p.featureClass) || text(p.type) || 'Site';
+      const origin = p.placeKind === 'nomenclature' ? 'nomenclature' as const : 'mission/user' as const;
+      const diameterKm = Number.isFinite(diameter) && diameter > 0 ? diameter : undefined;
       const place: Place = { ref, layer, feature, name, aliases,
-        kind: text(p.featureClass) || text(p.type) || 'Site',
-        origin: p.placeKind === 'nomenclature' ? 'nomenclature' : 'mission/user',
-        diameterKm: Number.isFinite(diameter) && diameter > 0 ? diameter : undefined };
+        kind, origin, diameterKm, label: placeLabelStyle(kind, diameterKm, origin, p) };
       this.places.push(place); this.byRef.set(ref, place);
       for (const word of new Set([name, ...aliases].flatMap(s => placeText(s).split(' ')).slice(0, 64))) {
         if (!word) continue;
@@ -79,7 +106,7 @@ export class PlaceIndex {
       .slice(0, Math.max(0, Math.min(opts.limit ?? 30, 100)));
   }
 
-  /** Round-robin cells avoid starving small places in a dense single region.
+  /** All intersecting cells are ranked together before applying a limit.
    * Longitude cells wrap and polar caps expand to all longitudes. */
   nearby(body: string, lon: number, lat: number, radiusDeg: number, limit = 512): Place[] {
     const radius = Math.max(0, Math.min(180, radiusDeg));
@@ -91,13 +118,7 @@ export class PlaceIndex {
         const key = `${body}:${((x % 36) + 36) % 36}:${y}`;
         if (!seen.has(key)) { seen.add(key); const cell = this.cells.get(key); if (cell) bins.push(cell); }
       }
-    const result: Place[] = [];
-    for (let i = 0; result.length < Math.min(limit, 1024); i++) {
-      let added = false;
-      for (const bin of bins) if (bin[i]) { result.push(bin[i]); added = true; if (result.length >= Math.min(limit, 1024)) break; }
-      if (!added) break;
-    }
-    return result.sort(placePriority);
+    return bins.flat().sort(placePriority).slice(0, Math.max(0, Math.min(limit, PLACE_LIMIT)));
   }
 
   private cell(body: string, lon: number, lat: number): string {
@@ -105,4 +126,4 @@ export class PlaceIndex {
   }
 }
 
-export const placePriority = (a: Place, b: Place): number => (b.diameterKm ?? 0) - (a.diameterKm ?? 0) || a.ref.localeCompare(b.ref);
+export const placePriority = (a: Place, b: Place): number => b.label.importance - a.label.importance || (b.diameterKm ?? 0) - (a.diameterKm ?? 0) || a.ref.localeCompare(b.ref);

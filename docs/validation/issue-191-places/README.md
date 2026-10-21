@@ -1,5 +1,7 @@
 # Named-place acceptance — 2026-10-21
 
+The original acceptance below predates the cartographic label review. See [the follow-up evidence, recording and updated limits](label-review.md) for the current label implementation.
+
 Test: `CL_TERRAIN=1 CL_GPU=hardware CL_OUTPUT=/tmp/planetary-places-final CL_VIEWER_URL=http://127.0.0.1:5189/ node scripts/test-planetary-places.mjs`.
 
 Physical GPU: Apple M4 Max, Chrome/ANGLE Metal, 3840 × 2160 drawing buffer. Raw results: [metrics.json](metrics.json). No page errors.

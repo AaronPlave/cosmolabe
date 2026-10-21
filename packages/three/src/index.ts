@@ -73,8 +73,16 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 // Controls
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
-export { CameraController } from './controls/CameraController.js';
-export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose } from './controls/CameraController.js';
+export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
+export type {
+  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions,
+} from './controls/CameraController.js';
+export {
+  bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint, surfacePointCoordinatePair, surfaceNavigable, SurfaceTerrainAnchor, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+} from './SurfaceNavigation.js';
+export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
@@ -183,3 +191,6 @@ export { placeAnchor } from './geographic/PlaceSurface.js';
 export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
 export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';

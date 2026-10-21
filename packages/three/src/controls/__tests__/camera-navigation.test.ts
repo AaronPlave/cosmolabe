@@ -148,34 +148,7 @@ describe('focus', () => {
 });
 
 describe('frame', () => {
-  it('jumps to a surface offset and holds its aim over subsequent frames, then clears it on body navigation', () => {
-    const { camera, cc, moon, frame } = setup();
-    (moon as unknown as { mesh: THREE.Mesh }).mesh = new THREE.Mesh();
-    const targetOffset = new THREE.Vector3(1737, 0, 0);
-    const offset = new THREE.Vector3(1767, 0, 0);
-    cc.frame(moon, { offset, targetOffset, up: new THREE.Vector3(0, 1, 0) });
-    for (let i = 0; i < 5; i++) frame(0.1);
-    close(camera.position, 1767, 0, 0);
-    close(cc.controls.target, 1737, 0, 0);
-    expect(facing(camera, targetOffset)).toBeCloseTo(1);
-    cc.frame(moon);
-    frame(0.1);
-    close(cc.controls.target, 0, 0, 0);
-  });
 
-  it('flies through the shared animation and origin switch to the same surface pose as Jump', () => {
-    const { camera, cc, moon, frame } = setup();
-    (moon as unknown as { mesh: THREE.Mesh }).mesh = new THREE.Mesh();
-    const targetOffset = new THREE.Vector3(0, 0, 1737);
-    const offset = new THREE.Vector3(0, 0, 1777);
-    cc.flyTo(moon, { offset, targetOffset, duration: 1 });
-    for (let i = 0; i < 15; i++) frame(0.1);
-    expect(cc.animating).toBe(false);
-    expect(cc.originBody).toBe(moon);
-    close(camera.position, 0, 0, 1777);
-    close(cc.controls.target, 0, 0, 1737);
-    expect(facing(camera, targetOffset)).toBeCloseTo(1);
-  });
   it('fits the body at three radii in a landscape 60° view, from the side the camera sees it', () => {
     const { camera, cc, moon, moonAbs, absolute } = setup();
     const side = new THREE.Vector3(0, 0, 20000).sub(moonAbs).normalize();

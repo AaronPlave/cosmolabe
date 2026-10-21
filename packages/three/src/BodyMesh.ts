@@ -1262,6 +1262,13 @@ export class BodyMesh extends THREE.Object3D {
   /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
   get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }
 
+  /**
+   * Revision of the CPU terrain `sampleTerrain` answers from — the cube grids
+   * when configured, the tile sampler otherwise — or null without terrain.
+   * Not `terrainSampler.revision`, which cube grids never move.
+   */
+  get terrainRevision(): number | null { return this.terrainManager?.cpuRevision ?? null; }
+
   /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
   get terrainTileGroup(): THREE.Object3D | null {
     return this.terrainManager?.group ?? null;

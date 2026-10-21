@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { PlaceIndex, PLACE_LIMIT, parseGeographicGeoJson, type GeographicLayerDefinition, type GeographicLayer } from '../geographic/index.js';
+import { PlaceIndex, PLACE_LIMIT, placeLabelStyle, parseGeographicGeoJson, type GeographicLayerDefinition, type GeographicLayer } from '../geographic/index.js';
 
 const spec: GeographicLayerDefinition = { id: 'sites', name: 'User sites', body: 'Moon', source: 'sites.geojson',
   coordinates: { latitude: 'planetographic', longitudeDirection: 'east', longitudeDomain: '-180..180', referenceShape: { kind: 'sphere', radiusKm: 1737.4 } },
@@ -49,6 +49,18 @@ describe('shared place index', () => {
     expect(index.places).toHaveLength(PLACE_LIMIT);
     expect(index.search('site', { limit: 1000 })).toHaveLength(100);
     expect(index.diagnostics[0]).toContain('limit');
+  });
+
+  it('uses cartographic class and catalog overrides separately from physical extent', () => {
+    const mons=placeLabelStyle('Mons, montes',600,'nomenclature',{});
+    const crater=placeLabelStyle('Crater, craters',600,'nomenclature',{});
+    expect(mons.class).toBe('major');expect(crater.class).toBe('regional');
+    expect(mons.importance).toBeGreaterThan(crater.importance);
+    expect(placeLabelStyle('Site',undefined,'mission/user',{labelImportance:99,labelClass:'major',labelMinPixels:30})).toEqual({importance:99,class:'major',minPixels:30});
+    const crowded=layer(Array.from({length:600},(_,i)=>({name:`Small ${i}`,lon:0,lat:0})));
+    const major=layer([{name:'Major',lon:80,lat:0}],{...spec,id:'major'});
+    major.features[0].properties={name:'Major',featureClass:'Mons, montes',diameterKm:500,placeKind:'nomenclature'};
+    expect(new PlaceIndex([crowded,major]).nearby('Moon',0,0,90,1)[0].name).toBe('Major');
   });
 
   it('loads the shipped full USGS snapshots with the normal parser, coordinate transforms and provenance', () => {
