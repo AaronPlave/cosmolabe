@@ -4,31 +4,31 @@
   "entries": [
     {
       "file": "jezero-ctx.json",
-      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=mro&iid=ctx&limit=2&maxlat=18.6&minlat=18.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=77.2",
-      "responseUtc": "2026-10-21T12:30:50.994",
-      "sha256": "106edfde57c128e8bd42555ac320ae58d7f0b615a67f680b6bd646d8124b63da",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=77.7&ihid=mro&iid=ctx&limit=2&maxlat=18.6&minlat=18.3&offset=1&output=json&pt=edr&query=product&results=copmfl&target=mars&westernlon=77.2",
+      "responseUtc": "2026-10-21T22:38:53.687178+00:00",
+      "sha256": "50b9abb4b25fabf6a6babc6314dbfe71cb43fdfbf8d23b4b65a316298b39a7dc",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "gale-ctx.json",
-      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
-      "responseUtc": "2026-10-21T12:30:51.276",
-      "sha256": "2d3f556a86d9750d62aac51172026d7bc8853b646e49f1e4a8e3260bb9cc556a",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmfl&target=mars&westernlon=137",
+      "responseUtc": "2026-10-21T22:38:53.992841+00:00",
+      "sha256": "c76b353e4c6917308a4e31401bb336cd70f03e5a86c770d30fcdd5bceb5b5ed0",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "jezero-hirise.json",
-      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_023524_1985_RED&pt=rdrv11&query=product&results=copmf&target=mars",
-      "responseUtc": "2026-10-21T12:30:51.510",
-      "sha256": "c2be0659e188a1a45c25b914a5f8e846cd76419f6776cd936928aef31eeb2602",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_023524_1985_RED&pt=rdrv11&query=product&results=copmfl&target=mars",
+      "responseUtc": "2026-10-21T22:38:53.273192+00:00",
+      "sha256": "82e0ed856966fa4f3cbac58c793240eddd4e6c6dd78bfedec8d249f37b90d1ff",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "gale-hirise.json",
-      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
-      "responseUtc": "2026-10-21T12:30:51.463",
-      "sha256": "fbeb970fe915af5c51cd168e19191738e3adcd5821071f9f4454978b806e343d",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmfl&target=mars",
+      "responseUtc": "2026-10-21T22:38:53.202731+00:00",
+      "sha256": "71278d336a3f65663c91be54b848851bcbbfe2394be75281289b036760efc2bc",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "jezero-hrsc.json",
@@ -75,16 +75,16 @@
     {
       "file": "jezero-dtm-ode.json",
       "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_023524_1985_023379_1985_U01&query=product&results=copmfl&target=mars&offset=1",
-      "responseUtc": "2026-10-21T12:31:18.902",
-      "sha256": "1b131d0147ffa012b9dbc17556298518945b867fe06045aa85475c573e223e1f",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "responseUtc": "2026-10-21T22:38:53.403112+00:00",
+      "sha256": "251512aa6594a83cb5e2618ce6f8a7f079e6d8a4ab7696bf7ee0f62958773376",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "gale-dtm-ode.json",
       "metadataUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
-      "responseUtc": "2026-10-21T12:31:18.855",
-      "sha256": "7deb9a899729891a0de127a01b422bafd677531f36491b8382944bf7a68f4ca0",
-      "note": "Unmodified JSON response, whitespace reformatted. Summary canonicalizes parameters; initial capture offset=0 was echoed as 1."
+      "responseUtc": "2026-10-21T22:38:53.420655+00:00",
+      "sha256": "fad59ffba6e8a68c246eab2d890885716ac4019b827322b9fdbab0c6fe4eb094",
+      "note": "Metadata-only acceptance refresh with original label lines returned by ODE; JSON whitespace reformatted. Earlier DTM capture returned label not found; this refresh succeeded."
     },
     {
       "file": "ctx-page2.json",
@@ -112,6 +112,22 @@
       "metadataUrl": "https://oderest.rsl.wustl.edu/live2/",
       "sha256": "1c7862eb304dff1d8f2083ee1478c5cb104474e0b0f2e6f31c2cbe594aaeb801",
       "note": "Adapter integration smoke: exact request URLs and raw responses, two pages x two products."
+    },
+    {
+      "file": "jezero-ortho.lbl",
+      "metadataUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_023500_023599/ESP_023524_1985_ESP_023379_1985/ESP_023524_1985_RED_C_01_ORTHO.LBL",
+      "responseUtc": "2026-10-21T22:39:15.198339+00:00",
+      "sha256": "fcc81ac51a0dc64f604154e8ab7183eab638d477bc6e9eacc39d94d6a0fae4af",
+      "archiveBytesSha256": "5c7b622fba9165d16bc355f5fd796d13f57ed48243af4c28234da9fee7f13b4e",
+      "note": "Original detached ortho label; CRLF and trailing whitespace normalized. No raster fetched."
+    },
+    {
+      "file": "gale-ortho.lbl",
+      "metadataUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
+      "responseUtc": "2026-10-21T22:39:15.195420+00:00",
+      "sha256": "3822fda1a0abab27d32177a1582a7d1e200e7ec67d1ad6c4f3e041c614877458",
+      "archiveBytesSha256": "bcc74425ecbc765a93fbf0548b7c48572cac790367640b3bfe7149776d1b9c12",
+      "note": "Original detached ortho label; CRLF and trailing whitespace normalized. No raster fetched."
     }
   ]
 }

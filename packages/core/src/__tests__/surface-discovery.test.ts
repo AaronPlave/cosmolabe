@@ -145,6 +145,24 @@ describe('bounded Mars source discovery (#249)', () => {
     expect(estimate.fidelity.imagery.adequateAreaM2 / estimate.fidelity.imagery.requestedAreaM2).toBeCloseTo(0.5);
     expect(estimate.fidelity.imagery.unknownAreaM2 / estimate.fidelity.imagery.requestedAreaM2).toBeCloseTo(0.5);
   });
+  it('keeps complete-mask invalid pixels separate from unknown quality, other sources and outside-footprint evidence', async () => {
+    const p = plan(); delete p.regions[0].elevation;
+    const image = source('masked', 'imagery', polygon([ring(0, 0.8)]));
+    image.descriptor.metadata!.validData!.geometry = polygon([ring(0, 0.6)]);
+    image.descriptor.nativeGsdM = null;
+    const estimate = async (records: SurfaceDiscoveryRecord[]) => (await estimateSurfacePlan(p, { sources: records.map(r => r.descriptor) })).fidelity.imagery;
+    const unknownQuality = await estimate([image]);
+    expect(unknownQuality.unknownAreaM2 / unknownQuality.requestedAreaM2).toBeCloseTo(0.8);
+    expect(unknownQuality.unsatisfiedAreaM2 / unknownQuality.requestedAreaM2).toBeCloseTo(0.2);
+    const other = source('other', 'imagery', polygon([ring(0.6, 1)]));
+    const filled = await estimate([image, other]);
+    expect(filled.adequateAreaM2 / filled.requestedAreaM2).toBeCloseTo(0.4);
+    expect(filled.unsatisfiedAreaM2).toBe(0);
+    delete other.descriptor.metadata!.validData;
+    const possible = await estimate([image, other]);
+    expect(possible.unknownAreaM2 / possible.requestedAreaM2).toBeCloseTo(1);
+    expect(possible.unsatisfiedAreaM2).toBe(0);
+  });
   it('never promotes a partial validity mask to full estimator coverage, or source grid spacing to accuracy', async () => {
     const p = plan(); p.regions[0].elevation!.accuracyM = 0.5;
     const dem = source('dem', 'elevation'); dem.descriptor.accuracyM = null;

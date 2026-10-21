@@ -25,6 +25,7 @@ describe('documented PDS ODE live2 adapter (#249)', () => {
       Product_files: { Product_file: { FileName: 'CTX_TEST.IMG', Type: 'Product', Description: 'PRODUCT DATA FILE WITH LABEL', KBytes: '123', URL: 'https://example.test/CTX_TEST.IMG' } } });
     expect(record.descriptor).toMatchObject({ nativeGsdM: 6, accuracyM: null, nodata: 'unknown', asset: { bytes: 123000 } });
     expect(record.descriptor.metadata).toMatchObject({ illumination: { incidenceDeg: 45 }, acquisitionUtc: '2011-01-01T00:00:00', stereoProductIds: [] });
+    expect(record.descriptor.metadata.assets[0].role).toBe('raster'); // Attached label does not make the data file ancillary.
     expect(normalizeOdeMarsProduct({ ...raw('X'), pt: 'NOT_SUPPORTED' })).toBeNull();
     expect(normalizeOdeMarsProduct({ ...raw('X'), Target_name: 'MOON' })).toBeNull();
     expect(normalizeOdeMarsProduct({})).toBeNull();
@@ -71,10 +72,94 @@ describe('documented PDS ODE live2 adapter (#249)', () => {
     const result = spawnSync(process.execPath, ['scripts/build-mars-discovery-inventories.mjs'], { encoding: 'utf8' });
     expect(result.status).toBe(0); expect(await Promise.all(paths.map(p => readFile(p, 'utf8')))).toEqual(before);
   });
+  it('incorporates the final obtainable original labels without turning envelopes or null constants into masks', async () => {
+    for (const region of ['jezero', 'gale']) {
+      const records = JSON.parse(await readFile(resolve(`docs/examples/surface-plans/mars-${region}.inventory.json`), 'utf8'));
+      const ctx = records.find(r => r.descriptor.productId.includes(region === 'jezero' ? 'P02_' : 'T01_'));
+      expect(ctx.descriptor.metadata.dataType).toBe('UNSIGNED_INTEGER / 8');
+      expect(ctx.evidence.caveats.join(' ')).toContain('DATA_QUALITY_DESC=' + (region === 'jezero' ? 'OK' : 'ERROR'));
+      const dtm = records.find(r => r.kind === 'stereo-dtm');
+      expect(dtm.descriptor.datum.verticalDatum).toBe('areoid');
+      expect(dtm.descriptor.metadata.sourceDatum).toContain('Mars 2000');
+      expect(dtm.descriptor.metadata.unknowns.join(' ')).toContain('MISSING_CONSTANT=16#FF7FFFFB#');
+      const ortho = records.find(r => r.kind === 'orthoimage');
+      expect(ortho.evidence.footprint).toBe('raster-envelope');
+      expect(ortho.evidence.footprintUrl).toBe(ortho.descriptor.metadata.labelUrl);
+      expect(ortho.descriptor.nativeGsdM).toBeGreaterThan(1);
+      expect(ortho.descriptor.nativeGsdM).toBeLessThan(1.02);
+      expect(ortho.descriptor.footprint).not.toEqual(dtm.descriptor.footprint);
+      expect(ortho.descriptor.metadata.illumination.photometry).toContain('Label I/F');
+      expect(ortho.descriptor.metadata.unknowns.join(' ')).toContain('CORE_NULL=0');
+      expect(records.every(r => r.descriptor.metadata.validData === undefined && r.descriptor.accuracyM === null)).toBe(true);
+    }
+  });
 });
 describe('offline discovery and #248 estimator CLI integration', () => {
   const run = (...args) => spawnSync(process.execPath, [resolve('scripts/discover-surface.mjs'), ...args], { encoding: 'utf8', timeout: 20000 });
   const plan = resolve('docs/examples/surface-plans/jezero.plan.json'), inv = resolve('docs/examples/surface-plans/mars-jezero.inventory.json');
+  it('preserves complete-mask known gaps and subset unknowns through selected-source export into #248 (60/40)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'surface-mask-handoff-'));
+    try {
+      const p = JSON.parse(await readFile(plan, 'utf8'));
+      const polygon = x => ({ type: 'FeatureCollection', features: [{ type: 'Feature', id: 'roi', properties: null,
+        geometry: { type: 'Polygon', coordinates: [[[0, 0], [x, 0], [x, 1], [0, 1], [0, 0]]] } }] });
+      p.layers = [{ id: 'r', name: 'Synthetic validity regression', body: 'Mars', source: 'inline', geojson: polygon(1) }];
+      p.regions = [{ id: 'r', feature: { layerId: 'r', featureId: 'string:roi' }, imagery: { gsdM: 10 }, fallback: 'require-target' }];
+      const record = normalizeOdeMarsProduct(raw('SYNTHETIC_MASK'));
+      const d = record.descriptor;
+      d.footprint = polygon(1); d.datum = { referenceShape: p.coordinates.referenceShape, verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
+      d.metadata.registration = { group: 'synthetic', evidenceUrl: 'https://example.test/registration', accuracyM: null };
+      d.metadata.validData = { geometry: polygon(0.6), evidenceUrl: 'https://example.test/mask', method: 'Synthetic test only', extent: 'complete-mask' };
+      const planPath = join(dir, 'plan.json'), inventoryPath = join(dir, 'inventory.json'), selectedPath = join(dir, 'selected.json');
+      await writeFile(planPath, JSON.stringify(p));
+      for (const extent of ['complete-mask', 'known-valid-subset']) {
+        d.metadata.validData.extent = extent;
+        await writeFile(inventoryPath, JSON.stringify([record]));
+        const output = run(planPath, '--inventory', inventoryPath, '--sources-out', selectedPath);
+        expect(output.status, output.stderr).toBe(0);
+        const coverage = JSON.parse(output.stdout).combinations[0].alternatives[0].channels.imagery.coverage;
+        expect(coverage.verifiedFraction).toBeCloseTo(0.6, 6);
+        expect(coverage.gapFraction).toBeCloseTo(extent === 'complete-mask' ? 0.4 : 0, 6);
+        expect(coverage.unknownFraction).toBeCloseTo(extent === 'complete-mask' ? 0 : 0.4, 6);
+        expect(JSON.parse(await readFile(selectedPath, 'utf8'))[0].metadata.validData.extent).toBe(extent);
+        const estimate = spawnSync(process.execPath, ['scripts/plan-surface.mjs', planPath, '--sources', selectedPath, '--json'], { encoding: 'utf8' });
+        expect(estimate.status, estimate.stderr).toBe(0);
+        const f = JSON.parse(estimate.stdout).fidelity.imagery;
+        expect(f.adequateAreaM2 / f.requestedAreaM2).toBeCloseTo(0.6, 6);
+        expect(f.unknownAreaM2 / f.requestedAreaM2).toBeCloseTo(extent === 'complete-mask' ? 0 : 0.4, 6);
+        expect(f.unsatisfiedAreaM2 / f.requestedAreaM2).toBeCloseTo(extent === 'complete-mask' ? 0.4 : 0, 6);
+      }
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+  it('selects and costs each real MOLA raster rather than its same-stem header in discovery and #248', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'surface-mola-handoff-'));
+    try {
+      for (const region of ['jezero', 'gale']) {
+        const records = JSON.parse(await readFile(resolve(`docs/examples/surface-plans/mars-${region}.inventory.json`), 'utf8'));
+        const mola = records.find(r => r.descriptor.productId.includes(':data_meg128:'));
+        expect(mola).toBeDefined();
+        const d = mola.descriptor;
+        expect(d.asset.url).toMatch(/\.img$/i); expect(d.asset.bytes).toBe(126720000);
+        expect(d.metadata.assets.find(a => /\.hdr$/i.test(a.url)).role).toBe('label');
+        const p = JSON.parse(await readFile(resolve(`docs/examples/surface-plans/${region}.plan.json`), 'utf8'));
+        p.layers[0].geojson = JSON.parse(await readFile(resolve(`docs/examples/surface-plans/${region}.geojson`), 'utf8'));
+        // Isolate this authentic terrain option so every selected cost must include its raster.
+        p.regions = p.regions.map(r => ({ ...r, imagery: undefined, elevation: { gsdM: 500 }, fallback: 'allow-coarser' }));
+        const planPath = join(dir, 'plan.json'), inventoryPath = join(dir, 'inventory.json'), selectedPath = join(dir, 'selected.json');
+        await writeFile(planPath, JSON.stringify(p)); await writeFile(inventoryPath, JSON.stringify([mola]));
+        const output = run(planPath, '--inventory', inventoryPath, '--sources-out', selectedPath);
+        expect(output.status, output.stderr).toBe(0);
+        const report = JSON.parse(output.stdout);
+        expect(report.recommendedSourceIds).toEqual([d.id]);
+        expect(report.combinations.every(c => c.alternatives[0].cost.downloadBytes.min === 126720000)).toBe(true);
+        const selected = JSON.parse(await readFile(selectedPath, 'utf8'));
+        expect(selected).toHaveLength(1); expect(selected[0].asset).toEqual(d.asset);
+        const estimate = spawnSync(process.execPath, ['scripts/plan-surface.mjs', planPath, '--sources', selectedPath, '--json'], { encoding: 'utf8' });
+        expect(estimate.status, estimate.stderr).toBe(0);
+        expect(JSON.parse(estimate.stdout).totals.rawSourceDownloadBytes).toEqual({ min: 126720000, max: null });
+      }
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
   it('produces stable independent Jezero/Gale reports and compact combinations with honest coverage', () => {
     for (const r of ['jezero', 'gale']) {
       const args = [resolve(`docs/examples/surface-plans/${r}.plan.json`), '--inventory', resolve(`docs/examples/surface-plans/mars-${r}.inventory.json`)];

@@ -53,7 +53,7 @@ checked-in [primary captures](examples/surface-plans/evidence/manifest.json).
 The manifest records response times, metadata URLs and SHA-256 hashes. Raw
 ODE JSON includes original `LabelURL`, assets, archive/index footprint WKT,
 illumination/time fields, and original labels where ODE supplied them. MOLA's
-original PDS4 XML labels are also cached. The generator never invents IDs or
+original PDS4 XML and both detached HiRISE ortho labels are also cached. The generator never invents IDs or
 copies a DTM's geometry into its orthoimage.
 
 | Source | Jezero example | Gale example | Evidence/limits |
@@ -63,8 +63,8 @@ copies a DTM's geometry into its orthoimage.
 | CTX | `P02_001820_1984_XI_18N282W` | `T01_000815_1749_XN_05S222W` | Original EDR assets/labels, ODE index polygons and acquisition sampling; unprojected images require camera-model work |
 | HRSC terrain | `H0988_0000_DT4.IMG` | `H4235_0001_DT4.IMG` | Archived original labels, irregular footprints, 75/50 m grids, sinusoidal, 3396 km spheroid heights, `MEX:DTM_MISSING_DN=-32768` |
 | HiRISE image | `ESP_023524_1985_RED` | `ESP_016520_1750_RED` | Released RDR image, separate archive footprint, 0.25 m source raster grid, acquisition/illumination; sampling is not measured accuracy |
-| Released HiRISE DTM | `DTEEC_023524_1985_023379_1985_U01` | `DTEEC_016520_1750_016375_1750_A01` | Separate released DTM records, real footprint polygons, original attached-label URLs and file sizes; physical accuracy/datum unresolved |
-| Matching orthoimage | `ESP_023524_1985_RED_C_01_ORTHO` | `ESP_016520_1750_RED_C_01_ORTHO` | Existence/asset/label URL independently established by the released DTM asset listing; per-image geometry/scale unknown while direct labels are unreachable |
+| Released HiRISE DTM | `DTEEC_023524_1985_023379_1985_U01` | `DTEEC_016520_1750_016375_1750_A01` | Separate released DTM records, real footprint polygons, original attached labels, Mars 2000 equipotential heights, missing constant and file sizes; physical accuracy/target transform unresolved |
+| Matching orthoimage | `ESP_023524_1985_RED_C_01_ORTHO` | `ESP_016520_1750_RED_C_01_ORTHO` | Original detached labels independently establish source DTM, envelope, ~1.01 m grid, data type, I/F scaling and null/saturation values; envelope is not valid pixels |
 
 MOLA labels describe gridding, interpolation and shot gaps up to 12 km. They
 are not a mask audit. HRSC labels explicitly identify missing DN. ODE footprint
@@ -74,12 +74,24 @@ pixel coverage**, rather than claiming full coverage from archive overlap.
 Native/source raster sampling, underlying observation detail, requested output
 GSD, and physical height/registration accuracy remain distinct.
 
-Direct HiRISE archive hosts were unreachable from the integration environment
-on 2026-10-21; ODE returned `label.Line: "not found"` for attached DTM labels.
-The caches retain this failure. No Gale ortho footprint is invented, and the previous collection-only MOLA
-lead is replaced with an individual product. Actual high-resolution image/DTM
-footprints now come from the separately identified archive products; ortho
-coverage stays unknown until its own label or mask can be verified.
+The final metadata-only acceptance refresh on 2026-10-21 recovered original
+CTX and HiRISE image/DTM labels through ODE, plus both matching ortho labels
+directly from the archive. The manifest records the successful URLs, timestamps
+and hashes. Earlier DTM requests returned `not found`; those failures no longer
+limit the curated metadata. Ortho envelopes and grid intervals come from their
+own labels, independently of the DTM polygons. No raster was fetched.
+
+The labels add material quality evidence: Gale CTX reports
+`DATA_QUALITY_DESC=ERROR` (Jezero reports `OK`), HiRISE images/orthos identify
+`CORE_NULL=0` and saturation values, and both DTMs specify
+`MISSING_CONSTANT=16#FF7FFFFB#` and elevations above the Mars 2000 equipotential
+surface (Smith et al. 2001). These are diagnostics and source conventions,
+not verified masks, measured physical accuracy or completed target transforms.
+Fixed-record CTX/Viking/HRSC/DTM download sizes use original label record counts;
+JP2 download sizes retain approximate ODE sizes, not uncompressed label storage.
+MOLA primary assets are the `.IMG` rasters (ODE estimate **126,720,000 bytes**
+each); their same-stem 2 KB ENVI headers and labels remain ancillary. ODE KBytes
+is an approximate size source, not an exact byte count or guaranteed upper bound.
 
 ## Shared provenance and coverage contract
 
@@ -104,7 +116,11 @@ only from separately cached released products and their asset listings.
 
 Pixel evidence requires `metadata.validData.geometry`, an HTTPS evidence URL,
 a method and `extent`. `complete-mask` also identifies invalid pixels within
-the source envelope; `known-valid-subset` leaves its remainder unknown.
+the source envelope; `known-valid-subset` leaves its remainder unknown. This
+distinction survives selected-source export into #248: a 60% valid complete
+mask leaves 40% unsatisfied for those candidates, while a 60% known subset
+leaves 40% unknown. Other candidate evidence can fill or qualify those pixels;
+missing evidence outside product footprints remains unknown in the estimator.
 `nodata: "none"` alone is insufficient. Both forms preserve holes and dateline
 splits through the same polygon/planetary area implementation as #248.
 Masks outside a product footprint are rejected. Metadata-bearing sources need
@@ -201,9 +217,12 @@ Regressions cover primary-capture hashes and inventory regeneration, Jezero/Gale
 reports, determinism, the partial-sliver bug, compatible coverage union, overlap,
 holes/dateline, unknown/complete masks, datum/registration/projection conflicts,
 illumination/observation warnings, policy choices, candidate download costs,
-source sampling versus accuracy, ODE page formats/errors/caps/offline replay,
+source sampling versus accuracy, real MOLA raster selection/costs, original
+label quality/datum/envelope evidence, ODE page formats/errors/caps/offline replay,
 and discovery → selected candidates → #248 estimator. No scientific mask,
 accuracy, registration transform or product availability is fabricated to make
-an example pass. Human acceptance of #249 and any subsequent source build
-selection remain separate from this implementation; keep the issue open until
-that evidence is reviewed.
+an example pass. The final evidence audit incorporates obtainable product-level label fields
+and archive links while preserving unknown per-pixel masks, physical accuracy,
+and target transforms. Those scientific unknowns are supported report outcomes,
+not deferred implementation. Keep #249 open until human acceptance; later
+source build selection remains a separate action.

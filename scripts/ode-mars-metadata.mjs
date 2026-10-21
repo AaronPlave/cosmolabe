@@ -72,8 +72,12 @@ export function normalizeOdeMarsProduct(v, evidenceUrl = ENDPOINT) {
   if (!kind) return null; // No guessed channels for unsupported product families or associated DTM inference.
   const elevation = ['stereo-dtm', 'gridded-elevation'].includes(kind);
   const files = array(v.Product_files?.Product_file);
-  const ownFile = files.find(f => f.Type === 'Product' && !/LABEL/i.test(f.Description) && f.FileName?.replace(/\.[^.]+$/, '').toLowerCase() === String(v.pdsid).replace(/\.[^.]+$/, '').toLowerCase())
-    ?? files.find(f => /PRODUCT DATA FILE/.test(f.Description ?? ''));
+  // Headers and detached labels share the product stem. Prefer the actual data file,
+  // including attached-label rasters, before falling back to a matching raster filename.
+  const rasterFiles = files.filter(f => f.Type === 'Product' && (/PRODUCT DATA FILE/i.test(f.Description ?? '')
+    || (!/LABEL|HEADER/i.test(f.Description ?? '') && /\.(img|jp2|tiff?|cub)$/i.test(f.FileName ?? ''))));
+  const ownFile = rasterFiles.find(f => f.FileName?.replace(/\.[^.]+$/, '').toLowerCase() === String(v.pdsid).replace(/\.[^.]+$/, '').toLowerCase())
+    ?? rasterFiles.find(f => /PRODUCT DATA FILE/i.test(f.Description ?? ''));
   const labelUrl = https(v.LabelURL);
   const assetUrl = https(ownFile?.URL);
   const scale = numeric(v.Map_scale), rasterGsdM = instrument !== 'MOLA' && scale > 0 ? scale : null;
@@ -88,8 +92,8 @@ export function normalizeOdeMarsProduct(v, evidenceUrl = ENDPOINT) {
     sourceDatum: null, registration: null,
     illumination: { incidenceDeg: numeric(v.Incidence_angle), emissionDeg: numeric(v.Emission_angle), phaseDeg: numeric(v.Phase_angle), photometry: null },
     stereoProductIds: [], assets: files.filter(f => f.Type === 'Product' && https(f.URL)).slice(0, 64).map(f => ({ url: https(f.URL),
-      role: /LABEL/i.test(f.Description ?? '') ? 'label' : 'raster', bytes: numeric(f.KBytes) === null ? null : Math.ceil(Number(f.KBytes) * 1000),
-      sizeEvidence: 'ODE KBytes (rounded decimal kilobytes, conservative estimate)' })), reuse: { status: 'unknown', evidenceUrl: null } };
+      role: /PRODUCT DATA FILE/i.test(f.Description ?? '') ? 'raster' : /LABEL|HEADER/i.test(f.Description ?? '') ? 'label' : 'raster', bytes: numeric(f.KBytes) === null ? null : Math.ceil(Number(f.KBytes) * 1000),
+      sizeEvidence: 'ODE KBytes x 1000 (approximate; not an exact archive byte count)' })), reuse: { status: 'unknown', evidenceUrl: null } };
   const bytes = numeric(ownFile?.KBytes);
   return { descriptor: { id: 'ode:' + productId + (string(v.Product_version_id) ? '@' + v.Product_version_id : ''), productId, channel: elevation ? 'elevation' : 'imagery', body: 'Mars', frame: 'IAU_MARS',
     coordinates: structuredClone(COORDINATES), ...(footprint ? { footprint } : {}), nodata: 'unknown', nativeGsdM, accuracyM: null,

@@ -61,7 +61,7 @@
       "nodata": "unknown",
       "nativeGsdM": 1.0116848024285,
       "accuracyM": null,
-      "projection": "EQUIRECTANGULAR (archive index record)",
+      "projection": "EQUIRECTANGULAR (original label)",
       "datum": {
         "referenceShape": {
           "kind": "ellipsoid",
@@ -71,13 +71,13 @@
             3376.2
           ]
         },
-        "verticalDatum": "unknown",
+        "verticalDatum": "areoid",
         "heightConvention": "radial"
       },
       "asset": {
         "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
         "version": "1",
-        "bytes": 854794000
+        "bytes": 854793408
       },
       "license": {
         "name": "Archive reuse terms unverified",
@@ -86,23 +86,23 @@
       "metadata": {
         "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
         "labelUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
-        "confidence": "archive",
+        "confidence": "label",
         "unknowns": [
           "Valid-pixel mask unverified",
           "Physical accuracy unverified",
-          "Source datum requires original label verification",
-          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+          "Original label MISSING_CONSTANT=16#FF7FFFFB#; no per-pixel mask audit"
         ],
         "rasterGsdM": 1.0116848024285,
-        "dataType": null,
+        "dataType": "PC_REAL / 32",
         "bands": [
-          "height; datum unverified"
+          "height in metres above Mars 2000 equipotential surface (Smith et al. 2001)"
         ],
         "acquisitionUtc": null,
         "observationId": null,
-        "sourceProjection": "EQUIRECTANGULAR (archive index record)",
-        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
-        "sourceDatum": null,
+        "sourceProjection": "EQUIRECTANGULAR (original label)",
+        "sourceCoordinates": "Planetocentric, positive east; local projection sphere radius 3396.0368126024 km (label), derived from Mars 3396.19/3376.2 km ellipsoid",
+        "sourceDatum": "Mars 2000 equipotential surface (Smith et al. 2001), original IMAGE NOTE; target height transform unresolved",
         "registration": {
           "group": "DTEEC_016520_1750_016375_1750_A01",
           "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
@@ -120,9 +120,9 @@
         "assets": [
           {
             "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/DTEEC_016520_1750_016375_1750_A01.IMG",
-            "role": "label",
-            "bytes": 854794000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "role": "raster",
+            "bytes": 854793408,
+            "sizeEvidence": "Original attached label RECORD_BYTES * FILE_RECORDS"
           }
         ],
         "reuse": {
@@ -139,8 +139,8 @@
       "caveats": [
         "Valid-pixel mask unverified",
         "Physical accuracy unverified",
-        "Source datum requires original label verification",
-        "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "Original label MISSING_CONSTANT=16#FF7FFFFB#; no per-pixel mask audit"
       ]
     }
   },
@@ -206,7 +206,7 @@
       "nodata": "unknown",
       "nativeGsdM": 0.25,
       "accuracyM": null,
-      "projection": "EQUIRECTANGULAR (archive index record)",
+      "projection": "EQUIRECTANGULAR (original label)",
       "datum": {
         "referenceShape": {
           "kind": "ellipsoid",
@@ -229,31 +229,34 @@
         "attribution": "UA / MRO / HIRISE / MRO-M-HIRISE-3-RDR-V1.1"
       },
       "metadata": {
-        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmfl&target=mars",
         "labelUrl": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.LBL",
-        "confidence": "archive",
+        "confidence": "label",
         "unknowns": [
           "Valid-pixel mask unverified",
           "Physical accuracy unverified",
           "Source datum requires original label verification",
-          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+          "Original label CORE_NULL=0; no per-pixel mask audit",
+          "Original label CORE_LOW_REPR_SATURATION=1; no per-pixel mask audit",
+          "Original label CORE_HIGH_REPR_SATURATION=1023; no per-pixel mask audit"
         ],
         "rasterGsdM": 0.25,
-        "dataType": null,
+        "dataType": "MSB_UNSIGNED_INTEGER / 16",
         "bands": [
           "HiRISE RED"
         ],
         "acquisitionUtc": "2010-02-03T17:56:12.806",
         "observationId": "ESP_016520_1750",
-        "sourceProjection": "EQUIRECTANGULAR (archive index record)",
-        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
+        "sourceProjection": "EQUIRECTANGULAR (original label)",
+        "sourceCoordinates": "Planetocentric, positive east; local projection sphere radius 3396.0368126024 km (label), derived from Mars 3396.19/3376.2 km ellipsoid",
         "sourceDatum": null,
         "registration": null,
         "illumination": {
           "incidenceDeg": 48.245452,
           "emissionDeg": 19.501828,
           "phaseDeg": 64.658998,
-          "photometry": null
+          "photometry": "Label I/F = DN * 1.32417084670558e-04 + 0.05944798447913; no cross-observation photometric normalization inferred"
         },
         "stereoProductIds": [
           "DTEEC_016520_1750_016375_1750_A01"
@@ -263,13 +266,13 @@
             "url": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.JP2",
             "role": "raster",
             "bytes": 1719767000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           },
           {
             "url": "https://hirise.lpl.arizona.edu/PDS/RDR/ESP/ORB_016500_016599/ESP_016520_1750/ESP_016520_1750_RED.LBL",
             "role": "label",
             "bytes": 9000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           }
         ],
         "reuse": {
@@ -280,14 +283,17 @@
     },
     "kind": "observation-image",
     "evidence": {
-      "url": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "url": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmfl&target=mars",
       "footprint": "archive-footprint",
-      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmf&target=mars",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?ihid=mro&iid=hirise&limit=2&offset=1&output=json&productId=ESP_016520_1750_RED&pt=rdrv11&query=product&results=copmfl&target=mars",
       "caveats": [
         "Valid-pixel mask unverified",
         "Physical accuracy unverified",
         "Source datum requires original label verification",
-        "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+        "Original label CORE_NULL=0; no per-pixel mask audit",
+        "Original label CORE_LOW_REPR_SATURATION=1; no per-pixel mask audit",
+        "Original label CORE_HIGH_REPR_SATURATION=1023; no per-pixel mask audit"
       ]
     }
   },
@@ -311,10 +317,47 @@
           ]
         }
       },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "label-envelope",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    138.42778609,
+                    -5.3754253778695
+                  ],
+                  [
+                    138.56660536,
+                    -5.3754253778695
+                  ],
+                  [
+                    138.56660536,
+                    -4.9252454105236
+                  ],
+                  [
+                    138.42778609,
+                    -4.9252454105236
+                  ],
+                  [
+                    138.42778609,
+                    -5.3754253778695
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
       "nodata": "unknown",
-      "nativeGsdM": null,
+      "nativeGsdM": 1.0116848024285,
       "accuracyM": null,
-      "projection": "Unknown until ortho label accessible",
+      "projection": "EQUIRECTANGULAR (original ortho label)",
       "datum": {
         "referenceShape": {
           "kind": "ellipsoid",
@@ -324,7 +367,7 @@
             3376.2
           ]
         },
-        "verticalDatum": "unknown",
+        "verticalDatum": "areoid",
         "heightConvention": "radial"
       },
       "asset": {
@@ -339,24 +382,25 @@
       "metadata": {
         "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
         "labelUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
-        "confidence": "archive",
+        "confidence": "label",
         "unknowns": [
           "Valid-pixel mask unverified",
           "Physical accuracy unverified",
-          "Source datum requires original label verification",
-          "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
-          "Ortho label unreachable during metadata smoke; no DTM footprint or scale copied to image"
+          "Cross-product registration accuracy and target transform unresolved",
+          "Original label CORE_NULL=0; no per-pixel mask audit",
+          "Original label CORE_LOW_REPR_SATURATION=1; no per-pixel mask audit",
+          "Original label CORE_HIGH_REPR_SATURATION=255; no per-pixel mask audit"
         ],
-        "rasterGsdM": null,
-        "dataType": null,
+        "rasterGsdM": 1.0116848024285,
+        "dataType": "MSB_UNSIGNED_INTEGER / 8",
         "bands": [
           "HiRISE RED ortho"
         ],
         "acquisitionUtc": null,
         "observationId": "ESP_016520_1750",
-        "sourceProjection": null,
-        "sourceCoordinates": "ODE footprint: planetocentric, east longitude 0..360; source raster conventions unverified",
-        "sourceDatum": null,
+        "sourceProjection": "EQUIRECTANGULAR",
+        "sourceCoordinates": "Planetocentric, positive east; local projection sphere radius 3396.0368126024 km (label), derived from Mars 3396.19/3376.2 km ellipsoid",
+        "sourceDatum": "Image orthorectified with the separately released DTM; target registration/height transform unresolved",
         "registration": {
           "group": "DTEEC_016520_1750_016375_1750_A01",
           "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
@@ -366,7 +410,7 @@
           "incidenceDeg": null,
           "emissionDeg": null,
           "phaseDeg": null,
-          "photometry": null
+          "photometry": "Label I/F = DN * 0.0003521894231327 + 0.0584857049281203; no cross-observation photometric normalization inferred"
         },
         "stereoProductIds": [
           "DTEEC_016520_1750_016375_1750_A01"
@@ -376,13 +420,13 @@
             "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.JP2",
             "role": "raster",
             "bytes": 47683000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           },
           {
             "url": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
             "role": "label",
             "bytes": 6000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           }
         ],
         "reuse": {
@@ -394,14 +438,16 @@
     "kind": "orthoimage",
     "evidence": {
       "url": "https://oderest.rsl.wustl.edu/live2/?limit=1&output=json&productId=DTEEC_016520_1750_016375_1750_A01&query=product&results=copmfl&target=mars&offset=1",
-      "footprint": "unknown",
+      "footprint": "raster-envelope",
+      "footprintUrl": "https://hirise.lpl.arizona.edu/PDS/DTM/ESP/ORB_016500_016599/ESP_016520_1750_ESP_016375_1750/ESP_016520_1750_RED_C_01_ORTHO.LBL",
       "caveats": [
         "Valid-pixel mask unverified",
         "Physical accuracy unverified",
-        "Source datum requires original label verification",
-        "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
-        "Ortho label unreachable during metadata smoke; no DTM footprint or scale copied to image",
-        "Existence established independently by released DTM Product_files; label URL preserved"
+        "Cross-product registration accuracy and target transform unresolved",
+        "Original label CORE_NULL=0; no per-pixel mask audit",
+        "Original label CORE_LOW_REPR_SATURATION=1; no per-pixel mask audit",
+        "Original label CORE_HIGH_REPR_SATURATION=255; no per-pixel mask audit",
+        "Existence and DTM relationship established by original ortho label SOURCE_PRODUCT_ID; envelope is not valid pixels"
       ]
     }
   },
@@ -863,7 +909,7 @@
           "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
         ],
         "rasterGsdM": 50,
-        "dataType": "MSB_INTEGER",
+        "dataType": "MSB_INTEGER / 16",
         "bands": [
           "height above spheroid, metres"
         ],
@@ -883,9 +929,9 @@
         "assets": [
           {
             "url": "https://pds-geosciences.wustl.edu/mex/mex-m-hrsc-5-refdr-dtm-v1/mexhrs_2001/data/4235/h4235_0001_dt4.img",
-            "role": "label",
-            "bytes": 15734000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "role": "raster",
+            "bytes": 15733254,
+            "sizeEvidence": "Original attached label RECORD_BYTES * FILE_RECORDS"
           }
         ],
         "reuse": {
@@ -985,24 +1031,25 @@
       },
       "asset": {
         "url": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
-        "bytes": 89001000
+        "bytes": 93121408
       },
       "license": {
         "name": "Archive reuse terms unverified",
         "attribution": "MRO_CTX_TEAM / MRO / CTX / MRO-M-CTX-2-EDR-L0-V1.0"
       },
       "metadata": {
-        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+        "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmfl&target=mars&westernlon=137",
         "labelUrl": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
-        "confidence": "archive",
+        "confidence": "label",
         "unknowns": [
           "Valid-pixel mask unverified",
           "Physical accuracy unverified",
           "Source datum requires original label verification",
-          "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
+          "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
+          "Original label DATA_QUALITY_DESC=ERROR; no per-pixel mask audit"
         ],
         "rasterGsdM": 5.27,
-        "dataType": null,
+        "dataType": "UNSIGNED_INTEGER / 8",
         "bands": [
           "CTX panchromatic"
         ],
@@ -1022,9 +1069,9 @@
         "assets": [
           {
             "url": "https://planetarydata.jpl.nasa.gov/img/data/mro/ctx/mrox_0003/data/T01_000815_1749_XN_05S222W.IMG",
-            "role": "label",
-            "bytes": 89001000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "role": "raster",
+            "bytes": 93121408,
+            "sizeEvidence": "Original attached label RECORD_BYTES * FILE_RECORDS"
           }
         ],
         "reuse": {
@@ -1035,16 +1082,18 @@
     },
     "kind": "observation-image",
     "evidence": {
-      "url": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+      "url": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmfl&target=mars&westernlon=137",
       "footprint": "archive-footprint",
-      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmf&target=mars&westernlon=137",
+      "footprintUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=mro&iid=ctx&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=edr&query=product&results=copmfl&target=mars&westernlon=137",
       "caveats": [
         "Valid-pixel mask unverified",
         "Physical accuracy unverified",
         "Source datum requires original label verification",
         "Underlying observation resolution may vary; source raster sampling is not physical accuracy",
         "\"MROX_0003\",\"DATA/T01_000815_1749_XN_05S222W.IMG\",\"4A_04_1000001C00\",\"T01_000815_1749_XN_05S222W\",\"2006-09-29T00:20:10.316\",\"CTX   \",\"NIFL \",5056, 18417, 1,    5.27,  1.15,  0.08, 58.16, 58.10,222.59, -5.14,222.70, -6.10,222.26, -6.04,222.93, -4.23,222.48, -4.17,\"TRANSITION\",\"MARS  \",\"0843956429:032 \",290.8,   1.877,\"195/234/232\",   0,  26.38,  111.67, 263.28,3659.31, 263.28,\"N\",276.91,218.37,274.73, 23.26,222.59, -5.13,242747412.1,113.26,15.48, 90.1,\"Gale Crater landforms                                                           \",\"ERROR \",   815",
-        "CTX EDR is not an orthophoto; no automatic fusion or released DTM inferred"
+        "CTX EDR is not an orthophoto; no automatic fusion or released DTM inferred",
+        "Original CTX label DATA_QUALITY_DESC=ERROR; consult label before source selection",
+        "Original label DATA_QUALITY_DESC=ERROR; no per-pixel mask audit"
       ]
     }
   },
@@ -1357,7 +1406,7 @@
       },
       "asset": {
         "url": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
-        "bytes": 909000
+        "bytes": 930260
       },
       "license": {
         "name": "Archive reuse terms unverified",
@@ -1366,7 +1415,7 @@
       "metadata": {
         "evidenceUrl": "https://oderest.rsl.wustl.edu/live2/?easternlon=139&ihid=vo&iid=visab&limit=2&maxlat=-4.3&minlat=-5.3&offset=1&output=json&pt=mdim&query=product&results=copmfl&target=mars&westernlon=137",
         "labelUrl": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
-        "confidence": "archive",
+        "confidence": "label",
         "unknowns": [
           "Valid-pixel mask unverified",
           "Physical accuracy unverified",
@@ -1374,7 +1423,7 @@
           "Underlying observation resolution may vary; source raster sampling is not physical accuracy"
         ],
         "rasterGsdM": 925.406,
-        "dataType": "UNSIGNED_INTEGER",
+        "dataType": "UNSIGNED_INTEGER / 8",
         "bands": null,
         "acquisitionUtc": null,
         "observationId": null,
@@ -1392,9 +1441,9 @@
         "assets": [
           {
             "url": "https://planetarydata.jpl.nasa.gov/img/data/viking_orbiter/vo_2007/mg00nxxx/mg00n217.img",
-            "role": "label",
-            "bytes": 909000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "role": "raster",
+            "bytes": 930260,
+            "sizeEvidence": "Original attached label RECORD_BYTES * FILE_RECORDS"
           }
         ],
         "reuse": {
@@ -1489,9 +1538,9 @@
         "heightConvention": "radial"
       },
       "asset": {
-        "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.hdr",
+        "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.img",
         "version": "1.1",
-        "bytes": 2000
+        "bytes": 126720000
       },
       "license": {
         "name": "Archive reuse terms unverified",
@@ -1527,27 +1576,27 @@
         "assets": [
           {
             "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.hdr",
-            "role": "raster",
+            "role": "label",
             "bytes": 2000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           },
           {
             "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.img",
             "role": "raster",
             "bytes": 126720000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           },
           {
             "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.lbl",
             "role": "label",
             "bytes": 5000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           },
           {
             "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
             "role": "label",
             "bytes": 16000,
-            "sizeEvidence": "ODE KBytes (rounded decimal kilobytes, conservative estimate)"
+            "sizeEvidence": "ODE KBytes x 1000 (approximate; not an exact archive byte count)"
           }
         ],
         "reuse": {
