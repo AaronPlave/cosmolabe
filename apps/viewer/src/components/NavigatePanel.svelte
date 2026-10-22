@@ -146,8 +146,9 @@
   const fieldClass = 'ui-control min-w-0 w-full bg-surface-3 text-text-primary border border-border rounded px-2 py-1 outline-none font-mono';
 </script>
 
-<InstrumentPanel key="navigate" title="Navigate" width={toolDef('navigate').width} {onClose}>
-  <div class="mb-3"><SegmentedControl label="Navigate mode" value={vs.navigateMode} options={['places', 'coordinates']} onValueChange={v => vs.navigateMode = v as 'places' | 'coordinates'} /></div>
+<InstrumentPanel key="navigate" title="Navigate" width={toolDef('navigate').width} fill={vs.navigateMode === 'places'} {onClose}>
+  <div class:places-layout={vs.navigateMode === 'places'}>
+  <div class="mb-3 shrink-0"><SegmentedControl label="Navigate mode" value={vs.navigateMode} options={['places', 'coordinates']} onValueChange={v => vs.navigateMode = v as 'places' | 'coordinates'} /></div>
   {#if vs.navigateMode === 'places'}
     <PlacesPanel />
   {:else if bodies.length === 0}
@@ -239,4 +240,16 @@
       <NavigationActions disabled={!canGo} onJump={() => go(false)} />
     </form>
   {/if}
+  </div>
 </InstrumentPanel>
+
+<style>
+  .places-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    padding: var(--space-ui-3) var(--space-ui-4);
+    overflow: hidden;
+  }
+</style>

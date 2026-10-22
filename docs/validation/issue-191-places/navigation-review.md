@@ -27,3 +27,11 @@ CL_VIEWER_URL=http://127.0.0.1:5194/ CL_GPU=hardware CL_RECORD=1 CL_TERRAIN=1 no
 ```
 
 Physical-phone and human acceptance remain unclaimed.
+
+## Results list resizing
+
+The unselected Places results fill the remaining panel height, with search and body controls held above their own scroll region. Up to 100 results are available instead of the previous 12. Selection switches to an internally scrolling inspector; Coordinates retains its usual panel-body scrolling.
+
+Physical Chrome/Metal checks: real grip resizing from a 300×720 panel to a wider, shorter panel reduced the list from 527 to 167 px. Docked and compact list heights were 643 and 156 px. The list reached the panel's bottom padding in every layout, the dock/panel body did not scroll behind it, and selection details remained reachable in a short panel. Svelte checks (zero warnings), 70 shell/geometry tests and changed-component lint passed.
+
+[Large panel](navigation/results-tall.png) · [Resized panel](navigation/results-short-wide.png) · [Compact](navigation/results-compact.png) · [Measured geometry](navigation/results-resize.json).

@@ -15,7 +15,7 @@
   const body = $derived(bodyChoice ?? (bodies.includes(vs.trackedBodyName ?? '') ? vs.trackedBodyName! : ''));
   const range = $derived(navigationRange());
   const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...place.feature.geometry.coordinates, latitude: 'planetographic', longitudeDirection: 'east'}) : null);
-  const results = $derived(vs.places?.search(query, { body: body || undefined, activeBody: vs.trackedBodyName ?? undefined }).slice(0, 12) ?? []);
+  const results = $derived(vs.places?.search(query, { body: body || undefined, activeBody: vs.trackedBodyName ?? undefined, limit: 100 }) ?? []);
   const fields = $derived.by(() => {
     const value = place?.feature.properties?.sourceFields;
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -39,7 +39,7 @@
   }
 </script>
 
-<div class="space-y-3">
+<div class="places-content space-y-3" class:results-only={!place}>
   <label class="grid gap-1"><span class="text-text-secondary">Search places</span>
     <input class="ui-control w-full rounded border border-border bg-surface-3 px-2 py-1" placeholder="Name or alias…" bind:value={query} />
   </label>
@@ -49,7 +49,7 @@
     </select>
   </label>
   {#if results.length && (!place || query)}
-    <ul aria-label="Named places" class="max-h-40 overflow-y-auto space-y-1">
+    <ul aria-label="Named places" class="place-results max-h-40 overflow-y-auto space-y-1">
       {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="text-xs text-text-secondary">{item.layer.body} · {placeCategory(item)}</span></button></li>{/each}
     </ul>
   {:else if !place || query}<p class="text-text-secondary">{bodies.length ? 'No places match this search.' : 'No named places loaded in this scene.'}</p>{/if}
@@ -105,4 +105,9 @@
   {/each}
 </div>
 
-<style>dd { overflow-wrap:anywhere; user-select:text; } dt { margin-top: .5rem; } summary { cursor:pointer; } </style>
+<style>
+  .places-content { min-height: 0; overflow-y: auto; }
+  .results-only { display: flex; flex: 1; flex-direction: column; }
+  .results-only > :global(*) { flex-shrink: 0; }
+  .results-only > .place-results { flex: 1; min-height: 0; max-height: none; }
+  dd { overflow-wrap:anywhere; user-select:text; } dt { margin-top: .5rem; } summary { cursor:pointer; } </style>
