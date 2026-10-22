@@ -773,5 +773,6 @@
       "geometryIdsPreserved": true,
       "errors": []
     }
-  }
+  },
+  "historicalPilotNote": "Prior pilot evidence retained for comparison. Current executor/publish/report acceptance is in surface-build-acceptance.json."
 }

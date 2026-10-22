@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "date": "2026-10-22",
+  "buildId": "e9dd1d51ec2db28daa709b3a4871ad7a9781ca6b1274e5a2f88dba2c6ba29e04",
+  "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
+  "products": [
+    {
+      "id": "terrain-4c7ab731bced544e79ed061b",
+      "productIdentity": "4c7ab731bced544e79ed061b60d0241ffa9e48e328469dd8531bebf3dcc6bc01",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "maximumLevel": 11,
+      "tiles": 78,
+      "objects": 161,
+      "bytes": 13966554,
+      "nativeFidelity": [
+        {
+          "sourceId": "base",
+          "nativeGsdM": 200,
+          "accuracyM": null
+        },
+        {
+          "sourceId": "detail",
+          "nativeGsdM": 1,
+          "accuracyM": null
+        }
+      ]
+    },
+    {
+      "id": "imagery-3a4fecdc403228019a86efe5",
+      "productIdentity": "3a4fecdc403228019a86efe5238cfdf7e8c2e1814bf608706d6c3d74902c8005",
+      "sourceIds": [
+        "hirise-context"
+      ],
+      "maximumLevel": 13,
+      "tiles": 24,
+      "objects": 25,
+      "bytes": 55090,
+      "nativeFidelity": [
+        {
+          "sourceId": "hirise-context",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ]
+    },
+    {
+      "id": "imagery-80c43563ae1bc9a4b89ce441",
+      "productIdentity": "80c43563ae1bc9a4b89ce4411afeaf33c326c4d3880c330e319037515a397a10",
+      "sourceIds": [
+        "hirise-ortho"
+      ],
+      "maximumLevel": 16,
+      "tiles": 32,
+      "objects": 33,
+      "bytes": 413856,
+      "nativeFidelity": [
+        {
+          "sourceId": "hirise-ortho",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ]
+    }
+  ],
+  "resources": {
+    "outputBytes": 14435500,
+    "publishedBytes": null,
+    "objects": 219,
+    "workDiskBytesAtCompletion": 16218636325,
+    "peakDiskBytes": null,
+    "sampledPeakScratchBytes": 16218504252,
+    "peakConcurrentWorkerRssBytes": 8842510336,
+    "elapsedSeconds": 138.520629792
+  },
+  "coverage": {
+    "hirise-context": {
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "features": [
+          {
+            "featureId": "valid-pilot",
+            "kernelSupportCells": 230400,
+            "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+            "nativeCells": 226576,
+            "window": [
+              785,
+              785,
+              480,
+              480
+            ]
+          }
+        ],
+        "method": "all touched native cells plus two-cell interpolation halo"
+      },
+      "registration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 0,
+        "checkedPixels": 180,
+        "continuousRequestedCoverage": [
+          {
+            "face": "py",
+            "finestTiles": [
+              "py/13/5007/2696"
+            ],
+            "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+            "uBounds": [
+              0.22259155842684852,
+              0.22259992225556025
+            ],
+            "vBounds": [
+              -0.34168961906424455,
+              -0.341681140307978
+            ]
+          }
+        ],
+        "maximumAlphaErrorDn": 5.684341886080802e-14,
+        "maximumErrorDn": 0.49638990735776645,
+        "maximumGutterErrorDn": null,
+        "maximumOutputSpacingM": 3.238859176635742,
+        "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+        "nativeValueStdDevDn": 9.437843504867773,
+        "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+        "requestedNativeCellsWithFinestCoverage": 8836,
+        "rmsErrorDn": 0.2657846102087784,
+        "sourcePixelSizeM": 0.25,
+        "tiles": [
+          {
+            "checkedPixels": 180,
+            "tile": "py/13/5007/2696"
+          }
+        ]
+      }
+    },
+    "hirise-ortho": {
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "features": [
+          {
+            "featureId": "valid-pilot",
+            "kernelSupportCells": 230400,
+            "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+            "nativeCells": 226576,
+            "window": [
+              785,
+              785,
+              480,
+              480
+            ]
+          }
+        ],
+        "method": "all touched native cells plus two-cell interpolation halo"
+      },
+      "registration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 640,
+        "checkedPixels": 9224,
+        "continuousRequestedCoverage": [
+          {
+            "face": "py",
+            "finestTiles": [
+              "py/16/40061/21571",
+              "py/16/40062/21571"
+            ],
+            "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+            "uBounds": [
+              0.22259155842684852,
+              0.22259992225556025
+            ],
+            "vBounds": [
+              -0.34168961906424455,
+              -0.341681140307978
+            ]
+          }
+        ],
+        "maximumAlphaErrorDn": 1.1368683772161603e-13,
+        "maximumErrorDn": 0.49996122585152136,
+        "maximumGutterErrorDn": 0.49900616090836536,
+        "maximumOutputSpacingM": 0.4048573970794678,
+        "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+        "nativeValueStdDevDn": 12.191124802665758,
+        "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+        "requestedNativeCellsWithFinestCoverage": 8836,
+        "rmsErrorDn": 0.28808855071593614,
+        "sourcePixelSizeM": 0.25,
+        "tiles": [
+          {
+            "checkedPixels": 4351,
+            "tile": "py/16/40061/21571"
+          },
+          {
+            "checkedPixels": 4873,
+            "tile": "py/16/40062/21571"
+          }
+        ]
+      }
+    }
+  },
+  "terrainValidation": {
+    "boundaryRays": 96,
+    "maximumRenderedCpuSeparationM": 291.042,
+    "minimumRenderedClearanceM": 30.24,
+    "nominalClearanceM": 50
+  },
+  "browser": {
+    "physicalGpu": true,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "hostedHttpWithoutInterception": true,
+    "nearImageryLevel": 16,
+    "errors": []
+  },
+  "productionUpload": false,
+  "productionReady": false,
+  "publication": {
+    "localOnly": true,
+    "publicationIdentity": "7e2ae1325fc1e063632ff73a23c432ab670c8f5149244872185c7171eb074e1e",
+    "receiptIdentity": "690ce09550c903ab0029fea417c253a3ca2cd1099e7cc8c49f862bfe3455fc9d",
+    "dataObjects": 219,
+    "dataBytes": 14435500,
+    "storageObjects": 225,
+    "storageBytes": 14449633,
+    "allProductsReused": true,
+    "verifiedProductPrefixes": [
+      "cube-terrain/terrain-4c7ab731bced544e79ed061b/4c7ab731bced544e79ed061b60d0241f/",
+      "cube-imagery/imagery-3a4fecdc403228019a86efe5/3a4fecdc403228019a86efe5238cfdf7/",
+      "cube-imagery/imagery-80c43563ae1bc9a4b89ce441/80c43563ae1bc9a4b89ce4411afeaf33/"
+    ]
+  },
+  "skyfall": {
+    "version": 1,
+    "kind": "surface-acceptance-receipt",
+    "buildId": "9035fa44ccb06b028402c099496fb5202b8d4e5b5c703db11db36282aeb006bc",
+    "publicationIdentity": "d017d819cb80a2f951ef27f97b8970ca807222ba3b6f208a5cc61c02946816a8",
+    "hostedHttp": true,
+    "immutableRepublish": true,
+    "catalogRewriteAndRollback": true,
+    "browser": "browser/browser.json",
+    "plannerFeedback": "published-planner-feedback.json",
+    "productionUpload": false
+  }
+}

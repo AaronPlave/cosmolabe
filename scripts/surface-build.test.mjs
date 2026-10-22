@@ -1,14 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm, readdir, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, stat, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createLockedSurfacePlan } from '../packages/core/dist/surface-plan/index.js';
-import { compileBuild, inspectBindings, hashFile, buildInputs } from './surface-build/plan.mjs';
+import { compileBuild, inspectBindings, hashFile, buildInputs, identity as contentIdentity } from './surface-build/plan.mjs';
 import { buildInventory } from './data-hosting/lib/publish.mjs';
 import { runBuildCli } from './build-surface.mjs';
 import { createFixture } from './surface-build/fixture.mjs';
 import { executeBuild, publishLocalFixture, readCompleted } from './surface-build/run.mjs';
+import { publicationPlan, publishBuild, catalogCandidate, applyCatalogCandidate } from './surface-build/publication.mjs';
+import { publishedFeedback } from './surface-build/report.mjs';
 import { createLocalStorage } from './data-hosting/lib/storage.mjs';
 import { serveStore } from './data-hosting/__tests__/helpers.mjs';
 
@@ -23,6 +25,9 @@ const outputDatum = { referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 33
   verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
 const datumAsset = byte => ({ retrieval: 'Synthetic datum fixture', bytes: 10, checksum: { algorithm: 'sha256', value: byte.repeat(64) } });
 const convert = value => {
+  // The controlled areoid equals the sphere at the equator; keep the exact
+  // geodetic conversion control there, independently of the interior UI site.
+  value.processing.parameters.gates.controls[0] = {lat:0,lon:0,heightM:1000,toleranceM:1};
   for (const source of value.sources.filter(s => s.channel === 'elevation')) source.datum.verticalDatum = 'areoid';
   for (const selection of value.selections.filter(s => s.channel === 'elevation')) selection.transformations = [{
     kind: 'areoid-radial', areoid: { label: datumAsset('a'), image: datumAsset('b') }, outputDatum }];
@@ -67,12 +72,19 @@ describe('finite locked surface build planning', () => {
     await expect(compileBuild(global)).rejects.toThrow(/bounded overview/);
     const regional = await relock(v => { v.processing.parameters.imagery[1].regions = ['landing@0,0:1=2000,2=1500,3=1000,4=500,5=250']; });
     await expect(compileBuild(regional)).rejects.toThrow(/fixture levels/);
+    const patch = await relock(v => { v.processing.parameters.terrain.patches = ['unproved']; });
+    await expect(compileBuild(patch)).rejects.toThrow(/unsupported field patches/);
     const coarse = await relock(v => { v.processing.parameters.imagery[1].regions = []; });
     await expect(compileBuild(coarse)).rejects.toThrow(/spacing/);
     const changed = await relock(v => { v.sources[0].asset.checksum.value = 'b'.repeat(64); });
-    expect((await compileBuild(changed)).buildId).not.toBe(old.buildId);
+    const changedDag=await compileBuild(changed);
+    expect(changedDag.buildId).not.toBe(old.buildId);
+    expect(changedDag.products.slice(1).map(p=>p.id)).toEqual(old.products.slice(1).map(p=>p.id));
+    expect(changedDag.products[0].id).not.toBe(old.products[0].id);
     const taper = await relock(v => { v.processing.parameters.terrain.blendM *= 2; });
-    expect((await compileBuild(taper)).buildId).not.toBe(old.buildId);
+    const taperedDag=await compileBuild(taper);
+    expect(taperedDag.buildId).not.toBe(old.buildId);
+    expect(taperedDag.products.slice(1).map(p=>p.id)).toEqual(old.products.slice(1).map(p=>p.id));
   });
   it('pins both detached datum assets in the shared lock and DAG, with separate binding verification', async () => {
     const lock = await relock(convert);
@@ -253,6 +265,11 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
     expect(report.products[2].maxLevel).toBeGreaterThan(report.products[0].maxLevel);
     expect(report.products[2].outputSpacingMByLevel.at(-1)).toBeLessThan(report.products[0].outputSpacingMByLevel.at(-1));
     expect(report.products[2].nativeFidelity[0].nativeGsdM).toBeGreaterThan(report.products[2].outputSpacingMByLevel.at(-1));
+    expect(report.version).toBe(2);
+    expect(report.resources.actual.publishedBytes).toBeNull();
+    expect(report.plannerFeedback.products.every(p=>p.publication.status==='not-published')).toBe(true);
+    expect(report.plannerFeedback.requested.find(r=>r.regionId==='landing').channels.find(c=>c.channel==='elevation').targetMetByNativeSource).toBe(false);
+    expect(report.plannerFeedback.requested.find(r=>r.regionId==='landing').channels.find(c=>c.channel==='elevation').diagnostic).toContain('native-target-unavailable');
     expect(report.caveats.join(' ')).toContain('No observed HiRISE DTM');
     expect((await executeBuild(lock, options)).reused).toBe(true);
     const rebuilt = await executeBuild(lock, { ...options, cache: join(temp, 'second-cache') });
@@ -264,17 +281,74 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
     try {
       const published = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url });
       expect(published.catalogPinned).toBe(false);
+      expect(published.storageObjects).toBe(published.objects+2*published.products.length);
+      expect(published.storageBytes).toBeGreaterThan(published.bytes);
       expect(published.products.every(p => p.verified)).toBe(true);
       for (const item of published.products) {
         const product = report.products.find(p=>p.id===item.productId);
         const standalone = await (await fetch(host.url+'/'+item.prefix+(product.kind==='cube-terrain'?'terrain-product.json':'imagery.json'))).json();
-        expect(standalone.provenance.lockIdentity).toBe(lock.identity);
+        expect(standalone.provenance.productIdentity).toBe(product.productIdentity);
         expect(standalone.provenance.sources.map(s=>s.id)).toEqual(lock.sources.filter(s=>product.sourceIds.includes(s.id)).map(s=>s.id));
         expect(standalone.provenance.sources.every(s=>s.productId&&s.asset.checksum.value&&s.license.name)).toBe(true);
       }
-      expect((await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url })).products).toEqual(published.products);
+      const republished = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url });
+      expect(republished.products.every(p => p.reused)).toBe(true);
+      expect(republished.products.map(p=>p.prefix)).toEqual(published.products.map(p=>p.prefix));
       await expect(publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url,
         fetchImpl: async () => new Response('missing', { status: 404 }) })).rejects.toThrow(/verification failed/);
+      const preflight = await publicationPlan(lock, { cache });
+      await expect(publishBuild(lock, { cache, baseUrl: host.url, confirm: 'wrong' })).rejects.toThrow(/no credentials read/);
+      expect(preflight.products.every(p=>p.inventorySha256&&p.entries.length)).toBe(true);
+      expect(publishedFeedback(report,published).products.every(p=>p.publication.status==='verified-local-http')).toBe(true);
+      const catalog = { name:'Synthetic Skyfall only', terrain: '/test-catalogs/data/'+report.products[0].id+'/tileset.json',
+        grids: '/test-catalogs/data/'+report.products[0].id+'/cpu-grids.json',
+        imagery: report.products.slice(1).map(p=>'/test-catalogs/data/'+p.id+'/imagery.json'), untouched:'https://example.invalid/trajectory' };
+      const catalogPrefixes = Object.fromEntries(report.products.map(p=>[p.id,'data/'+p.id+'/']));
+      const candidate = await catalogCandidate(lock,{cache,receipt:published,catalog,catalogRel:'test-catalogs/skyfall.json',catalogPrefixes});
+      expect(candidate.after.terrain).toContain(published.products[0].prefix);
+      expect(candidate.after.untouched).toBe(catalog.untouched);
+      const file = join(input,'candidate-catalog.json');await writeFile(file,JSON.stringify(catalog));
+      await applyCatalogCandidate(candidate,file);
+      expect(JSON.parse(await readFile(file))).toEqual(candidate.after);
+      await applyCatalogCandidate(candidate,file,{rollback:true});
+      expect(JSON.parse(await readFile(file))).toEqual(catalog);
+      await writeFile(file,JSON.stringify({...catalog,name:'concurrent edit'}));
+      await expect(applyCatalogCandidate(candidate,file)).rejects.toThrow(/changed since candidate/);
+      const tampered=structuredClone(published);tampered.products.pop();
+      await expect(catalogCandidate(lock,{cache,receipt:tampered,catalog,catalogRel:'skyfall.json',catalogPrefixes})).rejects.toThrow(/receipt changed/);
+      const {identity: oldReceiptPin,...partialBody}=tampered;
+      const partial={...partialBody,identity:contentIdentity(partialBody)};
+      await expect(catalogCandidate(lock,{cache,receipt:partial,catalog,catalogRel:'skyfall.json',catalogPrefixes})).rejects.toThrow(/does not match completed/);
+      // Actual region-only rebuild: identical global context and physical product
+      // are copied from verified completion, without invoking either builder.
+      const {identity: ignored,desiredIdentity: ignoredDesired,...regionalPayload}=structuredClone(lock);
+      regionalPayload.processing.parameters.imagery[1].regions=['landing@0,0:1=2000,2=1500,3=1000,4=400'];
+      const regionalLock=await createLockedSurfacePlan(regionalPayload);
+      const regionalDag=await compileBuild(regionalLock);
+      expect(regionalDag.products.slice(0,2).map(p=>p.id)).toEqual(report.products.slice(0,2).map(p=>p.id));
+      expect(regionalDag.products[2].id).not.toBe(report.products[2].id);
+      const interrupted=join(cache,regionalDag.buildId+'.building');await mkdir(interrupted);
+      await expect(executeBuild(regionalLock,options)).rejects.toThrow(/EEXIST/);
+      await expect(publicationPlan(regionalLock,{cache})).rejects.toThrow(/incomplete/);
+      await rm(interrupted,{recursive:true});
+      const regional=await executeBuild(regionalLock,options);
+      expect(regional.products.slice(0,2).every(p=>p.reusedFromBuild===report.buildId)).toBe(true);
+      expect(regional.products[2].reusedFromBuild).toBeNull();
+      expect(regional.plannerFeedback.sourceTransfers.every(s=>s.downloadedBytesThisExecution===0)).toBe(true);
+      const regionalPublished=await publishLocalFixture(regionalLock,{cache,localDir:storeDir,baseUrl:host.url});
+      expect(regionalPublished.products.slice(0,2).map(p=>p.prefix)).toEqual(published.products.slice(0,2).map(p=>p.prefix));
+      expect(regionalPublished.products.slice(0,2).every(p=>p.reused)).toBe(true);
+      // Damage a non-sampled object after a successful publish. Full HTTP
+      // verification and pin preparation must still reject it.
+      const selected=preflight.products[2];const badObject=selected.entries.find(e=>e.path.endsWith('.png'));
+      const objectFile=join(storeDir,selected.prefix,badObject.path),originalObject=await readFile(objectFile);
+      const badBytes=Buffer.from(originalObject);badBytes[badBytes.length-1]^=1;await writeFile(objectFile,badBytes);
+      await expect(catalogCandidate(lock,{cache,receipt:published,catalog,catalogRel:'skyfall.json',catalogPrefixes})).rejects.toThrow(/checksum mismatch/);
+      await expect(publishLocalFixture(lock,{cache,localDir:storeDir,baseUrl:host.url})).rejects.toThrow(/partial publication checksum mismatch/);
+      await writeFile(objectFile,originalObject);
+      await rm(objectFile);
+      await expect(catalogCandidate(lock,{cache,receipt:published,catalog,catalogRel:'skyfall.json',catalogPrefixes})).rejects.toThrow(/missing|HTTP/);
+      await writeFile(objectFile,originalObject);
       const missingControl = structuredClone(lock);
       delete missingControl.identity; delete missingControl.desiredIdentity;
       missingControl.processing.parameters.gates.controls[0].heightM += 100;
@@ -299,7 +373,7 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
     const { identity, desiredIdentity, ...badPayload } = bad.lock;
     badPayload.sources.find(s => s.id === 'detail').asset.checksum.value = await hashFile(detailPath);
     const badRegistration = await createLockedSurfacePlan(badPayload);
-    await expect(executeBuild(badRegistration, { ...options, bindings: bad.bindings, bindingsDir: badInput })).rejects.toThrow(/registration offset/);
+    await expect(executeBuild(badRegistration, { ...options, cache: join(temp,'bad-registration-cache'), bindings: bad.bindings, bindingsDir: badInput })).rejects.toThrow(/registration offset/);
     expect(await readCompleted(join(cache, (await compileBuild(badRegistration)).buildId), await compileBuild(badRegistration))).toBeNull();
   }, 300000);
 });

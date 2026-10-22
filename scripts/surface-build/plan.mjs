@@ -172,14 +172,32 @@ export async function compileBuild(lock) {
   // Bind the implementation as well as the lock: changing a shared primitive
   // invalidates caches even if a developer forgets to bump a version string.
   const files = ['scripts/surface-build/plan.mjs', 'scripts/surface-build/run.mjs', 'scripts/surface-build/worker.py', 'scripts/surface-build/resources.py', 'scripts/surface-build/source_kernels.py',
-    'scripts/surface-build/validate_imagery.py', 'scripts/terrain/dem.py', 'scripts/terrain/cube_imagery.py', 'scripts/terrain/cube_xyz.py', 'scripts/validate-cube-terrain.mjs',
+    'scripts/surface-build/validate_imagery.py', 'scripts/surface-build/report.mjs', 'scripts/terrain/dem.py', 'scripts/terrain/cube_imagery.py', 'scripts/terrain/cube_xyz.py', 'scripts/validate-cube-terrain.mjs',
     'packages/three/src/surface/CubeSphere.ts', 'packages/three/src/surface/CubeSphereGrids.ts',
     'packages/three/src/surface/CubeImagery.ts', 'package-lock.json'];
   const implementation = Object.fromEntries(await Promise.all(files.map(async path => [path, await hashFile(resolve(ROOT, path))])));
   const buildId = identity({ lock: lock.identity, implementation });
-  const products = [{ id: `terrain-${buildId.slice(0, 24)}`, kind: 'cube-terrain', sourceIds: [base.id, detail.id], tiling: p.terrain },
-    ...p.imagery.map((im, order) => ({ id: `imagery-${identity({ buildId, sourceId: im.sourceId }).slice(0, 24)}`,
-      kind: 'cube-imagery', sourceIds: [im.sourceId], tiling: im, order, visible: im.visible, opacity: im.opacity }))];
+  // Product identity follows only its transitive source/transform/ROI inputs.
+  // Whole-plan identity still governs completion and validation receipts.
+  const common = { implementation, coordinates: c, output: lock.output, caveats: p.caveats,
+    toolchain: p.toolchain ?? null };
+  const terrainIdentity = identity({ ...common, terrain: p.terrain, transform,
+    sources: [base, detail], inputs: inputs.filter(s => ['datum', 'fusion', 'overview'].includes(s.channel)) });
+  const products = [{ id: `terrain-${terrainIdentity.slice(0, 24)}`, productIdentity: terrainIdentity,
+    kind: 'cube-terrain', sourceIds: [base.id, detail.id], tiling: p.terrain },
+    ...p.imagery.map((im, order) => {
+      const { visible, opacity, ...tiling } = im;
+      const selections = lock.selections.filter(s => s.channel === 'imagery' && s.sourceIds.includes(im.sourceId));
+      const regions = selections.map(s => {
+        const r = lock.desired.regions.find(r => r.id === s.regionId);
+        const layer = lock.desired.layers.find(l => l.id === r.feature.layerId);
+        return { selection: s, region: r, feature: layer.geojson.features.find(f =>
+          `${typeof f.id}:${f.id}` === r.feature.featureId) };
+      });
+      const productIdentity = identity({ ...common, tiling, regions, source: byId.get(im.sourceId) });
+      return { id: `imagery-${productIdentity.slice(0, 24)}`, productIdentity,
+        kind: 'cube-imagery', sourceIds: [im.sourceId], tiling: im, order, visible, opacity };
+    })];
   for (const product of products) product.tileBudget = boundedTileCount(product.tiling, c.referenceShape.radiusKm);
   // Output density is not native accuracy. Never silently lower a locked target.
   for (const s of lock.selections) {

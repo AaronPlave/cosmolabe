@@ -1,12 +1,12 @@
+import { constants } from 'node:fs';
+import { plannerFeedback } from './report.mjs';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, writeFile, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, rm, stat, readdir, cp } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { ROOT, assert, compileBuild, inspectBindings, jsonFile, identity } from './plan.mjs';
-import { buildInventory, publishDirectory } from '../data-hosting/lib/publish.mjs';
-import { cubeTerrainManifest, cubeImageryManifest, validateCubeTerrain, validateCubeImagery } from '../data-hosting/lib/cube.mjs';
-import { createLocalStorage } from '../data-hosting/lib/storage.mjs';
-import { verifyBuild } from '../data-hosting/lib/verify.mjs';
+import { buildInventory } from '../data-hosting/lib/publish.mjs';
+import { validateCubeTerrain, validateCubeImagery } from '../data-hosting/lib/cube.mjs';
 import { CubeSphereGridSource } from '../../packages/three/dist/surface/CubeSphereGrids.js';
 import { validateCubeImageryManifest } from '../../packages/three/dist/surface/CubeImagery.js';
 
@@ -39,10 +39,30 @@ export async function readCompleted(path, dag) {
   return receipt;
 }
 
+/** Product reuse is limited to byte-verified completed builds in this cache. */
+async function matchingProducts(cache, dag) {
+  const matched = {};
+  let names;
+  try { names = await readdir(cache); } catch (e) { if (e.code === 'ENOENT') return matched; throw e; }
+  for (const name of names.filter(n => /^[a-f0-9]{64}$/.test(n)).sort()) {
+    const directory = join(resolve(cache), name);
+    const prior = await jsonFile(join(directory, 'complete.json'));
+    const wanted = dag.products.filter(p => !matched[p.id] && prior.report.products.some(x => x.productIdentity === p.productIdentity));
+    if (!wanted.length) continue;
+    // Validate full completion, including original audit, before trusting reuse.
+    await readCompleted(directory, { buildId: name, lockIdentity: prior.lockIdentity });
+    for (const p of wanted) matched[p.id] = { directory: join(directory, p.id), buildId: name,
+      audit: prior.report.resources.actual.sourceAudit };
+    if (Object.keys(matched).length === dag.products.length) break;
+  }
+  return matched;
+}
+
 /** No remote writes. A failed build never receives a completion receipt. */
 export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, cache, python = 'python3', workers = 1, log = () => {} }) {
   assert(cache, '--cache is required for execution');
   assert(Number.isInteger(workers) && workers >= 1 && workers <= 8, '--workers must be 1..8');
+  const executionStarted = performance.now();
   const dag = await compileBuild(lock);
   const sources = await inspectBindings(lock, bindings, bindingsDir);
   assert(sources.every(s => s.state === 'verified'), 'missing or changed source files; run dry-run and supply verified bindings');
@@ -54,21 +74,28 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
   await mkdir(resolve(cache), { recursive: true });
   const reservation = target + '.building';
   await mkdir(reservation);
-  const started = performance.now();
+  const started = executionStarted;
+  const reusedProducts = await matchingProducts(cache, dag);
   const jobPath = join(reservation, 'job.json'), work = join(reservation, 'output');
-  await writeFile(jobPath, json({ lock, dag, paths: Object.fromEntries(sources.map(s => [s.sourceId, s.path])) }));
+  await writeFile(jobPath, json({ lock, dag, reusedProducts, paths: Object.fromEntries(sources.map(s => [s.sourceId, s.path])) }));
   try {
     await command(python, [join(ROOT, 'scripts/surface-build/worker.py'), '--job', jobPath, '--out', work, '--workers', String(workers)], log);
+    for (const [id, previous] of Object.entries(reusedProducts))
+      await cp(previous.directory, join(work, id), { recursive: true, mode: constants.COPYFILE_FICLONE });
     const products = [];
+    const terrainValidation = [];
     for (const product of dag.products) {
       const dir = join(work, product.id);
-      await validateProduct(product, dir);
+      const productInventory = await validateProduct(product, dir);
+      const measured = { objects: productInventory.length, bytes: productInventory.reduce((n, e) => n + e.size, 0),
+        reusedFromBuild: reusedProducts[product.id]?.buildId ?? null };
       if (product.kind === 'cube-terrain') {
         const diagnostics = join(work, 'diagnostics', product.id);
         await command(process.execPath, [join(ROOT, 'scripts/validate-cube-terrain.mjs'), '--dir', dir, '--out', diagnostics,
           '--clearance-m', String(lock.processing.parameters.gates.clearanceM),
           '--site', `${lock.processing.parameters.gates.controls[0].lat},${lock.processing.parameters.gates.controls[0].lon}`], log);
         const validation = await jsonFile(join(diagnostics, 'validation.json'));
+        terrainValidation.push({ productId: product.id, ...validation });
         assert(validation.failures.length === 0, 'terrain numerical validation failed');
         const grids = await jsonFile(join(dir, 'cpu-grids.json'));
         const source = new CubeSphereGridSource(grids, async uri => {
@@ -85,7 +112,7 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
           controls.push({ ...cp, errorM });
         }
         await writeFile(join(diagnostics, 'controls.json'), json(controls));
-        products.push({ ...product, revision: grids.source.version, availability: grids.tiles.map(t => t.slice(0, 4)),
+        products.push({ ...product, ...measured, revision: grids.source.version, availability: grids.tiles.map(t => t.slice(0, 4)),
           maxLevel: grids.maxLevel, controls, datum: grids.datum });
       } else {
         const m = validateCubeImageryManifest(await jsonFile(join(dir, 'imagery.json')));
@@ -99,7 +126,7 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
           }
         }
         assert(validPixels > 0, 'imagery product contains no valid pixels');
-        products.push({ ...product, revision: m.source.version, availability: m.tiles, maxLevel: m.maxLevel,
+        products.push({ ...product, ...measured, revision: m.source.version, availability: m.tiles, maxLevel: m.maxLevel,
           validPixels, transparentPixels, sourceFallbacks: m.sourceFallbacks,
           registration: m.registration, illumination: lock.sources.find(s => s.id === product.sourceIds[0]).metadata?.illumination ?? null });
       }
@@ -115,20 +142,22 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
         return { sourceId: id, nativeGsdM: s.nativeGsdM, accuracyM: s.accuracyM };
       });
     }
-    const report = { version: 1, kind: 'surface-build-report', buildId: dag.buildId, lockIdentity: lock.identity,
+    const report = { version: 2, kind: 'surface-build-report', buildId: dag.buildId, lockIdentity: lock.identity,
       validation: 'passed-supported-gates', productionReady: false,
       limitation: lock.processing.parameters.profile === 'bounded-real-mars'
-        ? 'Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy, mission migration and reviewed production publication remain outside this receipt.'
+        ? 'Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.'
         : 'Bounded synthetic/controlled fixture execution only; no production promotion.',
       sources: lock.sources.map(s => ({ id: s.id, productId: s.productId, asset: s.asset, license: s.license,
         nativeGsdM: s.nativeGsdM, accuracyM: s.accuracyM, footprint: s.footprint, metadata: s.metadata ?? null })),
       requested: lock.desired.regions, selections: lock.selections,
       products, caveats: [...dag.caveats, 'Tile availability is emitted separately from upstream footprints; valid pixel counts do not prove a continuous native-resolution footprint.',
         'Concurrent worker RSS and scratch usage are sampled; summed RSS can count shared pages repeatedly and is not physical peak RAM.'],
-      resources: { planned: dag.resources, actual: { publishedBytes: output.reduce((n, e) => n + e.size, 0), objects: output.length,
+      resources: { planned: dag.resources, actual: { outputBytes: output.reduce((n, e) => n + e.size, 0), publishedBytes: null, objects: output.length,
         workDiskBytesAtCompletion: inventory.reduce((n, e) => n + e.size, 0), peakDiskBytes: null, sampledPeakScratchBytes: audit.sampledResources?.peakScratchBytes ?? null,
         peakConcurrentWorkerRssBytes: audit.sampledResources?.peakConcurrentRssBytes ?? null,
         elapsedSeconds: (performance.now() - started) / 1000, sourceAudit: audit } }, reused: false };
+    report.plannerFeedback = plannerFeedback(lock, products, audit, report.resources, sources, terrainValidation);
+    await writeFile(join(work, 'planner-feedback.json'), json(report.plannerFeedback));
     await writeFile(join(work, 'lock.json'), json(lock));
     await writeFile(join(work, 'dag.json'), json(dag));
     await writeFile(join(work, 'report.json'), json(report));
@@ -144,26 +173,9 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
   }
 }
 
-/** Exercise #137 locally. No R2 credentials, catalog mutation or production pin. */
-export async function publishLocalFixture(lock, { cache, localDir, baseUrl, fetchImpl = fetch, log = () => {} }) {
-  assert(cache && localDir && baseUrl, 'publication requires --cache, --local-dir and --verify-url');
-  const dag = await compileBuild(lock), dir = join(resolve(cache), dag.buildId);
-  const receipt = await readCompleted(dir, dag);
-  assert(receipt, 'incomplete build cannot publish');
-  const storage = createLocalStorage(resolve(localDir));
-  const results = [];
-  for (const product of receipt.report.products) {
-    const srcDir = join(dir, product.id), dataset = { kind: product.kind, name: product.id }, build = dag.buildId.slice(0, 32);
-    const prefix = `${product.kind}/${product.id}/${build}/`;
-    const terrain = product.kind === 'cube-terrain';
-    await publishDirectory({ storage, srcDir, prefix, log, validate: terrain ? validateCubeTerrain : validateCubeImagery,
-      deferred: terrain ? ['tileset.json', 'cpu-grids.json'] : ['imagery.json'],
-      buildManifest: (entries, inventorySha256) => (terrain ? cubeTerrainManifest : cubeImageryManifest)({
-        dataset, build, entries, inventorySha256, srcDir, gitCommit: null,
-      }) });
-    const verification = await verifyBuild({ baseUrl, prefix, fetchImpl, log, origins: ['http://localhost:5173'] });
-    assert(verification.ok, `publication verification failed: ${verification.problems.join('; ')}`);
-    results.push({ productId: product.id, prefix, verified: true });
-  }
-  return { buildId: dag.buildId, localOnly: true, localFixtureOnly: lock.processing.parameters.profile !== 'bounded-real-mars', catalogPinned: false, products: results };
+/** Backwards-compatible local entry point over the complete publication path. */
+export async function publishLocalFixture(lock, options) {
+  const { publishBuild } = await import('./publication.mjs');
+  assert(options.localDir, 'local publication requires --local-dir');
+  return publishBuild(lock, options);
 }

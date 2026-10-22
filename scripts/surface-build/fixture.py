@@ -17,10 +17,15 @@ for name, width, height, grid in [('base', 360, 180, (-180, 1, 0, 90, 0, -1)),
     ds.SetProjection(srs.ExportToWkt())
     ds.GetRasterBand(1).Fill(1000)
     ds = None
-for name, colour, dimension in [('context', [25, 50, 75, 255], 32), ('detail-image', [180, 70, 20, 255], 256)]:
+for name, colour, dimension in [('context', [25, 50, 75, 255], 32), ('detail-image', [180, 70, 20, 255], 512)]:
     ds = gdal.GetDriverByName('MEM').Create('', dimension, dimension, 4, gdal.GDT_Byte)
     for i, value in enumerate(colour):
-        ds.GetRasterBand(i + 1).Fill(value)
+        if name == 'detail-image' and i < 3:
+            yy,xx=np.indices((dimension,dimension))
+            pattern=((xx//4+yy//4)%2)*40
+            ds.GetRasterBand(i + 1).WriteArray((value+pattern).astype(np.uint8))
+        else:
+            ds.GetRasterBand(i + 1).Fill(value)
     gdal.GetDriverByName('PNG').CreateCopy(str(out / f'{name}.png'), ds)
 
 # Controlled MEG016-layout datum fixture, not an observed MOLA product. Keep the

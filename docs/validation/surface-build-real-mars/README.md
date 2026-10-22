@@ -12,7 +12,7 @@ ROI, not a mission trajectory or a claim of DTM availability elsewhere.
 The physical GPU run used Chromium/ANGLE Metal on **Apple M4 Max**. It exercised
 regional, near, zoom-out and restored views, CPU picks, layer opacity/visibility
 and restoration. Imagery reached L16 while geometry remained at L11. Hiding the optional layer revealed L13 context; restoring it returned to L16. Layer
-controls preserved physical terrain mesh identities. There were no page or
+controls preserved physical terrain mesh identities. All products loaded through the #137 metadata-aware HTTP endpoint without request interception. There were no page or
 product HTTP errors. This is desktop hardware evidence, not a phone/device test.
 The bounded local viewer configuration limits Tailwind discovery to viewer source
 and excludes generated datasets from its watcher; renderer/app source is unchanged.
@@ -24,7 +24,7 @@ and excludes generated datasets from its watcher; renderer/app source is unchang
 The near view is about 50 m above the source control. At that distance source
 texels occupy several screen pixels; interpolation does not create finer physical
 detail. Exact source coordinates, hashes, native-valid subsets, output availability
-and measurements are in [the recorded evidence](../../benchmarks/surface-build-real-mars.json)
+and measurements are in [the recorded evidence](../../benchmarks/surface-build-acceptance.json)
 and [the real lock](../../examples/surface-plans/jezero-build.lock.json).
 
 The acceptance checks prove source-grid alignment, native-cell/kernel validity,
@@ -36,3 +36,12 @@ are invented. Known coarse-boundary rendered/CPU separation remains recorded.
 No R2 publication, deployment pin or mission placement change is included.
 
 See [reproduction commands](../../surface-data-builds.md#handoff-resume-the-real-mars-pilot).
+
+Current completed build: `e9dd1d51ec2db28daa709b3a4871ad7a9781ca6b1274e5a2f88dba2c6ba29e04`.
+It emitted 219 data objects / 14,435,500 bytes. All three immutable products passed
+full-inventory HTTP checks and re-publication reuse. Catalog rewrite/rollback
+passed on a local copy. The report v2 and standalone planner feedback v1 preserve
+requested/confirmed native/emitted coverage, sampled RSS/scratch and the measured
+291.042 m maximum CPU/rendered boundary separation. Source accuracy and mosaic
+illumination remain unknown. The exact production publication command and owner
+authorization boundary are in the [acceptance matrix](../../surface-build-acceptance.md).

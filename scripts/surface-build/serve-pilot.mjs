@@ -5,18 +5,24 @@ import { readFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { geodeticToBodyFixed } from '../../packages/three/dist/TerrainSampler.js';
 const report=JSON.parse(await readFile(process.argv[2]??'work/surface-build/real-pilot-report.json'));
+const publication=process.env.SURFACE_PUBLICATION_RECEIPT?JSON.parse(await readFile(process.env.SURFACE_PUBLICATION_RECEIPT)):null;
+if(publication&&publication.buildId!==report.buildId)throw new Error('Publication/report mismatch');
+const productUrl=(id,file)=>publication?`${publication.baseUrl}/${publication.products.find(p=>p.productId===id&&p.verified).prefix}${file}`:`/__surface-pilot/${id}/${file}`;
 const terrain=report.products.find(p=>p.kind==='cube-terrain');
 const products=new Map(report.products.map(p=>[p.id,resolve(report.directory,p.id)]));
-const catalog=JSON.parse(await readFile('apps/viewer/test-catalogs/experiments/mars-terrain-cube-jezero.json'));
-catalog.name='Real Mars surface build pilot';
+const catalog=JSON.parse(await readFile(process.env.SURFACE_CATALOG_FILE??'apps/viewer/test-catalogs/experiments/mars-terrain-cube-jezero.json'));
+catalog.name=report.sources.some(s=>s.productId.startsWith('synthetic-'))?'Synthetic Skyfall surface build fixture':'Real Mars surface build pilot';
 catalog.description=report.limitation;
 const globe=catalog.items.find(i=>i.name==='Mars').geometry;
-globe.terrain.url=`/__surface-pilot/${terrain.id}/tileset-measured.json`;
-globe.terrain.cubeSphere.cpuGrids=`/__surface-pilot/${terrain.id}/cpu-grids.json`;
+if(terrain.datum.referenceShape.kind==='sphere')globe.radii=Array(3).fill(terrain.datum.referenceShape.radiusKm);
+globe.terrain.datum={verticalDatum:terrain.datum.verticalDatum,heightConvention:terrain.datum.heightConvention};
+globe.terrain.url=productUrl(terrain.id,'tileset-measured.json');
+globe.terrain.cubeSphere.cpuGrids=productUrl(terrain.id,'cpu-grids.json');
 globe.terrain.cubeSphere.imagery={maxScreenTexelError:1};
 globe.imagery=report.products.filter(p=>p.kind==='cube-imagery').map((p,i)=>({
-  type:'cube',id:p.id,name:i?'HiRISE native detail (25 cm)':'HiRISE context',
-  url:`/__surface-pilot/${p.id}/imagery.json`,visible:p.visible,opacity:p.opacity,
+  type:'cube',id:p.id,name:p.sourceIds[0],
+  url:productUrl(p.id,'imagery.json'),visible:p.visible,opacity:p.opacity,
+  attribution:report.sources.find(s=>s.id===p.sourceIds[0]).license.attribution,
   resolutionMeters:p.nativeFidelity[0].nativeGsdM,
 }));
 const cp=terrain.controls[0];

@@ -278,6 +278,13 @@ def build(args):
             f[role]['path'] = f'{role}.tif'
         write(fusion / 'fusion.json', f)
     for product in dag['products']:
+        previous = job.get('reusedProducts', {}).get(product['id'])
+        if previous:
+            if product['kind'] == 'cube-terrain':
+                audit['baselineSampling'] = previous['audit'].get('baselineSampling')
+            else:
+                audit['imagery'][product['sourceIds'][0]] = previous['audit']['imagery'][product['sourceIds'][0]]
+            continue
         dest = out / product['id']
         tile = product['tiling']
         regions = [part for r in tile['regions'] for part in ['--region', r]]
@@ -352,12 +359,19 @@ def build(args):
             meta['generator']['command'] = 'locked surface build (see lockIdentity in build receipt)'
             if is_raster: meta['filtering'] = filtering
         meta['provenance'] = {
-            'version':1, 'productionReady':False, 'lockIdentity':lock['identity'],
-            'sources':[{key:s[key] for key in ('id','productId','asset','license','nativeGsdM','accuracyM','coordinates','projection','nodata')}
-                       | {'validData':s.get('metadata',{}).get('validData')} for s in lock['sources'] if s['id'] in product['sourceIds']],
+            'version':1, 'productionReady':False, 'productIdentity':product['productIdentity'],
+            'sources':[{key:s[key] for key in ('id','productId','asset','license','nativeGsdM','accuracyM','coordinates','projection','datum','nodata')}
+                       | {key:s.get('metadata',{}).get(key) for key in ('validData','registration','illumination','unknowns')} for s in lock['sources'] if s['id'] in product['sourceIds']],
+            'transform':transform if product['kind']=='cube-terrain' else 'identity',
             'caveats':p['caveats'],
         }
         if product['kind']=='cube-imagery':
+            proof=audit['imagery'][source['id']]
+            meta['coverage']={
+                'nativeValidSubset':proof.get('nativeValidSubset'),
+                'continuousRequestedCoverage':proof.get('sourceToOutputRegistration',{}).get('continuousRequestedCoverage'),
+                'availabilityMeaning':'Emitted tiles only; alpha/nodata apply inside tiles. Native continuous coverage is limited to the explicit proof, when present.',
+            }
             meta['source']['id']=source['productId']
             meta['source']['attribution']=source['license'].get('attribution',source['license']['name'])
         write(meta_path, meta)

@@ -52,7 +52,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > /tmp/surface-build-paths
-          if grep -Eq '^(packages/|scripts/(surface-build[./]|terrain/|data-hosting/|build-surface\.mjs|validate-cube-terrain\.mjs)|docs/examples/surface-plans/|\.github/workflows/ci\.yml|package(-lock)?\.json|vitest\.config\.)' /tmp/surface-build-paths; then
+          if grep -Eq '^(packages/|scripts/(surface-build[./]|terrain/|data-hosting/|build-surface\.mjs|test-surface-build-pilot\.mjs|validate-cube-terrain\.mjs)|docs/examples/surface-plans/|\.github/workflows/ci\.yml|package(-lock)?\.json|vitest\.config\.)' /tmp/surface-build-paths; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
             echo 'run=false' >> "$GITHUB_OUTPUT"
@@ -76,8 +76,24 @@ jobs:
       - name: Install surface build raster tooling
         run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
       - run: npm run build
+      - name: Install fixture browser
+        run: npx playwright install --with-deps chromium
       - name: Surface build rebuild and publication regressions
         run: npx vitest run --project scripts scripts/surface-build.test.mjs
+      - name: Hosted Skyfall fixture, planner report, catalog pin and rollback
+        run: node scripts/surface-build/acceptance.mjs work/surface-build/skyfall-ci /usr/bin/python3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: surface-build-acceptance
+          path: |
+            work/surface-build/skyfall-ci/acceptance.json
+            work/surface-build/skyfall-ci/report.json
+            work/surface-build/skyfall-ci/published-planner-feedback.json
+            work/surface-build/skyfall-ci/catalog-candidate.json
+            work/surface-build/skyfall-ci/browser.log
+            work/surface-build/skyfall-ci/viewer.log
+            work/surface-build/skyfall-ci/browser/
 
   build-and-test:
     name: Build & Test
