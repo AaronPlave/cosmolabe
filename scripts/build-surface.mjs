@@ -6,13 +6,13 @@ import { compileBuild, inspectBindings, jsonFile } from './surface-build/plan.mj
 
 const USAGE = `Usage: npm run build:surface -- LOCK.json [--bindings FILE] [--cache DIR]
   Default: validate lock and print build DAG/resources/cache status. No writes/network.
-  --execute       Build the supported spherical Mars fixture profile locally.
+  --execute       Build the bounded Mars fixture profile (identity or explicit areoid conversion) locally.
   --python FILE   Python with numpy and GDAL (default python3).
   --workers N     1..8, default 1.
   --publish-local Publish a completed fixture through #137's local storage backend.
   --local-dir DIR --verify-url URL   Required for --publish-local; never pins catalogs.
   --help          Show limitations and usage.
-Real areoid/ellipsoid mission builds remain blocked by the v1 identity-only lock.
+Real mission builds still require coverage/reprojection adapters and acceptance gates.
 No production upload or automatic source download is performed.
 `;
 export async function runBuildCli(args) {
@@ -50,7 +50,7 @@ export async function runBuildCli(args) {
   }
   return JSON.stringify({ ...dag, sources, productReuse, sourceDownloadBytes: sources.reduce((n, s) => n + s.downloadBytes, 0),
     sourcesVerified: sources.every(s => s.state === 'verified'),
-    limitations: ['Only spherical Mars fixtures are executable; real areoid/ellipsoid lock transforms are unsupported.',
+    limitations: ['Bounded controlled fixtures support identity and pinned MEG016 areoid-radial conversion; real source coverage adapters remain pending.',
       'XYZ response inventories are verified during execution, never fetched by this dry run.', 'Unknown peak RAM/disk estimates are null.'] }, null, 2) + '\n';
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

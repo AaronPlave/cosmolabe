@@ -83,8 +83,8 @@ a narrow capability check on `processing`, **not** a second planner state format
 - `parameters.caveats`: explicit strings that survive into the report, including
   the fixture's absence of observed HiRISE DTM coverage.
 
-Every source needs SHA-256 and exact asset bytes, identity-compatible coordinates
-and datum, declared coverage and native fidelity. Version strings alone are not
+Every source needs SHA-256 and exact asset bytes, coordinates and datum compatible
+with its selected operation, declared coverage and native fidelity. Version strings alone are not
 content pins. Supplied reuse restrictions or unknown permissions fail. Missing
 discovery/illumination evidence is retained as unknown, never invented; this
 fixture profile cannot be promoted to production.
@@ -93,7 +93,8 @@ The fixture profile limits regional levels to L4 and global overviews to L3,
 so even an accidentally global regional cap cannot enumerate an unbounded bake.
 It supports spherical, planetocentric, east-positive Mars,
 geographic north-up single-band DEM GeoTIFFs and the existing EPSG:4326 XYZ cube
-adapter. Real ellipsoidal/areoid inputs are rejected explicitly. No arbitrary
+adapter. Explicit MEG016 areoid conversion is also supported for controlled
+fixtures as described below; real masked/projected DEM adapters remain pending. No arbitrary
 GDAL commands, shell fragments, custom transform strings, browser processing,
 discovery crawler or persistent build service are accepted.
 
@@ -112,7 +113,12 @@ content identities; generated imagery and terrain metadata are normalized so a
 clean rebuild produces the same product bytes. Source/lock, taper, output choices
 or implementation changes produce a new build identity. Implementation hashes
 include the shared builders, addressing/CPU primitives and dependency lock.
-The rebuild regression uses the same GDAL/Python environment. Cross-version
+The rebuild regressions use the same GDAL/Python environment for both the
+identity and controlled MEG016-layout ellipsoid fixtures. The latter also
+rejects a correctly hashed label that points to an unpinned image. CPU versus
+rendered ray comparisons use the existing per-tile float32 rounding bound at
+shared edges; the separate skirt/boundary-ray intersection checks retain their
+previous tolerance. Cross-version
 Python/GDAL toolchain pinning is still required before production reproducibility
 can be claimed; the Node dependency lock alone does not pin those tools.
 
@@ -143,10 +149,10 @@ again and rejects a completed prefix with different bytes.
 
 Reports always say `productionReady: false`. Remaining #251 acceptance work:
 
-1. Extend the **shared** lock's identity-only transform contract to explicitly
-   represent the adopted areoid/planetocentric → ellipsoid-normal operation, with
-   all areoid inputs and checksums. The existing Mars cube builder already has
-   that operation; hiding it behind an executor-only flag would violate #248.
+1. Add explicit execution adapters for the real projected/masked source grids
+   and verified native-valid subsets. The shared lock now represents the
+   areoid-radial conversion and pins both datum files; it still rejects
+   unresolved/masked coverage and arbitrary source reprojection.
 2. Lock actual MOLA/HRSC and a controlled HiRISE DTM/ortho region from evidenced
    #249 metadata. The synthetic fixture establishes no real DTM availability.
 3. Add source-to-output imagery registration controls, verified native valid
@@ -159,37 +165,69 @@ Reports always say `productionReady: false`. Remaining #251 acceptance work:
 
 ## Handoff: resume the real Mars pilot
 
-Keep #251 open. The next implementation step is the shared lock transform,
-not raising this fixture profile's L4 limit or changing `productionReady` to true.
-Extend `LockedSurfacePlan` and `validateLockedSurfacePlan` in
-`packages/core/src/surface-plan/{model,validation}.ts`, with regressions for both
-identity locks and explicit areoid conversion. Then extend
-`scripts/surface-build/{plan.mjs,worker.py}` to dispatch the already implemented
-`dem.py cube-tile --source-convention areoid-radial --areoid ...` operation.
-Pin both the detached label and its image; changing either must change the lock
-and build identity. Preserve #50's existing residual and `--bias none` behavior.
+Keep #251 open. The shared lock and executor now support the explicit conversion
+below. Existing identity locks remain valid. ROI/source longitude and latitude
+stay planetocentric on the 3396.19 km map sphere; `outputDatum` declares the
+physical ellipsoid and normal-height CPU query contract independently. Imagery
+remains on its independent planetocentric cube directions.
 
-The canonical areoid source is MOLA MEG016. Download was attempted here but the
-environment proxy rejected CONNECT with HTTP 403. Its active allowlist did not
-include **`pds-geosciences.wustl.edu`**, including after a restart. Add that exact
-hostname to the environment configuration and apply it to the running worker;
-allowing `pds.nasa.gov` alone does not cover this separately hosted PDS node.
-Do not bypass the proxy or substitute a reference ellipsoid for the areoid.
+Each elevation selection uses one identical object in `transformations`:
 
-After access is available:
-
-```sh
-mkdir -p /tmp/mola-meg016
-curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.lbl -o /tmp/mola-meg016/MEGA90N000EB.LBL
-curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.img -o /tmp/mola-meg016/MEGA90N000EB.IMG
-sha256sum /tmp/mola-meg016/MEGA90N000EB.LBL /tmp/mola-meg016/MEGA90N000EB.IMG
-gdalinfo /tmp/mola-meg016/MEGA90N000EB.LBL
+```json
+{
+  "kind": "areoid-radial",
+  "areoid": {
+    "label": {
+      "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.lbl",
+      "bytes": 3760,
+      "checksum": {"algorithm": "sha256", "value": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"}
+    },
+    "image": {
+      "url": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.img",
+      "bytes": 33177600,
+      "checksum": {"algorithm": "sha256", "value": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"}
+    }
+  },
+  "outputDatum": {
+    "referenceShape": {"kind": "ellipsoid", "radiiKm": [3396.19, 3396.19, 3376.2]},
+    "verticalDatum": "ellipsoid",
+    "heightConvention": "geodetic-normal"
+  }
+}
 ```
 
-Verify the label describes `AREOID_RADIUS`, planetocentric latitude, the
-5760×2880 grid at 16 pixels/degree, and the 3,396,000 m offset before pinning it.
-Keep the uppercase filenames together because the label references its image.
-The existing builder validates these product-specific assumptions.
+Both selected elevation sources must declare `verticalDatum: "areoid"` and
+`heightConvention: "radial"`. These are source heights above the areoid, not
+already converted ellipsoid heights. Bind the two datum files with reserved
+IDs `datum:areoid-label` and `datum:areoid-image`. The dry run hashes each one;
+missing or changed bytes prevent execution and cache reuse. Both are explicit
+DAG dependencies and contribute to raw download bytes and build identity.
+
+The worker stages them together as `MEGA90N000EB.LBL` and `MEGA90N000EB.IMG`,
+checks the detached image reference and GDAL dependency list, and dispatches
+`dem.py cube-tile --source-convention areoid-radial --areoid ...` with the
+IAU Mars radii. The existing builder checks the 5760×2880 MEG016 grid,
+planetocentric coordinates, 16 pixels/degree and 3,396,000 m offset.
+The fitted residual is preserved with `--bias none`.
+
+On 2026-10-22 the official downloads succeeded in the local environment. The
+previous environment's proxy failure is no longer the blocker here:
+
+```sh
+mkdir -p work/surface-build/mola-meg016
+curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.lbl -o work/surface-build/mola-meg016/MEGA90N000EB.LBL
+curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.img -o work/surface-build/mola-meg016/MEGA90N000EB.IMG
+```
+
+The existing real sources and unchanged #50 fusion were found at
+`/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/{source,fused}`.
+The bounded real terrain build and independent numerical checks passed; see
+[recorded evidence and limits](benchmarks/surface-build-real-mars.json).
+This run uses the existing #245 builder, **not** the lock executor: the real
+HiRISE source is projected and masked, whereas executor locks still require
+geographic, fully valid inputs. Its irregular native-valid footprint must be
+proven before relaxing that contract. The real build does not establish image
+registration or production readiness.
 
 For the actual baseline/detail source URLs, use
 `scripts/build-mars-terrain/01-fetch-sources.sh` (global baseline approximately
@@ -226,3 +264,10 @@ explicitly skips when it is absent; with GDAL it builds twice in separate caches
 compares product revisions and every output byte hash, verifies immutable local
 publication/republication, and rejects changed caches, source responses,
 incomplete builds, failed HTTP verification and bad source registration.
+
+Follow-up validation on 2026-10-22: package build, test typecheck and changed
+core-file ESLint passed; 108 focused Vitest tests passed across the core planner,
+executor, plan/discovery CLIs and data hosting. Both GDAL end-to-end cases ran
+without skips. Six XYZ Python regressions passed. The real 78-tile build passed
+source-conversion and numerical terrain checks; its evidence is separate from
+the controlled lock-executor regressions. Full repository checks run in CI.

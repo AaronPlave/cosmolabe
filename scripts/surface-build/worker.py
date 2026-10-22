@@ -109,6 +109,23 @@ def build(args):
         shutil.copyfile(job['paths'][source['id']], frozen)
         assert sha(frozen) == source['asset']['checksum']['value'], 'source changed during staging'
         paths[source['id']] = str(frozen)
+    transform = next(s['transformations'][0] for s in lock['selections'] if s['channel'] == 'elevation')
+    areoid_args = []
+    if transform != 'identity':
+        datum_dir = inputs / 'areoid'
+        datum_dir.mkdir()
+        for role, filename in [('label', 'MEGA90N000EB.LBL'), ('image', 'MEGA90N000EB.IMG')]:
+            pin = transform['areoid'][role]
+            frozen = datum_dir / filename
+            shutil.copyfile(job['paths']['datum:areoid-' + role], frozen)
+            assert frozen.stat().st_size == pin['bytes'] and sha(frozen) == pin['checksum']['value'], 'datum changed during staging'
+        label = (datum_dir / 'MEGA90N000EB.LBL').read_text()
+        import re
+        assert re.search(r'\^IMAGE\s*=\s*"MEGA90N000EB.IMG"', label), 'unsupported detached areoid image reference'
+        ds = gdal.Open(str(datum_dir / 'MEGA90N000EB.LBL'))
+        assert {Path(p).resolve() for p in ds.GetFileList()} == {p.resolve() for p in datum_dir.iterdir()}, 'areoid label references unpinned files'
+        ds = None
+        areoid_args = ['--areoid', datum_dir / 'MEGA90N000EB.LBL']
     radius = lock['desired']['coordinates']['referenceShape']['radiusKm'] * 1000
     p = lock['processing']['parameters']
     terrain = p['terrain']
@@ -123,7 +140,7 @@ def build(args):
     fusion = out / 'fusion'
     command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'fuse', '--base', paths[terrain['base']],
             '--detail', paths[terrain['detail']], '--out', fusion, '--blend-m', terrain['blendM'],
-            '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres')
+            '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres' if transform == 'identity' else 'MOLA areoid topography metres; radial conversion is explicit at cube construction')
     f = json.loads((fusion / 'fusion.json').read_text())
     assert abs(f['registration']['offsetM']) <= p['gates']['maxOffsetM'], 'registration offset exceeds locked gate'
     boundary = f['boundary']['fusedStepM']
@@ -139,7 +156,8 @@ def build(args):
         regions = [part for r in tile['regions'] for part in ['--region', r]]
         if product['kind'] == 'cube-terrain':
             command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'cube-tile', '--base', paths[terrain['base']],
-                    '--fusion', fusion, '--out', dest, '--ellipsoid', radius, radius, '--source-convention', 'sphere-radial',
+                    '--fusion', fusion, '--out', dest, '--ellipsoid', radius, radius if transform == 'identity' else 3376200,
+                    '--source-convention', 'sphere-radial' if transform == 'identity' else 'areoid-radial', *areoid_args,
                     '--body', 'Mars', '--frame', 'IAU_MARS', '--global-level', tile['globalLevel'], '--workers', args.workers, *regions)
             command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'cube-error', dest, '--workers', args.workers)
         else:

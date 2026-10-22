@@ -50,6 +50,25 @@ function selectionLevel(v) {
   return Math.max(v.globalLevel, ...v.regions.flatMap(r => r.split(':')[1].split(',').map(x => Number(x.split('=')[0]))));
 }
 
+// Datum assets use reserved binding IDs, independently verified like source data.
+export function terrainTransform(lock) {
+  const selections = lock.selections.filter(s => s.channel === 'elevation');
+  const transform = selections[0]?.transformations[0] ?? 'identity';
+  assert(selections.every(s => serializeSurfacePlan(s.transformations) === serializeSurfacePlan([transform])),
+    'one terrain product requires identical explicit transforms across all elevation selections');
+  return transform;
+}
+export function buildInputs(lock) {
+  const transform = terrainTransform(lock);
+  const sources = [...lock.sources];
+  if (transform !== 'identity') for (const role of ['label', 'image']) {
+    const id = `datum:areoid-${role}`;
+    assert(!sources.some(s => s.id === id), 'reserved datum binding ID');
+    sources.push({ id, channel: 'datum', asset: transform.areoid[role] });
+  }
+  return sources;
+}
+
 /** Compile only a validated, pinned finite plan. Paths are runtime bindings, never identities. */
 export async function compileBuild(lock) {
   await validateLockedSurfacePlan(lock);
@@ -58,9 +77,9 @@ export async function compileBuild(lock) {
   const c = lock.desired.coordinates;
   assert(c.longitudeDirection === 'east', 'west-positive source grids are unsupported');
   assert(c.latitude === 'planetocentric', 'XYZ execution requires explicit planetocentric source coordinates');
-  // #248 currently permits only identity locks. Areoid conversion must first be
-  // expressible in that shared contract, not hidden in a private executor flag.
-  assert(c.referenceShape.kind === 'sphere', 'ellipsoid/areoid execution needs a shared non-identity lock transform; v1 supports sphere-radial fixtures only');
+  const transform = terrainTransform(lock);
+  assert(c.referenceShape.kind === 'sphere', 'execution requires a spherical planetocentric source map');
+  const inputs = buildInputs(lock);
   assert(lock.processing.fusion === 'residual-bias-none', 'only authoritative residual fusion with bias none is supported');
   assert(lock.output.formatVersion === 'cosmolabe-cube-1' && lock.output.imageryEncoding === 'png'
     && lock.output.elevationEncoding === 'float32', 'unsupported output format; expected cube-1 PNG / float32');
@@ -120,18 +139,18 @@ export async function compileBuild(lock) {
     assert(spacing <= s.outputGsdM, `${s.regionId}/${s.channel}: finest output spacing ${spacing} m exceeds locked ${s.outputGsdM} m`);
   }
   const estimate = await estimateSurfacePlan(lock.desired, { sources: lock.sources });
-  const nodes = lock.sources.map(s => ({ id: `source:${s.id}`, kind: 'source', dependencies: [], sourceId: s.id,
+  const nodes = inputs.map(s => ({ id: `source:${s.id}`, kind: 'source', dependencies: [], sourceId: s.id,
     url: s.asset.url ?? null, retrieval: s.asset.retrieval ?? null, bytes: s.asset.bytes, sha256: s.asset.checksum.value }));
   nodes.push({ id: 'fusion', kind: 'residual-fusion', dependencies: [`source:${base.id}`, `source:${detail.id}`], bias: 'none', blendM: p.terrain.blendM });
   for (const product of products) {
-    nodes.push({ id: product.id, kind: product.kind, dependencies: product.kind === 'cube-terrain' ? ['fusion'] : product.sourceIds.map(id => `source:${id}`),
-      transforms: ['identity', product.kind === 'cube-terrain' ? 'sphere-radial cube geometry + CPU grids' : 'shared EPSG:4326 XYZ to cube, premultiplied alpha'],
+    nodes.push({ id: product.id, kind: product.kind, dependencies: product.kind === 'cube-terrain' ? ['fusion', ...inputs.filter(s => s.channel === 'datum').map(s => `source:${s.id}`)] : product.sourceIds.map(id => `source:${id}`),
+      transforms: [product.kind === 'cube-terrain' ? transform : 'identity', product.kind === 'cube-terrain' ? 'explicit radial cube geometry + CPU grids' : 'shared EPSG:4326 XYZ to cube, premultiplied alpha'],
       tiling: product.tiling });
     nodes.push({ id: `validate:${product.id}`, kind: 'validation', dependencies: [product.id] });
   }
   nodes.push({ id: 'publish', kind: 'explicit-publication-only', dependencies: products.map(x => `validate:${x.id}`) });
   return { version: 1, kind: 'surface-build-dag', lockIdentity: lock.identity, buildId, implementation, products, nodes,
-    resources: { stage: 'source-aware-uncalibrated', rawSourceBytes: lock.sources.reduce((n, s) => n + s.asset.bytes, 0),
+    resources: { stage: 'source-aware-uncalibrated', rawSourceBytes: inputs.reduce((n, s) => n + s.asset.bytes, 0),
       publishedBytes: estimate.totals.publishedBytes, publishedObjects: estimate.totals.publishedObjects,
       peakDiskBytes: { min: estimate.totals.peakWorkDiskBytes.min, max: null }, peakRamBytes: null,
       caveats: ['Planner raster scenarios are not cube packing bounds.', 'Decoded raster dimensions and worker concurrency determine peak RAM; unknown before inspection.',
@@ -141,8 +160,9 @@ export async function compileBuild(lock) {
 
 /** Check byte identity, not just existence/size. The dry run performs no downloads or writes. */
 export async function inspectBindings(lock, bindings, baseDir) {
-  keys(bindings, lock.sources.map(s => s.id), 'bindings');
-  return Promise.all(lock.sources.map(async s => {
+  const inputs = buildInputs(lock);
+  keys(bindings, inputs.map(s => s.id), 'bindings');
+  return Promise.all(inputs.map(async s => {
     const local = bindings[s.id];
     assert(local === undefined || typeof local === 'string', `${s.id}: binding must be a local filename`);
     if (!local) return { sourceId: s.id, state: 'missing', downloadBytes: s.asset.bytes };

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createLockedSurfacePlan } from '../packages/core/dist/surface-plan/index.js';
-import { compileBuild, inspectBindings, hashFile } from './surface-build/plan.mjs';
+import { compileBuild, inspectBindings, hashFile, buildInputs } from './surface-build/plan.mjs';
 import { buildInventory } from './data-hosting/lib/publish.mjs';
 import { runBuildCli } from './build-surface.mjs';
 import { createFixture } from './surface-build/fixture.mjs';
@@ -18,6 +18,14 @@ const relock = async modify => {
   const { identity, desiredIdentity, ...value } = structuredClone(fixture);
   modify(value);
   return createLockedSurfacePlan(value);
+};
+const outputDatum = { referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 3396.19, 3376.2] },
+  verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
+const datumAsset = byte => ({ retrieval: 'Synthetic datum fixture', bytes: 10, checksum: { algorithm: 'sha256', value: byte.repeat(64) } });
+const convert = value => {
+  for (const source of value.sources.filter(s => s.channel === 'elevation')) source.datum.verticalDatum = 'areoid';
+  for (const selection of value.selections.filter(s => s.channel === 'elevation')) selection.transformations = [{
+    kind: 'areoid-radial', areoid: { label: datumAsset('a'), image: datumAsset('b') }, outputDatum }];
 };
 let temp;
 beforeAll(async () => { temp = await mkdtemp(join(tmpdir(), 'surface-build-test-')); });
@@ -66,6 +74,29 @@ describe('finite locked surface build planning', () => {
     const taper = await relock(v => { v.processing.parameters.terrain.blendM *= 2; });
     expect((await compileBuild(taper)).buildId).not.toBe(old.buildId);
   });
+  it('pins both detached datum assets in the shared lock and DAG, with separate binding verification', async () => {
+    const lock = await relock(convert);
+    const dag = await compileBuild(lock);
+    expect(buildInputs(lock)).toHaveLength(lock.sources.length + 2);
+    expect(dag.nodes.find(n => n.id === dag.products[0].id).dependencies).toEqual([
+      'fusion', 'source:datum:areoid-label', 'source:datum:areoid-image']);
+    expect((await inspectBindings(lock, {}, temp)).slice(-2).map(s => s.sourceId)).toEqual(['datum:areoid-label', 'datum:areoid-image']);
+    for (const role of ['label', 'image']) {
+      const changed = await relock(v => { convert(v); for (const s of v.selections.filter(s => s.channel === 'elevation'))
+        s.transformations[0].areoid[role].checksum.value = 'c'.repeat(64); });
+      expect(changed.identity).not.toBe(lock.identity);
+      expect((await compileBuild(changed)).buildId).not.toBe(dag.buildId);
+      await expect(relock(v => { convert(v); delete v.selections[0].transformations[0].areoid[role].checksum; })).rejects.toThrow();
+    }
+    await expect(relock(v => { convert(v); v.selections[0].transformations[0].outputDatum = v.sources[0].datum; })).rejects.toThrow(/output datum/);
+    await expect(relock(v => { convert(v); v.sources[0].datum.heightConvention = 'geodetic-normal'; })).rejects.toThrow(/datum must match/);
+    const mixed = await relock(v => { convert(v); v.selections[2].transformations[0].areoid.image.checksum.value = 'c'.repeat(64); });
+    await expect(compileBuild(mixed)).rejects.toThrow(/identical explicit transforms/);
+    const file = join(temp, 'datum-bytes'); await writeFile(file, '0123456789');
+    const bound = await relock(v => { convert(v); for (const s of v.selections.filter(s => s.channel === 'elevation'))
+      s.transformations[0].areoid.label.checksum.value = 'a'.repeat(64); });
+    expect((await inspectBindings(bound, { 'datum:areoid-label': file }, temp)).at(-2).state).toBe('checksum-mismatch');
+  });
   it('checks content hashes even when a source has the correct byte count and never writes on dry-run', async () => {
     const dir = join(temp, 'bindings');
     const { mkdir } = await import('node:fs/promises'); await mkdir(dir);
@@ -83,6 +114,39 @@ describe('finite locked surface build planning', () => {
 
 const python = ['/usr/bin/python3', 'python3'].find(p => spawnSync(p, ['-c', 'from osgeo import gdal; import numpy'], { stdio: 'ignore' }).status === 0);
 describe.skipIf(!python)('offline GDAL fixture execution and immutable #137 publication', () => {
+  it('stages both pinned PDS assets and executes ellipsoidal radial conversion reproducibly', async () => {
+    const input = join(temp, 'ellipsoid-input');
+    const { lock: original, bindings } = await createFixture(input, python);
+    const { identity, desiredIdentity, ...payload } = structuredClone(original);
+    convert(payload);
+    for (const selection of payload.selections.filter(s => s.channel === 'elevation')) for (const [role, filename] of [
+      ['label', 'MEGA90N000EB.LBL'], ['image', 'MEGA90N000EB.IMG']]) {
+      const file = join(input, filename);
+      selection.transformations[0].areoid[role] = { retrieval: 'Controlled synthetic PDS datum',
+        bytes: (await stat(file)).size, checksum: { algorithm: 'sha256', value: await hashFile(file) } };
+      bindings['datum:areoid-' + role] = filename;
+    }
+    const lock = await createLockedSurfacePlan(payload);
+    const options = { bindings, bindingsDir: input, python, workers: 1 };
+    const a = await executeBuild(lock, { ...options, cache: join(temp, 'ellipsoid-a') });
+    expect(a.products[0].datum).toEqual(outputDatum);
+    expect(a.products[0].controls[0].errorM).toBeCloseTo(0, 3);
+    const grids = JSON.parse(await readFile(join(a.directory, a.products[0].id, 'cpu-grids.json')));
+    expect(grids.geometry.kind).toBe('radial-lattice');
+    const b = await executeBuild(lock, { ...options, cache: join(temp, 'ellipsoid-b') });
+    for (const product of a.products) expect(await buildInventory(join(b.directory, product.id)))
+      .toEqual(await buildInventory(join(a.directory, product.id)));
+    // A label may not resolve a different image, even if the new label itself
+    // has a valid content pin. The worker must not read any unpinned dependency.
+    const label = join(input, 'MEGA90N000EB.LBL');
+    await writeFile(label, (await readFile(label, 'utf8')).replace('^IMAGE = "MEGA90N000EB.IMG"', '^IMAGE = "other.IMG"'));
+    for (const s of payload.selections.filter(s => s.channel === 'elevation')) {
+      s.transformations[0].areoid.label.bytes = (await stat(label)).size;
+      s.transformations[0].areoid.label.checksum.value = await hashFile(label);
+    }
+    const bad = await createLockedSurfacePlan(payload);
+    await expect(executeBuild(bad, { ...options, cache: join(temp, 'ellipsoid-bad') })).rejects.toThrow(/unsupported detached areoid/);
+  }, 300000);
   it('builds, validates and reuses separate products, verifies local publication, and blocks corrupt caches or controls', async () => {
     const input = join(temp, 'fixture'), cache = join(temp, 'cache'), storeDir = join(temp, 'store');
     const { lock, bindings } = await createFixture(input, python);

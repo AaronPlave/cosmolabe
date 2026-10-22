@@ -529,9 +529,9 @@ function bruteForce(ray, hit) {
     const id = cubeTileId(cubeTileAt(unit(q), level));
     if (tiles.has(id)) ids.add(id);
   }
-  return Math.min(...[...ids].map(id => bruteForceTile(ray, id)));
+  return Math.min(...[...ids].map(id => bruteForceTile(ray, id, { roundingEnvelope: true })));
 }
-function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false } = {}) {
+function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false, roundingEnvelope = false } = {}) {
   let glb = glbCache.get(tileId);
   if (!glb) { const [f, L, x, y] = tileId.split('/'); glbCache.set(tileId, glb = readGlb(join(DIR, f, L, x, `${y}.glb`))); }
   const o = [ray.origin.xKm * 1000, ray.origin.yKm * 1000, ray.origin.zKm * 1000], d = unit(ray.direction);
@@ -547,11 +547,18 @@ function bruteForceTile(ray, tileId, { triangles = 'surface', withIndex = false 
       const det = e1[0] * pv[0] + e1[1] * pv[1] + e1[2] * pv[2];
       if (Math.abs(det) < 1e-12) continue;
       const tv = [o[0] - A[0], o[1] - A[1], o[2] - A[2]];
+      // Adjacent float32 tile offsets can move a shared edge to either side
+      // of the exact CPU lattice. Compare within the same measured rounding
+      // envelope used by the shared-vertex and ray-distance gates, rather than
+      // a fixed barycentric margin whose physical width changes with LOD.
+      const roundingM = roundingEnvelope ? 2 * tiles.get(tileId).f32TolM : 0;
+      const uTolerance = Math.max(1e-6, roundingM * norm(e2) / Math.abs(det));
+      const vTolerance = Math.max(1e-6, roundingM * norm(e1) / Math.abs(det));
       const u = (tv[0] * pv[0] + tv[1] * pv[1] + tv[2] * pv[2]) / det;
-      if (u < -1e-6 || u > 1 + 1e-6) continue;
+      if (u < -uTolerance || u > 1 + uTolerance) continue;
       const qv = [tv[1] * e1[2] - tv[2] * e1[1], tv[2] * e1[0] - tv[0] * e1[2], tv[0] * e1[1] - tv[1] * e1[0]];
       const v = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) / det;
-      if (v < -1e-6 || u + v > 1 + 1e-6) continue;
+      if (v < -vTolerance || u + v > 1 + uTolerance + vTolerance) continue;
       const t = (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) / det;
       if (t > 0 && t < best) { best = t; bestTri = tri; }
     }

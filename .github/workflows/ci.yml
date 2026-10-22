@@ -101,6 +101,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Run surface-build GDAL rebuild/publication regressions rather than skip them.
+      - name: Install surface build raster tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
+
       # core importing nothing from three or cesium is a property the embed
       # targets need and M-0001 ratified core on, held until now only by habit
       # and a sentence in CONTRIBUTING.md (#7). tsc cannot check it: both

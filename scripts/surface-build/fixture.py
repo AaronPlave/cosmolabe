@@ -22,3 +22,37 @@ for name, colour, dimension in [('context', [25, 50, 75, 255], 32), ('detail-ima
     for i, value in enumerate(colour):
         ds.GetRasterBand(i + 1).Fill(value)
     gdal.GetDriverByName('PNG').CreateCopy(str(out / f'{name}.png'), ds)
+
+# Controlled MEG016-layout datum fixture, not an observed MOLA product. Keep the
+# official detached layout to exercise GDAL's PDS reader and paired staging.
+np.full((2880, 5760), 190, dtype='>i2').tofile(out / 'MEGA90N000EB.IMG')
+(out / 'MEGA90N000EB.LBL').write_text('''PDS_VERSION_ID = PDS3
+RECORD_TYPE = FIXED_LENGTH
+RECORD_BYTES = 11520
+FILE_RECORDS = 2880
+^IMAGE = "MEGA90N000EB.IMG"
+OBJECT = IMAGE
+ NAME = AREOID_RADIUS
+ LINES = 2880
+ LINE_SAMPLES = 5760
+ SAMPLE_TYPE = MSB_INTEGER
+ SAMPLE_BITS = 16
+ SCALING_FACTOR = 1
+ OFFSET = 3396000
+END_OBJECT = IMAGE
+OBJECT = IMAGE_MAP_PROJECTION
+ MAP_PROJECTION_TYPE = "SIMPLE CYLINDRICAL"
+ A_AXIS_RADIUS = 3396.0 <KM>
+ B_AXIS_RADIUS = 3396.0 <KM>
+ C_AXIS_RADIUS = 3396.0 <KM>
+ CENTER_LATITUDE = 0.0
+ CENTER_LONGITUDE = 180.0
+ POSITIVE_LONGITUDE_DIRECTION = "EAST"
+ MAP_RESOLUTION = 16.0 <PIXEL/DEGREE>
+ MAP_SCALE = 3.705 <KM/PIXEL>
+ LINE_PROJECTION_OFFSET = 1440.5
+ SAMPLE_PROJECTION_OFFSET = 2880.5
+ COORDINATE_SYSTEM_NAME = "PLANETOCENTRIC"
+END_OBJECT = IMAGE_MAP_PROJECTION
+END
+''')

@@ -66,7 +66,8 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
       if (product.kind === 'cube-terrain') {
         const diagnostics = join(work, 'diagnostics', product.id);
         await command(process.execPath, [join(ROOT, 'scripts/validate-cube-terrain.mjs'), '--dir', dir, '--out', diagnostics,
-          '--clearance-m', String(lock.processing.parameters.gates.clearanceM)], log);
+          '--clearance-m', String(lock.processing.parameters.gates.clearanceM),
+          '--site', `${lock.processing.parameters.gates.controls[0].lat},${lock.processing.parameters.gates.controls[0].lon}`], log);
         const validation = await jsonFile(join(diagnostics, 'validation.json'));
         assert(validation.failures.length === 0, 'terrain numerical validation failed');
         const grids = await jsonFile(join(dir, 'cpu-grids.json'));
@@ -116,7 +117,7 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
     }
     const report = { version: 1, kind: 'surface-build-report', buildId: dag.buildId, lockIdentity: lock.identity,
       validation: 'passed-supported-gates', productionReady: false,
-      limitation: 'Spherical synthetic/controlled fixture execution only. Real MOLA/HRSC datum transforms, image registration controls and mission acceptance are pending; no production promotion.',
+      limitation: 'Bounded synthetic/controlled fixture execution only. Real source coverage adapters, image registration controls and mission acceptance are pending; no production promotion.',
       sources: lock.sources.map(s => ({ id: s.id, productId: s.productId, asset: s.asset, license: s.license,
         nativeGsdM: s.nativeGsdM, accuracyM: s.accuracyM, footprint: s.footprint, metadata: s.metadata ?? null })),
       requested: lock.desired.regions, selections: lock.selections,

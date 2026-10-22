@@ -1,0 +1,212 @@
+{
+  "date": "2026-10-22",
+  "scope": "PR #287 follow-up; existing #245 terrain builder, not lock executor or imagery acceptance",
+  "productionReady": false,
+  "builder": "scripts/build-mars-terrain/cube.sh --workers 4",
+  "localSourceRoot": "/Users/aplave/code/cosmolabe/scripts/build-mars-terrain",
+  "localOutput": "work/surface-build/real-mars-cube",
+  "validationCommands": [
+    "node scripts/validate-cube-terrain.mjs --dir work/surface-build/real-mars-cube --site 18.65,77.4 --out work/surface-build/real-mars-validation",
+    "python3 scripts/terrain/validate_mars_cube.py --dir work/surface-build/real-mars-cube --base SOURCE_ROOT/data/source/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif --fusion SOURCE_ROOT/data/fused --areoid work/surface-build/mola-meg016/MEGA90N000EB.LBL --out work/surface-build/real-mars-source-validation.json"
+  ],
+  "source": {
+    "id": "Mars: Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif + JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif residual",
+    "kind": "height-grid",
+    "version": "cube-fused-f4e1dae18a09-g0-m11-b85084938",
+    "fusion": {
+      "sha256": "f4e1dae18a091307c1dd3d13de5b60015a315d902e8c50826e59f10cc9549c3f",
+      "created": "2026-10-02T23:36:51Z",
+      "base": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "detail": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+    },
+    "generator": {
+      "script": "scripts/terrain/dem.py cube-tile",
+      "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+    },
+    "build": {
+      "global_level": 0,
+      "region": [
+        "jezero@18.45,77.4:1=80,2=60,3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=2"
+      ],
+      "skirt_cells": 0.1,
+      "ellipsoid": [
+        3396190.0,
+        3376200.0
+      ],
+      "simplify": 0,
+      "sourceConvention": "areoid-radial",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "inputs": {
+        "base": {
+          "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "residual": {
+          "file": "residual.tif",
+          "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+        },
+        "areoid": {
+          "file": "MEGA90N000EB.LBL",
+          "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+        },
+        "areoidFiles": [
+          {
+            "file": "MEGA90N000EB.IMG",
+            "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+          },
+          {
+            "file": "MEGA90N000EB.LBL",
+            "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+          }
+        ]
+      }
+    }
+  },
+  "datum": {
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    },
+    "verticalDatum": "ellipsoid",
+    "heightConvention": "geodetic-normal"
+  },
+  "geometry": {
+    "kind": "radial-lattice",
+    "referenceRadiusKm": 3396.19
+  },
+  "tileCount": 78,
+  "sourceChecks": {
+    "revision": "cube-fused-f4e1dae18a09-g0-m11-b85084938",
+    "registration": {
+      "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+      "centroid": {
+        "lonDeg": 77.4034569842557,
+        "latDeg": 18.48804879297973
+      },
+      "fitStridePx": 8,
+      "offsetM": -8.645969777066195,
+      "slopeEastMPerKm": 1.0121736526817324,
+      "slopeNorthMPerKm": -0.6852599991318675,
+      "tiltDeg": 0.07003399047059078,
+      "raw": {
+        "n": 4749862,
+        "meanM": -7.893571008697858,
+        "rmsM": 18.93642389993706,
+        "p95AbsM": 39.94189453125,
+        "maxAbsM": 89.161376953125
+      },
+      "afterPlane": {
+        "n": 4749862,
+        "meanM": 8.499790859098853e-14,
+        "rmsM": 15.880520798838809,
+        "p95AbsM": 33.68761187276017,
+        "maxAbsM": 96.78352399830243
+      },
+      "removed": false,
+      "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base"
+    },
+    "sourceControlNote": "MMGIS lon/lat numbers sampled in the USGS source map convention (planetocentric); this is not a certification of existing trajectory Cartesian placement",
+    "areoidModelNote": "MEG016 GMM3 mgm1025 degree/order 50; integer-metre grid, bilinear interpolation; datum/model/source uncertainty remains unbounded here",
+    "vertexConversionM": {
+      "n": 390,
+      "rmsM": 0.00014091456752859667,
+      "p95AbsM": 0.00024304864928126335,
+      "maxAbsM": 0.0009242156520485878
+    },
+    "sourceControlsM": {
+      "n": 73,
+      "rmsM": 0.004180281955175576,
+      "p95AbsM": 0.008264282260643081,
+      "maxAbsM": 0.01816227872541276
+    },
+    "triangleMinusFinestFieldM": {
+      "controls": {
+        "n": 73,
+        "rmsM": 0.8473946278439157,
+        "p95AbsM": 1.7022870867837745,
+        "maxAbsM": 2.92233318210765
+      },
+      "outside": {
+        "n": 12,
+        "rmsM": 0.5252754833848183,
+        "p95AbsM": 0.9420606909193334,
+        "maxAbsM": 1.2393182352429903
+      },
+      "blend": {
+        "n": 12,
+        "rmsM": 3.2512397662597854,
+        "p95AbsM": 6.9885687149755515,
+        "maxAbsM": 8.744418132538158
+      },
+      "interior": {
+        "n": 12,
+        "rmsM": 2.175965905845465,
+        "p95AbsM": 3.967281913920972,
+        "maxAbsM": 7.16954114213172
+      }
+    }
+  },
+  "numericalChecks": {
+    "structure": {
+      "faceRoots": [
+        "px",
+        "nx",
+        "py",
+        "ny",
+        "pz",
+        "nz"
+      ],
+      "replaceComplete": true,
+      "maxBoundsExcessM": 4.656612873077393e-10,
+      "boundsEscapes": 0,
+      "cpuGridVsVertexMismatches": 0
+    },
+    "failures": []
+  },
+  "boundaryPicks": {
+    "note": "rays (0\u201360\u00b0 off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
+    "rays": 96,
+    "raysOnPair": 96,
+    "renderedMinusCpuM": {
+      "n": 96,
+      "maxM": 291.04234626754646,
+      "rmsM": 38.71513743273922,
+      "p95M": 30.79653014879591
+    },
+    "skirtHitRenderedMinusCpuM": {
+      "n": 25,
+      "maxM": 0.18188703816645102,
+      "rmsM": 0.03711129842195834,
+      "p95M": 0.029581713830793888
+    },
+    "skirtHitOverEdgeGap": {
+      "n": 25,
+      "maxM": 0.00377497801106454,
+      "rmsM": 0.0007561738115713945,
+      "p95M": 0.00015130121263694788
+    },
+    "renderedOnSkirt": 25,
+    "throughCrackWithoutSkirts": 8,
+    "renderedClearanceM": {
+      "n": 93,
+      "maxM": 160.2719588771191,
+      "rmsM": 28.84919033665647,
+      "p95M": 19.758893433429776
+    },
+    "renderedClearanceMinM": 30.23935542566977,
+    "unavailable": []
+  },
+  "limits": [
+    "Real build reused unchanged #50 fusion and did not refit registration or remove the plane.",
+    "Real projected/masked source adapters and independently evidenced native-valid coverage remain unsupported by the lock executor.",
+    "No real imagery registration, browser/GPU acceptance, mission placement, publication, or production catalog change was performed.",
+    "Original boundary-ray fixture is pinned to its original revision and was not rebound to this rebuilt product. The 96 rays reported here are regenerated by the numerical validator.",
+    "Controls share source provenance and do not certify absolute physical accuracy. Areoid/model/source uncertainty remains unknown.",
+    "Peak concurrent memory and peak disk were not measured."
+  ]
+}
