@@ -66,3 +66,15 @@ the existing native/context controls. Unit regressions cover oblate coordinates,
 below-reference terrain, hidden cached tiles and LOD changes.
 
 ![Hover outline aligned with the observed HiRISE crop](hover-footprint.png)
+
+The imagery layer's **Fly to** action now shares that coordinate/surface resolver
+and uses the existing surface-flight controller with the image center as its
+landing pivot. It no longer interprets cube latitude as geodetic, places the
+camera relative to zero ellipsoid height, or aims at the body's center. The
+physical-GPU regression clicks the actual layer button in the ordinary viewer:
+the outlined center lands within 0.05 screen pixels of the view center, the
+regional image fills the view, the surface pivot remains active, and a physical
+CPU pick still hits. Unit coverage also checks legacy geodetic imagery and
+framing across the antimeridian.
+
+![Actual layer Fly to action centered on the outlined HiRISE crop](fly-to-layer.png)

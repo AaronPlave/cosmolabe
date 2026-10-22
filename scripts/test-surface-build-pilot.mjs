@@ -127,8 +127,32 @@ try {
     assert.equal(unavailableDtm.rendered.imagery.baseUncoveredBlocks,0,'coarse global context must cover no-DTM view');
     await page.screenshot({path:join(out,'no-dtm-global-fallback.png')});
   }
+  let layerFlight=null;
+  if(hosted&&!synthetic&&(await snapshot()).layers.at(-1).bounds){
+    await page.evaluate(()=>window.pilot.selectBody('Mars'));
+    const fly=page.getByRole('button',{name:'Fly to HiRISE ortho — native detail',exact:true});
+    if(!await fly.isVisible())await page.locator('summary').filter({hasText:'Imagery'}).click();
+    await fly.click();
+    await page.mouse.move(400,100);
+    await page.waitForFunction(()=>!window.pilot.getRenderer().cameraController._anim,null,{timeout:15000});
+    await page.waitForTimeout(1000);
+    layerFlight=await page.evaluate(async()=>{
+      const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
+      bm.showImageryFootprint(bounds);
+      const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
+      let projected=null;
+      dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};
+      await new Promise(resolve=>setTimeout(resolve,500));
+      return {projected,surfacePivot:r.cameraController.surfacePivot!==null,pick:r.pickSurface(0,0)?.physical?.kind};
+    });
+    assert(layerFlight.projected&&Math.abs(layerFlight.projected[0])<.05&&Math.abs(layerFlight.projected[1])<.05&&layerFlight.projected[2]<1,'actual layer Fly button must land on the outlined image center');
+    assert.equal(layerFlight.surfacePivot,true,'layer flight must retain a surface pivot');
+    assert.equal(layerFlight.pick,'hit','layer flight must preserve physical surface access');
+    await page.screenshot({path:join(out,'fly-to-layer.png')});
+    await page.evaluate(()=>window.pilot.getRenderer().getBodyMesh('Mars').showImageryFootprint(null));
+  }
   assert.deepEqual(errors,[]);
-  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,hoverFootprint,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
+  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,hoverFootprint,layerFlight,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
     limits:['Desktop browser only; no real mobile hardware acceptance.','Shared-provenance source registration is not independent absolute geolocation certification.','No production catalog or mission placement was changed.']};
   await writeFile(join(out,'browser.json'),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify({buildId:report.buildId,environment,nearImageLevel:near.imagery.maxDisplayedLevel,nearTerrainLevels:near.levels,errors}));
 } finally {await browser.close();}

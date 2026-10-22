@@ -12,7 +12,7 @@ function fixture(cube = true) {
   terrain.scale.setScalar(2);
   const sampler = { datum, sample: vi.fn(), sampleBodyFixed: vi.fn() };
   const body = Object.assign(new THREE.Group(), {
-    mesh, ellipsoidRatios: [1, .8, 1], imageryFootprint: null,
+    mesh, displayRadius: 10, ellipsoidRatios: [1, .8, 1], imageryFootprint: null,
     terrainManager: { sampler, cubeStats: cube ? {} : null, group: terrain },
   });
   Object.setPrototypeOf(body, BodyMesh.prototype);
@@ -29,12 +29,20 @@ function centre(body: BodyMesh) {
   return new THREE.Vector3().fromBufferAttribute(dot.geometry.getAttribute('position'), 0).applyMatrix4(dot.matrixWorld);
 }
 
-describe('imagery hover footprint', () => {
+describe('imagery region highlight and navigation', () => {
   it('preserves planetocentric cube latitude on an oblate reference shape', () => {
     const { body } = fixture();
     body.showImageryFootprint([-.1, 29.9, .1, 30.1]);
     const point = centre(body);
     expect(Math.atan2(point.y, point.x) * 180 / Math.PI).toBeCloseTo(30, 5);
+  });
+
+  it('frames the short interval across the antimeridian', () => {
+    const { body } = fixture();
+    const view = body.imageryRegionView([179, -.1, -179, .1], .5, 45)!;
+    expect(view.target.x).toBeCloseTo(-10, 8);
+    expect(Math.abs(view.target.z)).toBeLessThan(1e-8);
+    expect(view.position.distanceTo(view.target)).toBeCloseTo(1.2 * 2 * Math.PI / 180 * 10 / .5 / (2 * Math.tan(Math.PI / 8)), 8);
   });
 
   it('retains geodetic coordinates for non-cube imagery', () => {
@@ -44,6 +52,7 @@ describe('imagery hover footprint', () => {
     const expected = geodeticToBodyFixed({ latDeg: 30, lonDeg: 0 }, datum);
     expect(point.x).toBeCloseTo(expected.xKm * 2, 5);
     expect(point.y).toBeCloseTo(expected.zKm * 2, 5);
+    expect(body.imageryRegionView([-.1, 29.9, .1, 30.1], 1, 45)!.target.distanceTo(point.multiplyScalar(.5))).toBeLessThan(1e-5);
   });
 
   it('follows visible rendered terrain and LOD changes without querying CPU data', () => {
@@ -62,6 +71,11 @@ describe('imagery hover footprint', () => {
       terrain.add(active, hidden); body.updateMatrixWorld(true);
       body.showImageryFootprint([-.1, 29.9, .1, 30.1]);
       expect(centre(body).distanceTo(direction.clone().multiplyScalar(16))).toBeLessThan(1e-5);
+      const view = body.imageryRegionView([-.1, 29.9, .1, 30.1], 1, 45)!;
+      expect(view.target.distanceTo(centre(body).multiplyScalar(.5))).toBeLessThan(1e-5);
+      expect(view.position.clone().sub(view.target).normalize().distanceTo(direction)).toBeLessThan(1e-5);
+      expect(view.up.dot(direction)).toBeCloseTo(0, 8);
+      expect(view.position.distanceTo(view.target)).toBeCloseTo(1.2 * .2 * Math.PI / 180 * 10 / (2 * Math.tan(Math.PI / 8)), 8);
       active.visible = false; hidden.visible = true;
       clock.mockReturnValue(1300);
       expect(centre(body).distanceTo(direction.clone().multiplyScalar(18))).toBeLessThan(1e-5);
