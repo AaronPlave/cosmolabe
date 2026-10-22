@@ -12,14 +12,32 @@
       ]
     }
   },
-  "clickedPoint": [
-    77.42629512355586,
-    18.42652055382694
+  "movedVertex": [
+    77.4087437104588,
+    18.411112379606717
   ],
+  "actions": {
+    "drawNameEdit": 9,
+    "vertices": 4,
+    "select3dEdit": 1
+  },
+  "typedAttributes": {
+    "name": "Delta sample area",
+    "sampled": true,
+    "depth": null,
+    "tags": [
+      "delta",
+      2,
+      {
+        "ok": true
+      }
+    ],
+    "sol": 412
+  },
   "pickedAtClick": {
     "kind": "geographic-feature",
-    "layerId": "user:mars:jezero-notes",
-    "featureId": "string:user-1",
+    "layerId": "user:mars:my-annotations-mars",
+    "featureId": "string:user-2",
     "bodyName": "Mars"
   },
   "refusal": "Polygon ring self-intersects",
@@ -45,25 +63,6 @@
       "bearingDeg": 79.98224586615606
     }
   ],
-  "typedAttributes": {
-    "name": "Delta sample area",
-    "category": "sampling",
-    "sampled": true,
-    "depth": null,
-    "tags": [
-      "delta",
-      2,
-      {
-        "ok": true
-      }
-    ],
-    "sol": 412
-  },
-  "movedVertex": [
-    77.4087437104588,
-    18.411112379606717
-  ],
-  "afterInsert": [],
   "exportMeta": {
     "version": 1,
     "body": "Mars",
@@ -82,8 +81,8 @@
       }
     },
     "layer": {
-      "id": "user:mars:jezero-notes",
-      "name": "Jezero notes"
+      "id": "user:mars:my-annotations-mars",
+      "name": "My annotations · Mars"
     }
   },
   "plainImport": {
@@ -115,6 +114,11 @@
         "rim": true
       }
     }
+  },
+  "featureCopy": {
+    "layerId": "user:mars:my-annotations-mars",
+    "featureId": "string:user-6",
+    "bodyName": "Mars"
   },
   "moon": {
     "convention": {

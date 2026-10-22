@@ -27,6 +27,7 @@ import type {
   FlightPath,
   ScriptTime,
   ScriptVec3,
+  SurfaceView,
   VerbValue,
   ViewerControl,
 } from './contracts.js';
@@ -69,6 +70,9 @@ export const LAYERS = [
 
 /** The paths `flyTo` accepts. */
 export const FLIGHT_PATHS: readonly FlightPath[] = ['direct', 'overview'];
+
+/** The views `gotoCoordinates` accepts. */
+export const SURFACE_VIEWS: readonly SurfaceView[] = ['overhead', 'oblique', 'surface'];
 
 const FRAME_MODE_IDS = FRAME_MODES.map((m) => m.id);
 const LAYER_IDS = LAYERS.map((l) => l.id);
@@ -237,6 +241,25 @@ export const VERB_LIST: readonly VerbSpec[] = [
     resolvesName: 'object',
     help: 'Cut to the view a flight to an object would land on, and track it.',
     invoke: (host, a) => host.jumpTo(str(a[0])),
+  },
+  {
+    name: 'gotoCoordinates',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'latitude', type: 'number' },
+      { name: 'longitude', type: 'number' },
+      { name: 'view', type: 'enum', values: SURFACE_VIEWS, optional: true },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'gotoCoordinates',
+    resolvesName: 'object',
+    help: `Go to a place on a body by planetocentric latitude and east longitude, in degrees (${SURFACE_VIEWS.join(', ')}). Cuts; give seconds to fly.`,
+    invoke: (host, a) =>
+      host.gotoCoordinates(str(a[0]), num(a[1]), num(a[2]), {
+        ...(a[3] === undefined ? {} : { view: str(a[3]) as SurfaceView }),
+        ...(a[4] === undefined ? {} : { seconds: num(a[4]) }),
+      }),
   },
   {
     name: 'stopFlight',

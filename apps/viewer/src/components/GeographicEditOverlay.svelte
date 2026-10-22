@@ -22,7 +22,7 @@
   } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { drawnSurface } from '../lib/drawn-surface';
-  import { edits, editLayer, applyEdit, draftShape, surfacePosition } from '../lib/geographic-editing.svelte';
+  import { edits, editLayer, applyEdit, draftShape, surfacePosition, editingFeature, selectedVertex } from '../lib/geographic-editing.svelte';
 
   interface Screen { x: number; y: number; visible: boolean }
   interface Handle { key: string; kind: 'vertex' | 'mid' | 'move' | 'center' | 'radius'; part: number[]; index: number; position: GeoPosition }
@@ -33,8 +33,9 @@
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const R = touch ? 11 : 6;
 
-  let layer = $derived(editLayer(edits.editing?.layerId ?? edits.target));
-  let feature = $derived(edits.editing ? layer?.features.find((f) => f.id === edits.editing!.featureId) ?? null : null);
+  let editing = $derived(editingFeature());
+  let layer = $derived(editLayer(editing?.layerId ?? edits.target));
+  let feature = $derived(editing ? layer?.features.find((f) => f.id === editing!.featureId) ?? null : null);
 
   /**
    * Heights of the drawn surface at vertices, from the viewer's shared cache:
@@ -236,8 +237,9 @@
     if (!d.moved) {
       // A tap selects a vertex for Delete; tapping it again deselects.
       if (d.handle.kind === 'vertex') {
-        const same = edits.vertex && edits.vertex.index === d.handle.index && edits.vertex.part.join() === d.handle.part.join();
-        edits.vertex = same ? null : { part: d.handle.part, index: d.handle.index };
+        const current = selectedVertex();
+        const same = current && current.index === d.handle.index && current.part.join() === d.handle.part.join();
+        edits.vertex = same || !editing ? null : { layerId: editing.layerId, featureId: editing.featureId, part: d.handle.part, index: d.handle.index };
       }
       return;
     }
@@ -248,7 +250,7 @@
     if (drag && e.pointerId === drag.pointerId) drag = null;
   }
 
-  const selectedVertex = (h: Handle) => h.kind === 'vertex' && edits.vertex?.index === h.index && edits.vertex.part.join() === h.part.join();
+  const isSelectedVertex = (h: Handle) => h.kind === 'vertex' && selectedVertex()?.index === h.index && selectedVertex()!.part.join() === h.part.join();
 </script>
 
 {#if view}
@@ -265,7 +267,7 @@
     {#each view.handles as h (h.key)}
       <g
         class="handle {h.kind}"
-        class:selected={selectedVertex(h)}
+        class:selected={isSelectedVertex(h)}
         transform="translate({h.x} {h.y})"
         role="button"
         tabindex="-1"

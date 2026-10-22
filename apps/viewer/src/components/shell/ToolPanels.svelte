@@ -17,7 +17,8 @@
   import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
   import SurfaceLayersPanel from '../SurfaceLayersPanel.svelte';
-  import DrawPanel from '../DrawPanel.svelte';
+  import NavigatePanel from '../NavigatePanel.svelte';
+  import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -46,8 +47,8 @@
     <BodyDrawer onClose={() => closeTool('catalog')} />
   {:else if tool.id === 'layers'}
     <SurfaceLayersPanel onClose={() => closeTool('layers')} />
-  {:else if tool.id === 'draw'}
-    <DrawPanel onClose={() => closeTool('draw')} />
+  {:else if tool.id === 'navigate'}
+    <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
   {:else if tool.id === 'script'}
@@ -56,6 +57,8 @@
     <DebugPanel onClose={() => closeTool('debug')} />
   {:else if tool.id === 'measure'}
     <MeasurementPanel onClose={() => closeTool('measure')} />
+  {:else if tool.id === 'instrument'}
+    <InstrumentViewPanel onClose={() => closeTool('instrument')} />
   {:else if tool.id === 'display'}
     <DisplaySettings
       onClose={() => closeTool('display')}

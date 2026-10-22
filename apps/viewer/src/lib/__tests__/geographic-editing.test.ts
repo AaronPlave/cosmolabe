@@ -27,6 +27,7 @@ vi.stubGlobal('localStorage', storage);
 
 const editing = await import('../geographic-editing.svelte');
 const shell = await import('../shell.svelte');
+const geoLayers = await import('../geographic-layers.svelte');
 const { edits, createLayer, applyEdit, makeWorkingCopy, editLayer, isEditable, undo, redo, deleteLayer, importLayerText, EDIT_OWNER } = editing;
 
 const mars: GeographicCoordinates = {
@@ -146,49 +147,74 @@ describe('import', () => {
   });
 });
 
-describe('closing Draw', () => {
-  const draw = () => {
-    const id = createLayer({ body: 'Mars', name: 'Notes', coordinates: mars })!;
-    shell.openTool('draw');
-    editing.setDrawTool('line');
+describe('drawing flow', () => {
+  it('draws into "My annotations · Mars", made on first use in the body\'s convention, and selects the finished shape', () => {
+    editing.startDrawing('point');
     expect(pointerTool).not.toBeNull();
-    return id;
-  };
-  const released = () => {
-    expect(pointerTool).toBeNull();
+    const id = edits.target!;
+    expect(editLayer(id)).toMatchObject({ name: 'My annotations · Mars', body: 'Mars', coordinates: { longitudeDomain: '0..360', longitudeDirection: 'east' } });
+    edits.draft!.vertices.push([77.5, 18.5]);
+    editing.finishDraft();
+    // The tool ends; the shape is selected, its handles show, and the name waits for typing.
     expect(edits.tool).toBeNull();
-    expect(edits.draft).toBeNull();
-    expect(edits.editing).toBeNull();
-  };
-
-  it('gives scene clicks back when closed by its button or Escape (closeTool)', () => {
-    draw();
-    shell.closeTool('draw');
-    released();
+    expect(pointerTool).toBeNull();
+    expect(geoLayers.geo.selected).toEqual({ layerId: id, featureId: 'string:user-1', bodyName: 'Mars' });
+    expect(editing.editingFeature()).toEqual({ layerId: id, featureId: 'user-1' });
+    expect(edits.focusName).toBe(true);
+    expect(shell.isToolOpen('layers')).toBe(true);
+    // Drawing again uses the same layer.
+    editing.startDrawing('line');
+    expect(edits.target).toBe(id);
+    editing.setDrawTool(null);
   });
 
-  it('gives scene clicks back when closed from the rail', () => {
-    shell.setLayout('desktop');
-    draw();
-    shell.toggleTool('draw');
-    expect(shell.isToolOpen('draw')).toBe(false);
-    released();
+  it('removes a layer it made when nothing was drawn, and keeps one that has shapes', () => {
+    editing.startDrawing();
+    const id = edits.target!;
+    expect(edits.tool).toBe(edits.lastTool);
+    editing.cancelDrawing();
+    expect(editLayer(id)).toBeUndefined();
+    expect(edits.tool).toBeNull();
   });
 
-  it('gives scene clicks back when every tool closes, and ends vertex editing', () => {
-    const id = draw();
-    applyEdit(id, { type: 'add', geometry: { type: 'Point', coordinates: [77.5, 18.5] } });
-    editing.startEditingFeature(id, 'user-1');
-    shell.closeAllTools();
-    released();
+  it('draws into the layer being looked at when it is editable', () => {
+    const notes = createLayer({ body: 'Mars', name: 'Notes', coordinates: mars })!;
+    geoLayers.openLayer(notes);
+    editing.startDrawing('point');
+    expect(edits.target).toBe(notes);
+    expect(edits.createdForDraft).toBeNull();
+    editing.setDrawTool(null);
+    expect(editLayer(notes)).toBeDefined();
   });
 
-  it('keeps the tool while Draw is only minimized', () => {
-    draw();
-    shell.minimizePanel('draw');
-    expect(edits.tool).toBe('line');
-    expect(pointerTool).not.toBeNull();
-    shell.closeTool('draw');
-    released();
+  it('shape editing follows the selection: handles for your own features, none while drawing or for read-only ones', () => {
+    const id = createLayer({ body: 'Mars', name: 'Notes', coordinates: mars })!;
+    applyEdit(id, { type: 'add', geometry: { type: 'LineString', coordinates: [[77, 18], [77.2, 18.2], [77.4, 18.1]] } });
+    geoLayers.selectFeature({ layerId: id, featureId: 'string:user-1', bodyName: 'Mars' });
+    expect(editing.editingFeature()).toEqual({ layerId: id, featureId: 'user-1' });
+    edits.vertex = { layerId: id, featureId: 'user-1', part: [], index: 1 };
+    expect(editing.deleteSelectedVertex()).toBe(true);
+    expect(editLayer(id)!.features[0].geometry.coordinates).toHaveLength(2);
+    geoLayers.selectFeature({ layerId: 'science', featureId: 'string:a', bodyName: 'Mars' });
+    expect(editing.editingFeature()).toBeNull();
+    editing.startDrawing('point');
+    expect(editing.editingFeature()).toBeNull();
+    editing.setDrawTool(null);
   });
+
+  it('copies one read-only feature into annotations, in that layer\'s convention, leaving the original unchanged', () => {
+    const before = JSON.stringify(universe!.geographicLayers.get('science')!.features);
+    expect(editing.copyFeatureToAnnotations({ layerId: 'science', featureId: 'string:a', bodyName: 'Mars' })).toBe(true);
+    const id = annotationsId();
+    const copy = editLayer(id)!.features[0];
+    expect(copy.properties).toMatchObject({ name: 'A', copiedFrom: 'science / string:a' });
+    expect(copy.geometry.type).toBe('Polygon');
+    expect((copy.geometry.coordinates as number[][][])[1]).toHaveLength(5);
+    expect(geoLayers.geo.selected?.layerId).toBe(id);
+    expect(JSON.stringify(universe!.geographicLayers.get('science')!.features)).toBe(before);
+    // A whole-layer copy is still there, from the layer's menu.
+    expect(isEditable(id)).toBe(true);
+  });
+
+  const annotationsId = () => editing.editLayers().find((l) => l.name === 'My annotations · Mars')!.id;
 });

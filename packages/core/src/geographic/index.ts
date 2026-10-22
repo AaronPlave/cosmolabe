@@ -7,3 +7,4 @@ export * from './browse.js';
 export * from './style.js';
 export * from './geodesy.js';
 export * from './editing.js';
+export * from './navigation.js';

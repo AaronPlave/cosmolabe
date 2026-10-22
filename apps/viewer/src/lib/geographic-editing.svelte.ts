@@ -8,10 +8,14 @@
  * would leave a feature invalid; a refusal leaves the layer unchanged and its
  * reason is shown.
  *
- * Drawing is an explicit tool: while a draw tool is on it owns clicks on the
- * scene (camera drags still orbit), so it never fights selection, the probe or
- * measurement. Editing a feature's vertices is entered from its details, never
- * by clicking it.
+ * Drawing is a small tool state (docs/design/surface-layers-ux.md), shown as a
+ * floating bar: while a draw tool is on it owns clicks on the scene (camera
+ * drags still orbit), so it never fights selection, the probe or measurement.
+ * It draws into the layer being looked at when that is editable, else the
+ * last-used editable layer on that body, else "My annotations · <Body>",
+ * created on first use in the convention of the body's existing layers. A
+ * finished shape ends the tool and is selected. Selecting an editable feature
+ * shows its handles: shape editing follows the selection, with no mode.
  *
  * Layers are kept in this browser (localStorage), as the documented, bounded
  * `cosmolabe-geographic-edits` document; they appear in any scene with their
@@ -24,14 +28,13 @@ import {
   geographicPositionInConvention, importGeographicEditLayer, normalizeGeographicPosition, parseGeographicEditDocument,
   serializeGeographicEditDocument, GEOGRAPHIC_EDIT_MAX_LAYERS, GEOGRAPHIC_GEOJSON_EXTENSION,
   type GeographicCoordinates, type GeographicEditFeature, type GeographicEditLayer, type GeographicEditOperation,
-  type GeographicLayer, type GeographicLayerLoad, type GeographicShapeParameters, type GeoPosition, type JsonValue,
+  type GeographicGeometry, type GeographicLayer, type GeographicLayerLoad, type GeographicShapeParameters, type GeoPosition, type JsonValue,
 } from '@cosmolabe/core';
 import type { GeographicFeatureRef, UniverseRenderer } from '@cosmolabe/three';
 import { excludeFromProbe, getRenderer, onViewerEvent, setProbeActive } from './viewer-state.svelte';
 import { cancelMeasurementPick } from './spatial-measurements.svelte';
 import { getUniverse } from './loader';
-import { geo, selectFeature } from './geographic-layers.svelte';
-import { onToolClose } from './shell.svelte';
+import { geo, geographicLayer, selectFeature, showSelectedDetails } from './geographic-layers.svelte';
 
 const STORAGE_KEY = 'cosmolabe-geographic-edits';
 /** The scene-store owner for authored layers. */
@@ -56,11 +59,19 @@ export const edits = $state({
   /** Layer new features are drawn into. */
   target: null as string | null,
   tool: null as DrawTool | null,
+  /** The tool Draw starts with: the last one used. */
+  lastTool: 'polygon' as DrawTool,
   draft: null as Draft | null,
-  /** The feature whose vertex handles are shown. */
-  editing: null as { layerId: string; featureId: string | number } | null,
-  /** Vertex chosen for deletion, in the feature being edited. */
-  vertex: null as { part: number[]; index: number } | null,
+  /** Vertex chosen for deletion, in the selected feature. */
+  vertex: null as { layerId: string; featureId: string | number; part: number[]; index: number } | null,
+  /** A layer created for this drawing session, removed again if nothing is drawn into it. */
+  createdForDraft: null as string | null,
+  /** The Feature view should put the cursor in the name (a shape was just drawn). */
+  focusName: false,
+  /** A rename or delete asked for from a layer's menu, shown in its Layer view. */
+  layerAction: null as null | { id: string; kind: 'rename' | 'delete' },
+  /** The New layer / Import form in Surface layers, while it is open. */
+  form: null as null | { mode: 'new' } | { mode: 'import'; text: string; fileName: string },
   /** Last refusal or note. */
   message: '',
   /** Why stored layers were partly ignored, from the last load. */
@@ -177,8 +188,52 @@ export function renameLayer(id: string, name: string): void {
 export function deleteLayer(id: string): void {
   if (!sessions.delete(id)) return;
   if (edits.target === id) edits.target = null;
-  if (edits.editing?.layerId === id) stopEditingFeature();
+  if (edits.vertex?.layerId === id) edits.vertex = null;
+  if (geo.selected?.layerId === id) selectFeature(null);
   install(); save(); edits.revision++;
+}
+
+/** The conventions a new layer on `body` takes: those of the body's existing layers, on the body's reference shape. */
+export function inferredCoordinates(body: string): GeographicCoordinates | null {
+  const referenceShape = bodyReferenceShape(body);
+  if (!referenceShape) return null;
+  const existing = getUniverse()?.geographicLayers.layers.find((l) => l.body === body && l.ownership !== 'user');
+  const c = existing?.coordinates;
+  return { latitude: c?.latitude ?? 'planetocentric', longitudeDirection: c?.longitudeDirection ?? 'east', longitudeDomain: c?.longitudeDomain ?? '-180..180', referenceShape };
+}
+
+export const annotationLayerName = (body: string) => `My annotations · ${body}`;
+
+/**
+ * Where a new shape on `body` goes: the layer being looked at if it is
+ * editable, else the last-used editable layer there, else the body's
+ * annotations layer. Null when none exists yet.
+ */
+export function annotationTarget(body: string): string | null {
+  const here = (id: string | null) => !!id && sessions.get(id)?.layer.body === body;
+  if (here(geo.activeLayerId)) return geo.activeLayerId;
+  if (here(edits.target)) return edits.target;
+  return [...sessions.values()].find((s) => s.layer.body === body && s.layer.name === annotationLayerName(body))?.layer.id ?? null;
+}
+
+/** The annotation layer for `body`, created (and remembered as made for this draft) when there is none. */
+function ensureAnnotationLayer(body: string): string | null {
+  const existing = annotationTarget(body);
+  if (existing) return existing;
+  const coordinates = inferredCoordinates(body);
+  if (!coordinates) { edits.message = `${body} has no sphere or oblate reference shape to draw on.`; return null; }
+  const id = createLayer({ body, name: annotationLayerName(body), coordinates });
+  edits.createdForDraft = id;
+  return id;
+}
+
+/** The body Draw works on: the layer being looked at, else the tracked body, else the first one that can be drawn on. */
+export function drawBody(): string | null {
+  const active = geographicLayer(geo.activeLayerId);
+  if (active) return active.body;
+  const tracked = getRenderer()?.cameraController?.focusBody?.body.name;
+  if (tracked && bodyReferenceShape(tracked)) return tracked;
+  return getUniverse()?.geographicLayers.layers.find((l) => bodyReferenceShape(l.body))?.body ?? null;
 }
 
 // ── Operations ──
@@ -207,7 +262,7 @@ export function setFeatureProperties(layerId: string, featureId: string | number
 }
 
 export function deleteFeature(layerId: string, featureId: string | number): void {
-  if (edits.editing?.featureId === featureId) stopEditingFeature();
+  if (edits.vertex?.featureId === featureId) edits.vertex = null;
   if (applyEdit(layerId, { type: 'delete', featureId }) !== null && geo.selected?.layerId === layerId) selectFeature(null);
 }
 
@@ -231,22 +286,35 @@ export function surfacePosition(renderer: UniverseRenderer, layer: GeographicEdi
 
 // ── Drawing ──
 
-/** Turn a draw tool on (or off with null). It owns scene clicks while on. */
-export function setDrawTool(tool: DrawTool | null): void {
+/**
+ * Turn a draw tool on (or off with null). It owns scene clicks while on. With
+ * no layer to draw into yet, the body's annotations layer is chosen or made.
+ */
+export function setDrawTool(tool: DrawTool | null, body: string | null = null): void {
   const renderer = getRenderer();
   edits.draft = null;
   edits.message = '';
   if (!tool) {
     edits.tool = null;
     renderer?.setSurfacePointerTool(null);
+    // A layer made for this drawing and left empty goes again.
+    const made = edits.createdForDraft;
+    edits.createdForDraft = null;
+    if (made && sessions.get(made)?.layer.features.length === 0) deleteLayer(made);
     return;
   }
-  const layer = editLayer(edits.target);
-  if (!layer || !renderer) { edits.message = 'Choose or create a layer to draw into.'; return; }
+  if (!renderer) return;
+  const where = body ?? (edits.tool ? editLayer(edits.target)?.body ?? null : null) ?? drawBody();
+  const target = where ? ensureAnnotationLayer(where) : null;
+  if (!target) { edits.message ||= 'There is no globe in this scene to draw on.'; return; }
+  edits.target = target;
   setProbeActive(false);
   cancelMeasurementPick();
-  stopEditingFeature();
+  // Drawing replaces the selection; a new shape is selected when finished.
+  if (geo.selected) selectFeature(null);
+  edits.vertex = null;
   edits.tool = tool;
+  edits.lastTool = tool;
   edits.draft = { tool, vertices: [], hover: null };
   renderer.setSurfacePointerTool({
     pick: (x, y) => drawPick(x, y),
@@ -261,12 +329,10 @@ export function setDrawTool(tool: DrawTool | null): void {
 
 excludeFromProbe(() => { if (edits.tool) setDrawTool(null); });
 
-// However Draw closes (its button, the rail, Escape or closing every tool), the
-// draw tool gives scene clicks back and vertex editing ends; minimizing keeps them.
-onToolClose('draw', () => {
-  if (edits.tool || edits.draft) setDrawTool(null);
-  stopEditingFeature();
-});
+/** Start drawing with the last tool used, on the body in view. */
+export function startDrawing(tool: DrawTool = edits.lastTool): void {
+  setDrawTool(tool);
+}
 
 function drawPick(x: number, y: number): void {
   const renderer = getRenderer();
@@ -326,8 +392,12 @@ export function finishDraft(): void {
   const id = applyEdit(layer.id, op);
   // A refused draft (for example a self-intersecting polygon) stays, so it can be fixed with Backspace.
   if (id === null) return;
-  edits.draft = { tool: draft.tool, vertices: [], hover: draft.hover };
+  // The shape is done: the tool ends and the new shape is selected, ready to name.
+  edits.createdForDraft = null;
+  setDrawTool(null);
   selectFeature({ layerId: layer.id, featureId: geographicEditFeatureRefId(id), bodyName: layer.body });
+  edits.focusName = true;
+  showSelectedDetails();
 }
 
 /** Drop the last placed vertex. */
@@ -338,31 +408,71 @@ export function removeLastVertex(): boolean {
   return true;
 }
 
-/** Escape: abandon the draft in progress, or leave the tool when there is none. */
+/** Escape: abandon the draft in progress, or leave the tool when there is none. A selected vertex is let go first. */
 export function cancelDrawing(): boolean {
   if (edits.draft?.vertices.length) { edits.draft.vertices = []; edits.message = ''; return true; }
   if (edits.tool) { setDrawTool(null); return true; }
-  if (edits.editing) { stopEditingFeature(); return true; }
+  if (edits.vertex) { edits.vertex = null; return true; }
   return false;
 }
 
-// ── Vertex editing ──
+// ── Shape editing: follows the selection ──
 
-export function startEditingFeature(layerId: string, featureId: string | number): void {
-  setDrawTool(null);
-  edits.editing = { layerId, featureId };
-  edits.vertex = null;
-  edits.target = layerId;
+/** The selected feature when it is editable and no draw tool is on: its handles show. */
+export function editingFeature(): { layerId: string; featureId: string | number } | null {
+  void edits.revision;
+  if (edits.tool || !geo.selected) return null;
+  const feature = editFeatureOf(geo.selected);
+  return feature ? { layerId: geo.selected.layerId, featureId: feature.id } : null;
 }
-export function stopEditingFeature(): void {
-  edits.editing = null;
-  edits.vertex = null;
+
+/** The vertex chosen in the feature being edited, if any. */
+export function selectedVertex(): { part: number[]; index: number } | null {
+  const e = editingFeature(), v = edits.vertex;
+  return e && v && v.layerId === e.layerId && v.featureId === e.featureId ? { part: v.part, index: v.index } : null;
 }
 
 export function deleteSelectedVertex(): boolean {
-  const e = edits.editing, v = edits.vertex;
+  const e = editingFeature(), v = selectedVertex();
   if (!e || !v) return false;
   if (applyEdit(e.layerId, { type: 'delete-vertex', featureId: e.featureId, vertex: v }) !== null) edits.vertex = null;
+  return true;
+}
+
+// ── Copying one feature ──
+
+/**
+ * Copy one read-only feature into the annotations layer of its body, in that
+ * layer's convention; the original is never changed. The copy is selected.
+ */
+export function copyFeatureToAnnotations(ref: GeographicFeatureRef): boolean {
+  const source = geographicLayer(ref.layerId);
+  const feature = source?.features.find((f) => f.id === ref.featureId);
+  if (!source || !feature) return false;
+  const target = ensureAnnotationLayer(source.body);
+  const layer = target ? editLayer(target) : undefined;
+  if (!layer) return false;
+  edits.createdForDraft = null;
+  const position = (p: { latDeg: number; lonDeg: number }): GeoPosition => {
+    const [lon, lat] = geographicPositionInConvention({ latDeg: p.latDeg, lonDeg: p.lonDeg }, layer.coordinates);
+    return [lon, lat];
+  };
+  const g = feature.geometry;
+  let geometry: GeographicGeometry<GeoPosition>;
+  switch (g.type) {
+    case 'Point': geometry = { type: 'Point', coordinates: position(g.coordinates) }; break;
+    case 'MultiPoint': geometry = { type: 'MultiPoint', coordinates: g.coordinates.map(position) }; break;
+    case 'LineString': geometry = { type: 'LineString', coordinates: g.coordinates.map(position) }; break;
+    case 'MultiLineString': geometry = { type: 'MultiLineString', coordinates: g.coordinates.map((r) => r.map(position)) }; break;
+    case 'Polygon': geometry = { type: 'Polygon', coordinates: g.coordinates.map((r) => r.map(position)) }; break;
+    case 'MultiPolygon': geometry = { type: 'MultiPolygon', coordinates: g.coordinates.map((p) => p.map((r) => r.map(position))) }; break;
+  }
+  const properties = { ...(structuredClone(feature.properties ?? {}) as { [key: string]: JsonValue }), copiedFrom: `${source.id} / ${feature.id}` };
+  const id = applyEdit(layer.id, { type: 'add', geometry, properties });
+  if (id === null) return false;
+  edits.target = layer.id;
+  selectFeature({ layerId: layer.id, featureId: geographicEditFeatureRefId(id), bodyName: layer.body });
+  edits.message = `Copied to ${layer.name}; ${source.name} is unchanged.`;
   return true;
 }
 
@@ -409,7 +519,7 @@ export function importLayerText(text: string, fallback?: { body: string; name: s
     if (sessions.size >= GEOGRAPHIC_EDIT_MAX_LAYERS) throw new Error(`At most ${GEOGRAPHIC_EDIT_MAX_LAYERS} edited layers are kept`);
     track(new GeographicEditSession({ ...layer, id }));
     install(); save(); edits.revision++;
-    edits.target = id;
+    // Importing is not choosing where to draw: new shapes keep going where they went.
     const skipped = diagnostics.filter((d) => d.code === 'skipped-feature').length;
     edits.message = `Imported ${layer.features.length} features${skipped ? `; ${skipped} invalid features left out` : ''}.`
       + (getUniverse()?.getBody(layer.body) ? '' : ` ${layer.body} is not in this scene; the layer shows when it is.`);
@@ -428,8 +538,10 @@ restore();
 onViewerEvent('load', () => {
   edits.tool = null;
   edits.draft = null;
-  edits.editing = null;
   edits.vertex = null;
+  edits.createdForDraft = null;
+  edits.form = null;
+  edits.layerAction = null;
   edits.message = '';
   install();
   edits.revision++;

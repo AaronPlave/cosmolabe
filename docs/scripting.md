@@ -156,6 +156,7 @@ implies another: `select` never moves the camera, and none of these selects.
 | `flyTo <object> [path] [seconds]` | Fly to the view `frameObject` would cut to, and track the object. `<path>` is `direct` (the default) or `overview` (pull back to show both ends, then approach). Returns at once; follow with `wait`. |
 | `jumpTo <object>` | Cut to the view a flight would land on, and track the object. |
 | `stopFlight` | End a flight where it is, tracking what it was flying to (the camera turns to face it). |
+| `gotoCoordinates <object> <latitude> <longitude> [view] [seconds]` | Go to a place on a body: planetocentric latitude and east longitude in degrees, viewed `overhead` (the default), `oblique` or from the `surface`. **Cuts by default**; give seconds to fly. The place becomes the orbit pivot; time and selection are left alone. `ViewerControl.gotoCoordinates` also takes planetographic latitude, west longitude and a range. See [navigation](navigation.md#surface-navigation). |
 
 The path comes before the duration, so `flyTo Titan 3` is an error (`3` is not
 a path); write `flyTo Titan overview 3`. Manual input — a drag, a wheel zoom, a

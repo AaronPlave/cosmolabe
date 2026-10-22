@@ -1,0 +1,73 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "gale-context",
+      "properties": {
+        "note": "Synthetic Gale planning region; no verified mission/terrain coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.35,
+              -5.25
+            ],
+            [
+              138.65,
+              -5.25
+            ],
+            [
+              138.65,
+              -5.05
+            ],
+            [
+              138.35,
+              -5.05
+            ],
+            [
+              138.35,
+              -5.25
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "gale-local",
+      "properties": {
+        "note": "Synthetic Gale planning region; no verified mission/terrain coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138.46,
+              -5.19
+            ],
+            [
+              138.52,
+              -5.19
+            ],
+            [
+              138.52,
+              -5.12
+            ],
+            [
+              138.46,
+              -5.12
+            ],
+            [
+              138.46,
+              -5.19
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

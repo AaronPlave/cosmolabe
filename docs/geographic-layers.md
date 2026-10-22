@@ -63,55 +63,52 @@ explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
 ## Surface layers panel
 
 The viewer's **Surface layers** tool (rail, or "Surface layers" in the command
-palette) is the one place to manage a scene's surface data, grouped by body:
-each body's streamed imagery stack (the same controls as the info panel's
-Imagery section, not a second manager) and its geographic vector layers.
-Physical terrain appearance stays in the info panel.
+palette) is the one place for a scene's surface data. It has three views, and
+the selection decides which one shows (docs/design/surface-layers-ux.md):
 
-Each vector layer shows visibility, colour, feature count, validation issues
-(skipped features, import notes), and where it came from: **Catalog** or
-**Imported file**, both read-only. Session changes are presentation only; the
-imported data is never modified. Expanding a layer shows its ID, source URL or
-file, catalog, coordinate convention, style defaults, provenance and import
-diagnostics. *Isolate* shows only that vector layer on its body (imagery is
-untouched); *Show all vectors* restores the rest. Failed sources are listed
-with their errors.
-
-Choosing a layer lists its features: search matches names and every scalar
-property value; a property filter offers categories (for string fields with at
-most 24 values), numeric ranges, booleans or text; **In view** keeps features
-with a vertex or anchor on screen; **Filter scene too** draws only the
-matching features. The list is virtualized (only visible rows are rendered)
-and searches an in-memory index built once per layer, bounded by the import
-limits. There is no GIS backend.
+- **Layers**: each body's vector layers and its imagery, with a search across
+  every layer's features. A layer row has an eye (show or hide), its name
+  (opens the layer) and a **…** menu: *Show only this layer* and *About this
+  layer*. *Imagery* opens the body's imagery stack (the same controls as the
+  info panel's Imagery section, not a second manager). Layers that failed to
+  load are listed, folded, under the bodies. Physical terrain appearance stays
+  in the info panel.
+- **Layer**: the layer's features. Search matches names and every scalar
+  property value. *Filter* holds the property filter (categories for string
+  fields with at most 24 values, numeric ranges, yes/no, or text), *Only
+  features in view* and *Hide non-matching features in 3D*. *About this layer*
+  holds its source, catalog, coordinate convention, provenance and import
+  notes. The list is virtualized and searches an in-memory index built once per
+  layer, bounded by the import limits; there is no GIS backend.
+- **Feature**: the selected feature's name, kind, position, **Fly to** and its
+  properties, with previous and next to step through the layer's list. The
+  **…** menu frames it without a flight and copies its coordinates (a Point's
+  exact source numbers, with their convention), its stable reference
+  `layerId / featureId`, or its unmodified source geometry. *Location and
+  source* shows the position and extent in the **layer's declared
+  convention**, the convention, the reference and the source. A property is a
+  link only when it is an `http(s)` URL, and opens without access to the
+  viewer.
 
 Selection is shared with the scene. Clicking a feature in 3D selects and
-highlights it without opening anything over the scene; its callout opens its
-details here, and an open panel lists its layer and scrolls to it. Clicking a
-row selects it in the scene. Selecting never moves the camera. Double-click a row, press Enter, or
-use **Fly to** to fly over the feature's extent, or **Frame** to cut there,
-through the shared navigation (docs/navigation.md). Bodies that are not globes
-disable both, with the reason. Arrow keys move the selection in the list;
-Escape clears it. One callout names the selected feature in the scene (click
-it for details); it hides past the horizon.
+highlights it without opening anything over the scene. One callout names it;
+the callout's ✈ flies there and its name opens the Feature view. Clicking a
+search result or a row opens the feature; arrow keys skim a layer's list,
+highlighting each feature in the scene, and Enter opens one.
+Selecting never moves the camera. Fly to flies over the feature's extent through
+the shared navigation (docs/navigation.md); bodies that are not globes disable
+it, with the reason. Back, or Escape, clears the selection and returns to the
+feature's layer, at the feature; Back again returns to the list.
 
-The rules that keep list, scene and details consistent:
+The rules that keep the views and the scene consistent:
 
-- Hiding a layer, or a scene filter that excludes the selected feature, clears
-  the selection and says why. Selecting a feature of a hidden layer from the
-  list shows that layer first.
-- A list-only filter does not change the scene. A scene selection outside it
-  stays selected and the list says it is outside the current filter.
+- Hiding a layer, or hiding non-matching features in 3D, clears a selection it
+  hides and says why. Selecting a feature of a hidden layer shows that layer
+  first.
+- The search and filters change only the list unless *Hide non-matching
+  features in 3D* is on.
 - Visibility, filters and selection reset when a scene loads. Closing the
-  panel removes any scene filter.
-
-The details show the feature's name, geometry, position (a Point's own
-coordinates, or its extent's centre and extent) in the **layer's declared
-convention**, the convention itself, the stable reference `layerId /
-featureId`, its source and its properties under readable labels. A property is
-a link only when it is an `http(s)` URL, and opens without access to the
-viewer. *Coordinates* copies a Point's exact source numbers with their
-convention; the properties header copies the unmodified source geometry.
+  panel turns off hiding in 3D.
 
 Authored layers and editable copies of read-only layers are drawn and edited
 with the Draw tool; see [geographic-editing.md](geographic-editing.md). They
@@ -119,47 +116,50 @@ list as *Authored here · editable* or *Editable copy of …*.
 
 ## Layer styles
 
-The palette button on a vector layer opens its **style editor** below the layer
-list, with three sections:
+A layer's **Style** tab (in its Layer view, or *Style* in a layer row's
+**…** menu) starts with what most annotations need:
 
-- **Style.** Layer opacity, and controls for only the geometry types the layer
-  has. *Points*: colour, size (screen pixels at every distance), opacity,
-  circle/square/diamond and a dark halo. *Lines*: colour, width, opacity,
-  dashed and a dark outline. *Polygons*: fill colour and opacity, a hatch
-  preset, and outline colour, width and opacity; holes stay open. *Colour by*
-  switches from a single colour to a **category** palette or a **number**
-  ramp over a property. The legend is built from the layer's actual values,
-  with counts, and warns about missing values, non-numbers and fields with
-  too many values (each category's colour is editable; values beyond the
-  palette share *Other*). Under a rule, per-part colours show as set by it.
-- **Data.** Source, catalog, read-only status, body and frame, coordinate
-  convention, counts per geometry type, overall extent, provenance or licence,
-  and the property schema (type, values or range, how many features have it).
-  Imported properties are listed read-only; styling never changes them.
-- **Labels.** Label by name or a property, text size, at most N labels, hide
-  beyond a camera range, and a contrast halo. Overlapping labels are dropped,
-  keeping those already shown so a resting view does not reshuffle; labels
-  past the horizon hide. Candidates are chosen by where features are (past
-  the horizon, then off screen, are dropped first), never by source order, so
-  a large layer labels what is in view. Labels sit on the surface as drawn
-  (globe facets or terrain tiles, found by a cached ray down the normal, shared
-  with the selection callout), so they stay on their features close up on a
-  coarse globe. The selected feature is named by its callout instead.
+- **Colour**: six restrained presets (Okabe–Ito hues, readable for common
+  colour-vision deficiencies) or a custom colour. One colour styles points,
+  lines, area outlines and fill together, and stops any colouring by property.
+- **Opacity**, and only the sizes the layer has: **Point size** (screen pixels
+  at every distance), **Line width** (lines and area outlines), **Fill** (area
+  fill opacity; holes stay open).
+- **Labels**: on or off, labelled with the name or a property.
 
-A selected feature's details can make an **exception**: its own colour and
-opacity, set only when you ask, and cleared back to the layer style.
+**More options** holds the rest: *Colour by* a **category** palette or a
+**number** ramp over a property, with a legend built from the layer's actual
+values and counts that warns about missing values, non-numbers and fields with
+too many values (each category's colour is editable; values beyond the palette
+share *Other*); point shape and halo; dashed lines and a dark outline; separate
+area fill and outline colours and hatching; and label text size, how many show
+at most, a camera range beyond which they hide, and a contrast halo.
 
-The style is a small declarative object (`GeographicLayerStyle`, versioned,
-in `@cosmolabe/core`): layer defaults per geometry type, one optional property
-rule, labels, and explicit per-feature exceptions keyed by stable feature ID.
-Opacities multiply: catalog display × layer × part × feature. It is kept in
-this browser's localStorage, keyed by the layer's catalog and ID (at most 64
-layers and 256 KiB; the least recently edited go first), and restored when the
-same catalog loads; a stored style is validated and any invalid part is
-ignored with a reason. It is never written into the catalog or the data. The
-editor shows *Catalog defaults* or *Local style*; **Revert** undoes changes
-since it opened and **Reset** returns to the catalog defaults. Draw order among
-a body's vector layers (earlier draws over later where fills overlap) is for
+Labels are decluttered: overlapping labels are dropped, keeping those already
+shown so a resting view does not reshuffle, and labels past the horizon hide.
+Candidates are chosen by where features are (past the horizon, then off
+screen, are dropped first), never by source order, so a large layer labels what
+is in view. Labels sit on the surface as drawn (globe facets or terrain tiles,
+found by a cached ray down the normal, shared with the selection callout), so
+they stay on their features close up on a coarse globe. The selected feature is
+named by its callout instead.
+
+A feature's own colour is set from its Feature view, under *Appearance*: *Give
+this feature its own colour* (and opacity) changes only that feature; turning
+it off returns it to the layer's style.
+
+Changes preview live by restyling in place, without rebuilding the layer.
+**Reset to catalog style** returns to the catalog's defaults, single features'
+colours included. The style is a small declarative object
+(`GeographicLayerStyle`, versioned, in `@cosmolabe/core`): layer defaults per
+geometry type, one optional property rule, labels, and per-feature colours keyed
+by stable feature ID. Opacities multiply: catalog display × layer × part ×
+feature. It is kept in this browser's localStorage, keyed by the layer's catalog
+and ID (at most 64 layers and 256 KiB; the least recently edited go first), and
+restored when the same catalog loads; a stored style is validated and any
+invalid part is ignored with a reason. It is never written into the catalog or
+the data. Draw order among a body's vector layers (*Draw above/below other
+layers* in the **…** menus; earlier draws over later where fills overlap) is for
 the session.
 
 ## Coordinate interpretation

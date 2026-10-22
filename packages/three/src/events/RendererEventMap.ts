@@ -35,6 +35,12 @@ export interface RendererEventMap extends UniverseEventMap {
   'probe:hover': SurfacePoint | null;
   /** Point Probe: the pinned point changed (a click or tap pinned one, or it was cleared with null). */
   'probe:pin': SurfacePoint | null;
+  /**
+   * The active instrument view's sensor changed through `setInstrumentView`, or
+   * was cleared with null. Not emitted for the temporary activation the
+   * full-canvas Instrument camera mode makes on its own.
+   */
+  'instrument:sensor': { sensor: string | null };
   'camera:targetChanged': { bodyName: string | null };
   'renderer:resize': { width: number; height: number };
   /** Initial model/texture/trajectory-cache work progressing. `total` grows while

@@ -11,23 +11,28 @@
     },
     "style": {
       "version": 1,
+      "rule": null,
       "point": {
+        "color": "#e69f00",
         "sizePx": 16,
         "shape": "diamond",
         "halo": true
       },
       "line": {
+        "color": "#e69f00",
         "widthPx": 5,
         "dashed": true
       },
       "polygon": {
+        "fillColor": "#e69f00",
+        "outlineColor": "#e69f00",
+        "outlineWidthPx": 5,
         "fillOpacity": 0.4,
-        "hatch": true,
-        "outlineWidthPx": 4
+        "hatch": true
       }
     },
-    "recordsId": "87b8b36c-6799-4354-b932-3544ba88044d",
-    "program": "980ef6c1-6844-419b-9380-cd53d1dda220"
+    "recordsId": "9acfd05d-1d87-4947-810c-c25aebecd068",
+    "program": "337a0b13-02ec-47a7-bfe0-41f45dd751fc"
   },
   "legend": "Jezero science target\n1\nregion\n1\nregions\n1\nsites\n1\ntraverse\n1\ntraverses\n1",
   "labels": [
@@ -41,35 +46,30 @@
       "picked": "string:science"
     }
   ],
+  "ownColour": {
+    "string:traverse": {
+      "color": "#56b4e9"
+    }
+  },
   "reloaded": {
     "version": 1,
     "point": {
+      "color": "#56b4e9",
       "sizePx": 16,
       "shape": "diamond",
       "halo": true
     },
     "line": {
+      "color": "#56b4e9",
       "widthPx": 5,
       "dashed": true
     },
     "polygon": {
+      "fillColor": "#56b4e9",
       "fillOpacity": 0.4,
       "hatch": true,
-      "outlineWidthPx": 4
-    },
-    "rule": {
-      "kind": "categorical",
-      "field": "name",
-      "colors": {
-        "Jezero science target": "#e69f00",
-        "region": "#56b4e9",
-        "regions": "#009e73",
-        "sites": "#f0e442",
-        "traverse": "#0072b2",
-        "traverses": "#d55e00"
-      },
-      "otherColor": "#8a8f98",
-      "missingColor": "#4b5059"
+      "outlineColor": "#56b4e9",
+      "outlineWidthPx": 5
     },
     "labels": {
       "field": null,

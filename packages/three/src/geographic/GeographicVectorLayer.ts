@@ -192,7 +192,9 @@ export class GeographicVectorLayer {
     // unloaded) is cleared here rather than left pointing at nothing.
     const shown = new Set<string>();
     const rank = (id: string) => { const i = this.order.indexOf(id); return i < 0 ? this.order.length : i; };
-    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id));
+    // Unless ordered explicitly, the user's own layers draw (and pick) over published data.
+    const mine = (l: GeographicLayer) => (l.ownership === 'user' ? 0 : 1);
+    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id) || mine(a) - mine(b));
     for (const layer of ordered) {
       if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
       const subsets = new Map<string, { layer: GeographicLayer; placement: GeographicPlacement }>();

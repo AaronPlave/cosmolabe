@@ -7,8 +7,9 @@
   import GeographicCallout from './components/GeographicCallout.svelte';
   import GeographicLabels from './components/GeographicLabels.svelte';
   import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
+  import DrawToolbar from './components/DrawToolbar.svelte';
   import {
-    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo as undoEdit, redo as redoEdit,
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature,
   } from './lib/geographic-editing.svelte';
   import './lib/geographic-styles.svelte';
   import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
@@ -22,8 +23,9 @@
   import ProbePanel from './components/ProbePanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
-    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized, isToolOpen,
-    reclampFloats, topVisiblePanel, minimizePanel, isToolId,
+    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
+    isToolOpen, openTool,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -32,6 +34,7 @@
   import { restoreView } from './lib/view-link';
   import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
+  import type { SurfacePoint } from '@cosmolabe/three';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
@@ -43,7 +46,7 @@
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
   let uiHidden = $state(false);
-  let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
+  let contextMenu = $state<{ x: number; y: number; bodyName: string | null; surfacePoint: SurfacePoint | null } | null>(null);
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -51,6 +54,13 @@
   // scene nothing (#94: no persistent header).
   $effect(() => {
     document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+  });
+
+  // Closing the Instrument view window — X, Escape, the rail, Display's Off —
+  // ends the feed. Here rather than in the panel, which also unmounts for a
+  // layout switch or a scene load that must not end it.
+  $effect(() => {
+    if (!isToolOpen('instrument')) untrack(() => getRenderer()?.setInstrumentView(null));
   });
 
   // A scene deep-linked by path is named by that path until a source lists it
@@ -185,8 +195,13 @@
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const bodyName = renderer.pickBody(screenX, screenY);
+    // The surface under the click, through the same scene hit as the probe
+    // (#127): only a genuine hit offers surface navigation, never a lat/lon
+    // made up from the body's centre.
+    const hit = renderer.pickScene(screenX, screenY, 'probe');
+    const surfacePoint = hit?.kind === 'surface' ? hit.point : null;
 
-    contextMenu = { x: e.clientX, y: e.clientY, bodyName };
+    contextMenu = { x: e.clientX, y: e.clientY, bodyName, surfacePoint };
   }
 
   /** Suppress native context menu on the canvas */
@@ -223,10 +238,12 @@
     if (!renderer) return;
 
     // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
-    if (edits.tool || edits.editing || isToolOpen('draw')) {
+    if (edits.tool || editingFeature()) {
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redoEdit(); else undoEdit(); return; }
-      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redoEdit(); return; }
+      // Undo and redo apply to the layer being drawn into or edited.
+      const layerId = editingFeature()?.layerId ?? edits.target;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(layerId); else undo(layerId); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(layerId); return; }
       if (!mod && e.key === 'Enter' && edits.tool) { e.preventDefault(); finishDraft(); return; }
       if (!mod && e.key === 'Backspace' && removeLastVertex()) { e.preventDefault(); return; }
       if (!mod && e.key === 'Delete' && deleteSelectedVertex()) { e.preventDefault(); return; }
@@ -247,15 +264,6 @@
         case 'g': setDisplayOption('grid', !vs.showGrid); return;
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
-        case 'i': {
-          const sensors = renderer.getSensorNames();
-          if (sensors.length === 0) return;
-          const current = renderer.activeInstrumentView;
-          const idx = current ? sensors.indexOf(current) : -1;
-          const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
-          renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
-          return;
-        }
         case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
@@ -285,7 +293,12 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool && !e.repeat) toggleTool(tool.id);
+      // `I` opens, restores or raises the Instrument view without changing its
+      // sensor (#192). Closing stays with the rail, Escape and X.
+      if (tool && !e.repeat) {
+        if (tool.id === 'instrument') openTool('instrument');
+        else toggleTool(tool.id);
+      }
     }
   }
 
@@ -304,6 +317,13 @@
    * would be a poor trade.
    */
   function dismissTopSurface(): boolean {
+    // An expanded panel covers the workspace, whatever was touched since: it
+    // steps back to its window before anything behind it is dismissed.
+    const expanded = expandedPanel();
+    if (expanded) {
+      toggleExpanded(expanded);
+      return true;
+    }
     const top = topVisiblePanel();
     if (top == null) return false;
     if (compact) {
@@ -605,6 +625,7 @@
     <GeographicLabels />
     <GeographicCallout />
     <GeographicEditOverlay />
+    <DrawToolbar />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time
@@ -663,6 +684,7 @@
         x={contextMenu.x}
         y={contextMenu.y}
         bodyName={contextMenu.bodyName}
+        surfacePoint={contextMenu.surfacePoint}
         onClose={() => contextMenu = null}
       />
     {/if}

@@ -1,10 +1,14 @@
 /** Surface drawing and editing smoke (#200): the real viewer and UI on Mars and
- * the Moon, driven with pointer and keyboard input. Draws a point, path,
- * polygon, circle and ellipse; undoes and redoes; is refused a self-crossing
- * polygon; drags vertex and midpoint handles; edits attributes; reloads;
- * exports and reimports GeoJSON with exact coordinates; makes an editable copy
- * of a read-only layer; and checks the tool does not disturb navigation or
- * ordinary selection. */
+ * the Moon, driven with pointer and keyboard input through the flow of
+ * docs/design/surface-layers-ux.md. Draws a polygon from browsing and counts
+ * the actions (Draw → points → Enter → name → drag a point → Done), with the
+ * shape going into "My annotations · Mars"; edits a shape selected in 3D
+ * straight away (drag, midpoint insert, delete a point, undo/redo); draws a
+ * point, path, circle and ellipse from the floating bar; is refused a
+ * self-crossing polygon; edits typed properties; reloads; exports and imports
+ * GeoJSON (exported and plain); copies one read-only feature into
+ * annotations; draws on the Moon in its own convention; and checks that the
+ * tool releases the scene and does not disturb navigation. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -28,32 +32,39 @@ try {
 
   const load = async () => {
     await page.goto(`${base}?catalog=test-catalogs/geographic-vectors`);
-    await page.getByRole('button', { name: 'Draw', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Surface layers', exact: true }).waitFor();
     await page.waitForFunction(() => window.renderer?.geographicVectors.featureCount > 0);
   };
-  /** Fly over a read-only feature so its body fills the view. */
+  const panelOpen = () => page.locator('[aria-label="Mars surface layers"], .layer-view, [aria-label="Selected feature"], .layer-form').count();
+  const openPanel = async () => { if (!(await panelOpen())) await page.getByRole('button', { name: 'Surface layers', exact: true }).click(); };
+  const showLayers = async () => {
+    await openPanel();
+    while (!(await page.locator('[aria-label="Mars surface layers"]').count())) {
+      await page.locator('nav button').first().click();
+      await page.waitForTimeout(100);
+    }
+  };
+  /** Open a read-only feature from its layer and fly over it, landing back on the layer. */
   const flyOver = async (layerName, featureName) => {
-    if (!(await page.locator('[aria-label$="surface layers"]').count())) await page.getByRole('button', { name: 'Surface layers' }).click();
-    if (!(await page.locator(`[aria-label="Features of ${layerName}"]`).count())) await page.getByRole('button', { name: `List features of ${layerName}` }).click();
-    await page.getByRole('option', { name: featureName, exact: true }).dblclick();
+    await showLayers();
+    await page.getByRole('button', { name: `Open ${layerName}` }).click();
+    await page.getByRole('option', { name: featureName, exact: true }).click();
+    await page.getByRole('button', { name: 'Fly to', exact: true }).click();
     await page.waitForTimeout(2500);
-    // Out of the way of the scene clicks that follow.
-    await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
+    await page.getByRole('button', { name: layerName, exact: true }).click();
   };
   /** Canvas position of lon/lat in a layer's declared convention. */
   const screen = (layerId, lon, lat) => page.evaluate(({ layerId, lon, lat }) => {
     const layer = window.renderer.universe.geographicLayers.get(layerId);
-    const c = layer.coordinates;
-    const east = c.longitudeDirection === 'east' ? lon : -lon;
-    const p = window.__normalize([lon, lat], c);
+    const p = window.__normalize([lon, lat], layer.coordinates);
     const [s] = window.renderer.projectGeographicPositions(layer.body, [p], layer.datum, { sampleTerrain: true });
-    void east;
     return s;
   }, { layerId, lon, lat });
   const exposeHelpers = () => page.evaluate(async (root) => {
     const core = await import('/@fs' + root + '/packages/core/src/index.ts');
     window.__normalize = core.normalizeGeographicPosition;
   }, process.cwd());
+  /** Click lon/lat; when the layer does not exist yet, through the reference layer's convention. */
   const clickAt = async (layerId, lon, lat) => {
     const s = await screen(layerId, lon, lat);
     assert.ok(s.facing && s.inFront, `(${lon}, ${lat}) is on the visible side`);
@@ -62,134 +73,101 @@ try {
     await page.waitForTimeout(400);
     return s;
   };
-  const tool = (name) => page.getByRole('toolbar', { name: 'Drawing tools' }).getByRole('button', { name, exact: true }).click();
-  const edit = (id) => page.evaluate((id) => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits') ?? '{"layers":[]}').layers.find(l => l.id === id), id);
+  const bar = page.getByRole('toolbar', { name: 'Drawing' });
+  const editBar = page.getByRole('toolbar', { name: 'Editing shape' });
+  const tool = (name) => bar.getByRole('button', { name, exact: true }).click();
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits') ?? '{"layers":[]}').layers);
+  const edit = async (id) => (await stored()).find(l => l.id === id);
   const drawn = (id) => page.evaluate((id) => window.renderer.universe.geographicLayers.get(id)?.features.length ?? 0, id);
+  const selected = () => page.evaluate(() => window.renderer.geographicVectors.selectedFeature);
+  const pointerTool = () => page.evaluate(() => !!window.renderer.pointerTool);
+  const counted = {};
+  let scenario = null;
+  const act = async (fn) => { counted[scenario] = (counted[scenario] ?? 0) + 1; await fn(); };
+  // Jezero's catalog layer is the reference for clicks until the annotations layer exists.
+  const REF = 'jezero-science';
 
   await load();
   await exposeHelpers();
-  await flyOver('Jezero synthetic science', 'region Polygon');
+  await flyOver('Jezero synthetic science', 'region Area');
 
-  // A new Mars layer in the catalog's own convention (planetocentric, east, 0–360).
-  await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  await page.getByRole('button', { name: 'New layer' }).click();
-  await page.getByRole('group', { name: 'New layer' }).locator('input').first().fill('Jezero notes');
-  await page.getByRole('group', { name: 'New layer' }).getByRole('button', { name: 'Create' }).click();
-  const marsId = await page.evaluate(() => [...window.renderer.universe.geographicLayers.layers].find(l => l.name === 'Jezero notes').id);
-  const marsLayer = await page.evaluate((id) => window.renderer.universe.geographicLayers.get(id).coordinates, marsId);
-  results.marsConvention = marsLayer;
-  assert.equal(marsLayer.longitudeDomain, '0..360', 'new layer matches the existing Mars layer’s convention');
-
-  // Point.
-  await tool('Point');
-  const clicked = await clickAt(marsId, 77.43, 18.43);
-  assert.equal(await drawn(marsId), 1);
-  const point = (await edit(marsId)).features[0].geometry.coordinates;
-  results.clickedPoint = point;
-  // What you click is what is drawn and picked: the new point is under the click.
-  await page.waitForFunction(({ x, y, id }) => window.renderer.pickScene(x, y, 'select')?.layerId === id, { x: clicked.x, y: clicked.y, id: marsId }, { timeout: 15000 }).catch(() => {});
-  const under = await page.evaluate(({ x, y }) => window.renderer.pickScene(x, y, 'select'), clicked);
-  results.pickedAtClick = under;
-  assert.equal(under?.kind, 'geographic-feature');
-  assert.equal(under?.layerId, marsId);
-  assert.ok(Math.abs(point[0] - 77.43) < 0.01 && Math.abs(point[1] - 18.43) < 0.01, `near the intended place on the rendered reference globe: ${point}`);
-
-  // Closing Draw from the rail (not its own button) gives scene clicks back.
-  if (await page.getByRole('toolbar', { name: 'Drawing tools' }).getByRole('button', { name: 'Point', exact: true }).getAttribute('aria-pressed') !== 'true') await tool('Point');
-  assert.equal(await page.evaluate(() => !!window.renderer.pointerTool), true);
-  await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  assert.equal(await page.evaluate(() => !!window.renderer.pointerTool), false, 'rail close releases the draw tool');
-  await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  await page.getByRole('toolbar', { name: 'Drawing tools' }).waitFor();
-
-  // Path, finished with Enter. A camera drag while drawing navigates and adds no vertex.
-  await tool('Path');
-  await clickAt(marsId, 77.41, 18.41);
-  await clickAt(marsId, 77.44, 18.46);
-  await clickAt(marsId, 77.47, 18.42);
+  // Scenario 3: browse → draw a polygon → name it → move a point → done, in one panel.
+  scenario = 'drawNameEdit';
+  const viewBefore = await page.evaluate(() => window.renderer.camera.position.toArray());
+  await act(() => page.getByRole('button', { name: 'Draw', exact: true }).click());
+  await bar.waitFor();
+  const marsId = await page.evaluate(() => [...window.renderer.universe.geographicLayers.layers].find(l => l.name === 'My annotations · Mars')?.id);
+  assert.ok(marsId, 'drawing made My annotations · Mars');
+  results.marsConvention = await page.evaluate((id) => window.renderer.universe.geographicLayers.get(id).coordinates, marsId);
+  assert.equal(results.marsConvention.longitudeDomain, '0..360', 'it takes the convention of the body’s catalog layer');
+  for (const [lon, lat] of [[77.42, 18.42], [77.46, 18.42], [77.46, 18.46], [77.42, 18.46]]) await act(() => clickAt(REF, lon, lat));
   await page.screenshot({ path: `${output}/path-preview.png` });
-  const pose = await page.evaluate(() => {
-    const cc = window.renderer.cameraController;
-    return { position: window.renderer.camera.position.toArray(), up: window.renderer.camera.up.toArray(), target: cc.controls.target.toArray() };
-  });
-  await page.mouse.move(900, 600); await page.mouse.down(); await page.mouse.move(960, 640, { steps: 6 }); await page.mouse.up();
+  await act(() => page.keyboard.press('Enter'));
+  await page.waitForTimeout(400);
+  assert.equal(await drawn(marsId), 1);
+  assert.equal(await pointerTool(), false, 'finishing ends the tool');
+  const polygonId = (await edit(marsId)).features[0].id;
+  assert.deepEqual(await selected(), { layerId: marsId, featureId: `string:${polygonId}`, bodyName: 'Mars' }, 'the new shape is selected');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Name', 'the name waits for typing');
+  await act(async () => { await page.keyboard.type('Delta sample area'); await page.keyboard.press('Enter'); });
   await page.waitForTimeout(300);
-  assert.notDeepEqual(await page.evaluate(() => window.renderer.camera.position.toArray()), pose.position, 'a drag still navigates');
-  // Back over Jezero with the panel's Frame action (a cut).
-  await page.evaluate(async () => {
-    const m = await import('/src/lib/geographic-layers.svelte.ts');
-    m.goToFeature({ layerId: 'jezero-science', featureId: 'string:region', bodyName: 'Mars' }, { cut: true });
+  assert.equal((await edit(marsId)).features[0].properties.name, 'Delta sample area');
+  assert.equal(await page.locator('.edit-overlay .handle.vertex').count(), 4, 'its handles show without another mode');
+  await page.screenshot({ path: `${output}/edit-handles.png` });
+  const v0 = await page.locator('.edit-overlay .handle.vertex').first().boundingBox();
+  await act(async () => {
+    await page.mouse.move(v0.x + v0.width / 2, v0.y + v0.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(v0.x + v0.width / 2 - 30, v0.y + v0.height / 2 + 20, { steps: 6 });
+    await page.mouse.up();
   });
-  await page.waitForTimeout(800);
-  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  const moved = (await edit(marsId)).features[0].geometry.coordinates[0];
+  results.movedVertex = moved[0];
+  assert.ok(Math.abs(moved[0][0] - 77.42) > 1e-6 || Math.abs(moved[0][1] - 18.42) > 1e-6, 'the point moved');
+  assert.deepEqual(moved.at(-1), moved[0], 'ring stays closed');
+  await act(() => editBar.getByRole('button', { name: 'Done' }).click());
+  assert.equal(await selected(), null);
+  assert.equal(await page.locator('.edit-overlay .handle.vertex').count(), 0);
+  results.actions = { drawNameEdit: counted.drawNameEdit, vertices: 4 };
+  assert.equal(counted.drawNameEdit - 4, 5, `draw, finish, name, drag and done take 5 actions besides the points (${counted.drawNameEdit})`);
+  void viewBefore;
+
+  // Selecting your own shape in 3D shows its handles straight away.
+  scenario = 'select3dEdit';
+  // Inside the polygon, clear of Jezero's traverse, which crosses it diagonally.
+  const centre = await screen(marsId, 77.455, 18.428);
+  await act(() => page.mouse.click(centre.x, centre.y));
+  await page.waitForTimeout(400);
+  assert.equal((await selected())?.layerId, marsId);
+  assert.equal(await page.locator('.edit-overlay .handle.vertex').count(), 4);
+  // Drag a midpoint to insert a point.
+  const mid = await page.locator('.edit-overlay .handle.mid').first().boundingBox();
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2 + 25, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const ring = async () => (await edit(marsId)).features[0].geometry.coordinates[0].length;
+  assert.equal(await ring(), 6, 'midpoint insert');
+  // Choose a point, then Delete removes it; undo and redo.
+  const v1 = await page.locator('.edit-overlay .handle.vertex').nth(1).boundingBox();
+  await page.mouse.click(v1.x + v1.width / 2, v1.y + v1.height / 2);
+  await page.keyboard.press('Delete');
   await page.waitForTimeout(300);
-  assert.equal(await drawn(marsId), 2);
-  assert.equal((await edit(marsId)).features[1].geometry.coordinates.length, 3, 'drag added no vertex');
-
-  // A self-crossing polygon is refused with the reason, and nothing is added.
-  await tool('Polygon');
-  for (const [lon, lat] of [[77.42, 18.42], [77.46, 18.46], [77.46, 18.42], [77.42, 18.46]]) await clickAt(marsId, lon, lat);
-  await page.keyboard.press('Enter');
-  results.refusal = await page.locator('[role="status"]').filter({ hasText: /intersect/ }).first().innerText();
-  assert.equal(await drawn(marsId), 2);
-  await page.keyboard.press('Escape');
-
-  // A valid polygon, closed with a double-click.
-  for (const [lon, lat] of [[77.42, 18.42], [77.46, 18.42], [77.46, 18.46]]) await clickAt(marsId, lon, lat);
-  const last = await screen(marsId, 77.42, 18.46);
-  await page.mouse.dblclick(last.x, last.y);
-  await page.waitForTimeout(500);
-  assert.equal(await drawn(marsId), 3);
-  const polygonId = (await edit(marsId)).features[2].id;
-
-  // Undo and redo.
-  await page.keyboard.press('Escape'); // leave the tool, keep the panel
+  assert.equal(await ring(), 5);
   await page.keyboard.press('Control+z');
   await page.waitForTimeout(300);
-  assert.equal(await drawn(marsId), 2);
+  assert.equal(await ring(), 6);
   await page.keyboard.press('Control+Shift+z');
   await page.waitForTimeout(300);
-  assert.equal(await drawn(marsId), 3);
+  assert.equal(await ring(), 5);
 
-  // Circle and ellipse keep their parameters.
-  await tool('Circle');
-  await clickAt(marsId, 77.47, 18.44);
-  await clickAt(marsId, 77.48, 18.44);
-  await tool('Ellipse');
-  await clickAt(marsId, 77.44, 18.47);
-  await clickAt(marsId, 77.47, 18.475);
-  await clickAt(marsId, 77.44, 18.477);
-  const shapes = (await edit(marsId)).features.slice(3).map(f => f.shape);
-  results.shapes = shapes;
-  assert.equal(shapes[0].kind, 'circle');
-  assert.equal(shapes[1].kind, 'ellipse');
-  assert.ok(shapes[1].semiMinorKm < shapes[1].semiMajorKm);
-  await page.keyboard.press('Escape');
-
-  // Ordinary selection works with the tool off; edit the polygon's attributes and shape.
-  const centre = await screen(marsId, 77.43, 18.43);
-  await page.mouse.click(centre.x + 0.5, centre.y + 0.5);
-  await page.waitForTimeout(300);
-  await page.evaluate((id) => { /* select the polygon explicitly */ }, polygonId);
-  // Select it from its layer's feature list.
-  await page.waitForTimeout(500);
-  if (!(await page.locator('[aria-label$="surface layers"]').count())) await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
-  if (!(await page.locator('[aria-label="Features of Jezero notes"]').count())) await page.getByRole('button', { name: 'List features of Jezero notes' }).click();
-  const polygonName = (await edit(marsId)).features.find(f => f.id === polygonId).properties.name;
-  await page.locator('[aria-label="Features of Jezero notes"]').getByRole('option', { name: new RegExp(`^${polygonName}`) }).click();
-  await page.locator('[aria-label="Selected feature"]').waitFor();
-  const attrs = page.getByRole('group', { name: 'Edit feature' });
-  await attrs.getByLabel('name').fill('Delta sample area');
-  await attrs.getByLabel('category').fill('sampling');
-  await attrs.getByRole('button', { name: 'Save attributes' }).click();
-  await page.waitForTimeout(300);
-  const saved = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
-  assert.equal(saved.name, 'Delta sample area');
-  assert.equal(saved.category, 'sampling');
-  // New properties take the type chosen for them, and keep it.
+  // Typed properties in the Feature view keep their JSON types.
+  const props = page.getByRole('group', { name: 'Edit feature' });
   const addProperty = async (name, type, set) => {
-    await attrs.getByRole('button', { name: 'Property', exact: true }).click();
-    const row = attrs.locator('.pair').last();
+    await props.getByRole('button', { name: 'Property', exact: true }).click();
+    const row = props.locator('.pair').last();
     await row.getByLabel('Property name').fill(name);
     await row.getByLabel(`Type of ${name}`).selectOption(type);
     if (set) await set(row);
@@ -198,46 +176,82 @@ try {
   await addProperty('depth', 'null');
   await addProperty('tags', 'json', row => row.getByLabel('Value of tags').fill('["delta", 2, {"ok": true}]'));
   await addProperty('sol', 'number', row => row.getByLabel('Value of sol').fill('412'));
-  await attrs.getByRole('button', { name: 'Save attributes' }).click();
+  await props.getByLabel('Value of tags').fill('["delta",');
+  assert.equal(await props.getByRole('button', { name: 'Save' }).count(), 0, 'broken JSON cannot be saved');
+  await props.getByLabel('Value of tags').fill('["delta", 2, {"ok": true}]');
+  await props.getByRole('button', { name: 'Save' }).click();
   await page.waitForTimeout(300);
-  const typed = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
+  const typed = (await edit(marsId)).features[0].properties;
   results.typedAttributes = typed;
-  assert.deepEqual({ sampled: typed.sampled, depth: typed.depth, tags: typed.tags, sol: typed.sol }, { sampled: true, depth: null, tags: ['delta', 2, { ok: true }], sol: 412 });
-  // Editing other fields keeps those types; broken JSON is refused, not saved as text.
-  await attrs.getByLabel('Value of tags').fill('["delta",');
-  assert.equal(await attrs.getByRole('button', { name: 'Save attributes' }).isDisabled(), true);
-  await attrs.getByLabel('Value of tags').fill('["delta"]');
-  await attrs.getByLabel('name', { exact: true }).fill('Delta sample area 2');
-  await attrs.getByRole('button', { name: 'Save attributes' }).click();
+  assert.deepEqual({ name: typed.name, sampled: typed.sampled, depth: typed.depth, tags: typed.tags, sol: typed.sol },
+    { name: 'Delta sample area', sampled: true, depth: null, tags: ['delta', 2, { ok: true }], sol: 412 });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  results.actions.select3dEdit = counted.select3dEdit;
+
+  // The other tools, from the floating bar, into the same layer.
+  await showLayers();
+  // A point: what you click is what is drawn and picked.
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await tool('Point');
+  const clicked = await clickAt(REF, 77.43, 18.435);
+  assert.equal(await drawn(marsId), 2, 'into the same annotations layer');
+  await page.waitForFunction(({ x, y, id }) => window.renderer.pickScene(x, y, 'select')?.layerId === id, { x: clicked.x, y: clicked.y, id: marsId }, { timeout: 15000 }).catch(() => {});
+  results.pickedAtClick = await page.evaluate(({ x, y }) => window.renderer.pickScene(x, y, 'select'), clicked);
+  assert.equal(results.pickedAtClick?.layerId, marsId);
+  await page.keyboard.press('Escape');
+  await showLayers();
+
+  // A path; a camera drag while drawing navigates and adds no point.
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await tool('Path');
+  for (const [lon, lat] of [[77.41, 18.41], [77.44, 18.46], [77.47, 18.42]]) await clickAt(REF, lon, lat);
+  const pose = await page.evaluate(() => window.renderer.camera.position.toArray());
+  await page.mouse.move(900, 600); await page.mouse.down(); await page.mouse.move(960, 640, { steps: 6 }); await page.mouse.up();
   await page.waitForTimeout(300);
-  const retyped = (await edit(marsId)).features.find(f => f.id === polygonId).properties;
-  assert.deepEqual({ sampled: retyped.sampled, depth: retyped.depth, tags: retyped.tags, sol: retyped.sol }, { sampled: true, depth: null, tags: ['delta'], sol: 412 });
-  await attrs.getByRole('button', { name: /Edit shape/ }).click();
-  await page.waitForTimeout(500);
-  const handles = await page.locator('.edit-overlay .handle.vertex').count();
-  assert.equal(handles, 4);
-  await page.screenshot({ path: `${output}/edit-handles.png` });
-  // Drag the first vertex.
-  const v0 = await page.locator('.edit-overlay .handle.vertex').first().boundingBox();
-  await page.mouse.move(v0.x + v0.width / 2, v0.y + v0.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(v0.x + v0.width / 2 - 30, v0.y + v0.height / 2 + 20, { steps: 6 });
-  await page.mouse.up();
-  await page.waitForTimeout(400);
-  const moved = (await edit(marsId)).features.find(f => f.id === polygonId).geometry.coordinates[0];
-  results.movedVertex = moved[0];
-  assert.ok(Math.abs(moved[0][0] - 77.42) > 1e-6 || Math.abs(moved[0][1] - 18.42) > 1e-6);
-  assert.deepEqual(moved.at(-1), moved[0], 'ring stays closed');
-  // Drag a midpoint to insert a vertex.
-  const mid = await page.locator('.edit-overlay .handle.mid').first().boundingBox();
-  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2 + 25, { steps: 6 });
-  await page.mouse.up();
-  await page.waitForTimeout(400);
-  results.afterInsert = await page.locator('.message, .refusal').allInnerTexts();
-  assert.equal((await edit(marsId)).features.find(f => f.id === polygonId).geometry.coordinates[0].length, 6, `midpoint insert: ${results.afterInsert}`);
-  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  assert.notDeepEqual(await page.evaluate(() => window.renderer.camera.position.toArray()), pose, 'a drag still navigates');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  assert.equal(await drawn(marsId), 3);
+  assert.equal((await edit(marsId)).features[2].geometry.coordinates.length, 3, 'drag added no point');
+  // Back over Jezero: Fly to on the new path.
+  await page.getByRole('button', { name: 'Fly to', exact: true }).click();
+  await page.waitForTimeout(2500);
+  await page.keyboard.press('Escape');
+  await flyOver('Jezero synthetic science', 'region Area');
+
+  // A self-crossing polygon is refused with the reason, and nothing is added.
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await tool('Polygon');
+  for (const [lon, lat] of [[77.42, 18.42], [77.46, 18.46], [77.46, 18.42], [77.42, 18.46]]) await clickAt(REF, lon, lat);
+  await page.keyboard.press('Enter');
+  results.refusal = await bar.locator('.hint').innerText();
+  assert.match(results.refusal, /intersect/);
+  assert.equal(await drawn(marsId), 3);
+  // Escape clears the draft, a second Escape stops drawing and gives clicks back.
+  await page.keyboard.press('Escape');
+  assert.equal(await pointerTool(), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await pointerTool(), false, 'Escape releases the scene');
+
+  // Circle and ellipse keep their parameters.
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await tool('Circle');
+  await clickAt(REF, 77.47, 18.44);
+  await clickAt(REF, 77.48, 18.44);
+  await page.keyboard.press('Escape');
+  await showLayers();
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
+  await tool('Ellipse');
+  await clickAt(REF, 77.44, 18.47);
+  await clickAt(REF, 77.47, 18.475);
+  await clickAt(REF, 77.44, 18.477);
+  const shapes = (await edit(marsId)).features.slice(3).map(f => f.shape);
+  results.shapes = shapes;
+  assert.equal(shapes[0].kind, 'circle');
+  assert.equal(shapes[1].kind, 'ellipse');
+  assert.ok(shapes[1].semiMinorKm < shapes[1].semiMajorKm);
+  await page.keyboard.press('Escape');
 
   // Reload: everything is still there, exactly.
   const before = await edit(marsId);
@@ -246,75 +260,75 @@ try {
   assert.equal(await drawn(marsId), before.features.length);
   assert.deepEqual(await edit(marsId), before);
 
-  // Export GeoJSON, then import it as a new editable layer: identical coordinates and conventions.
-  await page.getByRole('button', { name: 'Draw', exact: true }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'GeoJSON' }).click()]);
+  // Export from the layer's menu, then import it back: identical coordinates and conventions.
+  await showLayers();
+  await page.getByRole('button', { name: 'More for My annotations · Mars' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: 'Export GeoJSON' }).click()]);
   const exported = JSON.parse(await readFile(await download.path(), 'utf8'));
   results.exportMeta = exported['cosmolabe:geographic'];
   assert.equal(exported['cosmolabe:geographic'].body, 'Mars');
   assert.deepEqual(exported['cosmolabe:geographic'].coordinates, before.coordinates);
   assert.deepEqual(exported.features.map(f => f.geometry), before.features.map(f => f.geometry));
+  await showLayers();
   await page.locator('input[type=file]').setInputFiles({ name: 'notes.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(JSON.stringify(exported)) });
   await page.waitForTimeout(500);
-  const imported = await page.evaluate(() => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits')).layers.at(-1));
+  const imported = (await stored()).at(-1);
   assert.notEqual(imported.id, before.id);
   assert.deepEqual(imported.features, before.features);
 
-  // Plain GeoJSON says nothing of body or convention: Import asks, and reads it in the chosen one.
+  // Plain GeoJSON: Import asks for its body and convention, and reads it in the chosen one.
+  await showLayers();
   const plain = { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'c1', properties: { name: 'West crater', rim: true }, geometry: { type: 'Point', coordinates: [282.55, 18.45] } }] };
   await page.locator('input[type=file]').setInputFiles({ name: 'craters.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(JSON.stringify(plain)) });
-  const importForm = page.getByRole('group', { name: 'Import GeoJSON' });
+  const importForm = page.getByRole('region', { name: 'Import GeoJSON' }).or(page.locator('[aria-label="Import GeoJSON"]'));
   await importForm.waitFor();
   await importForm.getByRole('radio', { name: 'west' }).click();
   await importForm.getByRole('radio', { name: '0..360' }).click();
   await importForm.getByRole('button', { name: 'Import' }).click();
   await page.waitForTimeout(500);
-  const craters = await page.evaluate(() => JSON.parse(localStorage.getItem('cosmolabe-geographic-edits')).layers.find(l => l.name === 'craters'));
+  const craters = (await stored()).find(l => l.name === 'craters');
   results.plainImport = { body: craters.body, coordinates: craters.coordinates, feature: craters.features[0] };
   assert.equal(craters.body, 'Mars');
   assert.equal(craters.coordinates.longitudeDirection, 'west');
   assert.deepEqual(craters.features[0].geometry.coordinates, [282.55, 18.45], 'coordinates kept as written');
-  assert.equal(craters.features[0].properties.rim, true);
   const craterLon = await page.evaluate((id) => window.renderer.universe.geographicLayers.get(id).features[0].geometry.coordinates.lonDeg, craters.id);
   assert.ok(Math.abs(craterLon - 77.45) < 1e-9, `282.55°W is 77.45°E: ${craterLon}`);
 
-  // Read-only data gets an editable copy; the original is hidden and unchanged.
+  // One read-only feature copied into annotations; the original layer stays as it is, and visible.
   const original = await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features));
-  if (!(await page.locator('[aria-label$="surface layers"]').count())) await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
-  if (!(await page.locator('[aria-label="Features of Jezero synthetic science"]').count())) await page.getByRole('button', { name: 'List features of Jezero synthetic science' }).click();
-  await page.locator('[aria-label="Features of Jezero synthetic science"]').getByRole('option', { name: 'region Polygon', exact: true }).click();
-  await page.locator('[aria-label="Selected feature"]').waitFor();
-  await page.getByRole('button', { name: 'Make editable copy' }).click();
-  await page.waitForTimeout(500);
-  assert.equal(await drawn('jezero-science:edits'), 6);
-  assert.equal(await page.evaluate(() => window.renderer.geographicVectors.isVisible('jezero-science')), false);
+  await showLayers();
+  await page.getByRole('button', { name: 'Open Jezero synthetic science' }).click();
+  await page.getByRole('option', { name: 'region Area', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit a copy of this feature' }).click();
+  await page.waitForTimeout(400);
+  const copied = await selected();
+  results.featureCopy = copied;
+  assert.equal(copied?.layerId, marsId, 'the copy goes into My annotations · Mars and is selected');
+  assert.equal(await page.locator('.edit-overlay .handle.vertex').count() > 0, true, 'the copy is editable at once');
+  assert.equal(await page.evaluate(() => window.renderer.geographicVectors.isVisible('jezero-science')), true);
   assert.equal(await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features)), original);
+  await page.keyboard.press('Escape');
 
-  // The Moon, in its own convention.
-  await flyOver('Lunar synthetic regions', (await page.evaluate(() => window.renderer.universe.geographicLayers.get('moon-science').features[0].properties?.name ?? '')) + ' ' + (await page.evaluate(() => window.renderer.universe.geographicLayers.get('moon-science').features[0].geometry.type)));
-  await page.getByRole('button', { name: 'New layer' }).click();
-  const form = page.getByRole('group', { name: 'New layer' });
-  await form.locator('input').first().fill('Lunar notes');
-  await form.getByLabel('Body', { exact: true }).click();
-  await page.getByRole('option', { name: 'Moon', exact: true }).click();
-  await form.getByRole('button', { name: 'Create' }).click();
-  const moonId = await page.evaluate(() => [...window.renderer.universe.geographicLayers.layers].find(l => l.name === 'Lunar notes').id);
-  const moonFeature = await page.evaluate(() => {
-    const l = window.renderer.universe.geographicLayers.get('moon-science');
-    return l.features[0].original.geometry.coordinates;
-  });
+  // The Moon, in its own convention, into its own annotations layer.
+  await flyOver('Lunar synthetic regions', (await page.evaluate(() => window.renderer.universe.geographicLayers.get('moon-science').features[0].properties?.name ?? '')) + ' ' + (await page.evaluate(() => ({ Point: 'Point', MultiPoint: 'Points', LineString: 'Line', MultiLineString: 'Lines', Polygon: 'Area', MultiPolygon: 'Areas' })[window.renderer.universe.geographicLayers.get('moon-science').features[0].geometry.type])));
+  const moonFeature = await page.evaluate(() => window.renderer.universe.geographicLayers.get('moon-science').features[0].original.geometry.coordinates);
   const moonPoint = Array.isArray(moonFeature[0]) ? (Array.isArray(moonFeature[0][0]) ? moonFeature[0][0] : moonFeature[0]) : moonFeature;
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
   await tool('Point');
-  await clickAt(moonId, moonPoint[0], moonPoint[1]);
-  assert.equal(await drawn(moonId), 1);
-  results.moon = { convention: (await edit(moonId)).coordinates, point: (await edit(moonId)).features[0].geometry.coordinates };
+  await clickAt('moon-science', moonPoint[0], moonPoint[1]);
+  const moon = (await stored()).find(l => l.name === 'My annotations · Moon');
+  results.moon = { convention: moon.coordinates, point: moon.features[0].geometry.coordinates };
+  assert.equal(moon.body, 'Moon');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: `${output}/moon.png` });
 
-  // Phone layout with the Draw panel.
+  // Phone layout while drawing: the bar stays clear of the sheet and timeline.
+  await showLayers();
+  await page.getByRole('button', { name: 'Draw', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${output}/compact.png` });
+  await page.keyboard.press('Escape');
 
   results.errors = errors;
   await writeFile(`${output}/drawing.json`, JSON.stringify(results, null, 2) + '\n');

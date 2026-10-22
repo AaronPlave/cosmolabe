@@ -39,7 +39,8 @@ export type {
 export { SensorFrustum } from './SensorFrustum.js';
 export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
+export { fitImageRect } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary, FovOutline, Rect as InstrumentImageRect } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
 export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
@@ -58,7 +59,7 @@ export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
 export type { BloomConfig } from './BloomEffect.js';
 export { StarField } from './StarField.js';
-export type { StarFieldOptions } from './StarField.js';
+export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
@@ -73,8 +74,16 @@ export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 // Controls
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
-export { CameraController } from './controls/CameraController.js';
-export type { CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose } from './controls/CameraController.js';
+export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
+export type {
+  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
+} from './controls/CameraController.js';
+export {
+  bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint, surfacePointCoordinatePair, surfaceNavigable, SurfaceTerrainAnchor, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+} from './SurfaceNavigation.js';
+export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';

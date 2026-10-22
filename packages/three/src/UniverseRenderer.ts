@@ -41,7 +41,7 @@ import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
 import { dskShapeProviderOf } from './DskShapeProvider.js';
-import { instrumentFovProviderOf } from './InstrumentFovProvider.js';
+import { instrumentFovProviderOf, FOV_MAX_BOUNDS } from './InstrumentFovProvider.js';
 import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMarkerGroups } from './EventMarkers.js';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { geographicStatusPosition, geographicStatusText } from './geographic/GeographicStatus.js';
@@ -1069,7 +1069,7 @@ export class UniverseRenderer {
     this.updateShadowOccluders();
 
     // Adapt camera speeds to altitude above nearest body (before controls process input)
-    this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
+    this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor, (bm) => this.groundRadiusUnderCameraKm(bm));
 
     // Provide SPICE + universe context for camera modes
     this.cameraController.setModeContext(
@@ -1176,11 +1176,21 @@ export class UniverseRenderer {
       }
     }
 
+    // Count every pass in this frame, including the early instrument feed.
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
+
+    // A windowed instrument feed renders before the main passes: Pass 1 clears
+    // the whole buffer, so the pixels it borrowed under its window never reach
+    // a screenshot, a video frame or the screen (#192).
+    this.syncInstrumentMode();
+    if (this.instrumentView?.active && !this.instrumentView.fullScreen) {
+      this.renderInstrumentFeed(et, spiceInst, originRelResolver);
+    }
+
     // --- Multi-pass rendering ---
     this.geographicVectors.begin();
     this.renderer.autoClear = false;
-    this.renderer.info.autoReset = false;
-    this.renderer.info.reset();
     this._renderDebugFrame++;
 
     if (this.bloomEffect?.enabled && this.solarSources.size > 0) {
@@ -1350,43 +1360,8 @@ export class UniverseRenderer {
       this.renderer.render(this.spatialScene, this.camera);
     }
 
-    // Instrument view — PiP or full-screen depending on camera mode
-    const isInstrumentMode = this.cameraController.mode === CameraModeName.INSTRUMENT;
-    if (isInstrumentMode && this.instrumentView) {
-      // In instrument camera mode: if no sensor is active yet, try to activate from the mode params
-      if (!this.instrumentView.active) {
-        const instrMode = this.cameraController.getModeInstance<InstrumentMode>(CameraModeName.INSTRUMENT);
-        if (instrMode?.sensorName) {
-          this.setInstrumentView(instrMode.sensorName);
-        }
-      }
-      this.instrumentView.fullScreen = true;
-    } else if (this.instrumentView) {
-      this.instrumentView.fullScreen = false;
-    }
-
-    if (this.instrumentView?.active) {
-      try {
-        const sf = this.sensorFrustums.get(this.instrumentView.sensorName!);
-        if (sf) {
-          const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-          let spiceRot: number[] | undefined;
-          if (sf.spiceFovFrame && spiceInst) {
-            try {
-              spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
-            } catch { /* no CK coverage */ }
-          }
-          this.instrumentView.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
-          // The terrain draw cull is the main camera's.
-          for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
-          // The instrument has its own observer position and may be inside a
-          // different shell. Refresh its sky lookup and surface transport too.
-          this.renderInstrumentScene();
-        }
-      } catch (err) {
-        console.warn('[Cosmolabe] Instrument PiP render error:', err);
-      }
-    }
+    // Full-canvas Instrument camera mode draws over the finished main frame.
+    if (this.instrumentView?.fullScreen) this.renderInstrumentFeed(et, spiceInst, originRelResolver);
 
     // Event glyphs are atomic annotations: fade the entire sprite from its
     // anchor's visibility after the camera has moved this frame. Trajectory
@@ -1446,6 +1421,58 @@ export class UniverseRenderer {
     this.events.emit('renderer:resize', { width, height });
     for (const plugin of this.plugins) {
       plugin.onResize?.(width, height);
+    }
+  }
+
+  /** Sensor the full-canvas Instrument camera mode activated itself, to undo on exit. */
+  private instrumentModeSensor: string | null = null;
+
+  /**
+   * Coordinate the legacy full-canvas Instrument camera mode with the instrument
+   * view: the mode shows the active feed full-canvas, activates its own sensor
+   * only when none is active, and deactivates on exit only what it activated.
+   */
+  private syncInstrumentMode(): void {
+    const isInstrumentMode = this.cameraController.mode === CameraModeName.INSTRUMENT;
+    if (isInstrumentMode && !this.instrumentView?.active) {
+      const instrMode = this.cameraController.getModeInstance<InstrumentMode>(CameraModeName.INSTRUMENT);
+      if (instrMode?.sensorName && this.activateInstrument(instrMode.sensorName)) {
+        this.instrumentModeSensor = instrMode.sensorName;
+      }
+    } else if (!isInstrumentMode && this.instrumentModeSensor != null) {
+      this.instrumentModeSensor = null;
+      this.instrumentView?.setSensor(null);
+    }
+    if (this.instrumentView) this.instrumentView.fullScreen = isInstrumentMode;
+  }
+
+  private renderInstrumentFeed(
+    et: number,
+    spiceInst: Universe['spiceInstance'],
+    originRelResolver: (name: string, t: number) => [number, number, number],
+  ): void {
+    const iv = this.instrumentView;
+    if (!iv?.measure(this.renderer.domElement)) return;
+    try {
+      const sf = this.sensorFrustums.get(iv.sensorName!);
+      if (!sf) return;
+      const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
+      let spiceRot: number[] | undefined;
+      if (sf.spiceFovFrame && spiceInst) {
+        try {
+          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
+        } catch { /* no CK coverage */ }
+      }
+      iv.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
+      // The terrain draw cull is the main camera's.
+      for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
+      // The instrument has its own observer position and may be inside a
+      // different shell. Refresh its sky lookup and surface transport too.
+      this.renderInstrumentScene();
+      // The main passes still to come want the main camera's cull back.
+      if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+    } catch (err) {
+      console.warn('[Cosmolabe] Instrument view render error:', err);
     }
   }
 
@@ -2076,28 +2103,52 @@ export class UniverseRenderer {
   }
 
   /**
-   * Show/hide the instrument picture-in-picture view.
-   * Pass a sensor name to activate, or null to deactivate.
+   * Show/hide the instrument view. Pass a sensor name to activate, or null to
+   * deactivate. Where the feed is presented is a separate concern — see
+   * `setInstrumentViewSurface` — so a script switching sensors never takes the
+   * feed out of a host's window.
    */
   setInstrumentView(sensorName: string | null, options?: InstrumentViewOptions): void {
+    // An explicit choice replaces whatever the Instrument camera mode activated.
+    this.instrumentModeSensor = null;
+    if (options?.surface !== undefined) this.setInstrumentViewSurface(options.surface);
     if (sensorName == null) {
-      if (this.instrumentView) {
-        this.instrumentView.setSensor(null);
-      }
+      if (!this.instrumentView?.active) return;
+      this.instrumentView.setSensor(null);
+      this.events.emit('instrument:sensor', { sensor: null });
       return;
     }
+    if (this.activateInstrument(sensorName, options)) {
+      this.events.emit('instrument:sensor', { sensor: sensorName });
+    }
+  }
 
+  /** Host-owned canvas the instrument feed is presented in (`InstrumentViewOptions.surface`); null for the corner inset. */
+  private instrumentSurface: HTMLCanvasElement | null = null;
+
+  /**
+   * Present the instrument feed in `surface`, a canvas the host places and
+   * sizes, or null to fall back to the fixed corner inset. Independent of which
+   * sensor is active. A surface that is detached from the document (e.g. its
+   * window minimized) renders nothing.
+   */
+  setInstrumentViewSurface(surface: HTMLCanvasElement | null): void {
+    this.instrumentSurface = surface;
+    this.instrumentView?.setSurface(surface);
+  }
+
+  private activateInstrument(sensorName: string, options?: InstrumentViewOptions): boolean {
     const sf = this.sensorFrustums.get(sensorName);
     if (!sf) {
       console.warn(`[Cosmolabe] No sensor frustum found for "${sensorName}"`);
-      return;
+      return false;
     }
 
     // Create InstrumentView on first use
     if (!this.instrumentView) {
       this.instrumentView = new InstrumentView(
         this.renderer.domElement.parentElement!,
-        options,
+        { ...options, surface: this.instrumentSurface },
       );
     }
 
@@ -2108,7 +2159,7 @@ export class UniverseRenderer {
     const fovProvider = instrumentFovProviderOf(this.universe.spiceInstance);
     if (spiceId != null && fovProvider) {
       try {
-        const fov = fovProvider.getfov(spiceId);
+        const fov = fovProvider.getfov(spiceId, FOV_MAX_BOUNDS);
         fovBoundary = {
           shape: fov.shape,
           boresight: fov.boresight,
@@ -2118,6 +2169,36 @@ export class UniverseRenderer {
     }
 
     this.instrumentView.setSensor(sf, fovBoundary);
+    return true;
+  }
+
+  /**
+   * The active instrument view as a host window needs it: identity, the
+   * physical FOV, how it is pointed, and where the image sat in its surface on
+   * the last frame (null when nothing was drawn — hidden, minimized, or
+   * full-canvas). Null with no active view.
+   */
+  getInstrumentViewInfo(): {
+    sensor: string; spacecraft: string | null; target: string | null;
+    /** Sensor coverage, degrees; null when neither the catalog nor an IK gives one. */
+    fov: [number, number] | null;
+    /** Rendered image extent, degrees (coverage plus a small margin for SPICE boundaries). */
+    viewFov: [number, number];
+    pointing: 'spice' | 'target' | 'none';
+    imageRect: import('./InstrumentView.js').Rect | null;
+  } | null {
+    const iv = this.instrumentView;
+    if (!iv?.active) return null;
+    const sf = this.sensorFrustums.get(iv.sensorName!);
+    return {
+      sensor: iv.sensorName!,
+      spacecraft: sf?.body.parentName ?? null,
+      target: sf?.targetName ?? null,
+      fov: iv.fov,
+      viewFov: iv.viewFov,
+      pointing: iv.pointing,
+      imageRect: iv.imageRect,
+    };
   }
 
   /** Get the currently active instrument view sensor name, if any. */
@@ -3328,13 +3409,41 @@ export class UniverseRenderer {
   }
 
   /**
+   * The ground's distance from `bm`'s centre under the camera, km, from the
+   * terrain elevation the surface clamp last sampled there; null without
+   * terrain or before the clamp has sampled it. Lets control speeds measure
+   * height above a crater floor or a basin below the datum, not above the
+   * reference radius.
+   */
+  private groundRadiusUnderCameraKm(bm: BodyMesh): number | null {
+    if (!bm.hasTerrain) return null;
+    const cached = this._terrainClampCache.get(bm.body.name);
+    if (!cached) return null;
+    const sf = this.scaleFactor;
+    const local = _clampTmpVec.copy(this.camera.position).sub(bm.position).divideScalar(sf)
+      .applyQuaternion(_clampTmpQuat.copy(bm.mesh.quaternion).invert());
+    // Y-up mesh frame → body-fixed Z-up.
+    const position = bm.terrainBodyFixedToGeodetic({ xKm: local.x, yKm: -local.z, zKm: local.y });
+    return position ? bm.terrainReferenceRadiusAt(position.latDeg) + cached.elevationKm : null;
+  }
+
+  /**
    * Push camera out if it's inside any body's surface.
    * For bodies with terrain, queries actual terrain elevation at the camera's
    * lat/lon so the camera can descend into craters but never go below the
    * visible terrain surface.
    */
+  /**
+   * How far, km, this frame's surface clamp pushed the camera out of a body's
+   * ground (0 when it did not): a diagnostic for navigation that lands near
+   * terrain, such as surface navigation's (#190) instrumentation.
+   */
+  get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
+  private _cameraClampCorrectionKm = 0;
+
   private clampCameraAboveSurfaces(): void {
     const cam = this.camera.position;
+    this._cameraClampCorrectionKm = 0;
     const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
 
     // When the camera is tracking OR flying to a surface-locked body
@@ -3419,6 +3528,7 @@ export class UniverseRenderer {
           console.log(`[clamp] PUSH on ${bm.body.name}: dist=${dist.toExponential(3)} surfaceR=${surfaceR.toExponential(3)} hasTerrain=${hasTerrainSample}`);
         }
         // Push camera out to just above surface along the same direction
+        this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
       }
@@ -3941,7 +4051,7 @@ export class UniverseRenderer {
     if (!fovProvider) return;
 
     try {
-      const fov = fovProvider.getfov(spiceId);
+      const fov = fovProvider.getfov(spiceId, FOV_MAX_BOUNDS);
 
       // Cache the frame name for per-frame pxform calls (avoids calling getfov every frame)
       const fovFrame = fov.frame;

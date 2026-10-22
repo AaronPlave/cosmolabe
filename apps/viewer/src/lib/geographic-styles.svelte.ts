@@ -133,18 +133,58 @@ export function featureOverrideCount(id: string): number {
   return Object.keys(geoStyles.byLayer[id]?.features ?? {}).length;
 }
 
-/** One feature's explicit exception, or null when it follows the layer. */
+/** One feature's own colour and opacity, or null when it follows the layer. */
 export function featureOverride(ref: GeographicFeatureRef | null): GeographicFeatureStyleOverride | null {
   return ref ? geoStyles.byLayer[ref.layerId]?.features?.[ref.featureId] ?? null : null;
 }
 
-/** Set or clear (null) one feature's exception. An empty exception is removed. */
+/** Set or clear (null) one feature's own colour and opacity. An empty one is removed. */
 export function setFeatureOverride(ref: GeographicFeatureRef, override: GeographicFeatureStyleOverride | null): void {
   updateLayerStyle(ref.layerId, (style) => {
     const features = { ...style.features };
     if (!override || (override.color === undefined && override.opacity === undefined)) delete features[ref.featureId];
     else features[ref.featureId] = override;
     style.features = Object.keys(features).length ? features : undefined;
+  });
+}
+
+// ── Presets and common adjustments ──
+
+/**
+ * Restrained colours for surface annotations, readable for common colour-vision
+ * deficiencies (Okabe–Ito hues) and against both imagery and plain globes.
+ */
+export const STYLE_PRESETS: readonly { label: string; color: string }[] = [
+  { label: 'Sky', color: '#56b4e9' },
+  { label: 'Orange', color: '#e69f00' },
+  { label: 'Green', color: '#009e73' },
+  { label: 'Yellow', color: '#f0e442' },
+  { label: 'Pink', color: '#cc79a7' },
+  { label: 'White', color: '#ffffff' },
+];
+
+/** One colour for every part of the layer: points, lines, outlines and fill. Colouring by a property stops. */
+export function setLayerColor(id: string, color: string): void {
+  updateLayerStyle(id, (s) => {
+    s.rule = null;
+    s.point = { ...s.point, color };
+    s.line = { ...s.line, color };
+    s.polygon = { ...s.polygon, fillColor: color, outlineColor: color };
+  });
+}
+
+/** The colour the common control shows: what lines, outlines or points draw with. */
+export function layerColor(layer: GeographicLayer): string {
+  const style = geoStyles.byLayer[layer.id];
+  return style?.line?.color ?? style?.polygon?.outlineColor ?? style?.point?.color ?? style?.polygon?.fillColor
+    ?? layer.definition.display?.color ?? '#59c5dd';
+}
+
+/** Line width for lines and polygon outlines together. */
+export function setLayerLineWidth(id: string, widthPx: number): void {
+  updateLayerStyle(id, (s) => {
+    s.line = { ...s.line, widthPx };
+    s.polygon = { ...s.polygon, outlineWidthPx: widthPx };
   });
 }
 
@@ -171,7 +211,7 @@ export function revertStyleEdits(): void {
   flush();
 }
 
-/** Back to the catalog's display defaults, exceptions included. */
+/** Back to the catalog's display defaults, single features' colours included. */
 export function resetLayerStyle(id: string): void {
   setLayerStyle(id, null);
   flush();
@@ -179,12 +219,16 @@ export function resetLayerStyle(id: string): void {
 
 // ── Draw order ──
 
+/** The renderer's order before any move: the user's own layers over published data. */
+const defaultOrder = (layers: readonly GeographicLayer[]) =>
+  [...layers].sort((a, b) => (a.ownership === 'user' ? 0 : 1) - (b.ownership === 'user' ? 0 : 1)).map((l) => l.id);
+
 /** Move a vector layer up (drawn over) or down among the layers on its body, for this session. */
 export function moveLayer(id: string, up: boolean): void {
   const universe = getUniverse();
   const layer = layerOf(id);
   if (!universe || !layer) return;
-  const all = universe.geographicLayers.layers.map((l) => l.id);
+  const all = defaultOrder(universe.geographicLayers.layers);
   const current = [...geoStyles.order.filter((x) => all.includes(x)), ...all.filter((x) => !geoStyles.order.includes(x))];
   const siblings = current.filter((x) => layerOf(x)?.body === layer.body);
   const at = siblings.indexOf(id), to = at + (up ? -1 : 1);
@@ -201,7 +245,7 @@ export function layerRank(id: string): { index: number; count: number } {
   const universe = getUniverse();
   const layer = layerOf(id);
   if (!universe || !layer) return { index: 0, count: 0 };
-  const all = universe.geographicLayers.layers.map((l) => l.id);
+  const all = defaultOrder(universe.geographicLayers.layers);
   const current = [...geoStyles.order.filter((x) => all.includes(x)), ...all.filter((x) => !geoStyles.order.includes(x))];
   const siblings = current.filter((x) => layerOf(x)?.body === layer.body);
   return { index: siblings.indexOf(id), count: siblings.length };
