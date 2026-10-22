@@ -37,17 +37,66 @@ def write(path, data):
     Path(path).write_text(json.dumps(data, sort_keys=True, indent=2) + '\n')
 
 
-def raster(path, radius, global_base=False):
+def valid_subset(ds, source, gt):
+    """Prove every native cell touched by the declared subset and kernel halo.
+
+    This accepts the existing geographic/zero-origin EQC transform only. No
+    reprojection, bounding-box replacement or sampled-mask approximation occurs.
+    """
+    from osgeo import ogr
+    import math
+    evidence = source.get('metadata', {}).get('validData')
+    if not evidence:
+        return None
+    proofs = []
+    for feature in evidence['geometry']['features']:
+        geometry = ogr.CreateGeometryFromJson(json.dumps(feature['geometry']))
+        west, east, south, north = geometry.GetEnvelope()
+        x0 = math.floor((west - gt[0]) / gt[1]) - 2
+        x1 = math.ceil((east - gt[0]) / gt[1]) + 2
+        y0 = math.floor((north - gt[3]) / gt[5]) - 2
+        y1 = math.ceil((south - gt[3]) / gt[5]) + 2
+        assert 0 <= x0 < x1 <= ds.RasterXSize and 0 <= y0 < y1 <= ds.RasterYSize, 'valid subset/kernel support exceeds source raster'
+        assert (x1-x0)*(y1-y0) <= 16000000, 'valid-subset inspection window exceeds bounded pilot limit'
+        band = ds.GetRasterBand(1)
+        data = band.ReadAsArray(x0, y0, x1-x0, y1-y0)
+        valid = np.isfinite(data) & (band.GetMaskBand().ReadAsArray(x0, y0, x1-x0, y1-y0) > 0)
+        if band.GetNoDataValue() is not None:
+            valid &= data != band.GetNoDataValue()
+        mask = gdal.GetDriverByName('MEM').Create('', x1-x0, y1-y0, 1, gdal.GDT_Byte)
+        mask.SetGeoTransform((gt[0]+x0*gt[1], gt[1], 0, gt[3]+y0*gt[5], 0, gt[5]))
+        vectors = ogr.GetDriverByName('Memory').CreateDataSource('')
+        layer = vectors.CreateLayer('valid')
+        item = ogr.Feature(layer.GetLayerDefn()); item.SetGeometry(geometry); layer.CreateFeature(item)
+        gdal.RasterizeLayer(mask, [1], layer, burn_values=[1], options=['ALL_TOUCHED=TRUE'])
+        inside = mask.ReadAsArray().astype(bool)
+        support = inside.copy()
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                support |= np.roll(np.roll(inside, dy, axis=0), dx, axis=1)
+        assert inside.any() and valid[support].all(), 'declared native-valid subset intersects nodata or invalid kernel support'
+        proofs.append({'featureId': feature['id'], 'window': [x0,y0,x1-x0,y1-y0],
+                       'nativeCells': int(inside.sum()), 'kernelSupportCells': int(support.sum()),
+                       'maskSha256': hashlib.sha256(inside.tobytes()).hexdigest()})
+    return {'extent': 'known-valid-subset', 'declaredExtent': evidence['extent'], 'method': 'all touched native cells plus two-cell interpolation halo', 'features': proofs}
+
+
+def raster(path, radius, source, global_base=False):
+    from dem import geographic_grid
     ds = gdal.Open(str(path))
     assert ds.RasterCount == 1, 'elevation requires one band'
     srs = ds.GetSpatialRef()
-    assert srs and srs.IsGeographic(), 'only geographic rasters are executable'
+    assert srs, 'raster has no CRS'
     assert abs(srs.GetSemiMajor() - radius) < 1e-4 and srs.GetInvFlattening() == 0, 'source reference shape differs from lock'
+    assert (source['projection'] == 'EPSG:4326') == bool(srs.IsGeographic()), 'source projection differs from lock'
     assert ds.GetMetadataItem('AREA_OR_POINT') != 'Point', 'pixel-is-point raster is unsupported'
-    gt = ds.GetGeoTransform()
+    gt = geographic_grid(ds)
     assert gt[1] > 0 and gt[5] < 0 and gt[2] == gt[4] == 0, 'requires north-up grid'
     if global_base:
-        assert abs(gt[1] * ds.RasterXSize - 360) < 1e-6 and abs(gt[5] * ds.RasterYSize + 180) < 1e-6 and abs(gt[3] - 90) < 1e-6, 'base must cover entire globe'
+        assert abs(gt[1] * ds.RasterXSize - 360) <= abs(gt[1]) and abs(gt[5] * ds.RasterYSize + 180) <= abs(gt[5]) and abs(gt[3] - 90) < 1e-6, 'base must cover globe to within one source pixel'
+    raster_gsd = abs(gt[5]) * np.pi / 180 * radius
+    declared_grid = source.get('metadata', {}).get('rasterGsdM')
+    assert declared_grid is None or abs(raster_gsd-declared_grid) <= max(1e-6, raster_gsd*1e-6), 'source raster interval differs from locked metadata'
     b = ds.GetRasterBand(1)
     valid_count = 0
     for row in range(0, ds.RasterYSize, 128):
@@ -56,10 +105,13 @@ def raster(path, radius, global_base=False):
         ok = np.isfinite(a) & (mask > 0)
         if b.GetNoDataValue() is not None:
             ok &= a != b.GetNoDataValue()
-        assert ok.all(), 'v1 lock declared nodata none but raster has invalid pixels'
+        if source['nodata'] == 'none':
+            assert ok.all(), 'lock declared nodata none but raster has invalid pixels'
         valid_count += int(ok.sum())
     return {'width': ds.RasterXSize, 'height': ds.RasterYSize, 'validPixels': valid_count,
-            'grid': list(gt), 'sourceSha256': sha(path), 'decodedBytes': valid_count * gdal.GetDataTypeSize(b.DataType) // 8}
+            'invalidPixels': ds.RasterXSize*ds.RasterYSize-valid_count, 'rasterGsdM': float(raster_gsd),
+            'nativeValidSubset': valid_subset(ds, source, gt),
+            'grid': list(gt), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
 def bundle(path, target, source_dir):
@@ -98,17 +150,28 @@ def command(*args):
 def build(args):
     job = json.loads(Path(args.job).read_text())
     lock, dag = job['lock'], job['dag']
+    toolchain = {'python': sys.version.split()[0], 'gdal': gdal.VersionInfo('RELEASE_NAME'), 'numpy': np.__version__}
+    pins = lock['processing']['parameters'].get('toolchain')
+    assert pins is None or pins == toolchain, 'Python/GDAL/NumPy toolchain differs from lock'
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=False)
+    from resources import ResourceSampler
+    sampler = ResourceSampler(out)
     inputs = out / 'inputs'
     inputs.mkdir()
     paths = {}
     for source in lock['sources']:
-        suffix = '.tif' if source['channel'] == 'elevation' else '.json'
+        suffix = '.tif' if source['channel'] == 'elevation' or source['projection'] == 'Mars-EQC-0-0' else '.json'
         frozen = inputs / (source['asset']['checksum']['value'] + suffix)
         shutil.copyfile(job['paths'][source['id']], frozen)
         assert sha(frozen) == source['asset']['checksum']['value'], 'source changed during staging'
         paths[source['id']] = str(frozen)
+    terrain = lock['processing']['parameters']['terrain']
+    if terrain.get('baseOverviewAsset'):
+        pin = terrain['baseOverviewAsset']
+        overview = Path(paths[terrain['base']] + '.ovr')
+        shutil.copyfile(job['paths']['terrain:base-overview'], overview)
+        assert overview.stat().st_size == pin['bytes'] and sha(overview) == pin['checksum']['value'], 'overview changed during staging'
     transform = next(s['transformations'][0] for s in lock['selections'] if s['channel'] == 'elevation')
     areoid_args = []
     if transform != 'identity':
@@ -129,27 +192,52 @@ def build(args):
     radius = lock['desired']['coordinates']['referenceShape']['radiusKm'] * 1000
     p = lock['processing']['parameters']
     terrain = p['terrain']
-    audit = {'rasters': {}, 'imagery': {}}
+    audit = {'rasters': {}, 'imagery': {}, 'toolchain': toolchain}
     for source in lock['sources']:
         assert sha(paths[source['id']]) == source['asset']['checksum']['value'], 'source changed after preflight'
         if source['channel'] == 'elevation':
-            audit['rasters'][source['id']] = raster(paths[source['id']], radius, source['id'] == terrain['base'])
+            audit['rasters'][source['id']] = raster(paths[source['id']], radius, source, source['id'] == terrain['base'])
+        elif source['projection'] == 'Mars-EQC-0-0':
+            audit['imagery'][source['id']] = raster(paths[source['id']], radius, source)
         else:
             audit['imagery'][source['id']] = bundle(paths[source['id']], inputs / f'{source["asset"]["checksum"]["value"]}.config.json',
                                                    Path(job['paths'][source['id']]).parent)
     fusion = out / 'fusion'
-    command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'fuse', '--base', paths[terrain['base']],
-            '--detail', paths[terrain['detail']], '--out', fusion, '--blend-m', terrain['blendM'],
-            '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres' if transform == 'identity' else 'MOLA areoid topography metres; radial conversion is explicit at cube construction')
+    if terrain.get('fusionAsset'):
+        manifest = Path(job['paths']['terrain:fusion'])
+        receipt_bytes = manifest.read_bytes()
+        pin = terrain['fusionAsset']
+        assert len(receipt_bytes) == pin['bytes'] and hashlib.sha256(receipt_bytes).hexdigest() == pin['checksum']['value'], 'fusion manifest changed after preflight'
+        (inputs / 'fusion-bundle.json').write_bytes(receipt_bytes)
+        receipt = json.loads(receipt_bytes)
+        assert receipt['version'] == 1 and receipt['kind'] == 'locked-fusion-bundle'
+        assert receipt['baseSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['base']), 'fusion base differs from locked raster'
+        assert receipt['detailSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['detail']), 'fusion detail differs from locked raster'
+        assert set(receipt['files']) == {'fusion.json', 'residual.tif', 'coverage.tif', 'weight.tif', 'fused.tif'}, 'unsupported fusion dependency inventory'
+        fusion.mkdir()
+        for filename, entry in receipt['files'].items():
+            assert Path(filename).name == filename, 'unsafe fusion filename'
+            src = manifest.parent / entry['path']
+            assert src.stat().st_size == entry['bytes'] and sha(src) == entry['sha256'], 'fusion input changed'
+            shutil.copyfile(src, fusion / filename)
+            assert sha(fusion / filename) == entry['sha256'], 'fusion changed during staging'
+    else:
+        command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'fuse', '--base', paths[terrain['base']],
+                '--detail', paths[terrain['detail']], '--out', fusion, '--blend-m', terrain['blendM'],
+                '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres' if transform == 'identity' else 'MOLA areoid topography metres; radial conversion is explicit at cube construction')
     f = json.loads((fusion / 'fusion.json').read_text())
     assert abs(f['registration']['offsetM']) <= p['gates']['maxOffsetM'], 'registration offset exceeds locked gate'
     boundary = f['boundary']['fusedStepM']
     assert boundary.get('n', 0) == 0 or boundary['maxAbsM'] <= p['gates']['maxBoundaryStepM'], 'fused boundary step exceeds locked gate'
-    # Volatile times/local paths must not affect the fused content revision.
-    f.pop('created', None)
-    for role in ('base', 'detail'):
-        f[role]['path'] = f'{role}.tif'
-    write(fusion / 'fusion.json', f)
+    assert f['registration']['removed'] is False, 'locked fusion must preserve the registration plane'
+    assert f['taper']['blendM'] == terrain['blendM'] and f['registration']['fitStridePx'] == terrain['fitStride'], 'fusion settings differ from lock'
+    # Existing fusion bytes are authoritative. Generated fixtures normalize only
+    # their volatile provenance before computing immutable product revisions.
+    if not terrain.get('fusionAsset'):
+        f.pop('created', None)
+        for role in ('base', 'detail'):
+            f[role]['path'] = f'{role}.tif'
+        write(fusion / 'fusion.json', f)
     for product in dag['products']:
         dest = out / product['id']
         tile = product['tiling']
@@ -160,13 +248,43 @@ def build(args):
                     '--source-convention', 'sphere-radial' if transform == 'identity' else 'areoid-radial', *areoid_args,
                     '--body', 'Mars', '--frame', 'IAU_MARS', '--global-level', tile['globalLevel'], '--workers', args.workers, *regions)
             command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'cube-error', dest, '--workers', args.workers)
+            from source_kernels import verify
+            audit['baselineSampling'] = verify(paths[terrain['base']], dest / 'cpu-grids.json')
         else:
             source = next(s for s in lock['sources'] if s['id'] == product['sourceIds'][0])
-            config = inputs / f'{source["asset"]["checksum"]["value"]}.config.json'
-            command(sys.executable, ROOT / 'scripts/terrain/cube_imagery.py', 'xyz', '--source', config,
+            is_raster = source['projection'] == 'Mars-EQC-0-0'
+            config = paths[source['id']] if is_raster else inputs / f'{source["asset"]["checksum"]["value"]}.config.json'
+            command(sys.executable, ROOT / 'scripts/terrain/cube_imagery.py', 'raster' if is_raster else 'xyz', '--source', config,
                     '--out', dest, '--body', 'Mars', '--frame', 'IAU_MARS', '--radius-km', radius / 1000,
                     '--global-level', tile['globalLevel'], '--tile-size', lock['output']['tileSize'],
                     '--gutter', lock['output']['gutter'], '--supersample', 1, '--workers', args.workers, *regions)
+            if is_raster:
+                detail_ds = gdal.Open(paths[terrain['detail']])
+                image_ds = gdal.Open(paths[source['id']])
+                assert detail_ds.GetSpatialRef().IsSame(image_ds.GetSpatialRef()), 'DTM and ortho map projections differ'
+                dgt, igt = detail_ds.GetGeoTransform(), image_ds.GetGeoTransform()
+                ratio = dgt[1]/igt[1]
+                phase = [(igt[0]-dgt[0])/igt[1], (igt[3]-dgt[3])/igt[5]]
+                phase_error = max(abs(p-round(p))*abs(igt[1]) for p in phase)
+                assert ratio>=1 and abs(ratio-round(ratio))<1e-8 and phase_error<1e-6, 'DTM/ortho native grid alignment exceeds gate'
+                audit['imagery'][source['id']]['dtmGridAlignment'] = {'nativePixelRatio':ratio,'originOffsetsInImagePixels':phase,
+                    'maximumGridPhaseErrorM':phase_error,'absoluteGeolocationErrorM':None,
+                    'note':'Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.'}
+                descriptor = inputs / f'{source["asset"]["checksum"]["value"]}.descriptor.json'
+                write(descriptor, source)
+                requests = []
+                for selection in lock['selections']:
+                    if selection['channel'] != 'imagery' or source['id'] not in selection['sourceIds']: continue
+                    region = next(r for r in lock['desired']['regions'] if r['id'] == selection['regionId'])
+                    layer = next(l for l in lock['desired']['layers'] if l['id'] == region['feature']['layerId'])
+                    feature = next(f for f in layer['geojson']['features'] if ('number:' if isinstance(f['id'], (int,float)) else 'string:') + str(f['id']) == region['feature']['featureId'])
+                    requests.append({'outputGsdM': selection['outputGsdM'], 'geometry': {'type':'FeatureCollection','features':[feature]}})
+                requests_file = inputs / f'{source["id"]}-requests.json'
+                write(requests_file, requests)
+                check = out / f'{source["id"]}-registration.json'
+                command(sys.executable, ROOT / 'scripts/surface-build/validate_imagery.py', '--source', paths[source['id']],
+                        '--descriptor', descriptor, '--manifest', dest / 'imagery.json', '--out', check, '--requests', requests_file)
+                audit['imagery'][source['id']]['sourceToOutputRegistration'] = json.loads(check.read_text())
         # Runtime manifests are immutable product metadata; execution timing and
         # temporary paths belong to the actual-vs-planned report, outside them.
         if product['kind'] == 'cube-terrain':
@@ -188,7 +306,8 @@ def build(args):
         write(meta_path, meta)
     audit['workerPeakRssBytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['largestChildPeakRssBytes'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
-    audit['peakConcurrentRssBytes'] = None
+    audit['sampledResources'] = sampler.finish()
+    audit['peakConcurrentRssBytes'] = audit['sampledResources']['peakConcurrentRssBytes']
     write(out / 'source-audit.json', audit)
 
 

@@ -117,14 +117,17 @@ export async function executeBuild(lock, { bindings = {}, bindingsDir = ROOT, ca
     }
     const report = { version: 1, kind: 'surface-build-report', buildId: dag.buildId, lockIdentity: lock.identity,
       validation: 'passed-supported-gates', productionReady: false,
-      limitation: 'Bounded synthetic/controlled fixture execution only. Real source coverage adapters, image registration controls and mission acceptance are pending; no production promotion.',
+      limitation: lock.processing.parameters.profile === 'bounded-real-mars'
+        ? 'Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy, mission migration and reviewed production publication remain outside this receipt.'
+        : 'Bounded synthetic/controlled fixture execution only; no production promotion.',
       sources: lock.sources.map(s => ({ id: s.id, productId: s.productId, asset: s.asset, license: s.license,
         nativeGsdM: s.nativeGsdM, accuracyM: s.accuracyM, footprint: s.footprint, metadata: s.metadata ?? null })),
       requested: lock.desired.regions, selections: lock.selections,
       products, caveats: [...dag.caveats, 'Tile availability is emitted separately from upstream footprints; valid pixel counts do not prove a continuous native-resolution footprint.',
-        'Peak concurrent memory is unmeasured; individual process high-water marks are not summed.'],
+        'Concurrent worker RSS and scratch usage are sampled; summed RSS can count shared pages repeatedly and is not physical peak RAM.'],
       resources: { planned: dag.resources, actual: { publishedBytes: output.reduce((n, e) => n + e.size, 0), objects: output.length,
-        workDiskBytesAtCompletion: inventory.reduce((n, e) => n + e.size, 0), peakDiskBytes: null,
+        workDiskBytesAtCompletion: inventory.reduce((n, e) => n + e.size, 0), peakDiskBytes: null, sampledPeakScratchBytes: audit.sampledResources?.peakScratchBytes ?? null,
+        peakConcurrentWorkerRssBytes: audit.sampledResources?.peakConcurrentRssBytes ?? null,
         elapsedSeconds: (performance.now() - started) / 1000, sourceAudit: audit } }, reused: false };
     await writeFile(join(work, 'lock.json'), json(lock));
     await writeFile(join(work, 'dag.json'), json(dag));
@@ -162,5 +165,5 @@ export async function publishLocalFixture(lock, { cache, localDir, baseUrl, fetc
     assert(verification.ok, `publication verification failed: ${verification.problems.join('; ')}`);
     results.push({ productId: product.id, prefix, verified: true });
   }
-  return { buildId: dag.buildId, localFixtureOnly: true, catalogPinned: false, products: results };
+  return { buildId: dag.buildId, localOnly: true, localFixtureOnly: lock.processing.parameters.profile !== 'bounded-real-mars', catalogPinned: false, products: results };
 }

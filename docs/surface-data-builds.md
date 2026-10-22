@@ -2,9 +2,8 @@
 
 This is the first executable, offline slice of #251. It consumes #248's validated
 lock, emits a build DAG, runs the existing residual fusion and cube builders,
-validates a synthetic Mars fixture and exercises #137's immutable publisher and
-HTTP verifier against local storage. It does **not** complete #251's real Mars
-pilot or authorize a production upload. No production catalog is changed.
+validates controlled fixtures and a bounded real Jezero pilot, and exercises #137's immutable publisher and
+HTTP verifier against local storage. It does not authorize a production upload or mission migration. No production catalog is changed.
 
 ## Reproduce
 
@@ -71,7 +70,7 @@ a narrow capability check on `processing`, **not** a second planner state format
   and fit stride. Bias is always preserved (`--bias none`). The plane is measured
   and gated; it is never silently removed. All selected elevation resampling
   must be `cubic`, matching the existing fusion sampler.
-- `parameters.imagery`: 1–4 independently built source IDs with their own global
+- `parameters.imagery`: 0–4 independently built source IDs with their own global
   levels/regions, visibility and opacity. Array order is preserved. Selections
   use `bilinear`, matching the shared XYZ adapter. No geometry is built in
   response to imagery LOD. No source composite erases layer controls.
@@ -93,8 +92,11 @@ The fixture profile limits regional levels to L4 and global overviews to L3,
 so even an accidentally global regional cap cannot enumerate an unbounded bake.
 It supports spherical, planetocentric, east-positive Mars,
 geographic north-up single-band DEM GeoTIFFs and the existing EPSG:4326 XYZ cube
-adapter. Explicit MEG016 areoid conversion is also supported for controlled
-fixtures as described below; real masked/projected DEM adapters remain pending. No arbitrary
+adapter. The explicit `bounded-real-mars` profile also supports the existing
+zero-origin spherical equirectangular DEMs, evidenced valid subsets of masked
+rasters, a pinned existing fusion, and native byte grayscale raster imagery.
+Regional levels may reach L17, while every product is capped at 2,048 candidate
+tiles before raster decoding. It never raises the fixture profile's L4 limit. No arbitrary
 GDAL commands, shell fragments, custom transform strings, browser processing,
 discovery crawler or persistent build service are accepted.
 
@@ -103,8 +105,10 @@ XYZ `config` and a `tiles` object mapping `z/x/y` to `{path, sha256}`. Each orig
 response is separately hashed. The adapter reads only these pinned responses;
 missing required tiles, changed bytes, wrong dimensions and corrupt images fail
 without falling through to HTTP or mutable URL caches. The existing live XYZ
-adapter behavior remains available to its existing callers. Current identity
-locks require unmasked sources, so transparent source responses fail this profile.
+adapter behavior remains available to its existing callers. Locked XYZ bundles still require opaque responses. Masked raster sources require
+independently evidenced `metadata.validData` geometry; unknown nodata remains
+rejected. The worker verifies all touched native cells plus a two-cell
+interpolation halo rather than treating an envelope as a valid-data footprint.
 
 The worker copies inputs to staging and verifies their hashes before use. It
 checks actual raster masks/nodata, dimensions, reference sphere and pixel
@@ -118,9 +122,10 @@ identity and controlled MEG016-layout ellipsoid fixtures. The latter also
 rejects a correctly hashed label that points to an unpinned image. CPU versus
 rendered ray comparisons use the existing per-tile float32 rounding bound at
 shared edges; the separate skirt/boundary-ray intersection checks retain their
-previous tolerance. Cross-version
-Python/GDAL toolchain pinning is still required before production reproducibility
-can be claimed; the Node dependency lock alone does not pin those tools.
+previous tolerance. The real profile requires exact Python, GDAL and NumPy versions in
+`parameters.toolchain`; a mismatch fails before staging. The Node dependency
+lock and implementation hashes remain separate build inputs. Unknown absolute
+source accuracy is not converted into a toolchain or mesh-error guarantee.
 
 ## Reports and publication boundary
 
@@ -129,9 +134,12 @@ accuracy, actual output spacing by level, exact emitted tile availability, alpha
 counts, source/fallback/illumination provenance, output bytes and object counts,
 elapsed time and individual process memory high-water marks. Source response
 bytes are separate from the bundle manifest bytes. Output counts include product
-metadata. Working disk at completion is **not** claimed as peak disk. Concurrent
-peak RAM and peak disk remain `null`; planner raster estimates are labeled
-uncalibrated scenarios, not cube packing guarantees.
+metadata. A worker sampler records concurrent descendant RSS and logical scratch-file
+bytes at one-second intervals. Its maximum RSS may count shared pages repeatedly;
+physical peak RAM remains `null`. Peaks are sampled measurements, not certified
+bounds. Planner raster estimates remain uncalibrated scenarios. Primary bound
+file bytes and nested bundle dependencies are separate inventories; the latter
+are verified during binding inspection and included in scratch measurements.
 
 An emitted tile is evidence of built availability, not native detail throughout
 its footprint. In particular, upsampling a coarse parent cannot satisfy a finer
@@ -147,21 +155,13 @@ server and verify all three products. This mode does not start a service, use R2
 pin `datasets.json` or rewrite a mission catalog. Publication validates content
 again and rejects a completed prefix with different bytes.
 
-Reports always say `productionReady: false`. Remaining #251 acceptance work:
-
-1. Add explicit execution adapters for the real projected/masked source grids
-   and verified native-valid subsets. The shared lock now represents the
-   areoid-radial conversion and pins both datum files; it still rejects
-   unresolved/masked coverage and arbitrary source reprojection.
-2. Lock actual MOLA/HRSC and a controlled HiRISE DTM/ortho region from evidenced
-   #249 metadata. The synthetic fixture establishes no real DTM availability.
-3. Add source-to-output imagery registration controls, verified native valid
-   footprint/level receipts, appropriate real seam/illumination gates, concurrent
-   resource measurements and browser/mission acceptance. The existing renderer's
-   #272 tests remain separate evidence.
-4. Prove regional terrain ownership/transitions atop a shared global baseline,
-   then reuse #137's R2/deployment rewrite after review. No composable physical
-   terrain patches or production pin are promised by this slice.
+Reports always say `productionReady: false`. The real local pilot, native-valid
+subset, source-to-output image checks, toolchain pins, resource sampling and
+physical-GPU viewer checks are now implemented. Production promotion still needs
+a reviewed publication/deployment choice and acceptance for mission consumers.
+Source absolute geolocation/accuracy and mosaic illumination remain unknown;
+none is fabricated to turn an uncertainty into a passed gate. Existing #246
+navigation/clearance migration concerns remain distinct from build completion.
 
 ## Handoff: resume the real Mars pilot
 
@@ -219,15 +219,90 @@ curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_
 curl -fL https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.img -o work/surface-build/mola-meg016/MEGA90N000EB.IMG
 ```
 
-The existing real sources and unchanged #50 fusion were found at
+The existing real sources and unchanged #50 fusion are available locally at
 `/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/{source,fused}`.
-The bounded real terrain build and independent numerical checks passed; see
-[recorded evidence and limits](benchmarks/surface-build-real-mars.json).
-This run uses the existing #245 builder, **not** the lock executor: the real
-HiRISE source is projected and masked, whereas executor locks still require
-geographic, fully valid inputs. Its irregular native-valid footprint must be
-proven before relaxing that contract. The real build does not establish image
-registration or production readiness.
+The lock executor now builds this real input pair with the source projection,
+mask, unchanged residual and independent native imagery preserved. See
+[the evidence and limits](benchmarks/surface-build-real-mars.json) and
+[physical-GPU captures](validation/surface-build-real-mars/README.md).
+
+Use a fresh acquisition directory; the acquisition command will not overwrite
+an existing crop. It retrieves both official source labels and a 2048×2048
+native-pixel window from the range-enabled 7.36 GB ortho, without resampling.
+The crop checksum, native grid/window, source HTTP identity and label hashes
+are retained. Two independent acquisitions produced identical crop bytes.
+
+```sh
+PY=/opt/homebrew/bin/python3  # choose the Python with GDAL/NumPy on this host
+$PY scripts/surface-build/acquire_mars_ortho.py --out work/surface-build/real-pilot-inputs
+$PY -c 'import sys,json,numpy; from osgeo import gdal; print(json.dumps({"python":sys.version.split()[0],"gdal":gdal.VersionInfo("RELEASE_NAME"),"numpy":numpy.__version__}))' > work/surface-build/real-pilot-inputs/toolchain.json
+```
+
+First run the existing bounded terrain/source-validation commands in
+[mars-cube-foundation.md](design/mars-cube-foundation.md#reproduce-the-bounded-build),
+writing the independent source report to
+`work/surface-build/real-mars-source-validation.json`. The preparation command
+uses its source control and converts its Cartesian point to public geodetic
+normal height; it does not reuse a rendered/CPU height as ground truth.
+
+```sh
+node scripts/surface-build/real-pilot.mjs \
+  /Users/aplave/code/cosmolabe/scripts/build-mars-terrain \
+  work/surface-build/real-pilot-inputs work/surface-build/mola-meg016 \
+  work/surface-build/real-pilot-inputs/toolchain.json
+node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
+  --bindings work/surface-build/real-pilot-inputs/bindings.json \
+  --cache work/surface-build/real-executor-cache --python "$PY" --workers 4 --execute \
+  > work/surface-build/real-pilot-report.json
+```
+
+The real profile pins `terrain.fusionAsset` (a `locked-fusion-bundle` JSON with
+base/detail hashes and all five existing fusion files) and, when present,
+`terrain.baseOverviewAsset`. Reserved bindings are `terrain:fusion` and
+`terrain:base-overview`. The worker verifies and stages every dependency,
+requires the original `removed: false`, taper and fit stride, and keeps the
+original fusion metadata bytes. It does not refit or normalize the real field.
+Staged overview bytes are pinned because they influence coarse geometry.
+The global baseline contains native edge nodata. The native-valid subset proof
+and every emitted lattice/normal probe are checked separately: all actual
+Catmull-Rom support cells must be valid at the builder's selected pinned pyramid
+level. Invalid used kernels fail completion. Native voids are retained and
+reported; valid coarse overview samples never establish native-resolution
+coverage outside the declared pilot.
+The exact real lock is checked in as
+[jezero-build.lock.json](examples/surface-plans/jezero-build.lock.json).
+
+The pilot builds a coarser context product and an optional native-detail product
+from the same observed crop. They share upstream product identity and retain
+independent output settings; the mandatory viewer base remains visible while
+the optional native layer can be hidden, faded and restored.
+
+Native raster imagery uses `projection: "Mars-EQC-0-0"` and the shared raster
+window sampler, with source masks and independent layer controls. The worker
+checks DTM/ortho grid ratio and phase, every declared native-valid cell/kernel
+halo, and independent affine inversion at emitted pixel centres and gutters.
+A conservative trigonometric interval enclosure proves the complete requested
+ROI has finest-level image tiles. This bounded proof requires a single-face ROI;
+a region crossing cube faces is rejected explicitly. Native variation is
+measured so a constant-color image cannot pass detail acceptance. Native
+acquisition fidelity and the actual raster interval both constrain a strict
+request; the worker checks the declared interval against the raster header. Absolute
+geolocation is still unknown, even when preservation of source registration
+passes. No imaginary illumination or datum correction is applied to imagery.
+
+For browser acceptance, start the isolated viewer and use the completed report:
+
+```sh
+node scripts/surface-build/serve-pilot.mjs
+CL_VIEWER_URL=http://127.0.0.1:5187/ node scripts/test-surface-build-pilot.mjs \
+  work/surface-build/real-pilot-report.json work/surface-build/real-pilot-browser
+```
+
+The browser script routes completed immutable products directly; it never edits
+a production catalog. It records GPU identity, near/far/refinement, CPU picks,
+layer opacity/visibility and restoration. The local publisher can publish these
+completed products through the same `--publish-local` path as fixtures; remote
+R2 upload and deployment catalog pinning remain an explicit separate action.
 
 For the actual baseline/detail source URLs, use
 `scripts/build-mars-terrain/01-fetch-sources.sh` (global baseline approximately
@@ -244,12 +319,9 @@ available. If fusion must be generated, invoke `dem.py fuse` explicitly: the
 legacy `fused.sh` also builds a large quantized-mesh pyramid and removes its old
 output directory, so it is not a safe generic executor entry point.
 
-Before promotion, require the real registration/native-valid-footprint gates,
-toolchain pins and resource measurements listed above. Retain per-source Mars
-imagery controls and verify native image refinement over independent coarse
-geometry. Only after real-data/browser acceptance should #137's R2 publication
-and deployment catalog pinning be considered; this draft supplies local fixture
-publication only and has not uploaded production products.
+The real registration/native-valid-footprint, toolchain/resource and desktop GPU
+checks above are now exercised. Retain their limits when reviewing #137 remote
+publication or mission catalog pinning; no production products were uploaded.
 
 ## Checks
 
@@ -271,3 +343,13 @@ executor, plan/discovery CLIs and data hosting. Both GDAL end-to-end cases ran
 without skips. Six XYZ Python regressions passed. The real 78-tile build passed
 source-conversion and numerical terrain checks; its evidence is separate from
 the controlled lock-executor regressions. Full repository checks run in CI.
+
+The complete follow-up passed 109 focused Vitest tests, including three GDAL
+end-to-end cases without skips and two clean projected/masked rebuilds with
+identical product bytes. Package build, test typecheck, changed core ESLint,
+six XYZ regressions, imagery selftest and the baseline-kernel nodata regression
+passed. The real build checked 1,647,750 vertex/normal sample positions,
+9,224 native image pixels including 640 gutter pixels, and continuous requested
+coverage. Cache reuse plus local publication/republication of all three products
+passed HTTP verification. The physical M4 Max viewer changed native L16 to
+context L13 when hidden and restored L16 without changing terrain mesh IDs.

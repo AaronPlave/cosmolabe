@@ -55,7 +55,7 @@ import numpy as np
 
 sys.dont_write_bytecode = True  # importing dem.py must not litter scripts/terrain with __pycache__
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dem import CUBE_BASES, CUBE_FACES, parse_cube_region  # noqa: E402
+from dem import CUBE_BASES, CUBE_FACES, parse_cube_region, file_sha256  # noqa: E402
 from osgeo import gdal, osr  # noqa: E402
 
 gdal.UseExceptions()
@@ -245,7 +245,7 @@ def raster_open(path):
         geog = srs.CloneGeogCS()
         a, inv_f = geog.GetSemiMajor(), geog.GetInvFlattening()
         if inv_f != 0 or abs(a - R_KM * 1000) > 1e-6:
-            raise SystemExit(f'{path}: CRS is not the 1737.4 km sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
+            raise SystemExit(f'{path}: CRS does not match the declared metric sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
         geog.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         tr = osr.CoordinateTransformation(geog, srs)
@@ -375,6 +375,8 @@ _JOB = {}
 
 
 def _init_job(job):
+    global R_KM
+    R_KM = job['radius_km']
     _JOB.update(job)
 
 
@@ -398,7 +400,7 @@ def tile_job(key):
         img = nac_tile(J['source'], face, L, x, y, T, g, ss)
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
     write_image(path, img)
-    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz') else 255)
+    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz', 'raster') else 255)
 
 
 def marker_table(tiles, T, g):
@@ -437,7 +439,7 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     t0 = time.time()
     os.makedirs(args.out, exist_ok=True)
     ext = 'jpg' if kind == 'composite' else 'png'  # opaque grey: JPEG is a third of the bytes
-    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext,
+    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext, radius_km=R_KM,
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
     sizes, hashes, empty = {}, {}, set()
@@ -511,6 +513,27 @@ def cmd_fixture(args):
         json.dump({'convention': 'pixel corners at integers; column from the left (face u), row from the top (face v decreasing); centre colour sRGB bytes',
                    'tileSize': args.tile_size, 'gutter': args.gutter, 'markers': marker_table(keep, args.tile_size, args.gutter)},
                   open(os.path.join(args.out, 'markers.json'), 'w'), indent=1)
+
+
+def cmd_raster(args):
+    """Independent native grayscale raster via the existing window sampler."""
+    global R_KM
+    R_KM = args.radius_km
+    assert math.isfinite(R_KM) and R_KM > 0
+    src = raster_open(args.source)
+    ds = src['ds']
+    assert ds.RasterCount == 1 and ds.GetRasterBand(1).DataType == gdal.GDT_Byte, 'raster imagery requires native byte grayscale'
+    gt = src['gt']
+    assert gt[1] > 0 and gt[2] == gt[4] == 0 and gt[5] == -gt[1], 'raster imagery requires square north-up pixels'
+    assert not ds.GetSpatialRef().IsGeographic(), 'raster imagery requires an explicit metre-based map projection'
+    regions = [parse_cube_region(r) for r in args.region or []]
+    tiles = select_tiles(args.global_level, regions)
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
+                    'registrationErrorKm': None, 'latitude': 'planetocentric',
+                    'resampling': f'native raster bilinear premultiplied alpha; {args.supersample}x box samples per output pixel',
+                    'footprint': 'finite built pyramid; source raster masks preserved; native-valid subset is separately verified by the caller'}
+    run(args, 'raster', tiles, {'id': os.path.basename(args.source), 'kind': 'imagery'}, registration, 'srgb',
+        extra={'sourceSha256': file_sha256(args.source)})
 
 
 def cmd_xyz(args):
@@ -673,7 +696,7 @@ def cmd_selftest(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
-    for name in ('fixture', 'nac', 'composite', 'xyz'):
+    for name in ('fixture', 'nac', 'composite', 'xyz', 'raster'):
         s = sub.add_parser(name)
         s.add_argument('--out', required=True)
         s.add_argument('--global-level', type=int, default=3 if name == 'fixture' else 0)
@@ -691,6 +714,9 @@ def main():
     sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
     sub.choices['xyz'].add_argument('--body', required=True)
     sub.choices['xyz'].add_argument('--frame', required=True)
+    for field in ['source', 'body', 'frame']:
+        sub.choices['raster'].add_argument('--' + field, required=True)
+    sub.choices['raster'].add_argument('--radius-km', type=float, required=True)
     sub.choices['composite'].add_argument('--base', required=True, help='global raster (LROC WAC), drawn everywhere')
     sub.choices['composite'].add_argument('--detail', required=True, help='regional raster (LROC NAC South Pole) drawn over it where it has data')
     c = sub.add_parser('coregister')
@@ -703,7 +729,7 @@ def main():
     c.add_argument('--out')
     sub.add_parser('selftest')
     args = p.parse_args()
-    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
+    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'raster': cmd_raster, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

@@ -23,6 +23,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
       - name: Oblate and below-reference Cartesian fixtures
         run: /usr/bin/python3 scripts/terrain/test_cube_ellipsoid.py
+      - name: Emitted baseline source kernels reject nodata
+        run: /usr/bin/python3 scripts/terrain/test_source_kernels.py
       - name: Existing lunar and cube builder fixtures
         run: /usr/bin/python3 scripts/terrain/dem.py selftest
 

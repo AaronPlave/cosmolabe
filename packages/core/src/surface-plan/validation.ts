@@ -275,14 +275,15 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
           : { referenceShape: desired.coordinates.referenceShape, verticalDatum: 'areoid', heightConvention: 'radial' })) {
         planFail('unsupported-transform', p, `Selected operation cannot transform source ${source.id}: frame, coordinates and datum must match its declared input contract`);
       }
-      if (source.nodata !== 'none') planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata; v1 locks require resolved, unmasked coverage`);
+      if (source.nodata === 'unknown' || (source.nodata !== 'none' && !source.metadata?.validData))
+        planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata without independently evidenced valid coverage`);
       if (source.metadata && !source.metadata.validData) planFail('unresolved-coverage', p, 'Discovery sources require independently evidenced valid pixels before locking');
       const footprint = parseSurfaceSourceFootprint(source.metadata?.validData ? { ...source, footprint: source.metadata.validData.geometry } : source)!;
       const geometry = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
       const overlap = intersectGeometry(roi, geometry);
       if (!overlap.length || surfaceAreaM2(overlap, desired.coordinates) <= 0) planFail('disjoint-source', p, `Source ${source.id} does not intersect the selected ROI with positive area`);
       coverage.push(overlap);
-      if ((allowCoarser || source.nativeGsdM! <= target.gsdM)
+      if ((allowCoarser || Math.max(source.nativeGsdM!, source.metadata?.rasterGsdM ?? 0) <= target.gsdM)
         && (target.accuracyM === undefined || (source.accuracyM !== null && source.accuracyM <= target.accuracyM))) adequateCoverage.push(overlap);
     }
     if (surfaceAreaM2(subtractGeometry(roi, unionGeometry(coverage)), desired.coordinates) > tolerance) planFail('insufficient-coverage', p, 'Selected footprints do not cover the ROI; partial/leave-unavailable builds need future explicit masking support');

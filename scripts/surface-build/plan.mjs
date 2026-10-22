@@ -1,5 +1,6 @@
 // The CLI execution contract is deliberately smaller than the planner contract.
 // No source discovery, URL fetch, shell text, credentials or renderer is used here.
+import { cubeFaceToDirection } from '../../packages/three/dist/surface/CubeSphere.js';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -29,8 +30,9 @@ const positive = n => Number.isFinite(n) && n > 0;
 // This profile is an intentionally small fixture executor, not a production bake.
 // At L4 even a mistakenly global regional cap has at most 2,046 cube nodes.
 const level = n => Number.isInteger(n) && n >= 0 && n <= 4;
-function tiling(v, name) {
-  assert(level(v.globalLevel) && v.globalLevel <= 3, `${name}: globalLevel must be 0..3 (bounded overview)`);
+function tiling(v, name, real = false) {
+  const allowedLevel = n => real ? Number.isInteger(n) && n >= 0 && n <= 17 : level(n);
+  assert(allowedLevel(v.globalLevel) && v.globalLevel <= 3, `${name}: globalLevel must be 0..3 (bounded overview)`);
   assert(Array.isArray(v.regions) && v.regions.length <= 32, `${name}: expected finite regions`);
   for (const r of v.regions) {
     assert(typeof r === 'string' && /^[\w-]+@-?[\d.]+,-?[\d.]+:\d+=[\d.]+(?:,\d+=[\d.]+)*$/.test(r), `${name}: invalid NAME@LAT,LON:L=KM region`);
@@ -40,7 +42,7 @@ function tiling(v, name) {
     let previousLevel = v.globalLevel, previousRadius = Infinity;
     for (const b of bands.split(',')) {
       const [L, radius] = b.split('=').map(Number);
-      assert(level(L) && L === previousLevel + 1 && positive(radius) && radius <= previousRadius,
+      assert(allowedLevel(L) && L === previousLevel + 1 && positive(radius) && radius <= previousRadius,
         `${name}: fixture levels must be 0..4, contiguous after the global overview, with positive/nonincreasing radii`);
       previousLevel = L; previousRadius = radius;
     }
@@ -48,6 +50,39 @@ function tiling(v, name) {
 }
 function selectionLevel(v) {
   return Math.max(v.globalLevel, ...v.regions.flatMap(r => r.split(':')[1].split(',').map(x => Number(x.split('=')[0]))));
+}
+
+// Bound selection before touching raster bytes. Uses the shared cube mapping;
+// terrain's all-four-child REPLACE rule is a conservative imagery upper bound.
+function boundedTileCount(tiling, radiusKm, limit = 2048) {
+  const dot = (a, b) => a.reduce((n, x, i) => n + x * b[i], 0);
+  const angle = (a, b) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+  const regions = tiling.regions.map(r => {
+    const [where, bands] = r.split('@')[1].split(':');
+    const [lat, lon] = where.split(',').map(x => Number(x) * Math.PI / 180);
+    return { direction: [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)],
+      levels: new Map(bands.split(',').map(b => b.split('=').map(Number))) };
+  });
+  const wanted = ([f, L, x, y]) => {
+    if (L <= tiling.globalLevel) return true;
+    const n = 2 ** L, u = -1 + (2 * x + 1) / n, v = -1 + (2 * y + 1) / n;
+    const centre = cubeFaceToDirection(f, u, v);
+    const radius = Math.max(...[-1, 1].flatMap(dx => [-1, 1].map(dy => angle(centre, cubeFaceToDirection(f, u + dx / n, v + dy / n)))));
+    return regions.some(r => r.levels.has(L) && angle(centre, r.direction) - radius < r.levels.get(L) / radiusKm);
+  };
+  let frontier = ['px', 'nx', 'py', 'ny', 'pz', 'nz'].map(f => [f, 0, 0, 0]);
+  let count = 6;
+  for (let L = 1; L <= selectionLevel(tiling); L++) {
+    const next = [];
+    for (const [f, , x, y] of frontier) {
+      const children = [0, 1].flatMap(dy => [0, 1].map(dx => [f, L, 2 * x + dx, 2 * y + dy]));
+      const selected = children.filter(wanted);
+      if (selected.length) { count += 4; next.push(...selected); }
+      assert(count <= limit, `finite build exceeds ${limit} tiles per product`);
+    }
+    frontier = next;
+  }
+  return count;
 }
 
 // Datum assets use reserved binding IDs, independently verified like source data.
@@ -61,6 +96,14 @@ export function terrainTransform(lock) {
 export function buildInputs(lock) {
   const transform = terrainTransform(lock);
   const sources = [...lock.sources];
+  for (const [field, id, channel] of [['fusionAsset', 'terrain:fusion', 'fusion'], ['baseOverviewAsset', 'terrain:base-overview', 'overview']]) {
+    const asset = lock.processing.parameters.terrain[field];
+    if (asset) {
+      assert(!sources.some(s => s.id === id), 'reserved terrain binding ID');
+      assert(asset.bytes > 0 && asset.checksum?.algorithm === 'sha256' && /^[a-f0-9]{64}$/.test(asset.checksum.value), 'terrain auxiliary requires content pin');
+      sources.push({ id, channel, asset });
+    }
+  }
   if (transform !== 'identity') for (const role of ['label', 'image']) {
     const id = `datum:areoid-${role}`;
     assert(!sources.some(s => s.id === id), 'reserved datum binding ID');
@@ -85,29 +128,36 @@ export async function compileBuild(lock) {
     && lock.output.elevationEncoding === 'float32', 'unsupported output format; expected cube-1 PNG / float32');
   assert(lock.output.tileSize <= 1024 && lock.output.gutter >= 1 && lock.output.gutter <= 8, 'unsupported tile size/gutter');
   const p = lock.processing.parameters;
-  keys(p, ['terrain', 'imagery', 'gates', 'caveats'], 'parameters');
-  keys(p.terrain, ['base', 'detail', 'globalLevel', 'regions', 'blendM', 'fitStride'], 'terrain');
-  tiling(p.terrain, 'terrain');
+  keys(p, ['terrain', 'imagery', 'gates', 'caveats', 'profile', 'toolchain'], 'parameters');
+  assert(p.profile === undefined || p.profile === 'bounded-real-mars', 'unsupported execution profile');
+  const real = p.profile === 'bounded-real-mars';
+  if (real) {
+    keys(p.toolchain, ['python', 'gdal', 'numpy'], 'toolchain');
+    assert(['python','gdal','numpy'].every(k => typeof p.toolchain[k] === 'string' && p.toolchain[k]), 'real profile requires explicit Python/GDAL/NumPy pins');
+  }
+  keys(p.terrain, ['base', 'detail', 'globalLevel', 'regions', 'blendM', 'fitStride', 'fusionAsset', 'baseOverviewAsset'], 'terrain');
+  tiling(p.terrain, 'terrain', real);
+  assert(!real || (transform !== 'identity' && p.terrain.fusionAsset), 'real profile requires pinned areoid conversion and existing fusion');
   assert(positive(p.terrain.blendM) && Number.isInteger(p.terrain.fitStride) && p.terrain.fitStride >= 1, 'invalid fusion taper/stride');
   const byId = new Map(lock.sources.map(s => [s.id, s]));
   const base = byId.get(p.terrain.base), detail = byId.get(p.terrain.detail);
   assert(base?.channel === 'elevation' && detail?.channel === 'elevation' && base !== detail, 'terrain requires distinct selected base and detail elevation sources');
-  assert(Array.isArray(p.imagery) && p.imagery.length >= 1 && p.imagery.length <= 4, 'expected 1..4 independent imagery products');
+  assert(Array.isArray(p.imagery) && p.imagery.length >= 0 && p.imagery.length <= 4, 'expected 0..4 independent imagery products');
   const used = new Set([base.id, detail.id]);
   for (const image of p.imagery) {
     keys(image, ['sourceId', 'globalLevel', 'regions', 'visible', 'opacity'], 'imagery');
     const source = byId.get(image.sourceId);
     assert(source?.channel === 'imagery' && !used.has(image.sourceId), 'imagery requires unique selected source IDs');
-    assert(source.projection === 'EPSG:4326', `${source.id}: only EPSG:4326 XYZ imagery is supported`);
+    assert(source.projection === 'EPSG:4326' || (real && source.projection === 'Mars-EQC-0-0'), `${source.id}: only EPSG:4326 XYZ imagery is supported`);
     assert(typeof image.visible === 'boolean' && Number.isFinite(image.opacity) && image.opacity >= 0 && image.opacity <= 1, 'explicit layer visibility/opacity required');
-    tiling(image, image.sourceId); used.add(image.sourceId);
+    tiling(image, image.sourceId, real); used.add(image.sourceId);
   }
   assert(used.size === byId.size, 'all locked sources must have an execution adapter');
   for (const s of lock.sources) {
     assert(s.asset.checksum?.algorithm === 'sha256', `${s.id}: execution requires SHA-256, a mutable version/URL is insufficient`);
     assert(s.asset.bytes > 0, `${s.id}: exact source bytes required`);
     assert(!s.metadata || s.metadata.reuse.status === 'allowed', `${s.id}: permissions unknown or restricted`);
-    assert(s.projection === 'EPSG:4326', `${s.id}: source reprojection is unsupported`);
+    assert(s.projection === 'EPSG:4326' || (real && s.projection === 'Mars-EQC-0-0'), `${s.id}: source reprojection is unsupported`);
   }
   keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM'], 'gates');
   assert(positive(p.gates.clearanceM) && p.gates.clearanceM <= 500, 'explicit clearance must be in (0, 500] metres');
@@ -121,8 +171,8 @@ export async function compileBuild(lock) {
   assert(Array.isArray(p.caveats) && p.caveats.every(s => typeof s === 'string'), 'explicit caveats required (use [] when none)');
   // Bind the implementation as well as the lock: changing a shared primitive
   // invalidates caches even if a developer forgets to bump a version string.
-  const files = ['scripts/surface-build/plan.mjs', 'scripts/surface-build/run.mjs', 'scripts/surface-build/worker.py',
-    'scripts/terrain/dem.py', 'scripts/terrain/cube_imagery.py', 'scripts/terrain/cube_xyz.py', 'scripts/validate-cube-terrain.mjs',
+  const files = ['scripts/surface-build/plan.mjs', 'scripts/surface-build/run.mjs', 'scripts/surface-build/worker.py', 'scripts/surface-build/resources.py', 'scripts/surface-build/source_kernels.py',
+    'scripts/surface-build/validate_imagery.py', 'scripts/terrain/dem.py', 'scripts/terrain/cube_imagery.py', 'scripts/terrain/cube_xyz.py', 'scripts/validate-cube-terrain.mjs',
     'packages/three/src/surface/CubeSphere.ts', 'packages/three/src/surface/CubeSphereGrids.ts',
     'packages/three/src/surface/CubeImagery.ts', 'package-lock.json'];
   const implementation = Object.fromEntries(await Promise.all(files.map(async path => [path, await hashFile(resolve(ROOT, path))])));
@@ -130,6 +180,7 @@ export async function compileBuild(lock) {
   const products = [{ id: `terrain-${buildId.slice(0, 24)}`, kind: 'cube-terrain', sourceIds: [base.id, detail.id], tiling: p.terrain },
     ...p.imagery.map((im, order) => ({ id: `imagery-${identity({ buildId, sourceId: im.sourceId }).slice(0, 24)}`,
       kind: 'cube-imagery', sourceIds: [im.sourceId], tiling: im, order, visible: im.visible, opacity: im.opacity }))];
+  for (const product of products) product.tileBudget = boundedTileCount(product.tiling, c.referenceShape.radiusKm);
   // Output density is not native accuracy. Never silently lower a locked target.
   for (const s of lock.selections) {
     assert(s.resampling === (s.channel === 'elevation' ? 'cubic' : 'bilinear'), 'resampling must match the existing cubic DEM / bilinear XYZ primitives');
@@ -141,7 +192,7 @@ export async function compileBuild(lock) {
   const estimate = await estimateSurfacePlan(lock.desired, { sources: lock.sources });
   const nodes = inputs.map(s => ({ id: `source:${s.id}`, kind: 'source', dependencies: [], sourceId: s.id,
     url: s.asset.url ?? null, retrieval: s.asset.retrieval ?? null, bytes: s.asset.bytes, sha256: s.asset.checksum.value }));
-  nodes.push({ id: 'fusion', kind: 'residual-fusion', dependencies: [`source:${base.id}`, `source:${detail.id}`], bias: 'none', blendM: p.terrain.blendM });
+  nodes.push({ id: 'fusion', kind: 'residual-fusion', dependencies: [`source:${base.id}`, `source:${detail.id}`, ...inputs.filter(s => ['fusion', 'overview'].includes(s.channel)).map(s => `source:${s.id}`)], bias: 'none', blendM: p.terrain.blendM });
   for (const product of products) {
     nodes.push({ id: product.id, kind: product.kind, dependencies: product.kind === 'cube-terrain' ? ['fusion', ...inputs.filter(s => s.channel === 'datum').map(s => `source:${s.id}`)] : product.sourceIds.map(id => `source:${id}`),
       transforms: [product.kind === 'cube-terrain' ? transform : 'identity', product.kind === 'cube-terrain' ? 'explicit radial cube geometry + CPU grids' : 'shared EPSG:4326 XYZ to cube, premultiplied alpha'],
@@ -173,11 +224,13 @@ export async function inspectBindings(lock, bindings, baseDir) {
       if (!st.isFile() || st.size !== s.asset.bytes || await hashFile(path) !== s.asset.checksum.value)
         return { sourceId: s.id, state: 'checksum-mismatch', path, downloadBytes: s.asset.bytes };
       const responses = [];
-      if (s.channel === 'imagery') {
+      if ((s.channel === 'imagery' && s.projection === 'EPSG:4326') || s.channel === 'fusion') {
         const bundle = await jsonFile(path);
-        assert(bundle.version === 1 && bundle.kind === 'locked-xyz-bundle' && bundle.tiles && Object.keys(bundle.tiles).length <= 100000, `${s.id}: expected finite locked XYZ bundle`);
+        assert(bundle.version === 1 && bundle.kind === (s.channel === 'fusion' ? 'locked-fusion-bundle' : 'locked-xyz-bundle'), `${s.id}: expected finite locked bundle`);
+        const entries = s.channel === 'fusion' ? bundle.files : bundle.tiles;
+        assert(entries && Object.keys(entries).length > 0 && Object.keys(entries).length <= 100000, 'finite response inventory required');
         const seen = new Set();
-        for (const entry of Object.values(bundle.tiles)) {
+        for (const entry of Object.values(entries)) {
           assert(typeof entry.path === 'string' && /^[a-f0-9]{64}$/.test(entry.sha256), `${s.id}: invalid response pin`);
           if (seen.has(entry.sha256)) continue;
           seen.add(entry.sha256);

@@ -147,6 +147,96 @@ describe.skipIf(!python)('offline GDAL fixture execution and immutable #137 publ
     const bad = await createLockedSurfacePlan(payload);
     await expect(executeBuild(bad, { ...options, cache: join(temp, 'ellipsoid-bad') })).rejects.toThrow(/unsupported detached areoid/);
   }, 300000);
+  it('executes a pinned existing fusion with projected masked DEMs and native raster imagery', async () => {
+    const input = join(temp, 'projected-input');
+    const { lock: original, bindings } = await createFixture(input, python);
+    const projected = spawnSync(python, ['-c', `
+from osgeo import gdal,osr
+import numpy as np,sys,json
+from pathlib import Path
+root=Path(sys.argv[1]); k=3396190*np.pi/180
+s=osr.SpatialReference();s.ImportFromProj4('+proj=eqc +lat_ts=0 +lon_0=0 +R=3396190 +units=m +no_defs')
+d=gdal.Open(str(root/'detail.tif'),gdal.GA_Update);gt=d.GetGeoTransform();d.SetGeoTransform(tuple(v*k for v in gt));d.SetProjection(s.ExportToWkt());b=d.GetRasterBand(1);b.SetNoDataValue(-32768);a=b.ReadAsArray();a[0,0]=-32768;b.WriteArray(a);d=None
+d=gdal.GetDriverByName('GTiff').Create(str(root/'ortho.tif'),32,32,1,gdal.GDT_Byte);d.SetProjection(s.ExportToWkt());d.SetGeoTransform((-20*k,1.25*k,0,20*k,0,-1.25*k));d.GetRasterBand(1).WriteArray((np.indices((32,32)).sum(axis=0)*3+10).astype('uint8'));d=None
+import numpy
+print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEASE_NAME'),'numpy':numpy.__version__}))
+`, input], { encoding: 'utf8' });
+    expect(projected.status).toBe(0);
+    const { identity, desiredIdentity, ...payload } = structuredClone(original);
+    convert(payload);
+    const metadata = source => ({ evidenceUrl: 'https://example.invalid/native-raster', confidence: 'verified-mask', unknowns: [],
+      rasterGsdM: 1.25*3396190*Math.PI/180, dataType: 'Float32', bands: ['value'], acquisitionUtc: null, observationId: null,
+      sourceProjection: source.projection, sourceCoordinates: 'planetocentric', sourceDatum: source.datum.verticalDatum,
+      registration: null, illumination: null, stereoProductIds: [], assets: [], reuse: { status: 'allowed', evidenceUrl: null },
+      validData: { geometry: { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'valid', properties: null,
+        geometry: { type: 'Polygon', coordinates: [[[-12,-12],[12,-12],[12,12],[-12,12],[-12,-12]]] } }] },
+        evidenceUrl: 'https://example.invalid/native-raster', method: 'Complete native cell and interpolation support check', extent: 'known-valid-subset' } });
+    const pin = async file => ({ retrieval: 'Controlled fixture file', bytes: (await stat(file)).size,
+      checksum: { algorithm: 'sha256', value: await hashFile(file) } });
+    const detail = payload.sources.find(s => s.id === 'detail');
+    detail.projection = 'Mars-EQC-0-0'; detail.nodata = { maskUrl: 'https://example.invalid/native-raster' };
+    detail.asset = await pin(join(input, 'detail.tif')); detail.metadata = metadata(detail);
+    const image = payload.sources.find(s => s.id === 'detail-image');
+    image.projection = 'Mars-EQC-0-0'; image.asset = await pin(join(input, 'ortho.tif')); image.metadata = metadata(image);
+    bindings['detail-image'] = 'ortho.tif';
+    // Keep two independent image controls: the existing XYZ context plus native raster detail.
+    for (const selection of payload.selections.filter(s => s.channel === 'elevation')) for (const [role,filename] of [['label','MEGA90N000EB.LBL'],['image','MEGA90N000EB.IMG']]) {
+      selection.transformations[0].areoid[role] = await pin(join(input, filename)); bindings['datum:areoid-'+role] = filename;
+    }
+    const fusion = join(input,'existing-fusion');
+    const fused = spawnSync(python, [resolve('scripts/terrain/dem.py'),'fuse','--base',join(input,'base.tif'),'--detail',join(input,'detail.tif'),
+      '--out',fusion,'--blend-m','150000','--fit-stride','2','--bias','none'], { encoding:'utf8' });
+    expect(fused.status, fused.stderr).toBe(0);
+    const files = {};
+    for (const name of ['fusion.json','residual.tif','coverage.tif','weight.tif','fused.tif']) files[name] = {
+      path:name,bytes:(await stat(join(fusion,name))).size,sha256:await hashFile(join(fusion,name)) };
+    const bundle = join(fusion,'bundle.json');
+    await writeFile(bundle,JSON.stringify({version:1,kind:'locked-fusion-bundle',baseSha256:payload.sources[0].asset.checksum.value,detailSha256:detail.asset.checksum.value,files}));
+    bindings['terrain:fusion'] = bundle;
+    payload.processing.parameters.profile = 'bounded-real-mars';
+    payload.processing.parameters.toolchain = JSON.parse(projected.stdout);
+    payload.processing.parameters.terrain.fusionAsset = await pin(bundle);
+    const strict = structuredClone(payload);
+    strict.desired.regions.find(r=>r.id==='landing').fallback='require-target';
+    strict.desired.regions.find(r=>r.id==='landing').elevation.gsdM=100000;
+    strict.desired.regions.find(r=>r.id==='landing').imagery.gsdM=50000;
+    await expect(createLockedSurfacePlan(strict)).rejects.toThrow(/physical fidelity/);
+    const lock = await createLockedSurfacePlan(payload);
+    const options = { bindings, bindingsDir:input, python, workers:1, cache:join(temp,'projected-cache') };
+    const report = await executeBuild(lock,options);
+    expect(await hashFile(join(report.directory,'fusion/fusion.json'))).toBe(files['fusion.json'].sha256);
+    const clean = await executeBuild(lock,{...options,cache:join(temp,'projected-clean-cache')});
+    for(const product of report.products) expect(await buildInventory(join(clean.directory,product.id))).toEqual(await buildInventory(join(report.directory,product.id)));
+    expect(report.resources.actual.sampledPeakScratchBytes).toBeGreaterThan(0);
+    expect(report.resources.actual.peakDiskBytes).toBeNull();
+
+    expect(report.resources.actual.sourceAudit.rasters.detail.invalidPixels).toBe(1);
+    expect(report.resources.actual.sourceAudit.rasters.detail.nativeValidSubset.features[0].nativeCells).toBeGreaterThan(0);
+    expect(report.resources.actual.sourceAudit.imagery['detail-image'].sourceToOutputRegistration.checkedPixels).toBeGreaterThanOrEqual(64);
+    expect((await executeBuild(lock,options)).reused).toBe(true);
+    const product = report.products.find(p=>p.sourceIds.includes('detail-image'));
+    const manifestFile = join(report.directory,product.id,'imagery.json');
+    const manifestBytes = await readFile(manifestFile);
+    const manifest = JSON.parse(manifestBytes);
+    manifest.tiles = manifest.tiles.filter(id=>Number(id.split('/')[1])!==manifest.maxLevel);
+    await writeFile(manifestFile,JSON.stringify(manifest));
+    const descriptor = join(input,'descriptor.json');await writeFile(descriptor,JSON.stringify(image));
+    const registration = spawnSync(python,[resolve('scripts/surface-build/validate_imagery.py'),'--source',join(input,'ortho.tif'),
+      '--descriptor',descriptor,'--manifest',manifestFile,'--requests',join(report.directory,'inputs/detail-image-requests.json'),
+      '--out',join(input,'should-not-pass.json')],{encoding:'utf8'});
+    expect(registration.status).not.toBe(0);expect(registration.stderr).toContain('continuous footprint lacks finest output coverage');
+    await writeFile(manifestFile,manifestBytes);
+    const {identity: oldIdentity,desiredIdentity: oldDesired,...wrongToolchain}=structuredClone(lock);
+    wrongToolchain.processing.parameters.toolchain.python='0.0-test';
+    await expect(executeBuild(await createLockedSurfacePlan(wrongToolchain),{...options,cache:join(temp,'wrong-toolchain')})).rejects.toThrow(/toolchain differs/);
+    const {identity: oldBudgetIdentity,desiredIdentity: oldBudgetDesired,...unbounded}=structuredClone(lock);
+    unbounded.processing.parameters.terrain.globalLevel=0;
+    unbounded.processing.parameters.terrain.regions=['huge@0,0:'+Array.from({length:17},(_,i)=>`${i+1}=20000`).join(',')];
+    await expect(compileBuild(await createLockedSurfacePlan(unbounded))).rejects.toThrow(/exceeds 2048 tiles/);
+    await writeFile(join(fusion,'residual.tif'),'changed');
+    expect((await inspectBindings(lock,bindings,input)).find(s=>s.sourceId==='terrain:fusion').state).toBe('response-missing-or-changed');
+    await expect(executeBuild(lock,options)).rejects.toThrow(/changed source/);
+  },300000);
   it('builds, validates and reuses separate products, verifies local publication, and blocks corrupt caches or controls', async () => {
     const input = join(temp, 'fixture'), cache = join(temp, 'cache'), storeDir = join(temp, 'store');
     const { lock, bindings } = await createFixture(input, python);
