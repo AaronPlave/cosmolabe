@@ -94,7 +94,7 @@ Selection is shared with the scene. Clicking a feature in 3D selects and
 highlights it without opening anything over the scene. One callout names it;
 the callout's ✈ flies there and its name opens the Feature view. Clicking a
 search result or a row opens the feature; arrow keys skim a layer's list,
-highlighting each feature in the scene, and Enter opens one; double-click flies.
+highlighting each feature in the scene, and Enter opens one.
 Selecting never moves the camera. Fly to flies over the feature's extent through
 the shared navigation (docs/navigation.md); bodies that are not globes disable
 it, with the reason. Back, or Escape, clears the selection and returns to the

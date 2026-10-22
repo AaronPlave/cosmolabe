@@ -5,8 +5,8 @@
    * so a 5,000-feature layer costs the same DOM as a ten-feature one; searching
    * scans an in-memory index built once per layer.
    *
-   * Click (or Enter) opens the feature, without moving the camera; double-click
-   * flies to it. Arrow keys move through the list and highlight each feature in
+   * Click (or Enter) opens the feature, without moving the camera; its Feature
+   * view has Fly to. Arrow keys move through the list and highlight each feature in
    * the scene, so a layer can be skimmed without leaving it.
    */
   import { MapPin, Spline, Hexagon, X } from 'lucide-svelte';
@@ -16,7 +16,7 @@
   import { geometryLabel } from '../lib/geographic-layer-labels';
   import { Input } from '$lib/components/ui/input';
   import {
-    geo, listedFeatures, selectFeature, hoverFeature, goToFeature, featureRef, setInViewOnly, syncSceneFilter,
+    geo, listedFeatures, selectFeature, hoverFeature, featureRef, setInViewOnly, syncSceneFilter,
   } from '../lib/geographic-layers.svelte';
 
   interface Props { layer: GeographicLayer }
@@ -211,7 +211,6 @@
             aria-selected={index === cursor}
             tabindex="-1"
             onclick={() => select(entry)}
-            ondblclick={() => goToFeature(ref)}
             onmouseenter={() => hoverFeature(ref)}
           >
             <Icon size={12} />

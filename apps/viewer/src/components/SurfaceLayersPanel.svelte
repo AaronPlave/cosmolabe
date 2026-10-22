@@ -17,7 +17,7 @@
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import {
     geo, geographicLoads, layerVisible, setLayerVisible, isolateLayer, isIsolated, showAllLayers, hoverFeature,
-    surfacePanelView, openLayer, openImagery, showLayerList, searchAllFeatures, selectFeature, featureRef, goToFeature,
+    surfacePanelView, openLayer, openImagery, showLayerList, searchAllFeatures, selectFeature, featureRef,
     GLOBAL_SEARCH_LIMIT,
   } from '../lib/geographic-layers.svelte';
   import { layerSwatch, layerIssue } from '../lib/geographic-layer-labels';
@@ -90,7 +90,7 @@
         {#each search.matches as { layer, entry } (`${layer.id}/${entry.feature.id}`)}
           {@const ref = featureRef(layer, entry.feature)}
           <li>
-            <button class="result" onclick={() => selectFeature(ref)} ondblclick={() => goToFeature(ref)}
+            <button class="result" onclick={() => selectFeature(ref)}
               onmouseenter={() => hoverFeature(ref)} onmouseleave={() => hoverFeature(null)}>
               <span class="name">{entry.name}</span>
               <span class="ui-meta where">{layer.name} · {layer.body}</span>
