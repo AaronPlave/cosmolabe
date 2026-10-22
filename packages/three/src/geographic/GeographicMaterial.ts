@@ -101,13 +101,15 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           return vec2(dy.y * delta.x - dy.x * delta.y, dx.x * delta.y - dx.y * delta.x) / determinant;
         }
         void main() {
+          // Geodetic latitude in closed form (Bowring): exact to well below
+          // float precision near the surface, at a fraction of an iterative
+          // solve's cost, which every covered fragment pays.
           float p = length(vectorBody.xy);
-          float e2 = 1.0 - pow(vectorShape.y / vectorShape.x, 2.0);
-          float latitude = atan(vectorBody.z, p * (1.0 - e2));
-          for (int j = 0; j < 5; j++) {
-            float n = vectorShape.x / sqrt(1.0 - e2 * pow(sin(latitude), 2.0));
-            latitude = atan(vectorBody.z + e2 * n * sin(latitude), p);
-          }
+          float equatorial = vectorShape.x, polar = vectorShape.y;
+          float e2 = 1.0 - (polar * polar) / (equatorial * equatorial), ep2 = (equatorial * equatorial) / (polar * polar) - 1.0;
+          float beta = atan(vectorBody.z * equatorial, p * polar);
+          float sb = sin(beta), cb = cos(beta);
+          float latitude = atan(vectorBody.z + ep2 * polar * sb * sb * sb, p - e2 * equatorial * cb * cb * cb);
           vec2 ll = degrees(vec2(atan(vectorBody.y, vectorBody.x), latitude));
           // Differentiate Cartesian positions first: longitude itself is
           // discontinuous at the seam. The differential of atan2 is continuous.
