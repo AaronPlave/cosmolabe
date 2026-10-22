@@ -478,6 +478,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.catalogName = vs.loadingCatalog || null;
   const syncPlaces = () => {
     vs.places = renderer.placeNames?.index ?? null;
+    vs.placeBodies = [...(renderer.placeNames?.bodies ?? [])];
     if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) vs.selectedPlaceRef = null;
     vs.placeFailures = universe.geographicLayers?.loads.flatMap(load => load.status === 'error' ? load.diagnostics.map(d => `${load.id}: ${d.message}`) : []) ?? [];
   };

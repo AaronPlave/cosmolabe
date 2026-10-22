@@ -51,3 +51,9 @@ Sort exposes the existing Relevance order (tracked body, exact name, cartographi
 Result metadata displays source-reported indicative diameter in metres or kilometres, rounded to three significant digits, or “Diameter unknown.” The tooltip states that it does not define a feature boundary. Eight core index regressions, build, Svelte (zero warnings), changed-file lint and the physical Chrome/Metal acceptance workflow pass, including name/diameter ordering, unknown extent, combined filtering and compact layout.
 
 [Desktop](navigation/places-sort.png) · [Compact](navigation/places-sort-compact.png) · [Acceptance](navigation/sort-results.json).
+
+## Demo starts with geographic names enabled
+
+The Places demo declares `defaultGeographicNames: ["Mars", "Moon"]`. The viewer applies this initial setting before binding Display state; reusable source catalogs and scenes without the declaration remain opt-in. A later entry-catalog declaration overrides required-catalog defaults. Display controls still change visibility normally, and reopening the demo restores its authored setting.
+
+Physical Chrome/Metal verification confirmed visible labels without place selection, checked master/per-body controls, manual off, reload restoring both bodies, and the same imported data staying off when the declaration is absent. Build/all type checks, 98 catalog-schema/viewer-control tests and changed-file lint pass. [Initial Display state](navigation/demo-default-on.png) · [Acceptance](navigation/default-results.json).

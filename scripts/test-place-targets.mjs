@@ -14,6 +14,7 @@ try {
   await page.addInitScript(()=>{window.__placeModule=path=>import(performance.getEntriesByType('resource').map(e=>e.name).filter(url=>new URL(url).pathname===path).at(-1)??path);});
   await page.goto(`${base}?catalog=test-catalogs/planetary-places`,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.renderer?.placeNames?.index.places.length===11139);
+  assert.deepEqual(await page.evaluate(()=>[...window.renderer.placeNames.bodies].sort()),['Mars','Moon']);
   await page.evaluate(async()=>{
     await window.renderer.waitForInitialAssets();window.cosmo.setPlaying(false);
     window.s=await window.__placeModule('/src/lib/viewer-state.svelte.ts');window.p=await window.__placeModule('/src/lib/places.ts');window.sh=await window.__placeModule('/src/lib/shell.svelte.ts');

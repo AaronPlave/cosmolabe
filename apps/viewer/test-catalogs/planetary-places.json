@@ -1,6 +1,6 @@
 {
   "name": "Mars and Moon places",
-  "description": "USGS/IAU Gazetteer snapshots with 11,138 real place anchors. Body positions are illustrative. Search names with Ctrl/Command K; enable geographic names in Places. Includes an explicitly synthetic user site to demonstrate mixed provenance.",
+  "description": "USGS/IAU Gazetteer snapshots with 11,138 real place anchors. Body positions are illustrative. Search names with Ctrl/Command K; geographic names start enabled for both bodies and can be changed in Display. Includes an explicitly synthetic user site to demonstrate mixed provenance.",
   "defaultViewpoint": "Mars places orbit",
   "geographicLayers": [
     {
@@ -124,5 +124,9 @@
   "require": [
     "places/mars.json",
     "places/moon.json"
+  ],
+  "defaultGeographicNames": [
+    "Mars",
+    "Moon"
   ]
 }

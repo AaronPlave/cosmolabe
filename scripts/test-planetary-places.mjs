@@ -102,8 +102,8 @@ try {
   // Exercise the actual per-body names toggle and sample warm renderer cost.
   await page.evaluate(async()=>{const {openTool}=await window.__placeModule('/src/lib/shell.svelte.ts');openTool('display');});
   await page.getByText('By body',{exact:true}).click();
-  await page.getByText('Mars geographic names', { exact: true }).click();
-  await page.getByText('Moon geographic names', { exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Mars geographic names', exact: true }).setChecked(true);
+  await page.getByRole('checkbox', { name: 'Moon geographic names', exact: true }).setChecked(true);
   const measure = async name => {
     await page.evaluate(async ({ name, root }) => {
       const { selectPlace } = await window.__placeModule('/src/lib/places.ts');
