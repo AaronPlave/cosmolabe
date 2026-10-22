@@ -5,7 +5,7 @@
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { CameraModeName } from '@cosmolabe/three';
   import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
-  import { toolDef } from '../lib/shell.svelte';
+  import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -21,18 +21,23 @@
   let viewpoints = $state<{ name: string }[]>([]);
   let selectedViewpoint = $state('');
   let vpCounter = $state(0);
-  let sensors = $state<string[]>([]);
-  let activeInstrument = $state('');
   let recording = $state(false);
 
   $effect(() => {
     const r = getRenderer();
     if (!r) return;
     viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-    sensors = r.getSensorNames();
-    activeInstrument = r.activeInstrumentView ?? '';
     recording = isRecordingVideo(r);
   });
+
+  // Followed per frame like the Instrument view window, so a scene bound after
+  // this panel opened still lists its sensors. Joined so a quiet frame changes
+  // nothing downstream.
+  const sensorList = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.getSensorNames().join('\n') ?? '';
+  });
+  const sensors = $derived(sensorList ? sensorList.split('\n') : []);
 
   // A permalink or host can change FOV while this panel is already open.
   // Read the same live projection the renderer uses, including wheel gestures.
@@ -183,8 +188,14 @@
         <span class="flex-1 text-text-primary">Instrument</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none max-w-28"
-          bind:value={activeInstrument}
-          onchange={() => { getRenderer()?.setInstrumentView(activeInstrument || null, { marginX: 16, marginY: 60 }); }}
+          value={isToolOpen('instrument') ? (vs.instrumentSensor ?? '') : ''}
+          onchange={(e) => {
+            // The same window the `I` key opens; Off closes it.
+            const name = (e.target as HTMLSelectElement).value;
+            if (!name) { closeTool('instrument'); return; }
+            vs.instrumentSensor = name;
+            openTool('instrument');
+          }}
         >
           <option value="">Off</option>
           {#each sensors as name}<option value={name}>{name}</option>{/each}
