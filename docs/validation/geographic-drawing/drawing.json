@@ -120,6 +120,25 @@
     "featureId": "string:user-6",
     "bodyName": "Mars"
   },
+  "drawnLayerStyle": {
+    "version": 1,
+    "point": {
+      "color": "#e69f00"
+    },
+    "line": {
+      "color": "#e69f00"
+    },
+    "polygon": {
+      "fillColor": "#e69f00",
+      "outlineColor": "#e69f00"
+    },
+    "opacity": 0.6,
+    "labels": {
+      "maxLabels": 40,
+      "sizePx": 11,
+      "halo": true
+    }
+  },
   "moon": {
     "convention": {
       "latitude": "planetographic",

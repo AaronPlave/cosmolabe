@@ -7,7 +7,8 @@
  * point, path, circle and ellipse from the floating bar; is refused a
  * self-crossing polygon; edits typed properties; reloads; exports and imports
  * GeoJSON (exported and plain); copies one read-only feature into
- * annotations; draws on the Moon in its own convention; and checks that the
+ * annotations; styles the annotations layer and checks the style returns after
+ * a reload and a trip to another catalog; draws on the Moon in its own convention; and checks that the
  * tool releases the scene and does not disturb navigation. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -308,6 +309,33 @@ try {
   assert.equal(await page.evaluate(() => window.renderer.geographicVectors.isVisible('jezero-science')), true);
   assert.equal(await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features)), original);
   await page.keyboard.press('Escape');
+
+  // A drawn layer's style comes back after a reload and after a trip to another catalog.
+  await showLayers();
+  // The import above made a second layer of the same name; the original is listed first.
+  await page.getByRole('button', { name: 'Open My annotations · Mars' }).first().click();
+  await page.getByRole('radio', { name: 'style' }).click();
+  const annotationStyle = page.locator('[aria-label="Style of My annotations · Mars"]');
+  await annotationStyle.getByRole('button', { name: 'Orange' }).click();
+  await annotationStyle.getByLabel('Opacity').fill('0.6');
+  await annotationStyle.getByLabel('Labels', { exact: true }).check();
+  await page.waitForTimeout(400);
+  // Stored styles drop empty members (rule: null), so compare without them.
+  const drawnStyle = () => page.evaluate((id) => JSON.parse(JSON.stringify(window.renderer.geographicVectors.getStyle(id), (k, v) => v ?? undefined)), marsId);
+  const styledDrawn = await drawnStyle();
+  results.drawnLayerStyle = styledDrawn;
+  assert.equal(styledDrawn?.point?.color, '#e69f00');
+  assert.equal(styledDrawn?.opacity, 0.6);
+  assert.ok(styledDrawn?.labels, 'labels on');
+  await load();
+  assert.deepEqual(await drawnStyle(), styledDrawn, 'restored after a reload');
+  await page.goto(`${base}?catalog=test-catalogs/mars-imagery-jezero`);
+  await page.waitForFunction((id) => !!window.renderer?.universe.geographicLayers.get(id), marsId);
+  assert.deepEqual(await drawnStyle(), styledDrawn, 'restored in another catalog on the same body');
+  await page.evaluate(() => window.renderer.waitForInitialAssets());
+  await load();
+  await exposeHelpers();
+  assert.deepEqual(await drawnStyle(), styledDrawn, 'restored on returning to the first catalog');
 
   // The Moon, in its own convention, into its own annotations layer.
   await flyOver('Lunar synthetic regions', (await page.evaluate(() => window.renderer.universe.geographicLayers.get('moon-science').features[0].properties?.name ?? '')) + ' ' + (await page.evaluate(() => ({ Point: 'Point', MultiPoint: 'Points', LineString: 'Line', MultiLineString: 'Lines', Polygon: 'Area', MultiPolygon: 'Areas' })[window.renderer.universe.geographicLayers.get('moon-science').features[0].geometry.type])));
