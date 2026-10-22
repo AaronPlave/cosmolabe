@@ -43,3 +43,11 @@ Places adds Type filtering using the same indexed feature classes as Cmd/K, disp
 The content/list scroll regions reserve two pixels for the shared outside focus ring, preserving its rounded outline on all sides. Physical Chrome/Metal checks cover desktop and 390×844 focus, combined filters, empty results, origin separation, type reset, and existing navigation lifecycle checks with no browser errors. Seven core index regressions, build, Svelte (zero warnings) and changed-file lint pass.
 
 [Focused desktop input and filters](navigation/places-filters-focus.png) · [Compact](navigation/places-filters-focus-compact.png) · [Acceptance](navigation/filter-results.json).
+
+## Explicit ordering and indicative diameter
+
+Sort exposes the existing Relevance order (tracked body, exact name, cartographic importance, then diameter) and explicit Name A–Z/Z–A and Diameter largest/smallest orders. Explicit sorts apply to all matching records before the 100-result cap, across bodies when All bodies is chosen. Unknown diameters follow known values in both diameter directions; equal sizes use stable alphabetical ties. These choices affect search results only, not label-renderer priority.
+
+Result metadata displays source-reported indicative diameter in metres or kilometres, rounded to three significant digits, or “Diameter unknown.” The tooltip states that it does not define a feature boundary. Eight core index regressions, build, Svelte (zero warnings), changed-file lint and the physical Chrome/Metal acceptance workflow pass, including name/diameter ordering, unknown extent, combined filtering and compact layout.
+
+[Desktop](navigation/places-sort.png) · [Compact](navigation/places-sort-compact.png) · [Acceptance](navigation/sort-results.json).

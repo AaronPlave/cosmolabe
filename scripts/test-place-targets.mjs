@@ -111,6 +111,17 @@ try {
   await originFilter.selectOption('');await typeFilter.selectOption('Synthetic site');
   await bodyFilter.selectOption('Moon');await page.waitForFunction(()=>document.querySelector('[aria-label="Search place type"]').value==='');
   await bodyFilter.selectOption('Mars');
+  const sortFilter=page.getByLabel('Sort places',{exact:true});
+  await sortFilter.selectOption('name-asc');
+  const alphabetical=await page.getByRole('list',{name:'Named places'}).getByRole('button').evaluateAll(rows=>rows.map(row=>row.firstElementChild.textContent));
+  assert.deepEqual(alphabetical,[...alphabetical].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true})));
+  const sortedRefs=await page.evaluate(()=>window.s.vs.places.search('',{body:'Mars',sort:'diameter-desc',limit:100}).map(p=>p.ref));
+  await sortFilter.selectOption('diameter-desc');
+  const firstLargest=await page.getByRole('list',{name:'Named places'}).getByRole('button').first().textContent();
+  assert.ok(firstLargest.includes(await page.evaluate(ref=>window.s.vs.places.byRef.get(ref).name,sortedRefs[0])));assert.match(firstLargest,/≈ .*km across/);
+  await originFilter.selectOption('mission/user');assert.match(await page.getByRole('list',{name:'Named places'}).textContent(),/Diameter unknown/);
+  await originFilter.selectOption('');await sortFilter.selectOption('relevance');
+  checks.push('explicit alphabetical and diameter sorting, source diameter display, unknown extent labeling');
   await search.focus();
   const focusRoom=await search.evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.places-content').getBoundingClientRect();return{left:b.left-c.left,right:c.right-b.right,shadow:getComputedStyle(el).boxShadow};});
   assert.ok(focusRoom.left>=1&&focusRoom.right>=1);assert.notEqual(focusRoom.shadow,'none');

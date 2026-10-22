@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { Place } from '@cosmolabe/core';
+  import type { Place, PlaceSort } from '@cosmolabe/core';
   import { Copy, X } from 'lucide-svelte';
   import NavigationView from './NavigationView.svelte';
   import NavigationActions from './NavigationActions.svelte';
   import { navigationView, navigationRange } from '../lib/navigation-view.svelte';
   import { vs, resolveCoordinateTarget } from '../lib/viewer-state.svelte';
-  import { navigateToPlace, selectPlace, placeCoordinates, placeCategory } from '../lib/places';
+  import { navigateToPlace, selectPlace, placeCoordinates, placeCategory, placeDiameter } from '../lib/places';
   import { formatLatitude, formatLongitude } from '@cosmolabe/three';
   import { shell, minimizePanel } from '../lib/shell.svelte';
   const place = $derived(vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : undefined);
@@ -14,6 +14,7 @@
   // null follows tracking; an explicit choice (including All) is retained.
   let bodyChoice = $state<string | null>(null);
   const body = $derived(bodyChoice ?? (bodies.includes(vs.trackedBodyName ?? '') ? vs.trackedBodyName! : ''));
+  let sort = $state<PlaceSort>('relevance');
   let kind = $state('');
   let origin = $state<Place['origin'] | ''>('');
   const origins = $derived(new Set(vs.places?.places.map(p => p.origin) ?? []));
@@ -28,7 +29,7 @@
   $effect(() => { if (kind && !kinds.some(([value]) => value === kind)) kind = ''; });
   const range = $derived(navigationRange());
   const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...place.feature.geometry.coordinates, latitude: 'planetographic', longitudeDirection: 'east'}) : null);
-  const results = $derived(vs.places?.search(query, { body: body || undefined, kind: kind || undefined, origin: origin || undefined, activeBody: vs.trackedBodyName ?? undefined, limit: 100 }) ?? []);
+  const results = $derived(vs.places?.search(query, { body: body || undefined, kind: kind || undefined, origin: origin || undefined, sort, activeBody: vs.trackedBodyName ?? undefined, limit: 100 }) ?? []);
   const fields = $derived.by(() => {
     const value = place?.feature.properties?.sourceFields;
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -52,7 +53,7 @@
   }
 </script>
 
-<div class="places-content space-y-3" class:results-only={!place}>
+<div class="places-content space-y-2" class:results-only={!place}>
   <label class="grid gap-1"><span class="text-text-secondary">Search places</span>
     <input class="ui-control w-full rounded border border-border bg-surface-3 px-2 py-1" placeholder="Name or alias…" bind:value={query} />
   </label>
@@ -74,10 +75,16 @@
       </select>
     </label>
   {/if}
+  <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Sort</span>
+    <select aria-label="Sort places" title="Relevance favors the tracked body, exact name matches, cartographic importance, then diameter. Explicit sorts apply across all matching places." class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={sort}>
+      <option value="relevance">Relevance</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option>
+      <option value="diameter-desc">Diameter: largest first</option><option value="diameter-asc">Diameter: smallest first</option>
+    </select>
+  </label>
   {/if}
   {#if results.length && (!place || query)}
     <ul aria-label="Named places" class="place-results max-h-40 overflow-y-auto space-y-1">
-      {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="text-xs text-text-secondary">{item.layer.body} · {placeCategory(item)}</span></button></li>{/each}
+      {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="flex flex-wrap justify-between gap-x-2 text-xs text-text-secondary"><span>{item.layer.body} · {placeCategory(item)}</span><span class="tabular-nums" title="Approximate diameter from the source; not a feature boundary">{placeDiameter(item)}</span></span></button></li>{/each}
     </ul>
   {:else if !place || query}<p class="text-text-secondary">{bodies.length ? 'No places match this search and filters.' : 'No named places loaded in this scene.'}</p>{/if}
   {#if place}{#key place.ref}

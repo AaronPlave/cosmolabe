@@ -5,7 +5,7 @@ import { PlaceIndex, PLACE_LIMIT, placeLabelStyle, parseGeographicGeoJson, type 
 const spec: GeographicLayerDefinition = { id: 'sites', name: 'User sites', body: 'Moon', source: 'sites.geojson',
   coordinates: { latitude: 'planetographic', longitudeDirection: 'east', longitudeDomain: '-180..180', referenceShape: { kind: 'sphere', radiusKm: 1737.4 } },
   provenance: { attribution: 'Test mission' } };
-function layer(points: Array<{ name: string; lon?: number; lat?: number; aliases?: string[]; placeRef?: string; featureClass?: string }>, definition = spec): GeographicLayer {
+function layer(points: Array<{ name: string; lon?: number; lat?: number; aliases?: string[]; placeRef?: string; featureClass?: string; diameterKm?: number }>, definition = spec): GeographicLayer {
   return parseGeographicGeoJson(JSON.stringify({ type: 'FeatureCollection', features: points.map((p, i) => ({ type: 'Feature', id: i,
     properties: p, geometry: { type: 'Point', coordinates: [p.lon ?? 179.9, p.lat ?? -89.9] } })) }), definition, { kind: 'local-file', identity: definition.source });
 }
@@ -32,6 +32,21 @@ describe('shared place index', () => {
     expect(index.search('', { origin: 'nomenclature', limit: 100 })).toHaveLength(100);
     expect(index.search('', { origin: 'mission/user', body: 'Mars' })).toEqual([]);
     expect(index.search('', { origin: 'mission/user', kind: 'Mountain' })).toEqual([]);
+  });
+
+  it('sorts by name or diameter across matches, with unknown diameters last in either direction', () => {
+    const moon = layer([{ name: 'Zulu', diameterKm: 10 }, { name: 'Beta' }, { name: 'Able', diameterKm: 10 }]);
+    const mars = layer([{ name: 'Alpha', diameterKm: 100 }], { ...spec, id: 'mars', body: 'Mars' });
+    const index = new PlaceIndex([moon, mars]);
+    const names = (sort: 'name-asc' | 'name-desc' | 'diameter-desc' | 'diameter-asc') => index.search('', { sort, activeBody: 'Moon' }).map(p => p.name);
+    expect(names('name-asc')).toEqual(['Able', 'Alpha', 'Beta', 'Zulu']);
+    expect(names('name-desc')).toEqual(['Zulu', 'Beta', 'Alpha', 'Able']);
+    expect(names('diameter-desc')).toEqual(['Alpha', 'Able', 'Zulu', 'Beta']);
+    expect(names('diameter-asc')).toEqual(['Able', 'Zulu', 'Alpha', 'Beta']);
+    expect(index.search('a', { body: 'Mars', sort: 'diameter-asc' }).map(p => p.name)).toEqual(['Alpha']);
+    const crowded = new PlaceIndex([layer([...Array.from({ length: 120 }, (_, i) => ({ name: `Zulu ${i}`, diameterKm: 10 })), { name: 'Aardvark', diameterKm: 100 }])]);
+    expect(crowded.search('', { sort: 'name-asc', limit: 1 })[0].name).toBe('Aardvark');
+    expect(crowded.search('', { sort: 'diameter-desc', limit: 1 })[0].name).toBe('Aardvark');
   });
 
   it('retains logical references across chunk moves and diagnoses duplicates', () => {

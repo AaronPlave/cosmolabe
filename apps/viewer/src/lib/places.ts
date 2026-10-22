@@ -60,3 +60,12 @@ export function placeCategory(place: Place): string {
   if (/planum/.test(kind)) return 'Plateau';
   return place.kind.split(',')[0];
 }
+
+const diameterFormat = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 3 });
+/** Source-reported indicative extent, never a generated feature boundary. */
+export function placeDiameter(place: Place): string {
+  if (place.diameterKm === undefined) return 'Diameter unknown';
+  return place.diameterKm < 1
+    ? `≈ ${diameterFormat.format(place.diameterKm * 1000)} m across`
+    : `≈ ${diameterFormat.format(place.diameterKm)} km across`;
+}

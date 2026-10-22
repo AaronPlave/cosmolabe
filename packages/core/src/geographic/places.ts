@@ -14,6 +14,7 @@ export interface Place {
   /** Viewer policy, independent of the scientific extent. */
   label: PlaceLabelStyle;
 }
+export type PlaceSort = 'relevance' | 'name-asc' | 'name-desc' | 'diameter-desc' | 'diameter-asc';
 export type PlaceLabelClass = 'major' | 'regional' | 'local' | 'site';
 export interface PlaceLabelStyle {
   importance: number;
@@ -87,7 +88,7 @@ export class PlaceIndex {
     for (const cell of this.cells.values()) cell.sort(placePriority);
   }
 
-  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; activeBody?: string; limit?: number } = {}): Place[] {
+  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; sort?: PlaceSort; activeBody?: string; limit?: number } = {}): Place[] {
     const tokens = placeText(query).split(' ').filter(Boolean).slice(0, 8);
     let candidates: Set<Place> | undefined;
     for (const token of tokens) {
@@ -101,8 +102,19 @@ export class PlaceIndex {
     }
     const exact = placeText(query);
     return [...(candidates ?? this.places)].filter(p => (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind) && (!opts.origin || p.origin === opts.origin))
-      .sort((a, b) => Number(b.layer.body === opts.activeBody) - Number(a.layer.body === opts.activeBody)
-        || Number(placeText(b.name) === exact) - Number(placeText(a.name) === exact) || placePriority(a, b))
+      .sort((a, b) => {
+        const byName = () => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }) || a.ref.localeCompare(b.ref);
+        if (opts.sort === 'name-asc') return byName();
+        if (opts.sort === 'name-desc') return -byName();
+        if (opts.sort === 'diameter-desc' || opts.sort === 'diameter-asc') {
+          // Unknown extent is not zero: it follows known values in either order.
+          const known = Number(b.diameterKm !== undefined) - Number(a.diameterKm !== undefined);
+          const size = (b.diameterKm ?? 0) - (a.diameterKm ?? 0);
+          return known || (opts.sort === 'diameter-desc' ? size : -size) || byName();
+        }
+        return Number(b.layer.body === opts.activeBody) - Number(a.layer.body === opts.activeBody)
+          || Number(placeText(b.name) === exact) - Number(placeText(a.name) === exact) || placePriority(a, b);
+      })
       .slice(0, Math.max(0, Math.min(opts.limit ?? 30, 100)));
   }
 
