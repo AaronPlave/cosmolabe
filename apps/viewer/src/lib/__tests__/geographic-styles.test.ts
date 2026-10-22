@@ -71,6 +71,24 @@ describe('live preview and persistence', () => {
     expect(renderer!.geographicVectors.getStyle('regions')).toBeNull();
   });
 
+  it('restores a kept style for a layer installed after the scene loads, without undoing edits made since', () => {
+    const late = layer('notes', 'https://x/notes.json');
+    storage.setItem('cosmolabe-geographic-styles', JSON.stringify({ version: 1, layers: {
+      'https://x/notes.json::notes': { style: { version: 1, opacity: 0.4 }, updated: 1 },
+      'https://x/scene.json::science': { style: { version: 1, opacity: 0.3 }, updated: 1 },
+    } }));
+    load(layer('science'));
+    expect(renderer!.geographicVectors.getStyle('notes')).toBeNull();
+    setLayerStyle('science', { version: 1, opacity: 0.8 });
+    vi.advanceTimersByTime(100);
+    // As another module's load handler does after this one: install, then announce.
+    universe!.geographicLayers.replaceCatalog('user', [{ id: late.id, status: 'ready', layer: late, source: late.source, diagnostics: [] }]);
+    universe!.events.emit('geographic:changed', {});
+    expect(renderer!.geographicVectors.getStyle('notes')).toEqual({ version: 1, opacity: 0.4 });
+    expect(hasLocalStyle('notes')).toBe(true);
+    expect(renderer!.geographicVectors.getStyle('science')).toEqual({ version: 1, opacity: 0.8 });
+  });
+
   it('removes the kept entry when a style returns to defaults', () => {
     setLayerStyle('science', { version: 1, opacity: 0.5 });
     vi.advanceTimersByTime(100);
