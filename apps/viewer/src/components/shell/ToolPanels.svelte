@@ -16,6 +16,7 @@
   import DebugPanel from '../DebugPanel.svelte';
   import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
+  import NavigatePanel from '../NavigatePanel.svelte';
   import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
 
   interface Props {
@@ -43,6 +44,8 @@
 {#each panels as tool (tool.id)}
   {#if tool.id === 'catalog'}
     <BodyDrawer onClose={() => closeTool('catalog')} />
+  {:else if tool.id === 'navigate'}
+    <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
   {:else if tool.id === 'script'}
