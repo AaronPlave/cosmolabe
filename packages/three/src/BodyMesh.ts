@@ -1619,7 +1619,20 @@ export class BodyMesh extends THREE.Object3D {
       const hit = caster.intersectObjects(meshes, false)[0];
       return hit ? hit.point.clone().applyMatrix4(inverse) : point.clone();
     };
-    return { at, project, normal };
+    // Body/camera motion changes world matrices but not a footprint's local
+    // drape. Only selected geometry, draw ranges and tile-local transforms do.
+    const revision = meshes.map(mesh => {
+      const m = mesh as THREE.Mesh;
+      const transforms: string[] = [];
+      for (let parent: THREE.Object3D | null = m; parent && parent !== this.terrainTileGroup; parent = parent.parent) {
+        transforms.push(parent.uuid, parent.matrix.elements.join(','));
+      }
+      const position = m.geometry.getAttribute('position');
+      const positionVersion = position instanceof THREE.InterleavedBufferAttribute ? position.data.version : position?.version;
+      return [m.uuid, m.geometry.uuid, positionVersion, m.geometry.index?.version,
+        m.geometry.drawRange.start, m.geometry.drawRange.count, ...transforms].join(':');
+    }).join('|');
+    return { at, project, normal, revision };
   }
 
   /** Overhead imagery view in unscaled mesh-frame km, centred on the same surface as its outline. */
@@ -1685,18 +1698,38 @@ export class BodyMesh extends THREE.Object3D {
     const reference = [pts, [at((s + n) / 2, (w + e) / 2)]];
     const frame = new THREE.Matrix4();
     let updatedAt = -Infinity;
+    let drapedRevision: string | null = null;
+    let pending: { projection: NonNullable<ReturnType<BodyMesh['imageryProjection']>>; next: number; positions: Float32Array } | null = null;
+    // Keep the center responsive; finish the detailed outline in small batches
+    // instead of doing 128 triangle casts in one animation frame.
+    outline.visible = false;
     const refresh = () => {
-      if (performance.now() - updatedAt < 250) return;
-      updatedAt = performance.now();
-      const current = this.imageryProjection()!;
-      [outline, dot].forEach((object, index) => {
-        const position = object.geometry.getAttribute('position') as THREE.BufferAttribute;
-        reference[index].forEach((point, i) => {
-          const projected = current.project(point);
-          position.setXYZ(i, projected.x, projected.y, projected.z);
-        });
-        position.needsUpdate = true;
-      });
+      if (performance.now() - updatedAt >= 250) {
+        updatedAt = performance.now();
+        const current = this.imageryProjection()!;
+        if (current.revision !== drapedRevision) {
+          drapedRevision = current.revision;
+          const center = current.project(reference[1][0]);
+          const position = dot.geometry.getAttribute('position') as THREE.BufferAttribute;
+          position.setXYZ(0, center.x, center.y, center.z);
+          position.needsUpdate = true;
+          pending = { projection: current, next: 0, positions: new Float32Array(pts.length * 3) };
+        }
+      }
+      const deadline = performance.now() + 2;
+      while (pending && performance.now() < deadline) {
+        const point = pending.projection.project(pts[pending.next]);
+        point.toArray(pending.positions, pending.next * 3);
+        pending.next++;
+        if (pending.next === pts.length) {
+          // Publish the whole outline together; never show partly updated edges.
+          const position = outline.geometry.getAttribute('position') as THREE.BufferAttribute;
+          position.array.set(pending.positions);
+          position.needsUpdate = true;
+          outline.visible = true;
+          pending = null;
+        }
+      }
     };
     for (const o of [outline, dot]) {
       o.renderOrder = 999;
@@ -1707,7 +1740,7 @@ export class BodyMesh extends THREE.Object3D {
         if (this.terrainTileGroup) frame.copy(this.terrainTileGroup.matrixWorld);
         else frame.copy(this.mesh.matrixWorld).scale(new THREE.Vector3(...this.ellipsoidRatios.map(r => 1 / r)));
         o.matrixWorld.copy(frame);
-        refresh();
+        if (o === dot) refresh();
         centre.setFromMatrixPosition(o.matrixWorld);
         const position = o.geometry.getAttribute('position');
         const rgba = o.geometry.getAttribute('color') as THREE.BufferAttribute;

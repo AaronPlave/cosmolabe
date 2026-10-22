@@ -71,7 +71,7 @@ try {
         const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
         let projected=null;
         dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};
-        await new Promise(resolve=>setTimeout(resolve,350));
+        await new Promise((resolve,reject)=>{const start=performance.now();const ready=()=>{if(bm.imageryFootprint.children[0].visible)return requestAnimationFrame(()=>requestAnimationFrame(resolve));if(performance.now()-start>5000)return reject(new Error('hover outline did not finish'));requestAnimationFrame(ready);};requestAnimationFrame(ready);});
         const V=r.camera.position.constructor;
         const point=new V().fromBufferAttribute(dot.geometry.getAttribute('position'),0);
         return {bounds,lat:Math.atan2(point.y,Math.hypot(point.x,point.z))*180/Math.PI,lon:Math.atan2(-point.z,point.x)*180/Math.PI,projected};
@@ -132,18 +132,19 @@ try {
     await page.evaluate(()=>window.pilot.selectBody('Mars'));
     const fly=page.getByRole('button',{name:'Fly to HiRISE ortho — native detail',exact:true});
     if(!await fly.isVisible())await page.locator('summary').filter({hasText:'Imagery'}).click();
+    await page.evaluate(()=>{window.layerFlightFrames=[];const start=performance.now();let last=start;const tick=now=>{window.layerFlightFrames.push(now-last);last=now;if(now-start<2200)requestAnimationFrame(tick);};requestAnimationFrame(tick);});
     await fly.click();
-    await page.mouse.move(400,100);
     await page.waitForFunction(()=>!window.pilot.getRenderer().cameraController._anim,null,{timeout:15000});
     await page.waitForTimeout(1000);
+    await page.mouse.move(400,100);
     layerFlight=await page.evaluate(async()=>{
       const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
       bm.showImageryFootprint(bounds);
       const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
       let projected=null;
       dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};
-      await new Promise(resolve=>setTimeout(resolve,500));
-      return {projected,surfacePivot:r.cameraController.surfacePivot!==null,pick:r.pickSurface(0,0)?.physical?.kind};
+      await new Promise((resolve,reject)=>{const start=performance.now();const ready=()=>{if(bm.imageryFootprint.children[0].visible)return requestAnimationFrame(()=>requestAnimationFrame(resolve));if(performance.now()-start>5000)return reject(new Error('hover outline did not finish'));requestAnimationFrame(ready);};requestAnimationFrame(ready);});
+      return {projected,hoverFrameTimesMs:window.layerFlightFrames,surfacePivot:r.cameraController.surfacePivot!==null,pick:r.pickSurface(0,0)?.physical?.kind};
     });
     assert(layerFlight.projected&&Math.abs(layerFlight.projected[0])<.05&&Math.abs(layerFlight.projected[1])<.05&&layerFlight.projected[2]<1,'actual layer Fly button must land on the outlined image center');
     assert.equal(layerFlight.surfacePivot,true,'layer flight must retain a surface pivot');

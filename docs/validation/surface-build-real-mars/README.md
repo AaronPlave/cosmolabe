@@ -78,3 +78,16 @@ CPU pick still hits. Unit coverage also checks legacy geodetic imagery and
 framing across the antimeridian.
 
 ![Actual layer Fly to action centered on the outlined HiRISE crop](fly-to-layer.png)
+
+The hover outline no longer recasts all 129 points every quarter-second. It
+caches the drape by selected geometry, draw range, buffer revision and tile-local
+transforms; camera/body motion does not invalidate it. Changed edges are computed
+with a 2 ms per-frame budget, then published together. The center updates first,
+and the first outline appears once its drape is ready. Physical GPU profiling
+measured near-flight maximum frame intervals of 91.6 ms before and 9.4 ms after,
+with frames above 40 ms dropping from nine to zero in a 2.2-second observation.
+These are local measurements, not universal performance guarantees or CI timing
+thresholds. [Recorded comparison](../../benchmarks/imagery-layer-flight.json).
+The browser driver now leaves the actual layer row hovered throughout the flight;
+unit regressions verify bounded cast batches and cache invalidation independently
+of wall-clock performance.

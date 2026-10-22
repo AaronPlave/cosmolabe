@@ -55,6 +55,32 @@ describe('imagery region highlight and navigation', () => {
     expect(body.imageryRegionView([-.1, 29.9, .1, 30.1], 1, 45)!.target.distanceTo(point.multiplyScalar(.5))).toBeLessThan(1e-5);
   });
 
+  it('budgets changed-outline casts and reuses a stable drape while the body moves', () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now++);
+    try {
+      const { body, terrain } = fixture();
+      const active = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial());
+      active.position.x = 8; active.lookAt(9, 0, 0);
+      terrain.add(active); body.updateMatrixWorld(true);
+      const raycast = vi.spyOn(active, 'raycast');
+      body.showImageryFootprint([-.1, -.1, .1, .1]);
+      centre(body);
+      expect(raycast.mock.calls.length).toBeLessThan(10);
+      expect(body.children.at(-1)!.children[0].visible).toBe(false);
+      for (let frame = 0; frame < 150; frame++) centre(body);
+      expect(body.children.at(-1)!.children[0].visible).toBe(true);
+      expect(raycast).toHaveBeenCalledTimes(129);
+      body.position.set(1, 2, 3); body.updateMatrixWorld(true);
+      now += 300;
+      expect(centre(body).distanceTo(new THREE.Vector3(17, 2, 3))).toBeLessThan(1e-5);
+      expect(raycast).toHaveBeenCalledTimes(129);
+      active.position.x = 8.5; body.updateMatrixWorld(true); now += 300;
+      expect(centre(body).distanceTo(new THREE.Vector3(18, 2, 3))).toBeLessThan(1e-5);
+      expect(raycast.mock.calls.length).toBeGreaterThan(129);
+    } finally { clock.mockRestore(); }
+  });
+
   it('follows visible rendered terrain and LOD changes without querying CPU data', () => {
     const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
     try {
