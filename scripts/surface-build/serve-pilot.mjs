@@ -44,14 +44,24 @@ const server=await createServer({root:resolve('apps/viewer'),configFile:resolve(
     });
   },transformIndexHtml(html){
     return html.replace('</body>',`<script type="module">
-      const timer=setInterval(async()=>{if(!window.__cosmolabe?.assetsReady)return;clearInterval(timer);
-        window.cosmo.setPlaying(false);
-        const source=await(await fetch('/src/lib/commands.ts')).text();
-        const url=source.match(/from ["']([^"']*viewer-state\\.svelte[^"']*)["']/)?.[1];
-        const state=await import(url??'/src/lib/viewer-state.svelte.ts');
-        state.getRenderer().setTerrainDebugMode('imagery-unlit','Mars');
+      const source=await(await fetch('/src/lib/commands.ts')).text();
+      const url=source.match(/from ["']([^"']*viewer-state\\.svelte[^"']*)["']/)?.[1];
+      const state=await import(url??'/src/lib/viewer-state.svelte.ts');
+      const timer=setInterval(()=>{if(!state.vs.assetsReady)return;clearInterval(timer);
+        window.cosmo.setPlaying(false);window.cosmo.untrack();
+        const r=state.getRenderer(),bm=r.getBodyMesh('Mars');
+        r.setTerrainDebugMode('imagery-unlit','Mars');
+        const V=r.camera.position.constructor,centre=new V();bm.getWorldPosition(centre);
+        const world=p=>new V(p[0],p[2],-p[1]).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+        const target=${JSON.stringify(target)},normal=${JSON.stringify(normal)},north=${JSON.stringify(up)};
+        const t=world(target),eye=world(target.map((v,i)=>v+normal[i]*.05));
+        r.cameraController.controls.enableDamping=false;r.cameraController.controls.target.copy(t);
+        r.camera.position.copy(eye);r.camera.up.copy(world(north).sub(centre).normalize());
+        r.camera.fov=45;r.camera.updateProjectionMatrix();r.camera.lookAt(t);r.camera.updateMatrixWorld(true);
       },100);
     </script></body>`);
+  },async load(id){
+    if(id.endsWith('/src/app.css'))return (await readFile(id,'utf8')).replace('@import "tailwindcss";','@import "tailwindcss" source(none);\n@source "./";');
   },transform(code,id){
     if(id.endsWith('/src/app.css'))return code.replace('@import "tailwindcss";','@import "tailwindcss" source(none);\n@source "./";');
   }}],
