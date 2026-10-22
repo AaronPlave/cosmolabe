@@ -20,7 +20,8 @@ globe.terrain.url=productUrl(terrain.id,'tileset-measured.json');
 globe.terrain.cubeSphere.cpuGrids=productUrl(terrain.id,'cpu-grids.json');
 globe.terrain.cubeSphere.imagery={maxScreenTexelError:1};
 globe.imagery=report.products.filter(p=>p.kind==='cube-imagery').map((p,i)=>({
-  type:'cube',id:p.id,name:p.sourceIds[0],
+  type:'cube',id:p.id,name:p.sourceIds[0]==='hirise-ortho'?'HiRISE ortho — native detail':p.sourceIds[0]==='hirise-context'?'HiRISE ortho — coarse fallback':p.sourceIds[0],
+  description:p.sourceIds[0].startsWith('hirise-')?'Same observed 512 m HiRISE crop. Hiding native detail reveals this crop at coarser resolution; this is not a global Mars basemap.':undefined,
   url:productUrl(p.id,'imagery.json'),visible:p.visible,opacity:p.opacity,
   attribution:report.sources.find(s=>s.id===p.sourceIds[0]).license.attribution,
   resolutionMeters:p.nativeFidelity[0].nativeGsdM,
