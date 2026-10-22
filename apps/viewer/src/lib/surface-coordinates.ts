@@ -25,10 +25,3 @@ export async function copySurfacePointCoordinates(
     return null;
   }
 }
-
-/** Compact HUD only: full input and its conventions stay in target metadata. */
-export function compactTargetCoordinates(latDeg: number, lonEastDeg: number, decimals = 4): string {
-  const lon = ((lonEastDeg + 180) % 360 + 360) % 360 - 180;
-  const n = (v: number) => Math.abs(v).toFixed(decimals);
-  return `${n(latDeg)}° ${latDeg < 0 ? 'S' : 'N'}, ${n(lon)}° ${lon < 0 ? 'W' : 'E'}`;
-}

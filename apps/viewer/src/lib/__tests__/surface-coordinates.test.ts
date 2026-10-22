@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseCoordinatePair } from '@cosmolabe/core';
 import type { SurfacePoint } from '@cosmolabe/three';
-import { compactTargetCoordinates, copySurfacePointCoordinates } from '../surface-coordinates';
+import { copySurfacePointCoordinates } from '../surface-coordinates';
 
 const R = 1560.8; // Europa
 const pick = (latDeg: number, lonDeg: number) => {
@@ -39,14 +39,5 @@ describe('copySurfacePointCoordinates', () => {
     await expect(copySurfacePointCoordinates(pick(0, 0), { writeText })).resolves.toBeNull();
     await expect(copySurfacePointCoordinates(pick(0, 0), undefined)).resolves.toBeNull();
     warn.mockRestore();
-  });
-});
-
-
-describe('compact target coordinates', () => {
-  it('bounds HUD precision and keeps both hemispheres with intuitive longitude', () => {
-    expect(compactTargetCoordinates(-15.123123000, 214.23423456789)).toBe('15.1231° S, 145.7658° W');
-    expect(compactTargetCoordinates(-15.123123000, 214.23423456789, 2)).toBe('15.12° S, 145.77° W');
-    expect(compactTargetCoordinates(90, -360)).toBe('90.0000° N, 0.0000° E');
   });
 });

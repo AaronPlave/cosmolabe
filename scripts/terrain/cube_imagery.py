@@ -389,13 +389,16 @@ def tile_job(key):
         img = np.clip(np.round(rgb * 255), 0, 255).astype(np.uint8)
     elif J['kind'] == 'registration':
         img = registration_pattern(face, L, x, y, T, g)
+    elif J['kind'] == 'xyz':
+        from cube_xyz import tile
+        img = tile(J['source'], face, L, x, y, T, g, ss)
     elif J['kind'] == 'composite':
         img = composite_tile(J['base'], J['detail'], face, L, x, y, T, g, ss)
     else:
         img = nac_tile(J['source'], face, L, x, y, T, g, ss)
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
     write_image(path, img)
-    return key, os.path.getsize(path), (int(img[..., -1].max()) if J['kind'] == 'nac' else 255)
+    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz') else 255)
 
 
 def marker_table(tiles, T, g):
@@ -437,16 +440,23 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext,
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
-    sizes, empty = {}, set()
+    sizes, hashes, empty = {}, {}, set()
     # spawn, not fork: a worker forked after GDAL/curl has opened connections (raster_open below)
     # can die on macOS, and a Pool whose worker dies mid-task waits forever.
     with mp.get_context('spawn').Pool(args.workers, initializer=_init_job, initargs=(dict(_JOB),)) as pool:
-        for k, (key, nbytes, alpha) in enumerate(pool.imap_unordered(tile_job, tiles, chunksize=4)):
+        for k, (key, nbytes, content_hash, alpha) in enumerate(pool.imap_unordered(tile_job, tiles, chunksize=4)):
             sizes[key] = nbytes
+            hashes[key] = content_hash
             if alpha == 0:
                 empty.add(key)
             if k % 200 == 0:
                 print(f'  {k:,}/{len(tiles):,} ({time.time() - t0:.0f}s)', flush=True)
+    if kind == 'xyz':
+        from pathlib import Path
+        config = json.load(open(args.source))
+        prefix = config['url'].split('{z}')[0]
+        receipts = [json.load(open(path)) for path in Path(config['cache']).glob('*/*.fallback.json')]
+        extra = {**(extra or {}), 'sourceFallbacks': [r for r in receipts if r['url'].startswith(prefix)]}
     # Drop fully transparent subtrees below the root level (ancestors already draw
     # nothing there); a transparent tile with a non-empty descendant stays, so the tree is complete.
     keep_set = set()
@@ -460,16 +470,19 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     keep = [k for k in tiles if k in keep_set]
     gen = hashlib.sha256(open(os.path.abspath(__file__), 'rb').read()).hexdigest()
     params = json.dumps({'kind': kind, 'tiles': len(keep), 'T': args.tile_size, 'g': args.gutter, 'ss': args.supersample,
-                         'regions': args.region, 'global': args.global_level, **(extra or {})}, sort_keys=True)
+                         'regions': args.region, 'global': args.global_level, 'radiusKm': R_KM,
+                         'body': getattr(args, 'body', 'Moon'), 'registration': registration, 'contentHashes': [hashes[k] for k in keep], **(extra or {})}, sort_keys=True)
     version = f'cube-imagery-{kind}-' + hashlib.sha256((gen + params).encode()).hexdigest()[:16]
     manifest = {
         'format': 'cosmolabe-cube-imagery-1',
         'source': {**source_meta, 'version': version},
-        'bodyId': 'Moon',
+        'bodyId': getattr(args, 'body', 'Moon'),
+        'metricRadiusKm': R_KM,
         'registration': registration,
         'tileSize': args.tile_size, 'gutter': args.gutter, 'encoding': 'jpeg' if ext == 'jpg' else 'png', 'colorSpace': colour_space,
         'minLevel': 0, 'maxLevel': max(k[1] for k in keep),
         'uri': 'tiles/{face}/{level}/{x}/{y}.' + ext,
+        'sourceFallbacks': (extra or {}).get('sourceFallbacks', []),
         'generator': {'script': 'scripts/terrain/cube_imagery.py', 'sha256': gen, 'command': ' '.join(sys.argv[1:]),
                       'supersample': args.supersample, 'seconds': round(time.time() - t0, 1)},
         'bytes': sum(sizes[k] for k in keep),
@@ -481,11 +494,16 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
 
 
 def cmd_fixture(args):
+    global R_KM
+    R_KM = args.radius_km
+    if not math.isfinite(R_KM) or R_KM <= 0:
+        raise SystemExit('--radius-km must be positive and finite')
     regions = [parse_cube_region(r) for r in args.region or []]
     tiles = select_tiles(args.global_level, regions)
     meta = {'id': f'cube-imagery-fixture-{args.pattern}', 'kind': 'imagery',
             'attribution': 'Synthetic diagnostic fixture (scripts/terrain/cube_imagery.py); no observational data'}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame or "IAU_" + args.body.upper()}', 'pixelConvention': 'corner', 'registrationErrorKm': 0,
+                    'latitude': 'planetocentric',
                     'resampling': f'analytic, {args.supersample}×{args.supersample} box per pixel' if args.pattern == 'grid' else 'exact texel index',
                     'footprint': 'global'}
     keep = run(args, args.pattern, tiles, meta, registration, 'srgb' if args.pattern == 'grid' else 'linear')
@@ -493,6 +511,28 @@ def cmd_fixture(args):
         json.dump({'convention': 'pixel corners at integers; column from the left (face u), row from the top (face v decreasing); centre colour sRGB bytes',
                    'tileSize': args.tile_size, 'gutter': args.gutter, 'markers': marker_table(keep, args.tile_size, args.gutter)},
                   open(os.path.join(args.out, 'markers.json'), 'w'), indent=1)
+
+
+def cmd_xyz(args):
+    """Preprocess each service independently; no mandatory baked source composite."""
+    from cube_xyz import validate
+    global R_KM
+    R_KM = args.radius_km
+    if not math.isfinite(R_KM) or R_KM <= 0:
+        raise SystemExit('--radius-km must be positive and finite')
+    source = validate(json.load(open(args.source)))
+    if not source.get('cache'):
+        raise SystemExit('source JSON requires cache (disk directory for original responses)')
+    regions = [parse_cube_region(r) for r in args.region or []]
+    tiles = select_tiles(args.global_level, regions)
+    meta = {'id': source.get('id', source['url']), 'kind': 'imagery', 'url': source['url'],
+            'attribution': source.get('attribution', '')}
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
+                    'registrationErrorKm': None, 'latitude': 'planetocentric',
+                    'resampling': f'XYZ EPSG:4326 bilinear premultiplied alpha; {args.supersample}x box samples per output pixel',
+                    'footprint': f'finite built pyramid; source bounds {source.get("bounds", "global")}; source levels {source.get("minZoom", 0)}-{source.get("levels", 8)-1}; native detail only in declared built regions'}
+    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': {k: v for k, v in source.items() if k != 'cache'},
+         'adapterSha256': hashlib.sha256(open(os.path.join(os.path.dirname(__file__), 'cube_xyz.py'), 'rb').read()).hexdigest()})
 
 
 def cmd_nac(args):
@@ -628,7 +668,7 @@ def cmd_selftest(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
-    for name in ('fixture', 'nac', 'composite'):
+    for name in ('fixture', 'nac', 'composite', 'xyz'):
         s = sub.add_parser(name)
         s.add_argument('--out', required=True)
         s.add_argument('--global-level', type=int, default=3 if name == 'fixture' else 0)
@@ -638,7 +678,14 @@ def main():
         s.add_argument('--supersample', type=int, default=3)
         s.add_argument('--workers', type=int, default=os.cpu_count())
     sub.choices['fixture'].add_argument('--pattern', choices=('grid', 'registration'), required=True)
+    sub.choices['fixture'].add_argument('--radius-km', type=float, default=1737.4, help='angular-to-distance metric for diagnostic rings and region selection')
+    sub.choices['fixture'].add_argument('--body', default='Moon')
+    sub.choices['fixture'].add_argument('--frame')
     sub.choices['nac'].add_argument('--source', required=True)
+    sub.choices['xyz'].add_argument('--source', required=True, help='XYZ source JSON; explicit latitudeConvention and disk cache required')
+    sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
+    sub.choices['xyz'].add_argument('--body', required=True)
+    sub.choices['xyz'].add_argument('--frame', required=True)
     sub.choices['composite'].add_argument('--base', required=True, help='global raster (LROC WAC), drawn everywhere')
     sub.choices['composite'].add_argument('--detail', required=True, help='regional raster (LROC NAC South Pole) drawn over it where it has data')
     c = sub.add_parser('coregister')
@@ -651,7 +698,7 @@ def main():
     c.add_argument('--out')
     sub.add_parser('selftest')
     args = p.parse_args()
-    {'fixture': cmd_fixture, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
+    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

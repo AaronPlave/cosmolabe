@@ -15,7 +15,8 @@
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
-    reclampFloats, topVisiblePanel, minimizePanel, isToolId,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
+    isToolOpen, openTool,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -44,6 +45,13 @@
   // scene nothing (#94: no persistent header).
   $effect(() => {
     document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+  });
+
+  // Closing the Instrument view window — X, Escape, the rail, Display's Off —
+  // ends the feed. Here rather than in the panel, which also unmounts for a
+  // layout switch or a scene load that must not end it.
+  $effect(() => {
+    if (!isToolOpen('instrument')) untrack(() => getRenderer()?.setInstrumentView(null));
   });
 
   // A scene deep-linked by path is named by that path until a source lists it
@@ -234,15 +242,6 @@
         case 'g': setDisplayOption('grid', !vs.showGrid); return;
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
-        case 'i': {
-          const sensors = renderer.getSensorNames();
-          if (sensors.length === 0) return;
-          const current = renderer.activeInstrumentView;
-          const idx = current ? sensors.indexOf(current) : -1;
-          const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
-          renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
-          return;
-        }
         case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
@@ -270,7 +269,12 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool && !e.repeat) toggleTool(tool.id);
+      // `I` opens, restores or raises the Instrument view without changing its
+      // sensor (#192). Closing stays with the rail, Escape and X.
+      if (tool && !e.repeat) {
+        if (tool.id === 'instrument') openTool('instrument');
+        else toggleTool(tool.id);
+      }
     }
   }
 
@@ -289,6 +293,13 @@
    * would be a poor trade.
    */
   function dismissTopSurface(): boolean {
+    // An expanded panel covers the workspace, whatever was touched since: it
+    // steps back to its window before anything behind it is dismissed.
+    const expanded = expandedPanel();
+    if (expanded) {
+      toggleExpanded(expanded);
+      return true;
+    }
     const top = topVisiblePanel();
     if (top == null) return false;
     if (compact) {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
+import type { ScreenRect } from './EventCallout.js';
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -1255,6 +1256,7 @@ export class BodyMesh extends THREE.Object3D {
   get hasTerrain(): boolean { return this.terrainManager !== null; }
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
+  get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
   get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
   setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
   /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
@@ -1275,6 +1277,11 @@ export class BodyMesh extends THREE.Object3D {
   /** Draw every selected terrain tile until the next update (before rendering with a non-main camera). */
   showCulledTerrainTiles(): void {
     this.terrainManager?.showCulledTiles();
+  }
+
+  /** Restore the main camera's terrain draw cull (after `showCulledTerrainTiles`). */
+  recullTerrainTiles(): void {
+    this.terrainManager?.recullToMainView();
   }
 
   /** Toggle debug tile bounds on terrain */
@@ -1426,7 +1433,7 @@ export class BodyMesh extends THREE.Object3D {
    * @param renderer WebGL renderer
    * @param screenPixels How many pixels the body subtends on screen
    */
-  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
+  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number, labelObstacles: readonly ScreenRect[] = []): void {
     const tm = this.terrainManager;
     if (!tm) return;
 
@@ -1463,7 +1470,7 @@ export class BodyMesh extends THREE.Object3D {
     tm.group.updateMatrixWorld(true);
     // Update tile LOD — pass body center position so the coverage camera
     // can ensure tiles load even when the main camera faces away.
-    tm.update(camera, renderer, this.position);
+    tm.update(camera, renderer, this.position, labelObstacles);
 
     if (screenPixels < tm.showAtPixels) {
       // Pre-load zone: tiles fetch while the sphere stays visible.

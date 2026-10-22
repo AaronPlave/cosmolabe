@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
+import { TerrainContourLabels } from './TerrainContourLabels.js';
+import type { ScreenRect } from './EventCallout.js';
 import * as TilesThree from '3d-tiles-renderer/three';
 import { TilesRenderer } from '3d-tiles-renderer/three';
 import { injectShadowIntoShader, type ShadowUniforms } from './EclipseShadow.js';
@@ -19,6 +21,8 @@ import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
    *
+   *  - `'cube'`: preprocessed cube-face imagery.json; requires cubeSphere terrain.
+   *    Uses the same source controls with independent imagery blocks.
    *  - `'xyz'`, `'tms'`, `'wms'`, `'wmts'`: standard tile sources assuming
    *    a 2^z × (2^z or 2^(z-1)) tile-count progression per level.
    *  - `'wmts-capabilities'`: discovers tile grid + projection from the
@@ -27,7 +31,7 @@ export interface TerrainImageryConfig {
    *    2/3/5/10/20/40/80/160/320 columns per level). `url` is the
    *    GetCapabilities URL; `layer` + `tileMatrixSet` pick which layer
    *    and which matrix set inside the capabilities document. */
-  type?: 'xyz' | 'wms' | 'wmts' | 'tms' | 'wmts-capabilities';
+  type?: 'xyz' | 'wms' | 'wmts' | 'tms' | 'wmts-capabilities' | 'cube';
   /** Tile URL template (XYZ: {x},{y},{z} placeholders; WMS/TMS: base URL).
    *  For `'wmts-capabilities'`: URL of the GetCapabilities XML document. */
   url: string;
@@ -202,11 +206,12 @@ export interface TerrainConfig {
     /**
      * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
      * draped at its own levels, independently of this product's geometry LOD; see
-     * `CubeImageryLayer`. Use instead of `imagery` for cube products: the
-     * overlay plugin maps through per-vertex longitude/latitude, which cannot
+     * `CubeImageryLayer`. Legacy single product, or shared budget/selection options
+     * for `Globe.imagery` layers of type `cube`. The geographic overlay plugin
+     * maps through per-vertex longitude/latitude, which cannot
      * register the tiles meeting at each pole (both are face centres).
      */
-    imagery?: CubeImageryConfig;
+    imagery?: Omit<CubeImageryConfig, 'url'> & { url?: string };
     /**
      * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
      * surface triangles first (glTF primitive extras `surfaceTriangles`); false
@@ -611,12 +616,14 @@ const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
 export class TerrainManager {
+  private readonly contourLabels = new TerrainContourLabels();
   private surfaceStyle: SurfaceAppearance | null;
   private readonly cubeScenes = new Set<THREE.Object3D>();
   private readonly cubeStyleCandidate: boolean;
   private cubeStyleHeightRange: readonly [number, number] | null = null;
 
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
+  get surfaceContourIntervalKm(): number | null { return this.surfaceStyle?.contourIntervalKm ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
   setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.surfaceStyle?.set(settings); }
   readonly tiles: TilesRenderer;
@@ -772,13 +779,19 @@ export class TerrainManager {
     this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
-    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
-    if (config.cubeSphere?.imagery) {
-      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
-      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
-    }
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
+    const cubeSources = imageryConfigs.some(c => c.type === 'cube');
+    if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
+    if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
+      throw new Error('Legacy cube imagery cannot be combined with geographic imagery; use an entirely cube imagery stack or remove cubeSphere.imagery.url');
+    }
+    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
+    if (config.cubeSphere?.imagery?.url || cubeSources) {
+      const cubeConfig = config.cubeSphere?.imagery ?? {};
+      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm });
+      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
+    }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this._overlayResolution = config.overlayResolution ?? 256;
@@ -959,7 +972,7 @@ export class TerrainManager {
       // Imagery overlays: drape image tiles onto terrain geometry. Overlays
       // attach in stack order once all are constructed (capabilities-discovered
       // grids wait on a fetch) so tiles never load before their imagery.
-      if (imageryConfigs.length > 0) {
+      if (imageryConfigs.length > 0 && !this.cubeImagery) {
         this.registerOverlayPlugin(renderer, false);
         this._pluginReady = false;
         Promise.all(this.layers.filter((l) => l.visible).map((l) => this.prepareOverlay(l.id))).then((overlays) => {
@@ -1150,6 +1163,7 @@ export class TerrainManager {
     this.tiles.group.rotation.x = -Math.PI / 2;
 
     this.group.add(this.tiles.group);
+    this.group.add(this.contourLabels.group);
   }
 
   /**
@@ -1158,7 +1172,7 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
-  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3): void {
+  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] = []): void {
     if (this.disposed) return;
 
     // Compute terrain-appropriate near/far from camera position.
@@ -1312,6 +1326,15 @@ export class TerrainManager {
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
       }
     }
+    if (this.surfaceStyle) {
+      const size = renderer.getSize(_bufferSize);
+      const settings = this.surfaceStyle.current;
+      const sources = settings.contours ? this.surfaceStyle.contourSources() : [];
+      this.surfaceStyle.updateContourInterval(camera, size.x, size.y, sources);
+      this.contourLabels.update(camera, size.x, size.y,
+        settings.contourLabels ? sources : [], { ...settings, contourIntervalKm: this.surfaceStyle.contourIntervalKm },
+        this.debugMode === 'none', labelObstacles);
+    }
   }
 
   /** Hide this frame's visible tiles that the main camera cannot see (see `TerrainConfig.drawCulling`). */
@@ -1336,6 +1359,11 @@ export class TerrainManager {
   showCulledTiles(): void {
     for (const scene of this.culledScenes) scene.visible = true;
     this.culledScenes.length = 0;
+  }
+
+  /** Re-apply this frame's main-view cull after an instrument pass showed every tile. */
+  recullToMainView(): void {
+    if (this.drawCulling) this.cullToMainView();
   }
 
   /** Turn the main-view draw cull on or off (`TerrainConfig.drawCulling`); takes effect from the next update. */
@@ -1510,6 +1538,7 @@ export class TerrainManager {
 
   /** The imagery stack, bottom → top, with each layer's current load health. */
   get imageryLayers(): ImageryLayerInfo[] {
+    if (this.cubeImagery && this.layers.length) return this.cubeImagery.imageryLayers;
     return this.layers.map((l) => ({
       ...l,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
@@ -1562,6 +1591,7 @@ export class TerrainManager {
    * base layer, an unknown id, or the same state).
    */
   setImageryLayerVisible(id: string, visible: boolean): boolean {
+    if (this.cubeImagery) return this.cubeImagery.setLayerVisible(id, visible);
     const layer = this.layer(id);
     if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
     layer.visible = visible;
@@ -1583,6 +1613,7 @@ export class TerrainManager {
    * has no opacity.
    */
   setImageryLayerOpacity(id: string, opacity: number): boolean {
+    if (this.cubeImagery) return this.cubeImagery.setLayerOpacity(id, opacity);
     const layer = this.layer(id);
     if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
     layer.opacity = clampOpacity(opacity);
@@ -1597,6 +1628,7 @@ export class TerrainManager {
    * fetched again.
    */
   moveImageryLayer(id: string, toIndex: number): boolean {
+    if (this.cubeImagery) return this.cubeImagery.moveLayer(id, toIndex);
     const next = reorderedLayers(this.layers, this.layers.findIndex((l) => l.id === id), toIndex);
     if (!next) return false;
     this.layers.splice(0, this.layers.length, ...next);
@@ -1627,6 +1659,7 @@ export class TerrainManager {
 
   /** Overlay fetches since start, across all layers. */
   get imageryRequests(): number {
+    if (this.cubeImagery) return this.cubeImagery.stats.requests;
     let n = 0;
     for (const l of this.layers) if (l.role === 'overlay' || !this.isImageryOnly) n += l.requests;
     return n;
@@ -1664,6 +1697,10 @@ export class TerrainManager {
    */
   isReadyToShow(now = performance.now()): boolean {
     if (!this._pluginReady || this.hasStreamFailed(now)) return false;
+    if (this.cubeImagery && (this.debugMode === 'none' || IMAGERY_DEBUG[this.debugMode])) {
+      const imagery = this.cubeImagery.stats;
+      if (!imagery.ready || !imagery.tiles || imagery.untexturedBlocks > 0 || imagery.baseUncoveredBlocks > 0) return false;
+    }
     const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
     if (!((stats.visible ?? 0) > 0)) { this.firstVisibleAt = 0; return false; }
     if (this.coverageTiles().some((t) => t.traversal?.inFrustum !== false && t.internal?.loadingState !== LOADED)) return false;
@@ -2129,6 +2166,7 @@ export class TerrainManager {
         for (const tex of overlayParams?.get(mesh)?.layerMaps.value ?? []) countTexture(tex);
       });
     });
+    this.cubeImagery?.forEachResidentTexture(countTexture);
     const d = this.cpuDiagnostics;
     return {
       update: this.updateTiming.value,
@@ -2146,10 +2184,10 @@ export class TerrainManager {
       memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
       imagery: {
         layers: this.layers.length,
-        activeOverlays: this.activeOverlays.size,
+        activeOverlays: this.cubeImagery ? this.cubeImagery.imageryLayers.filter(l => l.visible).length : this.activeOverlays.size,
         overlayResolution: this._overlayResolution,
         requests: this.imageryRequests,
-        failed: this.layers.reduce((n, l) => n + (l.role === 'overlay' || !this.isImageryOnly ? l.failedTiles : 0), 0),
+        failed: this.imageryLayers.reduce((n, l) => n + (l.role === 'overlay' || !this.isImageryOnly ? l.failedTiles : 0), 0),
       },
     };
   }
@@ -2161,11 +2199,13 @@ export class TerrainManager {
     this.decodeTiming.reset();
     this.sampler.resetTiming();
     this.requestCount = 0;
+    this.cubeImagery?.resetCounters();
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.contourLabels.dispose();
     this.cubeGridsAbort.abort();
     this.cube?.source.dispose();
     this.cubeImagery?.dispose();
@@ -2452,7 +2492,9 @@ export class TerrainManager {
           if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
         }
       }
-      this.surfaceStyle!.attach(child, matrix, this.cubeConfigured ? scene : undefined);
+      // A detached cached QM root is still `visible=true`. It must not enter
+      // style preparation, auto-spacing or labels with its stale world scale.
+      this.surfaceStyle!.attach(child, matrix, scene);
     });
   }
 

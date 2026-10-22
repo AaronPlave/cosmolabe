@@ -35,8 +35,9 @@ try {
     };
     const fly = cc.flyToSurface;
     cc.flyToSurface = function(body, pose, opts) {
-      const start = window.navSample(); fly.call(this,body,pose,opts);
+      const start = window.navSample(); const plan = fly.call(this,body,pose,opts);
       window.flights.push({start,end:pose.position.toArray(),target:pose.target.toArray(),after:window.navSample()});
+      return plan;
     };
     const clamp = r.clampCameraAboveSurfaces;
     r.clampCameraAboveSurfaces = function() {

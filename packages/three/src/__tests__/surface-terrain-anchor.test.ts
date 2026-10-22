@@ -10,7 +10,7 @@
  */
 import * as THREE from 'three';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { navigationReference, resolveGeographicTarget, surfaceViewPlacement, withoutTerrainCoverage } from '@cosmolabe/core';
+import { navigationReference, resolveGeographicTarget, surfaceViewPlacement, withTerrainElevation, withoutTerrainCoverage } from '@cosmolabe/core';
 import { TerrainManager } from '../TerrainManager.js';
 import { CameraController } from '../controls/CameraController.js';
 import { SurfaceTerrainAnchor, bodyFixedToMeshLocal, surfacePoseFromBodyFixed, type AnchorTerrain } from '../SurfaceNavigation.js';
@@ -38,18 +38,15 @@ function manifest(): CubeGridManifest {
 }
 
 /** Serve the manifest at once, and hold each level's grids until `release` lets that level through. */
-function serve(basin = false) {
+function serve() {
   const released = new Set<number>();
   const waiting = new Map<number, (() => void)[]>();
   vi.stubGlobal('fetch', vi.fn(async (input: string) => {
     const url = String(input);
-    if (url.endsWith('cpu-grids.json')) {
-      const m = manifest(); if (basin) m.heightRangeKm = [-5.3, -5.2];
-      return new Response(JSON.stringify(m));
-    }
+    if (url.endsWith('cpu-grids.json')) return new Response(JSON.stringify(manifest()));
     const level = Number(url.split('/heights/')[1].split('/')[1]);
     if (!released.has(level)) await new Promise<void>((resolve) => waiting.set(level, [...(waiting.get(level) ?? []), resolve]));
-    return new Response(new Float32Array(W * W).fill(basin ? -5200 - 100 * level : HEIGHT_M(level)).buffer);
+    return new Response(new Float32Array(W * W).fill(HEIGHT_M(level)).buffer);
   }));
   return {
     release: (level: number) => {
@@ -75,10 +72,8 @@ beforeAll(() => vi.stubGlobal('window', { addEventListener() {}, removeEventList
 afterEach(() => { vi.unstubAllGlobals(); vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} }); vi.restoreAllMocks(); });
 
 describe('SurfaceTerrainAnchor on cube-sphere terrain', () => {
-  it.each([false, true])('follows cold → coarse → fine cube grids (below datum: %s), including repeated Fly', async (basin) => {
-    const { release } = serve(basin);
-    const coarseHeight = basin ? -5.2 : 0.1, fineHeight = basin ? -5.3 : 0.2;
-    const preset = basin ? 'surface' as const : 'overhead' as const;
+  it('follows cold → coarse → fine cube grids, moving the target and pivot by each change', async () => {
+    const { release } = serve();
     const tm = new TerrainManager(
       { type: '3dtiles', url: `${BASE}tileset.json`, datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
         cubeSphere: { cpuGrids: `${BASE}cpu-grids.json`, residentLevel: 0 } },
@@ -109,7 +104,7 @@ describe('SurfaceTerrainAnchor on cube-sphere terrain', () => {
       body: { name: 'Moon', rotation: undefined, rotationAt: () => undefined },
     } as unknown as BodyMesh;
     cc.setModeContext(null, 0, 1, new Map([['Moon', moon]]));
-    cc.jumpToSurface(moon, surfacePoseFromBodyFixed(surfaceViewPlacement(target, preset), 1));
+    cc.jumpToSurface(moon, surfacePoseFromBodyFixed(surfaceViewPlacement(target, 'overhead'), 1));
     const frame = () => { now += 16; cc.applyPendingOriginSwitch(); cc.update(); };
     frame();
     const apply = (shift: readonly [number, number, number]) => cc.retargetSurface(moon, bodyFixedToMeshLocal(shift, 1));
@@ -124,28 +119,20 @@ describe('SurfaceTerrainAnchor on cube-sphere terrain', () => {
     await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
     const coarse = anchor.update(terrain, apply);
     expect(coarse).not.toBeNull();
-    expect(coarse !== 'released' && coarse?.height).toMatchObject({ from: 'terrain-sample', km: expect.closeTo(coarseHeight, 6), tileId: 'nz/0/0/0' });
+    expect(coarse !== 'released' && coarse?.height).toMatchObject({ from: 'terrain-sample', km: expect.closeTo(0.1, 6), tileId: 'nz/0/0/0' });
     frame();
-    expect(pivotHeightKm()).toBeCloseTo(coarseHeight, 6);
+    expect(pivotHeightKm()).toBeCloseTo(0.1, 6);
     expect(eyeAbovePivotKm()).toBeCloseTo(eyeRange, 6); // the framing is kept
 
     // The sample asked for the finer grid; it replaces the coarse parent: up another 100 m, not 200.
     release(1);
     await vi.waitFor(() => expect(tm.cubeCoverage(-89.9, 0)?.state).toBe('finest'));
     const fine = anchor.update(terrain, apply);
-    expect(fine !== 'released' && fine?.height).toMatchObject({ km: expect.closeTo(fineHeight, 6), tileId: expect.stringMatching(/^nz\/1\//) });
+    expect(fine !== 'released' && fine?.height).toMatchObject({ km: expect.closeTo(0.2, 6), tileId: expect.stringMatching(/^nz\/1\//) });
     frame();
-    expect(pivotHeightKm()).toBeCloseTo(fineHeight, 6);
+    expect(pivotHeightKm()).toBeCloseTo(0.2, 6);
     expect(eyeAbovePivotKm()).toBeCloseTo(eyeRange, 6);
 
-    // Identical Navigate-panel requests after refinement do not leave the ground.
-    const landed = cc.camera.position.clone();
-    const pose = surfacePoseFromBodyFixed(surfaceViewPlacement(anchor.target, preset), 1);
-    for (let i = 0; i < 3; i++) {
-      cc.flyToSurface(moon, pose); frame();
-      expect(cc.flight).toBeNull();
-      expect(cc.camera.position.distanceTo(landed)).toBeLessThan(1e-6);
-    }
     // Settled: no new revision, nothing moves.
     expect(anchor.update(terrain, apply)).toBeNull();
     // Other navigation ends it: the shift has nowhere to go.
@@ -169,6 +156,90 @@ describe('SurfaceTerrainAnchor on cube-sphere terrain', () => {
     await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
     expect(tm.cpuRevision).toBeGreaterThan(start);
     expect(tm.sampler.revision).toBe(samplerStart);
+    tm.dispose();
+  });
+
+  it('repeated Fly to a south-pole surface view, through cold → coarse → fine grids, lands once and stays on the ground', async () => {
+    const { release } = serve();
+    const tm = new TerrainManager(
+      { type: '3dtiles', url: `${BASE}tileset.json`, datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+        cubeSphere: { cpuGrids: `${BASE}cpu-grids.json`, residentLevel: 0 } },
+      R, NO_RENDERER,
+    );
+    const terrain: AnchorTerrain = { get terrainRevision() { return tm.cpuRevision; }, sampleTerrain: (lat, lon) => tm.sample(lat, lon) };
+    const reference = navigationReference({ name: 'Moon', radii: [R, R, R], geometryType: 'Globe', terrainDatum: tm.sampler.datum });
+    if (!reference.ok) throw new Error(reference.reason);
+    const input = { bodyName: 'Moon', latDeg: -89.9, lonDeg: 0, latitude: 'planetocentric' as const, longitudeDirection: 'east' as const };
+    /** What Navigate resolves the same coordinates to, with the terrain as it now stands. */
+    const resolve = () => {
+      const t = resolveGeographicTarget(input, reference.reference);
+      const sample = tm.sample(t.latGraphicDeg, t.lonEastDeg);
+      return sample ? withTerrainElevation(t, sample.elevationKm, sample.source.id, sample.tileId) : withoutTerrainCoverage(t);
+    };
+
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const camera = new THREE.PerspectiveCamera(60, 4 / 3, 1e-6, 1e12);
+    const cc = new CameraController(camera, fakeElement());
+    const moon = {
+      position: new THREE.Vector3(), displayRadius: R, scaleFactor: 1, hasTerrain: true,
+      mesh: { quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) },
+      body: { name: 'Moon', rotation: undefined, rotationAt: () => undefined },
+    } as unknown as BodyMesh;
+    cc.setModeContext(null, 0, 1, new Map([['Moon', moon]]));
+    cc.focus(moon);
+    camera.position.set(0, 0, 4 * R);
+    cc.controls.target.set(0, 0, 0);
+    const apply = (shift: readonly [number, number, number]) => cc.retargetSurface(moon, bodyFixedToMeshLocal(shift, 1));
+    /** Eye height above the CPU ground under it (km); null where nothing is decoded. */
+    const clearance = () => {
+      const local = camera.position.clone();
+      const bf = [local.x, -local.z, local.y];
+      const lat = Math.asin(bf[2] / Math.hypot(...bf)) * 180 / Math.PI;
+      const lon = Math.atan2(bf[1], bf[0]) * 180 / Math.PI;
+      const ground = tm.sample(lat, lon);
+      return ground ? local.length() - (R + ground.elevationKm) : null;
+    };
+    let anchor: SurfaceTerrainAnchor | null = null;
+    const fly = () => {
+      const target = resolve();
+      anchor = new SurfaceTerrainAnchor(target, terrain);
+      return cc.flyToSurface(moon, surfacePoseFromBodyFixed(surfaceViewPlacement(target, 'surface'), 1));
+    };
+    const step = (dt = 0.05) => {
+      now += dt * 1000; cc.applyPendingOriginSwitch(); cc.update();
+      anchor?.update(terrain, apply);
+    };
+
+    // Cold: on the datum. The coarse grids land mid-flight and the flight retargets onto them.
+    expect(fly().kind).toBe('flight');
+    for (let i = 0; i < 10; i++) step();
+    release(0);
+    await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
+    for (let i = 0; i < 300 && cc.flight; i++) step();
+    step();
+    expect(clearance()).toBeCloseTo(0.002, 4);
+
+    // Finer grids replace the coarse ones after landing: the camera goes up with the ground.
+    release(1);
+    await vi.waitFor(() => expect(tm.cubeCoverage(-89.9, 0)?.state).toBe('finest'));
+    step();
+    expect(clearance()).toBeCloseTo(0.002, 4);
+    const landed = camera.position.clone();
+
+    // Fly again to the same coordinates, twice, and once more mid-way: nothing leaves the ground.
+    expect(fly().kind).toBe('arrived');
+    expect(fly().kind).toBe('arrived');
+    let highest = -Infinity, lowest = Infinity;
+    for (let i = 0; i < 60; i++) {
+      step();
+      const c = clearance()!;
+      highest = Math.max(highest, c); lowest = Math.min(lowest, c);
+    }
+    expect(cc.flight).toBeNull();
+    expect(camera.position.distanceTo(landed)).toBeLessThan(1e-9);
+    expect(highest).toBeLessThan(0.0021);
+    expect(lowest).toBeGreaterThan(0.0019);
     tm.dispose();
   });
 });

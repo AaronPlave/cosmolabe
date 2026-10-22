@@ -155,6 +155,12 @@ describe('TerrainManager imagery layer controls', () => {
   const plugin = (tm: TerrainManager) => (tm.tiles as unknown as { getPluginByName(n: string): Plugin }).getPluginByName('IMAGE_OVERLAY_PLUGIN');
   const dispatch = (tm: TerrainManager, e: Record<string, unknown>) => (tm.tiles as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(e);
 
+  it('rejects legacy cube imagery combined with a geographic stack explicitly', () => {
+    expect(() => make({ type: '3dtiles', url: 'https://example.invalid/tileset.json',
+      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json', imagery: { url: 'https://example.invalid/imagery.json' } },
+    })).toThrow('Legacy cube imagery cannot be combined with geographic imagery');
+  });
+
   it('only builds overlays for layers that start on', async () => {
     const tm = make();
     await flush();
@@ -368,6 +374,24 @@ describe('TerrainManager imagery layer controls', () => {
       Object.assign((tm.tiles as unknown as { stats: Record<string, number> }).stats, { visible: 1, queued: 0, downloading: 0, parsing: 0 });
       return tm;
     };
+
+    it('keeps the static surface until visible cube blocks have resident imagery', async () => {
+      const tm = await withRoot(tile(4));
+      const stats = { ready: true, tiles: 1, untexturedBlocks: 1, baseUncoveredBlocks: 0 };
+      Object.defineProperty(tm, 'cubeImagery', { value: { stats }, configurable: true });
+      expect(tm.isReadyToShow(10_000)).toBe(false);
+      stats.untexturedBlocks = 0;
+      expect(tm.isReadyToShow(10_001)).toBe(true);
+      stats.baseUncoveredBlocks = 1; // valid base manifest, missing base texture
+      expect(tm.isReadyToShow(10_002)).toBe(false);
+      stats.baseUncoveredBlocks = 0;
+      expect(tm.isReadyToShow(10_003)).toBe(true);
+      // Resident optional pixels cannot compensate for a failed mandatory base.
+      stats.ready = false;
+      expect(tm.isReadyToShow(10_002)).toBe(false);
+      Object.defineProperty(tm, 'cubeImagery', { value: null });
+      tm.dispose();
+    });
 
     it('falls back when one root tile loads and the other fails', async () => {
       const tm = await withRoot(tile(4), tile(-1));

@@ -361,77 +361,126 @@ describe('framing a picked point repeatedly', () => {
   });
 });
 
+describe('control speeds near the ground', () => {
+  const globe = (mars: BodyMesh) => {
+    (mars.body as unknown as { geometryType: string }).geometryType = 'Globe';
+    return mars;
+  };
+  /** The surface preset's shape: 2 m up, looking at a point ~14 m ahead. */
+  const surfacePose = () => ({ position: new THREE.Vector3(R + 0.002, 0, 0.0142), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(1, 0, 0) });
 
-describe('Navigate panel flights and local controls', () => {
-  it('does not launch an arc at a landed destination, including below the datum', () => {
-    const { cc, mars, camera, frame } = setup();
-    Object.assign(mars, { hasTerrain: true });
-    const pose = overheadX();
-    pose.target.set(R - 5.3, 0, 0);
-    pose.position.set(R - 5.3 + 0.002, 0, 0.014);
-    cc.jumpToSurface(mars, pose);
+  it('stay usable in a surface view, and slow for body-centred orbit after clearing', () => {
+    const { cc, mars, frame } = setup();
+    globe(mars);
+    const base = { rotate: cc.controls.rotateSpeed, zoom: cc.controls.zoomSpeed };
+    cc.jumpToSurface(mars, surfacePose());
+    frame(0.016);
+    cc.adaptSpeeds([mars], 1);
+    const pivoting = cc.controls.rotateSpeed / base.rotate;
+    // Orbiting a point 14 m away from 2 m up: a tenth of base, not the 1% floor.
+    expect(pivoting).toBeGreaterThan(0.1);
+    expect(pivoting).toBeLessThan(0.2);
+    expect(cc.controls.zoomSpeed / base.zoom).toBeCloseTo(pivoting, 9);
+    cc.releaseSurface();
+    frame(0.016);
+    cc.adaptSpeeds([mars], 1);
+    // The body centre is now the pivot: the longer orbit lever arm needs
+    // the 1% floor, while clearance still determines walking speed.
+    expect(cc.controls.rotateSpeed / base.rotate).toBeCloseTo(0.01, 9);
+    expect(cc.controls.zoomSpeed / base.zoom).toBeCloseTo(0.01, 9);
+    // WASD walks at about the distance to the point per second, not the 340 m floor.
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(R * 1e-4, 9);
+  });
+
+  it('are base speed overhead of a surface pivot, and slow about the centre from the same height', () => {
+    const { camera, cc, mars, frame } = setup();
+    globe(mars);
+    const base = cc.controls.rotateSpeed;
+    cc.jumpToSurface(mars, { position: new THREE.Vector3(R + 100, 0, 0), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(0, 1, 0) });
+    frame(0.016);
+    cc.adaptSpeeds([mars], 1);
+    expect(cc.controls.rotateSpeed).toBeCloseTo(base, 9);
+    // The same eye orbiting the centre would sweep tens of km per pixel: slowed,
+    // exactly as before about a centre (sqrt(h / 10R)).
+    cc.focus(mars);
+    camera.position.set(R + 100, 0, 0);
+    cc.controls.target.set(0, 0, 0);
+    cc.adaptSpeeds([mars], 1);
+    expect(cc.controls.rotateSpeed / base).toBeCloseTo(Math.sqrt(100 / R / 10), 6);
+  });
+
+  it('measure height above terrain in a basin below the datum, not above the reference radius', () => {
+    const { cc, mars, frame } = setup();
+    globe(mars);
+    // Its terrain clamp is the renderer's, so the controller leaves the eye in the basin.
+    (mars as unknown as { hasTerrain: boolean }).hasTerrain = true;
+    const base = cc.controls.rotateSpeed;
+    // 100 m above a basin floor 4 km below the datum, looking down at it.
+    cc.jumpToSurface(mars, { position: new THREE.Vector3(R - 3.9, 0, 0), target: new THREE.Vector3(R - 4, 0, 0), up: new THREE.Vector3(0, 1, 0) });
+    frame(0.016);
+    cc.adaptSpeeds([mars], 1);
+    expect(cc.controls.rotateSpeed / base).toBeCloseTo(0.01, 9); // no ground known: "below the surface"
+    cc.adaptSpeeds([mars], 1, () => R - 4);
+    expect(cc.controls.rotateSpeed).toBeCloseTo(base, 9);
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(Math.max(0.1, R * 1e-4), 6);
+  });
+});
+
+describe('repeated surface flights', () => {
+  const surfacePose = (z = 0.0142) => ({ position: new THREE.Vector3(R + 0.002, 0, z), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(1, 0, 0) });
+
+  it('a second Fly to the pose the camera holds does not move it', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.flyToSurface(mars, surfacePose());
+    for (let i = 0; i < 300 && cc.flight; i++) frame(0.05);
     frame(0.016);
     const at = camera.position.clone();
-    for (let i = 0; i < 3; i++) {
-      cc.flyToSurface(mars, pose);
-      expect(cc.flight).toBeNull();
-      frame(0.016);
-      close(camera.position, at, 1e-12);
-    }
-    expect(cc.surfacePivot).not.toBeNull();
-  });
-
-  it('ignores identical clicks while flying instead of restarting the clock', () => {
-    const { cc, mars, frame } = setup();
-    cc.flyToSurface(mars, overheadX(), { duration: 1 });
-    for (let i = 0; i < 11; i++) {
-      frame(0.1);
-      if (cc.flight) cc.flyToSurface(mars, overheadX(), { duration: 1 });
-    }
+    expect(cc.flyToSurface(mars, surfacePose())).toEqual({ kind: 'arrived' });
     expect(cc.flight).toBeNull();
-  });
-
-  it('keeps nearby surface travel local, with no planetary cruise lift', () => {
-    const { cc, mars, camera, frame } = setup();
-    const from = overheadX(); from.position.x = R + 0.01;
-    cc.jumpToSurface(mars, from);
-    frame(0.016);
-    const to = { position: from.position.clone(), target: from.target.clone(), up: from.up.clone() };
-    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.001);
-    to.position.applyQuaternion(q); to.target.applyQuaternion(q);
-    cc.flyToSurface(mars, to, { duration: 1 });
-    for (let i = 0; i < 11; i++) {
-      frame(0.1);
-      expect(camera.position.length() - R).toBeCloseTo(0.01, 6);
+    let highest = 0;
+    for (let i = 0; i < 40; i++) {
+      frame(0.05);
+      highest = Math.max(highest, camera.position.length() - R);
     }
+    close(camera.position, at, 1e-9);
+    expect(highest).toBeLessThan(0.0021);
+    expect(cc.surfacePivot?.body).toBe(mars);
   });
 
-  it('keeps local clearance while returning released controls to body-centred speeds', () => {
-    const { cc, mars, camera, frame } = setup();
-    Object.assign(mars.body, { geometryType: 'Globe' });
-    Object.assign(mars, {
-      hasTerrain: true,
-      sampleTerrainBodyFixed: () => ({ elevationKm: -5.3 }),
-      terrainBodyFixedToGeodetic: () => ({ heightKm: camera.position.length() - R }),
-    });
-    const pose = overheadX(); pose.target.x = R - 5.3;
-    pose.position.set(R - 5.3 + 0.002, 0, 0.014);
-    cc.jumpToSurface(mars, pose); frame(0.016);
-    cc.adaptSpeeds([mars], 1);
-    const rotate = cc.controls.rotateSpeed, zoom = cc.controls.zoomSpeed;
-    expect(rotate).toBeGreaterThan(0.5);
-    expect(zoom).toBeGreaterThan(0.5);
-    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.002, 5);
-    cc.releaseSurface(); frame(0.016); cc.adaptSpeeds([mars], 1);
-    close(cc.controls.target, mars.position, 1e-9);
-    expect(cc.controls.rotateSpeed).toBeGreaterThan(0);
-    expect(cc.controls.rotateSpeed).toBeLessThan(rotate);
-    expect(cc.controls.zoomSpeed).toBeGreaterThan(0);
-    expect(cc.controls.zoomSpeed).toBeLessThan(zoom);
-    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.002, 5);
-    // A higher eye in the same below-datum basin uses its actual 10 m clearance.
-    camera.position.x += 0.008;
-    cc.adaptSpeeds([mars], 1);
-    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(0.01, 5);
+  it('repeated while flying, keeps the flight it has instead of restarting it', () => {
+    const { cc, mars, frame } = setup();
+    const first = cc.flyToSurface(mars, surfacePose());
+    expect(first.kind).toBe('flight');
+    frame(0.4);
+    const anim = (cc as unknown as { _anim: unknown })._anim;
+    expect(cc.flyToSurface(mars, surfacePose())).toEqual({ kind: 'continuing' });
+    expect((cc as unknown as { _anim: unknown })._anim).toBe(anim);
+  });
+
+  it('a hop to a nearby pose stays low instead of arcing a planetary height', () => {
+    const { camera, cc, mars, frame } = setup();
+    cc.jumpToSurface(mars, surfacePose());
+    frame(0.016);
+    // 1 km along the ground, same eye height.
+    const there = { position: new THREE.Vector3(R + 0.002, 0, 1.0142), target: new THREE.Vector3(R, 0, 1), up: new THREE.Vector3(1, 0, 0) };
+    const plan = cc.flyToSurface(mars, there);
+    expect(plan.kind).toBe('flight');
+    if (plan.kind === 'flight') expect(plan.rise).toBeLessThanOrEqual(0.5 * plan.chord + 1e-12);
+    let highest = 0;
+    for (let i = 0; i < 300 && cc.flight; i++) {
+      frame(0.02);
+      highest = Math.max(highest, camera.position.length() - R);
+    }
+    // Before: a cruise at 1.02 R, ~68 km up. Now at most half the hop.
+    expect(highest).toBeLessThan(0.51);
+    close(camera.position, there.position.clone().normalize().multiplyScalar(camera.position.length()), 1e-3);
+  });
+
+  it('still arcs round the body for the far side', () => {
+    const { camera, cc, mars } = setup();
+    camera.position.set(R + 50, 0, 0);
+    cc.controls.target.set(R, 0, 0);
+    const plan = cc.flyToSurface(mars, { position: new THREE.Vector3(-(R + 100), 0, 0), target: new THREE.Vector3(-R, 0, 0), up: new THREE.Vector3(0, 1, 0) });
+    expect(plan.kind === 'flight' && plan.rise).toBeGreaterThan(0.3 * R);
   });
 });
