@@ -42,9 +42,10 @@ if(!hosted)await page.route('**/__surface-pilot/**',async route=>{
   catch(e){errors.push(e.message);await route.fulfill({status:404,body:'Missing pinned product file'});}
 });
 try {
-  await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot&test=1':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero&test=1',process.env.CL_VIEWER_URL??'http://127.0.0.1:5187/').href,{waitUntil:'domcontentloaded',timeout:180000});
-  await page.waitForFunction(()=>window.__cosmolabe?.assetsReady===true,null,{timeout:180000});
+  await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero',process.env.CL_VIEWER_URL??'http://127.0.0.1:5187/').href,{waitUntil:'domcontentloaded',timeout:180000});
+  await page.waitForFunction(()=>!!window.renderer&&!!window.cosmo,null,{timeout:180000});
   await page.evaluate(async()=>{const source=await(await fetch('/src/lib/commands.ts')).text();const url=source.match(/from ["']([^"']*viewer-state\.svelte[^"']*)["']/)?.[1];window.pilot=await import(url??'/src/lib/viewer-state.svelte.ts');});
+  await page.waitForFunction(()=>window.pilot.vs.assetsReady===true,null,{timeout:180000});
   const environment=await page.evaluate(()=>{const gl=document.createElement('canvas').getContext('webgl2');const ext=gl.getExtension('WEBGL_debug_renderer_info');return {renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),userAgent:navigator.userAgent};});
   const pose=(height,mode='imagery-unlit')=>page.evaluate(({target,normal,north,height,mode})=>{
     const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars');window.cosmo.setPlaying(false);window.cosmo.untrack();r.setTerrainDebugMode(mode,'Mars');
@@ -55,14 +56,16 @@ try {
   },{target,normal,north,height,mode});
   const snapshot=()=>page.evaluate(()=>{const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),tm=bm.terrainManager;const ids=[],levels={};
     tm.tiles.visibleTiles.forEach(t=>{const uri=t.content?.uri??'';const m=/\/(\d+)\/\d+\/\d+\.glb$/.exec(uri);if(m)levels[m[1]]=(levels[m[1]]??0)+1;t.engineData?.scene?.traverse(o=>{if(o.isMesh&&!o.name.startsWith('cube-imagery-block'))ids.push(o.uuid);});});
-    const p=r.pickSurface(0,0);return {levels,geometryIds:ids.sort(),metrics:bm.terrainMetrics,imagery:tm.cubeImageryStats,pick:p&&{latDeg:p.latDeg,lonDeg:p.lonDeg,altKm:p.altKm,physical:p.physical},layers:tm.imageryLayers};});
-  const settle=async(height,mode)=>{let stable=0,last='';const start=Date.now();for(let i=0;i<180;i++){await pose(height,mode);await page.waitForTimeout(250);const s=await snapshot();const key=JSON.stringify([s.levels,s.imagery?.displayedLevels]);const busy=s.metrics.network.queued+s.metrics.network.downloading+s.metrics.network.parsing+(s.imagery?.inFlight??0)+(s.imagery?.queued??0);stable=busy===0&&key===last&&s.metrics.tiles.visible>0?stable+1:0;last=key;if(stable>=6)return {...s,settleMs:Date.now()-start};}throw new Error('pilot scene did not settle');};
+    const p=r.pickSurface(0,0);return {levels,fallbackSphereVisible:bm.mesh.visible,geometryIds:ids.sort(),metrics:bm.terrainMetrics,imagery:tm.cubeImageryStats,pick:p&&{latDeg:p.latDeg,lonDeg:p.lonDeg,altKm:p.altKm,physical:p.physical},layers:tm.imageryLayers};});
+  const settle=async(height,mode)=>{let stable=0,last='';const start=Date.now();for(let i=0;i<180;i++){await pose(height,mode);await page.waitForTimeout(250);const s=await snapshot();const key=JSON.stringify([s.levels,s.imagery?.displayedLevels]);const busy=s.metrics.network.queued+s.metrics.network.downloading+s.metrics.network.parsing+(s.imagery?.inFlight??0)+(s.imagery?.queued??0);stable=busy===0&&key===last&&s.metrics.tiles.visible>0&&!s.fallbackSphereVisible&&s.imagery?.baseUncoveredBlocks===0?stable+1:0;last=key;if(stable>=6)return {...s,settleMs:Date.now()-start};}throw new Error('pilot scene did not settle');};
   const nativeHeight=synthetic?50:.05;
   const results=[];
   for(const [name,height] of [['regional',synthetic?100:1],['native-detail',nativeHeight],['zoom-out',synthetic?1000:5],['restored-native',nativeHeight]]){
     const state=await settle(height,'imagery-unlit');await page.screenshot({path:join(out,name+'.png')});results.push({name,heightKm:height,...state});
   }
   const near=results.find(r=>r.name==='native-detail');assert(near.imagery.maxDisplayedLevel>Math.max(...Object.keys(near.levels).map(Number)),'native image detail must refine beyond terrain');
+  assert.equal(near.fallbackSphereVisible,false,'fallback globe must not cover loaded imagery');
+  assert.equal(near.imagery.baseUncoveredBlocks,0,'mandatory base must cover every drawn block');
   assert.equal(near.imagery.failedTiles,0);assert(near.pick?.physical?.kind==='hit','physical CPU pick must remain available: '+JSON.stringify(near.pick));
   assert(terrain.nativeFidelity[0].nativeGsdM>nativeLayer.nativeFidelity[0].nativeGsdM,'source-native imagery must exceed coarse physical source detail');
   const before=await snapshot();
@@ -100,7 +103,7 @@ try {
     await page.screenshot({path:join(out,'no-dtm-global-fallback.png')});
   }
   assert.deepEqual(errors,[]);
-  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,syntheticFixture:synthetic,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
+  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
     limits:['Desktop browser only; no real mobile hardware acceptance.','Shared-provenance source registration is not independent absolute geolocation certification.','No production catalog or mission placement was changed.']};
   await writeFile(join(out,'browser.json'),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify({buildId:report.buildId,environment,nearImageLevel:near.imagery.maxDisplayedLevel,nearTerrainLevels:near.levels,errors}));
 } finally {await browser.close();}

@@ -20,7 +20,15 @@ jobs:
         with:
           lfs: false
       - name: Install offline raster tooling
-        run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
+        run: |
+          # Hosted runners may select Azure through a mirror list, not the sources file.
+          for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$apt_source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-gdal python3-numpy
       - name: Oblate and below-reference Cartesian fixtures
         run: /usr/bin/python3 scripts/terrain/test_cube_ellipsoid.py
       - name: Emitted baseline source kernels reject nodata
@@ -76,9 +84,12 @@ jobs:
       - name: Install surface build raster tooling
         timeout-minutes: 5
         run: |
-          # The Azure HTTP mirror can trickle GDAL dependencies for >8 minutes.
-          # Use Ubuntu's official HTTPS archive for this bounded job.
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+          # Hosted runners may select Azure through a mirror list, not the sources file.
+          for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$apt_source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+            fi
+          done
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends python3-gdal python3-numpy
       - run: npm run build
@@ -257,7 +268,14 @@ jobs:
         run: npm test -- --exclude scripts/surface-build.test.mjs
 
       - name: Install Chromium for browser checks
-        run: npx playwright install --with-deps chromium
+        run: |
+          # Hosted runners may select Azure through a mirror list, not the sources file.
+          for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$apt_source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+            fi
+          done
+          npx playwright install --with-deps chromium
 
       - name: StarField WebGL readback
         run: npm run test:stars:webgl

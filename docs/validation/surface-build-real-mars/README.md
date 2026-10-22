@@ -45,3 +45,12 @@ requested/confirmed native/emitted coverage, sampled RSS/scratch and the measure
 291.042 m maximum CPU/rendered boundary separation. Source accuracy and mosaic
 illumination remain unknown. The exact production publication command and owner
 authorization boundary are in the [acceptance matrix](../../surface-build-acceptance.md).
+
+The ordinary viewer check now explicitly requires the fallback globe to be hidden
+and every drawn block to have its mandatory base ancestor. The context product's
+six cube roots remain available at runtime; PNG alpha and provenance retain the
+bounded native footprint. Applying the regional bounds to the mandatory base
+incorrectly prevents readiness and leaves the blue reference globe covering
+loaded imagery. Optional native imagery retains its regional runtime bounds.
+The browser driver uses the ordinary URL with antialiasing, bloom and stars on,
+without `test=1` or request interception in hosted mode.

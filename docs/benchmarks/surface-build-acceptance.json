@@ -209,8 +209,11 @@
   "browser": {
     "physicalGpu": true,
     "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "testMode": false,
     "hostedHttpWithoutInterception": true,
     "nearImageryLevel": 16,
+    "fallbackSphereVisible": false,
+    "baseUncoveredBlocks": 0,
     "errors": []
   },
   "productionUpload": false,

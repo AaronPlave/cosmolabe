@@ -22,7 +22,9 @@ globe.terrain.url=productUrl(terrain.id,'tileset-measured.json');
 globe.terrain.cubeSphere.cpuGrids=productUrl(terrain.id,'cpu-grids.json');
 globe.terrain.cubeSphere.imagery={maxScreenTexelError:1};
 const imageryBounds=p=>{
-  if(!p.sourceIds[0].startsWith('hirise-'))return undefined;
+  // The mandatory base must retain its six-root runtime coverage. Its PNG
+  // alpha and provenance describe the bounded native image footprint.
+  if(p.order===0||!p.sourceIds[0].startsWith('hirise-'))return undefined;
   const ring=report.sources.find(s=>s.id===p.sourceIds[0]).footprint.features[0].geometry.coordinates[0];
   return [Math.min(...ring.map(p=>p[0])),Math.min(...ring.map(p=>p[1])),Math.max(...ring.map(p=>p[0])),Math.max(...ring.map(p=>p[1]))];
 };
@@ -47,7 +49,7 @@ const server=await createServer({root:resolve('apps/viewer'),configFile:resolve(
     server.middlewares.use(async(req,res,next)=>{
       const path=new URL(req.url,'http://localhost').pathname;
       if(path==='/test-catalogs/experiments/mars-surface-build-pilot.json'){
-        res.setHeader('Content-Type','application/json');res.end(JSON.stringify(catalog));return;
+        res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(catalog));return;
       }
       if(!path.startsWith('/__surface-pilot/'))return next();
       const parts=decodeURIComponent(path).split('/').filter(Boolean),root=products.get(parts[1]);
