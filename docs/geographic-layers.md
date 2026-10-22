@@ -156,7 +156,8 @@ geometry type, one optional property rule, labels, and per-feature colours keyed
 by stable feature ID. Opacities multiply: catalog display × layer × part ×
 feature. It is kept in this browser's localStorage, keyed by the layer's catalog
 and ID (at most 64 layers and 256 KiB; the least recently edited go first), and
-restored when the same catalog loads; a stored style is validated and any
+restored when the same catalog loads or the layer is installed later in the
+session (drawn and imported layers); a stored style is validated and any
 invalid part is ignored with a reason. It is never written into the catalog or
 the data. Draw order among a body's vector layers (*Draw above/below other
 layers* in the **…** menus; earlier draws over later where fills overlap) is for
