@@ -249,8 +249,32 @@ export function layerRank(id: string): { index: number; count: number } {
 
 // ── Scene binding ──
 
-// A loaded layer takes the style last kept for its catalog and ID, validated:
-// a stored style from an older build or another tab cannot break drawing.
+// A layer takes the style last kept for its catalog and ID, validated: a
+// stored style from an older build or another tab cannot break drawing. Layers
+// installed after the scene loads (drawn or imported ones) are restored when
+// they appear, whichever load handler runs first.
+let restored = new Set<string>();
+let stopWatching: (() => void) | undefined;
+
+function restoreNewLayers(): void {
+  const universe = getUniverse();
+  const renderer = getRenderer();
+  if (!universe || !renderer) return;
+  const fresh = universe.geographicLayers.layers.filter((layer) => !restored.has(layer.id));
+  if (!fresh.length) return;
+  const stored = readStored();
+  for (const layer of fresh) {
+    restored.add(layer.id);
+    const entry = stored.layers[storageKey(layer)];
+    if (!entry) continue;
+    const { style, warnings } = validateGeographicLayerStyle(entry.style);
+    if (warnings.length) geoStyles.warnings[layer.id] = warnings;
+    if (geographicStyleIsDefault(style)) continue;
+    geoStyles.byLayer[layer.id] = style;
+    renderer.geographicVectors.setStyle(layer.id, style);
+  }
+}
+
 onViewerEvent('load', () => {
   clearTimeout(previewTimer);
   previewTimer = undefined;
@@ -260,17 +284,8 @@ onViewerEvent('load', () => {
   geoStyles.warnings = {};
   geoStyles.editing = null;
   geoStyles.order = [];
-  const universe = getUniverse();
-  const renderer = getRenderer();
-  if (!universe || !renderer) return;
-  const stored = readStored();
-  for (const layer of universe.geographicLayers.layers) {
-    const entry = stored.layers[storageKey(layer)];
-    if (!entry) continue;
-    const { style, warnings } = validateGeographicLayerStyle(entry.style);
-    if (warnings.length) geoStyles.warnings[layer.id] = warnings;
-    if (geographicStyleIsDefault(style)) continue;
-    geoStyles.byLayer[layer.id] = style;
-    renderer.geographicVectors.setStyle(layer.id, style);
-  }
+  restored = new Set();
+  stopWatching?.();
+  stopWatching = getUniverse()?.events.on('geographic:changed', restoreNewLayers);
+  restoreNewLayers();
 });
