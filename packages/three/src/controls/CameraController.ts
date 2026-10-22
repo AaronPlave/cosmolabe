@@ -1824,7 +1824,8 @@ export class CameraController {
    *
    * The height is above the ground under the camera: the decoded terrain
    * when `groundRadiusKm` knows it (a crater floor or a basin below the
-   * datum is ground, not "below the surface"), the display radius otherwise.
+   * datum is ground, not "below the surface"), the rendered ellipsoid's
+   * radius in the camera's direction otherwise.
    *
    * Call once per frame before update().
    */
@@ -1855,8 +1856,12 @@ export class CameraController {
       const displayR = bm.displayRadius * scaleFactor;
       if (displayR < 1e-20) continue;
       const ground = groundRadiusKm?.(bm);
-      const surfaceR = ground != null && ground > 0 ? ground * scaleFactor : displayR;
-      const dist = this.camera.position.distanceTo(bm.position);
+      const offset = _sfB.copy(this.camera.position).sub(bm.position);
+      const dist = offset.length();
+      // displayRadius is the longest ellipsoid axis. Using it at other
+      // latitudes puts a camera above the visible ground "underground" and
+      // forces even a nearby surface pivot to the minimum control speed.
+      const surfaceR = ground != null && ground > 0 ? ground * scaleFactor : renderedRadiusToward(bm, offset);
       const altitude = Math.max(dist - surfaceR, 0);
       const lever = Math.min(toTarget, dist);
       const ratio = altitude >= lever ? Infinity : altitude / Math.max(lever - altitude, 1e-30);

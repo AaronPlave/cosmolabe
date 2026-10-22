@@ -369,6 +369,36 @@ describe('control speeds near the ground', () => {
   /** The surface preset's shape: 2 m up, looking at a point ~14 m ahead. */
   const surfacePose = () => ({ position: new THREE.Vector3(R + 0.002, 0, 0.0142), target: new THREE.Vector3(R, 0, 0), up: new THREE.Vector3(1, 0, 0) });
 
+  it.each([
+    { name: 'Enceladus', radii: [256.6, 251.4, 248.3], sf: 1 },
+    { name: 'Saturn', radii: [60268, 60268, 54364], sf: 1e-6 },
+  ])('keeps local orbit and zoom responsive near $name poles', ({ radii, sf }) => {
+    const { camera, cc, mars, frame } = setup();
+    globe(mars);
+    Object.assign(mars, { displayRadius: radii[0], scaleFactor: sf });
+    mars.mesh.scale.set(sf, sf * radii[2] / radii[0], sf * radii[1] / radii[0]);
+    mars.mesh.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.7);
+    cc.setModeContext(null, 0, sf, new Map([['Mars', mars]]));
+    const base = { rotate: cc.controls.rotateSpeed, zoom: cc.controls.zoomSpeed };
+    const height = radii[0] * 0.001;
+    cc.jumpToSurface(mars, {
+      position: new THREE.Vector3(0, (radii[2] + height) * sf, 0),
+      target: new THREE.Vector3(0, radii[2] * sf, 0),
+      up: new THREE.Vector3(0, 0, 1),
+    });
+    frame(0.016);
+    cc.adaptSpeeds([mars], sf);
+    expect(cc.controls.rotateSpeed).toBeCloseTo(base.rotate, 9);
+    expect(cc.controls.zoomSpeed).toBeCloseTo(base.zoom, 9);
+    expect(cc.keyboard.altitudeRefSceneUnits).toBeCloseTo(height * sf, 9);
+    // Retain the protection against large sweeps when orbiting the centre.
+    cc.releaseSurface();
+    frame(0.016);
+    cc.adaptSpeeds([mars], sf);
+    expect(cc.controls.rotateSpeed / base.rotate).toBeCloseTo(Math.sqrt(height / radii[2] / 10), 6);
+    expect(camera.position.distanceTo(mars.position) / sf).toBeCloseTo(radii[2] + height, 6);
+  });
+
   it('stay usable in a surface view, and slow for body-centred orbit after clearing', () => {
     const { cc, mars, frame } = setup();
     globe(mars);
