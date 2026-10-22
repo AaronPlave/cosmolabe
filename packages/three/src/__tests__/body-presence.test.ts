@@ -57,4 +57,30 @@ describe('custom visual presence', () => {
     expect(object.visible).toBe(true);
     expect(updateVisual).toHaveBeenCalledTimes(2);
   });
+
+  it('a visualizer can keep a visual while its body is absent, but not past the user hiding it', () => {
+    const body = new Body({ name: 'Obs', trajectory: fixedPoint, geometryType: 'Observations' });
+    const bm = new BodyMesh(body);
+    const object = new THREE.Group();
+    const updateVisual = vi.fn();
+    let keep = true;
+    const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
+      universe: { getBody: () => body }, bodyMeshes: new Map([[body.name, bm]]),
+      _customVisuals: new Map([[body.name, object]]),
+      _visualizers: new Map([['Observations', { updateVisual, showsWhenAbsent: () => keep }]]),
+      _sensorObservations: new Map(), scaleFactor: 1, _ctx: {},
+    }) as { updateCustomVisuals(et: number): void };
+    bm.present = false;
+    renderer.updateCustomVisuals(0);
+    expect(object.visible).toBe(true);
+    expect(updateVisual).toHaveBeenCalledTimes(1);
+    keep = false;
+    renderer.updateCustomVisuals(1);
+    expect(object.visible).toBe(false);
+    keep = true;
+    bm.userVisible = false;
+    renderer.updateCustomVisuals(2);
+    expect(object.visible).toBe(false);
+    expect(updateVisual).toHaveBeenCalledTimes(1);
+  });
 });

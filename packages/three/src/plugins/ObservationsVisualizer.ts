@@ -20,15 +20,25 @@
  *    indexes from each group's `obsRate`. A group with `obsRate: 0` is a
  *    continuous swath: adjacent footprints are joined edge to edge, and a
  *    sample that could not be computed (no CK, off the body) is a gap in it.
- *    Each group advances a cursor under a shared per-frame budget, so a gap is
- *    tried once and stepped over, and a long window is never enumerated.
+ *    Each group advances a cursor under a shared per-frame budget (count and
+ *    time), so a gap is tried once and stepped over, and a long window is
+ *    never enumerated. Geometry has a budget too (`MAX_FILL_VERTICES`,
+ *    `MAX_LINE_VERTICES`): fills are subdivided only as far as the surface
+ *    needs, a swath is filled by its strips with fans only at run ends, and a
+ *    swath still over budget is drawn at a stride. The leading edge between
+ *    grid samples is its own small mesh, cached by ET, so a paused clock does
+ *    no work and a moving one rebuilds only that.
  *  - `footprint` — given (ODE): the archive's lon/lat polygons, holes kept,
  *    on the target's reference ellipsoid.
  *  - `disk` — given (OPUS): a marker at the archive's sub-observer point.
  *
- * Contextual by default: an observation is drawn while the clock is inside its
- * own window, accumulating as it goes, and hidden outside it unless focused
- * (`setFocus`, the selection) or `setShowAll` is on.
+ * Contextual by default: an observation is drawn while the clock is inside one
+ * of its groups (`observationActiveAt` — not the gaps between disjoint groups),
+ * showing everything it has taken so far, and hidden otherwise unless focused
+ * (`setFocus`, the selection) or `setShowAll` is on. A catalog item that
+ * declares its own `startTime`/`endTime` is the one explicit exception: it is
+ * shown through that window, gaps included — how a campaign of instantaneous
+ * frames (the Cassini demo) stays visible between frames.
  *
  * `fillInObservations` is filled *or* outlined, as in Cosmographia. Not yet
  * honoured: `showResWithColor` (needs per-footprint resolution colouring) and
@@ -43,6 +53,7 @@ import {
   footprintGeometryProviderOf,
   groupSampling,
   lonLatToBodyFixed,
+  observationActiveAt,
   observationFromCosmographia,
   resolveSurfaceMethod,
   type Body,
@@ -60,8 +71,24 @@ import type { RendererContext } from './RendererContext.js';
  *  the globe under logarithmic depth without visibly floating. */
 const LIFT = 1.002;
 /** Most new footprints computed per frame, across every observation, so a long
- *  swath fills in over a few frames instead of stalling one. */
+ *  swath fills in over a few frames instead of stalling one... */
 const FOOTPRINTS_PER_FRAME = 24;
+/** ...and at most this much wall-clock time per frame spent computing them,
+ *  whichever comes first (a footprint is dozens of CSPICE calls). */
+const FOOTPRINT_MS_PER_FRAME = 4;
+/**
+ * Geometry budget per observation, in vertices (position triples, Float32):
+ * ~18 MB of fill and ~5 MB of outline at most, however many samples a group
+ * has. A build that would exceed it is redone with every k-th sample drawn
+ * (`stride`) — a coarser but still gap-honest swath — rather than allocated.
+ */
+export const MAX_FILL_VERTICES = 1_500_000;
+export const MAX_LINE_VERTICES = 400_000;
+/** While footprints are still arriving, rebuild the settled mesh at most this
+ *  often — or, for a big swath, at most every 10× its last build time, so
+ *  rebuilding stays a small share of the work. A finished set is rebuilt at
+ *  once. */
+const REBUILD_INTERVAL_MS = 200;
 
 type Fov = ReturnType<FootprintGeometryProvider['getfov']>;
 
@@ -92,12 +119,32 @@ interface ObservationState {
   obs: Observation | null;
   sensor: SensorSource | null;
   groups: GroupProgress[];
-  /** First start and last end over the groups: the observation's own window. */
-  window: [number, number];
-  /** What the current mesh was built from, to skip rebuilding an unchanged one. */
+  /** First start over the groups: nothing is drawn before it. */
+  firstStart: number;
+  /** The catalog item declares its own existence window (`startTime` /
+   *  `endTime`): it stays drawn through it, between groups included — the
+   *  catalog saying how long the observation is shown. Without one, it is
+   *  drawn only while a group is in progress. */
+  persists: boolean;
+  /** What the settled mesh was built from, to skip rebuilding an unchanged one. */
   signature: string;
+  /** Sample stride the settled mesh is drawn at; grows past the budget. */
+  stride: number;
+  /** Wall clock (ms) of the last settled rebuild, and how long it took, for
+   *  throttling. */
+  builtAt: number;
+  buildMs: number;
+  /** The swath's leading edge: the footprint at the clock between grid
+   *  samples, cached by ET so a paused clock costs no SPICE calls. */
+  leading: { gi: number; et: number; fp: Footprint | null } | null;
+  /** What the leading mesh was built from. */
+  leadingSignature: string;
   fill: THREE.Mesh;
   outline: THREE.LineSegments;
+  /** The leading edge's own small meshes, rebuilt per clock step without
+   *  touching the settled swath. */
+  leadFill: THREE.Mesh;
+  leadOutline: THREE.LineSegments;
 }
 
 function strToEt(ctx: RendererContext): ((s: string) => number) | undefined {
@@ -110,8 +157,24 @@ function spiceName(body: Body | undefined, fallback: string): string {
   return body?.naifId != null ? String(body.naifId) : fallback;
 }
 
+export interface ObservationsVisualizerOptions {
+  /** Fill vertices per observation before it is drawn at a stride. */
+  maxFillVertices?: number;
+  /** Outline vertices per observation before it is drawn at a stride. */
+  maxLineVertices?: number;
+}
+
 export class ObservationsVisualizer implements BodyVisualizer {
   readonly geometryType = 'Observations';
+  private readonly maxFill: number;
+  private readonly maxLine: number;
+  private deadline = Infinity;
+
+  constructor(options: ObservationsVisualizerOptions = {}) {
+    this.maxFill = options.maxFillVertices ?? MAX_FILL_VERTICES;
+    this.maxLine = options.maxLineVertices ?? MAX_LINE_VERTICES;
+  }
+
   private readonly warned = new Set<string>();
   private readonly focus = new Set<string>();
   private showAll = false;
@@ -151,7 +214,10 @@ export class ObservationsVisualizer implements BodyVisualizer {
     } catch (err) {
       this.warnOnce(body.name, (err as Error).message);
     }
-    return this.createVisualForObservation(obs, ctx, body.name);
+    const visual = this.createVisualForObservation(obs, ctx, body.name);
+    (visual.userData.observation as ObservationState).persists =
+      body.existsFrom !== undefined || body.existsUntil !== undefined;
+    return visual;
   }
 
   /**
@@ -178,9 +244,11 @@ export class ObservationsVisualizer implements BodyVisualizer {
       new THREE.LineBasicMaterial({ color, transparent: true, opacity: Math.min(1, opacity * 1.6) }),
     );
     outline.visible = !filled;
-    fill.frustumCulled = false;
-    outline.frustumCulled = false;
-    group.add(fill, outline);
+    const leadFill = new THREE.Mesh(new THREE.BufferGeometry(), fill.material);
+    const leadOutline = new THREE.LineSegments(new THREE.BufferGeometry(), outline.material);
+    leadOutline.visible = !filled;
+    for (const m of [fill, outline, leadFill, leadOutline]) m.frustumCulled = false;
+    group.add(fill, outline, leadFill, leadOutline);
 
     const sensor = obs?.coverage.kind === 'sensor' ? this.resolveSensor(obs, obs.coverage.sensor, ctx) : null;
     let groups: GroupProgress[] = [];
@@ -201,12 +269,18 @@ export class ObservationsVisualizer implements BodyVisualizer {
       obs,
       sensor,
       groups,
-      window: obs?.groups.length
-        ? [Math.min(...obs.groups.map((g) => g.startEt)), Math.max(...obs.groups.map((g) => g.endEt))]
-        : [Infinity, -Infinity],
+      firstStart: obs?.groups.length ? Math.min(...obs.groups.map((g) => g.startEt)) : Infinity,
+      persists: false,
       signature: '',
+      stride: 1,
+      builtAt: -Infinity,
+      buildMs: 0,
+      leading: null,
+      leadingSignature: '',
       fill,
       outline,
+      leadFill,
+      leadOutline,
     };
     group.userData.observation = state;
     group.userData.observationName = name;
@@ -222,15 +296,22 @@ export class ObservationsVisualizer implements BodyVisualizer {
     const state = object.userData.observation as ObservationState | undefined;
     const obs = state?.obs;
     if (!state || !obs) return;
-    if (this.updatedThisFrame.has(object)) {
+    if (this.updatedThisFrame.has(object) || this.updatedThisFrame.size === 0) {
       this.updatedThisFrame.clear();
       this.budget = FOOTPRINTS_PER_FRAME;
+      this.deadline = performance.now() + FOOTPRINT_MS_PER_FRAME;
     }
     this.updatedThisFrame.add(object);
 
     const name = object.userData.observationName as string;
-    const [start, end] = state.window;
-    const contextual = et >= start && (et <= end || this.showAll || this.focus.has(name));
+    // Contextual: drawn while one of its own groups is in progress — not in
+    // the gaps between disjoint groups — unless its catalog item declares how
+    // long it is shown (`persists`; the renderer hides it outside that window).
+    // Once begun, focus or show-all keep it too. What is drawn is everything
+    // it has taken up to the clock.
+    const active = observationActiveAt(obs, et);
+    const begun = et >= state.firstStart;
+    const contextual = active || (begun && (state.persists || this.showAll || this.focus.has(name)));
     // Pin to the target: its scene position and its body-fixed orientation.
     const targetMesh = ctx.getBodyMesh(obs.target);
     const q = contextual ? ctx.universe.bodyToWorldQuat(obs.target, et) : undefined;
@@ -242,20 +323,25 @@ export class ObservationsVisualizer implements BodyVisualizer {
     object.quaternion.set(q[1], q[2], q[3], q[0]);
     object.scale.setScalar(ctx.scaleFactor);
 
-    const lines: number[] = [];
-    const tris: number[] = [];
-    let signature: string;
     if (obs.coverage.kind === 'sensor') {
-      signature = this.sensorGeometry(state, obs, et, lines, tris);
-    } else {
-      signature = 'given';
-      if (signature !== state.signature) this.givenGeometry(obs, ctx, lines, tris);
+      object.visible = this.updateSensorGeometry(state, obs, et);
+      return;
     }
-    object.visible = signature !== '';
-    if (signature === state.signature) return;
-    state.signature = signature;
-    setPositions(state.outline.geometry, lines);
-    setPositions(state.fill.geometry, tris);
+    object.visible = true;
+    if (state.signature === 'given') return;
+    state.signature = 'given';
+    const lines = new VertexBuffer(this.maxLine);
+    const tris = new VertexBuffer(this.maxFill);
+    this.givenGeometry(obs, ctx, lines, tris);
+    lines.writeTo(state.outline.geometry);
+    tris.writeTo(state.fill.geometry);
+  }
+
+  /** A focused (selected) observation, or every one under show-all, stays
+   *  drawn past its catalog item's existence window. */
+  showsWhenAbsent(object: THREE.Object3D): boolean {
+    const name = object.userData.observationName as string | undefined;
+    return this.showAll || (name !== undefined && this.focus.has(name));
   }
 
   /** What a click should hit: the footprint fill, drawn or not. Lines are left
@@ -270,10 +356,8 @@ export class ObservationsVisualizer implements BodyVisualizer {
     this.updatedThisFrame.delete(object);
     const state = object.userData.observation as ObservationState | undefined;
     if (!state) return;
-    for (const m of [state.fill, state.outline]) {
-      m.geometry.dispose();
-      (m.material as THREE.Material).dispose();
-    }
+    for (const m of [state.fill, state.outline, state.leadFill, state.leadOutline]) m.geometry.dispose();
+    for (const m of [state.fill, state.outline]) (m.material as THREE.Material).dispose();
   }
 
   // ── sensor coverage ──────────────────────────────────────────────────────
@@ -314,56 +398,111 @@ export class ObservationsVisualizer implements BodyVisualizer {
     };
   }
 
-  /** Accumulated sensor footprints up to `et`; returns the build signature. */
-  private sensorGeometry(state: ObservationState, obs: Observation, et: number, lines: number[], tris: number[]): string {
+  /**
+   * Sensor footprints up to `et`: advance each group's cursor under the frame
+   * budget, rebuild the settled mesh when what is drawn changed (throttled
+   * while samples are still arriving), and the leading edge's small mesh when
+   * the clock moved. Returns whether there is anything to draw.
+   */
+  private updateSensorGeometry(state: ObservationState, obs: Observation, et: number): boolean {
     const src = state.sensor;
-    if (!src) return '';
-    const sig: string[] = [];
-    const drawn: { progress: GroupProgress; n: number; leading: Footprint | null }[] = [];
-
-    for (let gi = 0; gi < state.groups.length; gi++) {
-      const progress = state.groups[gi]!;
+    if (!src) return false;
+    const counts: number[] = [];
+    let pending = false;
+    for (const progress of state.groups) {
       const reached = progress.sampling.reached(et);
       // Advance the cursor through reached samples; failures are stored as
       // gaps and never retried.
-      while (progress.cursor < reached && this.budget > 0) {
+      while (progress.cursor < reached && this.canCompute()) {
         this.budget--;
         progress.prints[progress.cursor] = this.footprintAt(src, obs, progress.sampling.at(progress.cursor));
         progress.cursor++;
       }
-      const n = Math.min(progress.cursor, reached);
-      if (n === 0) continue;
-      // A swath's leading edge follows the clock between grid samples. It joins
-      // the last sample only if that sample exists — never across a gap.
-      let leading: Footprint | null = null;
-      const group = obs.groups[gi]!;
-      if (progress.swath && n === reached && et > group.startEt && et < group.endEt && progress.prints[n - 1] && this.budget > 0) {
-        this.budget--;
-        leading = this.footprintAt(src, obs, et);
-      }
-      drawn.push({ progress, n, leading });
-      sig.push(`${gi}:${n}${leading ? `:${et}` : ''}`);
+      if (progress.cursor < reached) pending = true;
+      counts.push(Math.min(progress.cursor, reached));
     }
-    const signature = sig.join('|');
-    if (signature === state.signature) return signature;
 
-    for (const { progress, n, leading } of drawn) {
-      const prints = progress.prints;
-      for (let i = 0; i < n; i++) {
-        const fp = prints[i];
-        if (!fp) continue;
-        addFootprint(fp, lines, tris);
-        // Only genuinely adjacent samples are joined: a failed sample between
-        // two good ones is a hole in the swath, not something to bridge.
-        const prev = i > 0 ? prints[i - 1] : null;
-        if (progress.swath && prev) addSwathStrip(prev, fp, tris);
+    const signature = counts.join(',');
+    const now = performance.now();
+    const shrank = signature !== state.signature && counts.some((n, i) => n < (Number(state.signature.split(',')[i]) || 0));
+    const interval = Math.max(REBUILD_INTERVAL_MS, 10 * state.buildMs);
+    if (signature !== state.signature && (!pending || shrank || now - state.builtAt >= interval)) {
+      this.buildSettled(state, counts);
+      state.signature = signature;
+      state.builtAt = performance.now();
+      state.buildMs = state.builtAt - now;
+    }
+    this.updateLeading(state, obs, et, counts);
+    return counts.some((n) => n > 0);
+  }
+
+  /** Whether this frame's footprint budget (count and time) has room. */
+  private canCompute(): boolean {
+    return this.budget > 0 && performance.now() < this.deadline;
+  }
+
+  /** The settled swath, at the smallest stride that fits the budget. */
+  private buildSettled(state: ObservationState, counts: number[]): void {
+    for (;;) {
+      const lines = new VertexBuffer(this.maxLine);
+      const tris = new VertexBuffer(this.maxFill);
+      const total = counts.reduce((sum, n) => sum + drawnCount(n, state.stride), 0);
+      let done = 0;
+      for (let gi = 0; gi < state.groups.length && !lines.overflowed && !tris.overflowed; gi++) {
+        done += addGroup(state.groups[gi]!, counts[gi]!, state.stride, lines, tris);
       }
-      if (leading) {
-        addFootprint(leading, lines, tris);
-        addSwathStrip(prints[n - 1]!, leading, tris);
+      if (!lines.overflowed && !tris.overflowed) {
+        lines.writeTo(state.outline.geometry);
+        tris.writeTo(state.fill.geometry);
+        return;
+      }
+      // Over budget, found partway through: the build stopped there, and the
+      // share of samples it reached says how much coarser to draw. Every k-th
+      // sample then, and say so once.
+      const over = total / Math.max(1, done);
+      state.stride = Math.max(state.stride + 1, Math.ceil(state.stride * over * 1.1));
+      this.warnOnce(
+        state.obs!.name,
+        `its footprints exceed the geometry budget; drawing every ${state.stride}th sample.`,
+        'stride',
+      );
+    }
+  }
+
+  /** The leading edge of each in-progress swath group, cached by ET. */
+  private updateLeading(state: ObservationState, obs: Observation, et: number, counts: number[]): void {
+    const src = state.sensor!;
+    let key = '';
+    let lead: { gi: number; fp: Footprint; from: Footprint } | null = null;
+    for (let gi = 0; gi < state.groups.length && !lead; gi++) {
+      const progress = state.groups[gi]!;
+      const group = obs.groups[gi]!;
+      const n = counts[gi]!;
+      const last = n > 0 ? progress.prints[n - 1] : null;
+      // Only once every reached sample is in, and only from an existing last
+      // sample — never across a gap.
+      if (!progress.swath || !last || n !== progress.sampling.reached(et) || !(et > group.startEt && et < group.endEt)) continue;
+      if (et <= progress.sampling.at(n - 1)) continue;
+      if (!(state.leading && state.leading.gi === gi && state.leading.et === et)) {
+        if (!this.canCompute()) continue;
+        this.budget--;
+        state.leading = { gi, et, fp: this.footprintAt(src, obs, et) };
+      }
+      if (state.leading.fp) {
+        lead = { gi, fp: state.leading.fp, from: last };
+        key = `${gi}:${et}:${n}`;
       }
     }
-    return signature;
+    if (key === state.leadingSignature) return;
+    state.leadingSignature = key;
+    const lines = new VertexBuffer(this.maxLine);
+    const tris = new VertexBuffer(this.maxFill);
+    if (lead) {
+      addFootprint(lead.fp, lines, tris);
+      addSwathStrip(lead.from, lead.fp, tris);
+    }
+    lines.writeTo(state.leadOutline.geometry);
+    tris.writeTo(state.leadFill.geometry);
   }
 
   private footprintAt(src: SensorSource, obs: Observation, et: number): Footprint | null {
@@ -389,7 +528,7 @@ export class ObservationsVisualizer implements BodyVisualizer {
 
   // ── given coverage ───────────────────────────────────────────────────────
 
-  private givenGeometry(obs: Observation, ctx: RendererContext, lines: number[], tris: number[]): void {
+  private givenGeometry(obs: Observation, ctx: RendererContext, lines: VertexBuffer, tris: VertexBuffer): void {
     const radii = ctx.universe.getBody(obs.target)?.radii;
     if (!radii) {
       this.warnOnce(obs.name, `target "${obs.target}" has no radii; a given footprint has no surface to sit on.`);
@@ -431,15 +570,51 @@ function lift(p: Vec3): Vec3 {
   return [p[0] * LIFT, p[1] * LIFT, p[2] * LIFT];
 }
 
-function push(out: number[], ...pts: Vec3[]): void {
+/**
+ * A growable Float32 position buffer with a hard cap. Past the cap it stops
+ * storing and only counts (`demand`), so an over-budget build costs a count,
+ * not an allocation, and the caller can pick a stride that fits.
+ */
+class VertexBuffer {
+  private data = new Float32Array(3 * 1024);
+  count = 0;
+  demand = 0;
+  constructor(private readonly cap: number) {}
+  get overflowed(): boolean {
+    return this.demand > this.cap;
+  }
+  push(x: number, y: number, z: number): void {
+    this.demand++;
+    if (this.demand > this.cap) return;
+    if (3 * this.count + 3 > this.data.length) {
+      const next = new Float32Array(Math.min(this.data.length * 2, 3 * this.cap));
+      next.set(this.data);
+      this.data = next;
+    }
+    this.data[3 * this.count] = x;
+    this.data[3 * this.count + 1] = y;
+    this.data[3 * this.count + 2] = z;
+    this.count++;
+  }
+  writeTo(geometry: THREE.BufferGeometry): void {
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.data.slice(0, 3 * this.count), 3));
+    geometry.computeBoundingSphere();
+  }
+}
+
+function push(out: VertexBuffer, ...pts: Vec3[]): void {
   for (const p of pts) {
     const q = lift(p);
     out.push(q[0], q[1], q[2]);
   }
 }
 
-/** Steps per edge when a fill triangle is laid on the surface. */
-const FILL_STEPS = 6;
+/** Most steps per edge when a fill triangle is laid on the surface. */
+const FILL_STEPS = 24;
+/** Longest edge, as a fraction of the radius, laid flat without subdividing:
+ *  an edge sags L²/8R ≤ 0.0003 R and a triangle's centre about twice that,
+ *  both well under the LIFT. */
+const FLAT_EDGE = 0.05;
 
 /**
  * A surface triangle, subdivided and pushed back out to the surface: each
@@ -448,11 +623,14 @@ const FILL_STEPS = 6;
  * frame's chord sinks tens of km under the ground — the fill vanished into
  * the globe while its outline stayed visible.
  */
-function pushSurfaceTri(out: number[], a: Vec3, b: Vec3, c: Vec3): void {
+function pushSurfaceTri(out: VertexBuffer, a: Vec3, b: Vec3, c: Vec3): void {
   const ra = Math.hypot(...a);
   const rb = Math.hypot(...b);
   const rc = Math.hypot(...c);
-  const n = FILL_STEPS;
+  // Subdivide only as much as the triangle's size needs: a NAC frame's fan
+  // on Titan is a few steps, a frame's worth of swath strip usually one.
+  const edge = Math.max(dist(a, b), dist(b, c), dist(c, a));
+  const n = Math.min(FILL_STEPS, Math.max(1, Math.ceil(edge / (FLAT_EDGE * Math.min(ra, rb, rc)))));
   const at = (i: number, j: number): Vec3 => {
     const wb = i / n;
     const wc = j / n;
@@ -474,9 +652,59 @@ function pushSurfaceTri(out: number[], a: Vec3, b: Vec3, c: Vec3): void {
   }
 }
 
-/** Outline and fan fill of one footprint. Rays past the limb break the
- *  outline rather than bridging the gap with a chord. */
-function addFootprint(fp: Footprint, lines: number[], tris: number[]): void {
+const dist = (p: Vec3, q: Vec3) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+
+/**
+ * One group's settled geometry, every `stride`-th sample (and the last).
+ * Discrete footprints are each outlined and filled. A swath is outlined per
+ * drawn sample and filled as strips between consecutive drawn samples, with a
+ * fan only at each end of a contiguous run — the strips already sweep
+ * everything between. Two drawn samples are joined only if every sample
+ * between them exists: a gap is never bridged, at any stride.
+ */
+/** How many of a group's first `n` samples are drawn at `stride`. */
+function drawnCount(n: number, stride: number): number {
+  return n === 0 ? 0 : Math.ceil(n / stride) + ((n - 1) % stride === 0 ? 0 : 1);
+}
+
+/**
+ * One group's settled geometry, every `stride`-th sample (and the last).
+ * Discrete footprints are each outlined and filled. A swath is outlined per
+ * drawn sample and filled as strips between consecutive drawn samples, with a
+ * fan only at each end of a contiguous run — the strips already sweep
+ * everything between. Two drawn samples are joined only if every sample
+ * between them exists: a gap is never bridged, at any stride. Stops as soon
+ * as either buffer overflows, and returns how many samples it drew.
+ */
+function addGroup(progress: GroupProgress, n: number, stride: number, lines: VertexBuffer, tris: VertexBuffer): number {
+  const prints = progress.prints;
+  const drawn: number[] = [];
+  for (let i = 0; i < n; i += stride) drawn.push(i);
+  if (n > 0 && drawn[drawn.length - 1] !== n - 1) drawn.push(n - 1);
+  const joined = (a: number, b: number) => {
+    for (let k = a; k <= b; k++) if (!prints[k]) return false;
+    return true;
+  };
+  for (let d = 0; d < drawn.length; d++) {
+    if (lines.overflowed || tris.overflowed) return d;
+    const i = drawn[d]!;
+    const fp = prints[i];
+    if (!fp) continue;
+    if (!progress.swath) {
+      addFootprint(fp, lines, tris);
+      continue;
+    }
+    const prev = d > 0 && joined(drawn[d - 1]!, i) ? prints[drawn[d - 1]!]! : null;
+    const next = d < drawn.length - 1 && joined(i, drawn[d + 1]!);
+    addFootprint(fp, lines, prev && next ? null : tris);
+    if (prev) addSwathStrip(prev, fp, tris);
+  }
+  return drawn.length;
+}
+
+/** Outline and (with `tris`) fan fill of one footprint. Rays past the limb
+ *  break the outline rather than bridging the gap with a chord. */
+function addFootprint(fp: Footprint, lines: VertexBuffer, tris: VertexBuffer | null): void {
   const b = fp.boundary;
   const hits = b.filter((p): p is Vec3 => p !== null);
   if (hits.length < 2) return;
@@ -485,6 +713,7 @@ function addFootprint(fp: Footprint, lines: number[], tris: number[]): void {
     const q = b[(i + 1) % b.length];
     if (p && q) push(lines, p, q);
   }
+  if (!tris) return;
   const centre = fp.boresight ?? centroid(hits);
   for (let i = 0; i < b.length; i++) {
     const p = b[i];
@@ -495,7 +724,7 @@ function addFootprint(fp: Footprint, lines: number[], tris: number[]): void {
 
 /** The ground swept between two consecutive footprints: each boundary edge
  *  joined to its successor, so a continuous group fills in as a swath. */
-function addSwathStrip(a: Footprint, b: Footprint, tris: number[]): void {
+function addSwathStrip(a: Footprint, b: Footprint, tris: VertexBuffer): void {
   const n = Math.min(a.boundary.length, b.boundary.length);
   for (let i = 0; i < n; i++) {
     const a0 = a.boundary[i];
@@ -526,8 +755,8 @@ function addPolygon(
   outerRing: readonly LonLat[],
   holeRings: readonly (readonly LonLat[])[],
   radii: Vec3,
-  lines: number[],
-  tris: number[],
+  lines: VertexBuffer,
+  tris: VertexBuffer,
 ): void {
   const outer = openRing(outerRing);
   const holes = holeRings.map(openRing).filter((h) => h.length >= 3);
@@ -566,9 +795,4 @@ function meanLonLat(ring: readonly (readonly [number, number])[]): [number, numb
     lat += la;
   }
   return [(Math.atan2(y, x) * 180) / Math.PI, lat / ring.length];
-}
-
-function setPositions(geometry: THREE.BufferGeometry, data: number[]): void {
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(data, 3));
-  geometry.computeBoundingSphere();
 }

@@ -3514,8 +3514,11 @@ export class UniverseRenderer {
       const vis = this._visualizers.get(body.geometryType ?? '');
       if (!vis) continue;
       const bm = this.bodyMeshes.get(bodyName);
-      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly.
-      obj.visible = bm ? bm.present && bm.userVisible : this.universe.isPresentAt(bodyName, et);
+      // Custom visuals live outside BodyMesh, so inherit its effective visibility explicitly —
+      // unless the visualizer keeps this one while it is absent (a selected observation).
+      const present = bm ? bm.present : this.universe.isPresentAt(bodyName, et);
+      const userVisible = bm ? bm.userVisible : true;
+      obj.visible = userVisible && (present || vis.showsWhenAbsent?.(obj) === true);
       if (!obj.visible) continue;
       const pos: [number, number, number] = bm
         ? [bm.position.x, bm.position.y, bm.position.z]

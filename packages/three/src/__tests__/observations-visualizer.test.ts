@@ -15,8 +15,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as THREE from 'three';
 import { createHeritageSpice } from '@cosmolabe/frames';
-import { Universe, observationFromSensorActive, type CatalogJson, type SpiceInstance } from '@cosmolabe/core';
-import { ObservationsVisualizer } from '../plugins/ObservationsVisualizer.js';
+import { Universe, MAX_GROUP_SAMPLES, observationFromSensorActive, type CatalogJson, type SpiceInstance } from '@cosmolabe/core';
+import { ObservationsVisualizer, MAX_FILL_VERTICES, MAX_LINE_VERTICES } from '../plugins/ObservationsVisualizer.js';
 import type { RendererContext } from '../plugins/RendererContext.js';
 
 const KERNELS = join(__dirname, '../../../../kernels/test-data');
@@ -34,7 +34,7 @@ const FILES = [
 const START = '2004-184T01:58:32.775';
 const END = '2004-184T02:16:07.764';
 
-function catalog(observation: Record<string, unknown>): CatalogJson {
+function catalog(observation: Record<string, unknown>, item: Record<string, unknown> = {}): CatalogJson {
   return {
     items: [
       { name: 'Saturn', center: 'SSB', trajectory: { type: 'Spice', target: 'SATURN', center: 'SSB' } },
@@ -68,6 +68,7 @@ function catalog(observation: Record<string, unknown>): CatalogJson {
         center: 'Titan',
         trajectoryFrame: { type: 'BodyFixed', body: 'Titan' },
         bodyFrame: { type: 'BodyFixed', body: 'Titan' },
+        ...item,
         geometry: { type: 'Observations', ...observation },
       },
     ],
@@ -90,23 +91,28 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     endEt = spice.str2et(END);
   });
 
-  function scene(observation: Record<string, unknown>, engine: SpiceInstance = spice) {
+  function scene(
+    observation: Record<string, unknown>,
+    engine: SpiceInstance = spice,
+    options: ConstructorParameters<typeof ObservationsVisualizer>[0] = {},
+    item: Record<string, unknown> = {},
+  ) {
     const universe = new Universe(engine);
-    universe.loadCatalog(catalog(observation));
+    universe.loadCatalog(catalog(observation, item));
     const ctx = {
       universe,
       scaleFactor: 1e-6,
       getBodyMesh: (name: string) => (universe.getBody(name) ? { position: new THREE.Vector3() } : undefined),
     } as unknown as RendererContext;
     const body = universe.getBody('Titan mosaic')!;
-    const vis = new ObservationsVisualizer();
+    const vis = new ObservationsVisualizer(options);
     const obj = vis.createVisual(body, ctx);
     const meshes = obj.children as [THREE.Mesh, THREE.LineSegments];
     /** Update at `et` for enough frames that the per-frame footprint budget
      *  has caught up. A fixed count, not "until nothing changes": a frame
      *  spent entirely on failed samples changes nothing and is not the end. */
-    const at = (et: number) => {
-      for (let i = 0; i < 40; i++) vis.updateVisual(obj, body, et, [0, 0, 0], ctx);
+    const at = (et: number, frames = 40) => {
+      for (let i = 0; i < frames; i++) vis.updateVisual(obj, body, et, [0, 0, 0], ctx);
       return { visible: obj.visible, fill: meshes[0], outline: meshes[1] };
     };
     return { at, body, vis, obj };
@@ -137,13 +143,11 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
     // 4 sides × 4 rays: a whole footprint is 16 outline segments = 32 vertices.
     const discretePrints = vertexCount(discrete.outline) / 32;
     expect(discretePrints).toBeGreaterThanOrEqual(3);
-    // Discrete stamps are fans only (16 triangles each, every one laid on the
-    // surface as FILL_STEPS² = 36 pieces); a swath adds the strips joining
-    // consecutive footprints, so it has more fill than its fans.
-    const FAN = 16 * 36 * 3;
-    expect(vertexCount(discrete.fill)).toBe(discretePrints * FAN);
-    const swathPrints = vertexCount(swath.outline) / 32;
-    expect(vertexCount(swath.fill)).toBeGreaterThan(swathPrints * FAN);
+    expect(vertexCount(discrete.fill)).toBeGreaterThan(0);
+    // The swath's ten samples are all drawn, and filled as one sweep (the
+    // exact composition is pinned by the gap test below).
+    expect(vertexCount(swath.outline)).toBeGreaterThan(0);
+    expect(vertexCount(swath.fill)).toBeGreaterThan(0);
   });
 
   it('fillInObservations is filled or outlined — never both — and not accumulation', () => {
@@ -238,21 +242,136 @@ describe('ObservationsVisualizer (Cassini ISS NAC, Titan, SOI)', () => {
 
   it('a swath is not bridged across a gap inside it', () => {
     const step = (C1 - C0) / 9;
-    const opts = { sensor: 'ISS NAC', groups: steady, alongTrackDivisions: 9, sideDivisions: 4, fillInObservations: true };
-    const whole = scene(opts).at(C1);
-    // Every sample whole, so the counts are exact: 16 fan triangles per
-    // footprint and 32 strip triangles per adjacent pair, each laid on the
-    // surface as 36 pieces.
+    const opts = { sensor: 'ISS NAC', alongTrackDivisions: 9, sideDivisions: 4, fillInObservations: true };
+    const whole = scene({ ...opts, groups: steady }).at(C1);
+    // Every sample whole: 16 outline segments (32 vertices) each.
     expect(vertexCount(whole.outline)).toBe(10 * 32);
-    const FAN = 16 * 36 * 3;
-    const STRIP = 32 * 36 * 3;
-    expect(vertexCount(whole.fill)).toBe(10 * FAN + 9 * STRIP);
-    // Samples 4 and 5 fail: 8 footprints, and only the 6 truly adjacent pairs
-    // (0-1, 1-2, 2-3, 6-7, 7-8, 8-9) are joined.
+    // Samples 4 and 5 fail. What is drawn must be exactly the two runs on
+    // either side drawn on their own — samples 0–3 and 6–9 at the same
+    // instants — and nothing joining them.
     const { gapped } = withGap((et) => et > C0 + 3.5 * step && et < C0 + 5.5 * step);
-    const gappy = scene(opts, gapped).at(C1);
+    const gappy = scene({ ...opts, groups: steady }, gapped).at(C1);
+    // Each drawn at its own end (after it, it is out of context and hidden).
+    const before = scene({ ...opts, alongTrackDivisions: 3, groups: [{ startTime: C0, endTime: C0 + 3 * step, obsRate: 0 }] }).at(C0 + 3 * step);
+    const after = scene({ ...opts, alongTrackDivisions: 3, groups: [{ startTime: C0 + 6 * step, endTime: C1, obsRate: 0 }] }).at(C1);
     expect(vertexCount(gappy.outline)).toBe(8 * 32);
-    expect(vertexCount(gappy.fill)).toBe(8 * FAN + 6 * STRIP);
+    expect(vertexCount(gappy.outline)).toBe(vertexCount(before.outline) + vertexCount(after.outline));
+    expect(vertexCount(gappy.fill)).toBe(vertexCount(before.fill) + vertexCount(after.fill));
+  });
+
+  it('is hidden in the gap between two disjoint groups', () => {
+    const s = scene({
+      sensor: 'ISS NAC', sideDivisions: 4,
+      groups: [{ startTime: C0, endTime: C0 + 600, obsRate: 120 }, { startTime: C0 + 1800, endTime: C1, obsRate: 120 }],
+    });
+    expect(s.at(C0 + 300).visible).toBe(true);
+    expect(s.at(C0 + 1200).visible).toBe(false); // between the groups
+    const second = s.at(C0 + 2000);
+    expect(second.visible).toBe(true);
+    // Inside the second group, the first group's footprints are still part
+    // of what this observation has taken.
+    expect(vertexCount(second.outline)).toBeGreaterThan(6 * 32);
+  });
+
+  it('an item that declares its own window stays shown through it, gaps included', () => {
+    const groups2 = [{ startTime: C0, endTime: C0 + 600, obsRate: 120 }, { startTime: C0 + 1800, endTime: C1, obsRate: 120 }];
+    const s = scene({ sensor: 'ISS NAC', sideDivisions: 4, groups: groups2 }, spice, {}, { startTime: C0, endTime: C1 });
+    s.at(C0 + 300);
+    const gap = s.at(C0 + 1200);
+    expect(gap.visible).toBe(true);
+    expect(vertexCount(gap.outline)).toBeGreaterThan(0);
+  });
+
+  it('a paused clock costs no SPICE calls once warmed up, leading edge included', () => {
+    const step = (C1 - C0) / 9;
+    const { gapped, calls } = withGap(() => false);
+    const s = scene({ sensor: 'ISS NAC', groups: steady, alongTrackDivisions: 9, sideDivisions: 4, fillInObservations: true }, gapped);
+    const paused = C0 + 4.5 * step; // between grid samples: the leading edge is live
+    const r = s.at(paused);
+    expect(vertexCount(s.obj.children[3]!)).toBeGreaterThan(0); // the leading-edge outline mesh
+    expect(r.visible).toBe(true);
+    const warmed = calls.total;
+    s.at(paused, 20);
+    expect(calls.total).toBe(warmed);
+    // Moving the clock recomputes the leading edge only: one footprint.
+    s.at(paused + 1, 1);
+    expect(calls.total - warmed).toBe(4 * 4 + 1);
+  });
+
+  /** The engine with sincpt answered from a cache by ray direction — the same
+   *  intercepts every instant, so a 10,000-sample swath costs geometry, not
+   *  hours of CSPICE, and the test measures the renderer. */
+  function withFastIntercepts() {
+    const cache = new Map<string, unknown>();
+    return new Proxy(spice, {
+      get(target, key) {
+        if (key === 'sincpt') {
+          return (...args: unknown[]) => {
+            const k = JSON.stringify(args[7]);
+            if (!cache.has(k)) {
+              args[2] = C0;
+              cache.set(k, (target as unknown as { sincpt: (...a: unknown[]) => unknown }).sincpt(...args));
+            }
+            return cache.get(k);
+          };
+        }
+        const v = (target as unknown as Record<string | symbol, unknown>)[key];
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    }) as SpiceInstance;
+  }
+
+  it('stress: a 10,000-sample swath is drawn within the default geometry budget', { timeout: 60_000 }, () => {
+    const s = scene(
+      { sensor: 'ISS NAC', groups: steady, alongTrackDivisions: MAX_GROUP_SAMPLES - 1, fillInObservations: true },
+      withFastIntercepts(),
+    );
+    // Run frames until every sample is in (the per-frame budget is by time
+    // as well as count, so how many frames that takes depends on the host).
+    const state = s.obj.userData.observation as { groups: { cursor: number }[]; stride: number };
+    let frames = 0;
+    while (state.groups[0]!.cursor < MAX_GROUP_SAMPLES && frames < 20_000) {
+      s.at(C1, 1);
+      frames++;
+    }
+    expect(state.groups[0]!.cursor).toBe(MAX_GROUP_SAMPLES);
+    const r = s.at(C1, 1);
+    // At this range a NAC frame spans ~1,800 km of Titan, so each sample's
+    // strip is ~1,800 vertices laid on the surface: 10,000 of them at full
+    // resolution would be ~18 M. It is drawn at a stride instead — and not
+    // decimated more than it needs: the result uses a real share of the budget.
+    expect(state.stride).toBeGreaterThan(1);
+    expect(Math.max(vertexCount(r.fill) / MAX_FILL_VERTICES, vertexCount(r.outline) / MAX_LINE_VERTICES)).toBeGreaterThan(0.25);
+    expect(vertexCount(r.fill)).toBeGreaterThan(0);
+    expect(vertexCount(r.fill)).toBeLessThanOrEqual(MAX_FILL_VERTICES);
+    expect(vertexCount(r.outline)).toBeLessThanOrEqual(MAX_LINE_VERTICES);
+  });
+
+  it('over budget, a swath is drawn at a stride rather than allocated — still gap-honest', () => {
+    const budget = { maxFillVertices: 20_000, maxLineVertices: 4_000 };
+    const s = scene(
+      { sensor: 'ISS NAC', groups: steady, alongTrackDivisions: 999, sideDivisions: 4, fillInObservations: true },
+      withFastIntercepts(),
+      budget,
+    );
+    const r = s.at(C1, 400);
+    const state = s.obj.userData.observation as { stride: number };
+    expect(state.stride).toBeGreaterThan(1);
+    expect(vertexCount(r.outline)).toBeGreaterThan(0);
+    expect(vertexCount(r.fill)).toBeGreaterThan(0);
+    expect(vertexCount(r.fill)).toBeLessThanOrEqual(budget.maxFillVertices);
+    expect(vertexCount(r.outline)).toBeLessThanOrEqual(budget.maxLineVertices);
+  });
+
+  it('every fill triangle sits above Titan, its centre included — not on a chord under it', () => {
+    const { fill } = scene({ sensor: 'ISS NAC', groups: groups(120), sideDivisions: 4, fillInObservations: true }).at(endEt);
+    const radius = spice.bodvcd(606, 'RADII')[0]!;
+    const pos = fill.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i += 3) {
+      let x = 0, y = 0, z = 0;
+      for (let k = 0; k < 3; k++) { x += pos.getX(i + k) / 3; y += pos.getY(i + k) / 3; z += pos.getZ(i + k) / 3; }
+      expect(Math.hypot(x, y, z)).toBeGreaterThan(radius * 1.001);
+    }
   });
 
   it('every drawn vertex, fill included, sits just above Titan — not on a chord under it', () => {
