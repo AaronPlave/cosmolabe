@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { CoordinateOrder, LatitudeConvention, LongitudeDirection, SurfaceViewPreset } from '@cosmolabe/core';
+  import type { CoordinateOrder, LatitudeConvention, LongitudeDirection } from '@cosmolabe/core';
 
   /**
    * The form, kept for the session rather than per mount: closing the panel
@@ -12,8 +12,6 @@
     order: 'lat-lon' as CoordinateOrder,
     latitude: 'planetocentric' as LatitudeConvention,
     direction: 'east' as LongitudeDirection,
-    preset: 'overhead' as SurfaceViewPreset,
-    rangeText: '',
   });
 </script>
 
@@ -28,15 +26,17 @@
    * field, and nothing moves until they resolve.
    */
   import { onMount, untrack } from 'svelte';
-  import { Navigation, Info } from 'lucide-svelte';
+  import { Info } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
-  import { Button } from '$lib/components/ui/button';
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
-  import { parseCoordinatePair, describeNavigationTarget, defaultSurfaceRangeKm } from '@cosmolabe/core';
+  import { parseCoordinatePair, describeNavigationTarget } from '@cosmolabe/core';
   import { vs, coordinateBodies, resolveCoordinateTarget, goToCoordinates } from '../lib/viewer-state.svelte';
   import { shell, toolDef, minimizePanel } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import PlacesPanel from './PlacesPanel.svelte';
+  import NavigationView from './NavigationView.svelte';
+  import NavigationActions from './NavigationActions.svelte';
+  import { navigationView, navigationRange } from '../lib/navigation-view.svelte';
 
   interface Props {
     onClose: () => void;
@@ -64,16 +64,7 @@
   });
 
   const pair = $derived(form.pairText.trim() ? parseCoordinatePair(form.pairText, { order: form.order, direction: form.direction }) : null);
-  // A surface eye height is metres; altitudes and ranges are km.
-  const rangeUnit = $derived(form.preset === 'surface' ? 'm' : 'km');
-  const range = $derived.by(() => {
-    const t = form.rangeText.trim();
-    if (!t) return { ok: true as const, km: undefined };
-    const v = Number(t);
-    return Number.isFinite(v) && v > 0
-      ? { ok: true as const, km: rangeUnit === 'm' ? v / 1000 : v }
-      : { ok: false as const, error: `Range must be a positive number of ${rangeUnit === 'm' ? 'metres' : 'km'}` };
-  });
+  const range = $derived(navigationRange());
 
   const input = $derived(pair?.ok && form.bodyName
     ? { bodyName: form.bodyName, latDeg: pair.latDeg, lonDeg: pair.lonDeg, latitude: form.latitude, longitudeDirection: form.direction }
@@ -132,16 +123,10 @@
     };
   });
 
-  const rangeLabel = $derived(form.preset === 'overhead' ? 'Altitude' : form.preset === 'oblique' ? 'Slant range' : 'Eye height');
-  const rangePlaceholder = $derived.by(() => {
-    if (!resolved?.ok) return 'auto';
-    const km = defaultSurfaceRangeKm(form.preset, resolved.target.scaleKm);
-    return `${Number((rangeUnit === 'm' ? km * 1000 : km).toPrecision(3))} ${rangeUnit} (auto)`;
-  });
 
   function go(animate: boolean) {
     if (!input || !range.ok) return;
-    const result = goToCoordinates(input, { preset: form.preset, animate, rangeKm: range.km });
+    const result = goToCoordinates(input, { preset: navigationView.preset, animate, rangeKm: range.km });
     if (!result.ok) { failure = result.error; return; }
     // The panel stays for the next place. A phone's sheet would hide what the
     // camera is doing, so it gets out of the way, values kept.
@@ -193,10 +178,7 @@
         <span id="navigate-conventions" class="text-[11px] text-text-muted">{conventions}</span>
       </label>
 
-      <div class="grid gap-1">
-        <span class="text-text-secondary">View</span>
-        <SegmentedControl label="View" value={form.preset} options={['overhead', 'oblique', 'surface']} onValueChange={(v) => { form.preset = v as SurfaceViewPreset; form.rangeText = ''; }} />
-      </div>
+      <NavigationView scaleKm={resolved?.ok ? resolved.target.scaleKm : undefined} />
 
       <details>
         <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Advanced</summary>
@@ -218,10 +200,7 @@
               Decimal degrees; −180…180 or 0…360. N/S and E/W letters mark each number and are absolute directions, in either order.
             </span>
           </div>
-          <label class="grid gap-1">
-            <span class="text-text-secondary">{rangeLabel} ({rangeUnit})</span>
-            <input class={fieldClass} bind:value={form.rangeText} placeholder={rangePlaceholder} inputmode="decimal" autocomplete="off" />
-          </label>
+
         </div>
       </details>
 
@@ -257,14 +236,7 @@
         {/if}
       </div>
 
-      <div class="flex gap-2 justify-end">
-        <Button type="button" variant="secondary" size="sm" disabled={!canGo} onclick={() => go(false)} title="Cut straight to the view">
-          Jump to
-        </Button>
-        <Button type="submit" size="sm" disabled={!canGo} title="Fly there (Enter)">
-          <Navigation size={13} /> Fly to
-        </Button>
-      </div>
+      <NavigationActions disabled={!canGo} onJump={() => go(false)} />
     </form>
   {/if}
 </InstrumentPanel>

@@ -12,8 +12,12 @@
     "Navigate floats, minimizes, reopens and docks",
     "one Navigate entry, compact places mode without page overflow",
     "Cmd/Ctrl K selection and correct southern hemisphere display",
+    "focused search Escape blurs, dismisses inspector, then releases target",
+    "body filter follows tracking until explicitly selected",
+    "logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display",
+    "north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent for overhead, oblique and surface",
     "scene reload clears named target",
-    "named target survives real terrain refinement (8 revisions)"
+    "named target survives real terrain refinement (6 revisions)"
   ],
   "errors": []
 }

@@ -1,13 +1,20 @@
 <script lang="ts">
-  import { Button } from '$lib/components/ui/button';
-  import { vs } from '../lib/viewer-state.svelte';
-  import { navigateToPlace, selectPlace, placeCoordinates } from '../lib/places';
+  import { Copy, X } from 'lucide-svelte';
+  import NavigationView from './NavigationView.svelte';
+  import NavigationActions from './NavigationActions.svelte';
+  import { navigationView, navigationRange } from '../lib/navigation-view.svelte';
+  import { vs, resolveCoordinateTarget } from '../lib/viewer-state.svelte';
+  import { navigateToPlace, selectPlace, placeCoordinates, placeCategory } from '../lib/places';
   import { formatLatitude, formatLongitude } from '@cosmolabe/three';
-  import { openTool } from '../lib/shell.svelte';
+  import { shell, minimizePanel } from '../lib/shell.svelte';
   const place = $derived(vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : undefined);
   const bodies = $derived([...new Set(vs.places?.places.map(p => p.layer.body) ?? [])]);
   let query = $state('');
-  let body = $state(vs.trackedBodyName ?? '');
+  // null follows tracking; an explicit choice (including All) is retained.
+  let bodyChoice = $state<string | null>(null);
+  const body = $derived(bodyChoice ?? (bodies.includes(vs.trackedBodyName ?? '') ? vs.trackedBodyName! : ''));
+  const range = $derived(navigationRange());
+  const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...place.feature.geometry.coordinates, latitude: 'planetographic', longitudeDirection: 'east'}) : null);
   const results = $derived(vs.places?.search(query, { body: body || undefined, activeBody: vs.trackedBodyName ?? undefined }).slice(0, 12) ?? []);
   const fields = $derived.by(() => {
     const value = place?.feature.properties?.sourceFields;
@@ -27,7 +34,8 @@
     catch { copyStatus = 'Clipboard unavailable'; }
   }
   function navigate(action: 'fly' | 'jump') {
-    navError = place && navigateToPlace(place, action) ? '' : 'The place body is unavailable or hidden.';
+    navError = !range.ok ? range.error : place && navigateToPlace(place, action) ? '' : 'The place body is unavailable or hidden.';
+    if (!navError && shell.layout === 'compact') minimizePanel('navigate');
   }
 </script>
 
@@ -36,36 +44,43 @@
     <input class="ui-control w-full rounded border border-border bg-surface-3 px-2 py-1" placeholder="Name or alias…" bind:value={query} />
   </label>
   <label class="flex items-center gap-2"><span class="text-text-secondary">Body</span>
-    <select aria-label="Search place body" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={body}>
+    <select aria-label="Search place body" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" value={body} onchange={e => bodyChoice = e.currentTarget.value}>
       <option value="">All bodies</option>{#each bodies as name}<option value={name}>{name}</option>{/each}
     </select>
   </label>
   {#if results.length && (!place || query)}
     <ul aria-label="Named places" class="max-h-40 overflow-y-auto space-y-1">
-      {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="text-xs text-text-secondary">{item.layer.body} · {item.kind.split(',')[0]}</span></button></li>{/each}
+      {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="text-xs text-text-secondary">{item.layer.body} · {placeCategory(item)}</span></button></li>{/each}
     </ul>
   {:else if !place || query}<p class="text-text-secondary">{bodies.length ? 'No places match this search.' : 'No named places loaded in this scene.'}</p>{/if}
   {#if place}{#key place.ref}
-    <div class="border-t border-border pt-3 space-y-2">
-      <div class="flex justify-between gap-2"><strong>{place.name}</strong><button aria-label="Clear selected place" title="Clear place information; the camera target stays active" onclick={() => selectPlace(null)}>×</button></div>
-      <p>{place.layer.body} · {place.kind.split(',')[0]} · {place.origin === 'nomenclature' ? 'official name' : 'catalog site'}</p>
-      {#if place.feature.geometry.type === 'Point'}
-        <p class="font-mono text-xs">{formatLatitude(place.feature.geometry.coordinates.latDeg,4)}, {formatLongitude(place.feature.geometry.coordinates.lonDeg,4)}</p>
-      {/if}
-      <p class="text-xs text-text-secondary">Planetographic latitude · east longitude</p>
-      {#if place.diameterKm}<p>Approx. diameter: {place.diameterKm.toFixed(2)} km</p>{/if}
-      <div class="flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" onclick={() => navigate('fly')}>Fly to</Button>
-        <Button size="sm" variant="secondary" onclick={() => navigate('jump')}>Jump to</Button>
-        <Button size="sm" variant="secondary" onclick={copy}>Copy coordinates</Button>
+    <form class="border-t border-border pt-3 grid gap-2.5" onsubmit={e => { e.preventDefault(); navigate('fly'); }}>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-medium text-text-primary">{place.name}</h3>
+        <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-surface-3" aria-label="Clear selected place" title="Clear place information; the camera target stays active" onclick={() => selectPlace(null)}><X size={14} /></button>
       </div>
-      <p class="text-xs text-text-secondary">Copy uses planetocentric latitude for Navigate.</p>
-      {#if navError}<p role="status">{navError}</p>{/if}
+      <p class="text-text-secondary">{place.layer.body} · {placeCategory(place)}</p>
+      <div class="flex items-center gap-1">
+        <span class="font-mono text-xs" title="Planetocentric latitude · east longitude; matches Coordinates by default">{placeCoordinates(place, 4)}</span>
+        <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-surface-3" aria-label="Copy coordinates" title="Copy planetocentric coordinates for Navigate" onclick={copy}><Copy size={13} /></button>
+      </div>
+      <NavigationView scaleKm={target?.ok ? target.target.scaleKm : undefined} />
+      <NavigationActions disabled={!target?.ok || !range.ok} onJump={() => navigate('jump')} />
+      {#if !range.ok || navError}<p role="status">{!range.ok ? range.error : navError}</p>{/if}
       {#if copyStatus}<p role="status">{copyStatus}</p>{/if}
-      <details><summary>About this place</summary><p class="mt-2 text-text-secondary">{about}</p></details>
       <details>
-        <summary>Source &amp; technical details</summary>
-        <button class="mt-2 underline text-xs" onclick={copySource}>Copy source details</button>
+        <summary class="text-text-secondary">Place details</summary>
+        <p class="mt-2 text-text-secondary">{about}</p>
+        {#if place.diameterKm}
+          <p class="mt-2 text-text-secondary">Indicative diameter: {place.diameterKm.toFixed(2)} km; not a boundary.</p>
+          <button type="button" class="mt-1 underline" title="Use 1.5 times the indicative diameter as an overhead altitude" onclick={() => { navigationView.preset = 'overhead'; navigationView.rangeText = String(Math.max(5, place.diameterKm! * 1.5)); }}>Use suggested feature framing</button>
+        {/if}
+        <p class="mt-2 text-text-secondary">Displayed and copied: planetocentric latitude, east longitude. Coordinates accepts these N/S/E/W pairs with its default latitude convention.</p>
+        {#if place.feature.geometry.type === 'Point'}
+          <p class="mt-2 text-text-secondary">Normalized catalog point (planetographic): {formatLatitude(place.feature.geometry.coordinates.latDeg, 8)}, {formatLongitude(place.feature.geometry.coordinates.lonDeg, 8)}. Original source coordinates and convention are retained below.</p>
+        {/if}
+        <p class="mt-2 text-text-secondary">Source type: {place.kind} · {place.origin === 'nomenclature' ? 'Official nomenclature' : 'Mission / user catalog'}</p>
+        <button type="button" class="mt-2 underline text-xs" onclick={copySource}>Copy source details</button>
         <dl class="mt-2 space-y-1 break-words text-xs">
           <dt class="text-text-secondary">Provenance</dt><dd>{String(place.layer.definition.provenance?.attribution ?? 'Catalog-defined site')}</dd>
           <dt class="text-text-secondary">Source</dt><dd>{place.layer.source.identity}</dd>
@@ -83,9 +98,8 @@
           {/each}
         </dl>
       </details>
-    </div>
+    </form>
   {/key}{/if}
-  <button class="text-xs text-text-secondary underline" onclick={() => openTool('display')}>Geographic name display settings</button>
   {#each [...vs.placeFailures, ...(vs.places?.diagnostics ?? [])] as message}
     <p class="mt-2 text-status-warning" role="status">{message}</p>
   {/each}

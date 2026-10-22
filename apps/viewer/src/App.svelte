@@ -213,17 +213,18 @@
     // marks it handled, so the Escape does not go on to dismiss a panel too.
     if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
-    // Text entry of any kind, contenteditable included — the script editor is
-    // one, and a bare `t` typed into it must not toggle trajectories.
+    // Transient controls own Escape before focus or scene dismissal.
+    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
       (e.target instanceof HTMLElement && e.target.isContentEditable)
-    ) return;
-
-    // An open popover or menu handles its own Escape (it closes); that same
-    // press must not also clear a selection or dismiss a panel behind it.
-    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
+    ) {
+      // First leave text entry; subsequent Escape presses follow the normal
+      // flight / inspector / geographic-target dismissal ladder.
+      if (e.key === 'Escape') { e.preventDefault(); (e.target as HTMLElement).blur(); }
+      return;
+    }
 
     const renderer = getRenderer();
     if (!renderer) return;

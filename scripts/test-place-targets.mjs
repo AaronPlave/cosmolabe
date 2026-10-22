@@ -7,6 +7,8 @@ const out=process.env.CL_OUTPUT??'/tmp/planetary-place-targets';await mkdir(out,
 const hardware=process.env.CL_GPU==='hardware';
 const browser=await chromium.launch({executablePath:hardware?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':undefined,args:hardware?['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist']:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:1440,height:900},...(process.env.CL_RECORD?{recordVideo:{dir:out,size:{width:1440,height:900}}}:{})}),errors=[],checks=[];
+page.setDefaultTimeout(45000);
+checks.push=(...items)=>{console.log(...items);return Array.prototype.push.apply(checks,items);};
 page.on('pageerror',e=>errors.push(e.message));
 try {
   await page.addInitScript(()=>{window.__placeModule=path=>import(performance.getEntriesByType('resource').map(e=>e.name).filter(url=>new URL(url).pathname===path).at(-1)??path);});
@@ -30,11 +32,12 @@ try {
   await page.waitForFunction(()=>window.s.vs.surfaceTarget?.place?.name==='Arena Colles'&&!!window.s.vs.flight);
   assert.ok(await page.locator('.named-target').getByText('Arena Colles',{exact:true}).count());
   assert.match(await page.locator('.target-value').getAttribute('title'),/Arena Colles.*Mars/);
+  assert.equal(await page.evaluate(()=>window.s.vs.flight.target),'Arena Colles');
   await page.waitForFunction(()=>!window.s.vs.flight);
   assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget.place.ref),await page.evaluate(()=>window.arena.ref));checks.push('real name double-click, shared Fly, semantic HUD through landing');
   await page.screenshot({path:`${out}/arena-named-target.png`});
-  assert.equal(await page.getByText('Source & technical details',{exact:true}).evaluate(el=>el.closest('details').open),false);
-  assert.equal(await page.getByText('About this place',{exact:true}).evaluate(el=>el.closest('details').open),false);
+  assert.equal(await page.getByText('Place details',{exact:true}).evaluate(el=>el.closest('details').open),false);
+  assert.equal(await page.evaluate(()=>window.s.vs.flight?.target ?? window.s.vs.surfaceTarget?.place?.name),'Arena Colles');
   const before=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),et:window.s.vs.et,body:window.s.vs.trackedBodyName}));
   await page.getByRole('button',{name:'Clear surface target',exact:true}).click();
   const released=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),et:window.s.vs.et,body:window.s.vs.trackedBodyName,target:window.s.vs.surfaceTarget,selected:window.s.vs.selectedPlaceRef,highlight:window.renderer.placeNames.selectedRef,pivot:window.renderer.cameraController.surfaceNavigating}));
@@ -79,6 +82,79 @@ try {
   await page.getByRole('option').filter({hasText:'Shackleton'}).first().click();
   assert.equal(await page.evaluate(()=>window.s.vs.places.byRef.get(window.s.vs.selectedPlaceRef).name),'Shackleton');
   assert.match(await page.locator('.font-mono').filter({hasText:/89.6700/}).first().textContent(),/89.6700° S/);checks.push('Cmd/Ctrl K selection and correct southern hemisphere display');
+  // Focused search owns only the first Escape; later presses reach the target.
+  await page.evaluate(()=>window.p.navigateToPlace(window.arena,'jump'));
+  const search=page.getByLabel('Search places',{exact:true});await search.fill('Arena');
+  await page.keyboard.press('Escape');assert.equal(await search.evaluate(el=>el===document.activeElement),false);
+  assert.equal(await page.evaluate(()=>window.sh.isToolOpen('navigate')),true);
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget),null);checks.push('focused search Escape blurs, dismisses inspector, then releases target');
+  // A default body filter follows tracking; an explicit filter remains intentional.
+  await page.evaluate(()=>{window.sh.openTool('navigate');window.s.frameBody('Mars');});
+  const bodyFilter=page.getByLabel('Search place body',{exact:true});assert.equal(await bodyFilter.inputValue(),'Mars');
+  await page.evaluate(()=>window.s.frameBody('Moon'));assert.equal(await bodyFilter.inputValue(),'Moon');
+  await search.fill('Shackleton');assert.ok(await page.getByRole('button').filter({hasText:/^ShackletonMoon/}).count());
+  await bodyFilter.selectOption('Mars');await page.evaluate(()=>window.s.frameBody('Moon'));assert.equal(await bodyFilter.inputValue(),'Mars');
+  checks.push('body filter follows tracking until explicitly selected');
+  // Display names each logical source once; one source toggle affects all chunks.
+  await page.evaluate(()=>window.sh.openTool('display'));
+  await page.getByText('Advanced / data sources',{exact:true}).click();
+  assert.equal(await page.getByText(/^Moon Gazetteer /).count(),1);assert.equal(await page.getByText(/^Mars Gazetteer /).count(),1);
+  assert.equal(await page.getByText(/Moon places \(\d\/4\)/).count(),0);
+  const moonSource=page.getByText(/^Moon Gazetteer /);await moonSource.click();
+  assert.equal(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.filter(id=>id.startsWith('moon:usgs:places:')).length),4);await moonSource.click();
+  await page.getByText('By body',{exact:true}).click();
+  await page.screenshot({path:`${out}/display-desktop.png`});
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
+  await page.getByText('Advanced / data sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
+  await page.getByText('Advanced / data sources',{exact:true}).evaluate(el=>{el.closest('.instrument-body').scrollTop=185;});
+  await page.screenshot({path:`${out}/display-compact.png`});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>window.sh.closeTool('display'));
+  checks.push('logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display');
+  // Exercise real clipboard -> Coordinates for both Mars hemispheres, using
+  // every common view preset; compare actual camera eyes and orientations.
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  for(const [name,preset,range] of [['Jezero','overhead',''],['Hellas','oblique','200'],['Jezero','surface','100']]) {
+    await page.evaluate(async({name,preset,range})=>{
+      window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');
+      window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;
+      const p=window.s.vs.places.search(name,{body:'Mars'}).find(p=>p.name===name);if(!p)throw new Error('Missing '+name);
+      window.testPlace=p;window.p.selectPlace(p);window.s.vs.navigateMode='places';
+    },{name,preset,range});
+    await page.getByRole('button',{name:'Jump to',exact:true}).click();
+    const named=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()}));
+    await page.getByRole('button',{name:'Copy coordinates',exact:true}).click();
+    const copied=await page.evaluate(()=>navigator.clipboard.readText());assert.match(copied,name==='Hellas'?/° S/:/° N/);
+    const displayed=await page.locator('span[title^="Planetocentric latitude"]').textContent();assert.match(displayed,name==='Hellas'?/° S/:/° N/);
+    await page.locator('[aria-label="Navigate mode"]').getByText(/^coordinates$/i).click();
+    await page.locator('form select').selectOption('Mars');
+    await page.locator('input[aria-describedby="navigate-conventions navigate-status"]').fill(copied);
+    await page.getByRole('button',{name:'Jump to',exact:true}).click();
+    const coord=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()}));
+    for(const key of ['eye','q'])for(let i=0;i<named[key].length;i++)assert.ok(Math.abs(named[key][i]-coord[key][i])<1e-6,`${name} ${preset} ${key}: ${JSON.stringify({named,coord})}`);
+    // The same configured Fly must end at that same view as Jump.
+    await page.evaluate(()=>window.s.frameBody('Mars'));
+    await page.getByRole('button',{name:'Fly to',exact:true}).click();await page.waitForFunction(()=>!window.s.vs.flight);
+    const flown=await page.evaluate(()=>window.renderer.camera.position.toArray());for(let i=0;i<3;i++)assert.ok(Math.abs(flown[i]-coord.eye[i])<1e-6);
+    await page.locator('[aria-label="Navigate mode"]').getByText(/^places$/i).click();
+    await page.evaluate(()=>{window.s.frameBody('Mars');window.p.selectPlace(window.testPlace);});
+    await page.getByRole('button',{name:'Fly to',exact:true}).click();
+    await page.waitForFunction(()=>!!window.s.vs.flight);assert.equal(await page.evaluate(()=>window.s.vs.flight.target),name);
+    await page.waitForFunction(()=>!window.s.vs.flight);
+    const namedFly=await page.evaluate(()=>window.renderer.camera.position.toArray());for(let i=0;i<3;i++)assert.ok(Math.abs(namedFly[i]-coord.eye[i])<1e-6);
+  }
+  checks.push('north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent for overhead, oblique and surface');
+  await page.evaluate(()=>{window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.p.navigateToPlace(window.arena,'jump');});
+  await search.fill('');
+  await page.screenshot({path:`${out}/navigate-desktop.png`});
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await page.screenshot({path:`${out}/navigate-compact.png`});
+  await page.setViewportSize({width:1440,height:900});
+  await page.locator('[aria-label="Navigate mode"]').getByText(/^coordinates$/i).click();
+  await page.locator('input[aria-describedby="navigate-conventions navigate-status"]').fill(await page.evaluate(()=>window.p.placeCoordinates(window.arena)));
+  await page.screenshot({path:`${out}/coordinates-desktop.png`});
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await page.screenshot({path:`${out}/coordinates-compact.png`});
+  await page.setViewportSize({width:1440,height:900});
   await page.evaluate(async()=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(window.renderer.renderer.domElement,new URL('test-catalogs/planetary-places.json',location.href).href);});
   await page.waitForFunction(()=>window.renderer?.placeNames.index.places.length===11139);
   assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget),null);assert.equal(await page.evaluate(()=>window.s.vs.selectedPlaceRef),null);checks.push('scene reload clears named target');
@@ -92,6 +168,7 @@ try {
     });
     const terrain=await page.evaluate(async url=>{
       const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(window.renderer.renderer.domElement,url);
+      window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='30';
       const r=window.renderer,place=r.placeNames.index.search('Shackleton',{body:'Moon'}).find(p=>p.name==='Shackleton');window.p.navigateToPlace(place,'jump');
       const revisions=new Set();
       for(let i=0;i<360;i++){await new Promise(requestAnimationFrame);if(window.s.vs.surfaceTarget?.place?.ref!==place.ref)throw new Error('Named target lost during terrain refinement');revisions.add(r.getBodyMesh('Moon').terrainRevision);}
@@ -102,5 +179,5 @@ try {
     await page.screenshot({path:`${out}/named-terrain.png`});
   }
   assert.deepEqual(errors,[]);
-} finally {await writeFile(`${out}/results.json`,JSON.stringify({checks,errors},null,2));await browser.close();}
+} catch (error) { await page.screenshot({path:`${out}/failure.png`}); throw error; } finally {await writeFile(`${out}/results.json`,JSON.stringify({checks,errors},null,2));await browser.close();}
 console.log(JSON.stringify({checks,errors},null,2));

@@ -433,7 +433,7 @@ function syncCameraState() {
 /** Mirror the controller's flight into `vs.flight`, writing only on a change. */
 function syncFlightState() {
   const flight = _renderer?.cameraController.flight ?? null;
-  const target = flight ? flight.destination?.body.name ?? null : undefined;
+  const target = flight ? vs.surfaceTarget?.place?.name ?? flight.destination?.body.name ?? null : undefined;
   const current = vs.flight;
   if (!flight) {
     if (current !== null) vs.flight = null;
@@ -1167,6 +1167,7 @@ export function navigateToSurfaceTarget(
   _surfaceNavDebugUntil = performance.now() + 8000;
   clearSurfaceTargetPresentation();
   vs.surfaceTarget = describeTarget(target, placement.viewpoint, undefined, opts.place);
+  syncFlightState();
   // A coordinate target on a terrain body stays anchored while tiles refine.
   _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
     ? { anchor: new SurfaceTerrainAnchor(target, bm), viewpoint: placement.viewpoint }
