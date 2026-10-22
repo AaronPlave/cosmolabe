@@ -8,6 +8,8 @@ const report=JSON.parse(await readFile(process.argv[2]??'work/surface-build/real
 const publication=process.env.SURFACE_PUBLICATION_RECEIPT?JSON.parse(await readFile(process.env.SURFACE_PUBLICATION_RECEIPT)):null;
 if(publication&&publication.buildId!==report.buildId)throw new Error('Publication/report mismatch');
 const productUrl=(id,file)=>publication?`${publication.baseUrl}/${publication.products.find(p=>p.productId===id&&p.verified).prefix}${file}`:`/__surface-pilot/${id}/${file}`;
+const synthetic=report.sources.some(s=>s.productId.startsWith('synthetic-'));
+const viewHeight=synthetic?50:.05;
 const terrain=report.products.find(p=>p.kind==='cube-terrain');
 const products=new Map(report.products.map(p=>[p.id,resolve(report.directory,p.id)]));
 const catalog=JSON.parse(await readFile(process.env.SURFACE_CATALOG_FILE??'apps/viewer/test-catalogs/experiments/mars-terrain-cube-jezero.json'));
@@ -37,7 +39,7 @@ const target=[g.xKm,g.yKm,g.zKm],la=cp.lat*Math.PI/180,lo=cp.lon*Math.PI/180;
 const normal=[Math.cos(la)*Math.cos(lo),Math.cos(la)*Math.sin(lo),Math.sin(la)];
 const up=[-Math.sin(la)*Math.cos(lo),-Math.sin(la)*Math.sin(lo),Math.cos(la)];
 catalog.items[0]={name:'Native detail',type:'Viewpoint',center:'Mars',frame:'BodyFixed',
-  eye:target.map((v,i)=>v+normal[i]*.05),target,up,fov:45};
+  eye:target.map((v,i)=>v+normal[i]*viewHeight),target,up,fov:45};
 catalog.defaultViewpoint='Native detail';
 const server=await createServer({root:resolve('apps/viewer'),configFile:resolve('apps/viewer/vite.config.ts'),
   optimizeDeps:{entries:[resolve('apps/viewer/index.html')]},
@@ -55,22 +57,27 @@ const server=await createServer({root:resolve('apps/viewer'),configFile:resolve(
       catch{res.statusCode=404;res.end('Missing pinned product file');}
     });
   },transformIndexHtml(html){
-    return html.replace('</body>',`<script type="module">
+    return html.replace('</body>',`<button id="surface-pilot-reset" type="button" style="position:fixed;left:64px;bottom:64px;z-index:1000;background:#17191d;color:white;border:1px solid #555;border-radius:6px;padding:8px 12px;font:13px system-ui;cursor:pointer" title="Return to the regional image and restore its detail layer">${synthetic?'View regional imagery':'View HiRISE crop'}</button>
+    <script type="module">
       const source=await(await fetch('/src/lib/commands.ts')).text();
       const url=source.match(/from ["']([^"']*viewer-state\\.svelte[^"']*)["']/)?.[1];
       const state=await import(url??'/src/lib/viewer-state.svelte.ts');
-      const timer=setInterval(()=>{if(!state.vs.assetsReady)return;clearInterval(timer);
-        window.cosmo.setPlaying(false);window.cosmo.untrack();
-        const r=state.getRenderer(),bm=r.getBodyMesh('Mars');
-        r.setTerrainDebugMode('imagery-unlit','Mars');
-        const V=r.camera.position.constructor,centre=new V();bm.getWorldPosition(centre);
-        const world=p=>new V(p[0],p[2],-p[1]).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
+      const button=document.getElementById('surface-pilot-reset');
+      function showCrop(){
+        const r=state.getRenderer(),bm=r?.getBodyMesh('Mars');if(!bm)return;
+        window.cosmo.setPlaying(false);r.setTerrainDebugMode('imagery-unlit','Mars');
+        const V=r.camera.position.constructor;
+        const local=p=>new V(p[0],p[2],-p[1]).multiplyScalar(r.scaleFactor);
         const target=${JSON.stringify(target)},normal=${JSON.stringify(normal)},north=${JSON.stringify(up)};
-        const t=world(target),eye=world(target.map((v,i)=>v+normal[i]*.05));
-        r.cameraController.controls.enableDamping=false;r.cameraController.controls.target.copy(t);
-        r.camera.position.copy(eye);r.camera.up.copy(world(north).sub(centre).normalize());
-        r.camera.fov=45;r.camera.updateProjectionMatrix();r.camera.lookAt(t);r.camera.updateMatrixWorld(true);
-      },100);
+        r.cameraController.controls.staticMoving=true;
+        r.cameraController.jumpToSurface(bm,{position:local(target.map((v,i)=>v+normal[i]*${viewHeight})),target:local(target),up:local(north).normalize()});
+        r.camera.fov=45;r.camera.updateProjectionMatrix();r.camera.updateMatrixWorld(true);
+        for(const id of ${JSON.stringify(report.products.filter(p=>p.kind==='cube-imagery').map(p=>p.id))}){
+          bm.terrainManager.setImageryLayerVisible(id,true);bm.terrainManager.setImageryLayerOpacity(id,1);
+        }
+      }
+      button.addEventListener('click',showCrop);
+      const timer=setInterval(()=>{if(!state.vs.assetsReady)return;clearInterval(timer);showCrop();},100);
     </script></body>`);
   },async load(id){
     if(id.endsWith('/src/app.css'))return (await readFile(id,'utf8')).replace('@import "tailwindcss";','@import "tailwindcss" source(none);\n@source "./";');
