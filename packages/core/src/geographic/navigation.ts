@@ -438,6 +438,27 @@ export function describeNavigationTarget(target: SurfaceNavigationTarget, decima
 }
 
 /**
+ * A target's coordinates for a compact readout (the view context's Target):
+ * `decimals` places (4 by default; fewer at narrow widths), latitude with
+ * N/S, and longitude normalised to −180…180 with E/W — 214.2342° E reads
+ * 145.7658° W — whatever convention it was entered in. A readout only:
+ * the exact target, its entered precision and convention stay with
+ * `describeNavigationTarget` and the target itself.
+ */
+export function compactTargetLabel(target: SurfaceNavigationTarget, decimals = 4): { lat: string; lon: string } {
+  const { origin } = target;
+  const lat = origin.kind === 'coordinates' ? origin.input.latDeg : origin.kind === 'surface-point' ? origin.latDeg : target.latGraphicDeg;
+  const east = origin.kind === 'surface-point' ? origin.lonDeg : target.lonEastDeg;
+  // Rounded first, so 179.99996° E is 180.0000° E, never −180.0000° W.
+  const r = Number((((east + 540) % 360) - 180).toFixed(decimals));
+  const lon = r === -180 ? 180 : r;
+  return {
+    lat: `${Math.abs(lat).toFixed(decimals)}° ${lat >= 0 ? 'N' : 'S'}`,
+    lon: `${Math.abs(lon).toFixed(decimals)}° ${lon >= 0 ? 'E' : 'W'}`,
+  };
+}
+
+/**
  * Where the camera goes for `preset`, as a semantic viewpoint centred on the
  * target's body in its `BodyFixed` frame:
  *

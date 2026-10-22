@@ -28,7 +28,8 @@
    * field, and nothing moves until they resolve.
    */
   import { onMount, untrack } from 'svelte';
-  import { Navigation } from 'lucide-svelte';
+  import { Navigation, Info } from 'lucide-svelte';
+  import * as Popover from '$lib/components/ui/popover';
   import { Button } from '$lib/components/ui/button';
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import { parseCoordinatePair, describeNavigationTarget, defaultSurfaceRangeKm } from '@cosmolabe/core';
@@ -106,13 +107,28 @@
     return parts.length ? parts.join('; ') : null;
   });
 
-  /** Where the target's height comes from, for the details. */
-  const provenance = $derived.by(() => {
-    if (!resolved?.ok) return '';
+  /**
+   * One short line on what the target stands on, when that is settled; its
+   * source and datum are behind the info button. A target still waiting for
+   * terrain says so in its notes, shown as a warning instead.
+   */
+  const ground = $derived.by(() => {
+    if (!resolved?.ok || resolved.target.awaitingTerrain) return null;
     const t = resolved.target;
-    if (t.height.from === 'terrain-sample') return `On the terrain (${t.height.sourceId}), ${(t.height.km ?? 0).toFixed(3)} km from its datum.`;
-    if (t.awaitingTerrain) return 'On the terrain\'s datum surface until the terrain there loads, then moved onto it.';
-    return `On ${t.bodyName}'s reference ${t.datum?.referenceShape.kind === 'sphere' ? 'sphere' : 'ellipsoid'}: it has no terrain, so heights are from its declared shape.`;
+    const shape = t.datum?.referenceShape.kind === 'sphere' ? 'sphere' : 'ellipsoid';
+    if (t.height.from === 'terrain-sample') {
+      const km = t.height.km ?? 0;
+      const elevation = Math.abs(km) < 10 ? `${km < 0 ? '−' : '+'}${Math.abs(km * 1000).toFixed(0)} m` : `${km < 0 ? '−' : '+'}${Math.abs(km).toFixed(2)} km`;
+      return {
+        text: `Terrain loaded · elevation ${elevation}`,
+        help: [`Source: ${t.height.sourceId ?? 'terrain'}${t.height.tileId ? ` (tile ${t.height.tileId})` : ''}`,
+          `Elevation is from the terrain's datum, the reference ${shape} of ${t.bodyName}. It updates as finer terrain loads.`],
+      };
+    }
+    return {
+      text: `No terrain · on the reference ${shape}`,
+      help: [`${t.bodyName} streams no terrain here, so the target is on its declared reference ${shape}, from the catalog radii.`],
+    };
   });
 
   const rangeLabel = $derived(form.preset === 'overhead' ? 'Altitude' : form.preset === 'oblique' ? 'Slant range' : 'Eye height');
@@ -217,10 +233,23 @@
           {#each resolved.target.notes as note (note)}
             <div class="text-[var(--color-warning,#fbbf24)]">{note}</div>
           {/each}
-          <details class="mt-0.5">
-            <summary class="cursor-pointer select-none text-text-muted hover:text-text-secondary">Details</summary>
-            <p class="mt-1 text-text-muted">{provenance}</p>
-          </details>
+          {#if ground}
+            <div class="flex items-center gap-1 text-text-muted">
+              <span>{ground.text}</span>
+              <Popover.Root>
+                <Popover.Trigger class="text-text-muted hover:text-text-primary cursor-pointer" aria-label="Terrain source and datum">
+                  <Info size={11} />
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+                    {#each ground.help as line, i (i)}
+                      <p class={i > 0 ? 'mt-2' : ''}>{line}</p>
+                    {/each}
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            </div>
+          {/if}
         {/if}
       </div>
 

@@ -1279,6 +1279,11 @@ export class BodyMesh extends THREE.Object3D {
     this.terrainManager?.showCulledTiles();
   }
 
+  /** Restore the main camera's terrain draw cull (after `showCulledTerrainTiles`). */
+  recullTerrainTiles(): void {
+    this.terrainManager?.recullToMainView();
+  }
+
   /** Toggle debug tile bounds on terrain */
   setTerrainDebug(show: boolean): void {
     this.terrainManager?.setDebug(show);

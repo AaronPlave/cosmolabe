@@ -18,6 +18,7 @@
   import ScriptConsole from '../ScriptConsole.svelte';
   import PlacesPanel from '../PlacesPanel.svelte';
   import NavigatePanel from '../NavigatePanel.svelte';
+  import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -56,6 +57,8 @@
     <DebugPanel onClose={() => closeTool('debug')} />
   {:else if tool.id === 'measure'}
     <MeasurementPanel onClose={() => closeTool('measure')} />
+  {:else if tool.id === 'instrument'}
+    <InstrumentViewPanel onClose={() => closeTool('instrument')} />
   {:else if tool.id === 'display'}
     <DisplaySettings
       onClose={() => closeTool('display')}

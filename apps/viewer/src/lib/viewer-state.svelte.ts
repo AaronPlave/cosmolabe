@@ -7,7 +7,7 @@
  */
 import {
   etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
-  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, GeographicNavigationError, ViewpointError,
+  withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
   type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
@@ -17,10 +17,11 @@ import {
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
 } from '@cosmolabe/three';
 import * as THREE from 'three';
+import { surfaceNavDebugEnabled, surfaceNavLog, surfaceNavSnapshot, describeTargetHeight } from './surface-nav-debug';
 import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
-import { openTool } from './shell.svelte';
+import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { navigateToPlace } from './places';
 
 // ── Exported types ──
@@ -145,6 +146,15 @@ export const vs = $state({
   /** Caption over the viewport, from `displayNote`. Null when there is none. */
   note: null as string | null,
 
+  /**
+   * The sensor the Instrument view window shows (#192). The one source of
+   * truth: the Display selector, the window's own selector and the commands
+   * all write here, and the window pushes it to the renderer while it is on
+   * screen. Kept across closing the window; a new scene starts from its own
+   * first instrument.
+   */
+  instrumentSensor: null as string | null,
+
   /** Bodies currently identified in the 3D view by `highlightBodies`. */
   highlightedBodies: [] as string[],
 
@@ -159,8 +169,13 @@ export const vs = $state({
 /** What the view context shows about a surface navigation target. */
 export interface SurfaceTargetInfo {
   bodyName: string;
-  /** "18.4447° N, 77.4508° E", in the convention it was named in. */
+  /** "18.4447° N, 77.4508° E", in the convention and precision it was named in. */
   coordinates: string;
+  /**
+   * The same place for the compact readout: at most 4 places (`wide`) or 2
+   * (`narrow`), longitude as E/W of the prime meridian (`compactTargetLabel`).
+   */
+  label: { wide: { lat: string; lon: string }; narrow: { lat: string; lon: string } };
   /** How the coordinates were stated ("planetocentric, east-positive"), or the pick's source. */
   convention: string;
   /** Where the target's height came from. */
@@ -482,6 +497,20 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
   _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  // An instrument belongs to the scene it was chosen in.
+  vs.instrumentSensor = null;
+
+  // The Instrument view window is the viewer's presentation of the renderer's
+  // instrument view, so a sensor chosen anywhere else — a script, the console —
+  // shows in the window, and clearing it closes the window.
+  _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    if (sensor == null) {
+      closeTool('instrument');
+    } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
+      vs.instrumentSensor = sensor;
+      openTool('instrument');
+    }
+  }));
 
   // Restore persisted display preferences
   const prefs = loadPrefs();
@@ -567,6 +596,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     }
     if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
     if (_terrainAnchor && vs.frameTick % 15 === 0) refineAnchoredTerrain();
+    if (vs.frameTick % 30 === 0 && surfaceNavDebugEnabled()) logSurfaceNavTick();
     // A right-drag free look ends a look-at from inside the controller.
     const aim = cc.lookAtBody?.body.name ?? null;
     if (vs.lookAtBodyName !== aim) vs.lookAtBodyName = aim;
@@ -602,6 +632,22 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+}
+
+/**
+ * Palette command: open the Instrument view window, or step to the next sensor
+ * once it is on screen. Wraps around. The `I` shortcut only opens/raises.
+ */
+export function showNextInstrument() {
+  if (!isPanelVisible('instrument')) {
+    openTool('instrument');
+    return;
+  }
+  const sensors = _renderer?.getSensorNames() ?? [];
+  if (sensors.length === 0) return;
+  const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
+  vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  openTool('instrument'); // raise it, so the change is seen
 }
 
 export function getRenderer(): UniverseRenderer | null {
@@ -1049,6 +1095,11 @@ function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDe
     coordinates: describeNavigationTarget(target, input
       ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
       : picked ? coordinateDecimals(picked) : 4),
+    label: (() => {
+      // A pick shows no more places than it resolves.
+      const places = picked ? Math.max(coordinateDecimals(picked).lat, coordinateDecimals(picked).lon) : 4;
+      return { wide: compactTargetLabel(target, Math.min(4, places)), narrow: compactTargetLabel(target, Math.min(2, places)) };
+    })(),
     convention: input
       ? `${input.latitude}, ${input.longitudeDirection}-positive`
       : origin.kind === 'surface-point' ? `${origin.latitudeKind}, east-positive; picked on ${origin.source}` : '',
@@ -1093,9 +1144,20 @@ export function navigateToSurfaceTarget(
   }
   const pose = surfacePoseFromBodyFixed(placement, _renderer.scaleFactor);
   const cc = _renderer.cameraController;
-  if (opts.animate === false || opts.seconds === 0) cc.jumpToSurface(bm, pose);
-  else cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
+  const before = surfaceNavDebugEnabled() ? surfaceNavSnapshot(_renderer, bm, target) : null;
+  let plan: ReturnType<typeof cc.flyToSurface> | { kind: 'jump' };
+  if (opts.animate === false || opts.seconds === 0) { cc.jumpToSurface(bm, pose); plan = { kind: 'jump' }; }
+  else plan = cc.flyToSurface(bm, pose, { path: 'arc', duration: opts.seconds });
   syncCameraState();
+  if (before) {
+    const sf = _renderer.scaleFactor;
+    surfaceNavLog('navigate', {
+      body: target.bodyName, preset: placement.preset, rangeKm: placement.rangeKm, eyeLiftedKm: placement.liftedKm,
+      target: describeTargetHeight(target), from: before,
+      plan: plan.kind === 'flight' ? { kind: 'flight', riseKm: plan.rise / sf, chordKm: plan.chord / sf, seconds: plan.duration } : plan,
+    });
+  }
+  _surfaceNavDebugUntil = performance.now() + 8000;
   vs.surfaceTarget = describeTarget(target, placement.viewpoint);
   // A coordinate target on a terrain body stays anchored while tiles refine.
   _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
@@ -1131,9 +1193,29 @@ function refineAnchoredTerrain() {
   });
   if (result === 'released') { _terrainAnchor = null; return; }
   if (!result) return;
+  surfaceNavLog('terrain-refine', {
+    revision: bm.terrainRevision, target: describeTargetHeight(result),
+    shiftKm: Math.hypot(shiftKm[0], shiftKm[1], shiftKm[2]), during: cc.flight ? 'flight' : 'pivot',
+  });
   const shift = (v: readonly number[] | undefined) => v && [v[0] + shiftKm[0], v[1] + shiftKm[1], v[2] + shiftKm[2]] as [number, number, number];
   held.viewpoint = { ...held.viewpoint, eye: shift(held.viewpoint.eye), target: shift(held.viewpoint.target) };
   vs.surfaceTarget = describeTarget(result, held.viewpoint);
+}
+
+/** Until when (performance.now ms) the diagnostics keep logging after a navigation. */
+let _surfaceNavDebugUntil = 0;
+
+/** One diagnostics line: the camera against the ground while on (or just after) a surface target. */
+function logSurfaceNavTick() {
+  const cc = _renderer?.cameraController;
+  if (!_renderer || !cc) return;
+  const name = vs.surfaceTarget?.bodyName ?? cc.focusBody?.body.name;
+  const bm = name ? _renderer.getBodyMesh(name) : undefined;
+  if (!bm || !(cc.surfaceNavigating || performance.now() < _surfaceNavDebugUntil)) return;
+  surfaceNavLog('tick', {
+    flight: cc.flight ? { phase: cc.flight.phase } : null, pivot: !!cc.surfacePivot,
+    ...surfaceNavSnapshot(_renderer, bm, _terrainAnchor?.anchor.target ?? null),
+  });
 }
 
 /** Resolve coordinates and fly (or jump) there. */
@@ -1201,8 +1283,8 @@ export function navigateToSurfacePoint(
 
 /**
  * Clear the surface target (#190): no pivot on the ground, no terrain
- * following, no Target readout. The camera keeps its position and view
- * direction and keeps tracking the body; a flight still on its way stops
+ * following, no Target readout. The camera keeps its position and resumes
+ * tracking the body's centre; a flight still on its way stops
  * where it is. Selection, time and panels are untouched. False when there
  * was no target.
  */

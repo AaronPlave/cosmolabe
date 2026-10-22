@@ -128,7 +128,6 @@
                 "type": "Sensor",
                 "spiceId": -85600,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [0.2, 0.6, 1.0],
                 "frustumOpacity": 0.4
               },
@@ -145,7 +144,6 @@
                 "horizontalFov": 60,
                 "verticalFov": 1,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [1.0, 0.8, 0.2],
                 "frustumOpacity": 0.15
               },
@@ -160,7 +158,6 @@
                 "type": "Sensor",
                 "spiceId": -85511,
                 "target": "Moon",
-                "range": 60,
                 "horizontalFov": 0.4,
                 "frustumColor": [0.2, 1.0, 0.4],
                 "frustumOpacity": 0.6
@@ -176,7 +173,6 @@
                 "type": "Sensor",
                 "spiceId": -85300,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [0.6, 0.3, 1.0],
                 "frustumOpacity": 0.3
               },
@@ -191,7 +187,6 @@
                 "type": "Sensor",
                 "spiceId": -85211,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [1.0, 0.4, 0.2],
                 "frustumOpacity": 0.3
               },
@@ -206,7 +201,6 @@
                 "type": "Sensor",
                 "spiceId": -85410,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [0.4, 0.8, 0.8],
                 "frustumOpacity": 0.15
               },
@@ -221,7 +215,6 @@
                 "type": "Sensor",
                 "spiceId": -85110,
                 "target": "Moon",
-                "range": 60,
                 "frustumColor": [0.8, 0.8, 0.2],
                 "frustumOpacity": 0.08
               },

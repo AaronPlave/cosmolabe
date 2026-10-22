@@ -70,20 +70,30 @@
       <!-- The surface point navigated to (#190): the target on the body,
            not the camera's position, which the readout never shows. -->
       {@const t = vs.surfaceTarget}
+      <!-- One group, so a narrow bar wraps the target whole, label and all. -->
+      <span class="context-group">
       <span class="context-label">Target</span>
+      <!-- Never truncated: a cut-off hemisphere letter changes the place.
+           Full precision and the entered convention are in the tooltip. -->
       <span
-        class="context-value truncate"
+        class="target-value"
         title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
-      >{t.coordinates}</span>
-      <!-- Lets go of the point: no pivot or terrain following; the camera,
-           tracking, selection and time stay as they are. -->
+      >
+        <span class="target-wide">{t.label.wide.lat}, {t.label.wide.lon}</span>
+        <span class="target-narrow">{t.label.narrow.lat}, {t.label.narrow.lon}</span>
+      </span>
+      <!-- Releases the point and aims at the tracked body's centre,
+           keeping the camera location, selection and time. -->
       <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
         <X size={12} />
       </button>
+      </span>
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
-    <span class="context-label">Frame</span>
-    <span class="frame-value truncate">{frameLabel}</span>
+    <span class="context-group min-w-0">
+      <span class="context-label">Frame</span>
+      <span class="frame-value truncate">{frameLabel}</span>
+    </span>
   </div>
 {/if}
 
@@ -161,6 +171,23 @@
     color: var(--color-text-primary);
   }
 
+  .context-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .target-value {
+    flex: none;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--color-text-primary);
+  }
+  .target-narrow { display: none; }
+
   :global(.context-arrow) {
     flex: none;
     color: var(--color-text-muted);
@@ -215,12 +242,25 @@
       right: 8px;
       top: 8px;
       max-width: none;
+      /* Tailwind's -translate-x-1/2 is the `translate` property, which
+         `transform: none` leaves in place: pinned to both edges, the bar was
+         still shifted half its width off the left of a phone screen. */
       transform: none;
+      translate: none;
+      /* A phone is too narrow for tracking, target and frame on one line:
+         wrap onto a second rather than cut a coordinate off. */
+      flex-wrap: wrap;
+      row-gap: 6px;
+      padding-block: 7px;
     }
 
     .context-value,
     .frame-value {
       max-width: none;
     }
+
+    /* Two places at a phone width, so the pair fits whole beside the rest. */
+    .target-wide { display: none; }
+    .target-narrow { display: inline; }
   }
 </style>

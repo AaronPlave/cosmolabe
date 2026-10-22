@@ -39,7 +39,7 @@ Local validation: the final SwiftShader CI sampling run passes with no browser e
 
 ## Navigation integration
 
-This branch includes the current #270 dependency without merging that PR. Place Fly/Jump now calls the same coordinate resolver, physical terrain refinement and `flyToSurface`/`jumpToSurface` path as Navigate. The earlier place-only targetOffset camera extension was removed. Copy emits a hemisphere-marked planetocentric pair matching Navigate’s default and the shared surface-point copy convention, and other-body navigation clears both detail selection and highlight. Same-body navigation retains selection.
+PR #270 is merged in main; this branch incorporates its final implementation through main commit `9a692d1`. Place Fly/Jump now calls the same coordinate resolver, physical terrain refinement and `flyToSurface`/`jumpToSurface` path as Navigate. The earlier place-only targetOffset camera extension was removed. Copy emits a hemisphere-marked planetocentric pair matching Navigate’s default and the shared surface-point copy convention, and other-body navigation clears both detail selection and highlight. Same-body navigation retains selection.
 
 ## Reproduction
 

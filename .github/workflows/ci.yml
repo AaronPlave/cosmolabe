@@ -185,8 +185,11 @@ jobs:
       - name: Planetary nomenclature converter regressions
         run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
 
-      - name: Install Chromium for global geographic smoke
+      - name: Install Chromium for browser checks
         run: npx playwright install --with-deps chromium
+
+      - name: StarField WebGL readback
+        run: npm run test:stars:webgl
 
       - name: Normal-viewer geographic and planetary place smoke
         env:
@@ -206,6 +209,7 @@ jobs:
           node scripts/test-geographic-global.mjs
           CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
           CL_OUTPUT=/tmp/planetary-places-motion node scripts/test-place-label-motion.mjs
+          CL_STAR_SMOKE=1 npm run capture:stars
 
       - name: Save global geographic smoke evidence
         if: always()
@@ -217,4 +221,14 @@ jobs:
             /tmp/planetary-places/
             /tmp/planetary-places-motion/
             /tmp/geographic-global-vite.log
+          if-no-files-found: ignore
+
+      - name: Save StarField WebGL evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starfield-webgl
+          path: |
+            /tmp/starfield-webgl/
+            /tmp/starfield-viewer/
           if-no-files-found: ignore

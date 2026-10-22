@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin, Aperture } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'script', 'display', 'debug', 'places'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug', 'places'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -97,6 +97,9 @@ export const TOOLS: readonly ToolDef[] = [
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
+  // The view from a physical instrument (#192): a second camera, not a
+  // replacement for the main one, so it is a window like any other tool.
+  { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440, shortcut: 'i' },
   // Backtick: the universal console idiom, unclaimed, and not a letter, so it
   // cannot collide with a renderer control or #15's keymap. The app's input
   // guard runs first, so a backtick typed into a text field stays a backtick.
@@ -119,11 +122,17 @@ export interface PanelRuntime {
   minimized: boolean;
   /** Non-null once the user drags the panel out of its dock. */
   float: FloatRect | null;
+  /**
+   * Filling the workspace, for panels that offer it. A presentation over the
+   * dock/float placement, not a replacement: collapsing returns the panel to
+   * wherever it was.
+   */
+  expanded: boolean;
 }
 
 function seedPanels(): Record<PanelKey, PanelRuntime> {
   return Object.fromEntries(
-    PANEL_KEYS.map((key) => [key, { minimized: false, float: null }]),
+    PANEL_KEYS.map((key) => [key, { minimized: false, float: null, expanded: false }]),
   ) as Record<PanelKey, PanelRuntime>;
 }
 
@@ -242,6 +251,7 @@ export function closeTool(id: ToolId) {
   // not hand it back collapsed. Its float rect survives: where the user put an
   // instrument is a preference, not a transient.
   shell.panels[id].minimized = false;
+  shell.panels[id].expanded = false;
   if (shell.activeSheet === id) shell.activeSheet = lastOpenPanel();
 }
 
@@ -361,6 +371,7 @@ export function isMinimized(key: PanelKey): boolean {
 
 export function minimizePanel(key: PanelKey) {
   shell.panels[key].minimized = true;
+  shell.panels[key].expanded = false;
   // Compact shows one sheet, so minimizing the visible one gives the scene the
   // whole screen rather than promoting the next panel into its place.
   if (shell.activeSheet === key) shell.activeSheet = null;
@@ -375,6 +386,22 @@ export function restorePanel(key: PanelKey) {
 export function toggleMinimized(key: PanelKey) {
   if (shell.panels[key].minimized) restorePanel(key);
   else minimizePanel(key);
+}
+
+// ── Expanded ──
+
+export function isExpanded(key: PanelKey): boolean {
+  return shell.panels[key].expanded;
+}
+
+/** The expanded panel on screen, if any — it covers every other panel. */
+export function expandedPanel(): PanelKey | null {
+  return PANEL_KEYS.find((key) => shell.panels[key].expanded && isPanelVisible(key)) ?? null;
+}
+
+export function toggleExpanded(key: PanelKey) {
+  shell.panels[key].expanded = !shell.panels[key].expanded;
+  if (shell.panels[key].expanded) restorePanel(key);
 }
 
 // ── Compact sheets ──

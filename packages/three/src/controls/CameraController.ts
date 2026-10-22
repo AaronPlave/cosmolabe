@@ -161,6 +161,25 @@ interface SurfaceFlight {
   rise: number;
 }
 
+/**
+ * What `flyToSurface` did with a request, for callers and diagnostics:
+ * - `flight`: started one, with its `rise` at the middle and its `chord`
+ *   (straight-line distance between the eyes), scene units, and `duration` (s);
+ * - `arrived`: the camera was already at the pose, so nothing moved (the
+ *   pivot is installed, as a landing would);
+ * - `continuing`: a flight to the same pose was already under way and goes on.
+ */
+export type SurfaceFlightPlan =
+  | { kind: 'flight'; rise: number; chord: number; duration: number }
+  | { kind: 'arrived' }
+  | { kind: 'continuing' };
+
+/**
+ * How near, as a fraction of the camera-to-target range, a surface pose
+ * counts as the one the camera already holds or is already flying to.
+ */
+const SURFACE_POSE_SAME_FRACTION = 0.01;
+
 /** How close to a globe without terrain the camera may come about a surface pivot, km. */
 export const SURFACE_PIVOT_CLEARANCE_KM = 0.002;
 
@@ -181,6 +200,14 @@ const _sfB = /* @__PURE__ */ new THREE.Vector3();
  * at the middle. The distance never drops below the smaller endpoint's, so
  * the camera cannot pass inside the body.
  */
+/** Whether a camera pose (mesh frame) is `pose`, to within `SURFACE_POSE_SAME_FRACTION` of its range. */
+function sameSurfacePose(position: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3, pose: SurfacePose): boolean {
+  const range = pose.position.distanceTo(pose.target);
+  const tol = SURFACE_POSE_SAME_FRACTION * range;
+  return range > 0 && position.distanceTo(pose.position) <= tol && target.distanceTo(pose.target) <= tol
+    && up.clone().normalize().dot(pose.up.clone().normalize()) > Math.cos(1 * Math.PI / 180);
+}
+
 function surfaceFlightPose(f: SurfaceFlight, s: number, pos: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3): void {
   const q = f.body.mesh.quaternion;
   const center = f.body.position;
@@ -323,11 +350,8 @@ export class CameraController {
   /** A pivot to install with the origin switch a surface flight lands with. */
   private _pendingSurfacePivot: THREE.Vector3 | null = null;
   /**
-   * What a released surface target leaves (`releaseSurface`): the tracked
-   * body's orbit point kept off its centre, as a world-frame offset in scene
-   * units, so the view stays where it was. It translates with the body but
-   * does not turn with it, as the pivot did. Free orbit only; dropped by any
-   * other navigation and when the body stops being tracked.
+   * Released surface navigation keeps the close-surface clearance floor.
+   * Its orbit offset is zero: the body centre owns the orbit after release.
    */
   private _orbitOffset: { body: BodyMesh; offset: THREE.Vector3 } | null = null;
   /** An offset to install with the origin switch a released flight lands with. */
@@ -694,32 +718,32 @@ export class CameraController {
   }
 
   /**
-   * Let go of surface navigation without moving the camera: no pivot on the
-   * ground, no flight still heading there, nothing for terrain to retarget.
-   * The camera keeps its world position and view direction, and keeps
-   * tracking the body: the orbit point stays where it was on the line of
-   * sight (`_orbitOffset`) and follows the body from there, rather than
-   * snapping the view round to its centre. A flight stops where it is, and
-   * tracks its body as it would have on landing. False when there was no
-   * surface navigation to release.
+   * Release a surface point and resume orbiting the body's centre. Keep the
+   * camera's location, but let its aim follow the body rather than the old
+   * ground coordinate. A flight stops where it is. False with no surface target.
    */
   releaseSurface(): boolean {
     if (!this.surfaceNavigating) return false;
+    const body = this._anim?.surface?.body ?? this._surfacePivot?.body ?? this._pendingOriginSwitch;
     const flight = this._anim?.surface;
-    const pivot = this._surfacePivot;
-    const pendingPivot = this._pendingSurfacePivot;
     const landing = this._pendingOriginSwitch;
     this._clearSurfacePivot();
+    this.clearLookAt();
     if (flight) {
       this.cancelAnimation();
-      this._pendingOriginSwitch = flight.body;
-      this._pendingOrbitOffset = this.controls.target.clone().sub(flight.body.position);
-    } else if (pendingPivot && landing) {
-      this._pendingOrbitOffset = pendingPivot.applyQuaternion(landing.mesh.quaternion);
-    } else if (pivot && this._activeMode.name === CameraModeName.FREE_ORBIT && this._trackTarget === pivot.body) {
-      this._orbitOffset = { body: pivot.body, offset: this.controls.target.clone().sub(pivot.body.position) };
+      this._pendingOriginSwitch = body;
+      this._pendingOrbitOffset = new THREE.Vector3();
+    } else if (landing) {
+      // The completed flight still needs its deferred coordinate rebase.
+      this._pendingOrbitOffset = new THREE.Vector3();
+    } else if (body) {
+      this._anchorOn(body, body.position);
+      // A zero offset uses the close-surface floor without retaining the
+      // released point as the orbit target (including below-datum terrain).
+      if (this._activeMode.name === CameraModeName.FREE_ORBIT) {
+        this._orbitOffset = { body, offset: new THREE.Vector3() };
+      }
     }
-    // A co-rotating frame already holds the target where it is.
     return true;
   }
 
@@ -748,7 +772,20 @@ export class CameraController {
    * the pose's target, as `jumpToSurface` would land. Stopping it, or manual
    * input, leaves the camera where it is facing that target.
    */
-  flyToSurface(bodyMesh: BodyMesh, pose: SurfacePose, opts: SurfaceFlightOptions = {}): void {
+  flyToSurface(bodyMesh: BodyMesh, pose: SurfacePose, opts: SurfaceFlightOptions = {}): SurfaceFlightPlan {
+    const inv = bodyMesh.mesh.quaternion.clone().invert();
+    const center = bodyMesh.position;
+    const toLocal = (v: THREE.Vector3) => v.clone().sub(center).applyQuaternion(inv);
+    // Asked again for where it is, or where it is already going: a repeated
+    // Fly is not a reason to leave the ground and come back.
+    const running = this._anim?.surface;
+    if (running && running.body === bodyMesh && sameSurfacePose(running.endPos, running.endTarget, running.endUp, pose)) {
+      return { kind: 'continuing' };
+    }
+    if (!running && sameSurfacePose(toLocal(this.camera.position), toLocal(this.controls.target), this.camera.up.clone().applyQuaternion(inv), pose)) {
+      this.jumpToSurface(bodyMesh, pose);
+      return { kind: 'arrived' };
+    }
     this._trackTarget = null;
     this._pendingOriginSwitch = null;
     this._clearSurfacePivot();
@@ -760,9 +797,6 @@ export class CameraController {
       this.camera.up.copy(startUp);
     }
     const path = opts.path ?? 'arc';
-    const inv = bodyMesh.mesh.quaternion.clone().invert();
-    const center = bodyMesh.position;
-    const toLocal = (v: THREE.Vector3) => v.clone().sub(center).applyQuaternion(inv);
     const flight: SurfaceFlight = {
       body: bodyMesh, path,
       startPos: toLocal(this.camera.position),
@@ -775,12 +809,16 @@ export class CameraController {
     };
     const r0 = flight.startPos.length(), r1 = flight.endPos.length();
     const turn = r0 > 0 && r1 > 0 ? flight.startPos.angleTo(flight.endPos) / Math.PI : 0;
+    const chord = flight.startPos.distanceTo(flight.endPos);
     if (path === 'arc') {
       // Cruise higher the further round the body the flight goes: half a
       // radius up, for the far side, which is also what shows where it is.
+      // Never more than half the distance travelled, though: a hop between
+      // nearby places stays low over the ground instead of climbing tens of
+      // km and dropping the terrain's detail on the way.
       const radius = renderedRadiusToward(bodyMesh, flight.endPos.clone().applyQuaternion(bodyMesh.mesh.quaternion));
       const cruise = radius * (1.02 + 0.5 * turn);
-      flight.rise = Math.max(0, cruise - Math.sqrt(r0 * r1));
+      flight.rise = Math.max(0, Math.min(cruise - Math.sqrt(r0 * r1), 0.5 * chord));
     }
     const descent = r0 > 0 && r1 > 0 ? Math.min(1, Math.abs(Math.log10(r0 / r1)) / 4) : 0;
     const duration = opts.duration ?? (path === 'line' ? DEFAULT_DIRECT_SECONDS : 1 + 1.5 * Math.max(turn, descent));
@@ -794,6 +832,7 @@ export class CameraController {
     anim.destination = bodyMesh;
     anim.path = 'direct';
     anim.phase = 'approach';
+    return { kind: 'flight', rise: flight.rise, chord, duration };
   }
 
   private _startApproach(
@@ -1764,21 +1803,36 @@ export class CameraController {
   }
 
   /**
-   * Adapt orbit/zoom speeds based on altitude above the nearest body surface.
-   * Only Globe/Ellipsoid bodies participate — spacecraft and tiny bodies are
+   * Adapt orbit/zoom speeds to how far an orbit or zoom step would carry the
+   * camera relative to its height above the nearest body's ground. Only
+   * Globe/Ellipsoid bodies participate — spacecraft and tiny bodies are
    * ignored. When far from all bodies, speeds stay at their base values.
    *
-   * sqrt(altitude / (10 × bodyRadius)): speeds reach base level at 10× the
-   * body's radius above the surface, and decrease smoothly as you zoom in:
+   * A drag turns the camera about the orbit target and a wheel step scales
+   * its distance to it, so either moves the camera by about its distance to
+   * the target (the lever arm). That only needs slowing when the lever is
+   * long against the height: orbiting a body's centre from low orbit, not
+   * orbiting a point on the ground the camera is a few metres from. So the
+   * clearance ratio is `h / (lever − h)`, where the lever is the distance to
+   * the target capped at the distance to the body's centre — about the
+   * centre that is `h / R`, as before — and the factor is
+   * sqrt(ratio / 10), between 0.01 and 1:
    *   ratio=10    → factor=1.0   (10× radius above surface — base speeds)
    *   ratio=2     → factor=0.45  (default flyTo distance)
-   *   ratio=0.5   → factor=0.22  (zoomed in closer)
-   *   ratio=0.1   → factor=0.1   (low orbit)
-   *   ratio=0.01  → factor=0.03  (near surface)
+   *   ratio=0.1   → factor=0.1   (low orbit about the centre)
+   *   ratio≥10    → factor=1.0   (overhead of a surface pivot: lever ≈ height)
+   *
+   * The height is above the ground under the camera: the decoded terrain
+   * when `groundRadiusKm` knows it (a crater floor or a basin below the
+   * datum is ground, not "below the surface"), the rendered ellipsoid's
+   * radius in the camera's direction otherwise.
    *
    * Call once per frame before update().
    */
-  adaptSpeeds(bodyMeshes: Iterable<BodyMesh>, scaleFactor: number): void {
+  adaptSpeeds(
+    bodyMeshes: Iterable<BodyMesh>, scaleFactor: number,
+    groundRadiusKm?: (bm: BodyMesh) => number | null,
+  ): void {
     // When focused on a spacecraft or other non-Globe body, keep base speeds —
     // nearby planet proximity shouldn't slow down inspection of that object.
     // Uses originBody (persists after un-tracking via WASD/free-look).
@@ -1794,19 +1848,27 @@ export class CameraController {
     let minAltRatio = Infinity;
     let minAltScene = Infinity;
     let nearestSurfaceR = 0;
+    const toTarget = this.camera.position.distanceTo(this.controls.target);
 
     for (const bm of bodyMeshes) {
       const gt = bm.body.geometryType;
       if (gt !== 'Globe' && gt !== 'Ellipsoid') continue;
-      const surfaceR = bm.displayRadius * scaleFactor;
-      if (surfaceR < 1e-20) continue;
-      const dist = this.camera.position.distanceTo(bm.position);
+      const displayR = bm.displayRadius * scaleFactor;
+      if (displayR < 1e-20) continue;
+      const ground = groundRadiusKm?.(bm);
+      const offset = _sfB.copy(this.camera.position).sub(bm.position);
+      const dist = offset.length();
+      // displayRadius is the longest ellipsoid axis. Using it at other
+      // latitudes puts a camera above the visible ground "underground" and
+      // forces even a nearby surface pivot to the minimum control speed.
+      const surfaceR = ground != null && ground > 0 ? ground * scaleFactor : renderedRadiusToward(bm, offset);
       const altitude = Math.max(dist - surfaceR, 0);
-      const ratio = altitude / surfaceR;
+      const lever = Math.min(toTarget, dist);
+      const ratio = altitude >= lever ? Infinity : altitude / Math.max(lever - altitude, 1e-30);
       if (ratio < minAltRatio) minAltRatio = ratio;
       if (altitude < minAltScene) {
         minAltScene = altitude;
-        nearestSurfaceR = surfaceR;
+        nearestSurfaceR = displayR;
       }
     }
 
@@ -1830,7 +1892,7 @@ export class CameraController {
       this.keyboard.altitudeRefSceneUnits = null;
     }
 
-    if (!isFinite(minAltRatio)) return; // no nearby Globe — keep base speeds
+    if (minAltRatio === Infinity && !isFinite(minAltScene)) return; // no nearby Globe — keep base speeds
 
     const factor = Math.max(Math.min(Math.sqrt(minAltRatio / 10), 1), 0.01);
     this.controls.rotateSpeed = this._baseRotateSpeed * factor;
