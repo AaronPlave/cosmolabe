@@ -87,7 +87,7 @@ export class PlaceIndex {
     for (const cell of this.cells.values()) cell.sort(placePriority);
   }
 
-  search(query: string, opts: { body?: string; kind?: string; activeBody?: string; limit?: number } = {}): Place[] {
+  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; activeBody?: string; limit?: number } = {}): Place[] {
     const tokens = placeText(query).split(' ').filter(Boolean).slice(0, 8);
     let candidates: Set<Place> | undefined;
     for (const token of tokens) {
@@ -100,7 +100,7 @@ export class PlaceIndex {
       if (!candidates.size) return [];
     }
     const exact = placeText(query);
-    return [...(candidates ?? this.places)].filter(p => (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind))
+    return [...(candidates ?? this.places)].filter(p => (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind) && (!opts.origin || p.origin === opts.origin))
       .sort((a, b) => Number(b.layer.body === opts.activeBody) - Number(a.layer.body === opts.activeBody)
         || Number(placeText(b.name) === exact) - Number(placeText(a.name) === exact) || placePriority(a, b))
       .slice(0, Math.max(0, Math.min(opts.limit ?? 30, 100)));

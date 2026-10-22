@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Place } from '@cosmolabe/core';
   import { Copy, X } from 'lucide-svelte';
   import NavigationView from './NavigationView.svelte';
   import NavigationActions from './NavigationActions.svelte';
@@ -13,9 +14,21 @@
   // null follows tracking; an explicit choice (including All) is retained.
   let bodyChoice = $state<string | null>(null);
   const body = $derived(bodyChoice ?? (bodies.includes(vs.trackedBodyName ?? '') ? vs.trackedBodyName! : ''));
+  let kind = $state('');
+  let origin = $state<Place['origin'] | ''>('');
+  const origins = $derived(new Set(vs.places?.places.map(p => p.origin) ?? []));
+  const kinds = $derived.by(() => {
+    const options = new Map<string, string>();
+    for (const p of vs.places?.places ?? []) {
+      if ((!body || p.layer.body === body) && (!origin || p.origin === origin)) options.set(p.kind, placeCategory(p));
+    }
+    return [...options].sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]));
+  });
+  // A tracked-body/source change must not leave an unavailable type selected.
+  $effect(() => { if (kind && !kinds.some(([value]) => value === kind)) kind = ''; });
   const range = $derived(navigationRange());
   const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...place.feature.geometry.coordinates, latitude: 'planetographic', longitudeDirection: 'east'}) : null);
-  const results = $derived(vs.places?.search(query, { body: body || undefined, activeBody: vs.trackedBodyName ?? undefined, limit: 100 }) ?? []);
+  const results = $derived(vs.places?.search(query, { body: body || undefined, kind: kind || undefined, origin: origin || undefined, activeBody: vs.trackedBodyName ?? undefined, limit: 100 }) ?? []);
   const fields = $derived.by(() => {
     const value = place?.feature.properties?.sourceFields;
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -43,16 +56,30 @@
   <label class="grid gap-1"><span class="text-text-secondary">Search places</span>
     <input class="ui-control w-full rounded border border-border bg-surface-3 px-2 py-1" placeholder="Name or alias…" bind:value={query} />
   </label>
-  <label class="flex items-center gap-2"><span class="text-text-secondary">Body</span>
+  <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Body</span>
     <select aria-label="Search place body" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" value={body} onchange={e => bodyChoice = e.currentTarget.value}>
       <option value="">All bodies</option>{#each bodies as name}<option value={name}>{name}</option>{/each}
     </select>
   </label>
+  {#if !place || query}
+  <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Type</span>
+    <select aria-label="Search place type" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={kind}>
+      <option value="">All types</option>{#each kinds as [value, label]}<option {value}>{label}</option>{/each}
+    </select>
+  </label>
+  {#if origins.size > 1}
+    <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Origin</span>
+      <select aria-label="Search place origin" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={origin}>
+        <option value="">All origins</option><option value="nomenclature">Official names</option><option value="mission/user">Mission / user sites</option>
+      </select>
+    </label>
+  {/if}
+  {/if}
   {#if results.length && (!place || query)}
     <ul aria-label="Named places" class="place-results max-h-40 overflow-y-auto space-y-1">
       {#each results as item (item.ref)}<li><button class="w-full rounded px-2 py-1 text-left hover:bg-surface-3" aria-pressed={place?.ref === item.ref} onclick={() => { selectPlace(item); query = ''; }}><span class="block">{item.name}</span><span class="text-xs text-text-secondary">{item.layer.body} · {placeCategory(item)}</span></button></li>{/each}
     </ul>
-  {:else if !place || query}<p class="text-text-secondary">{bodies.length ? 'No places match this search.' : 'No named places loaded in this scene.'}</p>{/if}
+  {:else if !place || query}<p class="text-text-secondary">{bodies.length ? 'No places match this search and filters.' : 'No named places loaded in this scene.'}</p>{/if}
   {#if place}{#key place.ref}
     <form class="border-t border-border pt-3 grid gap-2.5" onsubmit={e => { e.preventDefault(); navigate('fly'); }}>
       <div class="flex items-center justify-between gap-2">
@@ -106,7 +133,9 @@
 </div>
 
 <style>
-  .places-content { min-height: 0; overflow-y: auto; }
+  /* Leave room inside each scroll clip for the shared outside focus ring. */
+  .places-content { min-height: 0; overflow-y: auto; padding: 2px; margin: -2px; }
+  .place-results { padding: 2px; margin-inline: -2px; }
   .results-only { display: flex; flex: 1; flex-direction: column; }
   .results-only > :global(*) { flex-shrink: 0; }
   .results-only > .place-results { flex: 1; min-height: 0; max-height: none; }

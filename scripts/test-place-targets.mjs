@@ -96,6 +96,31 @@ try {
   await search.fill('Shackleton');assert.ok(await page.getByRole('button').filter({hasText:/^ShackletonMoon/}).count());
   await bodyFilter.selectOption('Mars');await page.evaluate(()=>window.s.frameBody('Moon'));assert.equal(await bodyFilter.inputValue(),'Mars');
   checks.push('body filter follows tracking until explicitly selected');
+  // Places shares type filtering with Cmd/K and can distinguish mixed origins.
+  await search.fill('');
+  const typeFilter=page.getByLabel('Search place type',{exact:true}),originFilter=page.getByLabel('Search place origin',{exact:true});
+  await typeFilter.selectOption('Crater, craters');
+  assert.ok(await page.getByRole('list',{name:'Named places'}).getByRole('button').count());
+  assert.ok((await page.getByRole('list',{name:'Named places'}).getByRole('button').allTextContents()).every(t=>t.includes('Crater')));
+  await search.fill('Valles Marineris');assert.ok(await page.getByText('No places match this search and filters.',{exact:true}).count());
+  await search.fill('');await originFilter.selectOption('mission/user');
+  await page.waitForFunction(()=>document.querySelector('[aria-label="Search place type"]').value==='');
+  assert.equal(await page.getByRole('list',{name:'Named places'}).getByRole('button').count(),1);
+  assert.match(await page.getByRole('list',{name:'Named places'}).textContent(),/Alpha/);
+  await originFilter.selectOption('nomenclature');assert.doesNotMatch(await page.getByRole('list',{name:'Named places'}).textContent(),/Synthetic Alpha/);
+  await originFilter.selectOption('');await typeFilter.selectOption('Synthetic site');
+  await bodyFilter.selectOption('Moon');await page.waitForFunction(()=>document.querySelector('[aria-label="Search place type"]').value==='');
+  await bodyFilter.selectOption('Mars');
+  await search.focus();
+  const focusRoom=await search.evaluate(el=>{const b=el.getBoundingClientRect(),c=el.closest('.places-content').getBoundingClientRect();return{left:b.left-c.left,right:c.right-b.right,shadow:getComputedStyle(el).boxShadow};});
+  assert.ok(focusRoom.left>=1&&focusRoom.right>=1);assert.notEqual(focusRoom.shadow,'none');
+  await page.screenshot({path:`${out}/places-filters-focus.png`});
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
+  await search.focus();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.ok(await page.getByRole('list',{name:'Named places'}).evaluate(el=>el.clientHeight>30));
+  await page.screenshot({path:`${out}/places-filters-focus-compact.png`});
+  await page.setViewportSize({width:1440,height:900});
+  checks.push('body/type/origin filters combine, empty matches explain filters, unavailable types reset, focus ring fits scroll clip');
   // Display names each logical source once; one source toggle affects all chunks.
   await page.evaluate(()=>window.sh.openTool('display'));
   await page.getByText('Advanced / data sources',{exact:true}).click();

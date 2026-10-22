@@ -35,3 +35,11 @@ The unselected Places results fill the remaining panel height, with search and b
 Physical Chrome/Metal checks: real grip resizing from a 300×720 panel to a wider, shorter panel reduced the list from 527 to 167 px. Docked and compact list heights were 643 and 156 px. The list reached the panel's bottom padding in every layout, the dock/panel body did not scroll behind it, and selection details remained reachable in a short panel. Svelte checks (zero warnings), 70 shell/geometry tests and changed-component lint passed.
 
 [Large panel](navigation/results-tall.png) · [Resized panel](navigation/results-short-wide.png) · [Compact](navigation/results-compact.png) · [Measured geometry](navigation/results-resize.json).
+
+## List filters and keyboard focus
+
+Places adds Type filtering using the same indexed feature classes as Cmd/K, displayed with readable category names. Mixed catalogs additionally expose Origin: official nomenclature or mission/user sites. Body, type, origin and name combine before the result cap; origin/type do not exclude otherwise matching items merely because they ranked below the first page. Type options follow body/origin and reset when unavailable. Filters are shown with the results rather than adding rows to selected-place details.
+
+The content/list scroll regions reserve two pixels for the shared outside focus ring, preserving its rounded outline on all sides. Physical Chrome/Metal checks cover desktop and 390×844 focus, combined filters, empty results, origin separation, type reset, and existing navigation lifecycle checks with no browser errors. Seven core index regressions, build, Svelte (zero warnings) and changed-file lint pass.
+
+[Focused desktop input and filters](navigation/places-filters-focus.png) · [Compact](navigation/places-filters-focus-compact.png) · [Acceptance](navigation/filter-results.json).

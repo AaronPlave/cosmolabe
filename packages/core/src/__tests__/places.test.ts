@@ -23,6 +23,17 @@ describe('shared place index', () => {
     expect(index.places[0].layer.definition.provenance).toEqual({ attribution: 'Test mission' });
   });
 
+  it('combines origin with body/type filters before applying the result limit', () => {
+    const official = layer(Array.from({ length: 120 }, (_, i) => ({ name: `Crater ${i}`, featureClass: 'Crater' })));
+    for (const feature of official.features) feature.properties = { ...feature.properties, placeKind: 'nomenclature' };
+    const sites = layer([{ name: 'User crater', featureClass: 'Crater' }], { ...spec, id: 'user' });
+    const index = new PlaceIndex([official, sites]);
+    expect(index.search('', { origin: 'mission/user', body: 'Moon', kind: 'Crater', limit: 1 }).map(p => p.name)).toEqual(['User crater']);
+    expect(index.search('', { origin: 'nomenclature', limit: 100 })).toHaveLength(100);
+    expect(index.search('', { origin: 'mission/user', body: 'Mars' })).toEqual([]);
+    expect(index.search('', { origin: 'mission/user', kind: 'Mountain' })).toEqual([]);
+  });
+
   it('retains logical references across chunk moves and diagnoses duplicates', () => {
     const first = layer([{ name: 'Stable', placeRef: 'moon:usgs/123' }]);
     const moved = layer([{ name: 'Stable', placeRef: 'moon:usgs/123' }], { ...spec, id: 'another-chunk' });
