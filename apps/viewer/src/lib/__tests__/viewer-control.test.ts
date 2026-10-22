@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
+  releaseSurfaceTarget, dismissGeographicContext,
   bindRenderer,
   selectBody,
   unbindRenderer,
@@ -532,6 +533,27 @@ describe('navigation verbs', () => {
     expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);
     expect(parseCoordinatePair(placeCoordinates(place))).toMatchObject({ok:true,latDeg:-30.12345678,lonDeg:-120.12345678});
     control.track('Saturn');expect(vs.selectedPlaceRef).toBeNull();expect(renderer.placeNames.selectedRef).toBeNull();
+  });
+
+  it.each([false,true])('releases an active named target, preserving independent inspection=%s', independent => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Target'},geometry:{type:'Point',coordinates:[0,0]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];vs.places=new PlaceIndex([layer]);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    if(independent) {vs.selectedPlaceRef='independent';renderer.placeNames.selectedRef='independent';}
+    else {selectPlace(null);expect(renderer.placeNames.selectedRef).toBe(place.ref);}
+    const release=vi.fn(()=>true);Object.assign(renderer.cameraController,{releaseSurface:release});
+    const before={position:{...renderer.camera.position},time:vs.et,tracked:vs.trackedBodyName};
+    expect(releaseSurfaceTarget()).toBe(true);expect(release).toHaveBeenCalledOnce();expect(vs.surfaceTarget).toBeNull();
+    expect(renderer.camera.position).toEqual(before.position);expect(vs.et).toBe(before.time);expect(vs.trackedBodyName).toBe(before.tracked);
+    expect(vs.selectedPlaceRef).toBe(independent?'independent':null);expect(renderer.placeNames.selectedRef).toBe(independent?'independent':null);
+    if(independent) {expect(dismissGeographicContext()).toBe(true);expect(vs.selectedPlaceRef).toBeNull();}
+    expect(dismissGeographicContext()).toBe(false);
+  });
+  it('clears target presentation and place inspection when the scene unbinds', () => {
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}}};
+    vs.selectedPlaceRef='old';unbindRenderer();expect(vs.surfaceTarget).toBeNull();expect(vs.selectedPlaceRef).toBeNull();
   });
 
   it('converts copied oblate-place latitude to the coordinate input convention', () => {

@@ -132,6 +132,7 @@ export const vs = $state({
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+  navigateMode: 'places' as 'places' | 'coordinates',
   places: null as PlaceIndex | null,
   selectedPlaceRef: null as string | null,
   placeBodies: [] as string[],
@@ -168,6 +169,7 @@ export const vs = $state({
 
 /** What the view context shows about a surface navigation target. */
 export interface SurfaceTargetInfo {
+  place?: { ref: string; name: string };
   bodyName: string;
   /** "18.4447° N, 77.4508° E", in the convention and precision it was named in. */
   coordinates: string;
@@ -421,6 +423,7 @@ function syncCameraState() {
   syncPlaceSelection(_renderer?.cameraController.focusBody?.body.name);
   if (!_renderer) return;
   const cc = _renderer.cameraController;
+  if (vs.surfaceTarget && (!cc.surfaceNavigating || (cc.focusBody && cc.focusBody.body.name !== vs.surfaceTarget.bodyName))) clearSurfaceTargetPresentation();
   vs.cameraMode = cc.mode;
   vs.trackedBodyName = cc.focusBody?.body.name ?? null;
   vs.lookAtBodyName = cc.lookAtBody?.body.name ?? null;
@@ -485,7 +488,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     if (!place) return;
     vs.selectedPlaceRef = place.ref;
     renderer.placeNames.selectedRef = place.ref;
-    openTool('places');
+    vs.navigateMode = 'places';
+    openTool('navigate');
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
     const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
@@ -594,7 +598,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
       vs.trackedBodyName = focus;
       syncPlaceSelection(focus);
     }
-    if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
+    if (vs.surfaceTarget && !cc.surfaceNavigating) clearSurfaceTargetPresentation();
     if (_terrainAnchor && vs.frameTick % 15 === 0) refineAnchoredTerrain();
     if (vs.frameTick % 30 === 0 && surfaceNavDebugEnabled()) logSurfaceNavTick();
     // A right-drag free look ends a look-at from inside the controller.
@@ -616,6 +620,8 @@ export function unbindRenderer() {
   _unsubscribers = [];
   _renderer = null;
   _universe = null;
+  vs.surfaceTarget = null;
+  _terrainAnchor = null;
   vs.places = null;
   vs.selectedPlaceRef = null;
   vs.placeBodies = [];
@@ -1085,12 +1091,13 @@ export function coordinateBodies(): string[] {
   return out;
 }
 
-function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint): SurfaceTargetInfo {
+function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint, place?: SurfaceTargetInfo['place']): SurfaceTargetInfo {
   const { origin } = target;
   const input = origin.kind === 'coordinates' ? origin.input : null;
   const shape = target.datum?.origin === 'terrain' ? 'terrain datum' : 'reference shape';
   return {
     bodyName: target.bodyName,
+    ...(place ? { place } : {}),
     // Entered coordinates keep the precision typed; a pick, its pointer's.
     coordinates: describeNavigationTarget(target, input
       ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
@@ -1125,7 +1132,7 @@ function decimalsOf(v: number): number {
  */
 export function navigateToSurfaceTarget(
   target: SurfaceNavigationTarget,
-  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
 ): SurfaceNavigationResult {
   if (!_renderer) return { ok: false, error: 'No scene' };
   if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) {
@@ -1158,7 +1165,8 @@ export function navigateToSurfaceTarget(
     });
   }
   _surfaceNavDebugUntil = performance.now() + 8000;
-  vs.surfaceTarget = describeTarget(target, placement.viewpoint);
+  clearSurfaceTargetPresentation();
+  vs.surfaceTarget = describeTarget(target, placement.viewpoint, undefined, opts.place);
   // A coordinate target on a terrain body stays anchored while tiles refine.
   _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
     ? { anchor: new SurfaceTerrainAnchor(target, bm), viewpoint: placement.viewpoint }
@@ -1199,7 +1207,7 @@ function refineAnchoredTerrain() {
   });
   const shift = (v: readonly number[] | undefined) => v && [v[0] + shiftKm[0], v[1] + shiftKm[1], v[2] + shiftKm[2]] as [number, number, number];
   held.viewpoint = { ...held.viewpoint, eye: shift(held.viewpoint.eye), target: shift(held.viewpoint.target) };
-  vs.surfaceTarget = describeTarget(result, held.viewpoint);
+  vs.surfaceTarget = describeTarget(result, held.viewpoint, undefined, vs.surfaceTarget?.place);
 }
 
 /** Until when (performance.now ms) the diagnostics keep logging after a navigation. */
@@ -1221,7 +1229,7 @@ function logSurfaceNavTick() {
 /** Resolve coordinates and fly (or jump) there. */
 export function goToCoordinates(
   input: GeographicCoordinateInput,
-  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
 ): SurfaceNavigationResult {
   const resolved = resolveCoordinateTarget(input);
   return resolved.ok ? navigateToSurfaceTarget(resolved.target, opts) : resolved;
@@ -1277,7 +1285,27 @@ export function navigateToSurfacePoint(
   if (opts.animate) cc.flyToSurface(bm, pose, { path: 'line' });
   else cc.jumpToSurface(bm, pose);
   syncCameraState();
+  clearSurfaceTargetPresentation();
   vs.surfaceTarget = describeTarget(target, undefined, point);
+  return true;
+}
+
+/** Clear the presentation of an active target, preserving independent inspection. */
+function clearSurfaceTargetPresentation(): void {
+  const ref = vs.surfaceTarget?.place?.ref;
+  vs.surfaceTarget = null;
+  if (ref && vs.selectedPlaceRef === ref) vs.selectedPlaceRef = null;
+  if (_renderer && ref && _renderer.placeNames.selectedRef === ref) {
+    _renderer.placeNames.selectedRef = vs.selectedPlaceRef;
+  }
+}
+
+/** Next geographic Escape layer, after flight/tool and panel dismissal. */
+export function dismissGeographicContext(): boolean {
+  if (vs.surfaceTarget) return releaseSurfaceTarget();
+  if (!vs.selectedPlaceRef) return false;
+  vs.selectedPlaceRef = null;
+  if (_renderer) _renderer.placeNames.selectedRef = null;
   return true;
 }
 
@@ -1285,14 +1313,14 @@ export function navigateToSurfacePoint(
  * Clear the surface target (#190): no pivot on the ground, no terrain
  * following, no Target readout. The camera keeps its position and resumes
  * tracking the body's centre; a flight still on its way stops
- * where it is. Selection, time and panels are untouched. False when there
+ * where it is. Its active place highlight clears; independent inspection, time and panels are untouched. False when there
  * was no target.
  */
 export function releaseSurfaceTarget(): boolean {
   const cc = _renderer?.cameraController;
   _terrainAnchor = null;
   const had = vs.surfaceTarget !== null || !!cc?.surfaceNavigating;
-  vs.surfaceTarget = null;
+  clearSurfaceTargetPresentation();
   if (cc?.releaseSurface()) syncCameraState();
   return had;
 }

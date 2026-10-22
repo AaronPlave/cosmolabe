@@ -6,6 +6,7 @@
   import { CameraModeName } from '@cosmolabe/three';
   import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
   import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
+  import GeographicNames from './GeographicNames.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -57,6 +58,7 @@
 
 <InstrumentPanel key="display" title="Display" width={toolDef('display').width} {onClose}>
 
+    <GeographicNames />
     <!-- Toggle rows -->
     {#each [
       { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },

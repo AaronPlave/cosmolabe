@@ -100,6 +100,8 @@ try {
   await page.getByLabel('Place type', { exact: true }).selectOption('Crater, craters');
   await page.getByRole('option').filter({ hasText: 'Jezero' }).first().click();
   // Exercise the actual per-body names toggle and sample warm renderer cost.
+  await page.evaluate(async()=>{const {openTool}=await window.__placeModule('/src/lib/shell.svelte.ts');openTool('display');});
+  await page.getByText('Geographic names',{exact:true}).click();
   await page.getByText('Mars geographic names', { exact: true }).click();
   await page.getByText('Moon geographic names', { exact: true }).click();
   const measure = async name => {
@@ -186,6 +188,8 @@ try {
       await page.evaluate(async({root,url})=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(document.querySelector('canvas'),url);},{root,url});
       await ready();
       await search(query,query);await page.getByRole('button',{name:'Jump to',exact:true}).click();
+      await page.evaluate(async()=>{const {openTool}=await window.__placeModule('/src/lib/shell.svelte.ts');openTool('display');});
+      await page.getByText('Geographic names',{exact:true}).click();
       await page.getByText(`${body} geographic names`,{exact:true}).click();
       await page.evaluate(()=>window.renderer.setLightingMode('natural'));
       await page.waitForTimeout(4000);

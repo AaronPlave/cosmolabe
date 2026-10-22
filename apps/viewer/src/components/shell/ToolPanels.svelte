@@ -16,7 +16,6 @@
   import DebugPanel from '../DebugPanel.svelte';
   import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
-  import PlacesPanel from '../PlacesPanel.svelte';
   import NavigatePanel from '../NavigatePanel.svelte';
   import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
 
@@ -45,8 +44,7 @@
 {#each panels as tool (tool.id)}
   {#if tool.id === 'catalog'}
     <BodyDrawer onClose={() => closeTool('catalog')} />
-  {:else if tool.id === 'places'}
-    <PlacesPanel onClose={() => closeTool('places')} />
+
   {:else if tool.id === 'navigate'}
     <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}

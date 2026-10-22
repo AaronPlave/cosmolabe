@@ -1,5 +1,7 @@
 # Geographic label review follow-up
 
+The subsequent [named-target and unified Navigate review](navigation-review.md) covers HUD, Escape, inspection, display settings and compact navigation changes.
+
 The cartographic policy and persistence replace the original per-frame draw-slot labels. Scientific source points, extents, coordinate transformations and provenance remain the existing imported geographic features.
 
 ## Design and source precedents

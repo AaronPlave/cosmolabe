@@ -36,6 +36,7 @@
   import { vs, coordinateBodies, resolveCoordinateTarget, goToCoordinates } from '../lib/viewer-state.svelte';
   import { shell, toolDef, minimizePanel } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
+  import PlacesPanel from './PlacesPanel.svelte';
 
   interface Props {
     onClose: () => void;
@@ -161,7 +162,10 @@
 </script>
 
 <InstrumentPanel key="navigate" title="Navigate" width={toolDef('navigate').width} {onClose}>
-  {#if bodies.length === 0}
+  <div class="mb-3"><SegmentedControl label="Navigate mode" value={vs.navigateMode} options={['places', 'coordinates']} onValueChange={v => vs.navigateMode = v as 'places' | 'coordinates'} /></div>
+  {#if vs.navigateMode === 'places'}
+    <PlacesPanel />
+  {:else if bodies.length === 0}
     <p class="text-text-secondary">No body in this scene has a declared shape and rotation to place coordinates on.</p>
   {:else}
     <form class="grid gap-2.5" onsubmit={onSubmit} oninput={() => (failure = null)}>

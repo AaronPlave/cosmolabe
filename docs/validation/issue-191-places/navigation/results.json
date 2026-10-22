@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "real name double-click, shared Fly, semantic HUD through landing",
+    "HUD X releases pivot/highlight without moving eye or changing tracking/time",
+    "in-panel names search and selection without navigation",
+    "Escape sequence stops flight, closes inspector, releases named target, then resets camera",
+    "selected-only Escape dismisses inspection",
+    "inspector clear preserves active target; generic replacement clears named association",
+    "different named target and actual picked surface replacement",
+    "other-body navigation clears target and selection",
+    "popover Escape preserves active target",
+    "Navigate floats, minimizes, reopens and docks",
+    "one Navigate entry, compact places mode without page overflow",
+    "Cmd/Ctrl K selection and correct southern hemisphere display",
+    "scene reload clears named target",
+    "named target survives real terrain refinement (8 revisions)"
+  ],
+  "errors": []
+}

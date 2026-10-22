@@ -13,7 +13,8 @@ concurrency:
 jobs:
   terrain-fixtures:
     name: Terrain builder fixtures
-    runs-on: ubuntu-latest
+    # Pin raster dependencies to the same supported LTS as browser checks.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -209,6 +210,7 @@ jobs:
           node scripts/test-geographic-global.mjs
           CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
           CL_OUTPUT=/tmp/planetary-places-motion node scripts/test-place-label-motion.mjs
+          CL_OUTPUT=/tmp/planetary-place-targets node scripts/test-place-targets.mjs
           CL_STAR_SMOKE=1 npm run capture:stars
 
       - name: Save global geographic smoke evidence
@@ -220,6 +222,7 @@ jobs:
             /tmp/geographic-global-smoke/
             /tmp/planetary-places/
             /tmp/planetary-places-motion/
+            /tmp/planetary-place-targets/
             /tmp/geographic-global-vite.log
           if-no-files-found: ignore
 

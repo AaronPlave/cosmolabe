@@ -6,8 +6,8 @@ import { openTool } from './shell.svelte';
 export function selectPlace(place: Place | null): void {
   vs.selectedPlaceRef = place?.ref ?? null;
   const renderer = getRenderer();
-  if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef;
-  if (place) openTool('places');
+  if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
+  if (place) { vs.navigateMode = 'places'; openTool('navigate'); }
 }
 
 export function showPlaceBody(body: string, visible: boolean): void {
@@ -28,6 +28,7 @@ export function navigateToPlace(place: Place, action: 'fly' | 'jump'): boolean {
   const { latDeg, lonDeg } = place.feature.geometry.coordinates;
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg,
     latitude: 'planetographic', longitudeDirection: 'east' }, {
+    place: { ref: place.ref, name: place.name },
     preset: 'overhead', animate: action === 'fly', seconds: 1.5,
     rangeKm: Math.max(5, (place.diameterKm ?? 20) * 1.5),
   });

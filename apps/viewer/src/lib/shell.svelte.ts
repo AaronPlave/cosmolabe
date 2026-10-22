@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug', 'places'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -88,7 +88,6 @@ export interface ToolDef {
  * list between `App.svelte` and `BottomBar.svelte`.
  */
 export const TOOLS: readonly ToolDef[] = [
-  { id: 'places', label: 'Places', icon: MapPin, presentation: 'panel', dock: 'right', width: 300 },
   { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
   // A place on a body by latitude and longitude (#190). A panel, not a
   // dialog: it stays beside the scene for trying the next place or view.
