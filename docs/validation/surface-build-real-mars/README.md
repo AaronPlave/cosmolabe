@@ -15,7 +15,7 @@ and restoration. Imagery reached L16 while geometry remained at L11. Hiding the 
 controls preserved physical terrain mesh identities. All products loaded through the #137 metadata-aware HTTP endpoint without request interception. There were no page or
 product HTTP errors. This is desktop hardware evidence, not a phone/device test.
 The bounded local viewer configuration limits Tailwind discovery to viewer source
-and excludes generated datasets from its watcher; renderer/app source is unchanged.
+and excludes generated datasets from its watcher.
 
 | Native imagery, unlit | Native layer hidden; coarse context visible | Real Sun lighting restored |
 | --- | --- | --- |
@@ -54,3 +54,15 @@ incorrectly prevents readiness and leaves the blue reference globe covering
 loaded imagery. Optional native imagery retains its regional runtime bounds.
 The browser driver uses the ordinary URL with antialiasing, bloom and stars on,
 without `test=1` or request interception in hosted mode.
+
+The hover footprint uses the imagery coordinate convention: planetocentric for
+cube imagery, geodetic for the older stacks. Its vertices are projected onto
+currently drawn terrain triangles using the same hidden-source contract as #272
+picking, without CPU queries or data requests. Using geodetic latitude and zero
+ellipsoid height had displaced the Mars outline from its photo. The physical-GPU
+regression now checks the coordinate convention, an on-screen center ahead of
+the camera, and visible yellow outline pixels (2,889 in this capture), alongside
+the existing native/context controls. Unit regressions cover oblate coordinates,
+below-reference terrain, hidden cached tiles and LOD changes.
+
+![Hover outline aligned with the observed HiRISE crop](hover-footprint.png)

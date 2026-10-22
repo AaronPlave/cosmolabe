@@ -15,6 +15,7 @@ import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, t
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import type { ImageryLayerInfo } from './ImageryLayers.js';
+import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 
 /**
  * Which surface a Globe with a streamed surface is drawing:
@@ -1573,7 +1574,7 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /**
-   * Outline a geodetic lat/lon box `[west, south, east, north]` (degrees) on
+   * Outline an imagery lat/lon box `[west, south, east, north]` (degrees) on
    * the surface, with a dot at its centre that stays visible from afar; null
    * clears it. Drawn over the surface so terrain never hides it, and faint
    * where it lies past the horizon, so a region on the far side still reads
@@ -1594,12 +1595,21 @@ export class BodyMesh extends THREE.Object3D {
     if (!bounds || !datum) return;
     const [w, s, e0, n] = bounds;
     const e = e0 < w ? e0 + 360 : e0;
-    // In the sphere's geometry space, unscaled, so the mesh's own transform
-    // (which carries the oblateness) puts it back on the ellipsoid.
-    const [rx, ry, rz] = this.ellipsoidRatios;
+    // Cube imagery is registered to body-centred directions; other imagery
+    // uses geodetic latitude. Never reinterpret a cube footprint as geodetic.
+    const planetocentric = this.terrainCubeStats !== null;
+    const shape = datum.referenceShape;
+    const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
+    const reachKm = Math.max(...radii) * 2;
     const at = (latDeg: number, lonDeg: number) => {
-      const p = geodeticToBodyFixed({ latDeg, lonDeg }, datum);
-      return new THREE.Vector3(p.xKm / rx, p.zKm / ry, -p.yKm / rz);
+      if (!planetocentric) {
+        const p = geodeticToBodyFixed({ latDeg, lonDeg }, datum);
+        return new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+      }
+      const lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
+      const d = new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
+      const radius = 1 / Math.hypot(d.x / radii[0], d.y / radii[2], d.z / radii[1]);
+      return d.multiplyScalar(radius);
     };
     const steps = 32;
     const pts: THREE.Vector3[] = [];
@@ -1622,12 +1632,54 @@ export class BodyMesh extends THREE.Object3D {
     );
     const group = new THREE.Group();
     const centre = new THREE.Vector3(), v = new THREE.Vector3(), toCamera = new THREE.Vector3();
+    const reference = [pts, [at((s + n) / 2, (w + e) / 2)]];
+    const frame = new THREE.Matrix4(), inverse = new THREE.Matrix4();
+    const caster = new THREE.Raycaster(), meshes: THREE.Object3D[] = [];
+    caster.firstHitOnly = true;
+    const origin = new THREE.Vector3(), direction = new THREE.Vector3();
+    let updatedAt = -Infinity;
+    const refresh = () => {
+      if (performance.now() - updatedAt < 250) return;
+      updatedAt = performance.now();
+      meshes.length = 0;
+      this.terrainTileGroup?.traverse(o => {
+        if (!isMesh(o) || o.name.startsWith('cube-imagery-block')) return;
+        // #272 hides the original when clipped imagery blocks draw its same
+        // surface. Reuse the shared picking contract for that original only.
+        for (let parent: THREE.Object3D | null = o; parent; parent = parent.parent) {
+          if (!parent.visible && !isDrawnCubeImagerySource(parent)) return;
+        }
+        meshes.push(o);
+      });
+      inverse.copy(frame).invert();
+      [outline, dot].forEach((object, index) => {
+        const position = object.geometry.getAttribute('position') as THREE.BufferAttribute;
+        reference[index].forEach((point, i) => {
+          // Project onto the currently drawn triangles, rather than CPU terrain
+          // (which can differ at mixed LOD), without requesting any new data.
+          direction.copy(point).normalize();
+          if (!planetocentric) direction.set(point.x / radii[0] ** 2, point.y / radii[2] ** 2, point.z / radii[1] ** 2).normalize();
+          origin.copy(point).addScaledVector(direction, reachKm).applyMatrix4(frame);
+          direction.negate().transformDirection(frame);
+          caster.set(origin, direction);
+          const hit = caster.intersectObjects(meshes, false)[0];
+          v.copy(hit ? hit.point : point);
+          if (hit) v.applyMatrix4(inverse);
+          position.setXYZ(i, v.x, v.y, v.z);
+        });
+        position.needsUpdate = true;
+      });
+    };
     for (const o of [outline, dot]) {
       o.renderOrder = 999;
       o.frustumCulled = false;
       o.onBeforeRender = (_r, _s, camera) => {
-        // Ride on the sphere's transform even while streamed tiles hide it.
-        o.matrixWorld.copy(this.mesh.matrixWorld);
+        // Use the unflattened terrain frame: the positions already include
+        // the physical ellipsoid shape and the displayed terrain relief.
+        if (this.terrainTileGroup) frame.copy(this.terrainTileGroup.matrixWorld);
+        else frame.copy(this.mesh.matrixWorld).scale(new THREE.Vector3(...this.ellipsoidRatios.map(r => 1 / r)));
+        o.matrixWorld.copy(frame);
+        refresh();
         centre.setFromMatrixPosition(o.matrixWorld);
         const position = o.geometry.getAttribute('position');
         const rgba = o.geometry.getAttribute('color') as THREE.BufferAttribute;

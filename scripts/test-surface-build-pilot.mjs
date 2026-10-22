@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
 import assert from 'node:assert/strict';
+import sharp from 'sharp';
 import { geodeticToBodyFixed } from '../packages/three/dist/TerrainSampler.js';
 
 const [reportFile,outArg] = process.argv.slice(2);
@@ -60,8 +61,32 @@ try {
   const settle=async(height,mode)=>{let stable=0,last='';const start=Date.now();for(let i=0;i<180;i++){await pose(height,mode);await page.waitForTimeout(250);const s=await snapshot();const key=JSON.stringify([s.levels,s.imagery?.displayedLevels]);const busy=s.metrics.network.queued+s.metrics.network.downloading+s.metrics.network.parsing+(s.imagery?.inFlight??0)+(s.imagery?.queued??0);stable=busy===0&&key===last&&s.metrics.tiles.visible>0&&!s.fallbackSphereVisible&&s.imagery?.baseUncoveredBlocks===0?stable+1:0;last=key;if(stable>=6)return {...s,settleMs:Date.now()-start};}throw new Error('pilot scene did not settle');};
   const nativeHeight=synthetic?50:.05;
   const results=[];
+  let hoverFootprint=null;
   for(const [name,height] of [['regional',synthetic?100:1],['native-detail',nativeHeight],['zoom-out',synthetic?1000:5],['restored-native',nativeHeight]]){
     const state=await settle(height,'imagery-unlit');await page.screenshot({path:join(out,name+'.png')});results.push({name,heightKm:height,...state});
+    if(name==='regional'&&state.layers.at(-1).bounds){
+      hoverFootprint=await page.evaluate(async()=>{
+        const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
+        bm.showImageryFootprint(bounds);
+        const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
+        let projected=null;
+        dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};
+        await new Promise(resolve=>setTimeout(resolve,350));
+        const V=r.camera.position.constructor;
+        const point=new V().fromBufferAttribute(dot.geometry.getAttribute('position'),0);
+        return {bounds,lat:Math.atan2(point.y,Math.hypot(point.x,point.z))*180/Math.PI,lon:Math.atan2(-point.z,point.x)*180/Math.PI,projected};
+      });
+      assert(Math.abs(hoverFootprint.lat-(hoverFootprint.bounds[1]+hoverFootprint.bounds[3])/2)<1e-4,'hover footprint must preserve cube planetocentric latitude');
+      assert(Math.abs(hoverFootprint.lon-(hoverFootprint.bounds[0]+hoverFootprint.bounds[2])/2)<1e-4,'hover footprint longitude must match source bounds');
+      assert(hoverFootprint.projected&&Math.abs(hoverFootprint.projected[0])<1&&Math.abs(hoverFootprint.projected[1])<1&&hoverFootprint.projected[2]<1,'hover marker must be on the visible image, ahead of the camera');
+      const capture=await page.screenshot({path:join(out,'hover-footprint.png')});
+      const {data,info}=await sharp(capture).removeAlpha().raw().toBuffer({resolveWithObject:true});
+      let yellowPixels=0;
+      for(let i=0;i<data.length;i+=info.channels)if(data[i]>120&&data[i]>data[i+1]*1.1&&data[i+1]>data[i+2]*1.3)yellowPixels++;
+      assert(yellowPixels>100,'hover outline must actually render over the grayscale image');
+      hoverFootprint.yellowPixels=yellowPixels;
+      await page.evaluate(()=>window.pilot.getRenderer().getBodyMesh('Mars').showImageryFootprint(null));
+    }
   }
   const near=results.find(r=>r.name==='native-detail');assert(near.imagery.maxDisplayedLevel>Math.max(...Object.keys(near.levels).map(Number)),'native image detail must refine beyond terrain');
   assert.equal(near.fallbackSphereVisible,false,'fallback globe must not cover loaded imagery');
@@ -103,7 +128,7 @@ try {
     await page.screenshot({path:join(out,'no-dtm-global-fallback.png')});
   }
   assert.deepEqual(errors,[]);
-  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
+  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,hoverFootprint,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
     limits:['Desktop browser only; no real mobile hardware acceptance.','Shared-provenance source registration is not independent absolute geolocation certification.','No production catalog or mission placement was changed.']};
   await writeFile(join(out,'browser.json'),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify({buildId:report.buildId,environment,nearImageLevel:near.imagery.maxDisplayedLevel,nearTerrainLevels:near.levels,errors}));
 } finally {await browser.close();}
