@@ -117,13 +117,14 @@ try {
   await details.waitFor();
   assert.match(await details.innerText(), /science/i);
 
-  // Hiding the layer of the selection clears it and lands on the layer.
+  // Back lands on the layer; hiding it takes its features out of the scene.
   await page.getByRole('button', { name: 'Jezero synthetic science', exact: true }).click();
+  assert.equal((await scene()).selected, null);
+  const drawnBefore = (await scene()).features;
   await page.getByRole('button', { name: 'Hide Jezero synthetic science' }).click();
-  await page.waitForFunction(() => window.renderer.geographicVectors.selectedFeature === null);
-  results.hideNotice = await page.locator('.notice').innerText();
-  assert.match(results.hideNotice, /hidden/);
+  await page.waitForFunction((n) => window.renderer.geographicVectors.featureCount < n, drawnBefore);
   await page.getByRole('button', { name: 'Show Jezero synthetic science' }).click();
+  await page.waitForFunction((n) => window.renderer.geographicVectors.featureCount === n, drawnBefore);
 
   // Filters wait behind "Filter"; hiding non-matching features in 3D.
   await page.getByRole('searchbox', { name: 'Search features' }).fill('science');
@@ -158,7 +159,7 @@ try {
   if (!(await page.locator('.feature-browser').count())) await page.getByRole('button', { name: 'Surface layers' }).click();
   // The only layer opens straight to its features.
   await page.locator('.feature-browser').waitFor();
-  const denseCount = await page.locator('.feature-browser .count').innerText();
+  const denseCount = await page.locator('.layer-view .meta').innerText();
   const renderedRows = await page.getByRole('option').count();
   const listbox = page.getByRole('listbox', { name: 'Features' });
   await listbox.evaluate(el => { el.scrollTop = el.scrollHeight; el.dispatchEvent(new Event('scroll')); });

@@ -63,55 +63,52 @@ explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
 ## Surface layers panel
 
 The viewer's **Surface layers** tool (rail, or "Surface layers" in the command
-palette) is the one place to manage a scene's surface data, grouped by body:
-each body's streamed imagery stack (the same controls as the info panel's
-Imagery section, not a second manager) and its geographic vector layers.
-Physical terrain appearance stays in the info panel.
+palette) is the one place for a scene's surface data. It has three views, and
+the selection decides which one shows (docs/design/surface-layers-ux.md):
 
-Each vector layer shows visibility, colour, feature count, validation issues
-(skipped features, import notes), and where it came from: **Catalog** or
-**Imported file**, both read-only. Session changes are presentation only; the
-imported data is never modified. Expanding a layer shows its ID, source URL or
-file, catalog, coordinate convention, style defaults, provenance and import
-diagnostics. *Isolate* shows only that vector layer on its body (imagery is
-untouched); *Show all vectors* restores the rest. Failed sources are listed
-with their errors.
-
-Choosing a layer lists its features: search matches names and every scalar
-property value; a property filter offers categories (for string fields with at
-most 24 values), numeric ranges, booleans or text; **In view** keeps features
-with a vertex or anchor on screen; **Filter scene too** draws only the
-matching features. The list is virtualized (only visible rows are rendered)
-and searches an in-memory index built once per layer, bounded by the import
-limits. There is no GIS backend.
+- **Layers**: each body's vector layers and its imagery, with a search across
+  every layer's features. A layer row has an eye (show or hide), its name
+  (opens the layer) and a **…** menu: *Show only this layer* and *About this
+  layer*. *Imagery* opens the body's imagery stack (the same controls as the
+  info panel's Imagery section, not a second manager). Layers that failed to
+  load are listed, folded, under the bodies. Physical terrain appearance stays
+  in the info panel.
+- **Layer**: the layer's features. Search matches names and every scalar
+  property value. *Filter* holds the property filter (categories for string
+  fields with at most 24 values, numeric ranges, yes/no, or text), *Only
+  features in view* and *Hide non-matching features in 3D*. *About this layer*
+  holds its source, catalog, coordinate convention, provenance and import
+  notes. The list is virtualized and searches an in-memory index built once per
+  layer, bounded by the import limits; there is no GIS backend.
+- **Feature**: the selected feature's name, kind, position, **Fly to** and its
+  properties, with previous and next to step through the layer's list. The
+  **…** menu frames it without a flight and copies its coordinates (a Point's
+  exact source numbers, with their convention), its stable reference
+  `layerId / featureId`, or its unmodified source geometry. *Location and
+  source* shows the position and extent in the **layer's declared
+  convention**, the convention, the reference and the source. A property is a
+  link only when it is an `http(s)` URL, and opens without access to the
+  viewer.
 
 Selection is shared with the scene. Clicking a feature in 3D selects and
-highlights it without opening anything over the scene; its callout opens its
-details here, and an open panel lists its layer and scrolls to it. Clicking a
-row selects it in the scene. Selecting never moves the camera. Double-click a row, press Enter, or
-use **Fly to** to fly over the feature's extent, or **Frame** to cut there,
-through the shared navigation (docs/navigation.md). Bodies that are not globes
-disable both, with the reason. Arrow keys move the selection in the list;
-Escape clears it. One callout names the selected feature in the scene (click
-it for details); it hides past the horizon.
+highlights it without opening anything over the scene. One callout names it;
+the callout's ✈ flies there and its name opens the Feature view. Clicking a
+search result or a row opens the feature; arrow keys skim a layer's list,
+highlighting each feature in the scene, and Enter opens one; double-click flies.
+Selecting never moves the camera. Fly to flies over the feature's extent through
+the shared navigation (docs/navigation.md); bodies that are not globes disable
+it, with the reason. Back, or Escape, clears the selection and returns to the
+feature's layer, at the feature; Back again returns to the list.
 
-The rules that keep list, scene and details consistent:
+The rules that keep the views and the scene consistent:
 
-- Hiding a layer, or a scene filter that excludes the selected feature, clears
-  the selection and says why. Selecting a feature of a hidden layer from the
-  list shows that layer first.
-- A list-only filter does not change the scene. A scene selection outside it
-  stays selected and the list says it is outside the current filter.
+- Hiding a layer, or hiding non-matching features in 3D, clears a selection it
+  hides and says why. Selecting a feature of a hidden layer shows that layer
+  first.
+- The search and filters change only the list unless *Hide non-matching
+  features in 3D* is on.
 - Visibility, filters and selection reset when a scene loads. Closing the
-  panel removes any scene filter.
-
-The details show the feature's name, geometry, position (a Point's own
-coordinates, or its extent's centre and extent) in the **layer's declared
-convention**, the convention itself, the stable reference `layerId /
-featureId`, its source and its properties under readable labels. A property is
-a link only when it is an `http(s)` URL, and opens without access to the
-viewer. *Coordinates* copies a Point's exact source numbers with their
-convention; the properties header copies the unmodified source geometry.
+  panel turns off hiding in 3D.
 
 ## Coordinate interpretation
 

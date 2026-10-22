@@ -19,7 +19,7 @@
   import { Button } from '$lib/components/ui/button';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { geo, goToFeature, navigationUnavailable, backToLayer, stepFeature, featureSteps } from '../lib/geographic-layers.svelte';
-  import { layerOrigin } from '../lib/geographic-layer-labels';
+  import { geometryLabel, layerOrigin } from '../lib/geographic-layer-labels';
 
   interface Props { layer: GeographicLayer; feature: GeographicFeature }
   let props: Props = $props();
@@ -100,7 +100,7 @@
     </nav>
     <div>
       <h3 class="name">{geographicFeatureName(feature)}</h3>
-      <div class="ui-meta">{feature.geometry.type} · {layer.body}{#if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}</div>
+      <div class="ui-meta">{geometryLabel(feature.geometry.type)} · {layer.body}{#if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}</div>
       <div class="ui-meta mono position">{location.anchor}</div>
     </div>
 

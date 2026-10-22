@@ -23,3 +23,11 @@ export function layerIssue(layer: GeographicLayer): { tone: 'warn' | 'error'; ti
   if (errors) return { tone: 'error', title: `${errors} import errors; see About this layer` };
   return layer.diagnostics.length ? { tone: 'warn', title: 'Import notes; see About this layer' } : null;
 }
+
+const GEOMETRY_LABELS: Record<string, string> = {
+  Point: 'Point', MultiPoint: 'Points', LineString: 'Line', MultiLineString: 'Lines', Polygon: 'Area', MultiPolygon: 'Areas',
+};
+/** A geometry type in plain words: "Line" rather than "LineString". */
+export function geometryLabel(type: string): string {
+  return GEOMETRY_LABELS[type] ?? type;
+}

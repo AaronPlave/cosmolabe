@@ -13,6 +13,7 @@
   import { geographicFeatureFields, type GeographicLayer, type GeographicFieldFilter, type GeographicSearchEntry } from '@cosmolabe/core';
   import { sameGeographicFeature } from '@cosmolabe/three';
   import * as Select from '$lib/components/ui/select';
+  import { geometryLabel } from '../lib/geographic-layer-labels';
   import { Input } from '$lib/components/ui/input';
   import {
     geo, listedFeatures, selectFeature, hoverFeature, goToFeature, featureRef, setInViewOnly, syncSceneFilter,
@@ -174,7 +175,9 @@
       <input type="checkbox" checked={geo.sceneFilter} onchange={(e) => (geo.sceneFilter = (e.target as HTMLInputElement).checked)} /> Hide non-matching features in 3D
     </label>
   </details>
-  <div class="ui-meta count" aria-live="polite">{rows.length === layer.features.length ? `${rows.length.toLocaleString()} features` : `${rows.length.toLocaleString()} of ${layer.features.length.toLocaleString()} features`}</div>
+  {#if rows.length !== layer.features.length}
+    <div class="ui-meta count" aria-live="polite">{rows.length.toLocaleString()} of {layer.features.length.toLocaleString()} features</div>
+  {/if}
 
   <div
     class="scroller"
@@ -213,7 +216,7 @@
           >
             <Icon size={12} />
             <span class="name">{entry.name}</span>
-            <span class="ui-meta kind">{entry.feature.geometry.type}</span>
+            <span class="ui-meta kind">{geometryLabel(entry.feature.geometry.type)}</span>
           </div>
         {/each}
       </div>
