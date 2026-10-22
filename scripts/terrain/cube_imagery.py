@@ -531,7 +531,12 @@ def cmd_xyz(args):
                     'registrationErrorKm': None, 'latitude': 'planetocentric',
                     'resampling': f'XYZ EPSG:4326 bilinear premultiplied alpha; {args.supersample}x box samples per output pixel',
                     'footprint': f'finite built pyramid; source bounds {source.get("bounds", "global")}; source levels {source.get("minZoom", 0)}-{source.get("levels", 8)-1}; native detail only in declared built regions'}
-    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': {k: v for k, v in source.items() if k != 'cache'},
+    identity_config = {k: v for k, v in source.items() if k != 'cache'}
+    if 'lockedTiles' in identity_config:
+        # Local response bindings are not source identities. Content pins survive
+        # relocation to a different worker/cache directory.
+        identity_config['lockedTiles'] = {key: {'sha256': entry['sha256']} for key, entry in source['lockedTiles'].items()}
+    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': identity_config,
          'adapterSha256': hashlib.sha256(open(os.path.join(os.path.dirname(__file__), 'cube_xyz.py'), 'rb').read()).hexdigest()})
 
 

@@ -1,5 +1,10 @@
 # Offline planetary surface data plans
 
+For the finite execution DAG and synthetic offline build pilot, see
+[surface-data-builds.md](surface-data-builds.md). Real Mars execution remains
+blocked on explicitly locked datum transforms; planning alone does not authorize
+or validate a production build.
+
 From a checkout with `npm ci` installed, run:
 
 ```bash
