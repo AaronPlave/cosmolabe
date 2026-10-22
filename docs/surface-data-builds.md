@@ -298,6 +298,13 @@ CL_VIEWER_URL=http://127.0.0.1:5187/ node scripts/test-surface-build-pilot.mjs \
   work/surface-build/real-pilot-report.json work/surface-build/real-pilot-browser
 ```
 
+Open `http://127.0.0.1:5187/?catalog=test-catalogs/experiments/mars-surface-build-pilot`
+for ordinary browser inspection. The server reads `work/surface-build/real-pilot-report.json`
+(or a report path passed as its first argument), serves the completed products,
+and opens the native patch 50 m above the shared source control. Both HiRISE
+layers are available in the imagery controls. File watching is disabled for this
+static artifact inspection server; restart it after source edits.
+
 The browser script routes completed immutable products directly; it never edits
 a production catalog. It records GPU identity, near/far/refinement, CPU picks,
 layer opacity/visibility and restoration. The local publisher can publish these
