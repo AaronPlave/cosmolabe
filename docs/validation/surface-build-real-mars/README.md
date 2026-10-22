@@ -3,7 +3,9 @@
 The offline executor reuses the unchanged #50 MOLA/HRSC + HiRISE residual and
 builds a 78-tile ellipsoidal terrain pyramid through L11. Independent context (L13) and native-detail (L16) imagery pyramids use the same
 observed 512 m native 25 cm HiRISE ortho crop, with its provenance preserved.
-The context base is mandatory and the native-detail layer is optional.
+The context base is mandatory and the native-detail layer is optional. Both use
+area-averaged premultiplied DN/coverage overviews and 4×4 footprint sampling;
+internal masks stay transparent and standalone manifests carry source provenance.
 The requested pilot is approximately 24 m across. It is an explicit data-build
 ROI, not a mission trajectory or a claim of DTM availability elsewhere.
 
@@ -26,8 +28,8 @@ and measurements are in [the recorded evidence](../../benchmarks/surface-build-r
 and [the real lock](../../examples/surface-plans/jezero-build.lock.json).
 
 The acceptance checks prove source-grid alignment, native-cell/kernel validity,
-continuous requested output coverage, preservation of native DN values (including
-gutters), physical CPU access and independent image refinement. Shared source
+continuous requested output coverage, agreement with an independently filtered
+native DN/validity reference (including gutters), physical CPU access and independent image refinement. Shared source
 provenance and source labels do not certify absolute ground geolocation. The
 source mosaic's illumination is unknown; no angles or photometric corrections
 are invented. Known coarse-boundary rendered/CPU separation remains recorded.

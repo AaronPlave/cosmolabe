@@ -37,6 +37,44 @@ def write(path, data):
     Path(path).write_text(json.dumps(data, sort_keys=True, indent=2) + '\n')
 
 
+def reject_external_masks(path):
+    ds = gdal.Open(str(path))
+    ds.GetRasterBand(1).GetMaskBand()
+    assert not Path(str(path) + '.msk').exists() and not any(
+        name.lower().endswith('.msk') for name in ds.GetFileList()
+    ), 'external mask dependencies are unsupported; use a pinned TIFF with an internal mask'
+
+
+def prepare_imagery(source, target):
+    """Deterministic area-average pyramid of premultiplied DN and coverage.
+
+    Averaging both channels preserves invalid-area transparency at every level;
+    averaging already-normalized DN would bleed invalid values into valid data.
+    Original bytes are immutable. Derived overviews use the pinned GDAL version.
+    """
+    ds = gdal.Open(str(source)); band = ds.GetRasterBand(1)
+    assert band.DataType == gdal.GDT_Byte and ds.RasterCount == 1, 'raster imagery requires one byte band'
+    out = gdal.GetDriverByName('GTiff').Create(str(target), ds.RasterXSize, ds.RasterYSize, 2, gdal.GDT_Float32,
+                                             options=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3'])
+    out.SetGeoTransform(ds.GetGeoTransform()); out.SetProjection(ds.GetProjection())
+    out.SetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY', '1')
+    for row in range(0, ds.RasterYSize, 128):
+        height = min(128, ds.RasterYSize-row)
+        a = band.ReadAsArray(0,row,ds.RasterXSize,height)
+        valid = np.isfinite(a) & (band.GetMaskBand().ReadAsArray(0,row,ds.RasterXSize,height)>0)
+        if band.GetNoDataValue() is not None: valid &= a != band.GetNoDataValue()
+        out.GetRasterBand(1).WriteArray(np.where(valid,a,0).astype(np.float32),0,row)
+        out.GetRasterBand(2).WriteArray(valid.astype(np.float32),0,row)
+    factors=[]; factor=2
+    while factor <= max(ds.RasterXSize,ds.RasterYSize):
+        factors.append(factor); factor*=2
+    if factors: out.BuildOverviews('AVERAGE', factors)
+    out=None
+    return {'method':'GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature',
+            'overviewFactors':factors,'sha256':sha(target),'bytes':Path(target).stat().st_size,
+            'gdal':gdal.VersionInfo('RELEASE_NAME'),'supersample':4}
+
+
 def valid_subset(ds, source, gt):
     """Prove every native cell touched by the declared subset and kernel halo.
 
@@ -162,6 +200,7 @@ def build(args):
     paths = {}
     for source in lock['sources']:
         suffix = '.tif' if source['channel'] == 'elevation' or source['projection'] == 'Mars-EQC-0-0' else '.json'
+        if suffix == '.tif': reject_external_masks(job['paths'][source['id']])
         frozen = inputs / (source['asset']['checksum']['value'] + suffix)
         shutil.copyfile(job['paths'][source['id']], frozen)
         assert sha(frozen) == source['asset']['checksum']['value'], 'source changed during staging'
@@ -254,11 +293,19 @@ def build(args):
             source = next(s for s in lock['sources'] if s['id'] == product['sourceIds'][0])
             is_raster = source['projection'] == 'Mars-EQC-0-0'
             config = paths[source['id']] if is_raster else inputs / f'{source["asset"]["checksum"]["value"]}.config.json'
+            if is_raster:
+                config = inputs / f'{source["asset"]["checksum"]["value"]}.filtered.tif'
+                filtering = prepare_imagery(paths[source['id']], config)
+                audit['imagery'][source['id']]['filtering'] = filtering
             command(sys.executable, ROOT / 'scripts/terrain/cube_imagery.py', 'raster' if is_raster else 'xyz', '--source', config,
                     '--out', dest, '--body', 'Mars', '--frame', 'IAU_MARS', '--radius-km', radius / 1000,
                     '--global-level', tile['globalLevel'], '--tile-size', lock['output']['tileSize'],
-                    '--gutter', lock['output']['gutter'], '--supersample', 1, '--workers', args.workers, *regions)
+                    '--gutter', lock['output']['gutter'], '--supersample', 4 if is_raster else 1, '--workers', args.workers, *regions)
             if is_raster:
+                manifest_path = dest / 'imagery.json'
+                manifest = json.loads(manifest_path.read_text())
+                manifest['filtering'] = filtering
+                write(manifest_path, manifest)
                 detail_ds = gdal.Open(paths[terrain['detail']])
                 image_ds = gdal.Open(paths[source['id']])
                 assert detail_ds.GetSpatialRef().IsSame(image_ds.GetSpatialRef()), 'DTM and ortho map projections differ'
@@ -303,6 +350,16 @@ def build(args):
             meta = json.loads(meta_path.read_text())
             meta['generator'].pop('seconds', None)
             meta['generator']['command'] = 'locked surface build (see lockIdentity in build receipt)'
+            if is_raster: meta['filtering'] = filtering
+        meta['provenance'] = {
+            'version':1, 'productionReady':False, 'lockIdentity':lock['identity'],
+            'sources':[{key:s[key] for key in ('id','productId','asset','license','nativeGsdM','accuracyM','coordinates','projection','nodata')}
+                       | {'validData':s.get('metadata',{}).get('validData')} for s in lock['sources'] if s['id'] in product['sourceIds']],
+            'caveats':p['caveats'],
+        }
+        if product['kind']=='cube-imagery':
+            meta['source']['id']=source['productId']
+            meta['source']['attribution']=source['license'].get('attribution',source['license']['name'])
         write(meta_path, meta)
     audit['workerPeakRssBytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['largestChildPeakRssBytes'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)

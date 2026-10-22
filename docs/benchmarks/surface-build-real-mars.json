@@ -30,8 +30,8 @@
       ],
       "skirt_cells": 0.1,
       "ellipsoid": [
-        3396190.0,
-        3376200.0
+        3396190,
+        3376200
       ],
       "simplify": 0,
       "sourceConvention": "areoid-radial",
@@ -83,7 +83,7 @@
   "sourceChecks": {
     "revision": "cube-fused-f4e1dae18a09-g0-m11-b85084938",
     "registration": {
-      "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+      "model": "detail − base = offset + slopeEast·east + slopeNorth·north (least squares)",
       "centroid": {
         "lonDeg": 77.4034569842557,
         "latDeg": 18.48804879297973
@@ -169,7 +169,7 @@
     "failures": []
   },
   "boundaryPicks": {
-    "note": "rays (0\u201360\u00b0 off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
+    "note": "rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
     "rays": 96,
     "raysOnPair": 96,
     "renderedMinusCpuM": {
@@ -210,7 +210,7 @@
     "Exact physical peak RAM and exact peak disk remain unknown; one-second worker RSS and logical scratch samples are recorded, with shared-page double counting explicit."
   ],
   "executor": {
-    "buildId": "ce1aa749c2a2d0e662f862079846c63dfb96335b59f2960911e3824733ce1cde",
+    "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
     "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
     "productionReady": false,
     "validation": "passed-supported-gates",
@@ -239,7 +239,7 @@
         "sourceIds": [
           "hirise-context"
         ],
-        "revision": "cube-imagery-raster-278be1330546f122",
+        "revision": "cube-imagery-raster-15f11ffd9fa48dcc",
         "maxLevel": 13,
         "tileCount": 24,
         "controls": null
@@ -249,13 +249,13 @@
         "sourceIds": [
           "hirise-ortho"
         ],
-        "revision": "cube-imagery-raster-6b8ae264fbc04b68",
+        "revision": "cube-imagery-raster-d3b86588fa106fb6",
         "maxLevel": 16,
         "tileCount": 32,
         "controls": null
       }
     ],
-    "publishedBytes": 14442630,
+    "publishedBytes": 14429321,
     "sourceAudit": {
       "baselineSampling": {
         "invalidUsedKernels": 0,
@@ -358,13 +358,33 @@
               52231
             ]
           },
+          "filtering": {
+            "bytes": 5621456,
+            "gdal": "3.13.0",
+            "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+            "overviewFactors": [
+              2,
+              4,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+            "supersample": 4
+          },
           "grid": [
             77.44647702664389,
-            4.217651214528805e-06,
+            0.000004217651214528805,
             0,
             18.449022866291696,
             0,
-            -4.217651214528805e-06
+            -0.000004217651214528805
           ],
           "height": 2048,
           "invalidPixels": 0,
@@ -410,14 +430,15 @@
                 ]
               }
             ],
-            "maximumErrorDn": 0.4972465591699944,
+            "maximumAlphaErrorDn": 5.684341886080802e-14,
+            "maximumErrorDn": 0.49638990735776645,
             "maximumGutterErrorDn": null,
             "maximumOutputSpacingM": 3.238859176635742,
-            "method": "independent affine inversion and bilinear native-cell interpolation at emitted pixel centres",
-            "nativeValueStdDevDn": 12.014177296660517,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 9.437843504867773,
             "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
             "requestedNativeCellsWithFinestCoverage": 8836,
-            "rmsErrorDn": 0.29277264248372037,
+            "rmsErrorDn": 0.2657846102087784,
             "sourcePixelSizeM": 0.25,
             "tiles": [
               {
@@ -441,13 +462,33 @@
               52231
             ]
           },
+          "filtering": {
+            "bytes": 5621456,
+            "gdal": "3.13.0",
+            "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+            "overviewFactors": [
+              2,
+              4,
+              8,
+              16,
+              32,
+              64,
+              128,
+              256,
+              512,
+              1024,
+              2048
+            ],
+            "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+            "supersample": 4
+          },
           "grid": [
             77.44647702664389,
-            4.217651214528805e-06,
+            0.000004217651214528805,
             0,
             18.449022866291696,
             0,
-            -4.217651214528805e-06
+            -0.000004217651214528805
           ],
           "height": 2048,
           "invalidPixels": 0,
@@ -494,14 +535,15 @@
                 ]
               }
             ],
-            "maximumErrorDn": 0.4999610846862197,
-            "maximumGutterErrorDn": 0.4986405528826765,
+            "maximumAlphaErrorDn": 1.1368683772161603e-13,
+            "maximumErrorDn": 0.49996122585152136,
+            "maximumGutterErrorDn": 0.49900616090836536,
             "maximumOutputSpacingM": 0.4048573970794678,
-            "method": "independent affine inversion and bilinear native-cell interpolation at emitted pixel centres",
-            "nativeValueStdDevDn": 12.298539204524163,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 12.191124802665758,
             "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
             "requestedNativeCellsWithFinestCoverage": 8836,
-            "rmsErrorDn": 0.2831794093815416,
+            "rmsErrorDn": 0.28808855071593614,
             "sourcePixelSizeM": 0.25,
             "tiles": [
               {
@@ -518,8 +560,8 @@
           "width": 2048
         }
       },
-      "largestChildPeakRssBytes": 9578266624,
-      "peakConcurrentRssBytes": 11728486400,
+      "largestChildPeakRssBytes": 7261224960,
+      "peakConcurrentRssBytes": 14084800512,
       "rasters": {
         "base": {
           "decodedBytes": 11383609636,
@@ -561,11 +603,11 @@
           "decodedBytes": 1839372800,
           "grid": [
             77.22293307697143,
-            1.687060485811522e-05,
+            0.00001687060485811522,
             0,
             18.66931500687775,
             0,
-            -1.687060485811522e-05
+            -0.00001687060485811522
           ],
           "height": 21488,
           "invalidPixels": 155852242,
@@ -596,46 +638,46 @@
       },
       "sampledResources": {
         "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
-        "peakConcurrentRssBytes": 11728486400,
-        "peakScratchBytes": 16212895449,
+        "peakConcurrentRssBytes": 14084800512,
+        "peakScratchBytes": 16218500022,
         "physicalPeakRamBytes": null,
         "rssUnavailableReason": null,
         "sampleIntervalSeconds": 1,
-        "samples": 100
+        "samples": 99
       },
       "toolchain": {
         "gdal": "3.13.0",
         "numpy": "2.4.6",
         "python": "3.14.5"
       },
-      "workerPeakRssBytes": 2971369472
+      "workerPeakRssBytes": 3024388096
     },
     "publication": {
       "cacheReused": true,
-      "buildId": "ce1aa749c2a2d0e662f862079846c63dfb96335b59f2960911e3824733ce1cde",
+      "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
       "localOnly": true,
       "localFixtureOnly": false,
       "catalogPinned": false,
       "products": [
         {
-          "productId": "terrain-ce1aa749c2a2d0e662f86207",
-          "prefix": "cube-terrain/terrain-ce1aa749c2a2d0e662f86207/ce1aa749c2a2d0e662f862079846c63d/",
+          "productId": "terrain-644667a30ff8ca0dfec73004",
+          "prefix": "cube-terrain/terrain-644667a30ff8ca0dfec73004/644667a30ff8ca0dfec73004e9f929c9/",
           "verified": true
         },
         {
-          "productId": "imagery-7e4228bbcbc3635e5221a47f",
-          "prefix": "cube-imagery/imagery-7e4228bbcbc3635e5221a47f/ce1aa749c2a2d0e662f862079846c63d/",
+          "productId": "imagery-1ce08e5c3d2af6f973c44522",
+          "prefix": "cube-imagery/imagery-1ce08e5c3d2af6f973c44522/644667a30ff8ca0dfec73004e9f929c9/",
           "verified": true
         },
         {
-          "productId": "imagery-8e1f25bae8a0a4fc888cf362",
-          "prefix": "cube-imagery/imagery-8e1f25bae8a0a4fc888cf362/ce1aa749c2a2d0e662f862079846c63d/",
+          "productId": "imagery-aec72736b4e2fb9518b138e5",
+          "prefix": "cube-imagery/imagery-aec72736b4e2fb9518b138e5/644667a30ff8ca0dfec73004e9f929c9/",
           "verified": true
         }
       ]
     },
     "browser": {
-      "buildId": "ce1aa749c2a2d0e662f862079846c63dfb96335b59f2960911e3824733ce1cde",
+      "buildId": "644667a30ff8ca0dfec73004e9f929c97c4c949fad98a0e2435b824a89388da0",
       "environment": {
         "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36"
@@ -644,7 +686,7 @@
       "views": [
         {
           "name": "regional",
-          "settleMs": 1799,
+          "settleMs": 2050,
           "geometryLevels": {
             "0": 2,
             "1": 2,
@@ -684,7 +726,7 @@
         },
         {
           "name": "zoom-out",
-          "settleMs": 1778,
+          "settleMs": 1783,
           "geometryLevels": {
             "0": 2,
             "1": 2,
@@ -704,7 +746,7 @@
         },
         {
           "name": "restored-native",
-          "settleMs": 1785,
+          "settleMs": 1784,
           "geometryLevels": {
             "0": 2,
             "1": 2,

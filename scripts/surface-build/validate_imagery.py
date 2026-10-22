@@ -87,6 +87,18 @@ def validate(source_path, source, manifest_path, requested=None):
                         assert f"{face}/{meta['maxLevel']}/{x}/{y}" in available, 'native-valid requested cell lacks finest output coverage'
                         coverage_checks+=1
         assert coverage_checks>=1, 'no requested native cells were checked'
+    # Independent reference: native mask + DN are averaged via RasterIO,
+    # rather than reading the builder's staged pyramid or sampling functions.
+    assert ds.RasterXSize*ds.RasterYSize <= 16000000, 'imagery reference exceeds bounded native inspection limit'
+    native=band.ReadAsArray().astype(np.float32)
+    valid=np.isfinite(native) & (band.GetMaskBand().ReadAsArray()>0)
+    if band.GetNoDataValue() is not None: valid &= native != band.GetNoDataValue()
+    reference=gdal.GetDriverByName('MEM').Create('',ds.RasterXSize,ds.RasterYSize,2,gdal.GDT_Float32)
+    reference.GetRasterBand(1).WriteArray(np.where(valid,native,0))
+    reference.GetRasterBand(2).WriteArray(valid.astype(np.float32))
+    ss=meta.get('generator',{}).get('supersample',1)
+    assert ss in (1,4), 'unsupported imagery reference quadrature'
+    levels={}; alpha_errors=[]
     errors=[]; values=[]; rows=[]; gutter_errors=[]
     for tile in meta['tiles']:
         face,L,x,y=tile.split('/');L,x,y=map(int,(L,x,y))
@@ -103,22 +115,39 @@ def validate(source_path, source, manifest_path, requested=None):
                 p=N+u*U+v*V; lon=math.degrees(math.atan2(p[1],p[0]));lat=math.degrees(math.atan2(p[2],math.hypot(p[0],p[1])))
                 point=ogr.Geometry(ogr.wkbPoint);point.AddPoint(lon,lat)
                 if not any(poly.Contains(point) for poly in subset):continue
-                sx,sy=math.radians(lon)*radius,math.radians(lat)*radius
-                px=(sx-gt[0])/gt[1]-.5;py=(sy-gt[3])/gt[5]-.5
-                c,r=math.floor(px),math.floor(py);fx,fy=px-c,py-r
-                assert 0<=c<ds.RasterXSize-1 and 0<=r<ds.RasterYSize-1
-                a=band.ReadAsArray(c,r,2,2).astype(float)
-                assert np.isfinite(a).all() and (band.GetNoDataValue() is None or np.all(a!=band.GetNoDataValue()))
-                expected=(1-fy)*((1-fx)*a[0,0]+fx*a[0,1])+fy*((1-fx)*a[1,0]+fx*a[1,1])
+                factor=1
+                if meta.get('filtering'):
+                    spacing=size/T*radius*.4
+                    while factor*2<=max(ds.RasterXSize,ds.RasterYSize) and gt[1]*factor*2<=max(spacing,gt[1]):factor*=2
+                if factor not in levels:
+                    width=math.ceil(ds.RasterXSize/factor);height=math.ceil(ds.RasterYSize/factor)
+                    levels[factor]=[reference.GetRasterBand(i).ReadAsArray(buf_xsize=width,buf_ysize=height,
+                        resample_alg=gdal.GRIORA_Average).astype(float) for i in (1,2)]
+                premul,coverage=levels[factor];res=gt[1]*ds.RasterXSize/premul.shape[1]
+                total=weight=0.
+                for syi in range(ss):
+                    for sxi in range(ss):
+                        du=((sxi+.5)/ss-.5)*size/T;dv=((syi+.5)/ss-.5)*size/T
+                        q=N+(u+du)*U+(v+dv)*V
+                        qlon=math.atan2(q[1],q[0]);qlat=math.atan2(q[2],math.hypot(q[0],q[1]))
+                        px=(qlon*radius-gt[0])/res-.5;py=(gt[3]-qlat*radius)/(abs(gt[5])*ds.RasterYSize/premul.shape[0])-.5
+                        if not (-1<px<premul.shape[1] and -1<py<premul.shape[0]):continue
+                        px=min(max(px,0),premul.shape[1]-1.000001);py=min(max(py,0),premul.shape[0]-1.000001)
+                        c,r=math.floor(px),math.floor(py);fx,fy=px-c,py-r
+                        for xx,yy,w in ((c,r,(1-fx)*(1-fy)),(min(c+1,premul.shape[1]-1),r,fx*(1-fy)),
+                                        (c,min(r+1,premul.shape[0]-1),(1-fx)*fy),(min(c+1,premul.shape[1]-1),min(r+1,premul.shape[0]-1),fx*fy)):
+                            total+=w*premul[yy,xx];weight+=w*coverage[yy,xx]
+                expected=total/max(weight,1e-12)
                 error=float(grey[row,col])-expected
-                assert alpha[row,col]==255, 'native-valid pixel became transparent'
+                alpha_errors.append(abs(float(alpha[row,col])-255*weight/(ss*ss)))
                 errors.append(error);values.append(expected);checked+=1
                 if row<g or col<g or row>=g+T or col>=g+T:gutter_errors.append(error)
         if checked:rows.append({'tile':tile,'checkedPixels':checked})
     assert len(errors)>=64, 'insufficient native registration samples'
+    assert max(alpha_errors)<=.501, 'filtered mask coverage exceeds byte quantization'
     assert max(abs(e) for e in errors)<=.501, 'source-to-output registration exceeds byte quantization'
     assert np.std(values)>1, 'native detail check requires real image variation'
-    return {'method':'independent affine inversion and bilinear native-cell interpolation at emitted pixel centres',
+    return {'method':'independent affine inversion, area-averaged native DN/validity reference and footprint quadrature', 'maximumAlphaErrorDn':max(alpha_errors),
             'continuousRequestedCoverage':continuous, 'requestedNativeCellsWithFinestCoverage':coverage_checks, 'maximumOutputSpacingM':max_spacing_m,
             'checkedPixels':len(errors),'maximumErrorDn':max(abs(e) for e in errors),'rmsErrorDn':float(np.sqrt(np.mean(np.square(errors)))),
             'checkedGutterPixels':len(gutter_errors),'maximumGutterErrorDn':max((abs(e) for e in gutter_errors),default=None),

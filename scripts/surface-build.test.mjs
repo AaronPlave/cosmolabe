@@ -218,6 +218,12 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
     const manifestFile = join(report.directory,product.id,'imagery.json');
     const manifestBytes = await readFile(manifestFile);
     const manifest = JSON.parse(manifestBytes);
+    expect(manifest.provenance.sources[0].productId).toBe(image.productId);
+    expect(manifest.provenance.sources[0].asset.checksum).toEqual(image.asset.checksum);
+    expect(manifest.provenance.sources[0].license).toEqual(image.license);
+    expect(manifest.provenance.sources[0].validData).toEqual(image.metadata.validData);
+    expect(manifest.source.attribution).toBeTruthy();
+    expect(manifest.filtering.supersample).toBe(4);
     manifest.tiles = manifest.tiles.filter(id=>Number(id.split('/')[1])!==manifest.maxLevel);
     await writeFile(manifestFile,JSON.stringify(manifest));
     const descriptor = join(input,'descriptor.json');await writeFile(descriptor,JSON.stringify(image));
@@ -259,6 +265,13 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
       const published = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url });
       expect(published.catalogPinned).toBe(false);
       expect(published.products.every(p => p.verified)).toBe(true);
+      for (const item of published.products) {
+        const product = report.products.find(p=>p.id===item.productId);
+        const standalone = await (await fetch(host.url+'/'+item.prefix+(product.kind==='cube-terrain'?'terrain-product.json':'imagery.json'))).json();
+        expect(standalone.provenance.lockIdentity).toBe(lock.identity);
+        expect(standalone.provenance.sources.map(s=>s.id)).toEqual(lock.sources.filter(s=>product.sourceIds.includes(s.id)).map(s=>s.id));
+        expect(standalone.provenance.sources.every(s=>s.productId&&s.asset.checksum.value&&s.license.name)).toBe(true);
+      }
       expect((await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url })).products).toEqual(published.products);
       await expect(publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url,
         fetchImpl: async () => new Response('missing', { status: 404 }) })).rejects.toThrow(/verification failed/);

@@ -290,6 +290,21 @@ request; the worker checks the declared interval against the raster header. Abso
 geolocation is still unknown, even when preservation of source registration
 passes. No imaginary illumination or datum correction is applied to imagery.
 
+GDAL mask bands and nodata both contribute to emitted alpha. External `.msk`
+dependencies are rejected before staging; use a pinned TIFF with an internal
+mask. The executor derives deterministic power-of-two area-average overviews
+of **premultiplied native DN and validity coverage**, then reconstructs each
+cube texel with 4×4 footprint samples. Averaging both channels preserves masked
+fallback without bleeding invalid DN into valid pixels. Each imagery manifest
+records the derived pyramid hash, GDAL version, overview factors and filter.
+An independent native-raster reference checks filtered DN and alpha; checkerboard
+regressions compare coarse output against dense native sampling and adjacent LODs.
+
+Standalone product manifests carry the lock identity, upstream product IDs,
+source asset hashes, attribution/licenses, native GSD, accuracy, coordinate
+conventions, valid-data evidence and caveats. These records travel with immutable
+local publication; the separate build report is not needed to identify a product.
+
 For browser acceptance, start the isolated viewer and use the completed report:
 
 ```sh
