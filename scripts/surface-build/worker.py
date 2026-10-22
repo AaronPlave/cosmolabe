@@ -149,7 +149,7 @@ def raster(path, radius, source, global_base=False):
     return {'width': ds.RasterXSize, 'height': ds.RasterYSize, 'validPixels': valid_count,
             'invalidPixels': ds.RasterXSize*ds.RasterYSize-valid_count, 'rasterGsdM': float(raster_gsd),
             'nativeValidSubset': valid_subset(ds, source, gt),
-            'grid': list(gt), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
+            'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
 def bundle(path, target, source_dir):
@@ -197,8 +197,18 @@ def build(args):
     sampler = ResourceSampler(out)
     inputs = out / 'inputs'
     inputs.mkdir()
+    # The orchestrator has verified current bindings and the complete prior
+    # inventories, including audit evidence. Only changed products need private
+    # source copies, native-pixel scans, datum staging or fusion construction.
+    reused = job.get('reusedProducts', {})
+    required = [p for p in dag['products'] if p['id'] not in reused]
+    required_sources = {sid for p in required for sid in p['sourceIds']}
+    terrain_required = any(p['kind'] == 'cube-terrain' for p in required)
+    prior_terrain = next((reused[p['id']]['audit'] for p in dag['products']
+                          if p['kind'] == 'cube-terrain' and p['id'] in reused), None)
     paths = {}
     for source in lock['sources']:
+        if source['id'] not in required_sources: continue
         suffix = '.tif' if source['channel'] == 'elevation' or source['projection'] == 'Mars-EQC-0-0' else '.json'
         if suffix == '.tif': reject_external_masks(job['paths'][source['id']])
         frozen = inputs / (source['asset']['checksum']['value'] + suffix)
@@ -206,14 +216,14 @@ def build(args):
         assert sha(frozen) == source['asset']['checksum']['value'], 'source changed during staging'
         paths[source['id']] = str(frozen)
     terrain = lock['processing']['parameters']['terrain']
-    if terrain.get('baseOverviewAsset'):
+    if terrain_required and terrain.get('baseOverviewAsset'):
         pin = terrain['baseOverviewAsset']
         overview = Path(paths[terrain['base']] + '.ovr')
         shutil.copyfile(job['paths']['terrain:base-overview'], overview)
         assert overview.stat().st_size == pin['bytes'] and sha(overview) == pin['checksum']['value'], 'overview changed during staging'
     transform = next(s['transformations'][0] for s in lock['selections'] if s['channel'] == 'elevation')
     areoid_args = []
-    if transform != 'identity':
+    if terrain_required and transform != 'identity':
         datum_dir = inputs / 'areoid'
         datum_dir.mkdir()
         for role, filename in [('label', 'MEGA90N000EB.LBL'), ('image', 'MEGA90N000EB.IMG')]:
@@ -231,8 +241,17 @@ def build(args):
     radius = lock['desired']['coordinates']['referenceShape']['radiusKm'] * 1000
     p = lock['processing']['parameters']
     terrain = p['terrain']
-    audit = {'rasters': {}, 'imagery': {}, 'toolchain': toolchain}
+    audit = {'rasters': {}, 'imagery': {}, 'toolchain': toolchain,
+             'executionWork': {'stagedSources': sorted(required_sources),
+                               'terrainStaging': terrain_required, 'fusion': terrain_required,
+                               'auditedSources': sorted(required_sources)}}
+    if prior_terrain:
+        audit['rasters'].update(prior_terrain['rasters'])
+    for previous in reused.values():
+        for sid, evidence in previous['audit']['imagery'].items():
+            if sid not in required_sources: audit['imagery'][sid] = evidence
     for source in lock['sources']:
+        if source['id'] not in required_sources: continue
         assert sha(paths[source['id']]) == source['asset']['checksum']['value'], 'source changed after preflight'
         if source['channel'] == 'elevation':
             audit['rasters'][source['id']] = raster(paths[source['id']], radius, source, source['id'] == terrain['base'])
@@ -242,29 +261,33 @@ def build(args):
             audit['imagery'][source['id']] = bundle(paths[source['id']], inputs / f'{source["asset"]["checksum"]["value"]}.config.json',
                                                    Path(job['paths'][source['id']]).parent)
     fusion = out / 'fusion'
-    if terrain.get('fusionAsset'):
-        manifest = Path(job['paths']['terrain:fusion'])
-        receipt_bytes = manifest.read_bytes()
-        pin = terrain['fusionAsset']
-        assert len(receipt_bytes) == pin['bytes'] and hashlib.sha256(receipt_bytes).hexdigest() == pin['checksum']['value'], 'fusion manifest changed after preflight'
-        (inputs / 'fusion-bundle.json').write_bytes(receipt_bytes)
-        receipt = json.loads(receipt_bytes)
-        assert receipt['version'] == 1 and receipt['kind'] == 'locked-fusion-bundle'
-        assert receipt['baseSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['base']), 'fusion base differs from locked raster'
-        assert receipt['detailSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['detail']), 'fusion detail differs from locked raster'
-        assert set(receipt['files']) == {'fusion.json', 'residual.tif', 'coverage.tif', 'weight.tif', 'fused.tif'}, 'unsupported fusion dependency inventory'
-        fusion.mkdir()
-        for filename, entry in receipt['files'].items():
-            assert Path(filename).name == filename, 'unsafe fusion filename'
-            src = manifest.parent / entry['path']
-            assert src.stat().st_size == entry['bytes'] and sha(src) == entry['sha256'], 'fusion input changed'
-            shutil.copyfile(src, fusion / filename)
-            assert sha(fusion / filename) == entry['sha256'], 'fusion changed during staging'
+    if terrain_required:
+        if terrain.get('fusionAsset'):
+            manifest = Path(job['paths']['terrain:fusion'])
+            receipt_bytes = manifest.read_bytes()
+            pin = terrain['fusionAsset']
+            assert len(receipt_bytes) == pin['bytes'] and hashlib.sha256(receipt_bytes).hexdigest() == pin['checksum']['value'], 'fusion manifest changed after preflight'
+            (inputs / 'fusion-bundle.json').write_bytes(receipt_bytes)
+            receipt = json.loads(receipt_bytes)
+            assert receipt['version'] == 1 and receipt['kind'] == 'locked-fusion-bundle'
+            assert receipt['baseSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['base']), 'fusion base differs from locked raster'
+            assert receipt['detailSha256'] == next(s['asset']['checksum']['value'] for s in lock['sources'] if s['id'] == terrain['detail']), 'fusion detail differs from locked raster'
+            assert set(receipt['files']) == {'fusion.json', 'residual.tif', 'coverage.tif', 'weight.tif', 'fused.tif'}, 'unsupported fusion dependency inventory'
+            fusion.mkdir()
+            for filename, entry in receipt['files'].items():
+                assert Path(filename).name == filename, 'unsafe fusion filename'
+                src = manifest.parent / entry['path']
+                assert src.stat().st_size == entry['bytes'] and sha(src) == entry['sha256'], 'fusion input changed'
+                shutil.copyfile(src, fusion / filename)
+                assert sha(fusion / filename) == entry['sha256'], 'fusion changed during staging'
+        else:
+            command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'fuse', '--base', paths[terrain['base']],
+                    '--detail', paths[terrain['detail']], '--out', fusion, '--blend-m', terrain['blendM'],
+                    '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres' if transform == 'identity' else 'MOLA areoid topography metres; radial conversion is explicit at cube construction')
+        f = json.loads((fusion / 'fusion.json').read_text())
     else:
-        command(sys.executable, ROOT / 'scripts/terrain/dem.py', 'fuse', '--base', paths[terrain['base']],
-                '--detail', paths[terrain['detail']], '--out', fusion, '--blend-m', terrain['blendM'],
-                '--fit-stride', terrain['fitStride'], '--bias', 'none', '--vertical-datum', 'reference-sphere radial metres' if transform == 'identity' else 'MOLA areoid topography metres; radial conversion is explicit at cube construction')
-    f = json.loads((fusion / 'fusion.json').read_text())
+        f = prior_terrain['fusion']
+    audit['fusion'] = f
     assert abs(f['registration']['offsetM']) <= p['gates']['maxOffsetM'], 'registration offset exceeds locked gate'
     boundary = f['boundary']['fusedStepM']
     assert boundary.get('n', 0) == 0 or boundary['maxAbsM'] <= p['gates']['maxBoundaryStepM'], 'fused boundary step exceeds locked gate'
@@ -272,7 +295,7 @@ def build(args):
     assert f['taper']['blendM'] == terrain['blendM'] and f['registration']['fitStridePx'] == terrain['fitStride'], 'fusion settings differ from lock'
     # Existing fusion bytes are authoritative. Generated fixtures normalize only
     # their volatile provenance before computing immutable product revisions.
-    if not terrain.get('fusionAsset'):
+    if terrain_required and not terrain.get('fusionAsset'):
         f.pop('created', None)
         for role in ('base', 'detail'):
             f[role]['path'] = f'{role}.tif'
@@ -283,7 +306,8 @@ def build(args):
             if product['kind'] == 'cube-terrain':
                 audit['baselineSampling'] = previous['audit'].get('baselineSampling')
             else:
-                audit['imagery'][product['sourceIds'][0]] = previous['audit']['imagery'][product['sourceIds'][0]]
+                sid = product['sourceIds'][0]
+                if sid not in required_sources: audit['imagery'][sid] = previous['audit']['imagery'][sid]
             continue
         dest = out / product['id']
         tile = product['tiling']
@@ -313,17 +337,6 @@ def build(args):
                 manifest = json.loads(manifest_path.read_text())
                 manifest['filtering'] = filtering
                 write(manifest_path, manifest)
-                detail_ds = gdal.Open(paths[terrain['detail']])
-                image_ds = gdal.Open(paths[source['id']])
-                assert detail_ds.GetSpatialRef().IsSame(image_ds.GetSpatialRef()), 'DTM and ortho map projections differ'
-                dgt, igt = detail_ds.GetGeoTransform(), image_ds.GetGeoTransform()
-                ratio = dgt[1]/igt[1]
-                phase = [(igt[0]-dgt[0])/igt[1], (igt[3]-dgt[3])/igt[5]]
-                phase_error = max(abs(p-round(p))*abs(igt[1]) for p in phase)
-                assert ratio>=1 and abs(ratio-round(ratio))<1e-8 and phase_error<1e-6, 'DTM/ortho native grid alignment exceeds gate'
-                audit['imagery'][source['id']]['dtmGridAlignment'] = {'nativePixelRatio':ratio,'originOffsetsInImagePixels':phase,
-                    'maximumGridPhaseErrorM':phase_error,'absoluteGeolocationErrorM':None,
-                    'note':'Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.'}
                 descriptor = inputs / f'{source["asset"]["checksum"]["value"]}.descriptor.json'
                 write(descriptor, source)
                 requests = []
@@ -375,6 +388,26 @@ def build(args):
             meta['source']['id']=source['productId']
             meta['source']['attribution']=source['license'].get('attribution',source['license']['name'])
         write(meta_path, meta)
+    # Cross-product grid gates also apply when either product was reused.
+    for product in dag['products']:
+        if product['kind'] != 'cube-imagery': continue
+        source = next(s for s in lock['sources'] if s['id'] == product['sourceIds'][0])
+        if source['projection'] != 'Mars-EQC-0-0': continue
+        from osgeo import osr
+        detail_grid = audit['rasters'][terrain['detail']]
+        image_grid = audit['imagery'][source['id']]
+        detail_srs, image_srs = osr.SpatialReference(), osr.SpatialReference()
+        detail_srs.ImportFromWkt(detail_grid['crsWkt'])
+        image_srs.ImportFromWkt(image_grid['crsWkt'])
+        assert detail_srs.IsSame(image_srs), 'DTM and ortho map projections differ'
+        dgt, igt = detail_grid['nativeGrid'], image_grid['nativeGrid']
+        ratio = dgt[1]/igt[1]
+        phase = [(igt[0]-dgt[0])/igt[1], (igt[3]-dgt[3])/igt[5]]
+        phase_error = max(abs(p-round(p))*abs(igt[1]) for p in phase)
+        assert ratio>=1 and abs(ratio-round(ratio))<1e-8 and phase_error<1e-6, 'DTM/ortho native grid alignment exceeds gate'
+        audit['imagery'][source['id']]['dtmGridAlignment'] = {'nativePixelRatio':ratio,'originOffsetsInImagePixels':phase,
+            'maximumGridPhaseErrorM':phase_error,'absoluteGeolocationErrorM':None,
+            'note':'Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.'}
     audit['workerPeakRssBytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['largestChildPeakRssBytes'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['sampledResources'] = sampler.finish()

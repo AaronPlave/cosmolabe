@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtemp, readFile, writeFile, rm, readdir, stat, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, readdir, stat, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -226,6 +226,46 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
     expect(report.resources.actual.sourceAudit.rasters.detail.nativeValidSubset.features[0].nativeCells).toBeGreaterThan(0);
     expect(report.resources.actual.sourceAudit.imagery['detail-image'].sourceToOutputRegistration.checkedPixels).toBeGreaterThanOrEqual(64);
     expect((await executeBuild(lock,options)).reused).toBe(true);
+    const {identity: priorId,desiredIdentity: priorDesired,...imageOnlyPayload}=structuredClone(lock);
+    imageOnlyPayload.processing.parameters.imagery[1].regions=['landing@0,0:1=2000,2=1500,3=1000,4=400'];
+    // Guard the actual worker operations, not just reported tile-builder reuse.
+    // Node preflight still hashes every current dependency before this starts.
+    const guardedPython=join(input,'guarded-python');
+    const executable=spawnSync(python,['-c','import sys;print(sys.executable)'],{encoding:'utf8'}).stdout.trim();
+    await writeFile(guardedPython,`#!${executable}
+import sys,importlib.util,argparse,pathlib
+worker_path=pathlib.Path(sys.argv[1]);sys.path.insert(0,str(worker_path.parent))
+spec=importlib.util.spec_from_file_location('guarded_worker',worker_path);w=importlib.util.module_from_spec(spec);spec.loader.exec_module(w)
+original_copy=w.shutil.copyfile
+original_raster=w.raster
+original_command=w.command
+def guarded_copy(src,dst,*a,**kw):
+    assert pathlib.Path(src).name not in ['base.tif','detail.tif','MEGA90N000EB.LBL','MEGA90N000EB.IMG','fusion.json','residual.tif','coverage.tif','weight.tif','fused.tif','bundle.json'], 'unchanged terrain dependency was staged'
+    return original_copy(src,dst,*a,**kw)
+def guarded_raster(path,radius,source,*a,**kw):
+    assert source['channel'] != 'elevation', 'unchanged terrain pixels were audited'
+    return original_raster(path,radius,source,*a,**kw)
+def guarded_command(*args):
+    assert not {'fuse','cube-tile','cube-error'}.intersection(str(a) for a in args), 'unchanged terrain was built'
+    return original_command(*args)
+w.shutil.copyfile=guarded_copy;w.raster=guarded_raster;w.command=guarded_command
+p=argparse.ArgumentParser();p.add_argument('--job');p.add_argument('--out');p.add_argument('--workers',type=int)
+w.build(p.parse_args(sys.argv[2:]))
+`);
+    await chmod(guardedPython,0o755);
+    const imageOnly=await executeBuild(await createLockedSurfacePlan(imageOnlyPayload),{...options,python:guardedPython});
+    expect(imageOnly.products.slice(0,2).every(p=>p.reusedFromBuild===report.buildId)).toBe(true);
+    const imageOnlyAudit=imageOnly.resources.actual.sourceAudit;
+    expect(imageOnlyAudit.executionWork).toEqual({stagedSources:['detail-image'],auditedSources:['detail-image'],terrainStaging:false,fusion:false});
+    expect(imageOnlyAudit.rasters).toEqual(report.resources.actual.sourceAudit.rasters);
+    expect(imageOnlyAudit.fusion).toEqual(report.resources.actual.sourceAudit.fusion);
+    expect(imageOnlyAudit.imagery['detail-image'].dtmGridAlignment).toEqual(report.resources.actual.sourceAudit.imagery['detail-image'].dtmGridAlignment);
+    expect(await readdir(imageOnly.directory)).not.toContain('fusion');
+    const incrementalInputs=await readdir(join(imageOnly.directory,'inputs'));
+    expect(incrementalInputs).not.toContain('areoid');
+    expect(incrementalInputs).not.toContain('fusion-bundle.json');
+    for(const source of lock.sources.filter(s=>s.channel==='elevation'))
+      expect(incrementalInputs.some(name=>name.startsWith(source.asset.checksum.value))).toBe(false);
     const product = report.products.find(p=>p.sourceIds.includes('detail-image'));
     const manifestFile = join(report.directory,product.id,'imagery.json');
     const manifestBytes = await readFile(manifestFile);
@@ -334,6 +374,15 @@ print(json.dumps({'python':sys.version.split()[0],'gdal':gdal.VersionInfo('RELEA
       const regional=await executeBuild(regionalLock,options);
       expect(regional.products.slice(0,2).every(p=>p.reusedFromBuild===report.buildId)).toBe(true);
       expect(regional.products[2].reusedFromBuild).toBeNull();
+      const incrementalAudit = regional.resources.actual.sourceAudit;
+      expect(incrementalAudit.executionWork).toEqual({stagedSources:[regional.products[2].sourceIds[0]],
+        auditedSources:[regional.products[2].sourceIds[0]],terrainStaging:false,fusion:false});
+      expect(await readdir(regional.directory)).not.toContain('fusion');
+      const stagedFiles=await readdir(join(regional.directory,'inputs'));
+      for(const source of regionalLock.sources.filter(s=>s.channel==='elevation'))
+        expect(stagedFiles.some(name=>name.startsWith(source.asset.checksum.value))).toBe(false);
+      expect(incrementalAudit.rasters).toEqual(report.resources.actual.sourceAudit.rasters);
+      expect(incrementalAudit.fusion).toEqual(report.resources.actual.sourceAudit.fusion);
       expect(regional.plannerFeedback.sourceTransfers.every(s=>s.downloadedBytesThisExecution===0)).toBe(true);
       const regionalPublished=await publishLocalFixture(regionalLock,{cache,localDir:storeDir,baseUrl:host.url});
       expect(regionalPublished.products.slice(0,2).map(p=>p.prefix)).toEqual(published.products.slice(0,2).map(p=>p.prefix));

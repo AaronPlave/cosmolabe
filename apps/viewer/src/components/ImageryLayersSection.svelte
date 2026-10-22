@@ -92,7 +92,7 @@
   function highlight(layer: ImageryLayerInfo | null) {
     footprintOwner?.showImageryFootprint(null);
     footprintOwner = layer?.bounds ? bodyMesh() : null;
-    footprintOwner?.showImageryFootprint(layer!.bounds);
+    footprintOwner?.showImageryFootprint(layer!.bounds, layer!.latitudeConvention);
   }
   let surfaceBody = $derived(surface?.body);
   $effect(() => { void surfaceBody; return () => highlight(null); });
@@ -201,7 +201,7 @@
             {/if}
             {#if layer.bounds}
               {@const bounds = layer.bounds}
-              <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds)} title="Fly to this layer" aria-label="Fly to {layer.name}">
+              <button class="layer-action" onclick={() => flyToRegion(surface.body, bounds, layer.latitudeConvention)} title="Fly to this layer" aria-label="Fly to {layer.name}">
                 <Crosshair size={13} />
               </button>
             {/if}

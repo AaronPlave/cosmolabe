@@ -67,7 +67,7 @@ try {
     if(name==='regional'&&state.layers.at(-1).bounds){
       hoverFootprint=await page.evaluate(async()=>{
         const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
-        bm.showImageryFootprint(bounds);
+        bm.showImageryFootprint(bounds, 'planetocentric');
         const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
         let projected=null;
         dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};
@@ -139,7 +139,7 @@ try {
     await page.mouse.move(400,100);
     layerFlight=await page.evaluate(async()=>{
       const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
-      bm.showImageryFootprint(bounds);
+      bm.showImageryFootprint(bounds, 'planetocentric');
       const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
       let projected=null;
       dot.onBeforeRender=(...args)=>{original(...args);projected=new r.camera.position.constructor().fromBufferAttribute(dot.geometry.getAttribute('position'),0).applyMatrix4(dot.matrixWorld).project(args[2]).toArray();};

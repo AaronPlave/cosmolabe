@@ -143,8 +143,27 @@ No production credentials were read and no production upload occurred. After exp
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
-  --confirm-publication 7e2ae1325fc1e063632ff73a23c432ab670c8f5149244872185c7171eb074e1e \
+  --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
   > work/surface-build/production-publication-receipt.json
 ```
 
-This confirmation applies to build `e9dd1d51ec2db28daa709b3a4871ad7a9781ca6b1274e5a2f88dba2c6ba29e04`. Implementation or input changes require a fresh preflight and reviewed identity. The resulting receipt must pass fresh hosted HTTP verification before preparing the offline catalog candidate. The local test receipt is explicitly `localOnly: true` and is not evidence of R2 publication. Review the candidate and rollback, then explicitly authorize any deployment and verify the production-origin browser load. These external steps remain open; no separate implementation PR is proposed.
+This confirmation applies to build `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`. Implementation or input changes require a fresh preflight and reviewed identity. The resulting receipt must pass fresh hosted HTTP verification before preparing the offline catalog candidate. The local test receipt is explicitly `localOnly: true` and is not evidence of R2 publication. Review the candidate and rollback, then explicitly authorize any deployment and verify the production-origin browser load. These external steps remain open; no separate implementation PR is proposed.
+
+## Review corrections: imagery coordinates and incremental source work
+
+Layer metadata now exposes `latitudeConvention`: cube sources use planetocentric
+latitude and legacy imagery uses geodetic latitude, independently of the supporting
+terrain. Hover and Fly to pass that convention to the same rendered-surface resolver.
+Regression cases include geodetic imagery over cube terrain, cube imagery over cube
+terrain, legacy terrain, and antimeridian framing.
+
+The worker computes required source work from non-reused products before staging.
+An imagery-only change reuses the verified terrain raster audits and fusion gate
+evidence, skipping elevation copies, datum/overview/fusion staging, elevation pixel
+audits and fusion execution. Current bindings still undergo full checksum verification;
+completed prior inventories (including audit records) are verified before reuse.
+Native CRS/grid descriptors in those records support fresh image/DTM alignment checks
+when either side changes. `sourceAudit.executionWork` reports the work selected.
+The projected-raster incremental regression wraps the actual worker and rejects any
+terrain/datum/fusion copy, elevation audit or terrain builder invocation; it also
+checks the absent scratch files and preserved alignment evidence.

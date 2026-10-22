@@ -1,12 +1,12 @@
 {
   "version": 1,
   "date": "2026-10-22",
-  "buildId": "e9dd1d51ec2db28daa709b3a4871ad7a9781ca6b1274e5a2f88dba2c6ba29e04",
+  "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
   "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
   "products": [
     {
-      "id": "terrain-4c7ab731bced544e79ed061b",
-      "productIdentity": "4c7ab731bced544e79ed061b60d0241ffa9e48e328469dd8531bebf3dcc6bc01",
+      "id": "terrain-4cfdc5d9806de0ee40605ecd",
+      "productIdentity": "4cfdc5d9806de0ee40605ecd27c138f92e4e9ae3b8b800b9369472fbd934af4a",
       "sourceIds": [
         "base",
         "detail"
@@ -29,8 +29,8 @@
       ]
     },
     {
-      "id": "imagery-3a4fecdc403228019a86efe5",
-      "productIdentity": "3a4fecdc403228019a86efe5238cfdf7e8c2e1814bf608706d6c3d74902c8005",
+      "id": "imagery-7b4f6169271a5140b1b1c5cd",
+      "productIdentity": "7b4f6169271a5140b1b1c5cd43e4070ae4d784bfc4653c98d0ba3eadd5e7ecce",
       "sourceIds": [
         "hirise-context"
       ],
@@ -47,8 +47,8 @@
       ]
     },
     {
-      "id": "imagery-80c43563ae1bc9a4b89ce441",
-      "productIdentity": "80c43563ae1bc9a4b89ce4411afeaf33c326c4d3880c330e319037515a397a10",
+      "id": "imagery-19a3928769be6186f9ea2fdd",
+      "productIdentity": "19a3928769be6186f9ea2fdd2725eb8bf82ddc32ba6bf632b7b89a5e964d9038",
       "sourceIds": [
         "hirise-ortho"
       ],
@@ -69,11 +69,11 @@
     "outputBytes": 14435500,
     "publishedBytes": null,
     "objects": 219,
-    "workDiskBytesAtCompletion": 16218636325,
+    "workDiskBytesAtCompletion": 16218643999,
     "peakDiskBytes": null,
-    "sampledPeakScratchBytes": 16218504252,
-    "peakConcurrentWorkerRssBytes": 8842510336,
-    "elapsedSeconds": 138.520629792
+    "sampledPeakScratchBytes": 16218479724,
+    "peakConcurrentWorkerRssBytes": 11276959744,
+    "elapsedSeconds": 123.90132325
   },
   "coverage": {
     "hirise-context": {
@@ -214,23 +214,34 @@
     "nearImageryLevel": 16,
     "fallbackSphereVisible": false,
     "baseUncoveredBlocks": 0,
-    "errors": []
+    "errors": [],
+    "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
+    "layerFlight": {
+      "projected": [
+        -0.00007164247009017516,
+        -0.000010503177105631775,
+        0.9999973037171814
+      ],
+      "surfacePivot": true,
+      "pick": "hit",
+      "maxFrameMs": 9.399999999997817
+    }
   },
   "productionUpload": false,
   "productionReady": false,
   "publication": {
     "localOnly": true,
-    "publicationIdentity": "7e2ae1325fc1e063632ff73a23c432ab670c8f5149244872185c7171eb074e1e",
-    "receiptIdentity": "690ce09550c903ab0029fea417c253a3ca2cd1099e7cc8c49f862bfe3455fc9d",
+    "publicationIdentity": "6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99",
+    "receiptIdentity": "c7c051b0ff54d8fe43a4b6b60243b13b65551babeefc2589f139b2b7d22bd20b",
     "dataObjects": 219,
     "dataBytes": 14435500,
     "storageObjects": 225,
-    "storageBytes": 14449633,
+    "storageBytes": 14449636,
     "allProductsReused": true,
     "verifiedProductPrefixes": [
-      "cube-terrain/terrain-4c7ab731bced544e79ed061b/4c7ab731bced544e79ed061b60d0241f/",
-      "cube-imagery/imagery-3a4fecdc403228019a86efe5/3a4fecdc403228019a86efe5238cfdf7/",
-      "cube-imagery/imagery-80c43563ae1bc9a4b89ce441/80c43563ae1bc9a4b89ce4411afeaf33/"
+      "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/",
+      "cube-imagery/imagery-7b4f6169271a5140b1b1c5cd/7b4f6169271a5140b1b1c5cd43e4070a/",
+      "cube-imagery/imagery-19a3928769be6186f9ea2fdd/19a3928769be6186f9ea2fdd2725eb8b/"
     ]
   },
   "skyfall": {
@@ -244,5 +255,27 @@
     "browser": "browser/browser.json",
     "plannerFeedback": "published-planner-feedback.json",
     "productionUpload": false
+  },
+  "incrementalReview": {
+    "buildId": "f8d67517aa97431474f68945afed180f500c62eb73eaf20b803692a66ef8db55",
+    "change": "Native imagery final region radius 20 m to 25 m; terrain and context unchanged",
+    "reusedProducts": [
+      "terrain-4cfdc5d9806de0ee40605ecd",
+      "imagery-7b4f6169271a5140b1b1c5cd"
+    ],
+    "elapsedSeconds": 32.697453459,
+    "sampledPeakScratchBytes": 8755429,
+    "executionWork": {
+      "auditedSources": [
+        "hirise-ortho"
+      ],
+      "fusion": false,
+      "stagedSources": [
+        "hirise-ortho"
+      ],
+      "terrainStaging": false
+    },
+    "sourceIdentity": "All current source and dependency bytes verified; complete prior inventory/audits verified before reuse",
+    "limits": "Sampled worker scratch excludes the retained prior cache; full current-source checksum and physical terrain validation remain intentional."
   }
 }

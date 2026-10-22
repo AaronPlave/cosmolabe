@@ -962,11 +962,11 @@ export function gotoObject(
  * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
  * looking straight down with north up, close enough that the box fills the view.
  */
-export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number], latitudeConvention: 'planetocentric' | 'geodetic'): boolean {
   if (!_renderer) return false;
   const bm = _renderer.getBodyMesh(bodyName);
   if (!bm) return false;
-  const view = bm.imageryRegionView(bounds, _renderer.camera.aspect, _renderer.camera.fov);
+  const view = bm.imageryRegionView(bounds, _renderer.camera.aspect, _renderer.camera.fov, latitudeConvention);
   if (!view) return false;
   // Preserve the imagery coordinate convention and rendered surface height;
   // land with the regional image as the orbit pivot, rather than the body centre.

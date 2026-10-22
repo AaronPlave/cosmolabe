@@ -14,7 +14,7 @@ import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type Terrain
 import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
 import type { CubeCoverage } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
-import type { ImageryLayerInfo } from './ImageryLayers.js';
+import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 
 /**
@@ -1574,12 +1574,12 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /** One coordinate/visible-surface resolver shared by imagery highlighting and navigation. */
-  private imageryProjection() {
+  private imageryProjection(latitudeConvention: ImageryLatitudeConvention) {
     const datum = this.terrainDatum;
     if (!datum) return null;
     // Cube imagery is registered to body-centred directions; other imagery
     // uses geodetic latitude. Never reinterpret a cube footprint as geodetic.
-    const planetocentric = this.terrainCubeStats !== null;
+    const planetocentric = latitudeConvention === 'planetocentric';
     const shape = datum.referenceShape;
     const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
     const reachKm = Math.max(...radii) * 2;
@@ -1636,8 +1636,8 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /** Overhead imagery view in unscaled mesh-frame km, centred on the same surface as its outline. */
-  imageryRegionView(bounds: readonly [number, number, number, number], aspect: number, fovDeg: number) {
-    const projection = this.imageryProjection();
+  imageryRegionView(bounds: readonly [number, number, number, number], aspect: number, fovDeg: number, latitudeConvention: ImageryLatitudeConvention = 'geodetic') {
+    const projection = this.imageryProjection(latitudeConvention);
     if (!projection) return null;
     const [w, s, e0, n] = bounds, e = e0 < w ? e0 + 360 : e0;
     const lat = (s + n) / 2, lon = (w + e) / 2, rad = Math.PI / 180;
@@ -1657,7 +1657,7 @@ export class BodyMesh extends THREE.Object3D {
    * where it lies past the horizon, so a region on the far side still reads
    * as there but behind.
    */
-  showImageryFootprint(bounds: readonly [number, number, number, number] | null): void {
+  showImageryFootprint(bounds: readonly [number, number, number, number] | null, latitudeConvention: ImageryLatitudeConvention = 'geodetic'): void {
     if (this.imageryFootprint) {
       this.remove(this.imageryFootprint);
       this.imageryFootprint.traverse((o) => {
@@ -1672,7 +1672,7 @@ export class BodyMesh extends THREE.Object3D {
     if (!bounds || !datum) return;
     const [w, s, e0, n] = bounds;
     const e = e0 < w ? e0 + 360 : e0;
-    const projection = this.imageryProjection()!;
+    const projection = this.imageryProjection(latitudeConvention)!;
     const at = projection.at;
     const steps = 32;
     const pts: THREE.Vector3[] = [];
@@ -1706,7 +1706,7 @@ export class BodyMesh extends THREE.Object3D {
     const refresh = () => {
       if (performance.now() - updatedAt >= 250) {
         updatedAt = performance.now();
-        const current = this.imageryProjection()!;
+        const current = this.imageryProjection(latitudeConvention)!;
         if (current.revision !== drapedRevision) {
           drapedRevision = current.revision;
           const center = current.project(reference[1][0]);

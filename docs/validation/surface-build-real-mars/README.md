@@ -37,7 +37,7 @@ No R2 publication, deployment pin or mission placement change is included.
 
 See [reproduction commands](../../surface-data-builds.md#handoff-resume-the-real-mars-pilot).
 
-Current completed build: `e9dd1d51ec2db28daa709b3a4871ad7a9781ca6b1274e5a2f88dba2c6ba29e04`.
+Current completed build: `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`.
 It emitted 219 data objects / 14,435,500 bytes. All three immutable products passed
 full-inventory HTTP checks and re-publication reuse. Catalog rewrite/rollback
 passed on a local copy. The report v2 and standalone planner feedback v1 preserve
@@ -91,3 +91,14 @@ thresholds. [Recorded comparison](../../benchmarks/imagery-layer-flight.json).
 The browser driver now leaves the actual layer row hovered throughout the flight;
 unit regressions verify bounded cast batches and cache invalidation independently
 of wall-clock performance.
+
+The latest review adds per-layer latitude semantics through hover and Fly to,
+including geodetic imagery over cube terrain. The rebuilt immutable pilot passed
+the same physical Metal checks through local publication URLs, with zero errors.
+A real native-region-only change reused terrain/context and staged/audited only
+`hirise-ortho`: no terrain, datum, overview or fusion staging. It completed in
+32.70 s with 8.76 MB sampled worker scratch, compared with 123.90 s and 16.22 GB
+for the full build. Retained caches are excluded from that worker scratch measure;
+source checksums and physical terrain validation still run. These are single local
+observations, not CI performance thresholds. The benchmark records both build IDs
+and the selected work.
