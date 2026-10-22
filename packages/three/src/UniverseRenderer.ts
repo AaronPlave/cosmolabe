@@ -1066,7 +1066,7 @@ export class UniverseRenderer {
     this.updateShadowOccluders();
 
     // Adapt camera speeds to altitude above nearest body (before controls process input)
-    this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor);
+    this.cameraController.adaptSpeeds(this.bodyMeshes.values(), this.scaleFactor, (bm) => this.groundRadiusUnderCameraKm(bm));
 
     // Provide SPICE + universe context for camera modes
     this.cameraController.setModeContext(
@@ -3335,13 +3335,41 @@ export class UniverseRenderer {
   }
 
   /**
+   * The ground's distance from `bm`'s centre under the camera, km, from the
+   * terrain elevation the surface clamp last sampled there; null without
+   * terrain or before the clamp has sampled it. Lets control speeds measure
+   * height above a crater floor or a basin below the datum, not above the
+   * reference radius.
+   */
+  private groundRadiusUnderCameraKm(bm: BodyMesh): number | null {
+    if (!bm.hasTerrain) return null;
+    const cached = this._terrainClampCache.get(bm.body.name);
+    if (!cached) return null;
+    const sf = this.scaleFactor;
+    const local = _clampTmpVec.copy(this.camera.position).sub(bm.position).divideScalar(sf)
+      .applyQuaternion(_clampTmpQuat.copy(bm.mesh.quaternion).invert());
+    // Y-up mesh frame → body-fixed Z-up.
+    const position = bm.terrainBodyFixedToGeodetic({ xKm: local.x, yKm: -local.z, zKm: local.y });
+    return position ? bm.terrainReferenceRadiusAt(position.latDeg) + cached.elevationKm : null;
+  }
+
+  /**
    * Push camera out if it's inside any body's surface.
    * For bodies with terrain, queries actual terrain elevation at the camera's
    * lat/lon so the camera can descend into craters but never go below the
    * visible terrain surface.
    */
+  /**
+   * How far, km, this frame's surface clamp pushed the camera out of a body's
+   * ground (0 when it did not): a diagnostic for navigation that lands near
+   * terrain, such as surface navigation's (#190) instrumentation.
+   */
+  get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
+  private _cameraClampCorrectionKm = 0;
+
   private clampCameraAboveSurfaces(): void {
     const cam = this.camera.position;
+    this._cameraClampCorrectionKm = 0;
     const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
 
     // When the camera is tracking OR flying to a surface-locked body
@@ -3426,6 +3454,7 @@ export class UniverseRenderer {
           console.log(`[clamp] PUSH on ${bm.body.name}: dist=${dist.toExponential(3)} surfaceR=${surfaceR.toExponential(3)} hasTerrain=${hasTerrainSample}`);
         }
         // Push camera out to just above surface along the same direction
+        this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
       }

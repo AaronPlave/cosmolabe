@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, Aperture } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin, Aperture } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -89,6 +89,9 @@ export interface ToolDef {
  */
 export const TOOLS: readonly ToolDef[] = [
   { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
+  // A place on a body by latitude and longitude (#190). A panel, not a
+  // dialog: it stays beside the scene for trying the next place or view.
+  { id: 'navigate', label: 'Navigate', icon: MapPin,  presentation: 'panel',  dock: 'left',  width: 288 },
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },

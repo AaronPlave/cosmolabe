@@ -1409,6 +1409,18 @@ export class TerrainManager {
     return this.cubeImagery?.stats ?? null;
   }
 
+  /**
+   * Revision of whichever CPU source answers `sample`: the cube grids when
+   * configured, the tile sampler otherwise. It changes whenever an answer
+   * may have: the cube source arriving or being dropped, and every grid it
+   * adds or evicts. A consumer that keeps something on the terrain (a
+   * surface-navigation anchor) re-samples when it moves.
+   */
+  get cpuRevision(): number {
+    return this.cubeConfigured ? this.cubeRevision : this.sampler.revision;
+  }
+  private cubeRevision = 0;
+
   /** CPU terrain query. Null means decoded data is not currently cached. */
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     // Cube grids carry no derived normals; `normal` stays absent rather than invented.
@@ -1476,8 +1488,9 @@ export class TerrainManager {
         throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
       }
       const surface = new CubeGridSurface(source, 'body', 'body-fixed');
-      source.onChange = (id) => surface.invalidate(id);
+      source.onChange = (id) => { this.cubeRevision++; surface.invalidate(id); };
       this.cube = { source, surface };
+      this.cubeRevision++;
       // Geometry and grids must be one product revision (the builder writes the grids'
       // source version as the tileset's asset.tilesetVersion). Checked once the tileset
       // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
@@ -1498,6 +1511,7 @@ export class TerrainManager {
         }
         if (version === undefined || version === source.manifest.source.version) return;
         this.cube = null;
+        this.cubeRevision++;
         source.dispose();
         this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
           new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
