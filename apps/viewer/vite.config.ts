@@ -128,13 +128,17 @@ const bundleTestCatalogsPlugin = {
     const outDir = options.dir ?? path.resolve(__dirname, 'dist');
     const catalogsOutDir = path.join(outDir, 'test-catalogs');
     mkdirSync(catalogsOutDir, { recursive: true });
-    let keep: (absolutePath: string) => boolean = () => true;
+    const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
+    const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
+    const datasets = loadDatasets().datasets;
+    let keep = publicDirCopyFilter(
+      Object.fromEntries(Object.entries(datasets).filter(([, ds]) => ds.localOnly)),
+      TEST_CATALOGS_DIR,
+    );
     if (hostedData) {
-      const { loadDatasets } = await import('../../scripts/data-hosting/lib/datasets.mjs');
-      const { publicDirCopyFilter } = await import('../../scripts/data-hosting/lib/public-dir-filter.mjs');
       // HOSTED_DATA_SKIP=id,id also skips datasets that are not pinned yet.
       const alsoSkip = (process.env.HOSTED_DATA_SKIP ?? '').split(',').filter(Boolean);
-      keep = publicDirCopyFilter(loadDatasets().datasets, TEST_CATALOGS_DIR, alsoSkip);
+      keep = publicDirCopyFilter(datasets, TEST_CATALOGS_DIR, alsoSkip);
     }
     for (const name of readdirSync(TEST_CATALOGS_DIR)) {
       const src = path.join(TEST_CATALOGS_DIR, name);
@@ -153,7 +157,7 @@ export default defineConfig({
     ...(bundleTestCatalogs ? [bundleTestCatalogsPlugin] : []),
   ],
   publicDir: 'public',
-  // The spice-cache relay worker pulls in further chunks (TimeCraftJS asm),
+  // The spice-cache relay worker pulls in further chunks (CSPICE WASM bindings),
   // so it can't use the default IIFE format which forbids code-splitting.
   worker: { format: 'es' },
   resolve: {
@@ -180,6 +184,8 @@ export default defineConfig({
         '**/scripts/build-mars-terrain/data/**',
         '**/test-catalogs/data/moon-terrain-fused/**',
         '**/test-catalogs/data/moon-terrain-polar/**',
+        '**/test-catalogs/data/moon-terrain-cube/**',
+        '**/test-catalogs/data/moon-imagery-cube-*/**',
         '**/scripts/build-moon-terrain/data/**',
       ],
     },

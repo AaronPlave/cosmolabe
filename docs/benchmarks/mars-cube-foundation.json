@@ -1,0 +1,719 @@
+{
+  "issue": 245,
+  "date": "2026-10-20",
+  "revision": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+  "datum": {
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    },
+    "verticalDatum": "ellipsoid",
+    "heightConvention": "geodetic-normal"
+  },
+  "geometry": {
+    "kind": "radial-lattice",
+    "referenceRadiusKm": 3396.19
+  },
+  "coordinates": {
+    "sourceLatitude": "planetocentric",
+    "sourceHeightConvention": "areoid-radial",
+    "longitude": "east-positive degrees",
+    "frame": "IAU_MARS",
+    "body": "Mars",
+    "payload": "float32 radial offsets (m) from equatorial reference radius, on geocentric cube rays",
+    "publicSamples": "Cartesian lattice intersections along the declared datum normal; ellipsoid-normal heights",
+    "operation": "radius = bilinear areoid radius (pixel-is-area, longitude wraps, latitude clamps) + unchanged fused areoid height"
+  },
+  "source": {
+    "id": "Mars: Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif + JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif residual",
+    "kind": "height-grid",
+    "version": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+    "fusion": {
+      "sha256": "f4e1dae18a091307c1dd3d13de5b60015a315d902e8c50826e59f10cc9549c3f",
+      "created": "2026-10-02T23:36:51Z",
+      "base": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "detail": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+    },
+    "generator": {
+      "script": "scripts/terrain/dem.py cube-tile",
+      "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+    },
+    "build": {
+      "global_level": 0,
+      "region": [
+        "jezero@18.45,77.4:1=80,2=60,3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=2"
+      ],
+      "skirt_cells": 0.1,
+      "ellipsoid": [
+        3396190.0,
+        3376200.0
+      ],
+      "simplify": 0,
+      "sourceConvention": "areoid-radial",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "inputs": {
+        "base": {
+          "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "residual": {
+          "file": "residual.tif",
+          "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+        },
+        "areoid": {
+          "file": "mars-areoid.lbl",
+          "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+        },
+        "areoidFiles": [
+          {
+            "file": "MEGA90N000EB.IMG",
+            "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+          },
+          {
+            "file": "mars-areoid.lbl",
+            "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+          }
+        ]
+      }
+    }
+  },
+  "product": {
+    "tiles": 78,
+    "tiling": {
+      "mapping": "gnomonic cube; faces, bases and tile addresses of packages/three/src/surface/CubeSphere.ts",
+      "globalLevel": 0,
+      "maxLevel": 11,
+      "regions": [
+        {
+          "name": "jezero",
+          "latDeg": 18.45,
+          "lonDeg": 77.4,
+          "radiusKmByLevel": {
+            "1": 80.0,
+            "2": 60.0,
+            "3": 50.0,
+            "4": 35.0,
+            "5": 25.0,
+            "6": 18.0,
+            "7": 12.0,
+            "8": 8.0,
+            "9": 6.0,
+            "10": 4.0,
+            "11": 2.0
+          }
+        }
+      ],
+      "faceCentreVertexSpacingM": [
+        106130.9375,
+        53065.46875,
+        26532.734375,
+        13266.3671875,
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875
+      ],
+      "tilesPerLevel": {
+        "4": 8,
+        "5": 4,
+        "6": 4,
+        "7": 12,
+        "3": 4,
+        "8": 8,
+        "9": 8,
+        "10": 8,
+        "11": 8,
+        "1": 4,
+        "2": 4,
+        "0": 6
+      }
+    },
+    "bytes": {
+      "glb": 12549844,
+      "cpuGrids": 1318200
+    },
+    "renderedLatticeRoundingBoundKm": 0.000137028
+  },
+  "sourceAudit": {
+    "revision": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+    "registration": {
+      "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+      "centroid": {
+        "lonDeg": 77.4034569842557,
+        "latDeg": 18.48804879297973
+      },
+      "fitStridePx": 8,
+      "offsetM": -8.645969777066195,
+      "slopeEastMPerKm": 1.0121736526817324,
+      "slopeNorthMPerKm": -0.6852599991318675,
+      "tiltDeg": 0.07003399047059078,
+      "raw": {
+        "n": 4749862,
+        "meanM": -7.893571008697858,
+        "rmsM": 18.93642389993706,
+        "p95AbsM": 39.94189453125,
+        "maxAbsM": 89.161376953125
+      },
+      "afterPlane": {
+        "n": 4749862,
+        "meanM": 8.499790859098853e-14,
+        "rmsM": 15.880520798838809,
+        "p95AbsM": 33.68761187276017,
+        "maxAbsM": 96.78352399830243
+      },
+      "removed": false,
+      "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base"
+    },
+    "sourceControlNote": "MMGIS lon/lat numbers sampled in the USGS source map convention (planetocentric); this is not a certification of existing trajectory Cartesian placement",
+    "areoidModelNote": "MEG016 GMM3 mgm1025 degree/order 50; integer-metre grid, bilinear interpolation; datum/model/source uncertainty remains unbounded here",
+    "vertexConversionM": {
+      "n": 390,
+      "rmsM": 0.00014091456752859667,
+      "p95AbsM": 0.00024304864928126335,
+      "maxAbsM": 0.0009242156520485878
+    },
+    "sourceControlsM": {
+      "n": 73,
+      "rmsM": 0.004180281955175576,
+      "p95AbsM": 0.008264282260643081,
+      "maxAbsM": 0.01816227872541276
+    },
+    "triangleMinusFinestFieldM": {
+      "controls": {
+        "n": 73,
+        "rmsM": 0.8473946278439157,
+        "p95AbsM": 1.7022870867837745,
+        "maxAbsM": 2.92233318210765
+      },
+      "outside": {
+        "n": 12,
+        "rmsM": 0.5252754833848183,
+        "p95AbsM": 0.9420606909193334,
+        "maxAbsM": 1.2393182352429903
+      },
+      "blend": {
+        "n": 12,
+        "rmsM": 3.2512397662597854,
+        "p95AbsM": 6.9885687149755515,
+        "maxAbsM": 8.744418132538158
+      },
+      "interior": {
+        "n": 12,
+        "rmsM": 2.175965905845465,
+        "p95AbsM": 3.967281913920972,
+        "maxAbsM": 7.16954114213172
+      }
+    }
+  },
+  "structure": {
+    "faceRoots": [
+      "px",
+      "nx",
+      "py",
+      "ny",
+      "pz",
+      "nz"
+    ],
+    "replaceComplete": true,
+    "maxBoundsExcessM": 4.656612873077393e-10,
+    "boundsEscapes": 0,
+    "cpuGridVsVertexMismatches": 0
+  },
+  "sharedVertices": {
+    "tolerance": "sum of both tiles' float32 offset precision (1e-4 m + 4\u00b72\u207b\u00b2\u2074\u00b7largest box half-extent)",
+    "sameFace": {
+      "n": 5565,
+      "maxM": 0.09451493283678483,
+      "rmsM": 0.012162220819894284,
+      "p95M": 0.02243229822409911
+    },
+    "crossFace": {
+      "n": 764,
+      "maxM": 0.1882653279802074,
+      "rmsM": 0.1035542025356728,
+      "p95M": 0.1497436583893554
+    },
+    "corner": {
+      "n": 8,
+      "maxM": 0.1375132398154718,
+      "rmsM": 0.0992380104696951,
+      "p95M": 0.1375132398154718
+    },
+    "normalDeg": {
+      "n": 6337,
+      "maxM": 0,
+      "rmsM": 0,
+      "p95M": 0
+    },
+    "cpuHeightMismatches": 0
+  },
+  "skirts": {
+    "description": "per edge: 1.25 \u00d7 the largest gap to any other level across it + 0.1 \u00d7 vertex spacing; triangles after glTF primitive extras.surfaceTriangles",
+    "builder": {
+      "pairs": 192,
+      "crossFacePairs": 12,
+      "pairsByLevelDelta": {
+        "1": 96,
+        "2": 56,
+        "3": 26,
+        "4": 12,
+        "5": 2
+      },
+      "byLevel": {
+        "0": {
+          "edges": 24,
+          "gapMaxM": 1011.37,
+          "depthMeanM": 10694.062,
+          "depthMaxM": 11877.306,
+          "vertexSpacingM": 106130.938
+        },
+        "1": {
+          "edges": 16,
+          "gapMaxM": 846.677,
+          "depthMeanM": 5647.006,
+          "depthMaxM": 6364.893,
+          "vertexSpacingM": 53065.469
+        },
+        "2": {
+          "edges": 16,
+          "gapMaxM": 854.065,
+          "depthMeanM": 3034.566,
+          "depthMaxM": 3720.855,
+          "vertexSpacingM": 26532.734
+        },
+        "3": {
+          "edges": 16,
+          "gapMaxM": 1069.222,
+          "depthMeanM": 1652.9,
+          "depthMaxM": 2663.164,
+          "vertexSpacingM": 13266.367
+        },
+        "4": {
+          "edges": 32,
+          "gapMaxM": 499.796,
+          "depthMeanM": 827.982,
+          "depthMaxM": 1288.064,
+          "vertexSpacingM": 6633.184
+        },
+        "5": {
+          "edges": 16,
+          "gapMaxM": 764.345,
+          "depthMeanM": 498.897,
+          "depthMaxM": 1287.09,
+          "vertexSpacingM": 3316.592
+        },
+        "6": {
+          "edges": 16,
+          "gapMaxM": 992.052,
+          "depthMeanM": 361.136,
+          "depthMaxM": 1405.895,
+          "vertexSpacingM": 1658.296
+        },
+        "7": {
+          "edges": 48,
+          "gapMaxM": 1061.675,
+          "depthMeanM": 182.665,
+          "depthMaxM": 1410.009,
+          "vertexSpacingM": 829.148
+        },
+        "8": {
+          "edges": 32,
+          "gapMaxM": 139.254,
+          "depthMeanM": 72.042,
+          "depthMaxM": 215.525,
+          "vertexSpacingM": 414.574
+        },
+        "9": {
+          "edges": 32,
+          "gapMaxM": 149.507,
+          "depthMeanM": 41.802,
+          "depthMaxM": 207.613,
+          "vertexSpacingM": 207.287
+        },
+        "10": {
+          "edges": 32,
+          "gapMaxM": 150.605,
+          "depthMeanM": 21.746,
+          "depthMaxM": 198.621,
+          "vertexSpacingM": 103.643
+        },
+        "11": {
+          "edges": 32,
+          "gapMaxM": 42.437,
+          "depthMeanM": 9.17,
+          "depthMaxM": 58.229,
+          "vertexSpacingM": 51.822
+        }
+      }
+    },
+    "coverage": {
+      "pairs": 192,
+      "samples": 12480,
+      "uncovered": 0,
+      "radialGapM": {
+        "n": 12480,
+        "maxM": 1069.220515532419,
+        "rmsM": 85.47097724525645,
+        "p95M": 182.49513482302427
+      },
+      "marginM": {
+        "n": 12480,
+        "maxM": 11877.140001564752,
+        "rmsM": 2062.618017657062,
+        "p95M": 5557.478897339664
+      },
+      "minMarginM": 5.381008416414261,
+      "higherSide": {
+        "fine": 6464,
+        "coarse": 6016
+      }
+    }
+  },
+  "picking": {
+    "rays": 120,
+    "cpuVsFloat32Triangles": {
+      "n": 120,
+      "maxM": 0.13074711113449666,
+      "rmsM": 0.04054020042712597,
+      "p95M": 0.09636422788048549
+    },
+    "clearanceM": 50,
+    "raysWithFullClearance": 120,
+    "lineOfSightErrorM": {
+      "n": 120,
+      "maxM": 4.3145576000824803e-10,
+      "rmsM": 1.523191710111586e-10,
+      "p95M": 3.1533176070297486e-10
+    },
+    "minHeightAboveCpuSampleM": 50.00031297845453
+  },
+  "boundaryPicks": {
+    "note": "rays (0\u201360\u00b0 off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
+    "rays": 96,
+    "raysOnPair": 96,
+    "renderedMinusCpuM": {
+      "n": 96,
+      "maxM": 291.04234626754646,
+      "rmsM": 38.71513743274447,
+      "p95M": 30.79653014879591
+    },
+    "skirtHitRenderedMinusCpuM": {
+      "n": 25,
+      "maxM": 0.18188703816645102,
+      "rmsM": 0.03711129842195834,
+      "p95M": 0.029581713830793888
+    },
+    "skirtHitOverEdgeGap": {
+      "n": 25,
+      "maxM": 0.00377497801106454,
+      "rmsM": 0.0007561738115713945,
+      "p95M": 0.00015130121263694788
+    },
+    "renderedOnSkirt": 25,
+    "throughCrackWithoutSkirts": 8,
+    "renderedClearanceM": {
+      "n": 93,
+      "maxM": 160.2719588771191,
+      "rmsM": 28.84919033667249,
+      "p95M": 19.758893433429776
+    },
+    "renderedClearanceMinM": 30.23935542566977
+  },
+  "boundaryUnavailable": [],
+  "imagery": {
+    "failures": [],
+    "markers": {
+      "markers": 8,
+      "placements": 41,
+      "worstViewerVsBuilderPx": 1.7053025658242404e-13,
+      "colourChecks": 0,
+      "centroidChecks": 0,
+      "worstCentroidPx": 0,
+      "edgeChecks": 3,
+      "worstInnerEdgeSpreadTexels": 0.1827463035564474
+    },
+    "neighbours": {
+      "sameFacePairs": 80,
+      "sameFaceMaxCounts": 0,
+      "crossFaceTiles": 24,
+      "crossFaceSamples": 2208,
+      "crossFaceMeanCounts": 3.1189659095039106,
+      "crossFaceMaxCounts": 75.70654497201683,
+      "note": "cross-face gutters and the neighbour face use different pixel lattices; differences are resampling of sharp lines, not offsets"
+    },
+    "registration": {
+      "pixelsChecked": 3
+    }
+  },
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.96 Safari/537.36",
+    "webglVendor": "Google Inc. (Google)",
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "devicePixelRatio": 1,
+    "launch": "playwright chromium headless, --use-angle=swiftshader (software WebGL; no GPU in this host)"
+  },
+  "browserViewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "captures": [
+    {
+      "view": "jezero",
+      "mode": "shaded",
+      "finished": true,
+      "pose": {
+        "frame": "IAU_MARS body-fixed, km, Z-up",
+        "eye": [
+          700.1625599459308,
+          3142.914741801086,
+          1072.6901574239114
+        ],
+        "target": [
+          699.1203836097903,
+          3140.819276662411,
+          1073.1812861978608
+        ],
+        "fov": 60,
+        "epoch": "catalog defaultTime, paused"
+      },
+      "finestVisibleLevel": 11,
+      "finestVertexSpacingM": 51.821746826171875,
+      "visibleByLevel": {
+        "0": 2,
+        "1": 2,
+        "2": 3,
+        "3": 2,
+        "4": 7,
+        "5": 3,
+        "6": 1,
+        "7": 10,
+        "8": 6,
+        "9": 6,
+        "10": 6,
+        "11": 8
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": 18.648996249008597,
+          "lonDeg": 77.45101915,
+          "elevationKm": -2.234867035127664,
+          "tileId": "py/8/156/84",
+          "source": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+          "coverage": {
+            "state": "parent-fallback",
+            "availableLevel": 10,
+            "residentLevel": 8,
+            "residentTileId": "py/8/156/84"
+          }
+        },
+        "settled": {
+          "latDeg": 18.648996249008597,
+          "lonDeg": 77.45101915,
+          "elevationKm": -2.235210951058548,
+          "tileId": "py/10/625/337",
+          "source": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+          "coverage": {
+            "state": "finest",
+            "availableLevel": 10,
+            "residentLevel": 10,
+            "residentTileId": "py/10/625/337"
+          }
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": 18.648983955432634,
+          "lonDeg": 77.45101309780954,
+          "altKm": -2.2352098645276044,
+          "cameraDistanceKm": 2.3898528970257775,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "py/10/625/337",
+            "normal": [
+              0.20164583462099114,
+              0.9259700952196789,
+              0.31924651938410015
+            ],
+            "bodyFixedKm": [
+              699.1210139792447,
+              3140.8205443023207,
+              1073.180989104587
+            ],
+            "renderedOffsetKm": 7.089904579409231e-09,
+            "sourceVersion": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f"
+          }
+        },
+        "afterRayCoverage": {
+          "latDeg": 18.648983955432634,
+          "lonDeg": 77.45101309780954,
+          "altKm": -2.2352098645276044,
+          "cameraDistanceKm": 2.3898528970257775,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "py/10/625/337",
+            "normal": [
+              0.20164583462099114,
+              0.9259700952196789,
+              0.31924651938410015
+            ],
+            "bodyFixedKm": [
+              699.1210139792447,
+              3140.8205443023207,
+              1073.180989104587
+            ],
+            "renderedOffsetKm": 7.089904579409231e-09,
+            "sourceVersion": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f"
+          }
+        }
+      },
+      "errors": []
+    },
+    {
+      "view": "overview",
+      "mode": "shaded",
+      "finished": true,
+      "pose": {
+        "frame": "IAU_MARS body-fixed, km, Z-up",
+        "eye": [
+          1935.7951625348817,
+          8696.617785289616,
+          2971.5327875553717
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "fov": 50,
+        "epoch": "catalog defaultTime, paused"
+      },
+      "finestVisibleLevel": 0,
+      "finestVertexSpacingM": 106130.9375,
+      "visibleByLevel": {
+        "0": 6
+      },
+      "cpuReadoutAtTarget": {
+        "first": {
+          "latDeg": 0,
+          "lonDeg": 0,
+          "elevationKm": -1.8784467773439246,
+          "tileId": "px/0/0/0",
+          "source": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+          "coverage": {
+            "state": "finest",
+            "availableLevel": 0,
+            "residentLevel": 0,
+            "residentTileId": "px/0/0/0"
+          }
+        },
+        "settled": {
+          "latDeg": 0,
+          "lonDeg": 0,
+          "elevationKm": -1.8784467773439246,
+          "tileId": "px/0/0/0",
+          "source": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f",
+          "coverage": {
+            "state": "finest",
+            "availableLevel": 0,
+            "residentLevel": 0,
+            "residentTileId": "px/0/0/0"
+          }
+        }
+      },
+      "centrePick": {
+        "first": {
+          "latDeg": 18.639430359995625,
+          "lonDeg": 77.45483287392462,
+          "altKm": -2.244510341561522,
+          "cameraDistanceKm": 5999.783495476659,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "py/8/156/84",
+            "normal": [
+              0.1790921037179522,
+              0.9401948294054464,
+              0.2897580044539613
+            ],
+            "bodyFixedKm": [
+              698.9485444818824,
+              3141.0331782615467,
+              1072.6478470059674
+            ],
+            "renderedOffsetKm": 0.22266284365796263,
+            "sourceVersion": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f"
+          }
+        },
+        "afterRayCoverage": {
+          "latDeg": 18.639430359995625,
+          "lonDeg": 77.45483287392462,
+          "altKm": -2.2459553941603616,
+          "cameraDistanceKm": 5999.783495476659,
+          "physical": {
+            "kind": "hit",
+            "detail": "coarse",
+            "tileId": "py/10/625/337",
+            "normal": [
+              0.21844100680050343,
+              0.9372370750513707,
+              0.2717907130443088
+            ],
+            "bodyFixedKm": [
+              698.9482496826336,
+              3141.0318541020706,
+              1072.6473944115664
+            ],
+            "renderedOffsetKm": 0.22409292988160168,
+            "sourceVersion": "cube-fused-f4e1dae18a09-g0-m11-bca4beb5f"
+          }
+        }
+      },
+      "errors": []
+    }
+  ],
+  "failures": [],
+  "validation": {
+    "build": "npm run build",
+    "types": "npx tsc -p tsconfig.test.json",
+    "focusedTests": "8 files, 130 tests passed",
+    "pythonOblate": "3 tests passed (including emitted negative-height flattened lattice)",
+    "pythonLegacy": "dem.py selftest passed",
+    "lint": "npm run lint passed",
+    "existingLunarProduct": {
+      "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+      "tiles": 4030,
+      "failures": [],
+      "picking": {
+        "n": 120,
+        "maxM": 0.00019288626094748906,
+        "rmsM": 4.4501160753993375e-05,
+        "p95M": 8.973303556558676e-05
+      }
+    },
+    "boundaryRegression": "96/96 targeted boundary hits; all 10 recorded former gaps hit and match emitted surface-only triangles"
+  },
+  "limits": [
+    "Software WebGL captures at 1280x800, DPR 1; no physical GPU performance claim.",
+    "CPU surface is partial-product; missing/unloaded coverage remains unavailable and finite query budgets do not certify a miss or nearest hit.",
+    "No source/datum accuracy certification or production mission trajectory migration.",
+    "Coarse orbital rendered LOD and finest CPU lattice can differ by hundreds of metres; captured offsets are retained."
+  ],
+  "boundaryRegression": {
+    "fixture": "scripts/terrain/fixtures/mars-cube-boundary-rays.json",
+    "formerlyUnavailable": 10,
+    "physicalHits": 10,
+    "surfaceOnlyVerification": "All 10 compared to the emitted tile surface triangles, within the published float32 lattice rounding budget; no skirts.",
+    "coveragePolicy": "Finest-owned hits preferred. Actual closed outer-edge triangle support from resident ancestors remains provisional if no finest-owned triangle intersects. Interior superseded hits remain rejected."
+  }
+}

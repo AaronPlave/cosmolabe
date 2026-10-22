@@ -1,8 +1,8 @@
 // The heritage adapter of the Session 4 re-point: a drop-in implementation of
 // the SpiceInstance runtime surface over the frames tier and its cspice-wasm
 // bindings. Cosmolabe's injection sites (the viewer loader, the trajectory
-// cache worker, the test harness) construct this instead of the timecraftjs
-// Spice, so every state and orientation the core consumes flows through the
+// cache worker, the test harness) construct this, so every state and
+// orientation the core consumes flows through the
 // M-0002 contracts (iron rule 1) while the core's own code keeps its existing
 // interface. The part of that interface core still calls now lives with its
 // consumer, in packages/core/src/spice-injection.ts — narrower than this
@@ -16,7 +16,7 @@
 // Charter. The adapter makes no semantic choice it did not inherit: every
 // choice below matches measured heritage behavior, is pinned one for one by
 // the charter block in heritage-spice.test.ts, and is value-checked against
-// the live timecraftjs wrapper by the differential harness. Enumerated:
+// committed independent CSPICE outputs by reference-regression.test.ts. Enumerated:
 //   correction   spkpos, spkezr, the gf finders, and the geometry calls take
 //                the caller's aberration correction verbatim; the adapter
 //                never defaults, never substitutes, and accepts the full
@@ -33,7 +33,7 @@
 //                behavior: heritage stripped one trailing Z and left the UTC
 //                reading to CSPICE's default (issue #8). It is value-identical
 //                on every form heritage accepted — measured, see the
-//                differential harness — and additionally accepts the ISO forms
+//                reference regression suite — and additionally accepts the ISO forms
 //                heritage threw on (an offset epoch, a designator on a
 //                date-only string). utc2et still passes the string verbatim,
 //                exactly as heritage does, so a Z-suffixed input fails loudly
@@ -125,6 +125,29 @@ export interface HIlluminationAngles {
   emission: number;
 }
 export type HFovShape = 'POLYGON' | 'RECTANGLE' | 'CIRCLE' | 'ELLIPSE';
+
+/**
+ * A DSK read as one triangle mesh (cspice-wasm's DskShape). Vertices are km in
+ * the body-fixed frame named by `frame`; plates are 0-based vertex indices.
+ */
+export interface HDskShape {
+  readonly vertices: Float64Array;
+  readonly plates: Uint32Array;
+  /** NAIF ID of the body the shape describes. */
+  readonly centerId: number;
+  /** The body-fixed frame of the vertices; empty if the loaded kernels do not name it. */
+  readonly frame: string;
+  readonly segments: readonly {
+    readonly surfaceId: number;
+    readonly centerId: number;
+    readonly frameId: number;
+    readonly frame: string;
+    readonly vertexCount: number;
+    readonly plateCount: number;
+  }[];
+  /** Segments skipped because their data type is not 2. */
+  readonly skippedSegments: number;
+}
 export interface HInstrumentFov {
   shape: HFovShape;
   frame: string;
@@ -364,6 +387,11 @@ export interface HeritageSpice {
   ckcov(idcode: number, options?: CkCoverageOptions): HTimeWindow[];
   ckobj(filename: string): number[];
   getfov(instId: number, maxBounds?: number): HInstrumentFov;
+  /**
+   * Read a DSK's type-2 segments as one mesh. The bytes are read, not furnished:
+   * the shape is for rendering, and this neither adds a kernel nor needs one.
+   */
+  readDsk(name: string, bytes: Uint8Array): HDskShape;
   fovray(
     inst: string,
     raydir: HVec3,
@@ -721,6 +749,9 @@ export async function createHeritageSpice(options?: HeritageSpiceOptions): Promi
         boresight: vec(r.boresight),
         bounds: r.bounds.map(vec),
       };
+    },
+    readDsk(name, bytes) {
+      return bindings.readDsk(name, bytes);
     },
     fovray() {
       throw new SpiceError(

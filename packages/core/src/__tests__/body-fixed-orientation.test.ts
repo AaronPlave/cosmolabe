@@ -20,12 +20,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { RotationMatrix, SpiceInstance, Vec3 } from '../spice-injection.js';
 import { furnishKernels } from './_harness/kernels.js';
 import { CatalogLoader, type CatalogItem, type CatalogJson } from '../catalog/CatalogLoader.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
+import { IauMoonRotation } from '../rotations/IauMoonRotation.js';
 import type { RotationModel } from '../rotations/RotationModel.js';
 import { composeBodyToWorldQuat, rotateVecByQuat } from '../kinematics.js';
 import { quatToMat3, mat3Transpose, mat3Vec } from '../frames/mat3.js';
@@ -76,7 +77,7 @@ describe('SPICE-backed body-fixed orientation', () => {
   ];
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     await furnishKernels(spice, ['naif0012.tls', 'pck00010.tpc']);
   });
 
@@ -137,17 +138,30 @@ describe('SPICE-backed body-fixed orientation', () => {
 
   it('analytical IAU fallback puts pole and prime meridian where the PCK does', () => {
     const loader = new CatalogLoader();
-    for (const name of ANALYTICAL_BODIES) {
+    for (const name of ANALYTICAL_BODIES.filter((n) => n !== 'Moon')) {
       const rot = loadRotation(loader, { name, rotationModel: { type: 'Builtin' } });
       expect(rot, name).toBeInstanceOf(UniformRotation);
       const iauToJ2000 = spice.pxform(`IAU_${name.toUpperCase()}`, 'J2000', 0);
       const pole = angleDeg(axisInJ2000(rot!, [0, 0, 1], 0), mat3Vec(iauToJ2000, [0, 0, 1]));
       const meridian = angleDeg(axisInJ2000(rot!, [1, 0, 0], 0), mat3Vec(iauToJ2000, [1, 0, 0]));
       // The table is the constant-rate baseline. The PCK adds periodic terms
-      // it omits: ~0.7° for Neptune, ~1.6° of physical libration for the Moon.
-      const tol = name === 'Moon' ? 2 : 1;
-      expect(pole, `${name} pole`).toBeLessThan(tol);
-      expect(meridian, `${name} prime meridian`).toBeLessThan(tol);
+      // it omits: ~0.7° for Neptune.
+      expect(pole, `${name} pole`).toBeLessThan(1);
+      expect(meridian, `${name} prime meridian`).toBeLessThan(1);
+    }
+  });
+
+  // The Moon's periodic terms are its 1.5° tilt to the ecliptic pole and ~12°
+  // of prime meridian by 2028; without them the Sun sits on the horizon at the
+  // south pole all year. The fallback carries them, so it is the PCK frame.
+  it('analytical Moon is IAU_MOON, periodic terms included', () => {
+    const rot = loadRotation(new CatalogLoader(), { name: 'Moon', rotationModel: { type: 'Builtin', name: 'IAU_MOON' } });
+    expect(rot).toBeInstanceOf(IauMoonRotation);
+    for (const et of [...epochs, etFromCalendarString('2028-12-15T10:04:00Z')]) {
+      const iauToJ2000 = spice.pxform('IAU_MOON', 'J2000', et);
+      for (const axis of [[1, 0, 0], [0, 0, 1]] as Vec3[]) {
+        expect(angleDeg(axisInJ2000(rot!, axis, et), mat3Vec(iauToJ2000, axis)), `axis ${axis} @ ${et}`).toBeLessThan(1e-6);
+      }
     }
   });
 
@@ -187,7 +201,7 @@ describe('Builtin rotation with SPICE but no orientation data', () => {
 describe('bundled catalogs: remaining Uniform rotations agree with the IAU pole', () => {
   let spice: SpiceInstance;
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     await furnishKernels(spice, ['naif0012.tls', 'pck00010.tpc']);
   });
 

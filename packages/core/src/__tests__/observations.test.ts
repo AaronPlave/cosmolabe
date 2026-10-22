@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import type { ArchiveObservation } from '@cosmolabe/interop';
 import { furnishKernels } from './_harness/kernels.js';
 import {
@@ -39,7 +39,7 @@ import { archiveToObservation, archiveTimeToEt, campaignSpans } from '../observa
 import { resolveSurfaceMethod } from '../observations/computeFootprint.js';
 import { createSpiceEngine } from 'cspice-wasm';
 import { arrokothDskScene, CAMERA, ARROKOTH } from './_harness/arrokoth-dsk.js';
-import type { Vec3 } from '../spice-injection.js';
+import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 
 const parseNumber = (v: string | number) => (typeof v === 'number' ? v : Number(v));
 
@@ -217,9 +217,9 @@ describe('lon/lat ↔ body-fixed', () => {
 // ── archive ingest ──────────────────────────────────────────────────────────
 
 describe('archive ingest', () => {
-  let spice: Spice;
+  let spice: SpiceInstance;
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = (await createHeritageSpice()) as unknown as SpiceInstance;
     await furnishKernels(spice, ['naif0012.tls']);
   });
 
@@ -312,11 +312,11 @@ const ROWS = (
 const INSTRUMENT_ID = { ISSNA: -82360, ISSWA: -82361 } as const;
 
 describe('computeFootprint (Cassini ISS, SOI, IK + CK)', () => {
-  let spice: Spice;
+  let spice: SpiceInstance;
   let provider: FootprintGeometryProvider;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = (await createHeritageSpice()) as unknown as SpiceInstance;
     await furnishKernels(spice, [
       'naif0012.tls',
       'pck00010.tpc',
@@ -350,7 +350,7 @@ describe('computeFootprint (Cassini ISS, SOI, IK + CK)', () => {
     for (const row of ROWS.filter((r) => r.target === 'TITAN')) {
       const f = footprint(row);
       if (!f.boresight) continue;
-      const radii = spice.bodvrd(row.target, 'RADII') as Vec3;
+      const radii = spice.bodvcd(spice.bodn2c(row.target)!, 'RADII') as Vec3;
       for (const p of [f.boresight, ...f.boundary]) {
         if (!p) continue;
         const s = (p[0] / radii[0]) ** 2 + (p[1] / radii[1]) ** 2 + (p[2] / radii[2]) ** 2;
@@ -422,7 +422,7 @@ describe('computeFootprint (Cassini ISS, SOI, IK + CK)', () => {
 
 describe('the Cassini demo catalog (apps/viewer/test-catalogs/cassini-observations.json)', () => {
   it('every item is a plain Cosmographia observation the generic model reads, in 22 campaigns', async () => {
-    const spice = await Spice.init();
+    const spice = (await createHeritageSpice()) as unknown as SpiceInstance;
     await furnishKernels(spice, ['naif0012.tls']);
     const catalog = JSON.parse(
       readFileSync(join(__dirname, '../../../../apps/viewer/test-catalogs/cassini-observations.json'), 'utf8'),
@@ -446,6 +446,10 @@ describe('resolveSurfaceMethod', () => {
     expect(resolveSurfaceMethod({}, { surfaceMethod: 'DSK/UNPRIORITIZED' })).toBe('DSK/UNPRIORITIZED');
     expect(resolveSurfaceMethod({}, { type: 'Mesh', dsk: 'shape.bds' })).toBe('DSK/UNPRIORITIZED');
     expect(resolveSurfaceMethod({}, { type: 'Mesh', source: 'models/67P.BDS' })).toBe('DSK/UNPRIORITIZED');
+    // Cosmographia's own DSK geometry, as the loader normalises it — what an
+    // official Rosetta catalog declares for 67P.
+    expect(resolveSurfaceMethod({}, { type: 'Dsk', source: 'ROS_CG_M001_OSPCLPS_N_V1.bds' })).toBe('DSK/UNPRIORITIZED');
+    expect(resolveSurfaceMethod({}, { type: 'DSK', kernel: 'shape.bds' })).toBe('DSK/UNPRIORITIZED');
     expect(resolveSurfaceMethod({}, { type: 'Globe', radius: 2575 })).toBe('ELLIPSOID');
     expect(resolveSurfaceMethod({}, undefined)).toBe('ELLIPSOID');
   });
@@ -457,8 +461,8 @@ describe('computeFootprint on a DSK (Arrokoth low-poly shape, runtime engine)', 
   type V = [number, number, number];
   let provider: FootprintGeometryProvider;
   let et: number;
-  let verts: Float64Array | number[];
-  let plates: Int32Array | number[];
+  let verts: ArrayLike<number>;
+  let plates: ArrayLike<number>;
 
   beforeAll(async () => {
     const scene = await arrokothDskScene();

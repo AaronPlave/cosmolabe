@@ -1,0 +1,8424 @@
+[
+ {
+  "label": "ab-base-grid-2560",
+  "viewport": {
+   "width": 2560,
+   "height": 1600
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 295,
+  "drawsOn": 173,
+  "drawnOff": 194,
+  "drawnOn": 78,
+  "wallOff": 4.2,
+  "wallOn": 3.2,
+  "wallP95Off": 5.1,
+  "wallP95On": 4.4,
+  "dWall": -0.85,
+  "dWallMin": -1.2,
+  "dWallMax": -0.75,
+  "gpuOff": 1.098,
+  "gpuOn": 0.7823,
+  "gpuP95Off": 1.762,
+  "gpuP95On": 1.813,
+  "dGpu": -0.302,
+  "dGpuMin": -0.389,
+  "dGpuMax": -0.2761,
+  "cpuOff": 1.982,
+  "cpuOn": 1.383,
+  "tilesOff": 0.486,
+  "tilesOn": 0.4667,
+  "prepOff": 0.2183,
+  "prepOn": 0.1419,
+  "submitOff": 0.6723,
+  "submitOn": 0.377,
+  "imageryOff": 0.5252,
+  "imageryOn": 0.3096,
+  "animOff": 2.1,
+  "animOn": 1.6,
+  "animP95Off": 2.7,
+  "animP95On": 2.4,
+  "animCpuOff": 1.99,
+  "animCpuOn": 1.569,
+  "animGpuOff": 1.226,
+  "animGpuOn": 1.134,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 194,
+   "onScreen": 69,
+   "offFrustum": 116,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 9,
+   "culled": 116,
+   "culledWithPixels": 0,
+   "cullable": 116,
+   "medianPxOnScreen": 25086,
+   "triangles": 1688576,
+   "skirtTriangles": 99328,
+   "trianglesWithoutPixels": 1088000,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 9,
+     "surface": 73728,
+     "skirt": 4608,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 18,
+     "surface": 147456,
+     "skirt": 9216,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 32,
+     "surface": 262144,
+     "skirt": 16384,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 21,
+     "surface": 172032,
+     "skirt": 10752,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 33,
+     "surface": 270336,
+     "skirt": 16896,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 39,
+     "surface": 319488,
+     "skirt": 19968,
+     "zeroPx": 27,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 14,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 527,
+   "median": 0.6201,
+   "p95": 5.066,
+   "rms": 2.769,
+   "max": 22.71
+  },
+  "imagery": {
+   "blocks": 168,
+   "splitTiles": 28,
+   "extraDraws": 90,
+   "blockGeometryMB": 8.99,
+   "textures": 197,
+   "textureMiB": 69.83,
+   "maxLevel": 10,
+   "requests": 197,
+   "bytes": 7804313
+  },
+  "memory": {
+   "cacheBytes": 51156480,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 77369376,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid-2560",
+  "viewport": {
+   "width": 2560,
+   "height": 1600
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 614,
+  "drawsOn": 105,
+  "drawnOff": 306,
+  "drawnOn": 28,
+  "wallOff": 6.7,
+  "wallOn": 2,
+  "wallP95Off": 10.2,
+  "wallP95On": 3.7,
+  "dWall": -4.1,
+  "dWallMin": -4.9,
+  "dWallMax": -3.85,
+  "gpuOff": 1.292,
+  "gpuOn": 0.4311,
+  "gpuP95Off": 4.951,
+  "gpuP95On": 1.927,
+  "dGpu": -0.9306,
+  "dGpuMin": -0.9415,
+  "dGpuMax": -0.7913,
+  "cpuOff": 3.756,
+  "cpuOn": 1.098,
+  "tilesOff": 0.6415,
+  "tilesOn": 0.5468,
+  "prepOff": 0.4419,
+  "prepOn": 0.08664,
+  "submitOff": 1.466,
+  "submitOn": 0.205,
+  "imageryOff": 1.104,
+  "imageryOn": 0.1782,
+  "animOff": 3.7,
+  "animOn": 1.4,
+  "animP95Off": 4.8,
+  "animP95On": 2,
+  "animCpuOff": 3.763,
+  "animCpuOn": 1.374,
+  "animGpuOff": 1.951,
+  "animGpuOn": 1.047,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 306,
+   "onScreen": 25,
+   "offFrustum": 233,
+   "beyondHorizon": 45,
+   "inViewNoPixels": 3,
+   "culled": 278,
+   "culledWithPixels": 0,
+   "cullable": 278,
+   "medianPxOnScreen": 193864,
+   "triangles": 2663424,
+   "skirtTriangles": 156672,
+   "trianglesWithoutPixels": 2445824,
+   "byLevel": {
+    "1": {
+     "tiles": 4,
+     "surface": 32768,
+     "skirt": 2048,
+     "zeroPx": 4,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 49,
+     "surface": 401408,
+     "skirt": 25088,
+     "zeroPx": 49,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 112,
+     "surface": 917504,
+     "skirt": 57344,
+     "zeroPx": 112,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 41,
+     "surface": 335872,
+     "skirt": 20992,
+     "zeroPx": 41,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 21,
+     "surface": 172032,
+     "skirt": 10752,
+     "zeroPx": 21,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 39,
+     "surface": 319488,
+     "skirt": 19968,
+     "zeroPx": 32,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 2,
+     "medianPx": 193864
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.966,
+   "p95": 11.46,
+   "rms": 5.937,
+   "max": 69.35
+  },
+  "imagery": {
+   "blocks": 100,
+   "splitTiles": 23,
+   "extraDraws": 72,
+   "blockGeometryMB": 7.365,
+   "textures": 395,
+   "textureMiB": 140,
+   "maxLevel": 9,
+   "requests": 395,
+   "bytes": 11253269
+  },
+  "memory": {
+   "cacheBytes": 71299344,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 102667752,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid-2560",
+  "viewport": {
+   "width": 2560,
+   "height": 1600
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 568,
+  "drawsOn": 150,
+  "drawnOff": 348,
+  "drawnOn": 98,
+  "wallOff": 6.6,
+  "wallOn": 3.2,
+  "wallP95Off": 8.7,
+  "wallP95On": 4.2,
+  "dWall": -3.25,
+  "dWallMin": -3.8,
+  "dWallMax": -3.05,
+  "gpuOff": 1.591,
+  "gpuOn": 0.9055,
+  "gpuP95Off": 3.516,
+  "gpuP95On": 1.473,
+  "dGpu": -0.6552,
+  "dGpuMin": -0.7331,
+  "dGpuMax": -0.6392,
+  "cpuOff": 3.686,
+  "cpuOn": 1.397,
+  "tilesOff": 0.6955,
+  "tilesOn": 0.6209,
+  "prepOff": 0.4275,
+  "prepOn": 0.1185,
+  "submitOff": 1.433,
+  "submitOn": 0.3151,
+  "imageryOff": 1.029,
+  "imageryOn": 0.2477,
+  "animOff": 3.9,
+  "animOn": 1.5,
+  "animP95Off": 4.8,
+  "animP95On": 2.2,
+  "animCpuOff": 3.706,
+  "animCpuOn": 1.515,
+  "animGpuOff": 1.932,
+  "animGpuOn": 1.062,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 348,
+   "onScreen": 63,
+   "offFrustum": 194,
+   "beyondHorizon": 61,
+   "inViewNoPixels": 30,
+   "culled": 250,
+   "culledWithPixels": 0,
+   "cullable": 255,
+   "medianPxOnScreen": 61168,
+   "triangles": 3028992,
+   "skirtTriangles": 178176,
+   "trianglesWithoutPixels": 2480640,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 614400,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 70,
+     "surface": 573440,
+     "skirt": 35840,
+     "zeroPx": 70,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 47,
+     "surface": 385024,
+     "skirt": 24064,
+     "zeroPx": 47,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 48,
+     "surface": 393216,
+     "skirt": 24576,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 56,
+     "surface": 458752,
+     "skirt": 28672,
+     "zeroPx": 26,
+     "medianPx": 7836
+    },
+    "8": {
+     "tiles": 32,
+     "surface": 262144,
+     "skirt": 16384,
+     "zeroPx": 4,
+     "medianPx": 57850
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 0.732,
+   "p95": 5.904,
+   "rms": 3.192,
+   "max": 38.91
+  },
+  "imagery": {
+   "blocks": 143,
+   "splitTiles": 15,
+   "extraDraws": 45,
+   "blockGeometryMB": 4.788,
+   "textures": 416,
+   "textureMiB": 147.5,
+   "maxLevel": 8,
+   "requests": 416,
+   "bytes": 8623870
+  },
+  "memory": {
+   "cacheBytes": 91122480,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 126587652,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid-2560",
+  "viewport": {
+   "width": 2560,
+   "height": 1600
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 614,
+  "drawsOn": 139,
+  "drawnOff": 411,
+  "drawnOn": 116,
+  "wallOff": 7.5,
+  "wallOn": 3.6,
+  "wallP95Off": 9.1,
+  "wallP95On": 4.5,
+  "dWall": -3.7,
+  "dWallMin": -3.85,
+  "dWallMax": -3.5,
+  "gpuOff": 1.902,
+  "gpuOn": 1.151,
+  "gpuP95Off": 3.259,
+  "gpuP95On": 1.732,
+  "dGpu": -0.7625,
+  "dGpuMin": -0.7834,
+  "dGpuMax": -0.7488,
+  "cpuOff": 4.061,
+  "cpuOn": 1.526,
+  "tilesOff": 0.809,
+  "tilesOn": 0.7475,
+  "prepOff": 0.4769,
+  "prepOn": 0.1283,
+  "submitOff": 1.583,
+  "submitOn": 0.3124,
+  "imageryOff": 1.09,
+  "imageryOn": 0.2271,
+  "animOff": 4.3,
+  "animOn": 1.5,
+  "animP95Off": 5.2,
+  "animP95On": 2.2,
+  "animCpuOff": 4.237,
+  "animCpuOn": 1.527,
+  "animGpuOff": 2.113,
+  "animGpuOn": 1.196,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 411,
+   "onScreen": 87,
+   "offFrustum": 236,
+   "beyondHorizon": 60,
+   "inViewNoPixels": 28,
+   "culled": 295,
+   "culledWithPixels": 0,
+   "cullable": 296,
+   "medianPxOnScreen": 45039,
+   "triangles": 3577344,
+   "skirtTriangles": 210432,
+   "trianglesWithoutPixels": 2820096,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 614400,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 69,
+     "surface": 565248,
+     "skirt": 35328,
+     "zeroPx": 69,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 40,
+     "surface": 327680,
+     "skirt": 20480,
+     "zeroPx": 40,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 56,
+     "surface": 458752,
+     "skirt": 28672,
+     "zeroPx": 56,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 71,
+     "surface": 581632,
+     "skirt": 36352,
+     "zeroPx": 60,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 100,
+     "surface": 819200,
+     "skirt": 51200,
+     "zeroPx": 24,
+     "medianPx": 37827
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 0.7313,
+   "p95": 5.096,
+   "rms": 2.352,
+   "max": 13.89
+  },
+  "imagery": {
+   "blocks": 134,
+   "splitTiles": 6,
+   "extraDraws": 18,
+   "blockGeometryMB": 1.917,
+   "textures": 451,
+   "textureMiB": 159.9,
+   "maxLevel": 7,
+   "requests": 470,
+   "bytes": 9331645
+  },
+  "memory": {
+   "cacheBytes": 105190512,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 142520616,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 196,
+  "drawsOn": 116,
+  "drawnOff": 110,
+  "drawnOn": 45,
+  "wallOff": 2.2,
+  "wallOn": 1.6,
+  "wallP95Off": 3.5,
+  "wallP95On": 2.7,
+  "dWall": -0.55,
+  "dWallMin": -0.65,
+  "dWallMax": -0.4,
+  "gpuOff": 0.5276,
+  "gpuOn": 0.4071,
+  "gpuP95Off": 1.312,
+  "gpuP95On": 0.9396,
+  "dGpu": -0.117,
+  "dGpuMin": -0.1227,
+  "dGpuMax": -0.115,
+  "cpuOff": 1.075,
+  "cpuOn": 0.7547,
+  "tilesOff": 0.2497,
+  "tilesOn": 0.2402,
+  "prepOff": 0.1165,
+  "prepOn": 0.08058,
+  "submitOff": 0.3681,
+  "submitOn": 0.2117,
+  "imageryOff": 0.2919,
+  "imageryOn": 0.1718,
+  "animOff": 1.7,
+  "animOn": 1.3,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.525,
+  "animCpuOn": 1.312,
+  "animGpuOff": 0.801,
+  "animGpuOn": 0.7108,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 110,
+   "onScreen": 38,
+   "offFrustum": 65,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 65,
+   "culledWithPixels": 0,
+   "cullable": 65,
+   "medianPxOnScreen": 10882,
+   "triangles": 957440,
+   "skirtTriangles": 56320,
+   "trianglesWithoutPixels": 626688,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 13,
+     "surface": 106496,
+     "skirt": 6656,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 204800,
+     "skirt": 12800,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.065,
+   "p95": 9.596,
+   "rms": 4.958,
+   "max": 60.69
+  },
+  "imagery": {
+   "blocks": 111,
+   "splitTiles": 20,
+   "extraDraws": 66,
+   "blockGeometryMB": 6.438,
+   "textures": 152,
+   "textureMiB": 53.88,
+   "maxLevel": 10,
+   "requests": 152,
+   "bytes": 6281559
+  },
+  "memory": {
+   "cacheBytes": 35170080,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 53448756,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 238,
+  "drawsOn": 141,
+  "drawnOff": 134,
+  "drawnOn": 55,
+  "wallOff": 2.8,
+  "wallOn": 1.9,
+  "wallP95Off": 4,
+  "wallP95On": 3.2,
+  "dWall": -0.95,
+  "dWallMin": -1.15,
+  "dWallMax": -0.6,
+  "gpuOff": 0.6002,
+  "gpuOn": 0.4005,
+  "gpuP95Off": 1.374,
+  "gpuP95On": 1.593,
+  "dGpu": -0.1846,
+  "dGpuMin": -0.2504,
+  "dGpuMax": -0.0899,
+  "cpuOff": 1.297,
+  "cpuOn": 0.9076,
+  "tilesOff": 0.2992,
+  "tilesOn": 0.2881,
+  "prepOff": 0.141,
+  "prepOn": 0.09573,
+  "submitOff": 0.4415,
+  "submitOn": 0.2541,
+  "imageryOff": 0.3656,
+  "imageryOn": 0.2134,
+  "animOff": 1.6,
+  "animOn": 1.6,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.559,
+  "animCpuOn": 1.437,
+  "animGpuOff": 0.9012,
+  "animGpuOn": 0.8695,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 134,
+   "onScreen": 25,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 30,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8458,
+   "triangles": 1166336,
+   "skirtTriangles": 68608,
+   "trianglesWithoutPixels": 948736,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.6263,
+   "p95": 2.617,
+   "rms": 1.49,
+   "max": 12.24
+  },
+  "imagery": {
+   "blocks": 136,
+   "splitTiles": 26,
+   "extraDraws": 81,
+   "blockGeometryMB": 8.322,
+   "textures": 157,
+   "textureMiB": 55.66,
+   "maxLevel": 11,
+   "requests": 157,
+   "bytes": 5485097
+  },
+  "memory": {
+   "cacheBytes": 39646272,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 61316112,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 197,
+  "drawsOn": 127,
+  "drawnOff": 75,
+  "drawnOn": 32,
+  "wallOff": 2.3,
+  "wallOn": 1.6,
+  "wallP95Off": 4,
+  "wallP95On": 3,
+  "dWall": -0.75,
+  "dWallMin": -0.75,
+  "dWallMax": -0.65,
+  "gpuOff": 0.3882,
+  "gpuOn": 0.2734,
+  "gpuP95Off": 1.649,
+  "gpuP95On": 1.414,
+  "dGpu": -0.1064,
+  "dGpuMin": -0.1677,
+  "dGpuMax": -0.09273,
+  "cpuOff": 1.077,
+  "cpuOn": 0.7559,
+  "tilesOff": 0.1926,
+  "tilesOn": 0.184,
+  "prepOff": 0.1228,
+  "prepOn": 0.0854,
+  "submitOff": 0.3844,
+  "submitOn": 0.2306,
+  "imageryOff": 0.3143,
+  "imageryOn": 0.1966,
+  "animOff": 1.6,
+  "animOn": 1.5,
+  "animP95Off": 2.3,
+  "animP95On": 2.3,
+  "animCpuOff": 1.531,
+  "animCpuOn": 1.402,
+  "animGpuOff": 0.6545,
+  "animGpuOn": 0.4874,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 75,
+   "onScreen": 16,
+   "offFrustum": 43,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 16,
+   "culled": 43,
+   "culledWithPixels": 0,
+   "cullable": 43,
+   "medianPxOnScreen": 37381,
+   "triangles": 652800,
+   "skirtTriangles": 38400,
+   "trianglesWithoutPixels": 513536,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 10,
+     "medianPx": 140
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.533,
+   "p95": 7.493,
+   "rms": 4.204,
+   "max": 35.28
+  },
+  "imagery": {
+   "blocks": 122,
+   "splitTiles": 24,
+   "extraDraws": 90,
+   "blockGeometryMB": 7.827,
+   "textures": 151,
+   "textureMiB": 53.53,
+   "maxLevel": 10,
+   "requests": 151,
+   "bytes": 6150400
+  },
+  "memory": {
+   "cacheBytes": 27656472,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 44794632,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 225,
+  "drawsOn": 126,
+  "drawnOff": 119,
+  "drawnOn": 50,
+  "wallOff": 3,
+  "wallOn": 1.9,
+  "wallP95Off": 4.2,
+  "wallP95On": 3.9,
+  "dWall": -1.05,
+  "dWallMin": -1.3,
+  "dWallMax": -1,
+  "gpuOff": 0.636,
+  "gpuOn": 0.4021,
+  "gpuP95Off": 1.677,
+  "gpuP95On": 1.873,
+  "dGpu": -0.2696,
+  "dGpuMin": -0.288,
+  "dGpuMax": -0.12,
+  "cpuOff": 1.458,
+  "cpuOn": 0.9315,
+  "tilesOff": 0.3063,
+  "tilesOn": 0.2799,
+  "prepOff": 0.177,
+  "prepOn": 0.1025,
+  "submitOff": 0.5148,
+  "submitOn": 0.2676,
+  "imageryOff": 0.3766,
+  "imageryOn": 0.2034,
+  "animOff": 1.7,
+  "animOn": 1.5,
+  "animP95Off": 2.3,
+  "animP95On": 2.4,
+  "animCpuOff": 1.618,
+  "animCpuOn": 1.441,
+  "animGpuOff": 0.6731,
+  "animGpuOn": 0.5773,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 119,
+   "onScreen": 25,
+   "offFrustum": 69,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 69,
+   "culledWithPixels": 0,
+   "cullable": 69,
+   "medianPxOnScreen": 6901,
+   "triangles": 1035776,
+   "skirtTriangles": 60928,
+   "trianglesWithoutPixels": 818176,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 5,
+     "medianPx": 1
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 155648,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 9,
+     "medianPx": 1292
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.1611,
+   "p95": 0.8444,
+   "rms": 0.4205,
+   "max": 2.996
+  },
+  "imagery": {
+   "blocks": 119,
+   "splitTiles": 23,
+   "extraDraws": 69,
+   "blockGeometryMB": 7.337,
+   "textures": 168,
+   "textureMiB": 59.55,
+   "maxLevel": 11,
+   "requests": 168,
+   "bytes": 5571411
+  },
+  "memory": {
+   "cacheBytes": 33251712,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 51783012,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 347,
+  "drawsOn": 79,
+  "drawnOff": 117,
+  "drawnOn": 20,
+  "wallOff": 3.7,
+  "wallOn": 1.3,
+  "wallP95Off": 5.4,
+  "wallP95On": 2.5,
+  "dWall": -2.2,
+  "dWallMin": -2.3,
+  "dWallMax": -1.95,
+  "gpuOff": 0.7832,
+  "gpuOn": 0.2911,
+  "gpuP95Off": 2.207,
+  "gpuP95On": 1.414,
+  "dGpu": -0.3259,
+  "dGpuMin": -0.3364,
+  "dGpuMax": -0.2619,
+  "cpuOff": 1.891,
+  "cpuOn": 0.6193,
+  "tilesOff": 0.27,
+  "tilesOn": 0.2304,
+  "prepOff": 0.2248,
+  "prepOn": 0.06715,
+  "submitOff": 0.7341,
+  "submitOn": 0.1488,
+  "imageryOff": 0.5839,
+  "imageryOn": 0.1209,
+  "animOff": 1.9,
+  "animOn": 1.1,
+  "animP95Off": 2.7,
+  "animP95On": 2.3,
+  "animCpuOff": 1.908,
+  "animCpuOn": 1.244,
+  "animGpuOff": 0.7089,
+  "animGpuOn": 0.793,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 117,
+   "onScreen": 12,
+   "offFrustum": 73,
+   "beyondHorizon": 24,
+   "inViewNoPixels": 8,
+   "culled": 97,
+   "culledWithPixels": 0,
+   "cullable": 97,
+   "medianPxOnScreen": 70484,
+   "triangles": 1018368,
+   "skirtTriangles": 59904,
+   "trianglesWithoutPixels": 913920,
+   "byLevel": {
+    "0": {
+     "tiles": 1,
+     "surface": 8192,
+     "skirt": 512,
+     "zeroPx": 1,
+     "medianPx": 0
+    },
+    "1": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 44,
+     "surface": 360448,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 131072,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 4.066,
+   "p95": 14.68,
+   "rms": 8.041,
+   "max": 65.61
+  },
+  "imagery": {
+   "blocks": 74,
+   "splitTiles": 18,
+   "extraDraws": 54,
+   "blockGeometryMB": 5.743,
+   "textures": 219,
+   "textureMiB": 77.63,
+   "maxLevel": 8,
+   "requests": 219,
+   "bytes": 7337537
+  },
+  "memory": {
+   "cacheBytes": 31653072,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 48052608,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 349,
+  "drawsOn": 136,
+  "drawnOff": 177,
+  "drawnOn": 57,
+  "wallOff": 3.7,
+  "wallOn": 1.9,
+  "wallP95Off": 5.3,
+  "wallP95On": 3.7,
+  "dWall": -1.65,
+  "dWallMin": -3.8,
+  "dWallMax": -1.45,
+  "gpuOff": 0.707,
+  "gpuOn": 0.3801,
+  "gpuP95Off": 2.325,
+  "gpuP95On": 1.664,
+  "dGpu": -0.3169,
+  "dGpuMin": -1.94,
+  "dGpuMax": -0.1462,
+  "cpuOff": 1.995,
+  "cpuOn": 0.9573,
+  "tilesOff": 0.3707,
+  "tilesOn": 0.335,
+  "prepOff": 0.2279,
+  "prepOn": 0.1015,
+  "submitOff": 0.7519,
+  "submitOn": 0.254,
+  "imageryOff": 0.569,
+  "imageryOn": 0.2013,
+  "animOff": 1.9,
+  "animOn": 1.6,
+  "animP95Off": 2.7,
+  "animP95On": 2.6,
+  "animCpuOff": 1.94,
+  "animCpuOn": 1.478,
+  "animGpuOff": 1.323,
+  "animGpuOn": 0.9725,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 177,
+   "onScreen": 28,
+   "offFrustum": 100,
+   "beyondHorizon": 23,
+   "inViewNoPixels": 26,
+   "culled": 120,
+   "culledWithPixels": 0,
+   "cullable": 123,
+   "medianPxOnScreen": 39501,
+   "triangles": 1540608,
+   "skirtTriangles": 90624,
+   "trianglesWithoutPixels": 1296896,
+   "byLevel": {
+    "1": {
+     "tiles": 14,
+     "surface": 114688,
+     "skirt": 7168,
+     "zeroPx": 14,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 30,
+     "surface": 245760,
+     "skirt": 15360,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 32,
+     "surface": 262144,
+     "skirt": 16384,
+     "zeroPx": 32,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 26,
+     "surface": 212992,
+     "skirt": 13312,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 14,
+     "surface": 114688,
+     "skirt": 7168,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 33,
+     "surface": 270336,
+     "skirt": 16896,
+     "zeroPx": 23,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 28,
+     "surface": 229376,
+     "skirt": 14336,
+     "zeroPx": 13,
+     "medianPx": 5865
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.73,
+   "p95": 13.04,
+   "rms": 7.356,
+   "max": 85.23
+  },
+  "imagery": {
+   "blocks": 129,
+   "splitTiles": 24,
+   "extraDraws": 72,
+   "blockGeometryMB": 7.658,
+   "textures": 232,
+   "textureMiB": 82.24,
+   "maxLevel": 8,
+   "requests": 232,
+   "bytes": 4995931
+  },
+  "memory": {
+   "cacheBytes": 54673488,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 80738400,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 359,
+  "drawsOn": 119,
+  "drawnOff": 219,
+  "drawnOn": 69,
+  "wallOff": 6.5,
+  "wallOn": 3.6,
+  "wallP95Off": 7.7,
+  "wallP95On": 4.3,
+  "dWall": -2.8,
+  "dWallMin": -3.45,
+  "dWallMax": -1.85,
+  "gpuOff": 2.824,
+  "gpuOn": 1.967,
+  "gpuP95Off": 3.697,
+  "gpuP95On": 2.004,
+  "dGpu": -1.365,
+  "dGpuMin": -1.389,
+  "dGpuMax": -0.3774,
+  "cpuOff": 2.319,
+  "cpuOn": 1.154,
+  "tilesOff": 0.4681,
+  "tilesOn": 0.4463,
+  "prepOff": 0.2747,
+  "prepOn": 0.1218,
+  "submitOff": 0.8742,
+  "submitOn": 0.2864,
+  "imageryOff": 0.6067,
+  "imageryOn": 0.1966,
+  "animOff": 2.3,
+  "animOn": 1.5,
+  "animP95Off": 2.8,
+  "animP95On": 2.6,
+  "animCpuOff": 2.167,
+  "animCpuOn": 1.458,
+  "animGpuOff": 1.363,
+  "animGpuOn": 1.127,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 219,
+   "onScreen": 39,
+   "offFrustum": 133,
+   "beyondHorizon": 19,
+   "inViewNoPixels": 28,
+   "culled": 150,
+   "culledWithPixels": 0,
+   "cullable": 152,
+   "medianPxOnScreen": 21201,
+   "triangles": 1906176,
+   "skirtTriangles": 112128,
+   "trianglesWithoutPixels": 1566720,
+   "byLevel": {
+    "1": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 24,
+     "surface": 196608,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 36,
+     "surface": 294912,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 278528,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 41,
+     "surface": 335872,
+     "skirt": 20992,
+     "zeroPx": 38,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 57,
+     "surface": 466944,
+     "skirt": 29184,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 3,
+     "medianPx": 17245
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.819,
+   "p95": 12.05,
+   "rms": 5.424,
+   "max": 34.62
+  },
+  "imagery": {
+   "blocks": 114,
+   "splitTiles": 15,
+   "extraDraws": 45,
+   "blockGeometryMB": 4.795,
+   "textures": 250,
+   "textureMiB": 88.62,
+   "maxLevel": 6,
+   "requests": 250,
+   "bytes": 5840083
+  },
+  "memory": {
+   "cacheBytes": 64904784,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 91550232,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 208,
+  "drawsOn": 113,
+  "drawnOff": 110,
+  "drawnOn": 45,
+  "wallOff": 2.2,
+  "wallOn": 1.5,
+  "wallP95Off": 3.8,
+  "wallP95On": 3,
+  "dWall": -0.6,
+  "dWallMin": -0.75,
+  "dWallMax": -0.4,
+  "gpuOff": 0.5242,
+  "gpuOn": 0.3831,
+  "gpuP95Off": 2.197,
+  "gpuP95On": 1.598,
+  "dGpu": -0.1409,
+  "dGpuMin": -0.1429,
+  "dGpuMax": -0.1403,
+  "cpuOff": 1.011,
+  "cpuOn": 0.7312,
+  "tilesOff": 0.2229,
+  "tilesOn": 0.2366,
+  "prepOff": 0.1116,
+  "prepOn": 0.08361,
+  "submitOff": 0.3477,
+  "submitOn": 0.2039,
+  "imageryOff": 0.2924,
+  "imageryOn": 0.1619,
+  "animOff": 1.7,
+  "animOn": 1.5,
+  "animP95Off": 2.7,
+  "animP95On": 2.5,
+  "animCpuOff": 1.627,
+  "animCpuOn": 1.378,
+  "animGpuOff": 1.286,
+  "animGpuOn": 0.9624,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 110,
+   "onScreen": 38,
+   "offFrustum": 65,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 65,
+   "culledWithPixels": 0,
+   "cullable": 65,
+   "medianPxOnScreen": 10882,
+   "triangles": 957440,
+   "skirtTriangles": 56320,
+   "trianglesWithoutPixels": 626688,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 13,
+     "surface": 106496,
+     "skirt": 6656,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 204800,
+     "skirt": 12800,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.065,
+   "p95": 9.596,
+   "rms": 4.958,
+   "max": 60.69
+  },
+  "imagery": {
+   "blocks": 108,
+   "splitTiles": 19,
+   "extraDraws": 63,
+   "blockGeometryMB": 6.119,
+   "textures": 142,
+   "textureMiB": 50.34,
+   "maxLevel": 10,
+   "requests": 142,
+   "bytes": 6135164
+  },
+  "memory": {
+   "cacheBytes": 35170080,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 53129724,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 235,
+  "drawsOn": 141,
+  "drawnOff": 134,
+  "drawnOn": 55,
+  "wallOff": 2.8,
+  "wallOn": 1.7,
+  "wallP95Off": 3.9,
+  "wallP95On": 3,
+  "dWall": -1.15,
+  "dWallMin": -1.2,
+  "dWallMax": -1.05,
+  "gpuOff": 0.5889,
+  "gpuOn": 0.3775,
+  "gpuP95Off": 1.772,
+  "gpuP95On": 1.613,
+  "dGpu": -0.2049,
+  "dGpuMin": -0.2148,
+  "dGpuMax": -0.2035,
+  "cpuOff": 1.215,
+  "cpuOn": 0.8153,
+  "tilesOff": 0.2728,
+  "tilesOn": 0.2606,
+  "prepOff": 0.1287,
+  "prepOn": 0.08347,
+  "submitOff": 0.4227,
+  "submitOn": 0.2291,
+  "imageryOff": 0.3472,
+  "imageryOn": 0.1992,
+  "animOff": 1.6,
+  "animOn": 1.6,
+  "animP95Off": 2.9,
+  "animP95On": 2.5,
+  "animCpuOff": 1.67,
+  "animCpuOn": 1.451,
+  "animGpuOff": 1.355,
+  "animGpuOn": 1.359,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 134,
+   "onScreen": 25,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 30,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8458,
+   "triangles": 1166336,
+   "skirtTriangles": 68608,
+   "trianglesWithoutPixels": 948736,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.6263,
+   "p95": 2.617,
+   "rms": 1.49,
+   "max": 12.24
+  },
+  "imagery": {
+   "blocks": 136,
+   "splitTiles": 25,
+   "extraDraws": 81,
+   "blockGeometryMB": 8.033,
+   "textures": 150,
+   "textureMiB": 53.17,
+   "maxLevel": 11,
+   "requests": 150,
+   "bytes": 5381838
+  },
+  "memory": {
+   "cacheBytes": 39006816,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 60171516,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 188,
+  "drawsOn": 118,
+  "drawnOff": 75,
+  "drawnOn": 32,
+  "wallOff": 1.9,
+  "wallOn": 1.5,
+  "wallP95Off": 3.8,
+  "wallP95On": 2.4,
+  "dWall": -0.35,
+  "dWallMin": -0.4,
+  "dWallMax": -0.05,
+  "gpuOff": 0.3912,
+  "gpuOn": 0.2957,
+  "gpuP95Off": 1.537,
+  "gpuP95On": 1.144,
+  "dGpu": -0.07702,
+  "dGpuMin": -0.1042,
+  "dGpuMax": 0.2861,
+  "cpuOff": 0.911,
+  "cpuOn": 0.6845,
+  "tilesOff": 0.1726,
+  "tilesOn": 0.1771,
+  "prepOff": 0.1009,
+  "prepOn": 0.08161,
+  "submitOff": 0.3174,
+  "submitOn": 0.2032,
+  "imageryOff": 0.277,
+  "imageryOn": 0.1731,
+  "animOff": 1.8,
+  "animOn": 1.8,
+  "animP95Off": 2.6,
+  "animP95On": 2.2,
+  "animCpuOff": 1.537,
+  "animCpuOn": 1.352,
+  "animGpuOff": 1.004,
+  "animGpuOn": 1.132,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 75,
+   "onScreen": 16,
+   "offFrustum": 43,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 16,
+   "culled": 43,
+   "culledWithPixels": 0,
+   "cullable": 43,
+   "medianPxOnScreen": 37381,
+   "triangles": 652800,
+   "skirtTriangles": 38400,
+   "trianglesWithoutPixels": 513536,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 10,
+     "medianPx": 140
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.533,
+   "p95": 7.493,
+   "rms": 4.204,
+   "max": 35.28
+  },
+  "imagery": {
+   "blocks": 113,
+   "splitTiles": 20,
+   "extraDraws": 81,
+   "blockGeometryMB": 6.58,
+   "textures": 129,
+   "textureMiB": 45.73,
+   "maxLevel": 10,
+   "requests": 129,
+   "bytes": 5517624
+  },
+  "memory": {
+   "cacheBytes": 26857152,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 42478956,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 228,
+  "drawsOn": 126,
+  "drawnOff": 119,
+  "drawnOn": 50,
+  "wallOff": 2.6,
+  "wallOn": 1.6,
+  "wallP95Off": 4.4,
+  "wallP95On": 2.9,
+  "dWall": -0.85,
+  "dWallMin": -0.9,
+  "dWallMax": -0.8,
+  "gpuOff": 0.5407,
+  "gpuOn": 0.3635,
+  "gpuP95Off": 2.319,
+  "gpuP95On": 1.553,
+  "dGpu": -0.1936,
+  "dGpuMin": -0.2106,
+  "dGpuMax": -0.1729,
+  "cpuOff": 1.117,
+  "cpuOn": 0.7634,
+  "tilesOff": 0.2421,
+  "tilesOn": 0.2455,
+  "prepOff": 0.121,
+  "prepOn": 0.08079,
+  "submitOff": 0.3938,
+  "submitOn": 0.2151,
+  "imageryOff": 0.3185,
+  "imageryOn": 0.1761,
+  "animOff": 1.7,
+  "animOn": 1.8,
+  "animP95Off": 3,
+  "animP95On": 2.5,
+  "animCpuOff": 1.732,
+  "animCpuOn": 1.441,
+  "animGpuOff": 1.287,
+  "animGpuOn": 1.254,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 119,
+   "onScreen": 25,
+   "offFrustum": 69,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 69,
+   "culledWithPixels": 0,
+   "cullable": 69,
+   "medianPxOnScreen": 6901,
+   "triangles": 1035776,
+   "skirtTriangles": 60928,
+   "trianglesWithoutPixels": 818176,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 5,
+     "medianPx": 1
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 155648,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 9,
+     "medianPx": 1292
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.1611,
+   "p95": 0.8444,
+   "rms": 0.4205,
+   "max": 2.996
+  },
+  "imagery": {
+   "blocks": 119,
+   "splitTiles": 23,
+   "extraDraws": 69,
+   "blockGeometryMB": 7.337,
+   "textures": 154,
+   "textureMiB": 54.59,
+   "maxLevel": 11,
+   "requests": 154,
+   "bytes": 7020061
+  },
+  "memory": {
+   "cacheBytes": 33891168,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 52637640,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 215,
+  "drawsOn": 64,
+  "drawnOff": 117,
+  "drawnOn": 20,
+  "wallOff": 2.1,
+  "wallOn": 1.2,
+  "wallP95Off": 3.7,
+  "wallP95On": 1.7,
+  "dWall": -1.1,
+  "dWallMin": -1.35,
+  "dWallMax": -0.9,
+  "gpuOff": 0.4093,
+  "gpuOn": 0.2141,
+  "gpuP95Off": 1.836,
+  "gpuP95On": 0.738,
+  "dGpu": -0.1952,
+  "dGpuMin": -0.2064,
+  "dGpuMax": -0.1661,
+  "cpuOff": 1.095,
+  "cpuOn": 0.5167,
+  "tilesOff": 0.2276,
+  "tilesOn": 0.2176,
+  "prepOff": 0.1233,
+  "prepOn": 0.06074,
+  "submitOff": 0.3767,
+  "submitOn": 0.1086,
+  "imageryOff": 0.3245,
+  "imageryOn": 0.08898,
+  "animOff": 1.6,
+  "animOn": 1.4,
+  "animP95Off": 2.8,
+  "animP95On": 2.1,
+  "animCpuOff": 1.593,
+  "animCpuOn": 1.235,
+  "animGpuOff": 1.059,
+  "animGpuOn": 0.7724,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 117,
+   "onScreen": 12,
+   "offFrustum": 73,
+   "beyondHorizon": 24,
+   "inViewNoPixels": 8,
+   "culled": 97,
+   "culledWithPixels": 0,
+   "cullable": 97,
+   "medianPxOnScreen": 70484,
+   "triangles": 1018368,
+   "skirtTriangles": 59904,
+   "trianglesWithoutPixels": 913920,
+   "byLevel": {
+    "0": {
+     "tiles": 1,
+     "surface": 8192,
+     "skirt": 512,
+     "zeroPx": 1,
+     "medianPx": 0
+    },
+    "1": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 44,
+     "surface": 360448,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 131072,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 4.066,
+   "p95": 14.68,
+   "rms": 8.041,
+   "max": 65.61
+  },
+  "imagery": {
+   "blocks": 59,
+   "splitTiles": 13,
+   "extraDraws": 39,
+   "blockGeometryMB": 4.147,
+   "textures": 114,
+   "textureMiB": 40.41,
+   "maxLevel": 8,
+   "requests": 114,
+   "bytes": 4868977
+  },
+  "memory": {
+   "cacheBytes": 32132664,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 47097228,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain-picks",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 1,
+  "drawsOff": 115,
+  "drawsOn": 50,
+  "drawnOff": 110,
+  "drawnOn": 45,
+  "wallOff": 1.4,
+  "wallOn": 1.3,
+  "wallP95Off": 2.8,
+  "wallP95On": 2.1,
+  "dWall": -0.1,
+  "dWallMin": -0.1,
+  "dWallMax": -0.1,
+  "gpuOff": 0.4044,
+  "gpuOn": 0.5189,
+  "gpuP95Off": 1.719,
+  "gpuP95On": 1.204,
+  "dGpu": 0.03052,
+  "dGpuMin": 0.03052,
+  "dGpuMax": 0.03052,
+  "cpuOff": 0.5279,
+  "cpuOn": 0.4329,
+  "tilesOff": 0.2331,
+  "tilesOn": 0.2335,
+  "prepOff": 0.07335,
+  "prepOn": 0.06384,
+  "submitOff": 0.1936,
+  "submitOn": 0.08492,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.3,
+  "animP95Off": 2.2,
+  "animP95On": 2.2,
+  "animCpuOff": 1.287,
+  "animCpuOn": 1.173,
+  "animGpuOff": 0.9286,
+  "animGpuOn": 0.6936,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 110,
+   "onScreen": 38,
+   "offFrustum": 65,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 65,
+   "culledWithPixels": 0,
+   "cullable": 65,
+   "medianPxOnScreen": 10882,
+   "triangles": 957440,
+   "skirtTriangles": 56320,
+   "trianglesWithoutPixels": 626688,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 13,
+     "surface": 106496,
+     "skirt": 6656,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 204800,
+     "skirt": 12800,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": null,
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 35329944,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 35329944,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain-picks",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 1,
+  "drawsOff": 122,
+  "drawsOn": 25,
+  "drawnOff": 117,
+  "drawnOn": 20,
+  "wallOff": 1.3,
+  "wallOn": 0.9,
+  "wallP95Off": 2.5,
+  "wallP95On": 1.3,
+  "dWall": -0.4,
+  "dWallMin": -0.4,
+  "dWallMax": -0.4,
+  "gpuOff": 0.3231,
+  "gpuOn": 0.2491,
+  "gpuP95Off": 1.438,
+  "gpuP95On": 0.5765,
+  "dGpu": -0.09308,
+  "dGpuMin": -0.09308,
+  "dGpuMax": -0.09308,
+  "cpuOff": 0.4975,
+  "cpuOn": 0.3417,
+  "tilesOff": 0.2072,
+  "tilesOn": 0.2147,
+  "prepOff": 0.08058,
+  "prepOn": 0.05,
+  "submitOff": 0.181,
+  "submitOn": 0.04463,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.1,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.366,
+  "animCpuOn": 1.14,
+  "animGpuOff": 0.8161,
+  "animGpuOn": 0.5741,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 117,
+   "onScreen": 12,
+   "offFrustum": 73,
+   "beyondHorizon": 24,
+   "inViewNoPixels": 8,
+   "culled": 97,
+   "culledWithPixels": 0,
+   "cullable": 97,
+   "medianPxOnScreen": 70484,
+   "triangles": 1018368,
+   "skirtTriangles": 59904,
+   "trianglesWithoutPixels": 913920,
+   "byLevel": {
+    "0": {
+     "tiles": 1,
+     "surface": 8192,
+     "skirt": 512,
+     "zeroPx": 1,
+     "medianPx": 0
+    },
+    "1": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 44,
+     "surface": 360448,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 131072,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": null,
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 32931984,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 32931984,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain-picks",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 1,
+  "drawsOff": 224,
+  "drawsOn": 74,
+  "drawnOff": 219,
+  "drawnOn": 69,
+  "wallOff": 2,
+  "wallOn": 1.8,
+  "wallP95Off": 2.8,
+  "wallP95On": 2.7,
+  "dWall": -0.45,
+  "dWallMin": -0.45,
+  "dWallMax": -0.45,
+  "gpuOff": 0.6548,
+  "gpuOn": 0.67,
+  "gpuP95Off": 1.114,
+  "gpuP95On": 1.527,
+  "dGpu": -0.1412,
+  "dGpuMin": -0.1412,
+  "dGpuMax": -0.1412,
+  "cpuOff": 0.8525,
+  "cpuOn": 0.6308,
+  "tilesOff": 0.3616,
+  "tilesOn": 0.38,
+  "prepOff": 0.1207,
+  "prepOn": 0.07149,
+  "submitOff": 0.3378,
+  "submitOn": 0.1283,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.7,
+  "animOn": 1.5,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.451,
+  "animCpuOn": 1.229,
+  "animGpuOff": 1.144,
+  "animGpuOn": 0.8563,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 219,
+   "onScreen": 39,
+   "offFrustum": 133,
+   "beyondHorizon": 19,
+   "inViewNoPixels": 28,
+   "culled": 150,
+   "culledWithPixels": 0,
+   "cullable": 152,
+   "medianPxOnScreen": 21201,
+   "triangles": 1906176,
+   "skirtTriangles": 112128,
+   "trianglesWithoutPixels": 1566720,
+   "byLevel": {
+    "1": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 24,
+     "surface": 196608,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 36,
+     "surface": 294912,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 278528,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 41,
+     "surface": 335872,
+     "skirt": 20992,
+     "zeroPx": 38,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 57,
+     "surface": 466944,
+     "skirt": 29184,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 3,
+     "medianPx": 17245
+    }
+   }
+  },
+  "error": null,
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 66183696,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 66183696,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 115,
+  "drawsOn": 50,
+  "drawnOff": 110,
+  "drawnOn": 45,
+  "wallOff": 1.9,
+  "wallOn": 1.9,
+  "wallP95Off": 3.1,
+  "wallP95On": 2.3,
+  "dWall": -0.15,
+  "dWallMin": -0.8,
+  "dWallMax": -1.49e-8,
+  "gpuOff": 0.9313,
+  "gpuOn": 1.155,
+  "gpuP95Off": 1.714,
+  "gpuP95On": 1.272,
+  "dGpu": 0.1969,
+  "dGpuMin": -0.5866,
+  "dGpuMax": 0.318,
+  "cpuOff": 0.6389,
+  "cpuOn": 0.4499,
+  "tilesOff": 0.2594,
+  "tilesOn": 0.2402,
+  "prepOff": 0.105,
+  "prepOn": 0.06267,
+  "submitOff": 0.2186,
+  "submitOn": 0.0947,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.3,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.306,
+  "animCpuOn": 1.213,
+  "animGpuOff": 0.815,
+  "animGpuOn": 0.7021,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 110,
+   "onScreen": 38,
+   "offFrustum": 65,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 65,
+   "culledWithPixels": 0,
+   "cullable": 65,
+   "medianPxOnScreen": 10882,
+   "triangles": 957440,
+   "skirtTriangles": 56320,
+   "trianglesWithoutPixels": 626688,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 13,
+     "surface": 106496,
+     "skirt": 6656,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 204800,
+     "skirt": 12800,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.065,
+   "p95": 9.596,
+   "rms": 4.958,
+   "max": 60.69
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 35170080,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 35170080,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 139,
+  "drawsOn": 60,
+  "drawnOff": 134,
+  "drawnOn": 55,
+  "wallOff": 2.3,
+  "wallOn": 2,
+  "wallP95Off": 3.5,
+  "wallP95On": 2.5,
+  "dWall": -0.2,
+  "dWallMin": -0.6,
+  "dWallMax": -0.15,
+  "gpuOff": 1.019,
+  "gpuOn": 1.16,
+  "gpuP95Off": 1.938,
+  "gpuP95On": 1.323,
+  "dGpu": -0.06154,
+  "dGpuMin": -0.203,
+  "dGpuMax": 0.1958,
+  "cpuOff": 0.7462,
+  "cpuOn": 0.5895,
+  "tilesOff": 0.3045,
+  "tilesOn": 0.3054,
+  "prepOff": 0.116,
+  "prepOn": 0.08127,
+  "submitOff": 0.2652,
+  "submitOn": 0.1287,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.4,
+  "animP95Off": 2.2,
+  "animP95On": 2.2,
+  "animCpuOff": 1.32,
+  "animCpuOn": 1.238,
+  "animGpuOff": 0.8114,
+  "animGpuOn": 0.7073,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 134,
+   "onScreen": 25,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 30,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8458,
+   "triangles": 1166336,
+   "skirtTriangles": 68608,
+   "trianglesWithoutPixels": 948736,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.6263,
+   "p95": 2.617,
+   "rms": 1.49,
+   "max": 12.24
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 39006816,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 39006816,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 80,
+  "drawsOn": 37,
+  "drawnOff": 75,
+  "drawnOn": 32,
+  "wallOff": 1.1,
+  "wallOn": 0.9,
+  "wallP95Off": 2,
+  "wallP95On": 1.6,
+  "dWall": -0.2,
+  "dWallMin": -0.25,
+  "dWallMax": -0.05,
+  "gpuOff": 0.3008,
+  "gpuOn": 0.2808,
+  "gpuP95Off": 1.159,
+  "gpuP95On": 0.7863,
+  "dGpu": -0.04277,
+  "dGpuMin": -0.09519,
+  "dGpuMax": 0.05506,
+  "cpuOff": 0.4076,
+  "cpuOn": 0.335,
+  "tilesOff": 0.1678,
+  "tilesOn": 0.1683,
+  "prepOff": 0.06901,
+  "prepOn": 0.05324,
+  "submitOff": 0.1344,
+  "submitOn": 0.07211,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.4,
+  "animOn": 1,
+  "animP95Off": 2.3,
+  "animP95On": 2.3,
+  "animCpuOff": 1.196,
+  "animCpuOn": 1.086,
+  "animGpuOff": 0.6936,
+  "animGpuOn": 0.7658,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 75,
+   "onScreen": 16,
+   "offFrustum": 43,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 16,
+   "culled": 43,
+   "culledWithPixels": 0,
+   "cullable": 43,
+   "medianPxOnScreen": 37381,
+   "triangles": 652800,
+   "skirtTriangles": 38400,
+   "trianglesWithoutPixels": 513536,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 11,
+     "surface": 90112,
+     "skirt": 5632,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 10,
+     "medianPx": 140
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.533,
+   "p95": 7.493,
+   "rms": 4.204,
+   "max": 35.28
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 28455792,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 28455792,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 126,
+  "drawsOn": 57,
+  "drawnOff": 119,
+  "drawnOn": 50,
+  "wallOff": 1.6,
+  "wallOn": 1.2,
+  "wallP95Off": 2.4,
+  "wallP95On": 2,
+  "dWall": -0.3,
+  "dWallMin": -0.35,
+  "dWallMax": -0.25,
+  "gpuOff": 0.408,
+  "gpuOn": 0.3191,
+  "gpuP95Off": 1.016,
+  "gpuP95On": 1.166,
+  "dGpu": -0.02117,
+  "dGpuMin": -0.09835,
+  "dGpuMax": -0.01281,
+  "cpuOff": 0.6051,
+  "cpuOn": 0.4599,
+  "tilesOff": 0.2514,
+  "tilesOn": 0.2428,
+  "prepOff": 0.09497,
+  "prepOn": 0.06618,
+  "submitOff": 0.2136,
+  "submitOn": 0.1008,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.5,
+  "animOn": 0.9,
+  "animP95Off": 2.2,
+  "animP95On": 2.2,
+  "animCpuOff": 1.278,
+  "animCpuOn": 1.138,
+  "animGpuOff": 0.7581,
+  "animGpuOn": 0.7027,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 119,
+   "onScreen": 25,
+   "offFrustum": 69,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 69,
+   "culledWithPixels": 0,
+   "cullable": 69,
+   "medianPxOnScreen": 6901,
+   "triangles": 1035776,
+   "skirtTriangles": 60928,
+   "trianglesWithoutPixels": 818176,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 10,
+     "surface": 81920,
+     "skirt": 5120,
+     "zeroPx": 5,
+     "medianPx": 1
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 155648,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 20,
+     "surface": 163840,
+     "skirt": 10240,
+     "zeroPx": 9,
+     "medianPx": 1292
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.1611,
+   "p95": 0.8444,
+   "rms": 0.4205,
+   "max": 2.996
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 33891168,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 33891168,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 122,
+  "drawsOn": 25,
+  "drawnOff": 117,
+  "drawnOn": 20,
+  "wallOff": 1.3,
+  "wallOn": 0.9,
+  "wallP95Off": 2.7,
+  "wallP95On": 1.3,
+  "dWall": -0.5,
+  "dWallMin": -0.95,
+  "dWallMax": -0.1,
+  "gpuOff": 0.3607,
+  "gpuOn": 0.2501,
+  "gpuP95Off": 1.439,
+  "gpuP95On": 0.5731,
+  "dGpu": -0.1159,
+  "dGpuMin": -0.661,
+  "dGpuMax": 0.06294,
+  "cpuOff": 0.5435,
+  "cpuOn": 0.3579,
+  "tilesOff": 0.2211,
+  "tilesOn": 0.2161,
+  "prepOff": 0.08898,
+  "prepOn": 0.05124,
+  "submitOff": 0.1955,
+  "submitOn": 0.04683,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.4,
+  "animOn": 1.1,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.275,
+  "animCpuOn": 1.065,
+  "animGpuOff": 0.8211,
+  "animGpuOn": 0.6008,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 117,
+   "onScreen": 12,
+   "offFrustum": 73,
+   "beyondHorizon": 24,
+   "inViewNoPixels": 8,
+   "culled": 97,
+   "culledWithPixels": 0,
+   "cullable": 97,
+   "medianPxOnScreen": 70484,
+   "triangles": 1018368,
+   "skirtTriangles": 59904,
+   "trianglesWithoutPixels": 913920,
+   "byLevel": {
+    "0": {
+     "tiles": 1,
+     "surface": 8192,
+     "skirt": 512,
+     "zeroPx": 1,
+     "medianPx": 0
+    },
+    "1": {
+     "tiles": 8,
+     "surface": 65536,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 44,
+     "surface": 360448,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 131072,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 4.066,
+   "p95": 14.68,
+   "rms": 8.041,
+   "max": 65.61
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 32931984,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 32931984,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 184,
+  "drawsOn": 64,
+  "drawnOff": 177,
+  "drawnOn": 57,
+  "wallOff": 1.8,
+  "wallOn": 1.3,
+  "wallP95Off": 3,
+  "wallP95On": 2.3,
+  "dWall": -0.5,
+  "dWallMin": -0.55,
+  "dWallMax": -0.5,
+  "gpuOff": 0.5122,
+  "gpuOn": 0.3623,
+  "gpuP95Off": 1.408,
+  "gpuP95On": 1.215,
+  "dGpu": -0.119,
+  "dGpuMin": -0.2399,
+  "dGpuMax": -0.09946,
+  "cpuOff": 0.7748,
+  "cpuOn": 0.5458,
+  "tilesOff": 0.3218,
+  "tilesOn": 0.3173,
+  "prepOff": 0.1165,
+  "prepOn": 0.06391,
+  "submitOff": 0.2951,
+  "submitOn": 0.1136,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.1,
+  "animOn": 1,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.368,
+  "animCpuOn": 1.185,
+  "animGpuOff": 1.03,
+  "animGpuOn": 0.7682,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 177,
+   "onScreen": 28,
+   "offFrustum": 100,
+   "beyondHorizon": 23,
+   "inViewNoPixels": 26,
+   "culled": 120,
+   "culledWithPixels": 0,
+   "cullable": 123,
+   "medianPxOnScreen": 39501,
+   "triangles": 1540608,
+   "skirtTriangles": 90624,
+   "trianglesWithoutPixels": 1296896,
+   "byLevel": {
+    "1": {
+     "tiles": 14,
+     "surface": 114688,
+     "skirt": 7168,
+     "zeroPx": 14,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 30,
+     "surface": 245760,
+     "skirt": 15360,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 32,
+     "surface": 262144,
+     "skirt": 16384,
+     "zeroPx": 32,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 26,
+     "surface": 212992,
+     "skirt": 13312,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 14,
+     "surface": 114688,
+     "skirt": 7168,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 33,
+     "surface": 270336,
+     "skirt": 16896,
+     "zeroPx": 23,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 28,
+     "surface": 229376,
+     "skirt": 14336,
+     "zeroPx": 13,
+     "medianPx": 5865
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.73,
+   "p95": 13.04,
+   "rms": 7.356,
+   "max": 85.23
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 54673488,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 54673488,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-base-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 224,
+  "drawsOn": 74,
+  "drawnOff": 219,
+  "drawnOn": 69,
+  "wallOff": 2.1,
+  "wallOn": 1.4,
+  "wallP95Off": 3.1,
+  "wallP95On": 2.6,
+  "dWall": -0.7,
+  "dWallMin": -0.8,
+  "dWallMax": -0.7,
+  "gpuOff": 0.6566,
+  "gpuOn": 0.3527,
+  "gpuP95Off": 1.584,
+  "gpuP95On": 1.514,
+  "dGpu": -0.3014,
+  "dGpuMin": -0.3061,
+  "dGpuMax": -0.2954,
+  "cpuOff": 0.8703,
+  "cpuOn": 0.6163,
+  "tilesOff": 0.3722,
+  "tilesOn": 0.376,
+  "prepOff": 0.1201,
+  "prepOn": 0.06763,
+  "submitOff": 0.3434,
+  "submitOn": 0.1246,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1.5,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.54,
+  "animCpuOn": 1.29,
+  "animGpuOff": 1.211,
+  "animGpuOn": 0.8638,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 219,
+   "onScreen": 39,
+   "offFrustum": 133,
+   "beyondHorizon": 19,
+   "inViewNoPixels": 28,
+   "culled": 150,
+   "culledWithPixels": 0,
+   "cullable": 152,
+   "medianPxOnScreen": 21201,
+   "triangles": 1906176,
+   "skirtTriangles": 112128,
+   "trianglesWithoutPixels": 1566720,
+   "byLevel": {
+    "1": {
+     "tiles": 15,
+     "surface": 122880,
+     "skirt": 7680,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 24,
+     "surface": 196608,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 36,
+     "surface": 294912,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 278528,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 41,
+     "surface": 335872,
+     "skirt": 20992,
+     "zeroPx": 38,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 57,
+     "surface": 466944,
+     "skirt": 29184,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 98304,
+     "skirt": 6144,
+     "zeroPx": 3,
+     "medianPx": 17245
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.819,
+   "p95": 12.05,
+   "rms": 5.424,
+   "max": 34.62
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 66183696,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 66183696,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-polar-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 147,
+  "drawsOn": 64,
+  "drawnOff": 142,
+  "drawnOn": 59,
+  "wallOff": 1.6,
+  "wallOn": 1.3,
+  "wallP95Off": 3.1,
+  "wallP95On": 2.3,
+  "dWall": -0.3,
+  "dWallMin": -0.55,
+  "dWallMax": -0.2,
+  "gpuOff": 0.513,
+  "gpuOn": 0.3501,
+  "gpuP95Off": 1.928,
+  "gpuP95On": 1.384,
+  "dGpu": -0.1205,
+  "dGpuMin": -0.2404,
+  "dGpuMax": -0.004833,
+  "cpuOff": 0.614,
+  "cpuOn": 0.4927,
+  "tilesOff": 0.2725,
+  "tilesOn": 0.2778,
+  "prepOff": 0.08719,
+  "prepOn": 0.06185,
+  "submitOff": 0.2252,
+  "submitOn": 0.1114,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.9,
+  "animOn": 0.8,
+  "animP95Off": 2.2,
+  "animP95On": 2.2,
+  "animCpuOff": 1.398,
+  "animCpuOn": 1.143,
+  "animGpuOff": 1.177,
+  "animGpuOn": 0.8163,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 142,
+   "onScreen": 57,
+   "offFrustum": 83,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 2,
+   "culled": 0,
+   "culledWithPixels": 0,
+   "cullable": 83,
+   "medianPxOnScreen": 8104,
+   "triangles": 1235968,
+   "skirtTriangles": 0,
+   "trianglesWithoutPixels": 739840,
+   "byLevel": {
+    "2": {
+     "tiles": 6,
+     "surface": 52224,
+     "skirt": 0,
+     "zeroPx": 5,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 31,
+     "surface": 269824,
+     "skirt": 0,
+     "zeroPx": 15,
+     "medianPx": 15
+    },
+    "4": {
+     "tiles": 25,
+     "surface": 217600,
+     "skirt": 0,
+     "zeroPx": 14,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 34,
+     "surface": 295936,
+     "skirt": 0,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 38,
+     "surface": 330752,
+     "skirt": 0,
+     "zeroPx": 24,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 8,
+     "surface": 69632,
+     "skirt": 0,
+     "zeroPx": 7,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 520,
+   "median": 0.6908,
+   "p95": 4.53,
+   "rms": 2.895,
+   "max": 28.43
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 30054432,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 30054432,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-polar-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 168,
+  "drawsOn": 88,
+  "drawnOff": 163,
+  "drawnOn": 83,
+  "wallOff": 1.8,
+  "wallOn": 1.4,
+  "wallP95Off": 3.1,
+  "wallP95On": 2.8,
+  "dWall": -0.4,
+  "dWallMin": -0.4,
+  "dWallMax": -0.15,
+  "gpuOff": 0.6206,
+  "gpuOn": 0.4564,
+  "gpuP95Off": 1.543,
+  "gpuP95On": 1.789,
+  "dGpu": -0.1484,
+  "dGpuMin": -0.1594,
+  "dGpuMax": -0.00952,
+  "cpuOff": 0.7287,
+  "cpuOn": 0.5949,
+  "tilesOff": 0.3196,
+  "tilesOn": 0.3157,
+  "prepOff": 0.1054,
+  "prepOn": 0.07886,
+  "submitOff": 0.2627,
+  "submitOn": 0.1475,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1.6,
+  "animP95Off": 2.3,
+  "animP95On": 2.1,
+  "animCpuOff": 1.392,
+  "animCpuOn": 1.268,
+  "animGpuOff": 1.149,
+  "animGpuOn": 1.022,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 163,
+   "onScreen": 42,
+   "offFrustum": 80,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 41,
+   "culled": 0,
+   "culledWithPixels": 0,
+   "cullable": 80,
+   "medianPxOnScreen": 12024,
+   "triangles": 1418752,
+   "skirtTriangles": 0,
+   "trianglesWithoutPixels": 1053184,
+   "byLevel": {
+    "2": {
+     "tiles": 7,
+     "surface": 60928,
+     "skirt": 0,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 29,
+     "surface": 252416,
+     "skirt": 0,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 20,
+     "surface": 174080,
+     "skirt": 0,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 24,
+     "surface": 208896,
+     "skirt": 0,
+     "zeroPx": 15,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 24,
+     "surface": 208896,
+     "skirt": 0,
+     "zeroPx": 8,
+     "medianPx": 17528
+    },
+    "7": {
+     "tiles": 23,
+     "surface": 200192,
+     "skirt": 0,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 36,
+     "surface": 313344,
+     "skirt": 0,
+     "zeroPx": 31,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 365,
+   "median": 0.351,
+   "p95": 1.554,
+   "rms": 0.7574,
+   "max": 4.448
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 34530624,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 34530624,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-polar-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 108,
+  "drawsOn": 51,
+  "drawnOff": 103,
+  "drawnOn": 46,
+  "wallOff": 1.4,
+  "wallOn": 1.1,
+  "wallP95Off": 2.6,
+  "wallP95On": 2,
+  "dWall": -0.3,
+  "dWallMin": -0.6,
+  "dWallMax": -0.2,
+  "gpuOff": 0.4445,
+  "gpuOn": 0.3796,
+  "gpuP95Off": 1.699,
+  "gpuP95On": 1.234,
+  "dGpu": -0.07596,
+  "dGpuMin": -0.4981,
+  "dGpuMax": -0.05819,
+  "cpuOff": 0.5204,
+  "cpuOn": 0.4017,
+  "tilesOff": 0.2112,
+  "tilesOn": 0.2059,
+  "prepOff": 0.08747,
+  "prepOn": 0.06247,
+  "submitOff": 0.182,
+  "submitOn": 0.09001,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.1,
+  "animOn": 1.3,
+  "animP95Off": 2.3,
+  "animP95On": 2.2,
+  "animCpuOff": 1.234,
+  "animCpuOn": 1.165,
+  "animGpuOff": 0.7729,
+  "animGpuOn": 0.6687,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 103,
+   "onScreen": 39,
+   "offFrustum": 57,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 0,
+   "culledWithPixels": 0,
+   "cullable": 57,
+   "medianPxOnScreen": 16579,
+   "triangles": 896512,
+   "skirtTriangles": 0,
+   "trianglesWithoutPixels": 557056,
+   "byLevel": {
+    "2": {
+     "tiles": 8,
+     "surface": 69632,
+     "skirt": 0,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 21,
+     "surface": 182784,
+     "skirt": 0,
+     "zeroPx": 18,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 295936,
+     "skirt": 0,
+     "zeroPx": 17,
+     "medianPx": 4
+    },
+    "5": {
+     "tiles": 40,
+     "surface": 348160,
+     "skirt": 0,
+     "zeroPx": 21,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 0.8581,
+   "p95": 3.404,
+   "rms": 2.201,
+   "max": 21
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 21741504,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 21741504,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-polar-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 186,
+  "drawsOn": 96,
+  "drawnOff": 179,
+  "drawnOn": 89,
+  "wallOff": 1.9,
+  "wallOn": 1.4,
+  "wallP95Off": 2.9,
+  "wallP95On": 2.7,
+  "dWall": -0.45,
+  "dWallMin": -0.8,
+  "dWallMax": -0.4,
+  "gpuOff": 0.6081,
+  "gpuOn": 0.4432,
+  "gpuP95Off": 1.463,
+  "gpuP95On": 1.709,
+  "dGpu": -0.1777,
+  "dGpuMin": -0.3032,
+  "dGpuMax": -0.1323,
+  "cpuOff": 0.7887,
+  "cpuOn": 0.5778,
+  "tilesOff": 0.3471,
+  "tilesOn": 0.3174,
+  "prepOff": 0.1119,
+  "prepOn": 0.07197,
+  "submitOff": 0.2904,
+  "submitOn": 0.1477,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.7,
+  "animOn": 1.1,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.424,
+  "animCpuOn": 1.224,
+  "animGpuOff": 0.8589,
+  "animGpuOn": 0.9294,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 179,
+   "onScreen": 46,
+   "offFrustum": 90,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 43,
+   "culled": 0,
+   "culledWithPixels": 0,
+   "cullable": 90,
+   "medianPxOnScreen": 7178,
+   "triangles": 1558016,
+   "skirtTriangles": 0,
+   "trianglesWithoutPixels": 1157632,
+   "byLevel": {
+    "2": {
+     "tiles": 7,
+     "surface": 60928,
+     "skirt": 0,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 27,
+     "surface": 235008,
+     "skirt": 0,
+     "zeroPx": 27,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 29,
+     "surface": 252416,
+     "skirt": 0,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 18,
+     "surface": 156672,
+     "skirt": 0,
+     "zeroPx": 16,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 26,
+     "surface": 226304,
+     "skirt": 0,
+     "zeroPx": 16,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 28,
+     "surface": 243712,
+     "skirt": 0,
+     "zeroPx": 13,
+     "medianPx": 5396
+    },
+    "8": {
+     "tiles": 44,
+     "surface": 382976,
+     "skirt": 0,
+     "zeroPx": 25,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.04292,
+   "p95": 0.5031,
+   "rms": 0.2821,
+   "max": 2.697
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 38367360,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 38367360,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-polar-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 57,
+  "drawsOn": 24,
+  "drawnOff": 52,
+  "drawnOn": 19,
+  "wallOff": 0.9,
+  "wallOn": 0.8,
+  "wallP95Off": 1.7,
+  "wallP95On": 1.4,
+  "dWall": -0.15,
+  "dWallMin": -0.15,
+  "dWallMax": 0.1,
+  "gpuOff": 0.2869,
+  "gpuOn": 0.2707,
+  "gpuP95Off": 0.9641,
+  "gpuP95On": 0.7229,
+  "dGpu": 0.005437,
+  "dGpuMin": -0.03275,
+  "dGpuMax": 0.1906,
+  "cpuOff": 0.3025,
+  "cpuOn": 0.2455,
+  "tilesOff": 0.108,
+  "tilesOn": 0.1119,
+  "prepOff": 0.06033,
+  "prepOn": 0.04979,
+  "submitOff": 0.1006,
+  "submitOn": 0.04773,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.3,
+  "animOn": 1.2,
+  "animP95Off": 2.3,
+  "animP95On": 2.3,
+  "animCpuOff": 1.176,
+  "animCpuOn": 1.132,
+  "animGpuOff": 0.5785,
+  "animGpuOn": 0.7208,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 52,
+   "onScreen": 18,
+   "offFrustum": 33,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 1,
+   "culled": 0,
+   "culledWithPixels": 0,
+   "cullable": 33,
+   "medianPxOnScreen": 46019,
+   "triangles": 452608,
+   "skirtTriangles": 0,
+   "trianglesWithoutPixels": 295936,
+   "byLevel": {
+    "2": {
+     "tiles": 5,
+     "surface": 43520,
+     "skirt": 0,
+     "zeroPx": 5,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 43,
+     "surface": 374272,
+     "skirt": 0,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 4,
+     "surface": 34816,
+     "skirt": 0,
+     "zeroPx": 0,
+     "medianPx": 46019
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 3.558,
+   "p95": 13.2,
+   "rms": 6.669,
+   "max": 38.48
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 10870752,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 10870752,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 233,
+  "drawsOn": 123,
+  "drawnOff": 193,
+  "drawnOn": 95,
+  "wallOff": 2.9,
+  "wallOn": 1.8,
+  "wallP95Off": 4.2,
+  "wallP95On": 2.8,
+  "dWall": -1.15,
+  "dWallMin": -1.15,
+  "dWallMax": -0.45,
+  "gpuOff": 0.4918,
+  "gpuOn": 0.2665,
+  "gpuP95Off": 1.56,
+  "gpuP95On": 1.113,
+  "dGpu": -0.1898,
+  "dGpuMin": -0.201,
+  "dGpuMax": -0.1461,
+  "cpuOff": 1.409,
+  "cpuOn": 0.9621,
+  "tilesOff": 0.3992,
+  "tilesOn": 0.3882,
+  "prepOff": 0.149,
+  "prepOn": 0.09986,
+  "submitOff": 0.4676,
+  "submitOn": 0.2388,
+  "imageryOff": 0.337,
+  "imageryOn": 0.1713,
+  "animOff": 1.6,
+  "animOn": 1.6,
+  "animP95Off": 2.8,
+  "animP95On": 2.1,
+  "animCpuOff": 1.641,
+  "animCpuOn": 1.409,
+  "animGpuOff": 1.509,
+  "animGpuOn": 1.188,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 193,
+   "onScreen": 41,
+   "offFrustum": 98,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 54,
+   "culled": 98,
+   "culledWithPixels": 0,
+   "cullable": 98,
+   "medianPxOnScreen": 5308,
+   "triangles": 825118,
+   "skirtTriangles": 98816,
+   "trianglesWithoutPixels": 678314,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 9,
+     "surface": 52754,
+     "skirt": 4608,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 19,
+     "surface": 94820,
+     "skirt": 9728,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 27,
+     "surface": 110306,
+     "skirt": 13824,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 29,
+     "surface": 92806,
+     "skirt": 14848,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 19,
+     "surface": 59628,
+     "skirt": 9728,
+     "zeroPx": 14,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 26,
+     "surface": 71606,
+     "skirt": 13312,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 38,
+     "surface": 107192,
+     "skirt": 19456,
+     "zeroPx": 16,
+     "medianPx": 3629
+    },
+    "12": {
+     "tiles": 4,
+     "surface": 11706,
+     "skirt": 2048,
+     "zeroPx": 0,
+     "medianPx": 12182
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2347,
+   "p95": 0.8529,
+   "rms": 0.4396,
+   "max": 2.773
+  },
+  "imagery": {
+   "blocks": 116,
+   "splitTiles": 7,
+   "extraDraws": 21,
+   "blockGeometryMB": 1.295,
+   "textures": 161,
+   "textureMiB": 57.07,
+   "maxLevel": 11,
+   "requests": 161,
+   "bytes": 5423378
+  },
+  "memory": {
+   "cacheBytes": 24503808,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 34127460,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 371,
+  "drawsOn": 51,
+  "drawnOff": 306,
+  "drawnOn": 28,
+  "wallOff": 3.9,
+  "wallOn": 1.6,
+  "wallP95Off": 5.5,
+  "wallP95On": 2,
+  "dWall": -2.3,
+  "dWallMin": -2.35,
+  "dWallMax": -2.2,
+  "gpuOff": 0.6116,
+  "gpuOn": 0.3454,
+  "gpuP95Off": 2.097,
+  "gpuP95On": 0.6366,
+  "dGpu": -0.2703,
+  "dGpuMin": -0.339,
+  "dGpuMax": -0.2677,
+  "cpuOff": 2.233,
+  "cpuOn": 0.8324,
+  "tilesOff": 0.5831,
+  "tilesOn": 0.5322,
+  "prepOff": 0.2335,
+  "prepOn": 0.06143,
+  "submitOff": 0.7902,
+  "submitOn": 0.0989,
+  "imageryOff": 0.5585,
+  "imageryOn": 0.07355,
+  "animOff": 2.2,
+  "animOn": 0.9,
+  "animP95Off": 2.8,
+  "animP95On": 1.2,
+  "animCpuOff": 2.176,
+  "animCpuOn": 0.9007,
+  "animGpuOff": 1.138,
+  "animGpuOn": 0.355,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 306,
+   "onScreen": 25,
+   "offFrustum": 233,
+   "beyondHorizon": 45,
+   "inViewNoPixels": 3,
+   "culled": 278,
+   "culledWithPixels": 0,
+   "cullable": 278,
+   "medianPxOnScreen": 48475,
+   "triangles": 1596838,
+   "skirtTriangles": 156672,
+   "trianglesWithoutPixels": 1494322,
+   "byLevel": {
+    "1": {
+     "tiles": 4,
+     "surface": 15990,
+     "skirt": 2048,
+     "zeroPx": 4,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 49,
+     "surface": 207306,
+     "skirt": 25088,
+     "zeroPx": 49,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 112,
+     "surface": 536552,
+     "skirt": 57344,
+     "zeroPx": 112,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 41,
+     "surface": 228756,
+     "skirt": 20992,
+     "zeroPx": 41,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 116364,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 21,
+     "surface": 107800,
+     "skirt": 10752,
+     "zeroPx": 21,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 39,
+     "surface": 160900,
+     "skirt": 19968,
+     "zeroPx": 32,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 66498,
+     "skirt": 10240,
+     "zeroPx": 2,
+     "medianPx": 48475
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.975,
+   "p95": 13.18,
+   "rms": 6.651,
+   "max": 65.61
+  },
+  "imagery": {
+   "blocks": 46,
+   "splitTiles": 6,
+   "extraDraws": 18,
+   "blockGeometryMB": 1.103,
+   "textures": 206,
+   "textureMiB": 73.03,
+   "maxLevel": 8,
+   "requests": 206,
+   "bytes": 7066047
+  },
+  "memory": {
+   "cacheBytes": 41759448,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 57016968,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 379,
+  "drawsOn": 105,
+  "drawnOff": 348,
+  "drawnOn": 98,
+  "wallOff": 4.1,
+  "wallOn": 2.2,
+  "wallP95Off": 6.2,
+  "wallP95On": 2.8,
+  "dWall": -2.05,
+  "dWallMin": -2.15,
+  "dWallMax": -1.75,
+  "gpuOff": 0.6077,
+  "gpuOn": 0.2867,
+  "gpuP95Off": 2.412,
+  "gpuP95On": 1.149,
+  "dGpu": -0.3243,
+  "dGpuMin": -0.3786,
+  "dGpuMax": -0.3212,
+  "cpuOff": 2.401,
+  "cpuOn": 1.102,
+  "tilesOff": 0.661,
+  "tilesOn": 0.6098,
+  "prepOff": 0.2616,
+  "prepOn": 0.09125,
+  "submitOff": 0.8543,
+  "submitOn": 0.2044,
+  "imageryOff": 0.5485,
+  "imageryOn": 0.1319,
+  "animOff": 2.4,
+  "animOn": 1.4,
+  "animP95Off": 3,
+  "animP95On": 2,
+  "animCpuOff": 2.321,
+  "animCpuOn": 1.337,
+  "animGpuOff": 1.376,
+  "animGpuOn": 1.183,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 348,
+   "onScreen": 63,
+   "offFrustum": 194,
+   "beyondHorizon": 61,
+   "inViewNoPixels": 30,
+   "culled": 250,
+   "culledWithPixels": 0,
+   "cullable": 255,
+   "medianPxOnScreen": 15292,
+   "triangles": 1613794,
+   "skirtTriangles": 178176,
+   "trianglesWithoutPixels": 1397908,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 332100,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 70,
+     "surface": 305990,
+     "skirt": 35840,
+     "zeroPx": 70,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 47,
+     "surface": 234162,
+     "skirt": 24064,
+     "zeroPx": 47,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 93990,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 48,
+     "surface": 204828,
+     "skirt": 24576,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 56,
+     "surface": 189844,
+     "skirt": 28672,
+     "zeroPx": 26,
+     "medianPx": 1959
+    },
+    "8": {
+     "tiles": 32,
+     "surface": 74704,
+     "skirt": 16384,
+     "zeroPx": 4,
+     "medianPx": 14462
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.002,
+   "p95": 8.942,
+   "rms": 4.501,
+   "max": 32.32
+  },
+  "imagery": {
+   "blocks": 98,
+   "splitTiles": 0,
+   "extraDraws": 0,
+   "blockGeometryMB": 0,
+   "textures": 228,
+   "textureMiB": 80.82,
+   "maxLevel": 8,
+   "requests": 228,
+   "bytes": 4984175
+  },
+  "memory": {
+   "cacheBytes": 49146216,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 65827272,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 428,
+  "drawsOn": 121,
+  "drawnOff": 411,
+  "drawnOn": 116,
+  "wallOff": 4.4,
+  "wallOn": 2.5,
+  "wallP95Off": 6.5,
+  "wallP95On": 3.3,
+  "dWall": -2.05,
+  "dWallMin": -2.1,
+  "dWallMax": -1.85,
+  "gpuOff": 0.7194,
+  "gpuOn": 0.2925,
+  "gpuP95Off": 2.555,
+  "gpuP95On": 1.179,
+  "dGpu": -0.4131,
+  "dGpuMin": -0.4407,
+  "dGpuMax": -0.3551,
+  "cpuOff": 2.578,
+  "cpuOn": 1.246,
+  "tilesOff": 0.7476,
+  "tilesOn": 0.7118,
+  "prepOff": 0.2647,
+  "prepOn": 0.09339,
+  "submitOff": 0.9236,
+  "submitOn": 0.2266,
+  "imageryOff": 0.5805,
+  "imageryOn": 0.1455,
+  "animOff": 2.7,
+  "animOn": 1.4,
+  "animP95Off": 3.3,
+  "animP95On": 1.8,
+  "animCpuOff": 2.645,
+  "animCpuOn": 1.336,
+  "animGpuOff": 1.755,
+  "animGpuOn": 0.6843,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 411,
+   "onScreen": 87,
+   "offFrustum": 236,
+   "beyondHorizon": 60,
+   "inViewNoPixels": 28,
+   "culled": 295,
+   "culledWithPixels": 0,
+   "cullable": 296,
+   "medianPxOnScreen": 11257,
+   "triangles": 1727284,
+   "skirtTriangles": 210432,
+   "trianglesWithoutPixels": 1471424,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 329372,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 69,
+     "surface": 314186,
+     "skirt": 35328,
+     "zeroPx": 69,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 40,
+     "surface": 184916,
+     "skirt": 20480,
+     "zeroPx": 40,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 56,
+     "surface": 230698,
+     "skirt": 28672,
+     "zeroPx": 56,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 71,
+     "surface": 221236,
+     "skirt": 36352,
+     "zeroPx": 60,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 100,
+     "surface": 236444,
+     "skirt": 51200,
+     "zeroPx": 24,
+     "medianPx": 9459
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.609,
+   "p95": 9.519,
+   "rms": 4.973,
+   "max": 28.39
+  },
+  "imagery": {
+   "blocks": 116,
+   "splitTiles": 0,
+   "extraDraws": 0,
+   "blockGeometryMB": 0,
+   "textures": 245,
+   "textureMiB": 86.85,
+   "maxLevel": 6,
+   "requests": 245,
+   "bytes": 5758365
+  },
+  "memory": {
+   "cacheBytes": 53123232,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 71176776,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 205,
+  "drawsOn": 117,
+  "drawnOff": 131,
+  "drawnOn": 52,
+  "wallOff": 2.9,
+  "wallOn": 2.1,
+  "wallP95Off": 3.9,
+  "wallP95On": 2.4,
+  "dWall": -1.05,
+  "dWallMin": -1.25,
+  "dWallMax": -0.75,
+  "gpuOff": 1.203,
+  "gpuOn": 0.8908,
+  "gpuP95Off": 1.242,
+  "gpuP95On": 0.9286,
+  "dGpu": -0.3169,
+  "dGpuMin": -0.61,
+  "dGpuMax": -0.07514,
+  "cpuOff": 1.318,
+  "cpuOn": 0.9009,
+  "tilesOff": 0.3178,
+  "tilesOn": 0.3032,
+  "prepOff": 0.1552,
+  "prepOn": 0.1,
+  "submitOff": 0.4369,
+  "submitOn": 0.2408,
+  "imageryOff": 0.3326,
+  "imageryOn": 0.1888,
+  "animOff": 1.7,
+  "animOn": 1.7,
+  "animP95Off": 2.4,
+  "animP95On": 2,
+  "animCpuOff": 1.604,
+  "animCpuOn": 1.405,
+  "animGpuOff": 1.243,
+  "animGpuOn": 0.9644,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 45,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8720,
+   "triangles": 588076,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 380262,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 53830,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 13,
+     "surface": 52174,
+     "skirt": 6656,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 65010,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 68304,
+     "skirt": 12800,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 28,
+     "surface": 87528,
+     "skirt": 14336,
+     "zeroPx": 17,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.131,
+   "p95": 9.428,
+   "rms": 4.291,
+   "max": 31.29
+  },
+  "imagery": {
+   "blocks": 112,
+   "splitTiles": 20,
+   "extraDraws": 60,
+   "blockGeometryMB": 3.942,
+   "textures": 152,
+   "textureMiB": 53.88,
+   "maxLevel": 10,
+   "requests": 152,
+   "bytes": 6266128
+  },
+  "memory": {
+   "cacheBytes": 20131296,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 30913212,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 244,
+  "drawsOn": 141,
+  "drawnOff": 152,
+  "drawnOn": 67,
+  "wallOff": 2.7,
+  "wallOn": 1.7,
+  "wallP95Off": 4.1,
+  "wallP95On": 2.4,
+  "dWall": -1,
+  "dWallMin": -1.35,
+  "dWallMax": -0.8,
+  "gpuOff": 0.4482,
+  "gpuOn": 0.2731,
+  "gpuP95Off": 1.383,
+  "gpuP95On": 1.011,
+  "dGpu": -0.1497,
+  "dGpuMin": -0.1854,
+  "dGpuMax": -0.148,
+  "cpuOff": 1.315,
+  "cpuOn": 0.8454,
+  "tilesOff": 0.3046,
+  "tilesOn": 0.2862,
+  "prepOff": 0.1375,
+  "prepOn": 0.08595,
+  "submitOff": 0.4436,
+  "submitOn": 0.2321,
+  "imageryOff": 0.3777,
+  "imageryOn": 0.1966,
+  "animOff": 1.6,
+  "animOn": 1.7,
+  "animP95Off": 2.6,
+  "animP95On": 2,
+  "animCpuOff": 1.622,
+  "animCpuOn": 1.354,
+  "animGpuOff": 1.362,
+  "animGpuOn": 1.076,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 152,
+   "onScreen": 33,
+   "offFrustum": 85,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 34,
+   "culled": 85,
+   "culledWithPixels": 0,
+   "cullable": 85,
+   "medianPxOnScreen": 13969,
+   "triangles": 720700,
+   "skirtTriangles": 77824,
+   "trianglesWithoutPixels": 581398,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 41910,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 58128,
+     "skirt": 9216,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 18,
+     "surface": 52678,
+     "skirt": 9216,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 18,
+     "surface": 62338,
+     "skirt": 9216,
+     "zeroPx": 9,
+     "medianPx": 8092
+    },
+    "11": {
+     "tiles": 18,
+     "surface": 69042,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 24,
+     "surface": 106724,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.648,
+   "p95": 2.994,
+   "rms": 1.633,
+   "max": 14.5
+  },
+  "imagery": {
+   "blocks": 136,
+   "splitTiles": 23,
+   "extraDraws": 69,
+   "blockGeometryMB": 4.294,
+   "textures": 150,
+   "textureMiB": 53.17,
+   "maxLevel": 11,
+   "requests": 150,
+   "bytes": 5324641
+  },
+  "memory": {
+   "cacheBytes": 22183956,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 34009572,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 200,
+  "drawsOn": 116,
+  "drawnOff": 96,
+  "drawnOn": 39,
+  "wallOff": 2.3,
+  "wallOn": 1.4,
+  "wallP95Off": 3.2,
+  "wallP95On": 2,
+  "dWall": -0.65,
+  "dWallMin": -0.8,
+  "dWallMax": -0.55,
+  "gpuOff": 0.32,
+  "gpuOn": 0.2637,
+  "gpuP95Off": 0.9951,
+  "gpuP95On": 0.7308,
+  "dGpu": -0.03515,
+  "dGpuMin": -0.1289,
+  "dGpuMax": -0.02467,
+  "cpuOff": 0.9786,
+  "cpuOn": 0.6477,
+  "tilesOff": 0.2017,
+  "tilesOn": 0.1975,
+  "prepOff": 0.1108,
+  "prepOn": 0.07466,
+  "submitOff": 0.3304,
+  "submitOn": 0.1828,
+  "imageryOff": 0.2937,
+  "imageryOn": 0.1539,
+  "animOff": 1.7,
+  "animOn": 1.5,
+  "animP95Off": 2.1,
+  "animP95On": 2.1,
+  "animCpuOff": 1.453,
+  "animCpuOn": 1.309,
+  "animGpuOff": 0.989,
+  "animGpuOn": 0.7624,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 96,
+   "onScreen": 24,
+   "offFrustum": 57,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 15,
+   "culled": 57,
+   "culledWithPixels": 0,
+   "cullable": 57,
+   "medianPxOnScreen": 37381,
+   "triangles": 464022,
+   "skirtTriangles": 49152,
+   "trianglesWithoutPixels": 369144,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 44802,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 40436,
+     "skirt": 5120,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 60646,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 24,
+     "surface": 72144,
+     "skirt": 12288,
+     "zeroPx": 13,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.41,
+   "p95": 7.428,
+   "rms": 4.094,
+   "max": 34.58
+  },
+  "imagery": {
+   "blocks": 111,
+   "splitTiles": 24,
+   "extraDraws": 72,
+   "blockGeometryMB": 4.408,
+   "textures": 141,
+   "textureMiB": 49.98,
+   "maxLevel": 10,
+   "requests": 141,
+   "bytes": 5934340
+  },
+  "memory": {
+   "cacheBytes": 15723456,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 25467576,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 228,
+  "drawsOn": 129,
+  "drawnOff": 131,
+  "drawnOn": 56,
+  "wallOff": 2,
+  "wallOn": 1.5,
+  "wallP95Off": 3.5,
+  "wallP95On": 2.3,
+  "dWall": -0.7,
+  "dWallMin": -0.95,
+  "dWallMax": -0.45,
+  "gpuOff": 0.3179,
+  "gpuOn": 0.2622,
+  "gpuP95Off": 1.297,
+  "gpuP95On": 0.9301,
+  "dGpu": -0.08548,
+  "dGpuMin": -0.1296,
+  "dGpuMax": -0.03783,
+  "cpuOff": 1.095,
+  "cpuOn": 0.7336,
+  "tilesOff": 0.2444,
+  "tilesOn": 0.2389,
+  "prepOff": 0.1125,
+  "prepOn": 0.0728,
+  "submitOff": 0.3883,
+  "submitOn": 0.2121,
+  "imageryOff": 0.315,
+  "imageryOn": 0.1712,
+  "animOff": 1.6,
+  "animOn": 1.7,
+  "animP95Off": 2.5,
+  "animP95On": 2,
+  "animCpuOff": 1.611,
+  "animCpuOn": 1.337,
+  "animGpuOff": 1.281,
+  "animGpuOn": 0.982,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 31,
+   "offFrustum": 75,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 75,
+   "culledWithPixels": 0,
+   "cullable": 75,
+   "medianPxOnScreen": 3629,
+   "triangles": 593276,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 479312,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 10,
+     "surface": 58040,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98352,
+     "skirt": 10240,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 49398,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 11,
+     "surface": 36336,
+     "skirt": 5632,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 14,
+     "surface": 42042,
+     "skirt": 7168,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 52656,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 19,
+     "surface": 52190,
+     "skirt": 9728,
+     "zeroPx": 9,
+     "medianPx": 441
+    },
+    "12": {
+     "tiles": 4,
+     "surface": 11706,
+     "skirt": 2048,
+     "zeroPx": 0,
+     "medianPx": 12182
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2782,
+   "p95": 1.097,
+   "rms": 0.5494,
+   "max": 3.016
+  },
+  "imagery": {
+   "blocks": 122,
+   "splitTiles": 22,
+   "extraDraws": 66,
+   "blockGeometryMB": 3.713,
+   "textures": 162,
+   "textureMiB": 57.43,
+   "maxLevel": 11,
+   "requests": 162,
+   "bytes": 5408587
+  },
+  "memory": {
+   "cacheBytes": 18867720,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 28989564,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 347,
+  "drawsOn": 59,
+  "drawnOff": 180,
+  "drawnOn": 15,
+  "wallOff": 3.1,
+  "wallOn": 1.2,
+  "wallP95Off": 4.6,
+  "wallP95On": 1.5,
+  "dWall": -1.9,
+  "dWallMin": -1.95,
+  "dWallMax": -1.75,
+  "gpuOff": 0.4523,
+  "gpuOn": 0.261,
+  "gpuP95Off": 1.442,
+  "gpuP95On": 0.479,
+  "dGpu": -0.1815,
+  "dGpuMin": -0.2268,
+  "dGpuMax": -0.06204,
+  "cpuOff": 1.672,
+  "cpuOn": 0.5784,
+  "tilesOff": 0.3167,
+  "tilesOn": 0.2992,
+  "prepOff": 0.1754,
+  "prepOn": 0.05599,
+  "submitOff": 0.6177,
+  "submitOn": 0.09869,
+  "imageryOff": 0.5134,
+  "imageryOn": 0.0834,
+  "animOff": 1.8,
+  "animOn": 0.7,
+  "animP95Off": 2.7,
+  "animP95On": 2,
+  "animCpuOff": 1.817,
+  "animCpuOn": 0.9638,
+  "animGpuOff": 1.411,
+  "animGpuOn": 0.5032,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 180,
+   "onScreen": 12,
+   "offFrustum": 138,
+   "beyondHorizon": 27,
+   "inViewNoPixels": 3,
+   "culled": 165,
+   "culledWithPixels": 0,
+   "cullable": 165,
+   "medianPxOnScreen": 70484,
+   "triangles": 978420,
+   "skirtTriangles": 92160,
+   "trianglesWithoutPixels": 921988,
+   "byLevel": {
+    "1": {
+     "tiles": 12,
+     "surface": 46512,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 34,
+     "surface": 156208,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 46,
+     "surface": 222034,
+     "skirt": 23552,
+     "zeroPx": 46,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 193086,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 18,
+     "surface": 104422,
+     "skirt": 9216,
+     "zeroPx": 18,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98286,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 65712,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 5.696,
+   "p95": 16.58,
+   "rms": 9.205,
+   "max": 65.61
+  },
+  "imagery": {
+   "blocks": 54,
+   "splitTiles": 13,
+   "extraDraws": 39,
+   "blockGeometryMB": 2.421,
+   "textures": 208,
+   "textureMiB": 73.73,
+   "maxLevel": 8,
+   "requests": 208,
+   "bytes": 7082635
+  },
+  "memory": {
+   "cacheBytes": 26841024,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 38358708,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 355,
+  "drawsOn": 120,
+  "drawnOff": 228,
+  "drawnOn": 65,
+  "wallOff": 3.3,
+  "wallOn": 1.7,
+  "wallP95Off": 5,
+  "wallP95On": 2.3,
+  "dWall": -1.7,
+  "dWallMin": -1.85,
+  "dWallMax": -1.35,
+  "gpuOff": 0.5274,
+  "gpuOn": 0.2795,
+  "gpuP95Off": 1.69,
+  "gpuP95On": 0.8641,
+  "dGpu": -0.2632,
+  "dGpuMin": -0.303,
+  "dGpuMax": 0.03848,
+  "cpuOff": 1.854,
+  "cpuOn": 0.8917,
+  "tilesOff": 0.4099,
+  "tilesOn": 0.389,
+  "prepOff": 0.1917,
+  "prepOn": 0.08306,
+  "submitOff": 0.6871,
+  "submitOn": 0.2052,
+  "imageryOff": 0.5127,
+  "imageryOn": 0.1616,
+  "animOff": 1.9,
+  "animOn": 1.2,
+  "animP95Off": 2.6,
+  "animP95On": 1.9,
+  "animCpuOff": 1.959,
+  "animCpuOn": 1.286,
+  "animGpuOff": 1.651,
+  "animGpuOn": 0.8992,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 228,
+   "onScreen": 31,
+   "offFrustum": 136,
+   "beyondHorizon": 30,
+   "inViewNoPixels": 31,
+   "culled": 163,
+   "culledWithPixels": 0,
+   "cullable": 166,
+   "medianPxOnScreen": 31715,
+   "triangles": 1074380,
+   "skirtTriangles": 116736,
+   "trianglesWithoutPixels": 949312,
+   "byLevel": {
+    "1": {
+     "tiles": 10,
+     "surface": 46042,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 43,
+     "surface": 171922,
+     "skirt": 22016,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 44,
+     "surface": 191104,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 23,
+     "surface": 112540,
+     "skirt": 11776,
+     "zeroPx": 23,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 21,
+     "surface": 98732,
+     "skirt": 10752,
+     "zeroPx": 21,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 51,
+     "surface": 217098,
+     "skirt": 26112,
+     "zeroPx": 40,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 36,
+     "surface": 120206,
+     "skirt": 18432,
+     "zeroPx": 16,
+     "medianPx": 5865
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 3.159,
+   "p95": 14.71,
+   "rms": 7.454,
+   "max": 64.98
+  },
+  "imagery": {
+   "blocks": 113,
+   "splitTiles": 16,
+   "extraDraws": 48,
+   "blockGeometryMB": 2.919,
+   "textures": 229,
+   "textureMiB": 81.18,
+   "maxLevel": 8,
+   "requests": 229,
+   "bytes": 4887156
+  },
+  "memory": {
+   "cacheBytes": 36382080,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 51646584,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-grid",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 383,
+  "drawsOn": 109,
+  "drawnOff": 303,
+  "drawnOn": 86,
+  "wallOff": 3.6,
+  "wallOn": 1.8,
+  "wallP95Off": 5.6,
+  "wallP95On": 2.5,
+  "dWall": -1.8,
+  "dWallMin": -1.8,
+  "dWallMax": -1.45,
+  "gpuOff": 0.5847,
+  "gpuOn": 0.3023,
+  "gpuP95Off": 1.953,
+  "gpuP95On": 0.9445,
+  "dGpu": -0.2817,
+  "dGpuMin": -0.2978,
+  "dGpuMax": -0.2541,
+  "cpuOff": 2.064,
+  "cpuOn": 0.9813,
+  "tilesOff": 0.5121,
+  "tilesOn": 0.4997,
+  "prepOff": 0.2161,
+  "prepOn": 0.08347,
+  "submitOff": 0.7543,
+  "submitOn": 0.2001,
+  "imageryOff": 0.5257,
+  "imageryOn": 0.1381,
+  "animOff": 2.1,
+  "animOn": 1.1,
+  "animP95Off": 2.7,
+  "animP95On": 1.8,
+  "animCpuOff": 2.115,
+  "animCpuOn": 1.171,
+  "animGpuOff": 1.765,
+  "animGpuOn": 0.9919,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 303,
+   "onScreen": 57,
+   "offFrustum": 194,
+   "beyondHorizon": 25,
+   "inViewNoPixels": 27,
+   "culled": 217,
+   "culledWithPixels": 0,
+   "cullable": 219,
+   "medianPxOnScreen": 17558,
+   "triangles": 1273254,
+   "skirtTriangles": 155136,
+   "trianglesWithoutPixels": 1093466,
+   "byLevel": {
+    "1": {
+     "tiles": 12,
+     "surface": 52140,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 36,
+     "surface": 147186,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 34,
+     "surface": 158398,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 36,
+     "surface": 164708,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 58,
+     "surface": 237774,
+     "skirt": 29696,
+     "zeroPx": 57,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 75,
+     "surface": 237640,
+     "skirt": 38400,
+     "zeroPx": 53,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 52,
+     "surface": 120272,
+     "skirt": 26624,
+     "zeroPx": 18,
+     "medianPx": 12530
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 3.655,
+   "p95": 15.63,
+   "rms": 7.232,
+   "max": 30.21
+  },
+  "imagery": {
+   "blocks": 104,
+   "splitTiles": 6,
+   "extraDraws": 18,
+   "blockGeometryMB": 1.181,
+   "textures": 245,
+   "textureMiB": 86.85,
+   "maxLevel": 6,
+   "requests": 245,
+   "bytes": 5758365
+  },
+  "memory": {
+   "cacheBytes": 42454032,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 58060284,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 211,
+  "drawsOn": 111,
+  "drawnOff": 131,
+  "drawnOn": 52,
+  "wallOff": 2.4,
+  "wallOn": 1.5,
+  "wallP95Off": 3.3,
+  "wallP95On": 2.3,
+  "dWall": -0.9,
+  "dWallMin": -0.95,
+  "dWallMax": -0.5,
+  "gpuOff": 0.3197,
+  "gpuOn": 0.2618,
+  "gpuP95Off": 1.252,
+  "gpuP95On": 0.9282,
+  "dGpu": -0.06258,
+  "dGpuMin": -0.06788,
+  "dGpuMax": 0.007625,
+  "cpuOff": 1.096,
+  "cpuOn": 0.7343,
+  "tilesOff": 0.2688,
+  "tilesOn": 0.2652,
+  "prepOff": 0.1187,
+  "prepOn": 0.07514,
+  "submitOff": 0.3681,
+  "submitOn": 0.1933,
+  "imageryOff": 0.2981,
+  "imageryOn": 0.1532,
+  "animOff": 1.7,
+  "animOn": 1.6,
+  "animP95Off": 2.5,
+  "animP95On": 2,
+  "animCpuOff": 1.579,
+  "animCpuOn": 1.295,
+  "animGpuOff": 1.239,
+  "animGpuOn": 0.9757,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 45,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8720,
+   "triangles": 588076,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 380262,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 53830,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 13,
+     "surface": 52174,
+     "skirt": 6656,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 65010,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 68304,
+     "skirt": 12800,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 28,
+     "surface": 87528,
+     "skirt": 14336,
+     "zeroPx": 17,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.131,
+   "p95": 9.428,
+   "rms": 4.291,
+   "max": 31.29
+  },
+  "imagery": {
+   "blocks": 106,
+   "splitTiles": 18,
+   "extraDraws": 54,
+   "blockGeometryMB": 3.342,
+   "textures": 135,
+   "textureMiB": 47.86,
+   "maxLevel": 10,
+   "requests": 135,
+   "bytes": 5831468
+  },
+  "memory": {
+   "cacheBytes": 20131296,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 30313152,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 238,
+  "drawsOn": 138,
+  "drawnOff": 152,
+  "drawnOn": 67,
+  "wallOff": 2.7,
+  "wallOn": 1.8,
+  "wallP95Off": 3.8,
+  "wallP95On": 2.5,
+  "dWall": -0.95,
+  "dWallMin": -1,
+  "dWallMax": -0.7,
+  "gpuOff": 0.4373,
+  "gpuOn": 0.2746,
+  "gpuP95Off": 1.387,
+  "gpuP95On": 1.012,
+  "dGpu": -0.1488,
+  "dGpuMin": -0.1531,
+  "dGpuMax": -0.03721,
+  "cpuOff": 1.213,
+  "cpuOn": 0.849,
+  "tilesOff": 0.2962,
+  "tilesOn": 0.2908,
+  "prepOff": 0.1257,
+  "prepOn": 0.09077,
+  "submitOff": 0.4143,
+  "submitOn": 0.227,
+  "imageryOff": 0.3375,
+  "imageryOn": 0.1924,
+  "animOff": 1.6,
+  "animOn": 1.7,
+  "animP95Off": 2.7,
+  "animP95On": 2,
+  "animCpuOff": 1.652,
+  "animCpuOn": 1.415,
+  "animGpuOff": 1.371,
+  "animGpuOn": 1.051,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 152,
+   "onScreen": 33,
+   "offFrustum": 85,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 34,
+   "culled": 85,
+   "culledWithPixels": 0,
+   "cullable": 85,
+   "medianPxOnScreen": 13969,
+   "triangles": 720700,
+   "skirtTriangles": 77824,
+   "trianglesWithoutPixels": 581398,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 41910,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 58128,
+     "skirt": 9216,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 18,
+     "surface": 52678,
+     "skirt": 9216,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 18,
+     "surface": 62338,
+     "skirt": 9216,
+     "zeroPx": 9,
+     "medianPx": 8092
+    },
+    "11": {
+     "tiles": 18,
+     "surface": 69042,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 24,
+     "surface": 106724,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.648,
+   "p95": 2.994,
+   "rms": 1.633,
+   "max": 14.5
+  },
+  "imagery": {
+   "blocks": 133,
+   "splitTiles": 22,
+   "extraDraws": 66,
+   "blockGeometryMB": 3.954,
+   "textures": 141,
+   "textureMiB": 49.98,
+   "maxLevel": 11,
+   "requests": 141,
+   "bytes": 4890218
+  },
+  "memory": {
+   "cacheBytes": 22183956,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 33669468,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 191,
+  "drawsOn": 104,
+  "drawnOff": 96,
+  "drawnOn": 39,
+  "wallOff": 2,
+  "wallOn": 1.5,
+  "wallP95Off": 2.8,
+  "wallP95On": 2.2,
+  "dWall": -0.55,
+  "dWallMin": -1.15,
+  "dWallMax": -0.45,
+  "gpuOff": 0.3715,
+  "gpuOn": 0.3071,
+  "gpuP95Off": 0.9804,
+  "gpuP95On": 0.7223,
+  "dGpu": -0.04242,
+  "dGpuMin": -0.4088,
+  "dGpuMax": -0.006229,
+  "cpuOff": 1.023,
+  "cpuOn": 0.6683,
+  "tilesOff": 0.2223,
+  "tilesOn": 0.213,
+  "prepOff": 0.1152,
+  "prepOn": 0.07672,
+  "submitOff": 0.3428,
+  "submitOn": 0.1832,
+  "imageryOff": 0.2866,
+  "imageryOn": 0.1471,
+  "animOff": 1.8,
+  "animOn": 1.5,
+  "animP95Off": 2.1,
+  "animP95On": 2.1,
+  "animCpuOff": 1.525,
+  "animCpuOn": 1.334,
+  "animGpuOff": 0.9766,
+  "animGpuOn": 0.7531,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 96,
+   "onScreen": 24,
+   "offFrustum": 57,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 15,
+   "culled": 57,
+   "culledWithPixels": 0,
+   "cullable": 57,
+   "medianPxOnScreen": 37381,
+   "triangles": 464022,
+   "skirtTriangles": 49152,
+   "trianglesWithoutPixels": 369144,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 44802,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 40436,
+     "skirt": 5120,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 60646,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 24,
+     "surface": 72144,
+     "skirt": 12288,
+     "zeroPx": 13,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.41,
+   "p95": 7.428,
+   "rms": 4.094,
+   "max": 34.58
+  },
+  "imagery": {
+   "blocks": 99,
+   "splitTiles": 20,
+   "extraDraws": 60,
+   "blockGeometryMB": 3.441,
+   "textures": 122,
+   "textureMiB": 43.25,
+   "maxLevel": 10,
+   "requests": 122,
+   "bytes": 5111724
+  },
+  "memory": {
+   "cacheBytes": 15723456,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 24500256,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 231,
+  "drawsOn": 129,
+  "drawnOff": 131,
+  "drawnOn": 56,
+  "wallOff": 2.6,
+  "wallOn": 1.8,
+  "wallP95Off": 3.6,
+  "wallP95On": 2.8,
+  "dWall": -0.85,
+  "dWallMin": -0.9,
+  "dWallMax": -0.75,
+  "gpuOff": 0.3483,
+  "gpuOn": 0.3271,
+  "gpuP95Off": 1.302,
+  "gpuP95On": 0.9117,
+  "dGpu": -0.06548,
+  "dGpuMin": -0.1228,
+  "dGpuMax": 0.02454,
+  "cpuOff": 1.224,
+  "cpuOn": 0.8545,
+  "tilesOff": 0.2722,
+  "tilesOn": 0.2714,
+  "prepOff": 0.1278,
+  "prepOn": 0.09132,
+  "submitOff": 0.4323,
+  "submitOn": 0.243,
+  "imageryOff": 0.3419,
+  "imageryOn": 0.189,
+  "animOff": 1.6,
+  "animOn": 1.7,
+  "animP95Off": 2.5,
+  "animP95On": 2.1,
+  "animCpuOff": 1.617,
+  "animCpuOn": 1.421,
+  "animGpuOff": 1.237,
+  "animGpuOn": 0.9486,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 31,
+   "offFrustum": 75,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 75,
+   "culledWithPixels": 0,
+   "cullable": 75,
+   "medianPxOnScreen": 3629,
+   "triangles": 593276,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 479312,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 10,
+     "surface": 58040,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98352,
+     "skirt": 10240,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 49398,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 11,
+     "surface": 36336,
+     "skirt": 5632,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 14,
+     "surface": 42042,
+     "skirt": 7168,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 52656,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 19,
+     "surface": 52190,
+     "skirt": 9728,
+     "zeroPx": 9,
+     "medianPx": 441
+    },
+    "12": {
+     "tiles": 4,
+     "surface": 11706,
+     "skirt": 2048,
+     "zeroPx": 0,
+     "medianPx": 12182
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2782,
+   "p95": 1.097,
+   "rms": 0.5494,
+   "max": 3.016
+  },
+  "imagery": {
+   "blocks": 122,
+   "splitTiles": 22,
+   "extraDraws": 66,
+   "blockGeometryMB": 3.603,
+   "textures": 148,
+   "textureMiB": 52.46,
+   "maxLevel": 11,
+   "requests": 148,
+   "bytes": 6760807
+  },
+  "memory": {
+   "cacheBytes": 18701352,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 28655784,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-nac",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 272,
+  "drawsOn": 59,
+  "drawnOff": 180,
+  "drawnOn": 15,
+  "wallOff": 2.9,
+  "wallOn": 1.4,
+  "wallP95Off": 4.4,
+  "wallP95On": 2,
+  "dWall": -1.55,
+  "dWallMin": -1.65,
+  "dWallMax": -1.45,
+  "gpuOff": 0.4425,
+  "gpuOn": 0.2627,
+  "gpuP95Off": 1.416,
+  "gpuP95On": 0.7276,
+  "dGpu": -0.07988,
+  "dGpuMin": -0.1865,
+  "dGpuMax": -0.06317,
+  "cpuOff": 1.513,
+  "cpuOn": 0.6425,
+  "tilesOff": 0.343,
+  "tilesOn": 0.3202,
+  "prepOff": 0.1656,
+  "prepOn": 0.06536,
+  "submitOff": 0.5276,
+  "submitOn": 0.1119,
+  "imageryOff": 0.4152,
+  "imageryOn": 0.09249,
+  "animOff": 1.7,
+  "animOn": 1.1,
+  "animP95Off": 2.4,
+  "animP95On": 2,
+  "animCpuOff": 1.679,
+  "animCpuOn": 1.168,
+  "animGpuOff": 0.7923,
+  "animGpuOn": 0.4985,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 180,
+   "onScreen": 12,
+   "offFrustum": 138,
+   "beyondHorizon": 27,
+   "inViewNoPixels": 3,
+   "culled": 165,
+   "culledWithPixels": 0,
+   "cullable": 165,
+   "medianPxOnScreen": 70484,
+   "triangles": 978420,
+   "skirtTriangles": 92160,
+   "trianglesWithoutPixels": 921988,
+   "byLevel": {
+    "1": {
+     "tiles": 12,
+     "surface": 46512,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 34,
+     "surface": 156208,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 46,
+     "surface": 222034,
+     "skirt": 23552,
+     "zeroPx": 46,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 193086,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 18,
+     "surface": 104422,
+     "skirt": 9216,
+     "zeroPx": 18,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98286,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 65712,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 5.696,
+   "p95": 16.58,
+   "rms": 9.205,
+   "max": 65.61
+  },
+  "imagery": {
+   "blocks": 54,
+   "splitTiles": 13,
+   "extraDraws": 39,
+   "blockGeometryMB": 2.421,
+   "textures": 106,
+   "textureMiB": 37.58,
+   "maxLevel": 8,
+   "requests": 106,
+   "bytes": 4395620
+  },
+  "memory": {
+   "cacheBytes": 27412572,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 39125028,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et075",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 239,
+  "drawsOn": 134,
+  "drawnOff": 232,
+  "drawnOn": 127,
+  "wallOff": 2.1,
+  "wallOn": 1.7,
+  "wallP95Off": 3.4,
+  "wallP95On": 2.9,
+  "dWall": -0.4,
+  "dWallMin": -0.55,
+  "dWallMax": -0.2,
+  "gpuOff": 0.3314,
+  "gpuOn": 0.2669,
+  "gpuP95Off": 1.478,
+  "gpuP95On": 1.234,
+  "dGpu": -0.05685,
+  "dGpuMin": -0.07627,
+  "dGpuMax": -0.04673,
+  "cpuOff": 1.058,
+  "cpuOn": 0.8559,
+  "tilesOff": 0.4545,
+  "tilesOn": 0.4537,
+  "prepOff": 0.1497,
+  "prepOn": 0.09848,
+  "submitOff": 0.4017,
+  "submitOn": 0.2355,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.5,
+  "animP95Off": 2.4,
+  "animP95On": 2.1,
+  "animCpuOff": 1.534,
+  "animCpuOn": 1.372,
+  "animGpuOff": 0.8078,
+  "animGpuOn": 0.7458,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 232,
+   "onScreen": 55,
+   "offFrustum": 105,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 72,
+   "culled": 105,
+   "culledWithPixels": 0,
+   "cullable": 105,
+   "medianPxOnScreen": 3957,
+   "triangles": 969330,
+   "skirtTriangles": 118784,
+   "trianglesWithoutPixels": 769410,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 9,
+     "surface": 52754,
+     "skirt": 4608,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 18,
+     "surface": 90572,
+     "skirt": 9216,
+     "zeroPx": 18,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 30,
+     "surface": 122264,
+     "skirt": 15360,
+     "zeroPx": 30,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 29,
+     "surface": 93234,
+     "skirt": 14848,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 32,
+     "surface": 99592,
+     "skirt": 16384,
+     "zeroPx": 27,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 37,
+     "surface": 104098,
+     "skirt": 18944,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 39,
+     "surface": 115394,
+     "skirt": 19968,
+     "zeroPx": 17,
+     "medianPx": 744
+    },
+    "12": {
+     "tiles": 16,
+     "surface": 47154,
+     "skirt": 8192,
+     "zeroPx": 0,
+     "medianPx": 5308
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2102,
+   "p95": 0.7733,
+   "rms": 0.4031,
+   "max": 2.773
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 28623636,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 28623636,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et075",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 404,
+  "drawsOn": 42,
+  "drawnOff": 399,
+  "drawnOn": 37,
+  "wallOff": 3.2,
+  "wallOn": 1.7,
+  "wallP95Off": 4.7,
+  "wallP95On": 2.4,
+  "dWall": -1.55,
+  "dWallMin": -1.6,
+  "dWallMax": -1.4,
+  "gpuOff": 0.5859,
+  "gpuOn": 0.5137,
+  "gpuP95Off": 2.09,
+  "gpuP95On": 0.8031,
+  "dGpu": -0.08765,
+  "dGpuMin": -0.2638,
+  "dGpuMax": -0.06775,
+  "cpuOff": 1.732,
+  "cpuOn": 0.9101,
+  "tilesOff": 0.7242,
+  "tilesOn": 0.6842,
+  "prepOff": 0.2409,
+  "prepOn": 0.06274,
+  "submitOff": 0.7062,
+  "submitOn": 0.08636,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1,
+  "animP95Off": 2.5,
+  "animP95On": 1.3,
+  "animCpuOff": 1.819,
+  "animCpuOn": 0.9649,
+  "animGpuOff": 1.118,
+  "animGpuOn": 0.286,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 399,
+   "onScreen": 33,
+   "offFrustum": 294,
+   "beyondHorizon": 68,
+   "inViewNoPixels": 4,
+   "culled": 362,
+   "culledWithPixels": 0,
+   "cullable": 362,
+   "medianPxOnScreen": 36083,
+   "triangles": 2031708,
+   "skirtTriangles": 204288,
+   "trianglesWithoutPixels": 1903148,
+   "byLevel": {
+    "2": {
+     "tiles": 49,
+     "surface": 203514,
+     "skirt": 25088,
+     "zeroPx": 49,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 175,
+     "surface": 830120,
+     "skirt": 89600,
+     "zeroPx": 175,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 45,
+     "surface": 249576,
+     "skirt": 23040,
+     "zeroPx": 45,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 116364,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 103552,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 34,
+     "surface": 140200,
+     "skirt": 17408,
+     "zeroPx": 33,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 56,
+     "surface": 184094,
+     "skirt": 28672,
+     "zeroPx": 24,
+     "medianPx": 3391
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.321,
+   "p95": 7.554,
+   "rms": 3.879,
+   "max": 21.67
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 52701312,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 52701312,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et075",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 418,
+  "drawsOn": 125,
+  "drawnOff": 411,
+  "drawnOn": 118,
+  "wallOff": 3.6,
+  "wallOn": 2.2,
+  "wallP95Off": 5.6,
+  "wallP95On": 3,
+  "dWall": -1.3,
+  "dWallMin": -1.4,
+  "dWallMax": -1.25,
+  "gpuOff": 0.5703,
+  "gpuOn": 0.3351,
+  "gpuP95Off": 2.195,
+  "gpuP95On": 1.019,
+  "dGpu": -0.2295,
+  "dGpuMin": -0.2573,
+  "dGpuMax": -0.213,
+  "cpuOff": 1.906,
+  "cpuOn": 1.108,
+  "tilesOff": 0.7745,
+  "tilesOn": 0.7161,
+  "prepOff": 0.272,
+  "prepOn": 0.09931,
+  "submitOff": 0.7988,
+  "submitOn": 0.2157,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.9,
+  "animOn": 1.1,
+  "animP95Off": 2.7,
+  "animP95On": 1.4,
+  "animCpuOff": 1.899,
+  "animCpuOn": 1.101,
+  "animGpuOff": 1.229,
+  "animGpuOn": 0.5518,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 411,
+   "onScreen": 84,
+   "offFrustum": 227,
+   "beyondHorizon": 71,
+   "inViewNoPixels": 29,
+   "culled": 293,
+   "culledWithPixels": 0,
+   "cullable": 298,
+   "medianPxOnScreen": 11055,
+   "triangles": 1867548,
+   "skirtTriangles": 210432,
+   "trianglesWithoutPixels": 1594328,
+   "byLevel": {
+    "2": {
+     "tiles": 65,
+     "surface": 294182,
+     "skirt": 33280,
+     "zeroPx": 65,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 106,
+     "surface": 444710,
+     "skirt": 54272,
+     "zeroPx": 106,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 63,
+     "surface": 308276,
+     "skirt": 32256,
+     "zeroPx": 63,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 93990,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 48,
+     "surface": 204828,
+     "skirt": 24576,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 49,
+     "surface": 167262,
+     "skirt": 25088,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 60,
+     "surface": 143868,
+     "skirt": 30720,
+     "zeroPx": 4,
+     "medianPx": 10223
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.633,
+   "p95": 8.138,
+   "rms": 4.088,
+   "max": 32.32
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 55607388,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 55607388,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et075",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 524,
+  "drawsOn": 164,
+  "drawnOff": 519,
+  "drawnOn": 159,
+  "wallOff": 4.2,
+  "wallOn": 2.6,
+  "wallP95Off": 6.4,
+  "wallP95On": 3.7,
+  "dWall": -1.5,
+  "dWallMin": -1.65,
+  "dWallMax": -1.35,
+  "gpuOff": 0.7107,
+  "gpuOn": 0.3425,
+  "gpuP95Off": 2.533,
+  "gpuP95On": 1.116,
+  "dGpu": -0.3774,
+  "dGpuMin": -0.4003,
+  "dGpuMax": -0.2609,
+  "cpuOff": 2.436,
+  "cpuOn": 1.445,
+  "tilesOff": 0.9686,
+  "tilesOn": 0.9111,
+  "prepOff": 0.3576,
+  "prepOn": 0.1302,
+  "submitOff": 1.034,
+  "submitOn": 0.3,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 2.4,
+  "animOn": 1.4,
+  "animP95Off": 3.1,
+  "animP95On": 1.8,
+  "animCpuOff": 2.372,
+  "animCpuOn": 1.407,
+  "animGpuOff": 1.385,
+  "animGpuOn": 0.6237,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 519,
+   "onScreen": 130,
+   "offFrustum": 285,
+   "beyondHorizon": 76,
+   "inViewNoPixels": 28,
+   "culled": 360,
+   "culledWithPixels": 0,
+   "cullable": 361,
+   "medianPxOnScreen": 6424,
+   "triangles": 2138804,
+   "skirtTriangles": 265728,
+   "trianglesWithoutPixels": 1794358,
+   "byLevel": {
+    "2": {
+     "tiles": 60,
+     "surface": 268360,
+     "skirt": 30720,
+     "zeroPx": 60,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 123,
+     "surface": 534060,
+     "skirt": 62976,
+     "zeroPx": 123,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 64,
+     "surface": 311348,
+     "skirt": 32768,
+     "zeroPx": 64,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 56,
+     "surface": 230698,
+     "skirt": 28672,
+     "zeroPx": 56,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 69,
+     "surface": 215252,
+     "skirt": 35328,
+     "zeroPx": 60,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 95,
+     "surface": 225590,
+     "skirt": 48640,
+     "zeroPx": 26,
+     "medianPx": 7925
+    },
+    "8": {
+     "tiles": 52,
+     "surface": 87768,
+     "skirt": 26624,
+     "zeroPx": 0,
+     "medianPx": 5132
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.144,
+   "p95": 8.745,
+   "rms": 4.361,
+   "max": 28.39
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 63173796,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 63173796,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 200,
+  "drawsOn": 102,
+  "drawnOff": 193,
+  "drawnOn": 95,
+  "wallOff": 1.8,
+  "wallOn": 1.5,
+  "wallP95Off": 3.2,
+  "wallP95On": 2.2,
+  "dWall": -0.3,
+  "dWallMin": -0.5,
+  "dWallMax": -0.25,
+  "gpuOff": 0.3109,
+  "gpuOn": 0.2566,
+  "gpuP95Off": 1.219,
+  "gpuP95On": 0.8666,
+  "dGpu": -0.01548,
+  "dGpuMin": -0.121,
+  "dGpuMax": 0.009396,
+  "cpuOff": 0.8831,
+  "cpuOn": 0.689,
+  "tilesOff": 0.3708,
+  "tilesOn": 0.3701,
+  "prepOff": 0.1275,
+  "prepOn": 0.08685,
+  "submitOff": 0.3386,
+  "submitOn": 0.1749,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1.4,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.459,
+  "animCpuOn": 1.286,
+  "animGpuOff": 0.7147,
+  "animGpuOn": 0.8784,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 193,
+   "onScreen": 41,
+   "offFrustum": 98,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 54,
+   "culled": 98,
+   "culledWithPixels": 0,
+   "cullable": 98,
+   "medianPxOnScreen": 5308,
+   "triangles": 825118,
+   "skirtTriangles": 98816,
+   "trianglesWithoutPixels": 678314,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 9,
+     "surface": 52754,
+     "skirt": 4608,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 19,
+     "surface": 94820,
+     "skirt": 9728,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 27,
+     "surface": 110306,
+     "skirt": 13824,
+     "zeroPx": 26,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 29,
+     "surface": 92806,
+     "skirt": 14848,
+     "zeroPx": 29,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 19,
+     "surface": 59628,
+     "skirt": 9728,
+     "zeroPx": 14,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 26,
+     "surface": 71606,
+     "skirt": 13312,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 38,
+     "surface": 107192,
+     "skirt": 19456,
+     "zeroPx": 16,
+     "medianPx": 3629
+    },
+    "12": {
+     "tiles": 4,
+     "surface": 11706,
+     "skirt": 2048,
+     "zeroPx": 0,
+     "medianPx": 12182
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2347,
+   "p95": 0.8529,
+   "rms": 0.4396,
+   "max": 2.773
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 24503808,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 24503808,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 311,
+  "drawsOn": 33,
+  "drawnOff": 306,
+  "drawnOn": 28,
+  "wallOff": 2.6,
+  "wallOn": 1.3,
+  "wallP95Off": 4,
+  "wallP95On": 1.8,
+  "dWall": -1.45,
+  "dWallMin": -1.6,
+  "dWallMax": -1.3,
+  "gpuOff": 0.4101,
+  "gpuOn": 0.207,
+  "gpuP95Off": 1.724,
+  "gpuP95On": 0.5465,
+  "dGpu": -0.2418,
+  "dGpuMin": -0.2759,
+  "dGpuMax": -0.08062,
+  "cpuOff": 1.356,
+  "cpuOn": 0.6885,
+  "tilesOff": 0.5512,
+  "tilesOn": 0.5156,
+  "prepOff": 0.1938,
+  "prepOn": 0.0582,
+  "submitOff": 0.5523,
+  "submitOn": 0.06198,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 1,
+  "animP95Off": 2.3,
+  "animP95On": 1.9,
+  "animCpuOff": 1.577,
+  "animCpuOn": 1.024,
+  "animGpuOff": 0.8015,
+  "animGpuOn": 0.5022,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 306,
+   "onScreen": 25,
+   "offFrustum": 233,
+   "beyondHorizon": 45,
+   "inViewNoPixels": 3,
+   "culled": 278,
+   "culledWithPixels": 0,
+   "cullable": 278,
+   "medianPxOnScreen": 48475,
+   "triangles": 1596838,
+   "skirtTriangles": 156672,
+   "trianglesWithoutPixels": 1494322,
+   "byLevel": {
+    "1": {
+     "tiles": 4,
+     "surface": 15990,
+     "skirt": 2048,
+     "zeroPx": 4,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 49,
+     "surface": 207306,
+     "skirt": 25088,
+     "zeroPx": 49,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 112,
+     "surface": 536552,
+     "skirt": 57344,
+     "zeroPx": 112,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 41,
+     "surface": 228756,
+     "skirt": 20992,
+     "zeroPx": 41,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 116364,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 21,
+     "surface": 107800,
+     "skirt": 10752,
+     "zeroPx": 21,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 39,
+     "surface": 160900,
+     "skirt": 19968,
+     "zeroPx": 32,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 66498,
+     "skirt": 10240,
+     "zeroPx": 2,
+     "medianPx": 48475
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.975,
+   "p95": 13.18,
+   "rms": 6.651,
+   "max": 65.61
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 41759448,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 41759448,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 355,
+  "drawsOn": 105,
+  "drawnOff": 348,
+  "drawnOn": 98,
+  "wallOff": 3.2,
+  "wallOn": 1.9,
+  "wallP95Off": 5.2,
+  "wallP95On": 3.3,
+  "dWall": -1.3,
+  "dWallMin": -1.45,
+  "dWallMax": -1.2,
+  "gpuOff": 0.548,
+  "gpuOn": 0.2908,
+  "gpuP95Off": 1.967,
+  "gpuP95On": 1.56,
+  "dGpu": -0.2261,
+  "dGpuMin": -0.2482,
+  "dGpuMax": -0.126,
+  "cpuOff": 1.69,
+  "cpuOn": 1.01,
+  "tilesOff": 0.6602,
+  "tilesOn": 0.6264,
+  "prepOff": 0.2556,
+  "prepOn": 0.09904,
+  "submitOff": 0.703,
+  "submitOn": 0.2045,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.7,
+  "animOn": 1,
+  "animP95Off": 2.5,
+  "animP95On": 1.7,
+  "animCpuOff": 1.711,
+  "animCpuOn": 1.104,
+  "animGpuOff": 1.066,
+  "animGpuOn": 0.4898,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 348,
+   "onScreen": 63,
+   "offFrustum": 194,
+   "beyondHorizon": 61,
+   "inViewNoPixels": 30,
+   "culled": 250,
+   "culledWithPixels": 0,
+   "cullable": 255,
+   "medianPxOnScreen": 15292,
+   "triangles": 1613794,
+   "skirtTriangles": 178176,
+   "trianglesWithoutPixels": 1397908,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 332100,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 70,
+     "surface": 305990,
+     "skirt": 35840,
+     "zeroPx": 70,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 47,
+     "surface": 234162,
+     "skirt": 24064,
+     "zeroPx": 47,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 20,
+     "surface": 93990,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 48,
+     "surface": 204828,
+     "skirt": 24576,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 56,
+     "surface": 189844,
+     "skirt": 28672,
+     "zeroPx": 26,
+     "medianPx": 1959
+    },
+    "8": {
+     "tiles": 32,
+     "surface": 74704,
+     "skirt": 16384,
+     "zeroPx": 4,
+     "medianPx": 14462
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.002,
+   "p95": 8.942,
+   "rms": 4.501,
+   "max": 32.32
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 49146216,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 49146216,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain-et1",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 416,
+  "drawsOn": 121,
+  "drawnOff": 411,
+  "drawnOn": 116,
+  "wallOff": 3.7,
+  "wallOn": 1.9,
+  "wallP95Off": 5.5,
+  "wallP95On": 3.1,
+  "dWall": -1.65,
+  "dWallMin": -1.9,
+  "dWallMax": -1.4,
+  "gpuOff": 0.5686,
+  "gpuOn": 0.2865,
+  "gpuP95Off": 2.056,
+  "gpuP95On": 1.048,
+  "dGpu": -0.2937,
+  "dGpuMin": -0.3281,
+  "dGpuMax": -0.2205,
+  "cpuOff": 2.049,
+  "cpuOn": 1.087,
+  "tilesOff": 0.8054,
+  "tilesOn": 0.7173,
+  "prepOff": 0.3152,
+  "prepOn": 0.09387,
+  "submitOff": 0.8477,
+  "submitOn": 0.2015,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 2,
+  "animOn": 1.2,
+  "animP95Off": 2.7,
+  "animP95On": 1.6,
+  "animCpuOff": 1.932,
+  "animCpuOn": 1.174,
+  "animGpuOff": 1.099,
+  "animGpuOn": 0.5174,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 411,
+   "onScreen": 87,
+   "offFrustum": 236,
+   "beyondHorizon": 60,
+   "inViewNoPixels": 28,
+   "culled": 295,
+   "culledWithPixels": 0,
+   "cullable": 296,
+   "medianPxOnScreen": 11257,
+   "triangles": 1727284,
+   "skirtTriangles": 210432,
+   "trianglesWithoutPixels": 1471424,
+   "byLevel": {
+    "2": {
+     "tiles": 75,
+     "surface": 329372,
+     "skirt": 38400,
+     "zeroPx": 75,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 69,
+     "surface": 314186,
+     "skirt": 35328,
+     "zeroPx": 69,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 40,
+     "surface": 184916,
+     "skirt": 20480,
+     "zeroPx": 40,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 56,
+     "surface": 230698,
+     "skirt": 28672,
+     "zeroPx": 56,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 71,
+     "surface": 221236,
+     "skirt": 36352,
+     "zeroPx": 60,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 100,
+     "surface": 236444,
+     "skirt": 51200,
+     "zeroPx": 24,
+     "medianPx": 9459
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 2.609,
+   "p95": 9.519,
+   "rms": 4.973,
+   "max": 28.39
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 53123232,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 53123232,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton",
+  "pages": 3,
+  "drawsOff": 136,
+  "drawsOn": 57,
+  "drawnOff": 131,
+  "drawnOn": 52,
+  "wallOff": 1.8,
+  "wallOn": 1.1,
+  "wallP95Off": 2.2,
+  "wallP95On": 1.7,
+  "dWall": -0.4,
+  "dWallMin": -0.75,
+  "dWallMax": -0.3,
+  "gpuOff": 0.8244,
+  "gpuOn": 0.264,
+  "gpuP95Off": 0.9595,
+  "gpuP95On": 0.7282,
+  "dGpu": -0.1272,
+  "dGpuMin": -0.6088,
+  "dGpuMax": -0.06179,
+  "cpuOff": 0.6212,
+  "cpuOn": 0.4651,
+  "tilesOff": 0.2687,
+  "tilesOn": 0.2682,
+  "prepOff": 0.09304,
+  "prepOn": 0.05585,
+  "submitOff": 0.2229,
+  "submitOn": 0.1012,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 0.9,
+  "animOn": 1.3,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.231,
+  "animCpuOn": 1.162,
+  "animGpuOff": 0.9536,
+  "animGpuOn": 0.7492,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 45,
+   "offFrustum": 79,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 7,
+   "culled": 79,
+   "culledWithPixels": 0,
+   "cullable": 79,
+   "medianPxOnScreen": 8720,
+   "triangles": 588076,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 380262,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 11,
+     "surface": 53830,
+     "skirt": 5632,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 13,
+     "surface": 52174,
+     "skirt": 6656,
+     "zeroPx": 7,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 20,
+     "surface": 65010,
+     "skirt": 10240,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 25,
+     "surface": 68304,
+     "skirt": 12800,
+     "zeroPx": 17,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 28,
+     "surface": 87528,
+     "skirt": 14336,
+     "zeroPx": 17,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 528,
+   "median": 1.131,
+   "p95": 9.428,
+   "rms": 4.291,
+   "max": 31.29
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 19689684,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 19689684,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "shackleton-grazing",
+  "pages": 3,
+  "drawsOff": 157,
+  "drawsOn": 72,
+  "drawnOff": 152,
+  "drawnOn": 67,
+  "wallOff": 1.7,
+  "wallOn": 1.5,
+  "wallP95Off": 2.5,
+  "wallP95On": 1.8,
+  "dWall": -0.45,
+  "dWallMin": -0.5,
+  "dWallMax": -0.15,
+  "gpuOff": 0.3735,
+  "gpuOn": 0.7044,
+  "gpuP95Off": 1.07,
+  "gpuP95On": 0.7634,
+  "dGpu": -0.09096,
+  "dGpuMin": -0.1091,
+  "dGpuMax": 0.2439,
+  "cpuOff": 0.7008,
+  "cpuOn": 0.5314,
+  "tilesOff": 0.3074,
+  "tilesOn": 0.3001,
+  "prepOff": 0.1019,
+  "prepOn": 0.06908,
+  "submitOff": 0.253,
+  "submitOn": 0.1191,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1.4,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.339,
+  "animCpuOn": 1.167,
+  "animGpuOff": 1.059,
+  "animGpuOn": 0.7823,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 152,
+   "onScreen": 33,
+   "offFrustum": 85,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 34,
+   "culled": 85,
+   "culledWithPixels": 0,
+   "cullable": 85,
+   "medianPxOnScreen": 13969,
+   "triangles": 720700,
+   "skirtTriangles": 77824,
+   "trianglesWithoutPixels": 581398,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55214,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 41910,
+     "skirt": 5120,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 58128,
+     "skirt": 9216,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 18,
+     "surface": 52678,
+     "skirt": 9216,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 18,
+     "surface": 62338,
+     "skirt": 9216,
+     "zeroPx": 9,
+     "medianPx": 8092
+    },
+    "11": {
+     "tiles": 18,
+     "surface": 69042,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "12": {
+     "tiles": 24,
+     "surface": 106724,
+     "skirt": 12288,
+     "zeroPx": 24,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 364,
+   "median": 0.648,
+   "p95": 2.994,
+   "rms": 1.633,
+   "max": 14.5
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 22459200,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 22459200,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole",
+  "pages": 3,
+  "drawsOff": 101,
+  "drawsOn": 44,
+  "drawnOff": 96,
+  "drawnOn": 39,
+  "wallOff": 1.3,
+  "wallOn": 0.9,
+  "wallP95Off": 1.9,
+  "wallP95On": 1.4,
+  "dWall": -0.3,
+  "dWallMin": -0.3,
+  "dWallMax": -0.25,
+  "gpuOff": 0.3319,
+  "gpuOn": 0.2057,
+  "gpuP95Off": 0.7604,
+  "gpuP95On": 0.5451,
+  "dGpu": -0.06025,
+  "dGpuMin": -0.1126,
+  "dGpuMax": -0.02502,
+  "cpuOff": 0.4686,
+  "cpuOn": 0.3605,
+  "tilesOff": 0.2058,
+  "tilesOn": 0.1986,
+  "prepOff": 0.07397,
+  "prepOn": 0.05227,
+  "submitOff": 0.1576,
+  "submitOn": 0.07266,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 0.8,
+  "animOn": 0.7,
+  "animP95Off": 2.2,
+  "animP95On": 2.2,
+  "animCpuOff": 1.14,
+  "animCpuOn": 1.043,
+  "animGpuOff": 0.7792,
+  "animGpuOn": 0.5807,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 96,
+   "onScreen": 24,
+   "offFrustum": 57,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 15,
+   "culled": 57,
+   "culledWithPixels": 0,
+   "cullable": 57,
+   "medianPxOnScreen": 37381,
+   "triangles": 464022,
+   "skirtTriangles": 49152,
+   "trianglesWithoutPixels": 369144,
+   "byLevel": {
+    "3": {
+     "tiles": 8,
+     "surface": 44802,
+     "skirt": 4096,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 12,
+     "surface": 68538,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 12,
+     "surface": 57898,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 10,
+     "surface": 40436,
+     "skirt": 5120,
+     "zeroPx": 6,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 18,
+     "surface": 60646,
+     "skirt": 9216,
+     "zeroPx": 11,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 24,
+     "surface": 72144,
+     "skirt": 12288,
+     "zeroPx": 13,
+     "medianPx": 0
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 1.41,
+   "p95": 7.428,
+   "rms": 4.094,
+   "max": 34.58
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 15723456,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 15723456,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "pole-grazing",
+  "pages": 3,
+  "drawsOff": 138,
+  "drawsOn": 63,
+  "drawnOff": 131,
+  "drawnOn": 56,
+  "wallOff": 1.5,
+  "wallOn": 1.4,
+  "wallP95Off": 2.2,
+  "wallP95On": 1.7,
+  "dWall": -0.2,
+  "dWallMin": -0.3,
+  "dWallMax": -0.1,
+  "gpuOff": 0.2936,
+  "gpuOn": 0.6575,
+  "gpuP95Off": 0.9855,
+  "gpuP95On": 0.692,
+  "dGpu": 0.09258,
+  "dGpuMin": -0.07511,
+  "dGpuMax": 0.1408,
+  "cpuOff": 0.5781,
+  "cpuOn": 0.4698,
+  "tilesOff": 0.2468,
+  "tilesOn": 0.2579,
+  "prepOff": 0.08609,
+  "prepOn": 0.06006,
+  "submitOff": 0.2147,
+  "submitOn": 0.1086,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1.3,
+  "animP95Off": 2.2,
+  "animP95On": 2.1,
+  "animCpuOff": 1.317,
+  "animCpuOn": 1.183,
+  "animGpuOff": 0.9764,
+  "animGpuOn": 0.7256,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 131,
+   "onScreen": 31,
+   "offFrustum": 75,
+   "beyondHorizon": 0,
+   "inViewNoPixels": 25,
+   "culled": 75,
+   "culledWithPixels": 0,
+   "cullable": 75,
+   "medianPxOnScreen": 3629,
+   "triangles": 593276,
+   "skirtTriangles": 67072,
+   "trianglesWithoutPixels": 479312,
+   "byLevel": {
+    "3": {
+     "tiles": 10,
+     "surface": 55078,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 12,
+     "surface": 70406,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 10,
+     "surface": 58040,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98352,
+     "skirt": 10240,
+     "zeroPx": 19,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 12,
+     "surface": 49398,
+     "skirt": 6144,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "8": {
+     "tiles": 11,
+     "surface": 36336,
+     "skirt": 5632,
+     "zeroPx": 9,
+     "medianPx": 0
+    },
+    "9": {
+     "tiles": 14,
+     "surface": 42042,
+     "skirt": 7168,
+     "zeroPx": 8,
+     "medianPx": 0
+    },
+    "10": {
+     "tiles": 19,
+     "surface": 52656,
+     "skirt": 9728,
+     "zeroPx": 13,
+     "medianPx": 0
+    },
+    "11": {
+     "tiles": 19,
+     "surface": 52190,
+     "skirt": 9728,
+     "zeroPx": 9,
+     "medianPx": 441
+    },
+    "12": {
+     "tiles": 4,
+     "surface": 11706,
+     "skirt": 2048,
+     "zeroPx": 0,
+     "medianPx": 12182
+    }
+   }
+  },
+  "error": {
+   "n": 395,
+   "median": 0.2782,
+   "p95": 1.097,
+   "rms": 0.5494,
+   "max": 3.016
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 18426108,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 18426108,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "cap-nadir",
+  "pages": 3,
+  "drawsOff": 185,
+  "drawsOn": 20,
+  "drawnOff": 180,
+  "drawnOn": 15,
+  "wallOff": 1.9,
+  "wallOn": 1.1,
+  "wallP95Off": 2.9,
+  "wallP95On": 1.3,
+  "dWall": -0.8,
+  "dWallMin": -1.4,
+  "dWallMax": -0.6,
+  "gpuOff": 0.4729,
+  "gpuOn": 0.3745,
+  "gpuP95Off": 1.095,
+  "gpuP95On": 0.3803,
+  "dGpu": -0.1773,
+  "dGpuMin": -0.713,
+  "dGpuMax": -0.07654,
+  "cpuOff": 0.8406,
+  "cpuOn": 0.4608,
+  "tilesOff": 0.3399,
+  "tilesOn": 0.3118,
+  "prepOff": 0.1247,
+  "prepOn": 0.05303,
+  "submitOff": 0.3255,
+  "submitOn": 0.04366,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.7,
+  "animOn": 0.7,
+  "animP95Off": 2.1,
+  "animP95On": 2.1,
+  "animCpuOff": 1.43,
+  "animCpuOn": 0.925,
+  "animGpuOff": 1.09,
+  "animGpuOn": 0.3921,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 180,
+   "onScreen": 12,
+   "offFrustum": 138,
+   "beyondHorizon": 27,
+   "inViewNoPixels": 3,
+   "culled": 165,
+   "culledWithPixels": 0,
+   "cullable": 165,
+   "medianPxOnScreen": 70484,
+   "triangles": 978420,
+   "skirtTriangles": 92160,
+   "trianglesWithoutPixels": 921988,
+   "byLevel": {
+    "1": {
+     "tiles": 12,
+     "surface": 46512,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 34,
+     "surface": 156208,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 46,
+     "surface": 222034,
+     "skirt": 23552,
+     "zeroPx": 46,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 34,
+     "surface": 193086,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 18,
+     "surface": 104422,
+     "skirt": 9216,
+     "zeroPx": 18,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 20,
+     "surface": 98286,
+     "skirt": 10240,
+     "zeroPx": 20,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 16,
+     "surface": 65712,
+     "skirt": 8192,
+     "zeroPx": 4,
+     "medianPx": 36403
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 5.696,
+   "p95": 16.58,
+   "rms": 9.205,
+   "max": 65.61
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 26841024,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 26841024,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-edge",
+  "pages": 3,
+  "drawsOff": 235,
+  "drawsOn": 72,
+  "drawnOff": 228,
+  "drawnOn": 65,
+  "wallOff": 2.4,
+  "wallOn": 1.5,
+  "wallP95Off": 3.4,
+  "wallP95On": 1.9,
+  "dWall": -0.75,
+  "dWallMin": -1.1,
+  "dWallMax": -0.7,
+  "gpuOff": 0.35,
+  "gpuOn": 0.6425,
+  "gpuP95Off": 1.304,
+  "gpuP95On": 0.6617,
+  "dGpu": 0.1578,
+  "dGpuMin": -0.2807,
+  "dGpuMax": 0.1777,
+  "cpuOff": 1.015,
+  "cpuOn": 0.6636,
+  "tilesOff": 0.4317,
+  "tilesOn": 0.4071,
+  "prepOff": 0.1442,
+  "prepOn": 0.07369,
+  "submitOff": 0.3924,
+  "submitOn": 0.1259,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.8,
+  "animOn": 1,
+  "animP95Off": 2.4,
+  "animP95On": 2,
+  "animCpuOff": 1.573,
+  "animCpuOn": 1.134,
+  "animGpuOff": 1.286,
+  "animGpuOn": 0.6611,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 228,
+   "onScreen": 31,
+   "offFrustum": 136,
+   "beyondHorizon": 30,
+   "inViewNoPixels": 31,
+   "culled": 163,
+   "culledWithPixels": 0,
+   "cullable": 166,
+   "medianPxOnScreen": 31715,
+   "triangles": 1074380,
+   "skirtTriangles": 116736,
+   "trianglesWithoutPixels": 949312,
+   "byLevel": {
+    "1": {
+     "tiles": 10,
+     "surface": 46042,
+     "skirt": 5120,
+     "zeroPx": 10,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 43,
+     "surface": 171922,
+     "skirt": 22016,
+     "zeroPx": 43,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 44,
+     "surface": 191104,
+     "skirt": 22528,
+     "zeroPx": 44,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 23,
+     "surface": 112540,
+     "skirt": 11776,
+     "zeroPx": 23,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 21,
+     "surface": 98732,
+     "skirt": 10752,
+     "zeroPx": 21,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 51,
+     "surface": 217098,
+     "skirt": 26112,
+     "zeroPx": 40,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 36,
+     "surface": 120206,
+     "skirt": 18432,
+     "zeroPx": 16,
+     "medianPx": 5865
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 3.159,
+   "p95": 14.71,
+   "rms": 7.454,
+   "max": 64.98
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 36953628,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 36953628,
+   "textureBytes": 0
+  }
+ },
+ {
+  "label": "ab-s003-terrain",
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "view": "face-corner",
+  "pages": 3,
+  "drawsOff": 308,
+  "drawsOn": 91,
+  "drawnOff": 303,
+  "drawnOn": 86,
+  "wallOff": 2.9,
+  "wallOn": 1.6,
+  "wallP95Off": 4.2,
+  "wallP95On": 2,
+  "dWall": -1.15,
+  "dWallMin": -1.75,
+  "dWallMax": -1,
+  "gpuOff": 0.462,
+  "gpuOn": 0.4081,
+  "gpuP95Off": 1.545,
+  "gpuP95On": 0.7364,
+  "dGpu": 0.08311,
+  "dGpuMin": -0.6721,
+  "dGpuMax": 0.1117,
+  "cpuOff": 1.335,
+  "cpuOn": 0.7939,
+  "tilesOff": 0.5595,
+  "tilesOn": 0.5127,
+  "prepOff": 0.1853,
+  "prepOn": 0.0761,
+  "submitOff": 0.5337,
+  "submitOn": 0.1455,
+  "imageryOff": 0,
+  "imageryOn": 0,
+  "animOff": 1.6,
+  "animOn": 0.9,
+  "animP95Off": 2.5,
+  "animP95On": 1.8,
+  "animCpuOff": 1.595,
+  "animCpuOn": 1.052,
+  "animGpuOff": 1.028,
+  "animGpuOn": 0.7654,
+  "frameDiffMax": 0,
+  "culledWithPixels": 0,
+  "footprint": {
+   "tiles": 303,
+   "onScreen": 57,
+   "offFrustum": 194,
+   "beyondHorizon": 25,
+   "inViewNoPixels": 27,
+   "culled": 217,
+   "culledWithPixels": 0,
+   "cullable": 219,
+   "medianPxOnScreen": 17558,
+   "triangles": 1273254,
+   "skirtTriangles": 155136,
+   "trianglesWithoutPixels": 1093466,
+   "byLevel": {
+    "1": {
+     "tiles": 12,
+     "surface": 52140,
+     "skirt": 6144,
+     "zeroPx": 12,
+     "medianPx": 0
+    },
+    "2": {
+     "tiles": 36,
+     "surface": 147186,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "3": {
+     "tiles": 34,
+     "surface": 158398,
+     "skirt": 17408,
+     "zeroPx": 34,
+     "medianPx": 0
+    },
+    "4": {
+     "tiles": 36,
+     "surface": 164708,
+     "skirt": 18432,
+     "zeroPx": 36,
+     "medianPx": 0
+    },
+    "5": {
+     "tiles": 58,
+     "surface": 237774,
+     "skirt": 29696,
+     "zeroPx": 57,
+     "medianPx": 0
+    },
+    "6": {
+     "tiles": 75,
+     "surface": 237640,
+     "skirt": 38400,
+     "zeroPx": 53,
+     "medianPx": 0
+    },
+    "7": {
+     "tiles": 52,
+     "surface": 120272,
+     "skirt": 26624,
+     "zeroPx": 18,
+     "medianPx": 12530
+    }
+   }
+  },
+  "error": {
+   "n": 640,
+   "median": 3.655,
+   "p95": 15.63,
+   "rms": 7.232,
+   "max": 30.21
+  },
+  "imagery": null,
+  "memory": {
+   "cacheBytes": 42454032,
+   "maxCacheBytes": 536870912,
+   "geometryBytes": 42454032,
+   "textureBytes": 0
+  }
+ }
+]

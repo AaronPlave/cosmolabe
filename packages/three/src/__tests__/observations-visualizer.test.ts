@@ -19,7 +19,7 @@ import { Universe, observationFromSensorActive, type CatalogJson, type SpiceInst
 import { ObservationsVisualizer } from '../plugins/ObservationsVisualizer.js';
 import type { RendererContext } from '../plugins/RendererContext.js';
 
-const KERNELS = join(__dirname, '../../../spice/test-kernels');
+const KERNELS = join(__dirname, '../../../../kernels/test-data');
 const FILES = [
   'naif0012.tls',
   'pck00010.tpc',

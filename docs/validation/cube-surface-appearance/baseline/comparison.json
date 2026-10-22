@@ -1,0 +1,287 @@
+{
+  "equalEpochCameraTerrainTiles": true,
+  "threshold": 0.01,
+  "results": [
+    {
+      "product": "nac",
+      "view": "close",
+      "changedPixels": 195279,
+      "changedPercent": 13.561041666666668,
+      "sameImageryLevels": false,
+      "mainNormalSlopeDegrees": {
+        "samples": 896,
+        "mean": 1.7932786562364906,
+        "max": 7.608049665593489
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 896,
+        "mean": 4.485144783692013,
+        "max": 19.062772153522744
+      },
+      "legacyControl": {
+        "changedPixels": 195279,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 150,
+          "levels": {
+            "2": 20,
+            "3": 28,
+            "5": 15,
+            "6": 10,
+            "7": 26,
+            "8": 34,
+            "9": 48,
+            "10": 27
+          }
+        },
+        "cacheAfter": {
+          "requests": 150,
+          "levels": {
+            "2": 20,
+            "3": 28,
+            "5": 15,
+            "6": 10,
+            "7": 26,
+            "8": 34,
+            "9": 48,
+            "10": 27
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    },
+    {
+      "product": "nac",
+      "view": "far",
+      "changedPixels": 452426,
+      "changedPercent": 31.41847222222222,
+      "sameImageryLevels": true,
+      "mainNormalSlopeDegrees": {
+        "samples": 5952,
+        "mean": 1.288131392382537,
+        "max": 7.830705938241953
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 5952,
+        "mean": 3.2213205619085015,
+        "max": 19.623316616582265
+      },
+      "legacyControl": {
+        "changedPixels": 452426,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 165,
+          "levels": {
+            "0": 7,
+            "1": 8,
+            "2": 8,
+            "3": 12,
+            "4": 2,
+            "5": 14
+          }
+        },
+        "cacheAfter": {
+          "requests": 165,
+          "levels": {
+            "0": 7,
+            "1": 8,
+            "2": 8,
+            "3": 12,
+            "4": 2,
+            "5": 14
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    },
+    {
+      "product": "nac",
+      "view": "lit",
+      "changedPixels": 814969,
+      "changedPercent": 56.59506944444445,
+      "sameImageryLevels": false,
+      "mainNormalSlopeDegrees": {
+        "samples": 832,
+        "mean": 1.8881131262575606,
+        "max": 7.608049665593489
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 832,
+        "mean": 4.7224559762707665,
+        "max": 19.062772153522744
+      },
+      "legacyControl": {
+        "changedPixels": 814969,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 220,
+          "levels": {
+            "2": 3,
+            "3": 12,
+            "4": 2,
+            "5": 30,
+            "6": 14,
+            "7": 39,
+            "8": 38,
+            "9": 34
+          }
+        },
+        "cacheAfter": {
+          "requests": 220,
+          "levels": {
+            "2": 3,
+            "3": 12,
+            "4": 2,
+            "5": 30,
+            "6": 14,
+            "7": 39,
+            "8": 38,
+            "9": 34
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    },
+    {
+      "product": "moonfall",
+      "view": "close",
+      "changedPixels": 542342,
+      "changedPercent": 37.662638888888885,
+      "sameImageryLevels": true,
+      "mainNormalSlopeDegrees": {
+        "samples": 7808,
+        "mean": 3.902075931821032,
+        "max": 13.472345967843749
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 7808,
+        "mean": 9.775392247692333,
+        "max": 33.9268838553929
+      },
+      "legacyControl": {
+        "changedPixels": 542342,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 157,
+          "levels": {
+            "1": 2,
+            "3": 16,
+            "5": 1,
+            "6": 7,
+            "7": 22,
+            "8": 25,
+            "9": 26,
+            "10": 36
+          }
+        },
+        "cacheAfter": {
+          "requests": 157,
+          "levels": {
+            "1": 2,
+            "3": 16,
+            "5": 1,
+            "6": 7,
+            "7": 22,
+            "8": 25,
+            "9": 26,
+            "10": 36
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    },
+    {
+      "product": "moonfall",
+      "view": "far",
+      "changedPixels": 385902,
+      "changedPercent": 26.79875,
+      "sameImageryLevels": true,
+      "mainNormalSlopeDegrees": {
+        "samples": 6912,
+        "mean": 1.485636468142906,
+        "max": 10.75750735540455
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 6912,
+        "mean": 3.715790352728479,
+        "max": 27.016466882175692
+      },
+      "legacyControl": {
+        "changedPixels": 385902,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 284,
+          "levels": {
+            "2": 12,
+            "3": 39,
+            "4": 35,
+            "5": 32
+          }
+        },
+        "cacheAfter": {
+          "requests": 284,
+          "levels": {
+            "2": 12,
+            "3": 39,
+            "4": 35,
+            "5": 32
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    },
+    {
+      "product": "moonfall",
+      "view": "lit",
+      "changedPixels": 882220,
+      "changedPercent": 61.26527777777778,
+      "sameImageryLevels": true,
+      "mainNormalSlopeDegrees": {
+        "samples": 6400,
+        "mean": 3.5689703419567214,
+        "max": 12.936995783482852
+      },
+      "prNormalSlopeDegrees": {
+        "samples": 6400,
+        "mean": 8.936300250070435,
+        "max": 32.55935790305581
+      },
+      "legacyControl": {
+        "changedPixels": 882220,
+        "restoredPixels": 0,
+        "cacheBefore": {
+          "requests": 351,
+          "levels": {
+            "1": 2,
+            "3": 4,
+            "4": 1,
+            "5": 14,
+            "6": 15,
+            "7": 23,
+            "8": 28,
+            "9": 29,
+            "10": 21
+          }
+        },
+        "cacheAfter": {
+          "requests": 351,
+          "levels": {
+            "1": 2,
+            "3": 4,
+            "4": 1,
+            "5": 14,
+            "6": 15,
+            "7": 23,
+            "8": 28,
+            "9": 29,
+            "10": 21
+          }
+        }
+      },
+      "legacyMainPixels": 0
+    }
+  ],
+  "mainCommit": "890f655c7c9b7a8de04e5ef945dbf0307b71f1c8",
+  "prRuntime": "552846be5addd5946ca5d49eb2f3121bd6a092bb with review comment changes only",
+  "epoch": "2028-12-15T10:04:00Z"
+}

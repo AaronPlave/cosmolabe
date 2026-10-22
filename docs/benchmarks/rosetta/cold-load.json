@@ -1,0 +1,17 @@
+{
+  "loadMs": 11658.572791999999,
+  "constrained": false,
+  "responseBodyBytes": 329775365,
+  "errors": [],
+  "heap": {
+    "used": 577031300,
+    "total": 646312444
+  },
+  "renderer": {
+    "geometries": 24,
+    "textures": 17
+  },
+  "cpu": "Apple M4 Max",
+  "browser": "148.0.7778.96",
+  "mode": "normal viewer, fresh browser context, local server"
+}

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode } from '../lib/viewer-state.svelte';
+  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { CameraModeName } from '@cosmolabe/three';
   import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
-  import { toolDef } from '../lib/shell.svelte';
+  import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -21,18 +21,23 @@
   let viewpoints = $state<{ name: string }[]>([]);
   let selectedViewpoint = $state('');
   let vpCounter = $state(0);
-  let sensors = $state<string[]>([]);
-  let activeInstrument = $state('');
   let recording = $state(false);
 
   $effect(() => {
     const r = getRenderer();
     if (!r) return;
     viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-    sensors = r.getSensorNames();
-    activeInstrument = r.activeInstrumentView ?? '';
     recording = isRecordingVideo(r);
   });
+
+  // Followed per frame like the Instrument view window, so a scene bound after
+  // this panel opened still lists its sensors. Joined so a quiet frame changes
+  // nothing downstream.
+  const sensorList = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.getSensorNames().join('\n') ?? '';
+  });
+  const sensors = $derived(sensorList ? sensorList.split('\n') : []);
 
   // A permalink or host can change FOV while this panel is already open.
   // Read the same live projection the renderer uses, including wheel gestures.
@@ -123,11 +128,8 @@
             class="ui-control w-full bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none"
             bind:value={selectedViewpoint}
             onchange={() => {
-              if (!selectedViewpoint) return;
-              const r = getRenderer();
-              if (!r) return;
               // Also seeks the clock when the viewpoint declares a `time`.
-              r.applyNamedViewpoint(selectedViewpoint, { animate: true });
+              if (selectedViewpoint) applyViewpoint(selectedViewpoint, { animate: true });
             }}
           >
             <option value="">-- select --</option>
@@ -145,11 +147,7 @@
               selectedViewpoint = name;
             }
           }}><Save size={12} /></button>
-          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Fly to tracked body" onclick={() => {
-            const r = getRenderer();
-            const tracked = r?.cameraController.trackedBody;
-            if (r && tracked) r.cameraController.flyTo(tracked, { scaleFactor: 1e-6 });
-          }}><Navigation size={12} /></button>
+          <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Fly to tracked body" onclick={() => flyToTracked()}><Navigation size={12} /></button>
           <button class="ui-control flex items-center justify-center h-6 text-text-secondary bg-surface-3 border border-border rounded cursor-pointer hover:bg-border-active hover:text-text-primary transition-colors" title="Download current view as JSON" onclick={() => {
             const r = getRenderer();
             if (r) exportCameraView(r);
@@ -190,8 +188,14 @@
         <span class="flex-1 text-text-primary">Instrument</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none max-w-28"
-          bind:value={activeInstrument}
-          onchange={() => { getRenderer()?.setInstrumentView(activeInstrument || null, { marginX: 16, marginY: 60 }); }}
+          value={isToolOpen('instrument') ? (vs.instrumentSensor ?? '') : ''}
+          onchange={(e) => {
+            // The same window the `I` key opens; Off closes it.
+            const name = (e.target as HTMLSelectElement).value;
+            if (!name) { closeTool('instrument'); return; }
+            vs.instrumentSensor = name;
+            openTool('instrument');
+          }}
         >
           <option value="">Off</option>
           {#each sensors as name}<option value={name}>{name}</option>{/each}

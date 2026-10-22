@@ -2,7 +2,7 @@
 /**
  * Smoke-test the data a built viewer depends on, over its public URLs (issue #137).
  *
- *   node scripts/verify-hosted-data.mjs --dist apps/viewer/dist --origin https://aaronplave.github.io
+ *   node scripts/verify-hosted-data.mjs --dist apps/viewer/dist --origin https://aaronplave.com
  *
  * Reads <dist>/hosted-data.json (written by build-hosted-catalogs.mjs) and, for
  * every dataset it lists, runs the checks in data-hosting/lib/verify.mjs: manifest,

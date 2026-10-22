@@ -8,12 +8,8 @@
  * Results are transferred back via Transferable Float64Arrays (zero-copy).
  *
  * The instance is @cosmolabe/frames' heritage adapter over cspice-wasm. It
- * implements the same surface timecraftjs' Spice did, verified two ways: call
- * parity at relative 1e-12 (packages/frames/src/differential.test.ts) and
- * pipeline parity at exactly zero through the core's own accumulation and
- * frame composition (packages/core/src/__tests__/pipeline-parity.test.ts).
- * This worker uses furnish, spkcov, spkpos, vnorm, the constructor and the
- * four `gf*` searches, so the swap is a one-line change in behaviour terms.
+ * is covered by pinned independent call and scene references (see
+ * docs/spice-retirement.md), plus worker integration and cancellation tests.
  *
  * Two jobs share the one SPICE instance: building trajectory caches, and
  * running the viewer's geometry-event searches (`geometry` messages). They

@@ -33,7 +33,8 @@ export interface CameraSurfacePickResult {
   bodyName: string;
   latDeg: number;
   lonDeg: number;
-  altKm: number;
+  /** Null when the rendered surface has no declared altitude datum. */
+  altKm: number | null;
   bodyFixedHitKm: readonly [number, number, number];
 }
 
@@ -57,7 +58,8 @@ export interface CameraModeContext {
 export interface CameraModeParams {
   /** Target body name (spacecraft for SC_FIXED/LVLH/CHASE, body for BODY_FIXED/SURFACE) */
   bodyName?: string;
-  /** SPICE frame name override (e.g. 'LRO_SC_BUS'). Auto-resolved if omitted. */
+  /** SC_FIXED / BODY_FIXED: lock to this SPICE frame (e.g. 'LRO_SC_BUS', 'IAU_MOON')
+   *  instead of the body's own rotation model. `bodyName` stays the orbit pivot. */
   frameName?: string;
   /** Which spacecraft axis is camera "forward" for SC_FIXED/LVLH (default: '-Z') */
   axis?: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z';
@@ -67,12 +69,19 @@ export interface CameraModeParams {
   centerBodyName?: string;
   /** Damping factor 0-1 for CHASE smoothing (default: 0.05) */
   damping?: number;
-  /** Geodetic latitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic latitude in degrees. With `lonDeg`,
+   *  an explicit destination — 0°, 0° included. Omitted, `CameraController`
+   *  infers the entry from the current view (see `surfaceEntryPose`). */
   latDeg?: number;
-  /** Geodetic longitude in degrees for SURFACE */
+  /** SURFACE / SURFACE_EXPLORER: geodetic longitude in degrees. */
   lonDeg?: number;
-  /** Altitude above surface in km for SURFACE */
+  /** SURFACE: height above the reference ellipsoid, km. SURFACE_EXPLORER:
+   *  clearance above sampled terrain, km. */
   altKm?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial heading, degrees clockwise from north (default 0). */
+  headingDeg?: number;
+  /** SURFACE / SURFACE_EXPLORER: initial pitch, degrees up from the horizon (mode default when omitted). */
+  pitchDeg?: number;
   /** Body to look at from surface (SURFACE mode) */
   lookTarget?: string;
   /** Sensor name for INSTRUMENT mode */

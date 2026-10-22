@@ -22,8 +22,7 @@
   "include": [
     "packages/*/src/**/*.test.ts",
     "packages/*/src/__tests__/**/*.ts",
-    // Ambient declarations the suites depend on transitively (e.g. the
-    // `timecraftjs` module shim that @cosmolabe/spice's own sources need).
+    // Ambient declarations the suites depend on transitively.
     "packages/*/src/**/*.d.ts"
   ]
 }

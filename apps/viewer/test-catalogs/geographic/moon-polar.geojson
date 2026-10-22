@@ -1,0 +1,131 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "site",
+      "properties": {
+        "name": "site"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -179.8,
+          -89.5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "region",
+      "properties": {
+        "name": "region"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              179,
+              -89
+            ],
+            [
+              -179,
+              -89
+            ],
+            [
+              -179,
+              -87
+            ],
+            [
+              179,
+              -87
+            ],
+            [
+              179,
+              -89
+            ]
+          ],
+          [
+            [
+              179.4,
+              -88.5
+            ],
+            [
+              179.4,
+              -87.5
+            ],
+            [
+              -179.4,
+              -87.5
+            ],
+            [
+              -179.4,
+              -88.5
+            ],
+            [
+              179.4,
+              -88.5
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "polar-cap",
+      "properties": {
+        "name": "Synthetic polar region with hole"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -135,
+              -85
+            ],
+            [
+              -45,
+              -85
+            ],
+            [
+              45,
+              -85
+            ],
+            [
+              135,
+              -85
+            ],
+            [
+              -135,
+              -85
+            ]
+          ],
+          [
+            [
+              -135,
+              -89
+            ],
+            [
+              -45,
+              -89
+            ],
+            [
+              45,
+              -89
+            ],
+            [
+              135,
+              -89
+            ],
+            [
+              -135,
+              -89
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -403,11 +403,8 @@
         onclick={runSearch}
       >
         {#if ef.running}
-          <!-- No percentage here. The fraction is of the geometry call running
-               right now, not of the search, so a number on the primary control
-               would claim a completeness nothing can measure — and would count
-               up and start over within one "Find events". The bar below says the
-               same thing without promising it. -->
+          <!-- Keep the percentage hidden: equal call slices describe search
+               progress, but do not measure each call's relative cost. -->
           <Loader2 size={12} class="animate-spin" /> Searching…
         {:else}
           <Search size={12} /> Find events
@@ -425,20 +422,16 @@
       {/if}
     </div>
 
-    <!-- A determinate bar, from CSPICE's own progress reporter running inside
-         the search. It measures the step in progress: the fraction is of the
-         geometry call currently running — monotonic within it, since the call's
-         pass count is known up front — and it restarts when the search moves to
-         its next call. So it reads as "still moving, and here is how far through
-         this piece", never as a prediction of the whole, which is why no number
-         is shown beside it. Absent on the main-thread path, where the simplified
-         wrappers report nothing and the spinner is all there is. -->
+    <!-- CSPICE reports each call's progress; EventSearch maps planned calls
+         into slices of this bar. Refinement and diagnostic calls have no known
+         cost, so no numerical percentage is shown. Providers without a reporter
+         retain the spinner. -->
     {#if ef.running && ef.progress}
       <div
         class="mt-1.5 h-1 w-full overflow-hidden rounded bg-surface-3"
         role="progressbar"
-        aria-label="Progress of the current search step"
-        title="Progress of the step running now. A search runs in several steps, so this restarts."
+        aria-label="Event search progress"
+        title="Search progress across planned geometry calls. Calls may take different amounts of time."
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(ef.progress.fraction * 100)}
@@ -604,7 +597,7 @@
           {@const atPlayhead = eventContainsTime(event, vs.et)}
           <div class="result-wrap">
           <button
-            class="event-result text-left rounded px-2 py-2 border cursor-pointer"
+            class="analysis-row event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={isSelectedEvent(event)}
             class:preview={ef.previewId === event.id && ef.previewQueryId === event.queryId}
             class:at-playhead={atPlayhead}
@@ -756,19 +749,6 @@
     transition:
       border-color var(--duration-chrome) var(--ease-chrome),
       background var(--duration-chrome) var(--ease-chrome);
-  }
-  .event-result:focus-visible {
-    border-color: var(--color-primary-accent);
-  }
-  .event-result:hover {
-    background: var(--color-hover);
-  }
-  /* Quieter than a full gold frame, matching the in-scene treatment: a gold
-     keyline carries the selection, the frame stays neutral chrome. */
-  .event-result.selected {
-    border-color: var(--color-border-strong);
-    background: color-mix(in srgb, var(--color-event-accent) 5%, transparent);
-    box-shadow: inset 2px 0 0 var(--color-event-accent);
   }
   .event-result.preview:not(.selected) {
     border-color: color-mix(in srgb, var(--color-primary-accent) 45%, transparent);

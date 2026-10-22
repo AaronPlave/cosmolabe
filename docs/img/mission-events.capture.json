@@ -1,0 +1,359 @@
+{
+  "scene": {
+    "id": "events",
+    "catalog": "cassini-soi",
+    "output": "mission-events.png",
+    "utc": "2004-07-01T02:38:22.467Z",
+    "et": 141921566.6511854,
+    "tracked": "Saturn",
+    "selected": null,
+    "camera": {
+      "position": [
+        180000,
+        -250000,
+        220000
+      ],
+      "target": [
+        0,
+        0,
+        -65000
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ],
+      "fov": 48
+    },
+    "trajectory": "Cassini",
+    "sensor": null,
+    "panel": "events",
+    "timeline": [
+      141912064.184,
+      141933664.184
+    ],
+    "searches": [
+      {
+        "kind": "closest-approach",
+        "observer": "Cassini",
+        "target": "Saturn",
+        "start": 141912064.184,
+        "end": 141955264.184,
+        "step": 60,
+        "label": "Closest approach"
+      },
+      {
+        "kind": "distance-range",
+        "label": "Within 100K km",
+        "observer": "Cassini",
+        "target": "Saturn",
+        "start": 141912064.184,
+        "end": 141955264.184,
+        "step": 60,
+        "params": {
+          "relation": "<",
+          "distanceKm": 100000
+        }
+      },
+      {
+        "kind": "distance-range",
+        "label": "Within 150K km",
+        "observer": "Cassini",
+        "target": "Saturn",
+        "start": 141912064.184,
+        "end": 141955264.184,
+        "step": 60,
+        "params": {
+          "relation": "<",
+          "distanceKm": 150000
+        }
+      }
+    ],
+    "profiles": [
+      {
+        "quantity": "range",
+        "label": "Cassini–Saturn distance",
+        "bodies": {
+          "observer": "Cassini",
+          "target": "Saturn"
+        },
+        "abcorr": "NONE"
+      },
+      {
+        "quantity": "range-rate",
+        "label": "Closing / opening rate",
+        "bodies": {
+          "observer": "Cassini",
+          "target": "Saturn"
+        },
+        "abcorr": "NONE"
+      }
+    ],
+    "timelineHeight": 310,
+    "untrack": true
+  },
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "analysis": {
+    "bodies": {
+      "observer": "Cassini",
+      "target": "Saturn"
+    },
+    "reference": {
+      "frame": "J2000",
+      "abcorr": "LT+S"
+    },
+    "items": [
+      {
+        "id": "event-query-1",
+        "type": "event-query",
+        "label": "Closest approach",
+        "enabled": true,
+        "visible": true,
+        "query": {
+          "kind": "closest-approach",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "window": {
+            "start": 141912064.184,
+            "end": 141955264.184
+          },
+          "step": 60,
+          "params": {
+            "scope": "local"
+          },
+          "label": "Closest approach"
+        },
+        "windowMode": "explicit"
+      },
+      {
+        "id": "event-query-2",
+        "type": "event-query",
+        "label": "Within 100K km",
+        "enabled": true,
+        "visible": true,
+        "query": {
+          "kind": "distance-range",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "window": {
+            "start": 141912064.184,
+            "end": 141955264.184
+          },
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 100000
+          },
+          "label": "Within 100K km"
+        },
+        "windowMode": "explicit"
+      },
+      {
+        "id": "event-query-3",
+        "type": "event-query",
+        "label": "Within 150K km",
+        "enabled": true,
+        "visible": true,
+        "query": {
+          "kind": "distance-range",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "window": {
+            "start": 141912064.184,
+            "end": 141955264.184
+          },
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 150000
+          },
+          "label": "Within 150K km"
+        },
+        "windowMode": "explicit"
+      },
+      {
+        "id": "continuous-profile-4",
+        "type": "continuous-profile",
+        "label": "Cassini–Saturn distance",
+        "enabled": true,
+        "visible": true,
+        "profile": {
+          "quantity": "range",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        }
+      },
+      {
+        "id": "continuous-profile-5",
+        "type": "continuous-profile",
+        "label": "Closing / opening rate",
+        "enabled": true,
+        "visible": true,
+        "profile": {
+          "quantity": "range-rate",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        }
+      }
+    ],
+    "quantities": [],
+    "eventResults": {
+      "event-query-1": [
+        {
+          "id": "event-query-1:0",
+          "queryId": "event-query-1",
+          "kind": "closest-approach",
+          "temporality": "instant",
+          "et": 141921566.6511854,
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "label": "Saturn closest approach from Cassini",
+          "metrics": [
+            {
+              "key": "altitude",
+              "label": "Altitude",
+              "value": 20541.84699097059,
+              "unit": "km",
+              "precision": 1
+            },
+            {
+              "key": "range",
+              "label": "Range",
+              "value": 80243.12848483384,
+              "unit": "km",
+              "precision": 1
+            }
+          ],
+          "primaryRole": "target"
+        }
+      ],
+      "event-query-2": [
+        {
+          "id": "event-query-2:0",
+          "queryId": "event-query-2",
+          "kind": "distance-range",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "label": "Saturn within 100K km of Cassini",
+          "temporality": "interval",
+          "start": 141918775.48171818,
+          "end": 141924397.39410555,
+          "metrics": [
+            {
+              "key": "threshold",
+              "label": "Threshold",
+              "value": 100000,
+              "unit": "km",
+              "precision": 1
+            },
+            {
+              "key": "duration",
+              "label": "Duration",
+              "value": 5621.912387371063,
+              "unit": "s",
+              "precision": 0
+            },
+            {
+              "key": "minRange",
+              "label": "Min range",
+              "value": 80243.12848466162,
+              "unit": "km",
+              "precision": 1
+            }
+          ],
+          "primaryRole": "target"
+        }
+      ],
+      "event-query-3": [
+        {
+          "id": "event-query-3:0",
+          "queryId": "event-query-3",
+          "kind": "distance-range",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "label": "Saturn within 150K km of Cassini",
+          "temporality": "interval",
+          "start": 141915389.6154237,
+          "end": 141927915.62023658,
+          "metrics": [
+            {
+              "key": "threshold",
+              "label": "Threshold",
+              "value": 150000,
+              "unit": "km",
+              "precision": 1
+            },
+            {
+              "key": "duration",
+              "label": "Duration",
+              "value": 12526.00481286645,
+              "unit": "s",
+              "precision": 0
+            },
+            {
+              "key": "minRange",
+              "label": "Min range",
+              "value": 80243.1284847738,
+              "unit": "km",
+              "precision": 1
+            }
+          ],
+          "primaryRole": "target"
+        }
+      ]
+    }
+  },
+  "et": 141921566.6511854,
+  "camera": {
+    "position": [
+      180000,
+      -250000,
+      220000.00000000003
+    ],
+    "target": [
+      0,
+      0,
+      -65000
+    ],
+    "up": [
+      0,
+      0,
+      1
+    ],
+    "fov": 48
+  },
+  "snapshot": "# Cosmolabe snapshot\nsetPlaying off\nsetTime 2004-07-01T02:38:22.467Z\nsetTimeRate 1\nuntrack\nsetFrame free-orbit\nclearLookAt\nsetFov 48\nsetCamera [180000, -250000, 220000] [0, 0, -65000] [0, 0, 1]\nsetLayer trajectories on\nsetLayer labels on\nsetLayer grid off\nsetLayer axes off\nsetLayer sensors off\nsetLayer sensorLabels off\ndeselect\n",
+  "initialAssets": {
+    "total": 14,
+    "settled": 14,
+    "loaded": 14,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 1196.0999999940395
+  },
+  "terrain": null,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}

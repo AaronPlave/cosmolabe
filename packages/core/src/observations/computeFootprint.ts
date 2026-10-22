@@ -176,10 +176,11 @@ export function footprintFromFov(
 /**
  * The sincpt/ilumin shape method for an observation's target, in order:
  * the observation's own `surfaceMethod`; the target body's catalog
- * `geometry.surfaceMethod`; `DSK/UNPRIORITIZED` when the target's catalog
- * geometry names a DSK (`dsk`, or a `.bds` shape source); else `ELLIPSOID`.
- * One rule for every target, so an irregular body is a catalog declaration,
- * not a target-specific path.
+ * `geometry.surfaceMethod`; `DSK/UNPRIORITIZED` when the target is drawn as a
+ * DSK — Cosmographia's `{ "type": "DSK", "kernel": … }`, which the loader
+ * normalises to `type: "Dsk"`, or a `dsk`/`.bds` shape source — else
+ * `ELLIPSOID`. One rule for every target, so an irregular body (67P in an
+ * official Rosetta catalog) needs no target-specific path.
  */
 export function resolveSurfaceMethod(
   observation: { surfaceMethod?: string },
@@ -188,7 +189,8 @@ export function resolveSurfaceMethod(
   if (observation.surfaceMethod) return observation.surfaceMethod;
   const g = targetGeometry ?? {};
   if (typeof g.surfaceMethod === 'string' && g.surfaceMethod) return g.surfaceMethod;
-  const names = [g.dsk, g.source, g.shapeModel].filter((v): v is string => typeof v === 'string');
+  if (typeof g.type === 'string' && g.type.toUpperCase() === 'DSK') return 'DSK/UNPRIORITIZED';
+  const names = [g.dsk, g.source, g.kernel, g.shapeModel].filter((v): v is string => typeof v === 'string');
   if (g.dsk !== undefined || names.some((n) => /\.bds$/i.test(n))) return 'DSK/UNPRIORITIZED';
   return 'ELLIPSOID';
 }

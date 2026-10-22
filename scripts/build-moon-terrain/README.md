@@ -8,9 +8,13 @@ GPU check at Shackleton.
 
 ```bash
 ./01-fetch-sources.sh                  # ~9 GB of public USGS-hosted GeoTIFFs into data/source/
-./fused.sh                             # fuse ~7 min (peak RAM ≈ 7 GB), tile ~45 min on 4 cores
+./fused.sh                             # runs ./fuse.sh (~7 min, peak RAM ≈ 7 GB), then tiles ~45 min on 4 cores
 node ../validate-terrain.mjs --preset moon-shackleton-fused
 ```
+
+`./fuse.sh` alone writes the fused field (`data/fused/`) that every product
+below tiles: `fused.sh` (geographic), `polar.sh` (#144 polar cap) and `cube.sh`
+(#149 cube sphere).
 
 Output: `apps/viewer/test-catalogs/data/moon-terrain-fused/` (`layer.json`,
 `z/x/y.terrain`, `terrain-product.json`, `fusion.json`; 1.18 M tiles, ~11 GB; gitignored, not on the
@@ -56,6 +60,68 @@ recommended value, so both pyramids refine to the same on-screen error). It
 has no CPU sampler support yet and is not joined to the global pyramid; see
 #144 for the GPU comparison.
 
+## Cube-sphere experiment (#149)
+
+`./cube.sh` tiles the same fused field on the gnomonic cube of
+`packages/three/src/surface/CubeSphere.ts` as 3D Tiles 1.1 (one `.glb` per tile)
+plus a CPU height grid per tile (`cpu-grids.json`, `heights/`), into
+`apps/viewer/test-catalogs/data/moon-terrain-cube/` (4,030 tiles, ~720 MB,
+~12 min on 4 cores, 1 min 43 s on 14; gitignored, not hosted). All six faces to
+level 3, then bounded detail: Shackleton to 13 m within 15 km, and one face
+corner and one face edge to 212 m. Mixed-LOD cracks are covered by skirts sized
+per edge from the gaps measured against every other level across it;
+`--skirt-cells 0` builds without them, and the viewer can hide them at runtime
+(`cubeSphere.skirts: false`) for diagnosis. It is an experiment beside the geographic and
+polar products, not a replacement; see
+[the ADR](../../docs/design/cube-sphere-experiment.md).
+
+Each build also runs `dem.py cube-error`, which bounds every parent's distance
+from its children on the emitted triangles and writes `tileset-measured.json`
+(that bound, propagated through REPLACE, as geometricError) and
+`mesh-error.json` beside the default `tileset.json` (0.25 × face-centre vertex
+spacing). `--simplify FRAC` RTIN-simplifies the meshes (edges kept, CPU grids
+unchanged); build it into its own directory so the baseline stays intact:
+
+```bash
+./fuse.sh && ./cube.sh                 # and ./polar.sh for the #145 baseline
+CUBE_OUT=../../apps/viewer/test-catalogs/data/moon-terrain-cube-simplified-003 ./cube.sh --simplify 0.03
+npm run build && node ../validate-cube-terrain.mjs     # gates + measurements → work/cube-terrain/validation.json
+npm --prefix ../../apps/viewer run dev                 # then open:
+#   http://127.0.0.1:5173/?catalog=test-catalogs/experiments/moon-terrain-cube
+#   (…/moon-terrain-polar and …/moon-terrain-geographic for the baselines)
+CHROMIUM_PATH=… node ../capture-cube-terrain.mjs --product cube   # and --product polar
+```
+
+In the demo, the body info panel's altitude readouts and the camera clamp
+sample the CPU grids; the pick tool (click on the surface) shows the rendered
+hit and the #148 CPU hit (`CPU hit`, `CPU vs rendered`); the debug panel's
+`cube-face` and `cpu-coverage` views show faces and CPU residency.
+
+## Cube-face imagery (#149)
+
+`./cube-imagery.sh` builds imagery pyramids on the same cube faces for the
+cube-sphere product, at their own levels: `CubeImageryLayer` drapes them on
+whatever geometry tiles the renderer picked, so imagery refines (to 1.7 m texels
+at the pole) without generating or loading more terrain.
+
+```bash
+PYTHON=python3 ./cube-imagery.sh fixtures   # synthetic grid + registration pyramids (~10 min, offline)
+PYTHON=python3 ./cube-imagery.sh nac        # LROC NAC South Pole mosaic, read remotely by window (~10 min)
+PYTHON=python3 ./cube-imagery.sh wac-nac    # global LROC WAC + NAC composite: MoonFall's imagery (6 GB WAC download once)
+npm run build && node ../validate-cube-imagery.mjs
+npm --prefix ../../apps/viewer run dev      # then open one of
+#   http://127.0.0.1:5173/?catalog=test-catalogs/experiments/moon-terrain-cube-imagery-grid
+#   …/moon-terrain-cube-imagery-registration, …/moon-terrain-cube-imagery-nac
+CHROMIUM_PATH=… node ../capture-cube-imagery.mjs
+```
+
+Outputs (gitignored; `wac-nac` and `nac` are published, see docs/data-hosting.md): `apps/viewer/test-catalogs/data/moon-imagery-cube-{grid,registration,nac,wac-nac}/`
+with `imagery.json` (tiles, layout, registration, provenance) and, for the grid,
+`markers.json` (each control point's expected tile and pixel at every level).
+The debug panel's `imagery-level` view shows the displayed imagery level per
+pixel; `imagery-unlit` shows the raw texels. The registration convention and the
+runtime design are in [the ADR](../../docs/design/cube-sphere-experiment.md#independent-imagery-2026-10-14).
+
 ## Sources (public, no auth)
 
 - **Canonical global:** LRO LOLA LDEM 118 m (Mar 2014), USGS Astrogeology
@@ -69,6 +135,12 @@ has no CPU sampler support yet and is not joined to the global pyramid; see
   file's NetCDF `actual_range` says km; it is stale). Only the 10 m overview is
   fetched: the pyramid's deepest polar level samples 20 m. About 80% of the
   200 × 200 km square is data (≈86.6°S and poleward); the corners are NaN.
+- **Cube imagery (#149 experiment only):** LRO LROC NAC South Pole controlled
+  mosaic, 1 m/px (USGS control network, LROC team mosaic, released Nov 2025;
+  PDS LRO-L-LROC-5-RDR-V1.0), polar stereographic on the 1737.4 km sphere,
+  reaching 81.5°S, a COG on the same USGS S3 mirror. `cube-imagery.sh nac` reads
+  only the windows it needs. Permanently shadowed floors (Shackleton's included)
+  are black in the source.
 - **Considered, not used:** the SLDEM2015 + LOLA merge (512 ppd, ±60° only — no
   polar coverage, and the MoonFall scene never leaves the south pole) and the
   LOLA 75°S 30 m polar DEM (superseded by the 87°S mosaic around Shackleton).

@@ -2,13 +2,16 @@
  * Command registry — all actions accessible via the command palette.
  * Combines built-in commands with plugin-contributed commands.
  */
-import type { UniverseRenderer } from '@cosmolabe/three';
+import { surfaceNavigable, type UniverseRenderer } from '@cosmolabe/three';
 import {
   vs, togglePlay, reverse, faster, slower, stepForward, stepBackward,
-  setDisplayOption, cycleCamera, flyToTracked, resetCamera, getRenderer,
+  setDisplayOption, cycleCamera, flyToTracked, frameBody, stopFlight, resetCamera, getRenderer,
+  toggleProbe, clearProbePin, navigateToSurfacePoint, showNextInstrument,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell } from './shell.svelte';
+import { shell, openTool } from './shell.svelte';
+import { getUniverse } from './loader';
+import { showReference } from './spatial-measurements.svelte';
 
 export interface Command {
   id: string;
@@ -36,6 +39,10 @@ function getBuiltinCommands(): Command[] {
 
     // Camera
     { id: 'cam:fly-to', label: 'Fly to tracked body', shortcut: 'F', category: 'Camera', execute: () => flyToTracked() },
+    { id: 'cam:fly-overview', label: 'Fly to tracked body via overview', category: 'Camera', execute: () => flyToTracked('overview') },
+    { id: 'cam:frame', label: 'Frame tracked body', category: 'Camera', execute: () => frameBody() },
+    { id: 'cam:go-to-coordinates', label: 'Go to coordinates…', category: 'Camera', execute: () => openTool('navigate') },
+    ...(vs.flight ? [{ id: 'cam:stop-flight', label: 'Stop camera flight', shortcut: 'Esc', category: 'Camera', execute: () => stopFlight() }] : []),
     { id: 'cam:cycle', label: 'Cycle camera mode', shortcut: 'M', category: 'Camera', execute: () => cycleCamera() },
     { id: 'cam:reset', label: 'Reset to Free Orbit', shortcut: 'Esc', category: 'Camera', execute: () => resetCamera() },
     { id: 'cam:export', label: 'Export camera view (download JSON)', category: 'Camera', execute: (r) => exportCameraView(r) },
@@ -54,15 +61,36 @@ function getBuiltinCommands(): Command[] {
       v.setShowAll(!v.showingAll);
     }},
 
+    // Inspect
+    { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },
+    ...(vs.probePin ? [
+      { id: 'probe:clear', label: 'Clear probed point', category: 'Inspect', execute: () => clearProbePin() },
+      ...(surfaceNavigable(vs.probePin) ? [{ id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin', verb: 'frame' }); } }] : []),
+    ] : []),
+
     // Instrument
-    { id: 'instr:cycle', label: 'Cycle instrument PiP', shortcut: 'I', category: 'Display', execute: (r) => {
-      const sensors = r.getSensorNames();
-      if (sensors.length === 0) return;
-      const current = r.activeInstrumentView;
-      const idx = current ? sensors.indexOf(current) : -1;
-      r.setInstrumentView(idx + 1 < sensors.length ? sensors[idx + 1] : null, { marginX: 16, marginY: 60 });
-    }},
+    { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
+    // Sensor cycling is an explicit palette action, separate from open/focus.
+    { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: () => showNextInstrument() },
   ];
+}
+
+/** Reference geometry for the tracked body, through the same items the Measurements tool edits. */
+function getReferenceCommands(): Command[] {
+  const name = vs.trackedBodyName;
+  const universe = getUniverse();
+  const body = name ? universe?.getBody(name) : undefined;
+  if (!name || !universe || !body) return [];
+  const commands: Command[] = [
+    { id: 'ref:velocity', label: `Show velocity of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'velocity', object: name }); } },
+  ];
+  if (name !== 'Sun' && universe.getBody('Sun')) {
+    commands.push({ id: 'ref:sun', label: `Show Sun direction from ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'sunDirection', object: name }); } });
+  }
+  if (body.rotation) {
+    commands.push({ id: 'ref:axes', label: `Show body axes of ${name}`, category: 'Analysis', execute: () => { showReference({ kind: 'bodyAxes', object: name }); } });
+  }
+  return commands;
 }
 
 /** Collect plugin-contributed commands */
@@ -90,7 +118,7 @@ function getPluginCommands(): Command[] {
 
 /** All commands (built-in + plugin) */
 export function getCommands(): Command[] {
-  return [...getBuiltinCommands(), ...getPluginCommands()];
+  return [...getBuiltinCommands(), ...getReferenceCommands(), ...getPluginCommands()];
 }
 
 /** All command categories (for palette grouping) */

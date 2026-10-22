@@ -1,0 +1,25 @@
+{
+  "name": "Mars cube foundation: bounded Jezero (#245)",
+  "description": "Unlisted validation product of the unchanged #50 fused field plus the MOLA MEG016 areoid radius. Build with scripts/build-mars-terrain/cube.sh. No mission trajectories: production migration remains in #244.",
+  "defaultTime": "2021-04-19T07:34:00Z",
+  "defaultViewpoint": "Jezero",
+  "items": [
+    { "name": "Jezero", "type": "Viewpoint", "center": "Mars", "distance": 30, "latitude": 18.65, "longitude": 77.4 },
+    { "name": "Sun", "class": "star", "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] }, "geometry": { "type": "Globe", "radius": 695700 } },
+    {
+      "name": "Mars", "class": "planet", "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "rotationModel": { "type": "Builtin", "name": "IAU_MARS" },
+      "geometry": {
+        "type": "Globe", "radii": [3396.19, 3396.19, 3376.2],
+        "terrain": {
+          "type": "3dtiles", "url": "../data/mars-terrain-cube-jezero/tileset-measured.json",
+          "errorTarget": 2, "fadeDurationMs": 0,
+          "datum": { "verticalDatum": "ellipsoid", "heightConvention": "geodetic-normal" },
+          "sourceMetadata": { "id": "Mars MOLA/HRSC + Jezero residual + MEG016 areoid radius", "kind": "height-grid" },
+          "cubeSphere": { "cpuGrids": "../data/mars-terrain-cube-jezero/cpu-grids.json" }
+        }
+      }
+    }
+  ]
+}

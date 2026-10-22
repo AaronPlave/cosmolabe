@@ -27,10 +27,10 @@
    * faint one is what separates the panel from the scene behind it.
    */
   import type { Snippet } from 'svelte';
-  import { X, Minus, Square, PictureInPicture2, Dock } from 'lucide-svelte';
+  import { X, Minus, Square, PictureInPicture2, Dock, Maximize2, Minimize2 } from 'lucide-svelte';
   import {
     shell, isMinimized, toggleMinimized, isFloating, floatOf, setFloat, dockPanel,
-    raisePanel, panelZIndex, setPanelMounted, type PanelKey,
+    raisePanel, panelZIndex, setPanelMounted, isExpanded, toggleExpanded, type PanelKey,
   } from '../../lib/shell.svelte';
   import { moveFloat, resizeFloat, floatFromDocked, type FloatRect } from '../../lib/panel-geometry';
 
@@ -46,10 +46,14 @@
     onClose?: () => void;
     /** Rendered to the right of the title — small readouts or per-panel controls. */
     actions?: Snippet;
+    /** Offers an expand-to-workspace presentation (`shell.panels[key].expanded`). */
+    expandable?: boolean;
+    /** The body is one flexible region filling the panel, unpadded and unscrolled. */
+    fill?: boolean;
     children: Snippet;
   }
 
-  let { key, title, width = 320, onClose, actions, children }: Props = $props();
+  let { key, title, width = 320, onClose, actions, expandable = false, fill = false, children }: Props = $props();
 
   let root = $state<HTMLElement | null>(null);
 
@@ -69,6 +73,7 @@
   // there is no room to put it anywhere else.
   const floating = $derived(key != null && !compact && isFloating(key));
   const rect = $derived(floating && key != null ? floatOf(key) : null);
+  const expanded = $derived(expandable && key != null && isExpanded(key));
 
   const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
@@ -126,7 +131,7 @@
   function onHeaderPointerDown(e: PointerEvent) {
     // Buttons in the header are controls, not handles.
     if ((e.target as HTMLElement | null)?.closest('button')) return;
-    if (compact) return;
+    if (compact || expanded) return;
     gesture(e, (base, dx, dy) => moveFloat(base, dx, dy, viewport()));
   }
 
@@ -147,6 +152,12 @@
   }
 
   const style = $derived.by(() => {
+    // Expanded fills the scene area between the rail and the bottom chrome,
+    // above floating panels and below modal layers.
+    if (expanded) {
+      const inset = compact ? '0.5rem' : '0.75rem';
+      return `position: fixed; left: calc(var(--size-rail) + ${inset}); right: ${inset}; top: ${inset}; bottom: calc(var(--size-dock-base) + ${inset}); width: auto; height: auto; z-index: 24`;
+    }
     if (compact) return undefined;
     if (rect) {
       // Height is dropped while minimized so the panel shrinks to its header
@@ -164,7 +175,7 @@
   data-scene-occluder
   class="instrument shell-surface pointer-events-auto flex min-h-7 shrink flex-col overflow-hidden rounded-[5px] border backdrop-blur-sm"
   class:w-full={compact}
-  class:floating
+  class:floating={floating || expanded}
   class:minimized
   {style}
   onpointerdown={onPanelPointerDown}
@@ -183,7 +194,21 @@
 
     {#if actions && !minimized}{@render actions()}{/if}
 
-    {#if key != null && floating}
+    {#if key != null && expandable}
+      <button
+        class="panel-btn"
+        onclick={() => toggleExpanded(key)}
+        title={expanded ? 'Return to window' : 'Expand'}
+        aria-label={expanded ? `Return ${title} to its window` : `Expand ${title}`}
+        aria-pressed={expanded}
+      >
+        {#if expanded}<Minimize2 size={13} />{:else}<Maximize2 size={13} />{/if}
+      </button>
+    {/if}
+
+    {#if expanded}
+      <!-- Placement controls act on the window, which is not showing. -->
+    {:else if key != null && floating}
       <button class="panel-btn" onclick={() => dockPanel(key)} title="Return to dock" aria-label="Return {title} to dock">
         <Dock size={13} />
       </button>
@@ -215,11 +240,11 @@
   </header>
 
   {#if !minimized}
-    <div class="instrument-body min-h-0 overflow-y-auto overflow-x-hidden">
+    <div class="instrument-body min-h-0 overflow-y-auto overflow-x-hidden" class:fill>
       {@render children()}
     </div>
 
-    {#if floating}
+    {#if floating && !expanded}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="grip" onpointerdown={onGripPointerDown} title="Resize"></div>
     {/if}
@@ -279,8 +304,16 @@
     font-weight: 420;
     line-height: var(--leading-interface);
   }
+  .instrument-body.fill {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
   .instrument-body :global(select),
-  .instrument-body :global(input:not([type='range']):not([type='checkbox'])) {
+  .instrument-body :global(input:not([type='range']):not([type='checkbox']):not([type='color'])) {
     min-height: var(--size-control);
     padding-inline: var(--space-ui-2);
     border-color: var(--color-border-default);

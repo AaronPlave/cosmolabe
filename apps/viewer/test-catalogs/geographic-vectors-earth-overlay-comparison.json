@@ -1,0 +1,222 @@
+{
+  "name": "Geographic backend comparison \u00b7 Natural Earth",
+  "description": "Same shared geographic layer and WGS84 imagery-only tile geometry for both vector and upstream raster overlay comparison. See /geographic-compare.html.",
+  "defaultViewpoint": "Earth orbit",
+  "geographicLayers": [
+    {
+      "id": "countries",
+      "name": "Natural Earth countries 5.1.1",
+      "body": "Earth",
+      "source": "geographic/natural-earth-countries.json",
+      "coordinates": {
+        "latitude": "planetographic",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            6378.137,
+            6378.137,
+            6356.752314245
+          ]
+        }
+      },
+      "display": {
+        "color": "#59c5dd"
+      },
+      "provenance": {
+        "source": "https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/",
+        "version": "5.1.1",
+        "license": "public domain",
+        "conversion": "scripts/prepare-natural-earth-countries.py"
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Earth orbit",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        23294.687636576862,
+        8478.572916242887,
+        9008.099654342017
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Europe and Africa",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        13465.763495624438,
+        3608.14045412106,
+        6482.638818623945
+      ],
+      "target": [
+        5586.9286130341015,
+        1497.0130100328197,
+        2679.0744629576498
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Pacific dateline",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        -11633.992108611816,
+        1.4247531197117024e-12,
+        -4219.817647782655
+      ],
+      "target": [
+        -5995.836383896365,
+        7.342781835749924e-13,
+        -2167.6967878286423
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Antarctica",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        7.592561322256641e-13,
+        0.0,
+        -12356.752314245
+      ],
+      "target": [
+        3.9186209248145815e-13,
+        0.0,
+        -6356.752314245
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "Rhine close",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        4317.748251512437,
+        576.1106183213401,
+        4806.053709172499
+      ],
+      "target": [
+        4238.157932854736,
+        565.4910024884302,
+        4716.876330115212
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Southern Africa holes",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "eye": [
+        6794.704710743154,
+        3689.223650058132,
+        -4353.313632986907
+      ],
+      "target": [
+        4882.4960115061585,
+        2650.9790379092037,
+        -3122.2547327282396
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          100000000.0,
+          100000000.0,
+          100000000.0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          6378.137,
+          6378.137,
+          6356.752314245
+        ],
+        "baseMap": "textures/earth-5k.jpg",
+        "terrain": {
+          "type": "imagery",
+          "imagery": [
+            {
+              "id": "earth-base",
+              "name": "Existing Earth texture, root tiles",
+              "url": "geographic/earth-base/{z}/{x}/{y}.jpg",
+              "projection": "EPSG:4326",
+              "levels": 1,
+              "dimension": 512
+            }
+          ],
+          "fadeDurationMs": 0,
+          "overlayResolution": 256,
+          "errorTarget": 6,
+          "preloadAtPixels": 0,
+          "showAtPixels": 0
+        }
+      }
+    }
+  ]
+}

@@ -41,13 +41,27 @@ Links are capped at 8 KiB, including URL overhead when copied.
 
 ## Camera and navigation scope
 
-The semantic-viewpoint (#114) and unified-navigation (#115) issues are still open
-at the time of this implementation. V1 composes existing catalog viewpoints and
-the `ViewerControl` navigation methods instead of defining replacement camera
-or navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
+V1 composes catalog viewpoints (semantic viewpoints, #114) and the
+`ViewerControl` navigation methods instead of defining replacement camera or
+navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
 orbit cameras. Named-view detection excludes session-only saved viewpoints and
-compares actual eye/target/up and coordinate origin, so moving away from a preset
+compares actual eye/up and coordinate origin, plus the target or, for a
+viewpoint with `lookAt`, the look-at body, so moving away from a preset
 produces an explicit pose link.
+
+A catalog viewpoint is a relationship resolved where it is shown: at its own
+`time` when it has one, and at the current time otherwise. Copy resolves it at
+the link's time to compare, and restore applies a named view after seeking to
+the link's time, so a timeless view such as "over Jezero" reproduces the pose
+the sender saw. A viewpoint's own epoch still yields to the link's explicit
+time. (Before #114, named views resolved once at catalog load; a link to a
+timeless body-relative view may restore differently from what that older
+viewer showed.)
+
+#114 also provides a portable semantic form (`viewpointToJson` /
+`validateViewpoint` in `@cosmolabe/core`) for views that are not in the
+catalog, such as a Top / Sun / Velocity preset. V1 does not encode it yet;
+adding it is an additive `view` kind beside `named` and `pose`.
 
 Surface, surface-explorer, instrument, LVLH, and chase modes have additional
 private parameters that the current port cannot capture faithfully. Copy rejects
@@ -84,6 +98,44 @@ restoration so it cannot serialize a partial result context.
 The extension accepts at most 16 query definitions and shares the existing
 8 KiB URL limit. Oversized contexts produce a copy error instead of truncating
 queries or results. No additional Event Finder-specific copy action is needed.
+
+## Spatial measurements
+
+The viewer-owned `measurements` extension uses `version: 1`, an ordered `items`
+array (at most 32 definitions), and an optional `selected` identity. Definitions
+include type and unique identity, nullable source/target/vertex endpoints, color,
+visibility, and direction distance/full-length flags. Null endpoints preserve a
+saved item being edited; unfinished creation drafts are excluded. Entity and
+body-fixed endpoints name the catalog body. Body-fixed coordinates are exact km
+triples. Coordinate endpoints explicitly name their frame (world coordinates
+normalize to ECLIPJ2000). These coordinates use the scene origin and the named
+frame orientation; they do not imply a body-centered origin. Body-fixed endpoints
+alone add the named body’s changing position. Coordinates must be finite and
+bounded to ±1e12 km.
+
+Reference geometry shares the same item list. Velocity items reuse the endpoint
+slots (the moving object in `source`; `target` is the reference, or null for the
+central body), axes items carry their origin in `source` and a `frame` name, and
+angle-between-directions items (`vector-angle`) carry `first`/`second` operands:
+a direction (two endpoints), a velocity (object and optional reference) or a
+frame axis (frame, origin and one of `±X`, `±Y`, `±Z`). Operands are copies, not
+references to other items, so deleting the item an operand came from leaves the
+angle intact. Every frame and body an item names, including inside operands, is
+checked against the catalog before restoration.
+
+The validator allowlists definitions and excludes hover, active picking, edit
+handles, renderer geometry, and sampled values. All definitions and catalog
+body/frame references are checked before restoration changes the scene.
+Restoration runs after catalog loading and teardown; unavailable references
+produce an explanatory error. Values recompute at the restored epoch. Type
+switching retains latent angle endpoints and direction options, so sharing does
+not discard them. Old links without the extension restore no measurements.
+
+Measurements use the existing Copy view link action and share both 8192-character
+payload and final encoded URL limits with events/profiles. An oversized scene
+produces a clear error without omitting any items. Copying captures live edits;
+it does not change the current address or add history entries. No timeline
+profiles are generated from these spatial definitions.
 
 ## Event and observation hooks
 

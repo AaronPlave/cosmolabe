@@ -310,7 +310,7 @@ export interface SpiceEngine {
   /** Rotation axis (unit) and angle (rad) of a rotation matrix (raxisa). */
   raxisa(matrix: Mat3): Promise<{ axis: Vec3; angle: number }>;
 
-  /** Read a DSK type-2 shape model (vertices km, 0-based plate indices). */
+  /** Read a DSK's type-2 segments as one mesh (vertices km body-fixed, 0-based plate indices). */
   readDsk(name: string, bytes: Uint8Array): Promise<DskShape>;
 
   /** Rectangular (body-fixed km) to geodetic lon/lat (rad) and altitude (km) (recgeo). */
@@ -354,9 +354,28 @@ export interface IluminResult {
 
 export interface DskShape {
   /** Flat vertex coordinates in km in the body-fixed frame, length 3 * nv. */
-  readonly vertices: number[];
+  readonly vertices: Float64Array;
   /** Flat triangle vertex indices, 0-based, length 3 * np. */
-  readonly plates: number[];
+  readonly plates: Uint32Array;
+  /** NAIF ID of the body the shape describes (the segments' centre). */
+  readonly centerId: number;
+  /** Name of the body-fixed frame the vertices are expressed in; empty if the frame is not known to the loaded kernels. */
+  readonly frame: string;
+  /** Every type-2 segment merged into the mesh, in file order. */
+  readonly segments: readonly DskSegmentInfo[];
+  /** Segments skipped because their data type is not 2. */
+  readonly skippedSegments: number;
+}
+
+/** One DSK segment merged into a {@link DskShape}. */
+export interface DskSegmentInfo {
+  readonly surfaceId: number;
+  readonly centerId: number;
+  readonly frameId: number;
+  /** Frame name for `frameId`; empty if unknown to the loaded kernels. */
+  readonly frame: string;
+  readonly vertexCount: number;
+  readonly plateCount: number;
 }
 
 /** Row-major 3x3 rotation matrix. */
