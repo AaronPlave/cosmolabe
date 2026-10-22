@@ -1,0 +1,68 @@
+"""Network-free adapter registration, alpha, wrapping and source-grid regressions."""
+import sys
+sys.dont_write_bytecode = True
+import unittest
+import io
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+from osgeo import gdal
+import numpy as np
+from cube_xyz import sample, source_pixel, validate, in_bounds, read_tile
+
+
+class CubeXYZTests(unittest.TestCase):
+    def test_corrupt_source_uses_recorded_parent_fallback_only_when_enabled(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = str(Path(folder) / 'parent.png')
+            raster = gdal.GetDriverByName('MEM').Create('', 2, 2, 4, gdal.GDT_Byte)
+            for i, value in enumerate([37, 81, 122, 255]):
+                raster.GetRasterBand(i+1).Fill(value)
+            gdal.GetDriverByName('PNG').CreateCopy(path, raster)
+            encoded = Path(path).read_bytes()
+            config = {'url':'https://example/{z}/{x}/{y}', 'dimension':2, 'allowSourceFallback':True}
+            def fetch(url, **kwargs):
+                return io.BytesIO(b'corrupt PNG' if url.endswith('/1/1/1') else encoded)
+            with patch('cube_xyz.urllib.request.urlopen', fetch), patch('cube_xyz.time.sleep'):
+                image = read_tile(config, folder, 1, 1, 1)
+            np.testing.assert_array_equal(image, np.tile([37, 81, 122, 255], (2, 2, 1)))
+            receipts = list(Path(folder).glob('*/*.fallback.json'))
+            self.assertEqual(len(receipts), 1)
+            self.assertEqual(json.loads(receipts[0].read_text())['fallbackLevel'], 0)
+            config['allowSourceFallback'] = False
+            with patch('cube_xyz.urllib.request.urlopen', fetch), patch('cube_xyz.time.sleep'):
+                with self.assertRaises(RuntimeError):
+                    read_tile(config, folder, 1, 1, 1)
+
+    def test_pixel_centres_and_xyz_y(self):
+        x, y = source_pixel(np.array([-179.5, 179.5]), np.array([89.5, -89.5]), 0, 180)
+        np.testing.assert_allclose(x, [0, 359])
+        np.testing.assert_allclose(y, [0, 179])
+
+    def test_wrap_and_alpha_are_bilinear(self):
+        # Antimeridian half-pixel: the east pixel is red, the west pixel is
+        # transparent green. Transparent green must not contaminate the result.
+        def read(config, cache, level, x, y):
+            return np.array([[[255, 0, 0, 255] if x == 1 else [0, 255, 0, 0]]], np.uint8)
+        config = {'dimension': 1}
+        num, alpha = sample(config, np.array([180., -180.]), np.array([0., 0.]), 0, '', read)
+        np.testing.assert_allclose(alpha, [0.5, 0.5])
+        np.testing.assert_allclose(num / alpha[:, None], [[1, 0, 0], [1, 0, 0]])
+
+    def test_missing_and_regional_tiles_are_transparent(self):
+        config = {'dimension': 1, 'bounds': [77.16, 18.21, 77.7, 18.72]}
+        num, alpha = sample(config, np.array([77.4, 78]), np.array([18.4, 18.4]), 0, '', lambda *a: None)
+        self.assertEqual(alpha.max(), 0)
+        self.assertEqual(num.max(), 0)
+        np.testing.assert_array_equal(in_bounds(np.array([179., -179., 0.]), np.zeros(3), [170, -1, -170, 1]), [True, True, False])
+
+    def test_refuses_implicit_latitude_or_other_source_grids(self):
+        for cfg in ({}, {'latitudeConvention': 'planetographic'}, {'latitudeConvention': 'planetocentric', 'projection': 'EPSG:3857'}):
+            with self.assertRaises(ValueError):
+                validate({'url': 'https://example/{z}/{x}/{y}', **cfg})
+        validate({'url': 'https://example/{z}/{x}/{y}', 'latitudeConvention': 'planetocentric'})
+
+
+if __name__ == '__main__':
+    unittest.main()

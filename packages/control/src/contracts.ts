@@ -99,6 +99,22 @@ export interface ScriptEventMap {
 
 export type ScriptEventName = keyof ScriptEventMap;
 
+/** How `gotoCoordinates` reads its coordinates and places the camera. */
+export interface CoordinateNavigationOptions {
+  latitude?: 'planetocentric' | 'planetographic';
+  longitude?: 'east' | 'west';
+  view?: SurfaceView;
+  /** Fly over this many seconds instead of cutting. */
+  seconds?: number;
+  /** Fly, over the viewer's own duration. */
+  animate?: boolean;
+  /** Altitude (overhead), slant range (oblique) or eye height (surface), km. */
+  rangeKm?: number;
+}
+
+/** The views `gotoCoordinates` offers. */
+export type SurfaceView = 'overhead' | 'oblique' | 'surface';
+
 /**
  * The control and observation surface of a Cosmolabe viewer.
  *
@@ -151,6 +167,20 @@ export interface ViewerControl {
   flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean;
   /** Jump: apply the view a flight to `name` would land on, at once. */
   jumpTo(name: string): boolean;
+  /**
+   * Go to a place on body `name` by latitude and longitude (#190): the
+   * coordinates are the target on the body, and `view` how the camera looks
+   * at it (`overhead`, the default; `oblique`; `surface`). Cuts by default,
+   * like `gotoObject`; given `seconds` (or `animate`), flies on an arc that
+   * clears the body. Degrees; planetocentric and east-positive unless
+   * `latitude`/`longitude` say otherwise. The target becomes the orbit pivot.
+   * Neither time nor the selection changes.
+   *
+   * False when there is no object `name`. Coordinates that cannot be placed
+   * — out of range, a body with no declared shape or rotation, a convention
+   * its shape cannot honour — throw, saying why.
+   */
+  gotoCoordinates(name: string, latDeg: number, lonDeg: number, opts?: CoordinateNavigationOptions): boolean;
   /**
    * End a flight where it is. The camera keeps its position, and the object
    * it was flying to is tracked from there, so the camera turns to face it.

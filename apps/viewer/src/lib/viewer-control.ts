@@ -49,6 +49,7 @@ import {
   hasBody,
   isDisplayOption,
   jumpToBody,
+  goToCoordinates,
   onViewerEvent,
   pointAtObject,
   runTo,
@@ -176,6 +177,25 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     flyTo: (name, opts) => flyToBody(name, { path: opts?.path, seconds: opts?.seconds }),
 
     jumpTo: (name) => jumpToBody(name),
+
+    gotoCoordinates: (name, latDeg, lonDeg, opts) => {
+      if (!hasBody(name)) return false;
+      const result = goToCoordinates(
+        {
+          bodyName: name, latDeg, lonDeg,
+          latitude: opts?.latitude ?? 'planetocentric',
+          longitudeDirection: opts?.longitude ?? 'east',
+        },
+        {
+          preset: opts?.view,
+          animate: opts?.animate || (opts?.seconds !== undefined && opts.seconds > 0),
+          seconds: opts?.seconds,
+          rangeKm: opts?.rangeKm,
+        },
+      );
+      if (!result.ok) throw new Error(result.error);
+      return true;
+    },
 
     stopFlight: () => void stopFlight(),
 

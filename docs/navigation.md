@@ -156,7 +156,145 @@ It is hidden when the camera is in free orbit, tracking nothing and not flying.
 | Command palette — "Frame tracked body" | Frame |
 | <kbd>Esc</kbd>, view context ×, "Stop camera flight" | Stop the flight |
 | Display settings — viewpoint list | Fly to the viewpoint (one that tracks a body is placed at once; `viewpoint` in a script always jumps) |
+| Tool rail — Navigate (map pin), or command palette — "Go to coordinates…" | Fly or Jump to a latitude/longitude on a body ([surface navigation](#surface-navigation)) |
+| Scene — right-click a surface | Zoom to here (a step closer), Fly to here (a fixed local view), Copy coordinates |
+| Point probe panel — Fly to here, Frame here; palette "Fly to probed point" | Fly or Jump to a fixed local view of the pinned point |
+| View context — × beside Target | Clear the surface target; the camera stays |
 | Scripts and `ViewerControl` | All of the above by name |
+
+## Surface navigation
+
+Fly and Jump also take a **place on a body** rather than the body as a whole
+(#190). The place is the target — what the camera looks at and then orbits —
+never the camera's own position. Three surfaces name one:
+
+- **Navigate** (the map pin among the tool rail's panels, in both the side
+  and the compact bottom rail; "Go to coordinates…" in the command palette;
+  `gotoCoordinates` in a script and on `ViewerControl`): a tool panel, so it
+  docks, floats, minimizes and stays open beside the scene after Jump or Fly
+  for trying the next place or view (on a phone the sheet minimizes, values
+  kept, so the scene shows). A body and one *Coordinates* field that takes a pasted
+  pair — `18.4447, 77.4508`, `18.4447° N, 77.4508° E`, `77.4508E 18.4447N`.
+  N/S and E/W letters mark which number is which, in either order; an
+  unlettered pair is read latitude first unless *Lon, Lat* is chosen (GeoJSON
+  and GIS order) — never guessed from the values. The conventions are
+  explicit: the active ones (order, planetocentric or planetographic
+  latitude, east- or west-positive longitude, either −180…180 or 0…360) are
+  stated under the field and changed under *Advanced*. A pair that resolves
+  gets one quiet line naming the place, plus how it was read when that is not
+  obvious (by its letters, west-positive), and one line on what it stands on
+  (*Terrain loaded · elevation −5300 m*, or *No terrain · on the reference
+  ellipsoid*) whose ⓘ gives the terrain source, tile and datum. Errors and
+  warnings — terrain not loaded there yet, a pole — are always shown. Then a view:
+  - **Overhead** — straight down the surface normal, north up;
+  - **Oblique** — 50° off vertical, from the south;
+  - **Surface** — at a person's eye height (2 m; less on a body a few km
+    across) just south of the place, looking north at it.
+
+  Distances scale with the body; *Advanced* overrides the altitude or slant
+  range (km) or the eye height (m).
+- **Right-click a surface** in the scene, both along the line of sight the
+  point was clicked on, keeping the view direction:
+  - **Zoom to here** cuts a quarter of the way in, each time: incremental,
+    for closing in step by step.
+  - **Fly to here** flies to a **fixed local view** of the point: a
+    hundredth of the body's radius away (`pointFrameRangeKm`: 64 km on
+    Earth, 34 km on Mars, 17 km on the Moon and Europa; 0.5–500 km).
+    Idempotent — a second use lands in the same place, it does not zoom
+    again. For another distance, Navigate's *Advanced* range.
+  - **Copy coordinates** copies `18.4447° N, 77.4508° E`: planetocentric,
+    east-positive, to the precision the pick resolves, which pastes back into
+    Navigate at the same place. The full readout (elevation, datum,
+    provenance) is the Point Probe's, not the menu's.
+
+  The line of sight is clear by construction, so neither goes round the
+  globe, and neither changes the camera frame. The menu offers
+  them only when the shared scene hit (#127) found a surface; a click into
+  space or on a spacecraft gets the ordinary menu. A right-drag is still
+  free look and opens no menu. A DSK shape model's surface is not offered
+  yet: its picks are in the model's own frame, which surface navigation does
+  not handle (#107).
+- **The pinned Point Probe**: *Fly to here* flies and *Frame here* cuts to
+  the same fixed local view of the pinned point, without re-entering it —
+  along the line of sight while the point faces the camera, otherwise
+  overhead at that range. Both are idempotent.
+
+Where it lands:
+
+- Coordinates resolve through `@cosmolabe/core`'s geographic navigation
+  against the body's declared physical shape: its terrain datum when it
+  streams terrain, otherwise its catalog radii — never the renderer's display
+  radius. A body with neither, an irregular (DSK) body, or one without a
+  rotation model is refused with the reason; so is planetographic latitude on
+  a triaxial body. Out-of-range input is refused, never clamped.
+- On a terrain body the place is raised onto the decoded terrain sample;
+  where the terrain has not loaded yet the place goes on the reference
+  surface for now and says so. The place stays anchored by its coordinates
+  while terrain streams: each time the body's CPU terrain — the cube grids on
+  a cube-sphere body, the tile sampler otherwise — decodes something new
+  there — the first tile after a cold cache, then finer tiles replacing a
+  coarse parent — it is re-sampled, and a change of more than half a metre
+  moves the place, its pivot and the camera onto it together, keeping the
+  framing. The anchor is let go when other navigation takes the camera. A
+  picked point is not re-sampled: it is the surface that was hit. A placement's eye is lifted clear of terrain known under
+  it, and the renderer's terrain clamp still applies.
+- A picked point is used exactly as picked, with its own source and datum.
+- The placement is a semantic viewpoint (#114): `center` the body, `frame`
+  `BodyFixed`, eye, target and up body-fixed. It re-resolves as the body
+  turns, so the place stays put as time runs.
+
+How it moves:
+
+- A flight to coordinates swings round the body on an arc that rises with
+  how far round it goes (half a radius up for the far side) and never drops
+  inside the smaller of its two end distances, so it cannot cut through the
+  globe. The rise is never more than half the distance flown, so a hop
+  between nearby places stays low over the ground rather than climbing tens
+  of km and dropping the terrain's detail on the way. Its path is in the
+  body's frame, so the landing tracks the ground as the body turns.
+- Asking again for the view the camera already holds does nothing (it only
+  re-anchors on the place), and asking again while a flight to that view is
+  under way lets that flight carry on, rather than leaving the ground and
+  coming back.
+- On landing (or a cut) the body is tracked and **the place is the orbit
+  pivot**: wheel zoom closes on it and drag orbits about it, instead of
+  snapping back to the body's centre. In free orbit the camera turns with
+  the body so the place stays where it is on screen. On a globe without
+  terrain the camera may come within 2 m of the ground about the pivot. Orbit
+  and zoom speed follow how far a drag or wheel step would carry the camera
+  against its height above the ground: about a point a few metres away they
+  stay responsive (a tenth of full speed from a 2 m eye height, full speed
+  overhead), where orbiting the body's centre from the same height is slowed
+  to the floor. The height is above the decoded terrain under the camera, so
+  a crater floor or a basin below the datum is ground, not "below the
+  surface". Any other navigation
+  ends the pivot; so does a right-drag or a movement key, as they end
+  tracking.
+- Manual input stops the flight where it is, facing the place — as for any
+  flight.
+- Time, the selection and measurements do not change. The view context shows
+  **Target** with the place's coordinates, compactly: 4 places (2 at a phone
+  width), latitude N/S and longitude E/W of the prime meridian (214.2342° E
+  reads 145.7658° W), never truncated — a narrow bar wraps instead. Its
+  tooltip has the coordinates as entered, at their full precision and in
+  their convention, and what surface the place is on. Its **×** (*Clear surface target*) lets go of the place
+  without moving the camera: no pivot, no terrain following, no readout; the
+  camera keeps its position and turns to face the body centre, which becomes
+  the orbit target again.
+  During a flight it stops the flight where it is. Selection, time and
+  panels stay as they are.
+
+### Diagnosing a landing
+
+`window.__surfaceNavDebug = true` in the browser console logs surface
+navigation as `[surface-nav] <event> {…}` (km throughout): each `navigate`
+(preset, range, eye lift, the target's height source and tile, the camera's
+clearance before, and the flight plan — rise, chord, duration, or `arrived` /
+`continuing`), each `terrain-refine` (terrain revision, new height, tile and
+shift, in flight or on the pivot), and a `tick` twice a second while on a
+target and for 8 s after: eye clearance above the CPU terrain under it, the
+surface clamp's correction that frame, eye-to-target range, cube-grid
+residency, and the rendered hit at the centre of the view.
 
 ## Related mechanisms
 

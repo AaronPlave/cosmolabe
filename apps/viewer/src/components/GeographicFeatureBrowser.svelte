@@ -1,27 +1,29 @@
 <script lang="ts">
   /**
-   * One layer's features: search, a field filter, an in-view filter and a
-   * virtualized list. Only the rows in view are rendered, so a 5,000-feature
-   * layer costs the same DOM as a ten-feature one; searching scans an
-   * in-memory index built once per layer.
+   * One layer's features: search, then a virtualized list; the property and
+   * in-view filters wait behind *Filter*. Only the rows in view are rendered,
+   * so a 5,000-feature layer costs the same DOM as a ten-feature one; searching
+   * scans an in-memory index built once per layer.
    *
-   * Click selects (the camera does not move), double-click or Enter flies to
-   * the feature. Arrow keys move the selection; it is kept in view.
+   * Click (or Enter) opens the feature, without moving the camera; its Feature
+   * view has Fly to. Arrow keys move through the list and highlight each feature in
+   * the scene, so a layer can be skimmed without leaving it.
    */
   import { MapPin, Spline, Hexagon, X } from 'lucide-svelte';
   import { geographicFeatureFields, type GeographicLayer, type GeographicFieldFilter, type GeographicSearchEntry } from '@cosmolabe/core';
   import { sameGeographicFeature } from '@cosmolabe/three';
   import * as Select from '$lib/components/ui/select';
+  import { geometryLabel } from '../lib/geographic-layer-labels';
   import { Input } from '$lib/components/ui/input';
   import {
-    geo, listedFeatures, selectFeature, hoverFeature, goToFeature, featureRef, setInViewOnly, syncSceneFilter,
+    geo, listedFeatures, selectFeature, hoverFeature, featureRef, setInViewOnly, syncSceneFilter,
   } from '../lib/geographic-layers.svelte';
 
   interface Props { layer: GeographicLayer }
   let { layer }: Props = $props();
 
   const ROW = 28;
-  const HEIGHT = 252;
+  const HEIGHT = 336;
   let scroller = $state<HTMLElement | null>(null);
   let scrollTop = $state(0);
 
@@ -30,17 +32,25 @@
   let rows = $derived(listedFeatures(layer));
   let first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - 4));
   let visibleRows = $derived(rows.slice(first, first + Math.ceil(HEIGHT / ROW) + 8));
-  let selectedIndex = $derived(geo.selected?.layerId === layer.id ? rows.findIndex((r) => r.feature.id === geo.selected!.featureId) : -1);
-  let selectedHidden = $derived(geo.selected?.layerId === layer.id && selectedIndex < 0);
+  /** The keyboard's row, highlighted in the list and the scene; it starts on the feature last opened. */
+  let cursor = $state(-1);
+  let recentIndex = $derived(geo.recent?.layerId === layer.id ? rows.findIndex((r) => r.feature.id === geo.recent!.featureId) : -1);
+  let filtering = $derived(!!geo.field || geo.inViewOnly || geo.sceneFilter);
+  let filterOpen = $state(false);
 
-  // A scene click or arrow key scrolls the selection into view.
-  $effect(() => {
-    void geo.reveal;
-    const index = selectedIndex;
+  function scrollTo(index: number) {
     if (!scroller || index < 0) return;
     const top = index * ROW;
     if (top < scroller.scrollTop) scroller.scrollTop = top;
     else if (top + ROW > scroller.scrollTop + HEIGHT) scroller.scrollTop = top + ROW - HEIGHT;
+  }
+  // Back from a feature lands on it.
+  $effect(() => {
+    void geo.reveal;
+    const index = recentIndex;
+    if (index < 0) return;
+    cursor = index;
+    scrollTo(index);
   });
 
   // The list's search applies to the scene too while that is on.
@@ -84,90 +94,89 @@
     if (!rows.length) return;
     const move = (index: number) => {
       e.preventDefault();
-      const entry = rows[Math.max(0, Math.min(rows.length - 1, index))];
-      selectFeature(featureRef(layer, entry.feature), { reveal: true });
+      cursor = Math.max(0, Math.min(rows.length - 1, index));
+      hoverFeature(featureRef(layer, rows[cursor].feature));
+      scrollTo(cursor);
     };
-    if (e.key === 'ArrowDown') move(selectedIndex + 1);
-    else if (e.key === 'ArrowUp') move(selectedIndex < 0 ? rows.length - 1 : selectedIndex - 1);
+    if (e.key === 'ArrowDown') move(cursor + 1);
+    else if (e.key === 'ArrowUp') move(cursor < 0 ? rows.length - 1 : cursor - 1);
     else if (e.key === 'Home') move(0);
     else if (e.key === 'End') move(rows.length - 1);
-    else if (e.key === 'Enter' && geo.selected && selectedIndex >= 0) { e.preventDefault(); goToFeature(geo.selected); }
+    else if (e.key === 'Enter' && rows[cursor]) { e.preventDefault(); select(rows[cursor]); }
   }
 
   const fieldValueLabel = (n: number) => n.toLocaleString();
 </script>
 
 <section class="feature-browser" aria-label="Features of {layer.name}">
-  <div class="ui-section-label head">Features · {layer.name}</div>
   <Input
     type="search"
     class="ui-control h-7 w-full"
-    placeholder="Search names and properties"
+    placeholder="Search this layer"
     aria-label="Search features"
     value={geo.query}
     oninput={(e) => (geo.query = (e.target as HTMLInputElement).value)}
   />
 
-  <div class="filters">
-    <Select.Root type="single" value={geo.field?.key ?? ''} onValueChange={setField}>
-      <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Filter field">
-        <Select.Value>{field ? field.label : 'Filter by property…'}</Select.Value>
-      </Select.Trigger>
-      <Select.Content align="start" class="max-h-64 rounded border border-border-strong bg-surface-2 p-1">
-        <Select.Item value="" label="No property filter" />
-        {#each fields as f (f.key)}
-          <Select.Item value={f.key} label={f.label}>{f.label} <span class="ui-meta">· {f.type}</span></Select.Item>
-        {/each}
-      </Select.Content>
-    </Select.Root>
-    {#if geo.field}
-      <button class="icon-button" onclick={() => (geo.field = null)} aria-label="Clear property filter" title="Clear property filter"><X size={12} /></button>
-    {/if}
-  </div>
-  {#if geo.field && field}
+  <details class="disclosure filter" bind:open={filterOpen}>
+    <summary>Filter{#if filtering}<span class="on"> · on</span>{/if}</summary>
     <div class="filters">
-      {#if geo.field.kind === 'category'}
-        <Select.Root type="single" value={geo.field.values[0] ?? ''} onValueChange={setCategory}>
-          <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="{field.label} value">
-            <Select.Value>{geo.field.values[0] ?? 'Any value'}</Select.Value>
-          </Select.Trigger>
-          <Select.Content align="start" class="max-h-64 rounded border border-border-strong bg-surface-2 p-1">
-            <Select.Item value="" label="Any value" />
-            {#each field.categories ?? [] as value (value)}<Select.Item {value} label={value} />{/each}
-          </Select.Content>
-        </Select.Root>
-      {:else if geo.field.kind === 'range'}
-        <Input type="number" class="ui-control h-7 min-w-0 flex-1" placeholder="min {field.min !== undefined ? fieldValueLabel(field.min) : ''}" aria-label="{field.label} minimum"
-          value={geo.field.min ?? ''} oninput={(e) => setRange('min', (e.target as HTMLInputElement).value)} />
-        <Input type="number" class="ui-control h-7 min-w-0 flex-1" placeholder="max {field.max !== undefined ? fieldValueLabel(field.max) : ''}" aria-label="{field.label} maximum"
-          value={geo.field.max ?? ''} oninput={(e) => setRange('max', (e.target as HTMLInputElement).value)} />
-      {:else if geo.field.kind === 'boolean'}
-        <Select.Root type="single" value={String(geo.field.value)} onValueChange={(v) => geo.field?.kind === 'boolean' && (geo.field = { ...geo.field, value: v === 'true' })}>
-          <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="{field.label} value">
-            <Select.Value>{geo.field.value ? 'true' : 'false'}</Select.Value>
-          </Select.Trigger>
-          <Select.Content align="start" class="rounded border border-border-strong bg-surface-2 p-1">
-            <Select.Item value="true" label="true" /><Select.Item value="false" label="false" />
-          </Select.Content>
-        </Select.Root>
-      {:else}
-        <Input type="text" class="ui-control h-7 min-w-0 flex-1" placeholder="{field.label} contains…" aria-label="{field.label} contains"
-          value={geo.field.contains} oninput={(e) => geo.field?.kind === 'text' && (geo.field = { ...geo.field, contains: (e.target as HTMLInputElement).value })} />
+      <Select.Root type="single" value={geo.field?.key ?? ''} onValueChange={setField}>
+        <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="Filter field">
+          <Select.Value>{field ? field.label : 'By property…'}</Select.Value>
+        </Select.Trigger>
+        <Select.Content align="start" class="max-h-64 rounded border border-border-strong bg-surface-2 p-1">
+          <Select.Item value="" label="Any property" />
+          {#each fields as f (f.key)}
+            <Select.Item value={f.key} label={f.label}>{f.label}</Select.Item>
+          {/each}
+        </Select.Content>
+      </Select.Root>
+      {#if geo.field}
+        <button class="icon-button" onclick={() => (geo.field = null)} aria-label="Clear property filter" title="Clear property filter"><X size={12} /></button>
       {/if}
     </div>
-  {/if}
-
-  <div class="toggles ui-meta">
-    <label title="List only features with a vertex in the current view">
-      <input type="checkbox" checked={geo.inViewOnly} onchange={(e) => setInViewOnly((e.target as HTMLInputElement).checked)} /> In view
+    {#if geo.field && field}
+      <div class="filters">
+        {#if geo.field.kind === 'category'}
+          <Select.Root type="single" value={geo.field.values[0] ?? ''} onValueChange={setCategory}>
+            <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="{field.label} value">
+              <Select.Value>{geo.field.values[0] ?? 'Any value'}</Select.Value>
+            </Select.Trigger>
+            <Select.Content align="start" class="max-h-64 rounded border border-border-strong bg-surface-2 p-1">
+              <Select.Item value="" label="Any value" />
+              {#each field.categories ?? [] as value (value)}<Select.Item {value} label={value} />{/each}
+            </Select.Content>
+          </Select.Root>
+        {:else if geo.field.kind === 'range'}
+          <Input type="number" class="ui-control h-7 min-w-0 flex-1" placeholder="min {field.min !== undefined ? fieldValueLabel(field.min) : ''}" aria-label="{field.label} minimum"
+            value={geo.field.min ?? ''} oninput={(e) => setRange('min', (e.target as HTMLInputElement).value)} />
+          <Input type="number" class="ui-control h-7 min-w-0 flex-1" placeholder="max {field.max !== undefined ? fieldValueLabel(field.max) : ''}" aria-label="{field.label} maximum"
+            value={geo.field.max ?? ''} oninput={(e) => setRange('max', (e.target as HTMLInputElement).value)} />
+        {:else if geo.field.kind === 'boolean'}
+          <Select.Root type="single" value={String(geo.field.value)} onValueChange={(v) => geo.field?.kind === 'boolean' && (geo.field = { ...geo.field, value: v === 'true' })}>
+            <Select.Trigger size="sm" class="ui-control h-7 min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary" aria-label="{field.label} value">
+              <Select.Value>{geo.field.value ? 'Yes' : 'No'}</Select.Value>
+            </Select.Trigger>
+            <Select.Content align="start" class="rounded border border-border-strong bg-surface-2 p-1">
+              <Select.Item value="true" label="Yes" /><Select.Item value="false" label="No" />
+            </Select.Content>
+          </Select.Root>
+        {:else}
+          <Input type="text" class="ui-control h-7 min-w-0 flex-1" placeholder="{field.label} contains…" aria-label="{field.label} contains"
+            value={geo.field.contains} oninput={(e) => geo.field?.kind === 'text' && (geo.field = { ...geo.field, contains: (e.target as HTMLInputElement).value })} />
+        {/if}
+      </div>
+    {/if}
+    <label class="toggle ui-meta" title="List only features with a vertex in the current view">
+      <input type="checkbox" checked={geo.inViewOnly} onchange={(e) => setInViewOnly((e.target as HTMLInputElement).checked)} /> Only features in view
     </label>
-    <label title="Draw only the matching features in the scene; hidden features cannot be picked">
-      <input type="checkbox" checked={geo.sceneFilter} onchange={(e) => (geo.sceneFilter = (e.target as HTMLInputElement).checked)} /> Filter scene too
+    <label class="toggle ui-meta" title="Features that do not match are not drawn, and cannot be clicked, until this is off">
+      <input type="checkbox" checked={geo.sceneFilter} onchange={(e) => (geo.sceneFilter = (e.target as HTMLInputElement).checked)} /> Hide non-matching features in 3D
     </label>
-    <span class="count" aria-live="polite">{rows.length.toLocaleString()} of {layer.features.length.toLocaleString()}</span>
-  </div>
-  {#if selectedHidden}
-    <p class="ui-helper text-text-muted">The selected feature is outside the current filter.</p>
+  </details>
+  {#if rows.length !== layer.features.length}
+    <div class="ui-meta count" aria-live="polite">{rows.length.toLocaleString()} of {layer.features.length.toLocaleString()} features</div>
   {/if}
 
   <div
@@ -180,7 +189,7 @@
     tabindex="0"
     role="listbox"
     aria-label="Features"
-    aria-activedescendant={selectedIndex >= 0 ? `geo-row-${selectedIndex}` : undefined}
+    aria-activedescendant={cursor >= 0 && cursor < rows.length ? `geo-row-${cursor}` : undefined}
   >
     {#if rows.length === 0}
       <p class="ui-helper empty">{layer.features.length ? 'No features match.' : 'This layer has no valid features.'}</p>
@@ -195,19 +204,18 @@
           <div
             id="geo-row-{index}"
             class="row"
-            class:selected={index === selectedIndex}
+            class:selected={index === cursor}
             class:hovered={sameGeographicFeature(geo.hovered, ref)}
             style:top="{index * ROW}px"
             role="option"
-            aria-selected={index === selectedIndex}
+            aria-selected={index === cursor}
             tabindex="-1"
             onclick={() => select(entry)}
-            ondblclick={() => goToFeature(ref)}
             onmouseenter={() => hoverFeature(ref)}
           >
             <Icon size={12} />
             <span class="name">{entry.name}</span>
-            <span class="ui-meta kind">{entry.feature.geometry.type}</span>
+            <span class="ui-meta kind">{geometryLabel(entry.feature.geometry.type)}</span>
           </div>
         {/each}
       </div>
@@ -220,29 +228,18 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid var(--color-border);
   }
+  .filter { border-top: none; padding-top: 0; display: flex; flex-direction: column; gap: 4px; }
+  .filter[open] { display: flex; }
+  .filter > :global(*:not(summary)) { margin-top: 4px; }
+  .on { color: #f0c040; }
+  .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .filters {
     display: flex;
     align-items: center;
     gap: 4px;
   }
-  .toggles {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 12px;
-  }
-  .toggles label {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-  }
   .count {
-    margin-left: auto;
     font-variant-numeric: tabular-nums;
   }
   .icon-button {

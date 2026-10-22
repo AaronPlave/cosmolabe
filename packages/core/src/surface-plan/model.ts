@@ -1,3 +1,4 @@
+import type { SurfaceSourceMetadata } from './source-metadata.js';
 import type { GeographicCoordinates, GeographicGeometry, GeographicLayerDefinition, GeoPosition, JsonValue } from '../geographic/model.js';
 import type { TerrainDatum } from '../geographic/coordinates.js';
 
@@ -67,6 +68,7 @@ export interface SurfaceSourceDescriptor {
     bytes?: number;
   };
   license: { name: string; attribution: string; url?: string };
+  metadata?: SurfaceSourceMetadata;
 }
 
 /** Explicit, content-addressed build inputs. Estimation never produces this implicitly. */

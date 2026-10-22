@@ -1,7 +1,9 @@
 /** Surface layers panel smoke (#198): the real viewer, catalog loader and UI,
- * driven with pointer and keyboard input. Locates and inspects a Mars feature
- * from the list and from the 3D scene, checks that list, scene highlight,
- * hiding and filtering agree, and captures desktop and phone layouts. */
+ * driven with pointer and keyboard input through the acceptance scenarios of
+ * docs/design/surface-layers-ux.md, counting user actions. Locates and
+ * inspects a Mars feature from the search and from the 3D scene, checks that
+ * the views follow the selection, that hiding and filtering agree with the
+ * scene, and captures desktop and phone layouts. */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -31,48 +33,68 @@ try {
     return { selected: v.selectedFeature, features: v.featureCount, tracked: window.renderer.cameraController.focusBody?.body.name ?? null };
   });
 
-  // Open the panel from the rail: both bodies, their layers, read-only provenance.
-  await page.getByRole('button', { name: 'Surface layers' }).click();
-  const panel = page.locator('[aria-label="Mars surface layers"]');
-  await panel.waitFor();
-  assert.ok(await page.locator('[aria-label="Moon surface layers"]').count());
-  const marsRow = panel.locator('li.layer').first();
-  results.marsLayer = (await marsRow.innerText()).replace(/\s+/g, ' ');
-  assert.match(results.marsLayer, /read-only/);
+  /** Counts what a user does: each click, key press or typed search is one action. */
+  const counted = {};
+  let scenario = null;
+  const act = async (fn) => { counted[scenario] = (counted[scenario] ?? 0) + 1; await fn(); };
+  const marsList = page.locator('[aria-label="Mars surface layers"]');
+  const details = page.locator('[aria-label="Selected feature"]');
 
-  // Locate a feature from the list: search, select (no camera motion), then fly.
-  await panel.getByRole('button', { name: /List features of/ }).first().click();
-  const search = page.getByRole('searchbox', { name: 'Search features' });
-  await search.fill('traverse');
-  const options = page.getByRole('option');
-  await page.waitForFunction(() => document.querySelectorAll('[role="option"]').length >= 1);
-  results.searchRows = await options.allInnerTexts();
-  assert.ok(results.searchRows.every(row => /traverse/i.test(row)), 'search keeps only matching rows');
+  // Scenario 1: show a hidden layer and open a named feature.
+  // Set-up (not counted): the Jezero layer starts hidden.
+  await page.getByRole('button', { name: 'Surface layers' }).click();
+  await marsList.waitFor();
+  assert.ok(await page.locator('[aria-label="Moon surface layers"]').count());
+  results.marsLayer = (await marsList.locator('li.layer').first().innerText()).replace(/\s+/g, ' ');
+  await marsList.getByRole('button', { name: 'Hide Jezero synthetic science' }).click();
+  await page.getByRole('button', { name: 'Close Surface layers' }).click();
+  scenario = 'showLayerAndOpenFeature';
   const before = await page.evaluate(() => window.renderer.camera.position.toArray());
-  await options.first().click();
-  const afterSelect = await page.evaluate(() => window.renderer.camera.position.toArray());
-  assert.deepEqual(afterSelect, before, 'selecting from the list does not move the camera');
+  await act(() => page.getByRole('button', { name: 'Surface layers' }).click());
+  await act(() => marsList.getByRole('button', { name: 'Show Jezero synthetic science' }).click());
+  await act(() => page.getByRole('searchbox', { name: 'Search all features' }).fill('traverse'));
+  const results1 = page.getByRole('list', { name: 'Search results' }).getByRole('button');
+  results.searchRows = (await results1.allInnerTexts()).map(r => r.replace(/\s+/g, ' '));
+  assert.ok(results.searchRows.length >= 1 && results.searchRows.every(row => /traverse/i.test(row)), 'search keeps only matching features');
+  await act(() => results1.first().click());
+  await details.waitFor();
+  assert.deepEqual(await page.evaluate(() => window.renderer.camera.position.toArray()), before, 'opening a feature does not move the camera');
   let state = await scene();
   assert.equal(state.selected?.layerId, 'jezero-science');
-  const details = page.locator('[aria-label="Selected feature"]');
   results.listDetails = (await details.innerText()).replace(/\s+/g, ' ');
-  assert.match(results.listDetails, /jezero-science \/ string:/);
-  assert.match(results.listDetails, /Planetocentric|Planetographic/);
-  await details.getByRole('button', { name: /Fly to/ }).click();
-  await page.waitForTimeout(2500);
-  state = await scene();
-  assert.equal(state.tracked, 'Mars');
-  await page.screenshot({ path: `${output}/list-select-fly.png` });
+  assert.match(results.listDetails, /traverse/);
+  assert.equal(await marsList.count(), 0, 'the Feature view replaces the list');
+  await page.screenshot({ path: `${output}/feature-view.png` });
+  // Back lands on the layer, then the list.
+  await page.getByRole('button', { name: /^Jezero synthetic science$/ }).first().click();
+  await page.locator('[aria-label="Layer Jezero synthetic science"]').waitFor();
+  assert.equal((await scene()).selected, null, 'back clears the selection');
+  await page.locator('[aria-label="Layer Jezero synthetic science"] details', { hasText: 'About this layer' }).locator('summary').click();
+  results.about = (await page.locator('[aria-label="Layer Jezero synthetic science"] details', { hasText: 'About this layer' }).innerText()).replace(/\s+/g, ' ');
+  assert.match(results.about, /Planetocentric|Planetographic/);
+  await page.screenshot({ path: `${output}/layer-view.png` });
 
-  // Select from the scene: click the science target where it is drawn.
-  await search.fill('');
-  // Escape typed into a text field stays with the field; from the scene it clears the selection.
-  await search.press('Escape');
-  assert.notEqual((await scene()).selected, null);
-  await page.evaluate(() => document.activeElement.blur());
+  // Keyboard: arrows skim the list (highlighting in 3D), Enter opens.
+  await page.getByRole('listbox', { name: 'Features' }).focus();
+  await page.keyboard.press('ArrowDown');
+  assert.equal((await scene()).selected, null, 'skimming does not select');
+  assert.equal(await page.locator('[role="option"][aria-selected="true"]').count(), 1, 'the skimmed row is marked');
+  await page.keyboard.press('Enter');
+  await details.waitFor();
+  results.keyboardSelected = (await scene()).selected;
+  assert.ok(results.keyboardSelected);
+  // Next steps through the layer without going back.
+  await details.getByRole('button', { name: 'Next feature' }).click();
+  assert.notEqual((await scene()).selected?.featureId, results.keyboardSelected.featureId);
+  await details.getByRole('button', { name: 'Fly to' }).click();
+  await page.waitForTimeout(2500);
+  assert.equal((await scene()).tracked, 'Mars');
+  await page.screenshot({ path: `${output}/list-select-fly.png` });
   await page.keyboard.press('Escape');
-  state = await scene();
-  assert.equal(state.selected, null, 'Escape clears the feature selection');
+
+  // Scenario 2: select a shape in 3D, fly to it from its callout, open it.
+  scenario = 'select3dFlyInspect';
+  await page.getByRole('button', { name: 'Close Surface layers' }).click();
   const target = await page.evaluate(() => {
     const layer = window.renderer.universe.geographicLayers.get('jezero-science');
     const feature = layer.features.find(f => f.geometry.type === 'Point');
@@ -80,45 +102,45 @@ try {
     return { id: feature.id, ...p };
   });
   assert.ok(target.facing && target.inFront, 'target is on the visible side after flying there');
-  await page.mouse.click(target.x, target.y);
+  await act(() => page.mouse.click(target.x, target.y));
   await page.waitForTimeout(300);
   state = await scene();
   results.sceneClick = { target, selected: state.selected };
   assert.equal(state.selected?.featureId, target.id, '3D click selects the drawn feature');
-  assert.match(await details.innerText(), new RegExp(target.id.replace(':', '\\:')));
-  assert.equal(await page.locator('[role="option"][aria-selected="true"]').count(), 1, 'list highlights the scene selection');
-  await page.waitForTimeout(300);
+  assert.equal(await page.locator('[aria-label="Mars surface layers"], [aria-label="Selected feature"]').count(), 0, 'a scene click opens nothing');
+  const cameraBefore = await page.evaluate(() => window.renderer.camera.position.toArray());
+  await act(() => page.getByRole('button', { name: /^Fly to / }).click());
+  await page.waitForTimeout(2500);
+  assert.notDeepEqual(await page.evaluate(() => window.renderer.camera.position.toArray()), cameraBefore, 'the callout flies');
   await page.screenshot({ path: `${output}/scene-select-callout.png` });
+  await act(() => page.locator('.callout .label').click());
+  await details.waitFor();
+  assert.match(await details.innerText(), /science/i);
 
-  // Keyboard navigation in the list moves the shared selection.
-  await page.getByRole('listbox', { name: 'Features' }).focus();
-  await page.keyboard.press('ArrowDown');
-  state = await scene();
-  results.keyboardSelected = state.selected;
-  assert.notEqual(state.selected?.featureId, target.id);
+  // Back lands on the layer; hiding it takes its features out of the scene.
+  await page.getByRole('button', { name: 'Jezero synthetic science', exact: true }).click();
+  assert.equal((await scene()).selected, null);
+  const drawnBefore = (await scene()).features;
+  await page.getByRole('button', { name: 'Hide Jezero synthetic science' }).click();
+  await page.waitForFunction((n) => window.renderer.geographicVectors.featureCount < n, drawnBefore);
+  await page.getByRole('button', { name: 'Show Jezero synthetic science' }).click();
+  await page.waitForFunction((n) => window.renderer.geographicVectors.featureCount === n, drawnBefore);
 
-  // Hiding the layer removes its draws and pick targets and clears the selection.
-  const featuresBefore = state.features;
-  await marsRow.getByRole('checkbox').uncheck();
-  // Applied on the renderer's next frame.
-  await page.waitForFunction(() => window.renderer.geographicVectors.selectedFeature === null);
-  state = await scene();
-  assert.equal(state.selected, null);
-  assert.ok(state.features < featuresBefore, 'hidden layer leaves the drawn set');
-  results.hideNotice = await page.locator('.notice').innerText();
-  assert.match(results.hideNotice, /hidden/);
-  await marsRow.getByRole('checkbox').check();
-
-  // A scene filter draws only the listed features.
-  await search.fill('science');
-  await page.getByLabel('Filter scene too').check();
+  // Filters wait behind "Filter"; hiding non-matching features in 3D.
+  await page.getByRole('searchbox', { name: 'Search features' }).fill('science');
+  await page.locator('summary', { hasText: 'Filter' }).click();
+  await page.getByLabel('Hide non-matching features in 3D').check();
   await page.waitForFunction(() => window.renderer.geographicVectors.featureFilter('jezero-science') !== null);
   await page.waitForTimeout(1000);
   state = await scene();
-  results.sceneFilter = { drawn: state.features, listed: await options.count() };
+  results.sceneFilter = { drawn: state.features, listed: await page.getByRole('option').count() };
   assert.equal(await page.evaluate(() => window.renderer.geographicVectors.featureFilter('jezero-science')?.size), results.sceneFilter.listed);
-  await page.getByLabel('Filter scene too').uncheck();
-  await search.fill('');
+  await page.getByLabel('Hide non-matching features in 3D').uncheck();
+  await page.getByRole('searchbox', { name: 'Search features' }).fill('');
+
+  results.actions = counted;
+  assert.ok(counted.showLayerAndOpenFeature <= 4, `scenario 1 in ${counted.showLayerAndOpenFeature} actions`);
+  assert.ok(counted.select3dFlyInspect <= 3, `scenario 2 in ${counted.select3dFlyInspect} actions`);
 
   // Phone layout: the panel is the one sheet.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -134,9 +156,10 @@ try {
   await page.goto(`${base}?catalog=test-catalogs/geographic-vectors-jezero-dense`);
   await page.getByRole('button', { name: 'Surface layers' }).waitFor();
   await page.waitForFunction(() => window.renderer?.geographicVectors.featureCount > 0);
-  if (!(await page.locator('[aria-label="Mars surface layers"]').count())) await page.getByRole('button', { name: 'Surface layers' }).click();
-  await page.locator('[aria-label="Mars surface layers"]').waitFor();
-  const denseCount = await page.locator('.feature-browser .count').innerText();
+  if (!(await page.locator('.feature-browser').count())) await page.getByRole('button', { name: 'Surface layers' }).click();
+  // The only layer opens straight to its features.
+  await page.locator('.feature-browser').waitFor();
+  const denseCount = await page.locator('.layer-view .meta').innerText();
   const renderedRows = await page.getByRole('option').count();
   const listbox = page.getByRole('listbox', { name: 'Features' });
   await listbox.evaluate(el => { el.scrollTop = el.scrollHeight; el.dispatchEvent(new Event('scroll')); });
@@ -146,7 +169,7 @@ try {
   await page.getByRole('searchbox', { name: 'Search features' }).fill('target-1599');
   await page.waitForFunction(() => document.querySelectorAll('[role="option"]').length <= 5);
   results.dense = { count: denseCount, renderedRows, lastRow: lastRow.split('\n')[0], searchMs: Date.now() - started };
-  assert.match(denseCount, /1,601 of 1,601/);
+  assert.match(denseCount, /1,601 features/);
   assert.ok(renderedRows < 40, 'only rows in view are rendered');
   await page.screenshot({ path: `${output}/dense-search.png` });
 

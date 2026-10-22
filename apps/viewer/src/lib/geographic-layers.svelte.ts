@@ -5,6 +5,11 @@
  * same `(layerId, featureId, bodyName)` reference, the renderer highlights it,
  * and the panel shows its details.
  *
+ * The selection also decides what the panel shows (docs/design/surface-layers-ux.md):
+ * the selected feature; else the imagery or layer being looked at; else the
+ * list of layers. Back from a feature clears the selection and lands on its
+ * layer; back from a layer returns to the list.
+ *
  * Layer visibility and the scene filter are session presentation over the
  * imported data; the layers themselves are never modified. Everything resets
  * when a scene loads.
@@ -28,6 +33,14 @@ export const geo = $state({
   hovered: null as GeographicFeatureRef | null,
   /** The layer whose features are listed. */
   activeLayerId: null as string | null,
+  /** The body whose imagery is shown, instead of a layer. */
+  imageryBody: null as string | null,
+  /** Search across every layer, in the list of layers. */
+  globalQuery: '',
+  /** Open "About this layer" when the layer is next shown. */
+  showAbout: false,
+  /** The feature last shown, so the list returns to it after Back. */
+  recent: null as GeographicFeatureRef | null,
   query: '',
   field: null as GeographicFieldFilter | null,
   /** List only features with a vertex or anchor in the current view. */
@@ -41,6 +54,94 @@ export const geo = $state({
   /** Bumped when the list should scroll the selection into view. */
   reveal: 0,
 });
+
+// ── What the panel shows ──
+
+export type SurfacePanelView =
+  | { kind: 'feature'; layer: GeographicLayer; feature: GeographicFeature }
+  | { kind: 'imagery'; body: string }
+  | { kind: 'layer'; layer: GeographicLayer }
+  | { kind: 'layers' };
+
+/** The selection decides the view: feature, else imagery or layer, else the list. */
+export function surfacePanelView(): SurfacePanelView {
+  const found = findFeature(geo.selected);
+  if (found) return { kind: 'feature', ...found };
+  if (geo.imageryBody) return { kind: 'imagery', body: geo.imageryBody };
+  const layer = geographicLayer(geo.activeLayerId);
+  return layer ? { kind: 'layer', layer } : { kind: 'layers' };
+}
+
+/** Show one layer: its features, appearance and information. */
+export function openLayer(id: string, options: { about?: boolean } = {}): void {
+  if (geo.selected) selectFeature(null);
+  geo.imageryBody = null;
+  geo.showAbout = !!options.about;
+  browseLayer(id);
+}
+
+export function openImagery(body: string): void {
+  if (geo.selected) selectFeature(null);
+  geo.imageryBody = body;
+}
+
+/** Back to the list of layers. */
+export function showLayerList(): void {
+  if (geo.selected) selectFeature(null);
+  geo.imageryBody = null;
+  browseLayer(null);
+}
+
+/** Back from a feature to its layer; the list scrolls back to it. */
+export function backToLayer(): void {
+  const ref = geo.selected;
+  if (!ref) return;
+  geo.recent = ref;
+  selectFeature(null);
+  if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
+}
+
+/** The previous or next feature of the layer's current list, from the selected one. */
+export function stepFeature(delta: -1 | 1): boolean {
+  const layer = geographicLayer(geo.selected?.layerId ?? null);
+  if (!layer) return false;
+  const rows = listedFeatures(layer);
+  const index = rows.findIndex((r) => r.feature.id === geo.selected!.featureId);
+  const next = rows[index < 0 ? 0 : index + delta];
+  if (!next) return false;
+  selectFeature(featureRef(layer, next.feature));
+  return true;
+}
+
+/** Where `stepFeature` can go: [has previous, has next]. */
+export function featureSteps(): [boolean, boolean] {
+  const layer = geographicLayer(geo.selected?.layerId ?? null);
+  if (!layer) return [false, false];
+  const rows = listedFeatures(layer);
+  const index = rows.findIndex((r) => r.feature.id === geo.selected!.featureId);
+  return index < 0 ? [rows.length > 0, rows.length > 0] : [index > 0, index < rows.length - 1];
+}
+
+/** At most this many matches are listed by the search across layers. */
+export const GLOBAL_SEARCH_LIMIT = 50;
+
+/** Features of every layer matching the search across layers, visible layers first. */
+export function searchAllFeatures(text: string): { matches: { layer: GeographicLayer; entry: GeographicSearchEntry }[]; total: number } {
+  void geo.revision;
+  const query = { text, field: null };
+  if (geographicQueryEmpty(query)) return { matches: [], total: 0 };
+  const layers = [...(universe()?.geographicLayers.layers ?? [])].sort((a, b) => Number(layerVisible(b.id)) - Number(layerVisible(a.id)));
+  const matches: { layer: GeographicLayer; entry: GeographicSearchEntry }[] = [];
+  let total = 0;
+  for (const layer of layers) {
+    for (const entry of geographicSearchIndex(layer)) {
+      if (!geographicQueryMatches(entry, query)) continue;
+      total++;
+      if (matches.length < GLOBAL_SEARCH_LIMIT) matches.push({ layer, entry });
+    }
+  }
+  return { matches, total };
+}
 
 let unsubscribers: (() => void)[] = [];
 /** Layers this module set a scene filter on, so it can clear exactly those. */
@@ -267,7 +368,14 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
   }
   renderer.geographicVectors.setSelected(ref);
   geo.selected = ref;
+  if (ref) followSelection(ref);
   if (ref && options.reveal) geo.reveal++;
+}
+
+/** The panel's layer is the selected feature's, so Back lands there. */
+function followSelection(ref: GeographicFeatureRef): void {
+  geo.imageryBody = null;
+  if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
 }
 
 export function clearGeographicSelection(): boolean {
@@ -276,13 +384,12 @@ export function clearGeographicSelection(): boolean {
   return true;
 }
 
-/** Open Surface layers on the selected feature: its layer listed, the row in view. */
+/** Open Surface layers on the selected feature. */
 export function showSelectedDetails(): void {
   const ref = geo.selected;
   if (!ref) return;
   if (!isToolOpen('layers')) openTool('layers');
-  if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
-  geo.reveal++;
+  followSelection(ref);
 }
 
 export function hoverFeature(ref: GeographicFeatureRef | null): void {
@@ -326,6 +433,10 @@ function resetForScene(): void {
   geo.selected = null;
   geo.hovered = null;
   geo.activeLayerId = null;
+  geo.imageryBody = null;
+  geo.globalQuery = '';
+  geo.showAbout = false;
+  geo.recent = null;
   geo.query = '';
   geo.field = null;
   geo.inViewOnly = false;
@@ -352,15 +463,10 @@ onViewerEvent('load', () => {
   const ready = scene.geographicLayers.layers;
   geo.activeLayerId = ready.length === 1 ? ready[0].id : null;
   unsubscribers.push(
-    renderer.events.on('geographic:select', (ref) => { geo.selected = ref; }),
-    renderer.events.on('geographic:click', (ref) => {
-      // A scene click selects without opening anything over the scene; an open
-      // panel lists the feature's layer and scrolls to it. The callout opens it.
-      if (!isToolOpen('layers')) return;
-      if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
-      geo.notice = '';
-      geo.reveal++;
-    }),
+    // A scene click selects without opening anything over the scene; an open
+    // panel shows the feature. The callout opens a closed panel.
+    renderer.events.on('geographic:select', (ref) => { geo.selected = ref; if (ref) followSelection(ref); }),
+    renderer.events.on('geographic:click', () => { geo.notice = ''; }),
     renderer.events.on('geographic:hover', (ref) => { geo.hovered = ref; }),
     scene.events.on('geographic:changed', () => { geo.revision++; }),
   );

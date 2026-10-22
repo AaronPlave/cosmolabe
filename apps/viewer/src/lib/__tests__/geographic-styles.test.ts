@@ -26,6 +26,7 @@ vi.stubGlobal('localStorage', storage);
 const {
   geoStyles, setLayerStyle, updateLayerStyle, openStyleEditor, editedSinceOpen, revertStyleEdits, resetLayerStyle,
   setFeatureOverride, featureOverride, featureOverrideCount, moveLayer, layerRank, hasLocalStyle,
+  setLayerColor, layerColor, setLayerLineWidth, STYLE_PRESETS,
 } = await import('../geographic-styles.svelte');
 
 function layer(id: string, catalog = 'https://x/scene.json'): GeographicLayer {
@@ -138,5 +139,28 @@ describe('draw order', () => {
     expect(renderer!.geographicVectors.layerOrder).toEqual(['regions', 'science']);
     moveLayer('regions', true);
     expect(layerRank('regions').index).toBe(0);
+  });
+});
+
+describe('presets and common adjustments', () => {
+  it('one colour styles every part and stops colouring by a property', () => {
+    const science = universe!.geographicLayers.get('science')!;
+    expect(layerColor(science)).toBe('#59c5dd');
+    updateLayerStyle('science', (s) => { s.rule = { kind: 'categorical', field: 'kind', colors: { rock: '#ff0000' } }; });
+    setLayerColor('science', STYLE_PRESETS[1].color);
+    const style = geoStyles.byLayer.science;
+    expect(style.rule).toBeNull();
+    expect([style.point?.color, style.line?.color, style.polygon?.fillColor, style.polygon?.outlineColor]).toEqual(Array(4).fill('#e69f00'));
+    expect(layerColor(science)).toBe('#e69f00');
+  });
+
+  it('line width sets lines and area outlines together, and previews in place', () => {
+    setLayerLineWidth('science', 4);
+    expect(geoStyles.byLayer.science.line?.widthPx).toBe(4);
+    expect(geoStyles.byLayer.science.polygon?.outlineWidthPx).toBe(4);
+    vi.advanceTimersByTime(100);
+    expect(renderer!.geographicVectors.getStyle('science')?.line?.widthPx).toBe(4);
+    resetLayerStyle('science');
+    expect(hasLocalStyle('science')).toBe(false);
   });
 });
