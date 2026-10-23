@@ -361,7 +361,7 @@ async function main() {
         await Promise.race([
           page
             .goto(sceneUrl, { waitUntil: 'load' })
-            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, { timeout: 120000 })),
+            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, null, { timeout: 120000 })),
           fatalHttp,
         ]);
       } catch (err) {
@@ -400,7 +400,7 @@ async function main() {
       // to outlast.
       let assetSummary = null;
       try {
-        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, {
+        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, {
           timeout: ASSET_TIMEOUT_MS,
         });
         assetSummary = await page.evaluate(() => window.__cosmolabe.assetSummary);
