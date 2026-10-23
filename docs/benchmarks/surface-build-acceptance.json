@@ -292,10 +292,45 @@
     "dataOrigin": "https://data.aaronplave.com",
     "deployedViewerOriginAccepted": true,
     "catalogDeployed": true,
-    "deployedViewerUrl": "https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "deployedViewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
     "deployedViewerOrigin": "https://data.aaronplave.com",
     "mainSiteChanged": false,
     "liveRollback": "passed"
   },
-  "productionReadinessScope": "Experimental deployed preview accepted; this does not certify mission placement, global native imagery, unknown absolute registration or the disclosed mixed-LOD CPU/rendered gap."
+  "productionReadinessScope": "Experimental deployed preview accepted; this does not certify mission placement, global native imagery, unknown absolute registration or the disclosed mixed-LOD CPU/rendered gap.",
+  "surfaceAppearanceReview": {
+    "feedback": "https://github.com/AaronPlave/cosmolabe/pull/287#issuecomment-6369592156",
+    "implemented": true,
+    "browser": "mars-appearance.json",
+    "positiveKnownOblateProduct": true,
+    "malformedMetadataAndMeshRejected": true,
+    "publicHeights": "ellipsoid / geodetic-normal",
+    "payloadRangeValidation": "radial offsets from geometry.referenceRadiusKm, separate from displayed normal height",
+    "capabilityStates": [
+      "loading",
+      "ready",
+      "unsupported-product",
+      "unsupported-reference",
+      "validation-failed"
+    ],
+    "focusedTestsPassed": 72,
+    "newOblateTests": 15,
+    "fullTypecheck": "passed",
+    "changedFileLint": "passed",
+    "physicalGpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "checkedVertices": 297,
+    "maxNormalHeightErrorKm": 3.0419414542848244e-07,
+    "renderedTintPickKm": -2.235144019134629,
+    "coloredTerrainPixels": 635947,
+    "unchangedPhysicalBuffers": true,
+    "unchangedCpuGrids": true,
+    "styleOnlyDataRequests": 0,
+    "compactWidthPx": 390,
+    "errors": [],
+    "scientificProductRebuilt": false,
+    "limits": [
+      "Physical desktop GPU; compact emulation is not real mobile hardware.",
+      "Existing coarse contour/relief quality, source uncertainty and CPU/rendered mixed-LOD gap remain unchanged."
+    ]
+  }
 }

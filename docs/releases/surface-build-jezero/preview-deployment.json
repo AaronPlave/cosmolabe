@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "identity": "ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df",
-  "prefix": "previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/",
-  "viewerUrl": "https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+  "identity": "48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e",
+  "prefix": "previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/",
+  "viewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
   "previousPrefixAbsent": true,
   "entries": [
     {
@@ -36,9 +36,9 @@
       "contentType": "text/css"
     },
     {
-      "path": "assets/index-TCFakVCj.js",
-      "bytes": 2645392,
-      "sha256": "a0133d6df23c33431f2aa75cb72fb117d71ce18c18cd773305f119e7beaf32ee",
+      "path": "assets/index-K7NxJt_K.js",
+      "bytes": 2648787,
+      "sha256": "fa5c41515f590d7a9358d867ee8ad74782e2faa8fd75efcdabb3b3e44c83773a",
       "contentType": "application/javascript"
     },
     {
@@ -78,9 +78,9 @@
       "contentType": "application/octet-stream"
     },
     {
-      "path": "assets/script-editor-DD8VI376.js",
+      "path": "assets/script-editor-C2xG118R.js",
       "bytes": 364176,
-      "sha256": "56819542f760314880fa7d8481fc1b427a0a642f22411d033b4490e3adda5ead",
+      "sha256": "17b5bd64b125acd1e91387e841be2cf412204f3e7d69623fbb658fc31677c79a",
       "contentType": "application/javascript"
     },
     {
@@ -134,7 +134,7 @@
     {
       "path": "index.html",
       "bytes": 821,
-      "sha256": "6f3c9bc4f09a09885b7062a02e33e0faf559fe7b093b1ca564409da08be90e86",
+      "sha256": "1468ad9eb514e36fc2c3e1b2482b516c63919469d91187bc8bb842fddb8575e7",
       "contentType": "text/html; charset=utf-8"
     },
     {
@@ -151,7 +151,7 @@
     }
   ],
   "objectCount": 24,
-  "bytes": 5079452,
+  "bytes": 5082847,
   "mainSiteChanged": false,
   "immutableProductsChanged": false
 }

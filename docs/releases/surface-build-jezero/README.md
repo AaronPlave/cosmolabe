@@ -91,11 +91,11 @@ SURFACE_HOSTED=1 CL_VIEWER_URL=http://127.0.0.1:5174/ \
 
 ## Authorized deployed preview
 
-The user authorized catalog and deployment on 2026-10-23. [Open the production preview](https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot). The main GitHub Pages site allows only main-branch deployment, so this branch is built into an isolated R2 preview rather than replacing that site. No environment policy was changed. The preview contains only viewer assets and the reviewed experimental catalog; it has no mission catalogs, default catalog migration or mission placement changes.
+The user authorized catalog and deployment on 2026-10-23. [Open the production preview](https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot). The main GitHub Pages site allows only main-branch deployment, so this branch is built into an isolated R2 preview rather than replacing that site. No environment policy was changed. The preview contains only viewer assets and the reviewed experimental catalog; it has no mission catalogs, default catalog migration or mission placement changes.
 
-`preview-deployment.json` records the exact 24 objects / 5,079,452 bytes, SHA-256 hashes, MIME types, content-addressed prefix and URL. All files passed public HTTP hash/type/cache checks. Application assets use `no-store`; immutable scientific products retain their existing cache policy. The preview and Mars data share `https://data.aaronplave.com`; this acceptance does not replace the separately recorded cross-origin CORS verification for the main site and localhost.
+`preview-deployment.json` records the exact 24 objects / 5,082,847 bytes, SHA-256 hashes, MIME types, content-addressed prefix and URL. All files passed public HTTP hash/type/cache checks. Application assets use `no-store`; immutable scientific products retain their existing cache policy. The preview and Mars data share `https://data.aaronplave.com`; this acceptance does not replace the separately recorded cross-origin CORS verification for the main site and localhost.
 
-`deployed-browser.json`, `deployed-cold-warm.json` and `deployed-*.png` record actual production-build Chromium acceptance on Apple M4 Max / ANGLE Metal. No interception, dev-source imports or test mode: near/far imagery, L16 over L11 geometry, mandatory-base coverage, opacity/hiding/L13 fallback/restoration, physical picking, hover alignment, actual layer Fly to, attribution, cold/warm loads and no page/product HTTP errors. The warm reload reused 129 of 140 requests from browser cache. Physical/source uncertainty and desktop-only hardware limits above still apply.
+`deployed-browser.json`, `deployed-cold-warm.json` and `deployed-*.png` record actual production-build Chromium acceptance on Apple M4 Max / ANGLE Metal. No interception, dev-source imports or test mode: near/far imagery, L16 over L11 geometry, mandatory-base coverage, opacity/hiding/L13 fallback/restoration, physical picking, hover alignment, actual layer Fly to, attribution, cold/warm loads and no page/product HTTP errors. The warm reload reused 136 of 147 requests from browser cache. Physical/source uncertainty and desktop-only hardware limits above still apply.
 
 `preview-rollback.json` records a live rollback and restoration: hash-check the exact preview objects, delete only that new prefix, verify empty storage and public entry-point 404, then republish and publicly verify identical bytes. The main site and immutable scientific products stay intact. Prior deployed state was absence. No merge or issue closure is authorized; the PR remains draft and #251 open.
 
@@ -103,19 +103,37 @@ Rebuild the preview without bundling unrelated local catalogs:
 
 ```sh
 npm run build
-(cd apps/viewer && npx vite build --base=./ --outDir ../../work/surface-build/deployed-preview --emptyOutDir)
-mkdir -p work/surface-build/deployed-preview/test-catalogs/experiments
-cp apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json work/surface-build/deployed-preview/test-catalogs/experiments/
-node scripts/surface-build/deploy-preview.mjs plan work/surface-build/deployed-preview work/surface-build/new-preview-plan.json
+(cd apps/viewer && npx vite build --base=./ --outDir ../../work/surface-build/mars-appearance-final-preview --emptyOutDir)
+mkdir -p work/surface-build/mars-appearance-final-preview/test-catalogs/experiments
+cp apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json work/surface-build/mars-appearance-final-preview/test-catalogs/experiments/
+node scripts/surface-build/deploy-preview.mjs plan work/surface-build/mars-appearance-final-preview work/surface-build/new-preview-plan.json
 ```
 
 Check a new plan before publication. Reproduction may produce a different asset hash with a changed toolchain; the recorded release rejects any changed inventory. With the exact recorded build directory and existing private R2 credentials, publish or rollback the recorded preview:
 
 ```sh
-node scripts/surface-build/deploy-preview.mjs publish work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
-node scripts/surface-build/deploy-preview.mjs rollback work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
+node scripts/surface-build/deploy-preview.mjs publish work/surface-build/mars-appearance-final-preview docs/releases/surface-build-jezero/preview-deployment.json
+node scripts/surface-build/deploy-preview.mjs rollback work/surface-build/mars-appearance-final-preview docs/releases/surface-build-jezero/preview-deployment.json
 # Restore immediately after a rollback rehearsal:
-node scripts/surface-build/deploy-preview.mjs publish work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
+node scripts/surface-build/deploy-preview.mjs publish work/surface-build/mars-appearance-final-preview docs/releases/surface-build-jezero/preview-deployment.json
 ```
 
 Run production-browser checks with `CL_VIEWER_URL` set to the preview's `index.html` URL and `SURFACE_HOSTED=1` using `scripts/test-surface-build-pilot.mjs`. Run `scripts/test-surface-build-cold-warm.mjs VIEWER_URL OUT_DIR` with the full catalog query URL for cold/warm acceptance. These scripts use the ordinary runtime renderer/control interface; no Vite development module is needed.
+
+## Ellipsoidal Mars Surface Appearance review
+
+The [review finding](https://github.com/AaronPlave/cosmolabe/pull/287#issuecomment-6369592156) is fixed in this PR. Known oblate products now require matching body/grid datum and mesh/grid revision, a recognized builder/source record, the explicit radial-lattice reference radius and encoding, finite range, metre transforms and valid ground topology. Geometry is checked against the stored radial-offset range; elevation tint, contours, hillshade and rendered range picks retain the declared geodetic-normal datum. Generic 3D Tiles remain unsupported. Disabled controls distinguish loading, unsupported product, unsupported reference/encoding and failed validation.
+
+`mars-appearance-acceptance.json` and `mars-appearance.json` record the automated and real-product proof: 72 focused tests, including 15 new oblate cases; full typecheck and changed-file lint; production-build M4 Max / Metal browser checks of actual elevation colors, contours, neutral gray, hillshade, displayed-height picking, styled native/coarse imagery fallback, off/on restoration and 390 px controls. All position/index/normal and CPU-grid buffer identities and bytes were preserved; styles issued no data requests. Independent sampled normal-height comparisons cover 297 source vertices, with maximum float32 attribute error 0.0000003042 km; radial offsets differ by kilometres. The rendered tint pick was approximately -2.235144 km normal height. `mars-*.png` show the real controls and rendering. No scientific product was rebuilt or overwritten.
+
+The original preview inventory and rollback are retained as `preview-deployment-initial.json` and `preview-rollback-initial.json`; the original URL remains available. Current `preview-deployment.json`, `preview-rollback.json`, deployed browser/cold-warm evidence and captures refer to the updated appearance-capable preview. Its 24 objects total 5,082,847 bytes. Live rollback and exact restoration were repeated for this release.
+
+Cold/warm native-detail checks now pause the clock and reapply the catalog's declared body-fixed viewpoint without animation. In free orbit the eye is fixed in world space while Mars rotates, so the tiny ROI can rotate out of view before loading completes. This timing dependence reproduced on both the original and updated builds; it is not evidence of an appearance regression. The driver records its paused-clock framing explicitly. The main imagery driver separately verifies L16 over L11 terrain, hover/Fly to and fallback; no camera or authored datum was changed for this review.
+
+Reproduce the appearance check with:
+
+```sh
+node scripts/test-mars-surface-appearance.mjs 'VIEWER_URL_WITH_CATALOG_QUERY' work/surface-build/mars-appearance-browser
+```
+
+The current preview build directory is `work/surface-build/mars-appearance-final-preview`; use that directory with the recorded current preview inventory for exact publish/rollback commands. Rebuilding with a changed toolchain may require a new content-addressed preview plan. Existing coarse contour/relief quality, absolute source/illumination uncertainty and the CPU/rendered mixed-LOD discrepancy remain disclosed; this compatibility fix does not certify finer physical data or independent registration.

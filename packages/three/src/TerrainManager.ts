@@ -615,13 +615,24 @@ const _camPos = /* @__PURE__ */ new THREE.Vector3();
 const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
+export interface SurfaceAppearanceStatus {
+  state: 'ready' | 'loading' | 'unsupported-product' | 'unsupported-reference' | 'validation-failed';
+  message: string;
+}
+
 export class TerrainManager {
   private readonly contourLabels = new TerrainContourLabels();
   private surfaceStyle: SurfaceAppearance | null;
   private readonly cubeScenes = new Set<THREE.Object3D>();
   private readonly cubeStyleCandidate: boolean;
   private cubeStyleHeightRange: readonly [number, number] | null = null;
+  private cubeStyleReferenceRadiusKm: number | null = null;
+  private appearanceStatus: SurfaceAppearanceStatus = { state: 'unsupported-product', message: 'Relief styles require a known planetary terrain product. Generic 3D Tiles and imagery-only surfaces are unsupported.' };
 
+  get surfaceAppearanceStatus(): SurfaceAppearanceStatus {
+    if (this.appearanceStatus.state === 'loading' && this.rootFailed) return { state: 'validation-failed', message: 'Terrain product metadata could not be loaded. Relief styles are unavailable.' };
+    return { ...this.appearanceStatus };
+  }
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.surfaceStyle?.contourIntervalKm ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
@@ -777,6 +788,9 @@ export class TerrainManager {
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
     this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
+    if (this.surfaceStyle) this.appearanceStatus = { state: 'ready', message: '' };
+    else if (this.cubeStyleCandidate) this.appearanceStatus = { state: 'loading', message: 'Loading and validating terrain product metadata for relief styles…' };
+    else if (config.type === 'quantized-mesh') this.appearanceStatus = { state: 'unsupported-reference', message: 'This terrain product’s elevation reference is not supported by relief styles.' };
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
     this.isImageryOnly = config.type === 'imagery';
@@ -1500,12 +1514,30 @@ export class TerrainManager {
         // Only the known builder's Z-north, body-fixed metre product is eligible.
         // Config alone is insufficient: arbitrary 3D Tiles stay unsupported.
         const asset = (tileset as { asset?: { generator?: string } }).asset;
-        if (this.cubeStyleCandidate && version && version === source.manifest.source.version &&
-          /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
-          datum.referenceShape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
-          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere') {
+        const knownBuilder = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
+          source.manifest.source.kind === 'height-grid' && !!source.manifest.source.id;
+        const shape = datum.referenceShape, geometry = source.manifest.geometry;
+        const legacySphere = shape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
+          (!geometry || geometry.referenceRadiusKm === shape.radiusKm) &&
+          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere';
+        const generator = (source.manifest.source as typeof source.manifest.source & { generator?: { script?: string; sha256?: string } }).generator;
+        const ellipsoidBuilderKnown = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(generator?.script ?? '') && /^[a-f0-9]{64}$/.test(generator?.sha256 ?? '');
+        const normalEllipsoid = shape.kind === 'ellipsoid' && shape.radiiKm.every(r => Number.isFinite(r) && r > 0) &&
+          shape.radiiKm[0] === shape.radiiKm[1] && shape.radiiKm[2] <= shape.radiiKm[0] &&
+          datum.verticalDatum === 'ellipsoid' && datum.heightConvention === 'geodetic-normal' &&
+          geometry?.kind === 'radial-lattice' && geometry.referenceRadiusKm === shape.radiiKm[0] &&
+          source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius';
+        if (this.cubeStyleCandidate) {
+          if (!knownBuilder) this.appearanceStatus = { state: 'unsupported-product', message: 'Relief styles are unsupported for this terrain product. Its planetary builder identity is not recognized.' };
+          else if (!version || version !== source.manifest.source.version) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain mesh and elevation-grid revisions could not be matched. Relief styles are unavailable.' };
+          else if (shape.kind === 'ellipsoid' && !ellipsoidBuilderKnown) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain source and builder metadata could not be validated. Relief styles are unavailable.' };
+          else if (!legacySphere && !normalEllipsoid) this.appearanceStatus = { state: 'unsupported-reference', message: 'This known terrain product uses an unsupported elevation datum or payload encoding. Relief styles are unavailable.' };
+        }
+        if (this.cubeStyleCandidate && knownBuilder && version && version === source.manifest.source.version && (legacySphere || (normalEllipsoid && ellipsoidBuilderKnown))) {
           this.cubeStyleHeightRange = source.manifest.heightRangeKm;
+          this.cubeStyleReferenceRadiusKm = geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : null);
           this.surfaceStyle = new SurfaceAppearance(datum);
+          this.appearanceStatus = { state: 'ready', message: '' };
           if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = this.surfaceStyle; }
           for (const scene of this.cubeScenes) this.attachSurfaceStyle(scene);
         }
@@ -1517,7 +1549,10 @@ export class TerrainManager {
           new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
       });
       return source.ready;
-    }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+    }).catch((err) => {
+      if (!this.disposed) this.rejectCubeSurfaceStyle('Terrain elevation metadata failed validation or could not be loaded. Relief styles are unavailable.');
+      this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err);
+    });
   }
 
   /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
@@ -2466,7 +2501,7 @@ export class TerrainManager {
   private attachSurfaceStyle(scene: THREE.Object3D): void {
     if (!this.surfaceStyle) return;
     scene.traverse(child => {
-      if (!isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
+      if (!this.surfaceStyle || !isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
       const matrix = new THREE.Matrix4();
       // Mesh local metres -> body-fixed Z north. Include glTF's Y-up
       // conversion and all tile ancestors, exclude camera-relative tiles.group.
@@ -2478,24 +2513,39 @@ export class TerrainManager {
       }
       if (this.cubeConfigured) {
         const g = child.geometry, n = g.userData.surfaceTriangles;
-        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange) return;
+        const positions = g.getAttribute('position'), normals = g.getAttribute('normal');
+        const reject = () => this.rejectCubeSurfaceStyle('Terrain mesh validation failed for relief styles. Its topology, units or radial extent disagrees with the validated product.');
+        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange ||
+          this.cubeStyleReferenceRadiusKm === null || !positions || positions.itemSize !== 3 || !normals || normals.itemSize !== 3 || normals.count !== positions.count) { reject(); return; }
         const scale = new THREE.Vector3().setFromMatrixScale(matrix);
-        if ([scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) return;
-        const point = new THREE.Vector3(), positions = g.getAttribute('position');
-        const radius = this.surfaceStyle!.datum.referenceShape;
-        if (radius.kind !== 'sphere') return;
+        if (matrix.determinant() <= 0 || [scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) { reject(); return; }
+        const point = new THREE.Vector3();
         // Validate metre encoding against the product range on surface vertices;
         // skirts intentionally extend below it. Allow 1 m for float32 offsets.
         for (let i = 0; i < n * 3; i++) {
-          point.fromBufferAttribute(positions, g.index.getX(i)).applyMatrix4(matrix);
-          const height = point.length() * 0.001 - radius.radiusKm;
-          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
+          const index = g.index.getX(i);
+          if (!Number.isSafeInteger(index) || index < 0 || index >= positions.count) { reject(); return; }
+          point.fromBufferAttribute(positions, index).applyMatrix4(matrix);
+          // The grid range bounds radial payload offsets, including on an
+          // ellipsoid. SurfaceAppearance computes geodetic-normal display
+          // heights separately with renderedHeightKm; never compare those here.
+          const height = point.length() * 0.001 - this.cubeStyleReferenceRadiusKm;
+          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) { reject(); return; }
         }
       }
       // A detached cached QM root is still `visible=true`. It must not enter
       // style preparation, auto-spacing or labels with its stale world scale.
       this.surfaceStyle!.attach(child, matrix, scene);
     });
+  }
+
+  private rejectCubeSurfaceStyle(message: string): void {
+    if (this.surfaceStyle) this.surfaceStyle.set({ ...this.surfaceStyle.current, baseColor: 'imagery', hillshade: false, contours: false, contourLabels: false });
+    this.surfaceStyle = null;
+    this.cubeStyleHeightRange = null;
+    this.cubeStyleReferenceRadiusKm = null;
+    if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = null; }
+    this.appearanceStatus = { state: 'validation-failed', message };
   }
 
   /**

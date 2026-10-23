@@ -19,6 +19,10 @@ try {
   if(phase==='cold')await page.goto(viewerUrl,{waitUntil:'domcontentloaded'});
   else await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>!!window.cosmo&&!!window.renderer,null,{timeout:120000});
+  // Free-orbit keeps a world-space eye while Mars rotates. Pause and apply the
+  // declared body-fixed viewpoint so load timing cannot rotate the tiny ROI out
+  // of view before its native tiles arrive (also reproducible on the old build).
+  await page.evaluate(()=>{window.cosmo.setPlaying(false);window.renderer.applyNamedViewpoint('Native detail',{animate:false});});
   await page.waitForFunction(()=>{const b=window.renderer?.getBodyMesh('Mars'),i=b?.terrainManager?.cubeImageryStats,n=b?.terrainMetrics.network;return i?.maxDisplayedLevel===16&&i.baseUncoveredBlocks===0&&i.failedTiles===0&&!b.mesh.visible&&n.queued+n.downloading+n.parsing+i.inFlight+i.queued===0;},null,{timeout:120000});
   await page.waitForTimeout(500);
   const state=await page.evaluate(()=>{const r=window.renderer,b=r.getBodyMesh('Mars'),i=b.terrainManager.cubeImageryStats;return {maxImageLevel:i.maxDisplayedLevel,baseUncoveredBlocks:i.baseUncoveredBlocks,failedTiles:i.failedTiles,staticSphereVisible:b.mesh.visible,physicalPick:r.pickSurface(0,0)?.physical?.kind,provenance:b.terrainManager.imageryLayers.map(l=>({id:l.id,attribution:l.attribution,description:l.description}))};});
@@ -27,6 +31,6 @@ try {
   loads.push({phase,...state,publicRequests:requests.size,publicRequestsFromCache:cached.size,publicUrls:[...new Set(requests.values())]});
  }
  assert.deepEqual(errors,[]);
- const result={buildId:JSON.parse(await readFile('work/surface-build/real-pilot-report.json')).buildId,viewerUrl,viewerOrigin:new URL(viewerUrl).origin,dataOrigin:'https://data.aaronplave.com',requestInterception:false,testMode:false,deployedViewerOrigin:!new URL(viewerUrl).hostname.match(/^(localhost|127\.0\.0\.1)$/),loads,errors};
+ const result={buildId:JSON.parse(await readFile('work/surface-build/real-pilot-report.json')).buildId,viewerUrl,viewerOrigin:new URL(viewerUrl).origin,dataOrigin:'https://data.aaronplave.com',requestInterception:false,testMode:false,clockPaused:true,framing:'Declared Native detail viewpoint, applied without animation',deployedViewerOrigin:!new URL(viewerUrl).hostname.match(/^(localhost|127\.0\.0\.1)$/),loads,errors};
  await writeFile(`${out}/cold-warm.json`,JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify({loads:loads.map(({publicUrls:_publicUrls,...v})=>v),errors},null,2));
 }finally{await browser.close();}

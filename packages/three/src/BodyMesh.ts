@@ -1259,6 +1259,7 @@ export class BodyMesh extends THREE.Object3D {
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
   get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
+  get surfaceAppearanceStatus() { return this.terrainManager?.surfaceAppearanceStatus ?? null; }
   setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
   /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
   get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }

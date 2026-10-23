@@ -14,6 +14,7 @@
     void vs.frameTick;
     return bodyMesh?.surfaceAppearanceDatum;
   });
+  let capability = $derived.by(() => { void vs.frameTick; return bodyMesh?.surfaceAppearanceStatus; });
   // Keyed by body in BodyInfoPanel; edits remain on the renderer when closed.
   let settings = $derived.by((): SurfaceAppearanceSettings => {
     void appearancePick.revision;
@@ -137,7 +138,7 @@
         <p class="ui-meta text-text-muted mt-2">Loaded terrain mesh only; coarse tiles give coarse relief. Tile debug colors take precedence.</p>
       </div>
     {:else}
-      <p class="ui-meta text-text-muted">Relief styles require known planetary terrain with a validated elevation reference. Product metadata may still be loading; generic 3D Tiles are unsupported.</p>
+      <p class="ui-meta text-text-muted" role="status" data-appearance-state={capability?.state}>{capability?.message ?? 'Terrain appearance is unavailable.'}</p>
     {/if}
   </section>
 {/if}
