@@ -1,6 +1,6 @@
 <script lang="ts">
   import { vs } from '../lib/viewer-state.svelte';
-  import { showPlaceBody, showPlaceDataset } from '../lib/places';
+  import { showPlaceBody, showPlaceDataset, setPlaceSourceEnabled } from '../lib/places';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   const bodies = $derived([...new Set(vs.places?.places.map(p => p.layer.body) ?? [])]);
   // Group by explicit provenance rather than filenames or chunk suffixes.
@@ -22,7 +22,7 @@
     }
     return [...groups.values()];
   });
-  const noSources = $derived(sources.length > 0 && sources.every(source => [...source.layers].every(id => vs.hiddenPlaceLayers.includes(id))));
+  const noSources = $derived(sources.length > 0 && sources.every(source => [...source.layers].every(id => (vs.hiddenPlaceLayers.includes(id) || vs.excludedPlaceLayers.includes(id)))));
   const allVisible = $derived(bodies.every(b => vs.placeBodies.includes(b)));
 </script>
 {#if bodies.length}
@@ -38,12 +38,18 @@
     </div>
   </details>
   <details class="px-3 py-1 ui-body">
-    <summary class="cursor-pointer text-text-secondary">Advanced / data sources</summary>
+    <summary class="cursor-pointer text-text-secondary">Name sources</summary>
     <div class="ml-4 mt-1 space-y-2">
+      <p class="ui-meta text-text-muted">Include sources in search and navigation. Show labels controls only the 3D names.</p>
       {#each sources as source}
+        {@const included = [...source.layers].filter(id => !vs.excludedPlaceLayers.includes(id)).length}
         {@const visible = [...source.layers].filter(id => !vs.hiddenPlaceLayers.includes(id)).length}
         <div>
-          <label class="flex items-center gap-2 py-1 cursor-pointer"><Checkbox class="h-3.5 w-3.5" checked={visible === source.layers.size} indeterminate={visible > 0 && visible < source.layers.size} onCheckedChange={checked => source.layers.forEach(id => showPlaceDataset(id, checked === true))} /><span>{source.name} ({source.count.toLocaleString()})</span></label>
+          <p class="text-text-secondary">{source.name} ({source.count.toLocaleString()})</p>
+          <div class="flex flex-wrap gap-x-3">
+            <label class="flex cursor-pointer items-center gap-1.5 py-1"><Checkbox class="h-3.5 w-3.5" aria-label={`Include ${source.name}`} checked={included === source.layers.size} indeterminate={included > 0 && included < source.layers.size} onCheckedChange={checked => setPlaceSourceEnabled([...source.layers], checked === true)} /><span>Include source</span></label>
+            <label class="flex cursor-pointer items-center gap-1.5 py-1"><Checkbox class="h-3.5 w-3.5" aria-label={`Show labels for ${source.name}`} disabled={included === 0} checked={visible === source.layers.size} indeterminate={visible > 0 && visible < source.layers.size} onCheckedChange={checked => source.layers.forEach(id => showPlaceDataset(id, checked === true))} /><span>Show labels</span></label>
+          </div>
           <p class="ml-5 ui-meta text-text-muted break-words">{source.attribution}</p>
         </div>
       {/each}

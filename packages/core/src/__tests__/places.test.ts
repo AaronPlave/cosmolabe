@@ -55,6 +55,15 @@ describe('shared place index', () => {
     expect(natural.search('',{sort:'name-desc',limit:'all'})).toEqual([...ordered].reverse());
   });
 
+  it('excludes unavailable sources before applying search limits', () => {
+    const official=layer(Array.from({length:120},(_,i)=>({name:`Site ${i}`})));
+    const custom=layer([{name:'Site user'}],{...spec,id:'custom'});
+    const index=new PlaceIndex([official,custom]);
+    expect(index.search('Site',{limit:1,excludedLayerIds:[official.id]}).map(p=>p.name)).toEqual(['Site user']);
+    expect(index.search('Site',{excludedLayerIds:[official.id,custom.id],limit:'all'})).toEqual([]);
+    expect(index.search('Site',{limit:'all'})).toHaveLength(121);
+  });
+
   it('retains logical references across chunk moves and diagnoses duplicates', () => {
     const first = layer([{ name: 'Stable', placeRef: 'moon:usgs/123' }]);
     const moved = layer([{ name: 'Stable', placeRef: 'moon:usgs/123' }], { ...spec, id: 'another-chunk' });
@@ -93,6 +102,25 @@ describe('shared place index', () => {
     const major=layer([{name:'Major',lon:80,lat:0}],{...spec,id:'major'});
     major.features[0].properties={name:'Major',featureClass:'Mons, montes',diameterKm:500,placeKind:'nomenclature'};
     expect(new PlaceIndex([crowded,major]).nearby('Moon',0,0,90,1)[0].name).toBe('Major');
+  });
+
+  it('composes shared names and distinct mission anchors in six existing mission catalogs', () => {
+    const root=new URL('../../../../apps/viewer/test-catalogs/',import.meta.url);
+    const cases=[['moonfall-shackleton','Moon','moonfall-sites'],['lro-moon','Moon',null],['moon-imagery-apollo15','Moon','apollo15-site'],['msl-dingo-gap','Mars','msl-sites'],['ingenuity-jezero','Mars','ingenuity-sites'],['mars-imagery-jezero','Mars',null]] as const;
+    for(const [name,body,mission] of cases){
+      const scene=JSON.parse(readFileSync(new URL(`${name}.json`,root),'utf8'));
+      expect(scene.require).toContain(`places/${body.toLowerCase()}.json`);
+      expect(scene.require).not.toContain(`places/${body==='Mars'?'moon':'mars'}.json`);
+      expect(scene.defaultGeographicNames).toEqual([body]);
+      if(!mission)continue;
+      const url=new URL(`places/${mission}.json`,root),catalog=JSON.parse(readFileSync(url,'utf8'));
+      expect(scene.require).toContain(`places/${mission}.json`);
+      const layers=catalog.geographicLayers.map((definition: GeographicLayerDefinition)=>parseGeographicGeoJson(readFileSync(new URL(definition.source,url),'utf8'),{...definition,coordinates:catalog.geographicCoordinates},{kind:'catalog',identity:definition.source}));
+      const index=new PlaceIndex(layers);expect(index.places.length).toBeGreaterThan(0);
+      expect(index.places.every(p=>p.origin==='mission/user'&&p.layer.body===body&&p.feature.geometry.type==='Point'&&p.feature.geometry.coordinates.heightKm===undefined)).toBe(true);
+      expect(new Set(index.places.map(p=>p.ref)).size).toBe(index.places.length);
+      expect(layers.every((l: {skippedFeatures:number})=>l.skippedFeatures===0)).toBe(true);
+    }
   });
 
   it('loads the shipped full USGS snapshots with the normal parser, coordinate transforms and provenance', () => {

@@ -91,7 +91,8 @@ export class PlaceIndex {
   }
 
   /** Numeric limits retain bounded palette results; 'all' exposes the full indexed match set for browsing. */
-  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; sort?: PlaceSort; activeBody?: string; limit?: number | 'all' } = {}): Place[] {
+  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; sort?: PlaceSort; activeBody?: string; limit?: number | 'all'; excludedLayerIds?: readonly string[] } = {}): Place[] {
+    const excluded = new Set(opts.excludedLayerIds);
     const tokens = placeText(query).split(' ').filter(Boolean).slice(0, 8);
     let candidates: Set<Place> | undefined;
     for (const token of tokens) {
@@ -104,7 +105,7 @@ export class PlaceIndex {
       if (!candidates.size) return [];
     }
     const exact = placeText(query);
-    return [...(candidates ?? this.places)].filter(p => (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind) && (!opts.origin || p.origin === opts.origin))
+    return [...(candidates ?? this.places)].filter(p => !excluded.has(p.layer.id) && (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind) && (!opts.origin || p.origin === opts.origin))
       .sort((a, b) => {
         const byName = () => nameCollator.compare(a.name, b.name) || a.ref.localeCompare(b.ref);
         if (opts.sort === 'name-asc') return byName();

@@ -2,7 +2,7 @@
   import * as Command from '$lib/components/ui/command';
   import { getCommands, getBodyCommands } from '../lib/commands';
   import { selectAndFlyTo, getRenderer, vs } from '../lib/viewer-state.svelte';
-  import { selectPlace } from '../lib/places';
+  import { selectPlace, searchPlaces, isPlaceAvailable } from '../lib/places';
   import { Orbit, Eye, Camera, Timer, MapPin } from 'lucide-svelte';
 
   interface Props {
@@ -14,9 +14,12 @@
   let searchValue = $state('');
   let placeBody = $state('');
   let placeKind = $state('');
-  const placeBodies = $derived([...new Set(vs.places?.places.map(p => p.layer.body) ?? [])]);
-  const placeKinds = $derived([...new Set(vs.places?.places.filter(p => !placeBody || p.layer.body === placeBody).map(p => p.kind) ?? [])].sort());
-  const filteredPlaces = $derived(vs.places?.search(searchValue, { body: placeBody, kind: placeKind, activeBody: vs.trackedBodyName ?? undefined }) ?? []);
+  const placeBodies = $derived([...new Set(vs.places?.places.filter(isPlaceAvailable).map(p => p.layer.body) ?? [])]);
+  const placeKinds = $derived([...new Set(vs.places?.places.filter(p => isPlaceAvailable(p) && (!placeBody || p.layer.body === placeBody)).map(p => p.kind) ?? [])].sort());
+  const filteredPlaces = $derived(searchPlaces(searchValue, { body: placeBody, kind: placeKind, activeBody: vs.trackedBodyName ?? undefined }));
+
+  $effect(() => { if (placeBody && !placeBodies.includes(placeBody)) placeBody = ''; });
+  $effect(() => { if (placeKind && !placeKinds.includes(placeKind)) placeKind = ''; });
 
   // Our own substring filtering — shadcn command uses bits-ui which wraps cmdk
   let filteredBodies = $derived.by(() => {

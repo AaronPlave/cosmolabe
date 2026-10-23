@@ -22,7 +22,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
-import { navigateToPlace } from './places';
+import { navigateToPlace, selectPlace } from './places';
 
 // ── Exported types ──
 
@@ -137,6 +137,7 @@ export const vs = $state({
   selectedPlaceRef: null as string | null,
   placeBodies: [] as string[],
   hiddenPlaceLayers: [] as string[],
+  excludedPlaceLayers: [] as string[],
   placeFailures: [] as string[],
 
   /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
@@ -479,7 +480,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   const syncPlaces = () => {
     vs.places = renderer.placeNames?.index ?? null;
     vs.placeBodies = [...(renderer.placeNames?.bodies ?? [])];
-    if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) vs.selectedPlaceRef = null;
+    if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) selectPlace(null);
+    if (vs.surfaceTarget?.place && !vs.places?.byRef.has(vs.surfaceTarget.place.ref)) releaseSurfaceTarget();
     vs.placeFailures = universe.geographicLayers?.loads.flatMap(load => load.status === 'error' ? load.diagnostics.map(d => `${load.id}: ${d.message}`) : []) ?? [];
   };
   syncPlaces();
@@ -487,10 +489,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _unsubscribers.push(renderer.events.on('geographic:click', ref => {
     const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
     if (!place) return;
-    vs.selectedPlaceRef = place.ref;
-    renderer.placeNames.selectedRef = place.ref;
-    vs.navigateMode = 'places';
-    openTool('navigate');
+    selectPlace(place);
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
     const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
@@ -627,6 +626,7 @@ export function unbindRenderer() {
   vs.selectedPlaceRef = null;
   vs.placeBodies = [];
   vs.hiddenPlaceLayers = [];
+  vs.excludedPlaceLayers = [];
   vs.placeFailures = [];
   // The pins went with the renderer; keeping the names would unpin bodies in
   // the *next* scene that this one never highlighted.

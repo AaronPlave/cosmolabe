@@ -535,6 +535,27 @@ describe('navigation verbs', () => {
     control.track('Saturn');expect(vs.selectedPlaceRef).toBeNull();expect(renderer.placeNames.selectedRef).toBeNull();
   });
 
+  it('keeps label hiding searchable but excludes disabled sources and reconciles selection/target', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);const place=vs.places.places[0];
+    Object.assign(renderer.placeNames,{hiddenLayers:new Set<string>()});
+    placeActions.showPlaceDataset(layer.id,false);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    Object.assign(renderer.cameraController,{releaseSurface:vi.fn(()=>true)});
+    placeActions.setPlaceSourceEnabled([layer.id],false);
+    expect(placeActions.searchPlaces('Site')).toEqual([]);expect(placeActions.searchPlaces('Other')).toHaveLength(1);
+    expect(vs.selectedPlaceRef).toBeNull();expect(vs.surfaceTarget).toBeNull();
+    placeActions.selectPlace(place);expect(vs.selectedPlaceRef).toBeNull();
+    expect(placeActions.navigateToPlace(place,'jump')).toBe(false);
+    placeActions.setPlaceSourceEnabled([layer.id],true);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);expect(vs.hiddenPlaceLayers).toContain(layer.id);
+    unbindRenderer();expect(vs.excludedPlaceLayers).toEqual([]);
+  });
+
   it.each([false,true])('releases an active named target, preserving independent inspection=%s', independent => {
     const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Target'},geometry:{type:'Point',coordinates:[0,0]}}]}),
       {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});

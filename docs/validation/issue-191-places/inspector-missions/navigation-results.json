@@ -1,0 +1,27 @@
+{
+  "checks": [
+    "real name double-click, shared Fly, semantic HUD through landing",
+    "HUD X releases pivot/highlight without moving eye or changing tracking/time",
+    "in-panel names search and selection without navigation",
+    "Escape sequence stops flight, closes inspector, releases named target, then resets camera",
+    "selected-only Escape dismisses inspection",
+    "inspector clear preserves active target; generic replacement clears named association",
+    "different named target and actual picked surface replacement",
+    "other-body navigation clears target and selection",
+    "popover Escape preserves active target",
+    "Navigate floats, minimizes, reopens and docks",
+    "one Navigate entry, compact places mode without page overflow",
+    "Cmd/Ctrl K selection and correct southern hemisphere display",
+    "focused search Escape blurs, dismisses inspector, then releases target",
+    "body filter follows tracking until explicitly selected",
+    "all matches reachable beyond 100 through scroll and keyboard, totals shown, final sorted Moon result selectable, filters persist through selection",
+    "body/type/origin filters combine, empty matches explain filters, unavailable types reset, focus ring fits scroll clip",
+    "logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display",
+    "no enabled source status; master preserves hidden datasets; logical Moon restoration and mixed/body-off states",
+    "north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent for overhead, oblique and surface",
+    "actual viewport label double-click ignores Surface/100m, invalid input and another body range, preserves form choices, lands at automatic overhead",
+    "scene reload clears named target and resets disabled-source state",
+    "full Gazetteer query/filter/sort p95: all-name 4.3ms, all-name-desc 4.8ms, all-diameter 3.9ms, all-smallest 4.2ms, all-relevance 5.2ms, moon-craters 0.8ms, prefix 0.1ms"
+  ],
+  "errors": []
+}

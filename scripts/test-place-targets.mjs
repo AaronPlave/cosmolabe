@@ -10,6 +10,10 @@ const page=await browser.newPage({viewport:{width:1440,height:900},...(process.e
 page.setDefaultTimeout(45000);
 checks.push=(...items)=>{console.log(...items);return Array.prototype.push.apply(checks,items);};
 page.on('pageerror',e=>errors.push(e.message));
+async function browsePlaces(){const back=page.getByRole('button',{name:'Back to places',exact:true});if(await back.isVisible())await back.click();const button=page.getByRole('button',{name:/^Filters and sort/});if(await button.getAttribute('aria-expanded')==='true')await page.keyboard.press('Escape');}
+async function openFilters(){const button=page.getByRole('button',{name:/^Filters and sort/});if(await button.getAttribute('aria-expanded')!=='true')await button.click();}
+async function filterOption(locator,value){await openFilters();await locator.selectOption(value);}
+
 try {
   await page.addInitScript(()=>{window.__placeModule=path=>import(performance.getEntriesByType('resource').map(e=>e.name).filter(url=>new URL(url).pathname===path).at(-1)??path);});
   await page.goto(`${base}?catalog=test-catalogs/planetary-places`,{waitUntil:'domcontentloaded'});
@@ -47,7 +51,7 @@ try {
   assert.deepEqual(released.eye,before.eye);assert.equal(released.et,before.et);assert.equal(released.body,'Mars');assert.equal(released.target,null);assert.equal(released.selected,null);assert.equal(released.highlight,null);assert.equal(released.pivot,false);checks.push('HUD X releases pivot/highlight without moving eye or changing tracking/time');
   await page.evaluate(()=>{window.p.selectPlace(window.arena);});
   assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget),null);
-  await page.getByLabel('Search places',{exact:true}).fill('Jezero');
+  await browsePlaces();await page.getByLabel('Search places',{exact:true}).fill('Jezero');
   await page.getByRole('button').filter({hasText:/^JezeroMars/}).first().click();
   assert.match(await page.evaluate(()=>window.s.vs.places.byRef.get(window.s.vs.selectedPlaceRef).name),/^Jezero/);checks.push('in-panel names search and selection without navigation');
   await page.evaluate(()=>{window.p.navigateToPlace(window.arena,'fly');});
@@ -87,7 +91,7 @@ try {
   assert.match(await page.locator('.font-mono').filter({hasText:/89.6700/}).first().textContent(),/89.6700° S/);checks.push('Cmd/Ctrl K selection and correct southern hemisphere display');
   // Focused search owns only the first Escape; later presses reach the target.
   await page.evaluate(()=>window.p.navigateToPlace(window.arena,'jump'));
-  const search=page.getByLabel('Search places',{exact:true});await search.fill('Arena');
+  const search=page.getByLabel('Search places',{exact:true});await browsePlaces();await search.fill('Arena');
   await page.keyboard.press('Escape');assert.equal(await search.evaluate(el=>el===document.activeElement),false);
   assert.equal(await page.evaluate(()=>window.sh.isToolOpen('navigate')),true);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');
@@ -96,37 +100,38 @@ try {
   await page.evaluate(()=>{window.sh.openTool('navigate');window.s.frameBody('Mars');});
   const bodyFilter=page.getByLabel('Search place body',{exact:true});assert.equal(await bodyFilter.inputValue(),'Mars');
   await page.evaluate(()=>window.s.frameBody('Moon'));assert.equal(await bodyFilter.inputValue(),'Moon');
-  await search.fill('Shackleton');assert.ok(await page.getByRole('button').filter({hasText:/^ShackletonMoon/}).count());
+  await browsePlaces();await search.fill('Shackleton');assert.ok(await page.getByRole('button').filter({hasText:/^ShackletonMoon/}).count());
   await bodyFilter.selectOption('Mars');await page.evaluate(()=>window.s.frameBody('Moon'));assert.equal(await bodyFilter.inputValue(),'Mars');
   checks.push('body filter follows tracking until explicitly selected');
   // Places shares type filtering with Cmd/K and can distinguish mixed origins.
-  await search.fill('');
-  assert.equal(await page.locator('.search-options').evaluate(el=>el.open),false);
+  await browsePlaces();await search.fill('');
+  assert.equal(await page.getByRole('button',{name:/^Filters and sort/}).getAttribute('aria-expanded'),'false');
   await page.getByText('Filters and sort',{exact:true}).click();
   const typeFilter=page.getByLabel('Search place type',{exact:true}),originFilter=page.getByLabel('Search place origin',{exact:true});
-  await typeFilter.selectOption('Crater, craters');
+  await filterOption(typeFilter,'Crater, craters');
   assert.ok(await page.getByRole('list',{name:'Named places'}).getByRole('button').count());
   assert.ok((await page.getByRole('list',{name:'Named places'}).locator('button[aria-pressed]').allTextContents()).every(t=>t.includes('Crater')));
-  await search.fill('Valles Marineris');assert.ok(await page.getByText('No places match this search and filters.',{exact:true}).count());
-  await search.fill('');await originFilter.selectOption('mission/user');
+  await browsePlaces();await search.fill('Valles Marineris');assert.ok(await page.getByText('No places match this search and filters.',{exact:true}).count());
+  await browsePlaces();await search.fill('');await filterOption(originFilter,'mission/user');
   await page.waitForFunction(()=>document.querySelector('[aria-label="Search place type"]').value==='');
   assert.equal(await page.getByRole('list',{name:'Named places'}).getByRole('button').count(),1);
   assert.match(await page.getByRole('list',{name:'Named places'}).textContent(),/Alpha/);
-  await originFilter.selectOption('nomenclature');assert.doesNotMatch(await page.getByRole('list',{name:'Named places'}).textContent(),/Synthetic Alpha/);
-  await originFilter.selectOption('');await typeFilter.selectOption('Synthetic site');
+  await filterOption(originFilter,'nomenclature');assert.doesNotMatch(await page.getByRole('list',{name:'Named places'}).textContent(),/Synthetic Alpha/);
+  await filterOption(originFilter,'');await filterOption(typeFilter,'Synthetic site');
   await bodyFilter.selectOption('Moon');await page.waitForFunction(()=>document.querySelector('[aria-label="Search place type"]').value==='');
   await bodyFilter.selectOption('Mars');
   const sortFilter=page.getByLabel('Sort places',{exact:true});
-  await sortFilter.selectOption('name-asc');
+  await filterOption(sortFilter,'name-asc');
   const alphabetical=await page.getByRole('list',{name:'Named places'}).locator('li > button[aria-pressed]').evaluateAll(rows=>rows.map(row=>row.firstElementChild.textContent));
   assert.deepEqual(alphabetical,[...alphabetical].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base',numeric:true})));
   const sortedRefs=await page.evaluate(()=>window.s.vs.places.search('',{body:'Mars',sort:'diameter-desc',limit:100}).map(p=>p.ref));
-  await sortFilter.selectOption('diameter-desc');
+  await filterOption(sortFilter,'diameter-desc');
   await page.screenshot({path:`${out}/places-filters-expanded.png`});
   const firstLargest=await page.getByRole('list',{name:'Named places'}).getByRole('button').first().textContent();
   assert.ok(firstLargest.includes(await page.evaluate(ref=>window.s.vs.places.byRef.get(ref).name,sortedRefs[0])));assert.match(firstLargest,/≈ .*km across/);
-  await originFilter.selectOption('mission/user');assert.match(await page.getByRole('list',{name:'Named places'}).textContent(),/Diameter unknown/);
-  await originFilter.selectOption('');await sortFilter.selectOption('relevance');
+  await filterOption(originFilter,'mission/user');assert.match(await page.getByRole('list',{name:'Named places'}).textContent(),/Diameter unknown/);
+  await filterOption(originFilter,'');await filterOption(sortFilter,'relevance');
+  await page.keyboard.press('Escape');
   // Every result is reachable; sorting operates on the entire matching catalog.
   await bodyFilter.selectOption('');
   const total=await page.evaluate(()=>window.s.vs.places.places.length);
@@ -136,7 +141,7 @@ try {
   await list.evaluate(el=>el.scrollTop=el.scrollHeight);
   await page.waitForFunction(()=>document.querySelectorAll('[aria-label="Named places"] button[aria-pressed]').length>=200);
   // Load the entire Moon catalog through the keyboard-accessible fallback.
-  await bodyFilter.selectOption('Moon');await sortFilter.selectOption('name-asc');
+  await bodyFilter.selectOption('Moon');await filterOption(sortFilter,'name-asc');await page.keyboard.press('Escape');
   const moonTotal=await page.evaluate(()=>window.s.vs.places.search('',{body:'Moon',limit:'all'}).length);
   while(await list.locator('button[aria-pressed]').count()<moonTotal) {
     await list.locator('li:last-child > button:not([aria-pressed])').evaluate(el=>el.focus({preventScroll:true}));
@@ -146,11 +151,11 @@ try {
   const lastMoon=await page.evaluate(()=>window.s.vs.places.search('',{body:'Moon',sort:'name-asc',limit:'all'}).at(-1).name);
   assert.equal(await list.locator('button[aria-pressed]').last().locator('span').first().textContent(),lastMoon);
   await list.locator('button[aria-pressed]').last().click();
-  assert.equal(await page.locator('.search-options').evaluate(el=>el.open),true);
-  assert.ok(await sortFilter.isVisible());
+  assert.equal(await page.getByRole('button',{name:/^Filters and sort/}).isVisible(),false);
+  assert.equal(await sortFilter.isVisible(),false);
   await page.getByRole('button',{name:'Clear selected place',exact:true}).click();
-  await bodyFilter.selectOption('Mars');await sortFilter.selectOption('relevance');
-  await page.locator('.search-options > summary').click();
+  await bodyFilter.selectOption('Mars');await filterOption(sortFilter,'relevance');
+  await page.keyboard.press('Escape');
   checks.push('all matches reachable beyond 100 through scroll and keyboard, totals shown, final sorted Moon result selectable, filters persist through selection');
   await search.focus();
   const layout=await page.locator('.place-results').evaluate(el=>({panelHeight:el.closest('.instrument').getBoundingClientRect().height,panelWidth:el.closest('.instrument').getBoundingClientRect().width,listHeight:el.clientHeight,dockScrollTop:el.closest('.instrument').parentElement.scrollTop}));
@@ -167,25 +172,25 @@ try {
   checks.push('body/type/origin filters combine, empty matches explain filters, unavailable types reset, focus ring fits scroll clip');
   // Display names each logical source once; one source toggle affects all chunks.
   await page.evaluate(()=>window.sh.openTool('display'));
-  await page.getByText('Advanced / data sources',{exact:true}).click();
+  await page.getByText('Name sources',{exact:true}).click();
   assert.equal(await page.getByText(/^Moon Gazetteer /).count(),1);assert.equal(await page.getByText(/^Mars Gazetteer /).count(),1);
   assert.equal(await page.getByText(/Moon places \(\d\/4\)/).count(),0);
-  const moonSource=page.getByText(/^Moon Gazetteer /);await moonSource.click();
+  const moonSource=page.getByRole('checkbox',{name:'Show labels for Moon Gazetteer',exact:true});await moonSource.click();
   assert.equal(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.filter(id=>id.startsWith('moon:usgs:places:')).length),4);await moonSource.click();
   await page.getByText('By body',{exact:true}).click();
   await page.screenshot({path:`${out}/display-desktop.png`});
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);
-  await page.getByText('Advanced / data sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
-  await page.getByText('Advanced / data sources',{exact:true}).evaluate(el=>{el.closest('.instrument-body').scrollTop=185;});
+  await page.getByText('Name sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
+  await page.getByText('Name sources',{exact:true}).evaluate(el=>{el.closest('.instrument-body').scrollTop=185;});
   await page.screenshot({path:`${out}/display-compact.png`});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>window.sh.closeTool('display'));
   checks.push('logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display');
   // The master explains disabled datasets while retaining separate body intent.
   await page.evaluate(()=>window.sh.openTool('display'));
-  await page.getByText('Advanced / data sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
-  const sourceLabels=page.locator('details').filter({has:page.getByText('Advanced / data sources',{exact:true})}).locator('label');
-  for(const label of await sourceLabels.all()) await label.getByRole('checkbox').setChecked(false);
+  await page.getByText('Name sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
+  const sourceLabels=page.locator('details').filter({has:page.getByText('Name sources',{exact:true})}).locator('[role="checkbox"][aria-label^="Show labels for"]');
+  for(const checkbox of await sourceLabels.all()) await checkbox.setChecked(false);
   assert.ok(await page.getByText('No name sources enabled',{exact:true}).isVisible());
   const hiddenBeforeMaster=await page.evaluate(()=>[...window.s.vs.hiddenPlaceLayers]);
   const namesMaster=page.getByRole('checkbox',{name:'Geographic names',exact:true});
@@ -195,13 +200,13 @@ try {
   assert.ok(await page.getByText('No name sources enabled',{exact:true}).isVisible());
   await page.screenshot({path:`${out}/display-no-sources.png`});
 
-  await page.getByText(/^Moon Gazetteer /).click();
+  await page.getByRole('checkbox',{name:'Show labels for Moon Gazetteer',exact:true}).click();
   assert.equal(await page.getByText('No name sources enabled',{exact:true}).count(),0);
   assert.equal(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.filter(id=>id.startsWith('moon:usgs:places:')).length),0);
   assert.ok(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.length>0));
   await namesMaster.setChecked(false);
   assert.equal(await page.getByText('No name sources enabled',{exact:true}).count(),0);
-  for(const label of await sourceLabels.all()) await label.getByRole('checkbox').setChecked(true);
+  for(const checkbox of await sourceLabels.all()) await checkbox.setChecked(true);
   await namesMaster.setChecked(true);
   await page.evaluate(()=>window.sh.closeTool('display'));
   checks.push('no enabled source status; master preserves hidden datasets; logical Moon restoration and mixed/body-off states');
@@ -261,7 +266,7 @@ try {
   checks.push('actual viewport label double-click ignores Surface/100m, invalid input and another body range, preserves form choices, lands at automatic overhead');
 
   await page.evaluate(()=>{window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.p.navigateToPlace(window.arena,'jump');});
-  await search.fill('');
+  await browsePlaces();await search.fill('');
   await page.screenshot({path:`${out}/navigate-desktop.png`});
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await page.screenshot({path:`${out}/navigate-compact.png`});
   await page.setViewportSize({width:1440,height:900});
