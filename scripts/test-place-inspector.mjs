@@ -21,13 +21,29 @@ try {
  await page.goto(`${base}?catalog=test-catalogs/planetary-places`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.renderer?.placeNames?.index.places.length===11139);
  await page.evaluate(async()=>{window.s=await window.__placeModule('/src/lib/viewer-state.svelte.ts');window.p=await window.__placeModule('/src/lib/places.ts');window.sh=await window.__placeModule('/src/lib/shell.svelte.ts');window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');window.cosmo.setPlaying(false);window.site=window.p.searchPlaces('Valles Marineris')[0];window.p.navigateToPlace(window.site,'jump');});
  assert.equal(await page.getByLabel('Search places',{exact:true}).isVisible(),false);
- await page.getByRole('button',{name:'Fit feature',exact:true}).click();assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),await page.evaluate(()=>String(window.site.diameterKm*1.5)));
- await page.getByRole('button',{name:'Auto',exact:true}).click();assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),'');
+ await page.getByRole('radio',{name:'Fit feature',exact:true}).click();assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),await page.evaluate(()=>String(window.site.diameterKm*1.5)));await page.screenshot({path:`${out}/fit-large.png`});
+
+ await page.evaluate(()=>{window.small=window.p.searchPlaces('',{body:'Mars',limit:'all'}).find(p=>p.diameterKm>0&&p.diameterKm<1);window.p.selectPlace(window.small);});
+ assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),'5');await page.screenshot({path:`${out}/fit-small.png`});
+ await page.getByRole('button',{name:'Jump to',exact:true}).click();
+ const fitted=await page.evaluate(()=>({eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()}));
+ await page.locator('[aria-label="Navigate mode"]').getByText(/^coordinates$/i).click();assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),'');
+ assert.equal(await page.getByRole('radio',{name:'Auto',exact:true}).getAttribute('data-state'),'on');
+ await page.getByLabel('Custom altitude (km)',{exact:true}).fill('5');assert.equal(await page.evaluate(()=>window.nv.navigationView.framing),'custom');
+ const explicit=await page.evaluate(()=>{window.s.goToCoordinates({bodyName:'Mars',...window.p.placeNavigationCoordinates(window.small),latitude:'planetocentric',longitudeDirection:'east'},{preset:'overhead',rangeKm:window.nv.navigationRange().km,animate:false});return{eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()};});
+ assert.deepEqual(explicit,fitted);
+ await page.locator('[aria-label="Navigate mode"]').getByText(/^places$/i).click();await page.evaluate(()=>window.p.selectPlace(window.small));await page.getByRole('radio',{name:'Fit feature',exact:true}).click();
+ await page.evaluate(()=>window.p.selectPlace(window.p.searchPlaces('',{body:'Mars',origin:'mission/user',limit:'all'}).find(p=>!p.diameterKm)));
+ await page.getByText('No indicative diameter; using Auto.',{exact:true}).waitFor();await page.screenshot({path:`${out}/fit-unknown.png`});assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),'');
+ await page.evaluate(()=>window.p.selectPlace(window.site));assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),await page.evaluate(()=>String(window.site.diameterKm*1.5)));
+ checks.push('Fit feature follows new selections, unknown diameter falls back to Auto, Coordinates uses Auto or explicit Custom with equivalent camera pose');
+ await page.getByRole('radio',{name:'Auto',exact:true}).click();assert.equal(await page.getByLabel('Custom altitude (km)',{exact:true}).inputValue(),'');await page.evaluate(()=>window.p.navigateToPlace(window.site,'jump'));
  await page.getByText('Place details',{exact:true}).click();
  for(const h of [340,720]) {
   await page.evaluate(h=>window.sh.setFloat('navigate',{x:70,y:30,w:288,h},{width:innerWidth,height:innerHeight}),h);
   const metrics=await page.getByRole('button',{name:'Fly to',exact:true}).evaluate(el=>{const panel=el.closest('.instrument'),b=el.getBoundingClientRect(),p=panel.getBoundingClientRect();return{h:p.height,actionBottom:b.bottom,panelBottom:p.bottom,bodyScroll:panel.querySelector('.instrument-body').scrollTop,outerScroll:panel.querySelector('.places-content').scrollTop,inspectorOverflow:panel.querySelector('.inspector-scroll').scrollHeight>panel.querySelector('.inspector-scroll').clientHeight};});
   assert.ok(metrics.actionBottom<metrics.panelBottom);assert.equal(metrics.bodyScroll,0);assert.equal(metrics.outerScroll,0);layouts.push(metrics);
+  await page.locator('.inspector-scroll').evaluate(el=>el.scrollTop=0);
   await assertScrollbarInside(page.locator('.inspector-scroll'));
   await page.screenshot({path:`${out}/inspect-${h}.png`});
  }
@@ -53,7 +69,7 @@ try {
  await list.locator('button[aria-pressed]').nth(20).click();assert.equal(await search.isVisible(),false);await page.getByRole('button',{name:'Back to places',exact:true}).click();assert.equal(await list.evaluate(el=>el.scrollTop),before);
  assert.ok((await page.getByRole('button',{name:/^Filters and sort/}).textContent()).includes('Name A–Z'));checks.push('focused inspector, discoverable framing, pinned actions, single scroll owner, retained browse filters and scroll');
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await assertScrollbarInside(list);await assertSearchFocusInside();await page.screenshot({path:`${out}/browse-compact.png`});
- await page.evaluate(()=>window.p.selectPlace(window.site));await page.getByText('Place details',{exact:true}).click();await assertScrollbarInside(page.locator('.inspector-scroll'));await page.screenshot({path:`${out}/inspect-compact.png`});checks.push('browse and inspector scrollbar tracks remain inside ancestor clipping bounds in floating and compact panels');
+ await page.evaluate(()=>window.p.selectPlace(window.site));await page.getByText('Place details',{exact:true}).click();await page.locator('.inspector-scroll').evaluate(el=>el.scrollTop=0);await assertScrollbarInside(page.locator('.inspector-scroll'));await page.screenshot({path:`${out}/inspect-compact.png`});checks.push('browse and inspector scrollbar tracks remain inside ancestor clipping bounds in floating and compact panels');
  const footer=await page.getByRole('button',{name:'Fly to',exact:true}).evaluate(el=>({button:el.getBoundingClientRect().bottom,panel:el.closest('.instrument').getBoundingClientRect().bottom}));assert.ok(footer.button<footer.panel);checks.push('390x844 inspector and browse remain within sheet, actions visible with expanded details');
  await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>{window.sh.dockPanel('navigate');window.sh.openTool('display');});await page.getByText('Name sources',{exact:true}).click();
  const showMoon=page.getByRole('checkbox',{name:'Show labels for Moon Gazetteer',exact:true}),includeMoon=page.getByRole('checkbox',{name:'Include Moon Gazetteer',exact:true});
@@ -63,6 +79,19 @@ try {
  assert.equal(await page.evaluate(()=>window.p.searchPlaces('Shackleton').length),0);assert.equal(await cmdkCount(),0);assert.equal(await page.evaluate(()=>window.s.vs.selectedPlaceRef),null);assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget),null);assert.deepEqual(await page.evaluate(()=>window.renderer.camera.position.toArray()),eye);
  await includeMoon.setChecked(true);assert.ok(await cmdkCount());assert.equal(await showMoon.isChecked(),false);assert.equal(await page.evaluate(()=>window.s.vs.excludedPlaceLayers.filter(id=>id.startsWith('moon:')).length),0);
  await page.getByRole('checkbox',{name:'Include Mars Gazetteer',exact:true}).setChecked(false);assert.ok(await page.evaluate(()=>window.p.searchPlaces('Alpha').length));assert.equal(await page.evaluate(()=>window.p.searchPlaces('Jezero').length),0);await page.getByRole('checkbox',{name:'Include Mars Gazetteer',exact:true}).setChecked(true);
+
+ const hiddenStatus=page.getByText('Geographic labels hidden; names remain searchable',{exact:true}),excludedStatus=page.getByText('No name sources included',{exact:true});
+ const labelChecks=page.getByRole('checkbox',{name:/^Show labels for /}),includeChecks=page.getByRole('checkbox',{name:/^Include /});
+ for(const checkbox of await labelChecks.all())await checkbox.setChecked(false);
+ await hiddenStatus.waitFor();await page.screenshot({path:`${out}/sources-hidden.png`});assert.equal(await excludedStatus.count(),0);assert.ok(await cmdkCount());
+ for(const checkbox of await includeChecks.all())await checkbox.setChecked(false);
+ await excludedStatus.waitFor();await page.screenshot({path:`${out}/sources-excluded.png`});assert.equal(await hiddenStatus.count(),0);assert.equal(await cmdkCount(),0);assert.equal(await page.evaluate(()=>window.p.searchPlaces('').length),0);
+ await includeMoon.setChecked(true);await hiddenStatus.waitFor();await page.screenshot({path:`${out}/sources-mixed.png`});assert.ok(await cmdkCount());
+ await showMoon.setChecked(true);assert.equal(await hiddenStatus.count(),0);await page.getByRole('checkbox',{name:'Geographic names',exact:true}).setChecked(false);await hiddenStatus.waitFor();assert.ok(await cmdkCount());
+ for(const checkbox of await includeChecks.all())await checkbox.setChecked(true);
+ for(const checkbox of await labelChecks.all())await checkbox.setChecked(true);
+ await page.getByRole('checkbox',{name:'Geographic names',exact:true}).setChecked(true);assert.equal(await hiddenStatus.count(),0);assert.equal(await excludedStatus.count(),0);
+ checks.push('source status agrees with search for all-hidden, all-excluded, mixed, re-enabled and body-hidden states');
  await page.screenshot({path:`${out}/source-inclusion.png`});checks.push('UI source inclusion affects Cmd-K and Places, hiding labels stays searchable, target/selection reconcile without moving camera, multiple same-body sources independent');
  const unlinked=await page.evaluate(async()=>{const {getUniverse}=await window.__placeModule('/src/lib/loader.ts');const u=getUniverse(),site=window.p.searchPlaces('Shackleton')[0],owner=site.layer.source.catalog;window.p.navigateToPlace(site,'jump');const loads=u.geographicLayers.loads.filter(l=>l.layer?.source.catalog===owner);if(!owner||loads.length!==4)throw new Error('Expected logical Moon catalog owner');u.geographicLayers.removeCatalog(owner);u.events.emit('geographic:changed',{});const removed=window.p.searchPlaces('Shackleton').length,target=window.s.vs.surfaceTarget,selected=window.s.vs.selectedPlaceRef;u.geographicLayers.replaceCatalog(owner,loads);u.events.emit('geographic:changed',{});return{removed,target,selected,restored:window.p.searchPlaces('Shackleton').length};});
  assert.equal(unlinked.removed,0);assert.equal(unlinked.target,null);assert.equal(unlinked.selected,null);assert.ok(unlinked.restored);assert.ok(await cmdkCount());checks.push('actual geographic catalog unlink/relink rebuilds both search surfaces and reconciles active state');

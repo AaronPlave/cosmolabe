@@ -1,6 +1,6 @@
 <script lang="ts">
   import { vs } from '../lib/viewer-state.svelte';
-  import { showPlaceBody, showPlaceDataset, setPlaceSourceEnabled } from '../lib/places';
+  import { showPlaceBody, showPlaceDataset, setPlaceSourceEnabled, placeSourceStatus } from '../lib/places';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   const bodies = $derived([...new Set(vs.places?.places.map(p => p.layer.body) ?? [])]);
   // Group by explicit provenance rather than filenames or chunk suffixes.
@@ -22,7 +22,7 @@
     }
     return [...groups.values()];
   });
-  const noSources = $derived(sources.length > 0 && sources.every(source => [...source.layers].every(id => (vs.hiddenPlaceLayers.includes(id) || vs.excludedPlaceLayers.includes(id)))));
+  const sourceStatus = $derived(placeSourceStatus());
   const allVisible = $derived(bodies.every(b => vs.placeBodies.includes(b)));
 </script>
 {#if bodies.length}
@@ -30,7 +30,7 @@
     <Checkbox class="h-3.5 w-3.5" checked={allVisible} indeterminate={!allVisible && bodies.some(b => vs.placeBodies.includes(b))} onCheckedChange={checked => bodies.forEach(b => showPlaceBody(b, checked === true))} />
     <span>Geographic names</span>
   </label>
-  {#if noSources}<p class="px-3 py-1 ui-meta text-text-muted" role="status">No name sources enabled</p>{/if}
+  {#if sourceStatus}<p class="px-3 py-1 ui-meta text-text-muted" role="status">{sourceStatus}</p>{/if}
   <details class="px-3 py-1 ui-body">
     <summary class="cursor-pointer text-text-secondary">By body</summary>
     <div class="ml-4 mt-1">

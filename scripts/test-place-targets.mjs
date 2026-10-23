@@ -191,25 +191,25 @@ try {
   await page.getByText('Name sources',{exact:true}).evaluate(el=>el.closest('details').open=true);
   const sourceLabels=page.locator('details').filter({has:page.getByText('Name sources',{exact:true})}).locator('[role="checkbox"][aria-label^="Show labels for"]');
   for(const checkbox of await sourceLabels.all()) await checkbox.setChecked(false);
-  assert.ok(await page.getByText('No name sources enabled',{exact:true}).isVisible());
+  assert.ok(await page.getByText('Geographic labels hidden; names remain searchable',{exact:true}).isVisible());
   const hiddenBeforeMaster=await page.evaluate(()=>[...window.s.vs.hiddenPlaceLayers]);
   const namesMaster=page.getByRole('checkbox',{name:'Geographic names',exact:true});
   await namesMaster.setChecked(false);
   assert.deepEqual(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers),hiddenBeforeMaster);
   await namesMaster.setChecked(true);
-  assert.ok(await page.getByText('No name sources enabled',{exact:true}).isVisible());
+  assert.ok(await page.getByText('Geographic labels hidden; names remain searchable',{exact:true}).isVisible());
   await page.screenshot({path:`${out}/display-no-sources.png`});
 
   await page.getByRole('checkbox',{name:'Show labels for Moon Gazetteer',exact:true}).click();
-  assert.equal(await page.getByText('No name sources enabled',{exact:true}).count(),0);
+  assert.equal(await page.getByText('Geographic labels hidden; names remain searchable',{exact:true}).count(),0);
   assert.equal(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.filter(id=>id.startsWith('moon:usgs:places:')).length),0);
   assert.ok(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers.length>0));
   await namesMaster.setChecked(false);
-  assert.equal(await page.getByText('No name sources enabled',{exact:true}).count(),0);
+  assert.ok(await page.getByText('Geographic labels hidden; names remain searchable',{exact:true}).isVisible());
   for(const checkbox of await sourceLabels.all()) await checkbox.setChecked(true);
   await namesMaster.setChecked(true);
   await page.evaluate(()=>window.sh.closeTool('display'));
-  checks.push('no enabled source status; master preserves hidden datasets; logical Moon restoration and mixed/body-off states');
+  checks.push('hidden-but-searchable status; master preserves hidden datasets; logical Moon restoration and mixed/body-off states');
 
   // Exercise real clipboard -> Coordinates for both Mars hemispheres, using
   // every common view preset; compare actual camera eyes and orientations.
@@ -217,7 +217,7 @@ try {
   for(const [name,preset,range] of [['Jezero','overhead',''],['Hellas','oblique','200'],['Jezero','surface','100']]) {
     await page.evaluate(async({name,preset,range})=>{
       window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');
-      window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;
+      window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;window.nv.navigationView.framing=(range ? 'custom' : 'auto');
       const p=window.s.vs.places.search(name,{body:'Mars'}).find(p=>p.name===name);if(!p)throw new Error('Missing '+name);
       window.testPlace=p;window.p.selectPlace(p);window.s.vs.navigateMode='places';
     },{name,preset,range});
@@ -246,7 +246,7 @@ try {
   checks.push('north/south Mars clipboard round trip; Places and Coordinates Jump/Fly equivalent for overhead, oblique and surface');
   for(const [preset,range] of [['surface','100'],['oblique','invalid'],['overhead','8000']]) {
     const expected=await page.evaluate(({preset,range})=>{
-      window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;
+      window.nv.navigationView.preset=preset;window.nv.navigationView.rangeText=range;window.nv.navigationView.framing=(range ? 'custom' : 'auto');
       const c=window.arena.feature.geometry.coordinates;
       window.s.goToCoordinates({bodyName:'Mars',...c,latitude:'planetographic',longitudeDirection:'east'},{preset:'overhead',animate:false});
       const expected={eye:window.renderer.camera.position.toArray(),q:window.renderer.camera.quaternion.toArray()};
@@ -265,7 +265,7 @@ try {
   }
   checks.push('actual viewport label double-click ignores Surface/100m, invalid input and another body range, preserves form choices, lands at automatic overhead');
 
-  await page.evaluate(()=>{window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.p.navigateToPlace(window.arena,'jump');});
+  await page.evaluate(()=>{window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='';window.nv.navigationView.framing='auto';window.p.navigateToPlace(window.arena,'jump');});
   await browsePlaces();await search.fill('');
   await page.screenshot({path:`${out}/navigate-desktop.png`});
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);await page.screenshot({path:`${out}/navigate-compact.png`});
@@ -279,7 +279,7 @@ try {
   await page.evaluate(async()=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(window.renderer.renderer.domElement,new URL('test-catalogs/planetary-places.json',location.href).href);});
   await page.waitForFunction(()=>window.renderer?.placeNames.index.places.length===11139);
   assert.equal(await page.evaluate(()=>window.s.vs.surfaceTarget),null);assert.equal(await page.evaluate(()=>window.s.vs.selectedPlaceRef),null);assert.deepEqual(await page.evaluate(()=>window.s.vs.hiddenPlaceLayers),[]);
-  await page.evaluate(()=>window.sh.openTool('display'));assert.equal(await page.getByText('No name sources enabled',{exact:true}).count(),0);await page.evaluate(()=>window.sh.closeTool('display'));
+  await page.evaluate(()=>window.sh.openTool('display'));assert.equal(await page.getByText('Geographic labels hidden; names remain searchable',{exact:true}).count(),0);await page.evaluate(()=>window.sh.closeTool('display'));
   checks.push('scene reload clears named target and resets disabled-source state');
   if(process.env.CL_TERRAIN) {
     const url=`${base}named-terrain.json`;
@@ -291,7 +291,7 @@ try {
     });
     const terrain=await page.evaluate(async url=>{
       const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(window.renderer.renderer.domElement,url);
-      window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='30';
+      window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='30';window.nv.navigationView.framing='custom';
       const r=window.renderer,place=r.placeNames.index.search('Shackleton',{body:'Moon'}).find(p=>p.name==='Shackleton');window.p.navigateToPlace(place,'jump');
       const revisions=new Set();
       for(let i=0;i<360;i++){await new Promise(requestAnimationFrame);if(window.s.vs.surfaceTarget?.place?.ref!==place.ref)throw new Error('Named target lost during terrain refinement');revisions.add(r.getBodyMesh('Moon').terrainRevision);}

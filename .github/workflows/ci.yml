@@ -213,6 +213,7 @@ jobs:
           CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
           CL_OUTPUT=/tmp/planetary-places-motion node scripts/test-place-label-motion.mjs
           CL_OUTPUT=/tmp/planetary-place-targets node scripts/test-place-targets.mjs
+          CL_OUTPUT=/tmp/planetary-place-inspector node scripts/test-place-inspector.mjs
           CL_STAR_SMOKE=1 npm run capture:stars
 
       - name: Save global geographic smoke evidence
@@ -225,6 +226,7 @@ jobs:
             /tmp/planetary-places/
             /tmp/planetary-places-motion/
             /tmp/planetary-place-targets/
+            /tmp/planetary-place-inspector/
             /tmp/geographic-global-vite.log
           if-no-files-found: ignore
 

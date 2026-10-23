@@ -556,6 +556,24 @@ describe('navigation verbs', () => {
     unbindRenderer();expect(vs.excludedPlaceLayers).toEqual([]);
   });
 
+  it('distinguishes excluded sources from hidden labels and body-wide label visibility', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);vs.placeBodies=['Titan'];
+    expect(placeActions.placeSourceStatus()).toBe('');
+    vs.hiddenPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(2);
+    vs.excludedPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('No name sources included');expect(placeActions.searchPlaces('')).toHaveLength(0);
+    vs.excludedPlaceLayers=[layer.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(1);
+    vs.hiddenPlaceLayers=[layer.id];expect(placeActions.placeSourceStatus()).toBe('');
+    vs.placeBodies=[];expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');
+    vs.excludedPlaceLayers=[];vs.placeBodies=['Titan'];vs.hiddenPlaceLayers=[];
+    expect(placeActions.placeSourceStatus()).toBe('');expect(placeActions.searchPlaces('')).toHaveLength(2);
+  });
+
   it.each([false,true])('releases an active named target, preserving independent inspection=%s', independent => {
     const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Target'},geometry:{type:'Point',coordinates:[0,0]}}]}),
       {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});

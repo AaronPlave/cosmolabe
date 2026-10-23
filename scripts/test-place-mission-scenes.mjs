@@ -22,13 +22,13 @@ try {
     await page.waitForFunction(body=>window.renderer?.placeNames?.index.places.some(p=>p.layer.body===body),body);
     const result=await page.evaluate(async({body,name,mission})=>{
       const s=await window.__placeModule('/src/lib/viewer-state.svelte.ts'),p=await window.__placeModule('/src/lib/places.ts'),nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');
-      window.cosmo.setPlaying(false);nv.navigationView.preset='overhead';nv.navigationView.rangeText='';
+      window.cosmo.setPlaying(false);nv.navigationView.preset='overhead';nv.navigationView.rangeText='';nv.navigationView.framing='auto';
       const found=p.searchPlaces(name,{body}).find(p=>p.name===name)??p.searchPlaces(name,{body})[0];
       if(!found)throw new Error(`Missing ${name}`);
       if(!p.navigateToPlace(found,'jump'))throw new Error(`Navigation failed: ${name}`);
       const officialTarget=s.vs.surfaceTarget?.place?.name;
       let missionRef=null;
-      if(mission){nv.navigationView.rangeText='20';const site=p.searchPlaces(mission,{body}).find(p=>p.name===mission);if(!site||site.origin!=='mission/user')throw new Error(`Missing distinct mission site ${mission}`);if(!p.navigateToPlace(site,'jump'))throw new Error(`Mission navigation failed: ${mission}`);missionRef=site.ref;}
+      if(mission){nv.navigationView.rangeText='20';nv.navigationView.framing='custom';const site=p.searchPlaces(mission,{body}).find(p=>p.name===mission);if(!site||site.origin!=='mission/user')throw new Error(`Missing distinct mission site ${mission}`);if(!p.navigateToPlace(site,'jump'))throw new Error(`Mission navigation failed: ${mission}`);missionRef=site.ref;}
       for(let i=0;i<180;i++)await new Promise(requestAnimationFrame);
       const c=window.renderer.camera.position;
       return{body,indexedBodies:[...new Set(s.vs.places.places.map(p=>p.layer.body))],count:s.vs.places.places.length,enabledBodies:[...s.vs.placeBodies],officialTarget,missionRef,target:s.vs.surfaceTarget?.place,failures:s.vs.placeFailures,camera:[c.x,c.y,c.z],labels:document.querySelectorAll('.cl-place-name').length,surface:s.vs.surfaceTarget?.surface,terrainReady:!!window.renderer.getBodyMesh(body)?.hasTerrain};

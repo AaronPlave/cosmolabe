@@ -105,7 +105,7 @@ try {
   await page.getByRole('checkbox', { name: 'Mars geographic names', exact: true }).setChecked(true);
   await page.getByRole('checkbox', { name: 'Moon geographic names', exact: true }).setChecked(true);
   const measure = async name => {
-    await page.evaluate(async ({ name, root }) => {
+    await page.evaluate(async ({ name, root: _root }) => {
       const { selectPlace } = await window.__placeModule('/src/lib/places.ts');
       selectPlace(null); window.renderer.applyNamedViewpoint(name);
     }, { name, root });
@@ -147,12 +147,12 @@ try {
   await page.screenshot({ path: `${output}/compact-shackleton.png` });
   await page.setViewportSize({ width: 1440, height: 900 });
   // Actual cross-origin TLS static server, with CORS headers and relative requires.
-  await page.evaluate(async ({ root, url }) => { const { loadCatalogUrl } = await window.__placeModule('/src/lib/loader.ts'); await loadCatalogUrl(document.querySelector('canvas'), url); }, { root, url: `${hosted}planetary-places.json` });
+  await page.evaluate(async ({ root: _root, url }) => { const { loadCatalogUrl } = await window.__placeModule('/src/lib/loader.ts'); await loadCatalogUrl(document.querySelector('canvas'), url); }, { root, url: `${hosted}planetary-places.json` });
   await ready(); const https = await loadMetrics(); assert.equal(https.places,11139); console.log('Checked', results.length); results.push({ phase:'HTTPS/CORS require graph',...https });
   // The normal local file handler, once with flat multi-file paths and once
   // with directory paths as remembered by the actual directory picker.
   for (const directory of [false,true]) {
-    await page.evaluate(async ({ root, directory }) => {
+    await page.evaluate(async ({ root: _root, directory }) => {
       const { handleFileList } = await window.__placeModule('/src/lib/loader.ts');
       const { rememberLocalFilePath } = await window.__placeModule('/src/lib/local-files.ts');
       const paths=['planetary-places.json','places/mars.json','places/moon.json','places/mars-001.geojson','places/moon-001.geojson','places/moon-002.geojson','places/moon-003.geojson','places/moon-004.geojson','places/user-sites.geojson','textures/mars.dds','textures/moon-2k.jpg'];
@@ -169,7 +169,7 @@ try {
     scene.geographicLayers=['missing','blocked','malformed','oversized'].map(kind=>({...scene.geographicLayers[0],id:kind,source:`${hosted}places/${kind}.geojson`}));
     await route.fulfill({json:scene});
   });
-  await page.evaluate(async ({root,base})=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(document.querySelector('canvas'),`${base}optional-failures.json`);},{root,base});
+  await page.evaluate(async ({root:_root,base})=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(document.querySelector('canvas'),`${base}optional-failures.json`);},{root,base});
   await ready(); const failures=await loadMetrics(); assert.equal(failures.sources.filter(l=>l.status==='error').length,4); assert.equal(failures.places,2051); results.push({phase:'Optional failures',...failures});
   if (process.env.CL_TERRAIN) {
     await page.setViewportSize(hardware ? {width:1920,height:1080} : {width:1440,height:900});
@@ -185,9 +185,9 @@ try {
         }
         await route.fulfill({json:scene});
       });
-      await page.evaluate(async({root,url})=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(document.querySelector('canvas'),url);},{root,url});
+      await page.evaluate(async({root:_root,url})=>{const {loadCatalogUrl}=await window.__placeModule('/src/lib/loader.ts');await loadCatalogUrl(document.querySelector('canvas'),url);},{root,url});
       await ready();
-      await page.evaluate(async()=>{const {navigationView}=await window.__placeModule('/src/lib/navigation-view.svelte.ts');navigationView.preset='overhead';navigationView.rangeText='30';});
+      await page.evaluate(async()=>{const {navigationView}=await window.__placeModule('/src/lib/navigation-view.svelte.ts');navigationView.preset='overhead';navigationView.rangeText='30';navigationView.framing='custom';});
       await search(query,query);await page.getByRole('button',{name:'Jump to',exact:true}).click();
       await page.evaluate(async()=>{const {openTool}=await window.__placeModule('/src/lib/shell.svelte.ts');openTool('display');});
       await page.getByText('By body',{exact:true}).click();

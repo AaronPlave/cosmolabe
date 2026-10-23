@@ -30,7 +30,7 @@
   });
   // A tracked-body/source change must not leave an unavailable type selected.
   $effect(() => { if (kind && !kinds.some(([value]) => value === kind)) kind = ''; });
-  const range = $derived(navigationRange());
+  const range = $derived(navigationRange(place?.diameterKm));
   const target = $derived(place?.feature.geometry.type === 'Point' ? resolveCoordinateTarget({bodyName: place.layer.body, ...placeNavigationCoordinates(place), latitude: 'planetocentric', longitudeDirection: 'east'}) : null);
   const results = $derived(searchPlaces(query, { body: body || undefined, kind: kind || undefined, origin: origin || undefined, sort, activeBody: vs.trackedBodyName ?? undefined, limit: 'all' }));
   let renderedCount = $state(100);
@@ -134,7 +134,7 @@
         <span class="font-mono text-xs" title="Planetocentric latitude · east longitude; matches Coordinates by default">{placeCoordinates(place, 4)}</span>
         <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-surface-3" aria-label="Copy coordinates" title="Copy planetocentric coordinates for Navigate" onclick={copy}><Copy size={13} /></button>
       </div>
-      <NavigationView scaleKm={target?.ok ? target.target.scaleKm : undefined} diameterKm={place.diameterKm} />
+      <NavigationView scaleKm={target?.ok ? target.target.scaleKm : undefined} diameterKm={place.diameterKm} featureFraming />
       {#if !range.ok || navError}<p role="status">{!range.ok ? range.error : navError}</p>{/if}
       {#if copyStatus}<p role="status">{copyStatus}</p>{/if}
       <details>

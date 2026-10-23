@@ -105,7 +105,7 @@ Local validation: full workspace typecheck and Svelte (zero errors/warnings), al
 
 ## Terrain label anchoring and close-range review
 
-Rechecked the top-level discussion and inline review threads: the latest review remains [6366677754](https://github.com/AaronPlave/cosmolabe/pull/274#issuecomment-6366677754), whose browse/inspect, source eligibility, framing and mission adoption work is recorded above. The additional user report concerns floating labels and loss of names near the ground.
+The terrain-label check also covered the earlier top-level discussion and empty inline review threads, including [6366677754](https://github.com/AaronPlave/cosmolabe/pull/274#issuecomment-6366677754), whose browse/inspect, source eligibility, framing and mission adoption work is recorded above. The additional user report concerns floating labels and loss of names near the ground.
 
 Sakarya Vallis reproduces the cause in the actual Ingenuity scene's global Mars terrain: its unsupported areoid datum left labels on the source ellipsoid, **2.372 km above the rendered terrain** at this point. [Original diagnostics](terrain-labels/original-reference-diagnostics.json) identify the reference-shape fallback. Reference-position horizon/frustum checks could also discard a name before its terrain position was considered, especially with a camera inside the reference ellipsoid.
 
@@ -116,3 +116,18 @@ Heightless names now re-seat on the visible rendered surface through the existin
 [Results and GPU identity](terrain-labels/results.json), [20 km](terrain-labels/sakarya-20km.png), [1 km](terrain-labels/sakarya-1km.png), [100 m](terrain-labels/sakarya-0.1km.png), [20 m](terrain-labels/sakarya-0.02km.png), [oblique](terrain-labels/sakarya-0.1km-oblique.png), [continuous recording](terrain-labels/terrain-labels.webm). Chrome reports ANGLE Metal / Apple M4 Max. The five 120-frame checks averaged about 16.7 ms per frame; label CPU p95 was 2.4–2.7 ms, including scheduled terrain work. The 2 ms scheduler permits one query to complete even if that query exceeds its budget.
 
 Local validation: all **50 renderer test files / 505 tests** pass, including cold close-basin projection, retained-anchor refinement, ridge occlusion, explicit source-height preservation and unsupported-datum fallback. Full workspace typecheck/Svelte and changed-file lint pass. Existing Mars/Moon motion acceptance also passes at its explicit smoke sampling (90 orbit frames, 60 sweep frames, 6 FOV steps): [motion results](terrain-labels/mars-moon-motion.json). No browser errors were reported. CI remains outside this follow-up at the user's request.
+
+
+## Final source-status and feature-framing review
+
+Addressed the subsequent [review at 8226d14](https://github.com/AaronPlave/cosmolabe/pull/274#issuecomment-6369348271).
+
+- **Source status:** No name sources included is based strictly on source exclusion. Included sources with all layer/body label drawing hidden instead say Geographic labels hidden; names remain searchable. Tests cover all included/all labels hidden, all excluded, mixed, re-enable, body off and restoration, with actual Cmd-K/Places availability checked alongside the caption. No caption update re-enables a source or hidden label.
+- **Framing:** Auto / Fit feature / Custom is explicit state. Fit retains intent and recomputes from the currently selected diameter, including switching a large valley to a small crater. Missing, nonpositive, nonfinite or overflowing diameters fall back to Auto; the inspector states the fallback. Coordinates uses Auto while Fit intent is retained, and manual entry switches to Custom. Equivalent Place Fit and explicit Coordinate Custom settings produce the same actual camera pose. Viewport double-click retains its separate automatic Overhead rule.
+- **Regression wiring:** Added `test-place-inspector.mjs` to the existing geographic/browser smoke command and its output directory to the existing artifact upload. No new job or mission-scene gate. Locally, the inspector regression passes both physical Chrome/Metal and the same SwiftShader mode used by smoke. Remote CI was not monitored or rerun, per the user's direction.
+
+[Hardware inspector results](final-framing/results.json), [SwiftShader results](final-framing/software-results.json), [navigation/parity/double-click results](final-framing/navigation-results.json), [continuous inspector recording](final-framing/inspector-framing.webm).
+
+Captures: [large feature](final-framing/fit-large.png), [small feature](final-framing/fit-small.png), [missing diameter](final-framing/fit-unknown.png), [340px](final-framing/inspect-340.png), [720px](final-framing/inspect-720.png), [compact inspector](final-framing/inspect-compact.png), [compact browse](final-framing/browse-compact.png), [included but hidden](final-framing/sources-hidden.png), [excluded](final-framing/sources-excluded.png), [mixed](final-framing/sources-mixed.png). Screenshots were inspected locally; independent human/physical-phone acceptance is not claimed.
+
+All **42 viewer files / 550 tests**, full workspace typecheck/Svelte and changed-file lint pass. Shared navigation acceptance passes all overhead/oblique/surface Places vs Coordinates Jump/Fly cases, stale/invalid viewport double-click and scene restoration. The 505 renderer tests and terrain-label GPU evidence above remain applicable; this follow-up preserves that anchor implementation.

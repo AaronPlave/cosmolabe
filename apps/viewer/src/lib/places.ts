@@ -13,6 +13,17 @@ export function searchPlaces(query: string, options: Parameters<PlaceIndex['sear
   return vs.places?.search(query, { ...options, excludedLayerIds: vs.excludedPlaceLayers }) ?? [];
 }
 
+/** Inclusion controls search; body/layer visibility controls only labels. */
+export function placeSourceStatus(): string {
+  const places = vs.places?.places ?? [];
+  const included = places.filter(isPlaceAvailable);
+  if (places.length && !included.length) return 'No name sources included';
+  if (included.length && !included.some(place => vs.placeBodies.includes(place.layer.body) && !vs.hiddenPlaceLayers.includes(place.layer.id))) {
+    return 'Geographic labels hidden; names remain searchable';
+  }
+  return '';
+}
+
 export function setPlaceSourceEnabled(layerIds: readonly string[], enabled: boolean): void {
   const ids = new Set(layerIds);
   vs.excludedPlaceLayers = enabled ? vs.excludedPlaceLayers.filter(id => !ids.has(id)) : [...new Set([...vs.excludedPlaceLayers, ...ids])];
@@ -54,7 +65,7 @@ export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: {
   // A scene gesture has predictable framing; it must not inherit invalid or
   // unrelated form settings, nor overwrite the user's retained form choices.
   const viewport = options.source === 'viewport-dblclick';
-  const range = viewport ? { ok: true as const, km: undefined } : navigationRange();
+  const range = viewport ? { ok: true as const, km: undefined } : navigationRange(place.diameterKm);
   if (!range.ok) return false;
   const { latDeg, lonDeg } = placeNavigationCoordinates(place);
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg,

@@ -15,7 +15,7 @@ try {
  gpu=await page.evaluate(()=>{const gl=window.renderer.renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return{vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)};});
  await page.evaluate(async()=>{
   window.p=await window.__placeModule('/src/lib/places.ts');window.s=await window.__placeModule('/src/lib/viewer-state.svelte.ts');window.sh=await window.__placeModule('/src/lib/shell.svelte.ts');window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');
-  window.cosmo.setPlaying(false);window.site=window.p.searchPlaces('Sakarya Vallis')[0];window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='20';
+  window.cosmo.setPlaying(false);window.site=window.p.searchPlaces('Sakarya Vallis')[0];window.nv.navigationView.preset='overhead';window.nv.navigationView.rangeText='20';window.nv.navigationView.framing='custom';
   if(!window.p.navigateToPlace(window.site,'jump'))throw new Error('Sakarya navigation failed');
   window.sh.closeTool('navigate');
  });
