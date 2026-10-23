@@ -1,6 +1,6 @@
 # Jezero pilot publication and catalog review
 
-**Data publication is complete. Catalog deployment and deployed-origin acceptance remain pending.** The user authorized data-only publication, then approved accepting genuine HTML 404 responses after confirming the loaders reject unsuccessful status before decoding. No Cloudflare error-page rewrite is needed.
+**Data publication, authorized experimental catalog deployment and deployed-origin acceptance are complete.** The user authorized data-only publication, then approved accepting genuine HTML 404 responses after confirming the loaders reject unsuccessful status before decoding. No Cloudflare error-page rewrite is needed.
 
 Build: `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`.
 Lock: `sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9`.
@@ -51,7 +51,7 @@ Already completed products are hash-checked and reused. Public verification cove
 
 ## Catalog candidate and exact rollback
 
-Intended catalog location: **`test-catalogs/experiments/mars-surface-build-pilot.json`**. The static artifact stays in this release directory until separately authorized for exposure. `prefixes.json` maps the three product IDs to their exact catalog-root-relative local prefixes.
+Intended catalog location: **`test-catalogs/experiments/mars-surface-build-pilot.json`**. The exact reviewed static artifact is now committed at `apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json` and shipped in the authorized preview. `prefixes.json` maps the three product IDs to their exact catalog-root-relative local prefixes.
 
 The candidate changes exactly four URLs: terrain tileset, physical CPU grids, context manifest, native manifest. Physical ellipsoid/datum, body-fixed initial camera, visibility, source attribution, bounded native footprint and mandatory base coverage are identical. It contains Sun, Mars and a viewpoint; no mission trajectories. No dataset registry, default entry point, Ingenuity or Curiosity catalog is changed.
 
@@ -76,7 +76,7 @@ node scripts/surface-build/catalog.mjs rollback \
   --candidate work/surface-build/rechecked-public-catalog-candidate.json --catalog work/surface-build/catalog-copy.json
 ```
 
-## Local viewing and remaining approval
+## Local viewing
 
 The running pilot is http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot and now directly loads the public R2 products. Reproduce with:
 
@@ -89,6 +89,33 @@ SURFACE_HOSTED=1 CL_VIEWER_URL=http://127.0.0.1:5174/ \
   work/surface-build/real-pilot-report.json work/surface-build/public-browser-recheck
 ```
 
-**Approval B is still required:** authorize exposure/deployment of only the reviewed experimental catalog at `test-catalogs/experiments/mars-surface-build-pilot.json`. Review `production-catalog-candidate.json` and preserve the previous deployed file or its absence before exposure. Deployment rollback restores that previous file/absence; immutable published data remains accessible and is not deleted. The rehearsal restores the source catalog JSON; it does not itself exercise a live deployment rollback.
+## Authorized deployed preview
 
-After approval, validate the actual deployed/preview viewer origin against public R2: cold/warm loads, near/far LOD, controls/fallback, physical picks, hover/Fly to, provenance, CORS/cache/network and zero uncovered base blocks. Attach URL, browser/GPU evidence and rollback rehearsal. Keep #287 draft and #251 open until this acceptance is observed; no merge or issue closure is authorized yet.
+The user authorized catalog and deployment on 2026-10-23. [Open the production preview](https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot). The main GitHub Pages site allows only main-branch deployment, so this branch is built into an isolated R2 preview rather than replacing that site. No environment policy was changed. The preview contains only viewer assets and the reviewed experimental catalog; it has no mission catalogs, default catalog migration or mission placement changes.
+
+`preview-deployment.json` records the exact 24 objects / 5,079,452 bytes, SHA-256 hashes, MIME types, content-addressed prefix and URL. All files passed public HTTP hash/type/cache checks. Application assets use `no-store`; immutable scientific products retain their existing cache policy. The preview and Mars data share `https://data.aaronplave.com`; this acceptance does not replace the separately recorded cross-origin CORS verification for the main site and localhost.
+
+`deployed-browser.json`, `deployed-cold-warm.json` and `deployed-*.png` record actual production-build Chromium acceptance on Apple M4 Max / ANGLE Metal. No interception, dev-source imports or test mode: near/far imagery, L16 over L11 geometry, mandatory-base coverage, opacity/hiding/L13 fallback/restoration, physical picking, hover alignment, actual layer Fly to, attribution, cold/warm loads and no page/product HTTP errors. The warm reload reused 129 of 140 requests from browser cache. Physical/source uncertainty and desktop-only hardware limits above still apply.
+
+`preview-rollback.json` records a live rollback and restoration: hash-check the exact preview objects, delete only that new prefix, verify empty storage and public entry-point 404, then republish and publicly verify identical bytes. The main site and immutable scientific products stay intact. Prior deployed state was absence. No merge or issue closure is authorized; the PR remains draft and #251 open.
+
+Rebuild the preview without bundling unrelated local catalogs:
+
+```sh
+npm run build
+(cd apps/viewer && npx vite build --base=./ --outDir ../../work/surface-build/deployed-preview --emptyOutDir)
+mkdir -p work/surface-build/deployed-preview/test-catalogs/experiments
+cp apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json work/surface-build/deployed-preview/test-catalogs/experiments/
+node scripts/surface-build/deploy-preview.mjs plan work/surface-build/deployed-preview work/surface-build/new-preview-plan.json
+```
+
+Check a new plan before publication. Reproduction may produce a different asset hash with a changed toolchain; the recorded release rejects any changed inventory. With the exact recorded build directory and existing private R2 credentials, publish or rollback the recorded preview:
+
+```sh
+node scripts/surface-build/deploy-preview.mjs publish work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
+node scripts/surface-build/deploy-preview.mjs rollback work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
+# Restore immediately after a rollback rehearsal:
+node scripts/surface-build/deploy-preview.mjs publish work/surface-build/deployed-preview docs/releases/surface-build-jezero/preview-deployment.json
+```
+
+Run production-browser checks with `CL_VIEWER_URL` set to the preview's `index.html` URL and `SURFACE_HOSTED=1` using `scripts/test-surface-build-pilot.mjs`. Run `scripts/test-surface-build-cold-warm.mjs VIEWER_URL OUT_DIR` with the full catalog query URL for cold/warm acceptance. These scripts use the ordinary runtime renderer/control interface; no Vite development module is needed.

@@ -289,7 +289,11 @@
     "publicHttpVerified": true,
     "viewerOrigin": "http://127.0.0.1:5174",
     "dataOrigin": "https://data.aaronplave.com",
-    "deployedViewerOriginAccepted": false,
-    "catalogDeployed": false
+    "deployedViewerOriginAccepted": true,
+    "catalogDeployed": true,
+    "deployedViewerUrl": "https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "deployedViewerOrigin": "https://data.aaronplave.com",
+    "mainSiteChanged": false,
+    "liveRollback": "passed"
   }
 }

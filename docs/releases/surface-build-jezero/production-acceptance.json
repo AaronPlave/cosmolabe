@@ -21,22 +21,35 @@
     "freshPublicHttpVerification": "passed",
     "apply": "passed",
     "rollback": "exact-original-restored",
-    "deployed": false
+    "deployed": true
   },
   "browser": "production-browser.json",
   "coldWarmBrowser": "production-cold-warm.json",
   "viewerOrigin": "http://127.0.0.1:5174",
   "dataOrigin": "https://data.aaronplave.com",
-  "productionViewerOriginAccepted": false,
-  "catalogDeployed": false,
+  "productionViewerOriginAccepted": true,
+  "catalogDeployed": true,
   "missionChanged": false,
   "validation": {
     "focusedImageryAndPublicationTestsPassed": 27,
     "realHttpPublicationCatalogIntegrationTestsPassed": 1,
     "testTypes": "passed",
     "changedTestsLint": "passed",
-    "syntaxAndDiff": "passed"
+    "syntaxAndDiff": "passed",
+    "productionViewerBuild": "passed",
+    "deployedPhysicalGpuBrowser": "passed",
+    "deployedColdWarmLoads": "passed",
+    "livePreviewRollbackAndRestoration": "passed"
   },
-  "remainingApproval": "Authorize exposure/deployment of only the dedicated experiment catalog, then verify from the actual deployed/preview viewer origin. No merge or issue closure yet.",
-  "missingObjectPolicy": "Require genuine HTTP 404; HTML error bodies are accepted because cube loaders reject before decoding. HTTP 200 error pages and invalid known-object content remain rejected."
+  "remainingApproval": null,
+  "missingObjectPolicy": "Require genuine HTTP 404; HTML error bodies are accepted because cube loaders reject before decoding. HTTP 200 error pages and invalid known-object content remain rejected.",
+  "deployedViewerUrl": "https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+  "deployedViewerOrigin": "https://data.aaronplave.com",
+  "deployedBrowser": "deployed-browser.json",
+  "deployedColdWarmBrowser": "deployed-cold-warm.json",
+  "previewDeployment": "preview-deployment.json",
+  "liveRollback": "preview-rollback.json",
+  "mergeAuthorized": false,
+  "mainSiteChanged": false,
+  "deploymentAuthorization": "User: catalog and deployment authorized"
 }

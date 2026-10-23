@@ -151,7 +151,7 @@ node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   > work/surface-build/production-publication-receipt.json
 ```
 
-This confirmation applies to build `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`. Implementation or input changes require a fresh preflight and reviewed identity. The resulting receipt must pass fresh hosted HTTP verification before preparing the offline catalog candidate. The local test receipt is explicitly `localOnly: true` and is not evidence of R2 publication. Review the candidate and rollback, then explicitly authorize any deployment and verify the production-origin browser load. These external steps remain open; no separate implementation PR is proposed.
+This confirmation applies to build `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`. Implementation or input changes require a fresh preflight and reviewed identity. The resulting receipt must pass fresh hosted HTTP verification before preparing the offline catalog candidate. The local test receipt is explicitly `localOnly: true` and is not evidence of R2 publication. Review the candidate and rollback, then explicitly authorize any deployment and verify the production-origin browser load. These external steps are now complete for the experimental preview; see the deployment record below. No separate implementation PR is proposed.
 
 ## Review corrections: imagery coordinates and incremental source work
 
@@ -172,7 +172,7 @@ The projected-raster incremental regression wraps the actual worker and rejects 
 terrain/datum/fusion copy, elevation audit or terrain builder invocation; it also
 checks the absent scratch files and preserved alignment evidence.
 
-## Production publication and remaining acceptance
+## Production publication and deployed preview acceptance
 
 Owner-authorized immutable R2 publication is complete: **225 stored objects / 14,449,636 bytes**. The [verified public receipt](releases/surface-build-jezero/production-publication-receipt.json) has `localOnly:false`. Every emitted file passed public HTTP hash/type/cache checks; selected production/local CORS origins passed. Both imagery products are published; unchanged terrain was reused.
 
@@ -180,4 +180,6 @@ The [release record](releases/surface-build-jezero/README.md) includes receipt-b
 
 The earlier non-HTML 404 gate was unnecessary for cube loaders, which reject non-success HTTP status before decoding. After the user approved continuing with that correction, genuine HTML 404s are accepted; a successful HTML error page for a missing resource, or HTML replacing any required data object, remains a failure. Regressions cover both publication and actual image-loader fallback.
 
-**Remaining external step:** separately authorize only the dedicated experiment catalog exposure/deployment, then validate from its actual deployed/preview viewer origin. The catalog is prepared but not deployed. Keep #287 draft and #251 open until that acceptance is observed. Mission migrations and the existing physical/source uncertainty remain separate.
+The user explicitly authorized catalog and deployment. The exact reviewed catalog is committed at `apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json` and deployed in the [isolated production preview](https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot). GitHub Pages accepts only `main`; the preview instead uses a new content-addressed prefix on the existing public R2 host, preserving the main site and mission catalogs. All 24 viewer/catalog files (5,079,452 bytes) passed public HTTP hash/type/cache checks. The actual HTTPS preview origin passed cold/warm loads, L16/L11 refinement, opacity/hiding/coarse fallback/restoration, physical picking, hover and the actual Fly to button on M4 Max / Metal, with zero errors and zero uncovered base blocks. Warm load reused 129 of 140 requests; preview application files use `no-store`, while immutable Mars data remains cacheable. Viewer and data share the preview origin; existing cross-origin CORS checks for the main HTTPS site and local viewer remain separately recorded.
+
+Live rollback removed only the 24 hash-verified preview files, restored prefix absence and observed a public HTTP 404; restoration then re-uploaded and re-verified the exact release. [Deployment inventory](releases/surface-build-jezero/preview-deployment.json), [rollback evidence](releases/surface-build-jezero/preview-rollback.json), [deployed browser](releases/surface-build-jezero/deployed-browser.json) and [cold/warm evidence](releases/surface-build-jezero/deployed-cold-warm.json) are attached. No merge or issue closure was authorized; #287 remains draft and #251 open. Mission migrations and the existing physical/source uncertainty remain separate.

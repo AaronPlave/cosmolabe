@@ -1,5 +1,5 @@
-// Render a completed local real pilot without modifying deployment catalogs.
-// Usage: CL_VIEWER_URL=http://127.0.0.1:5187/ node scripts/test-surface-build-pilot.mjs REPORT.json OUT_DIR
+// Render a completed pilot in the development or deployed production viewer.
+// Usage: CL_VIEWER_URL=http://127.0.0.1:5174/ node scripts/test-surface-build-pilot.mjs REPORT.json OUT_DIR
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
@@ -43,19 +43,18 @@ if(!hosted)await page.route('**/__surface-pilot/**',async route=>{
   catch(e){errors.push(e.message);await route.fulfill({status:404,body:'Missing pinned product file'});}
 });
 try {
-  await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero',process.env.CL_VIEWER_URL??'http://127.0.0.1:5187/').href,{waitUntil:'domcontentloaded',timeout:180000});
+  await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero',process.env.CL_VIEWER_URL??'http://127.0.0.1:5174/').href,{waitUntil:'domcontentloaded',timeout:180000});
   await page.waitForFunction(()=>!!window.renderer&&!!window.cosmo,null,{timeout:180000});
-  await page.evaluate(async()=>{const source=await(await fetch('/src/lib/commands.ts')).text();const url=source.match(/from ["']([^"']*viewer-state\.svelte[^"']*)["']/)?.[1];window.pilot=await import(url??'/src/lib/viewer-state.svelte.ts');});
-  await page.waitForFunction(()=>window.pilot.vs.assetsReady===true,null,{timeout:180000});
+  await page.waitForFunction(()=>!!window.renderer.getBodyMesh('Mars')?.terrainManager,null,{timeout:180000});
   const environment=await page.evaluate(()=>{const gl=document.createElement('canvas').getContext('webgl2');const ext=gl.getExtension('WEBGL_debug_renderer_info');return {renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),userAgent:navigator.userAgent};});
   const pose=(height,mode='imagery-unlit')=>page.evaluate(({target,normal,north,height,mode})=>{
-    const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars');window.cosmo.setPlaying(false);window.cosmo.untrack();r.setTerrainDebugMode(mode,'Mars');
+    const r=window.renderer,bm=r.getBodyMesh('Mars');window.cosmo.setPlaying(false);window.cosmo.untrack();r.setTerrainDebugMode(mode,'Mars');
     const V=r.camera.position.constructor,centre=new V();bm.getWorldPosition(centre);
     const world=p=>new V(p[0],p[2],-p[1]).applyQuaternion(bm.mesh.quaternion).multiplyScalar(r.scaleFactor).add(centre);
     const eye=world(target.map((v,i)=>v+normal[i]*height)),t=world(target),up=world(north).sub(centre).normalize();
     r.cameraController.controls.enableDamping=false;r.cameraController.controls.target.copy(t);r.camera.position.copy(eye);r.camera.up.copy(up);r.camera.fov=45;r.camera.updateProjectionMatrix();r.camera.lookAt(t);r.camera.updateMatrixWorld(true);
   },{target,normal,north,height,mode});
-  const snapshot=()=>page.evaluate(()=>{const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),tm=bm.terrainManager;const ids=[],levels={};
+  const snapshot=()=>page.evaluate(()=>{const r=window.renderer,bm=r.getBodyMesh('Mars'),tm=bm.terrainManager;const ids=[],levels={};
     tm.tiles.visibleTiles.forEach(t=>{const uri=t.content?.uri??'';const m=/\/(\d+)\/\d+\/\d+\.glb$/.exec(uri);if(m)levels[m[1]]=(levels[m[1]]??0)+1;t.engineData?.scene?.traverse(o=>{if(o.isMesh&&!o.name.startsWith('cube-imagery-block'))ids.push(o.uuid);});});
     const p=r.pickSurface(0,0);return {levels,fallbackSphereVisible:bm.mesh.visible,geometryIds:ids.sort(),metrics:bm.terrainMetrics,imagery:tm.cubeImageryStats,pick:p&&{latDeg:p.latDeg,lonDeg:p.lonDeg,altKm:p.altKm,physical:p.physical},layers:tm.imageryLayers};});
   const settle=async(height,mode)=>{let stable=0,last='';const start=Date.now();for(let i=0;i<180;i++){await pose(height,mode);await page.waitForTimeout(250);const s=await snapshot();const key=JSON.stringify([s.levels,s.imagery?.displayedLevels]);const busy=s.metrics.network.queued+s.metrics.network.downloading+s.metrics.network.parsing+(s.imagery?.inFlight??0)+(s.imagery?.queued??0);stable=busy===0&&key===last&&s.metrics.tiles.visible>0&&!s.fallbackSphereVisible&&s.imagery?.baseUncoveredBlocks===0?stable+1:0;last=key;if(stable>=6)return {...s,settleMs:Date.now()-start};}throw new Error('pilot scene did not settle');};
@@ -66,7 +65,7 @@ try {
     const state=await settle(height,'imagery-unlit');await page.screenshot({path:join(out,name+'.png')});results.push({name,heightKm:height,...state});
     if(name==='regional'&&state.layers.at(-1).bounds){
       hoverFootprint=await page.evaluate(async()=>{
-        const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
+        const r=window.renderer,bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
         bm.showImageryFootprint(bounds, 'planetocentric');
         const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
         let projected=null;
@@ -85,7 +84,7 @@ try {
       for(let i=0;i<data.length;i+=info.channels)if(data[i]>120&&data[i]>data[i+1]*1.1&&data[i+1]>data[i+2]*1.3)yellowPixels++;
       assert(yellowPixels>100,'hover outline must actually render over the grayscale image');
       hoverFootprint.yellowPixels=yellowPixels;
-      await page.evaluate(()=>window.pilot.getRenderer().getBodyMesh('Mars').showImageryFootprint(null));
+      await page.evaluate(()=>window.renderer.getBodyMesh('Mars').showImageryFootprint(null));
     }
   }
   const near=results.find(r=>r.name==='native-detail');assert(near.imagery.maxDisplayedLevel>Math.max(...Object.keys(near.levels).map(Number)),'native image detail must refine beyond terrain');
@@ -94,13 +93,13 @@ try {
   assert.equal(near.imagery.failedTiles,0);assert(near.pick?.physical?.kind==='hit','physical CPU pick must remain available: '+JSON.stringify(near.pick));
   assert(terrain.nativeFidelity[0].nativeGsdM>nativeLayer.nativeFidelity[0].nativeGsdM,'source-native imagery must exceed coarse physical source detail');
   const before=await snapshot();
-  assert(await page.evaluate(id=>window.pilot.getRenderer().getBodyMesh('Mars').terrainManager.setImageryLayerOpacity(id,.35),nativeLayer.id),'native layer opacity control must succeed');
+  assert(await page.evaluate(id=>window.renderer.getBodyMesh('Mars').terrainManager.setImageryLayerOpacity(id,.35),nativeLayer.id),'native layer opacity control must succeed');
   const faded=await settle(nativeHeight,'imagery-unlit');assert.equal(faded.layers.find(l=>l.id===nativeLayer.id).opacity,.35);await page.screenshot({path:join(out,'opacity.png')});assert.deepEqual(faded.geometryIds,before.geometryIds,'opacity changed physical terrain geometry');
-  assert(await page.evaluate(id=>window.pilot.getRenderer().getBodyMesh('Mars').terrainManager.setImageryLayerVisible(id,false),nativeLayer.id),'optional native layer visibility control must succeed');
+  assert(await page.evaluate(id=>window.renderer.getBodyMesh('Mars').terrainManager.setImageryLayerVisible(id,false),nativeLayer.id),'optional native layer visibility control must succeed');
   const hidden=await settle(nativeHeight,'imagery-unlit');await page.screenshot({path:join(out,'hidden.png')});assert.deepEqual(hidden.geometryIds,before.geometryIds,'visibility changed physical terrain geometry');
   assert.equal(hidden.layers.find(l=>l.id===nativeLayer.id).visible,false);
   assert(hidden.imagery.maxDisplayedLevel<near.imagery.maxDisplayedLevel,'hiding native detail must reveal the coarser context');
-  await page.evaluate(id=>{const tm=window.pilot.getRenderer().getBodyMesh('Mars').terrainManager;tm.setImageryLayerVisible(id,true);tm.setImageryLayerOpacity(id,1);},nativeLayer.id);
+  await page.evaluate(id=>{const tm=window.renderer.getBodyMesh('Mars').terrainManager;tm.setImageryLayerVisible(id,true);tm.setImageryLayerOpacity(id,1);},nativeLayer.id);
   const restored=await settle(nativeHeight,'imagery-unlit');assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).visible,true);assert.equal(restored.layers.find(l=>l.id===nativeLayer.id).opacity,1);assert.deepEqual(restored.geometryIds,before.geometryIds);await page.screenshot({path:join(out,'restored.png')});
   const shaded=await settle(nativeHeight,'none');await page.screenshot({path:join(out,'shaded.png')});
   let unavailableDtm=null;
@@ -109,8 +108,8 @@ try {
     assert(missing?.channels.find(c=>c.channel==='elevation')?.diagnostic?.includes('native-target-unavailable'),'missing high-resolution DTM must be explicit in planner feedback');
     assert(imagery[0].availability.filter(id=>id.split('/')[1]==='0').length===6,'global context must have all six cube roots');
     unavailableDtm=await page.evaluate(async()=>{
-      const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),tm=bm.terrainManager;
-      const lat=0,lon=41*Math.PI/180,d=[Math.cos(lon),Math.sin(lon),0];
+      const r=window.renderer,bm=r.getBodyMesh('Mars'),tm=bm.terrainManager;
+      const lon=41*Math.PI/180,d=[Math.cos(lon),Math.sin(lon),0];
       const ray={origin:{xKm:d[0]*3500,yKm:d[1]*3500,zKm:0},direction:d.map(v=>-v),nearKm:0,farKm:300};
       await tm.cube.surface.ensureRayCoverage(ray,{maxMeshErrorKm:0},new AbortController().signal);
       const hit=bm.intersectTerrainRay(ray,{maxMeshErrorKm:0});
@@ -121,7 +120,7 @@ try {
       r.cameraController.controls.target.copy(aim);r.camera.position.copy(eye);r.camera.up.copy(world([0,0,1]).sub(centre).normalize());r.camera.lookAt(aim);r.camera.updateMatrixWorld(true);
       return {physical:hit.kind,position:hit.position,missingHighResolutionDtm:true};
     });
-    await page.waitForFunction(()=>{const tm=window.pilot.getRenderer().getBodyMesh('Mars').terrainManager,n=tm.metrics.network,i=tm.cubeImageryStats;return tm.tiles.visibleTiles.size>0&&n.queued+n.downloading+n.parsing===0&&i?.inFlight===0&&i?.queued===0;},null,{timeout:120000});
+    await page.waitForFunction(()=>{const tm=window.renderer.getBodyMesh('Mars').terrainManager,n=tm.metrics.network,i=tm.cubeImageryStats;return tm.tiles.visibleTiles.size>0&&n.queued+n.downloading+n.parsing===0&&i?.inFlight===0&&i?.queued===0;},null,{timeout:120000});
     await page.waitForTimeout(500);unavailableDtm.rendered=await snapshot();
     assert.equal(unavailableDtm.rendered.imagery.failedTiles,0);
     assert.equal(unavailableDtm.rendered.imagery.baseUncoveredBlocks,0,'coarse global context must cover no-DTM view');
@@ -129,16 +128,16 @@ try {
   }
   let layerFlight=null;
   if(hosted&&!synthetic&&(await snapshot()).layers.at(-1).bounds){
-    await page.evaluate(()=>window.pilot.selectBody('Mars'));
+    await page.evaluate(()=>window.cosmo.select('Mars'));
     const fly=page.getByRole('button',{name:'Fly to HiRISE ortho — native detail',exact:true});
     if(!await fly.isVisible())await page.locator('summary').filter({hasText:'Imagery'}).click();
     await page.evaluate(()=>{window.layerFlightFrames=[];const start=performance.now();let last=start;const tick=now=>{window.layerFlightFrames.push(now-last);last=now;if(now-start<2200)requestAnimationFrame(tick);};requestAnimationFrame(tick);});
     await fly.click();
-    await page.waitForFunction(()=>!window.pilot.getRenderer().cameraController._anim,null,{timeout:15000});
+    await page.waitForFunction(()=>!window.renderer.cameraController._anim,null,{timeout:15000});
     await page.waitForTimeout(1000);
     await page.mouse.move(400,100);
     layerFlight=await page.evaluate(async()=>{
-      const r=window.pilot.getRenderer(),bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
+      const r=window.renderer,bm=r.getBodyMesh('Mars'),bounds=bm.imageryLayers.at(-1).bounds;
       bm.showImageryFootprint(bounds, 'planetocentric');
       const dot=bm.imageryFootprint.children[1],original=dot.onBeforeRender;
       let projected=null;
@@ -150,10 +149,10 @@ try {
     assert.equal(layerFlight.surfacePivot,true,'layer flight must retain a surface pivot');
     assert.equal(layerFlight.pick,'hit','layer flight must preserve physical surface access');
     await page.screenshot({path:join(out,'fly-to-layer.png')});
-    await page.evaluate(()=>window.pilot.getRenderer().getBodyMesh('Mars').showImageryFootprint(null));
+    await page.evaluate(()=>window.renderer.getBodyMesh('Mars').showImageryFootprint(null));
   }
   assert.deepEqual(errors,[]);
-  const evidence={buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,hoverFootprint,layerFlight,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
-    limits:['Desktop browser only; no real mobile hardware acceptance.','Shared-provenance source registration is not independent absolute geolocation certification.','No production catalog or mission placement was changed.']};
+  const evidence={viewerUrl:page.url(),viewerOrigin:new URL(page.url()).origin,buildId:report.buildId,hostedHttpWithoutInterception:hosted,testMode:false,syntheticFixture:synthetic,hoverFootprint,layerFlight,environment,physicalGpu:!(/swiftshader|llvmpipe/i.test(environment.renderer)),results,unavailableDtm,opacity:faded,hidden,restored,shaded,errors,
+    limits:['Desktop browser only; no real mobile hardware acceptance.','Shared-provenance source registration is not independent absolute geolocation certification.','No mission placement or main site was changed.']};
   await writeFile(join(out,'browser.json'),JSON.stringify(evidence,null,2)+'\n');console.log(JSON.stringify({buildId:report.buildId,environment,nearImageLevel:near.imagery.maxDisplayedLevel,nearTerrainLevels:near.levels,errors}));
 } finally {await browser.close();}
