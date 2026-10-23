@@ -167,3 +167,7 @@ when either side changes. `sourceAudit.executionWork` reports the work selected.
 The projected-raster incremental regression wraps the actual worker and rejects any
 terrain/datum/fusion copy, elevation audit or terrain builder invocation; it also
 checks the absent scratch files and preserved alignment evidence.
+
+## Production acceptance preparation
+
+The [reviewed Jezero release record](releases/surface-build-jezero/README.md) contains a refreshed full publication inventory, dedicated static experiment catalog, exact product-prefix map, planned public catalog diff and commands for the separate data-publication and catalog-exposure approvals. Fresh full local HTTP verification and exact catalog apply/rollback rehearsal passed. Public upload, receipt-bound public candidate and actual deployed-origin acceptance remain pending; the planned URLs are not a publication claim.
