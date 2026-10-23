@@ -59,7 +59,16 @@ rotates about the body's centre, so its shape is preserved), or click a point
 and press **Delete** to remove it. A drag previews the result and turns red,
 with the reason, if it would be refused; releasing then changes nothing.
 Handles sit on the drawn surface (globe facets or terrain tiles), hide past the
-horizon and are larger on touch screens. The bar offers Delete point, Undo,
+horizon and are larger on touch screens. They are bounded so a large imported
+or copied feature stays usable: vertices closer than 12 px on screen share one
+handle (zoom in to reach the rest; the bar says how many are waiting),
+midpoints show only on edges at least 40 px long, and at most 400 handles show,
+those nearest the centre of the view first; the chosen point always shows. A
+feature of more than 2,000 points shows only its move cross until **Show
+points** is pressed. Thinning uses a cheap projection; the drawn-surface height
+is sampled only for handles shown, and a drag of a large feature previews only
+the ring or line being changed. Holes, rings and parts keep their own handles.
+On a phone the bar sits above the open sheet, from its measured height. The bar offers Delete point, Undo,
 Redo (Ctrl/⌘ Z, Shift Z, Y; 100 steps per layer) and **Done**, which ends the
 selection. Your layers draw and pick over published data unless their draw
 order is changed.

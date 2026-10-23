@@ -11,21 +11,21 @@
    *   and radius handles. A drag previews the result and shows it red, with the
    *   reason, if core would refuse it; release commits or leaves it unchanged.
    *
+   * Handles are bounded (lib/edit-handles.ts): thinned on screen, capped, and
+   * for a very large feature only the move handle until points are asked for.
+   *
    * Handles are DOM, so a drag on one never reaches the camera; anywhere else
    * the scene navigates as usual. Edges are drawn the way the renderer draws
    * them, linear in longitude/latitude, and hidden past the horizon.
    */
   import {
-    applyGeographicEdit, geographicFeatureAnchor, geographicEditLayerToLayer, geographicShapeRing, normalizeGeographicPosition,
-    geodesicDirect, geographicDatum, geographicPositionInConvention,
+    applyGeographicEdit, geographicShapeRing, normalizeGeographicPosition, geographicDatum,
     type GeographicEditFeature, type GeographicEditLayer, type GeographicEditOperation, type GeographicGeometry, type GeoPosition,
   } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { drawnSurface } from '../lib/drawn-surface';
-  import { edits, editLayer, applyEdit, draftShape, surfacePosition, editingFeature, selectedVertex } from '../lib/geographic-editing.svelte';
-
-  interface Screen { x: number; y: number; visible: boolean }
-  interface Handle { key: string; kind: 'vertex' | 'mid' | 'move' | 'center' | 'radius'; part: number[]; index: number; position: GeoPosition }
+  import { edits, editLayer, applyEdit, draftShape, surfacePosition, editingFeature, selectedVertex, showsAllPoints } from '../lib/geographic-editing.svelte';
+  import { featureHandles, budgetHandles, needsFineDetail, EDIT_HANDLE_LIMIT, type Handle, type Screen } from '../lib/edit-handles';
   interface Drag { handle: Handle; pointerId: number; current: GeoPosition | null; moved: boolean }
 
   let drag = $state<Drag | null>(null);
@@ -64,7 +64,7 @@
   }
 
   /** An edge as the renderer draws it: linear in unwrapped longitude and latitude, heights interpolated. */
-  function densify(l: GeographicEditLayer, run: GeoPosition[], steps = 8): { positions: GeoPosition[]; heights: (number | null)[] } {
+  function densify(l: GeographicEditLayer, run: GeoPosition[], steps = run.length > 64 ? 1 : 8): { positions: GeoPosition[]; heights: (number | null)[] } {
     const ends = renderedHeights(l, run);
     const positions: GeoPosition[] = [], hs: (number | null)[] = [];
     for (let i = 0; i < run.length; i++) {
@@ -109,44 +109,20 @@
   function points(g: GeographicGeometry<GeoPosition>): GeoPosition[] {
     return g.type === 'Point' ? [g.coordinates] : g.type === 'MultiPoint' ? g.coordinates : [];
   }
-
-  /** Handles for the feature being edited. */
-  function handles(l: GeographicEditLayer, f: GeographicEditFeature): Handle[] {
-    const list: Handle[] = [];
-    const g = f.geometry;
-    const move = geographicFeatureAnchor(geographicEditLayerToLayer({ ...l, features: [f] }).features[0]);
-    const anchor = geographicPositionInConvention(move, l.coordinates);
-    if (f.shape) {
-      const s = f.shape;
-      const center = normalizeGeographicPosition(s.center, l.coordinates);
-      const end = geodesicDirect(center, s.bearingDeg, s.semiMajorKm, geographicDatum(l.coordinates));
-      list.push({ key: 'center', kind: 'center', part: [], index: 0, position: s.center });
-      list.push({ key: 'radius', kind: 'radius', part: [], index: 0, position: geographicPositionInConvention(end, l.coordinates) });
-      return list;
-    }
-    if (g.type === 'Point') return [{ key: 'v', kind: 'vertex', part: [], index: 0, position: g.coordinates }];
-    let lists: { part: number[]; list: GeoPosition[]; ring: boolean }[];
+  /** The ring or line a handle's part path names. */
+  function partRun(g: GeographicGeometry<GeoPosition>, part: number[]): GeoPosition[] | undefined {
     switch (g.type) {
-      case 'MultiPoint': case 'LineString': lists = [{ part: [], list: g.coordinates, ring: false }]; break;
-      case 'MultiLineString': lists = g.coordinates.map((list, i) => ({ part: [i], list, ring: false })); break;
-      case 'Polygon': lists = g.coordinates.map((list, i) => ({ part: [i], list, ring: true })); break;
-      case 'MultiPolygon': lists = g.coordinates.flatMap((poly, p) => poly.map((list, r) => ({ part: [p, r], list, ring: true }))); break;
+      case 'LineString': return g.coordinates;
+      case 'MultiLineString': case 'Polygon': return g.coordinates[part[0]];
+      case 'MultiPolygon': return g.coordinates[part[0]]?.[part[1]];
+      default: return undefined;
     }
-    for (const { part, list: vertices, ring } of lists) {
-      const open = ring ? vertices.slice(0, -1) : vertices;
-      open.forEach((position, index) => list.push({ key: `v${part.join('.')}:${index}`, kind: 'vertex', part, index, position }));
-      if (g.type === 'MultiPoint') continue;
-      const edges = ring ? open.length : open.length - 1;
-      for (let i = 0; i < edges; i++) {
-        const a = open[i], b = open[(i + 1) % open.length];
-        let dLon = b[0] - a[0];
-        if (dLon > 180) dLon -= 360; else if (dLon < -180) dLon += 360;
-        list.push({ key: `m${part.join('.')}:${i}`, kind: 'mid', part, index: i + 1, position: [a[0] + dLon / 2, (a[1] + b[1]) / 2] });
-      }
-    }
-    list.push({ key: 'move', kind: 'move', part: [], index: 0, position: anchor });
-    return list;
   }
+
+  /** Whether this feature shows per-vertex handles. */
+  const withVertices = (l: GeographicEditLayer, f: GeographicEditFeature) => !needsFineDetail(f) || showsAllPoints(l.id, f.id);
+  /** Handles change with the feature, not with the camera: built once per edit. */
+  let baseHandles = $derived(layer && feature ? featureHandles(layer, feature, withVertices(layer, feature)) : []);
 
   /** The operation a drag stands for. */
   function operation(f: GeographicEditFeature, d: Drag): GeographicEditOperation | null {
@@ -173,7 +149,7 @@
     void vs.frameTick; void edits.revision;
     const l = layer;
     if (!l || !getRenderer()) return null;
-    const out = { lines: [] as { d: string; closed: boolean }[], dots: [] as Screen[], handles: [] as (Handle & Screen)[], preview: [] as string[], previewDots: [] as Screen[], invalid: false, refusal: '' };
+    const out = { lines: [] as { d: string; closed: boolean }[], dots: [] as Screen[], handles: [] as (Handle & Screen)[], preview: [] as string[], previewDots: [] as Screen[], invalid: false, refusal: '', hidden: 0 };
     const draft = edits.draft;
     if (draft && edits.tool) {
       const v = draft.vertices, hover = draft.hover;
@@ -199,15 +175,25 @@
         if (result?.ok) shown = result.layer.features.find((x) => x.id === f.id) ?? f;
         out.invalid = !!result && !result.ok;
         out.refusal = result && !result.ok ? result.diagnostics.map((x) => x.message).join('; ') : '';
-        for (const run of runs(shown.geometry)) out.preview.push(pathData(l, run));
-        out.previewDots.push(...project(l, points(shown.geometry)));
+        // A large feature previews only the ring or line being changed.
+        const all = runs(shown.geometry);
+        const large = all.reduce((n, r) => n + r.length, 0) > EDIT_HANDLE_LIMIT;
+        const affected = !large ? all : d.handle.kind === 'vertex' || d.handle.kind === 'mid' ? [partRun(shown.geometry, d.handle.part)].filter((r) => !!r) : [];
+        for (const run of affected) out.preview.push(pathData(l, run));
+        const pts = points(shown.geometry);
+        out.previewDots.push(...project(l, pts.length > EDIT_HANDLE_LIMIT ? [] : pts));
       }
-      const hs = handles(l, d?.moved && !out.invalid ? shown : f);
-      const screen = project(l, hs.map((h) => h.position));
-      out.handles = hs.map((h, i) => ({ ...h, ...screen[i] })).filter((h) => h.visible);
+      const hs = d?.moved && !out.invalid ? featureHandles(l, shown, withVertices(l, f)) : baseHandles;
+      const canvas = getRenderer()!.renderer.domElement;
+      const budget = budgetHandles(hs, (batch, precise) => project(l, batch.map((h) => h.position), precise ? undefined : batch.map(() => null)), { width: canvas.clientWidth, height: canvas.clientHeight }, selectedVertex());
+      out.handles = budget.handles;
+      out.hidden = budget.hidden;
     }
     return out;
   });
+
+  // The bar says how many points are waiting for a closer view.
+  $effect(() => { edits.hiddenPoints = view?.hidden ?? 0; });
 
   function canvasPoint(e: PointerEvent): { x: number; y: number } | null {
     const canvas = getRenderer()?.renderer.domElement;

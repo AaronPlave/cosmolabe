@@ -120,6 +120,14 @@
     "featureId": "string:user-6",
     "bodyName": "Mars"
   },
+  "largeFeature": {
+    "before": 1,
+    "note": "4,400 points: drag the cross to move the shape. Show points",
+    "shown": 191,
+    "hint": "Zoom in to edit 4,210 more points. Hide points",
+    "framesPerSecond": 7.8,
+    "edited": true
+  },
   "drawnLayerStyle": {
     "version": 1,
     "point": {
@@ -153,6 +161,40 @@
       -179.7999999999994,
       -89.49999999999868
     ]
+  },
+  "compact": {
+    "sheet": {
+      "x": 19.5,
+      "y": 481.71875,
+      "width": 346,
+      "height": 155.390625
+    },
+    "dock": {
+      "x": 6.5,
+      "y": 741.5,
+      "width": 377,
+      "height": 96
+    },
+    "bar": {
+      "x": 97.5,
+      "y": 265,
+      "width": 195,
+      "height": 120
+    },
+    "afterClosing": {
+      "sheet": {
+        "x": 6.5,
+        "y": 731.5,
+        "width": 377,
+        "height": 0
+      },
+      "bar": {
+        "x": 97.5,
+        "y": 610,
+        "width": 195,
+        "height": 120
+      }
+    }
   },
   "errors": []
 }

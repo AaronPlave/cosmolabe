@@ -15,8 +15,10 @@
   import { clearGeographicSelection } from '../lib/geographic-layers.svelte';
   import {
     edits, editLayer, editLayers, setDrawTool, finishDraft, removeLastVertex, cancelDrawing, draftShape, editingFeature, selectedVertex,
-    deleteSelectedVertex, undo, redo, canUndo, canRedo, type DrawTool,
+    deleteSelectedVertex, undo, redo, canUndo, canRedo, showsAllPoints, setShowAllPoints, type DrawTool,
   } from '../lib/geographic-editing.svelte';
+  import { needsFineDetail, vertexCount } from '../lib/edit-handles';
+  import { shell } from '../lib/shell.svelte';
 
   const tools: { id: DrawTool; label: string; icon: typeof MapPin; hint: string }[] = [
     { id: 'point', label: 'Point', icon: MapPin, hint: 'Click to place a point.' },
@@ -29,6 +31,10 @@
   let target = $derived(edits.tool ? editLayer(edits.target) : undefined);
   let editing = $derived(editingFeature());
   let editingLayer = $derived(editing ? editLayer(editing.layerId) : undefined);
+  let editingShape = $derived(editing && editingLayer ? editingLayer.features.find((f) => f.id === editing!.featureId) : undefined);
+  /** A feature too large for per-vertex handles until its points are asked for. */
+  let large = $derived(!!editingShape && needsFineDetail(editingShape));
+  let allPoints = $derived(!!editing && showsAllPoints(editing.layerId, editing.featureId));
   let vertex = $derived(selectedVertex());
   let hint = $derived(tools.find((t) => t.id === edits.tool)?.hint ?? '');
   /** Editable layers on the body being drawn on, to switch where shapes go. */
@@ -56,10 +62,16 @@
     return '';
   });
   let canFinish = $derived((edits.draft?.vertices.length ?? 0) >= (edits.tool === 'line' ? 2 : 3));
+
+  // Compact: just above the sheet (or the bottom dock when none shows), from
+  // the sheet's measured height, so it never covers the panel being used.
+  const placement = $derived(shell.layout === 'compact'
+    ? `bottom: calc(var(--size-dock-base) + ${shell.sheetHeight ? shell.sheetHeight + 16 : 8}px)`
+    : undefined);
 </script>
 
 {#if (edits.tool && target) || (editing && editingLayer)}
-  <div class="draw-bar" role="toolbar" aria-label={edits.tool ? 'Drawing' : 'Editing shape'}>
+  <div class="draw-bar" style={placement} role="toolbar" aria-label={edits.tool ? 'Drawing' : 'Editing shape'}>
     {#if edits.tool && target}
       <div class="row">
         {#if choices.length > 1}
@@ -100,6 +112,13 @@
         <button class="action primary" onclick={() => { cancelDrawing(); clearGeographicSelection(); }} title="Done (Esc)"><Check size={14} /> Done</button>
       </div>
       {#if edits.message}<p class="hint ui-meta warn" role="status">{edits.message}</p>{/if}
+      {#if large || edits.hiddenPoints}
+        <p class="hint ui-meta" role="status">
+          {#if large && !allPoints}{vertexCount(editingShape!).toLocaleString()} points: drag the cross to move the shape.
+          {:else if edits.hiddenPoints}Zoom in to edit {edits.hiddenPoints.toLocaleString()} more points.{/if}
+          {#if large}<button class="link" onclick={() => setShowAllPoints(editing!.layerId, editing!.featureId, !allPoints)}>{allPoints ? 'Hide points' : 'Show points'}</button>{/if}
+        </p>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -147,10 +166,10 @@
   .action.primary { background: var(--color-text-primary); color: var(--color-surface-1, #0d1117); }
   .action.primary:hover:not(:disabled) { background: var(--color-text-primary); color: var(--color-surface-1, #0d1117); opacity: 0.9; }
   .hint { margin: 0; padding: 0 2px; color: var(--color-text-secondary); }
+  .link { padding: 0; border: 0; background: none; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; }
   .readout { color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
   .warn { color: var(--color-warning); }
   @media (max-width: 640px) {
-    .draw-bar { bottom: 132px; }
     .into { max-width: 120px; }
   }
 </style>

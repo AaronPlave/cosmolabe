@@ -7,7 +7,8 @@
  * point, path, circle and ellipse from the floating bar; is refused a
  * self-crossing polygon; edits typed properties; reloads; exports and imports
  * GeoJSON (exported and plain); copies one read-only feature into
- * annotations; styles the annotations layer and checks the style returns after
+ * annotations; edits a large multipart feature with bounded handles; styles
+ * the annotations layer and checks the style returns after
  * a reload and a trip to another catalog; draws on the Moon in its own convention; and checks that the
  * tool releases the scene and does not disturb navigation. */
 import assert from 'node:assert/strict';
@@ -310,6 +311,56 @@ try {
   assert.equal(await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features)), original);
   await page.keyboard.press('Escape');
 
+  // A large multipart feature with holes (20 parts × (160 + 60) = 4,400 points): only the move
+  // handle until points are asked for; then thinned and capped handles; an edit keeps every ring.
+  const circle = (lon, lat, r, n) => { const c = Array.from({ length: n }, (_, i) => [lon + r * Math.cos(2 * Math.PI * i / n), lat + r * Math.sin(2 * Math.PI * i / n)]); return [...c, c[0]]; };
+  const parts = Array.from({ length: 20 }, (_, i) => { const lon = 77.405 + (i % 5) * 0.017, lat = 18.405 + Math.floor(i / 5) * 0.017; return [circle(lon, lat, 0.006, 160), circle(lon, lat, 0.002, 60).reverse()]; });
+  const bigText = JSON.stringify({ type: 'FeatureCollection', features: [{ type: 'Feature', id: 'big', properties: { name: 'Big multipart' }, geometry: { type: 'MultiPolygon', coordinates: parts } }] });
+  await showLayers();
+  await page.locator('input[type=file]').setInputFiles({ name: 'Big shapes.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(bigText) });
+  await importForm.waitFor();
+  await importForm.getByRole('radio', { name: 'east' }).click();
+  await importForm.getByRole('radio', { name: '0..360' }).click();
+  await importForm.getByRole('button', { name: 'Import' }).click();
+  await page.waitForTimeout(500);
+  const bigId = (await stored()).find(l => l.name === 'Big shapes')?.id;
+  assert.ok(bigId, 'the large feature imports');
+  await showLayers();
+  await page.getByRole('button', { name: 'Open Big shapes' }).click();
+  await page.getByRole('option', { name: 'Big multipart Areas', exact: true }).click();
+  await editBar.waitFor();
+  await page.waitForTimeout(500);
+  const handleCount = () => page.locator('.edit-overlay .handle').count();
+  const big = { before: await handleCount(), note: await editBar.locator('.hint').last().innerText() };
+  assert.equal(big.before, 1, 'only the move handle before points are asked for');
+  assert.match(big.note, /4,400 points/);
+  await editBar.getByRole('button', { name: 'Show points' }).click();
+  await page.waitForTimeout(500);
+  big.shown = await handleCount();
+  big.hint = await editBar.locator('.hint').last().innerText();
+  await page.screenshot({ path: `${output}/large-feature.png` });
+  assert.ok(big.shown > 1 && big.shown <= 400, `bounded handles (${big.shown})`);
+  assert.match(big.hint, /Zoom in to edit [\d,]+ more points/);
+  // Frame rate with the handles up (software rendering here: a relative number, not a hardware one).
+  big.framesPerSecond = await page.evaluate(() => new Promise((done) => { let n = 0; const t0 = performance.now(); const tick = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(tick); else done(+(n / ((performance.now() - t0) / 1000)).toFixed(1)); }; requestAnimationFrame(tick); }));
+  // Loose floor: per-frame overlay work once cost seconds here (heights sampled for every vertex).
+  assert.ok(big.framesPerSecond > 2, `the scene keeps moving with points shown (${big.framesPerSecond} fps)`);
+  // Drag one vertex: every part and hole is still there, with the same number of points.
+  const ringsOf = async () => (await edit(bigId)).features[0].geometry.coordinates.map((poly) => poly.map((ring) => ring.length));
+  const ringsBefore = await ringsOf();
+  const handle = page.locator('.edit-overlay .handle.vertex').first();
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 6, box.y + box.height / 2 + 4, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  assert.deepEqual(await ringsOf(), ringsBefore, 'parts, holes and point counts unchanged by a move');
+  assert.notDeepEqual((await edit(bigId)).features[0].geometry.coordinates, parts, 'the point moved');
+  big.edited = true;
+  results.largeFeature = big;
+  await editBar.getByRole('button', { name: 'Done' }).click();
+
   // A drawn layer's style comes back after a reload and after a trip to another catalog.
   await showLayers();
   // The import above made a second layer of the same name; the original is listed first.
@@ -356,6 +407,23 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${output}/compact.png` });
+  // The bar sits clear of the open sheet and the bottom dock, and still leaves scene to draw on.
+  const sheet = await page.locator('[aria-label="Mars surface layers"]').boundingBox();
+  const dock = await page.locator('.compact-dock').boundingBox();
+  const barBox = await bar.boundingBox();
+  results.compact = { sheet, dock, bar: barBox };
+  assert.ok(sheet && dock && barBox, 'sheet, dock and bar all show');
+  assert.ok(barBox.y + barBox.height <= sheet.y, 'the bar is above the sheet');
+  assert.ok(barBox.y + barBox.height <= dock.y, 'the bar is above the dock');
+  assert.ok(barBox.y > 200, 'scene remains above the bar');
+  // Closing the layers sheet: the bar stays clear of whatever the sheet shows now, or drops to the dock.
+  await page.locator('.compact-dock').getByRole('button', { name: 'Surface layers' }).click();
+  await page.waitForTimeout(400);
+  const after = { sheet: await page.locator('[data-sheet]').boundingBox(), bar: await bar.boundingBox() };
+  results.compact.afterClosing = after;
+  if (after.sheet && after.sheet.height > 0) assert.ok(after.bar.y + after.bar.height <= after.sheet.y, 'above the sheet now showing');
+  else assert.ok(after.bar.y > barBox.y, 'with no sheet, the bar drops toward the dock');
+  assert.ok(after.bar.y + after.bar.height <= dock.y, 'and stays above the dock');
   await page.keyboard.press('Escape');
 
   results.errors = errors;

@@ -74,6 +74,10 @@ export const edits = $state({
   form: null as null | { mode: 'new' } | { mode: 'import'; text: string; fileName: string },
   /** Last refusal or note. */
   message: '',
+  /** The large feature whose points were asked for ("layer/feature"); others show only their move handle. */
+  allPoints: null as string | null,
+  /** Points on screen without a handle (thinned or over the limit), from the edit overlay. */
+  hiddenPoints: 0,
   /** Why stored layers were partly ignored, from the last load. */
   problems: [] as string[],
   persistent: true,
@@ -426,6 +430,16 @@ export function editingFeature(): { layerId: string; featureId: string | number 
   return feature ? { layerId: geo.selected.layerId, featureId: feature.id } : null;
 }
 
+const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+
+/** Whether a large feature's points were asked for. */
+export function showsAllPoints(layerId: string, featureId: string | number): boolean {
+  return edits.allPoints === `${layerId}/${featureId}`;
+}
+export function setShowAllPoints(layerId: string, featureId: string | number, on: boolean): void {
+  edits.allPoints = on ? `${layerId}/${featureId}` : null;
+}
+
 /** The vertex chosen in the feature being edited, if any. */
 export function selectedVertex(): { part: number[]; index: number } | null {
   const e = editingFeature(), v = edits.vertex;
@@ -521,7 +535,7 @@ export function importLayerText(text: string, fallback?: { body: string; name: s
     install(); save(); edits.revision++;
     // Importing is not choosing where to draw: new shapes keep going where they went.
     const skipped = diagnostics.filter((d) => d.code === 'skipped-feature').length;
-    edits.message = `Imported ${layer.features.length} features${skipped ? `; ${skipped} invalid features left out` : ''}.`
+    edits.message = `Imported ${plural(layer.features.length, 'feature')}${skipped ? `; ${plural(skipped, 'invalid feature')} left out` : ''}.`
       + (getUniverse()?.getBody(layer.body) ? '' : ` ${layer.body} is not in this scene; the layer shows when it is.`);
     return id;
   } catch (e) {

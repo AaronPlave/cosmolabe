@@ -225,6 +225,12 @@ export const shell = $state({
    * swallowed its clicks.
    */
   chromeBottom: 0,
+
+  /**
+   * Measured height of the compact sheet, in px; 0 when none shows. Tools
+   * floating over the scene (the Draw bar) sit above it rather than over it.
+   */
+  sheetHeight: 0,
 });
 
 // ── Open / close ──
