@@ -160,7 +160,7 @@
             <dt class="text-text-secondary">Archive SHA-256</dt><dd>{String(place.layer.definition.provenance.sourceSha256)}</dd>
           {/if}
           <dt class="text-text-secondary">Reference</dt><dd>{JSON.stringify(place.layer.datum.referenceShape)} · geodetic latitude</dd>
-          <dt class="text-text-secondary">Label anchor</dt><dd>Physical terrain sample when supported and resident; declared reference-shape fallback</dd>
+          <dt class="text-text-secondary">Label anchor</dt><dd>Rendered surface when available; otherwise a supported terrain sample or the declared reference shape. Explicit source heights are preserved.</dd>
           <dt class="text-text-secondary">Place reference</dt><dd>{place.ref}</dd>
           {#each Object.entries(fields) as [key, value]}
             <dt class="text-text-secondary">{key}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>

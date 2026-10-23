@@ -1,0 +1,197 @@
+[
+  {
+    "preset": "overhead",
+    "site": "Sakarya Vallis",
+    "coords": {
+      "latDeg": -5.160246424937674,
+      "lonDeg": 137.33000000000004
+    },
+    "ref": "mars:usgs:places/gazetteer:15941",
+    "selected": "mars:usgs:places/gazetteer:15941",
+    "metrics": {
+      "scanned": 30,
+      "candidates": 1,
+      "drawn": 1,
+      "terrain": 0,
+      "reference": 1,
+      "cpuMs": 0.10000002384185791,
+      "enters": 6,
+      "exits": 5,
+      "losChecks": 0,
+      "losDeferred": 0,
+      "handoffs": 0
+    },
+    "anchor": {
+      "offsetKm": {
+        "x": -2487.112564072873,
+        "y": -301.8877559346622,
+        "z": -2292.6314550024204
+      },
+      "source": "reference-shape"
+    },
+    "point": {
+      "x": 0.0022161208926656526,
+      "y": 0.0022165735644317165,
+      "z": -0.0013071472505315487
+    },
+    "hidden": false,
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "areoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "diagnostics": {
+      "tileCount": 62,
+      "sampleCount": 86,
+      "lastSampleMicros": 0,
+      "meanSampleMicros": 13.953488926554835,
+      "state": "ready"
+    },
+    "labels": [
+      {
+        "text": "Sakarya Vallis",
+        "anchor": "reference-shape",
+        "left": "595.802px",
+        "top": "443px"
+      }
+    ],
+    "surface": "on the reference shape"
+  },
+  {
+    "preset": "surface",
+    "site": "Sakarya Vallis",
+    "coords": {
+      "latDeg": -5.160246424937674,
+      "lonDeg": 137.33000000000004
+    },
+    "ref": "mars:usgs:places/gazetteer:15941",
+    "selected": "mars:usgs:places/gazetteer:15941",
+    "metrics": {
+      "scanned": 15,
+      "candidates": 1,
+      "drawn": 1,
+      "terrain": 0,
+      "reference": 1,
+      "cpuMs": 0.09999996423721313,
+      "enters": 6,
+      "exits": 5,
+      "losChecks": 0,
+      "losDeferred": 0,
+      "handoffs": 0
+    },
+    "anchor": {
+      "offsetKm": {
+        "x": -2487.112564072873,
+        "y": -301.8877559346622,
+        "z": -2292.6314550024204
+      },
+      "source": "reference-shape"
+    },
+    "point": {
+      "x": 0.0022161208926656526,
+      "y": 0.0022165735644317165,
+      "z": -0.0013071472505315487
+    },
+    "hidden": false,
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "areoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "diagnostics": {
+      "tileCount": 82,
+      "sampleCount": 156,
+      "lastSampleMicros": 0,
+      "meanSampleMicros": 14.102563644066835,
+      "state": "ready"
+    },
+    "labels": [
+      {
+        "text": "Sakarya Vallis",
+        "anchor": "reference-shape",
+        "left": "595.802px",
+        "top": "443px"
+      }
+    ],
+    "surface": "on the reference shape"
+  },
+  {
+    "preset": "oblique",
+    "site": "Sakarya Vallis",
+    "coords": {
+      "latDeg": -5.160246424937674,
+      "lonDeg": 137.33000000000004
+    },
+    "ref": "mars:usgs:places/gazetteer:15941",
+    "selected": "mars:usgs:places/gazetteer:15941",
+    "metrics": {
+      "scanned": 15,
+      "candidates": 1,
+      "drawn": 1,
+      "terrain": 0,
+      "reference": 1,
+      "cpuMs": 0,
+      "enters": 6,
+      "exits": 5,
+      "losChecks": 0,
+      "losDeferred": 0,
+      "handoffs": 0
+    },
+    "anchor": {
+      "offsetKm": {
+        "x": -2487.112564072873,
+        "y": -301.8877559346622,
+        "z": -2292.6314550024204
+      },
+      "source": "reference-shape"
+    },
+    "point": {
+      "x": 0.0022161208926656526,
+      "y": 0.0022165735644317165,
+      "z": -0.0013071472505315487
+    },
+    "hidden": false,
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "areoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "diagnostics": {
+      "tileCount": 82,
+      "sampleCount": 226,
+      "lastSampleMicros": 0,
+      "meanSampleMicros": 13.274336283185841,
+      "state": "ready"
+    },
+    "labels": [
+      {
+        "text": "Sakarya Vallis",
+        "anchor": "reference-shape",
+        "left": "595.802px",
+        "top": "443px"
+      }
+    ],
+    "surface": "on the reference shape"
+  }
+]

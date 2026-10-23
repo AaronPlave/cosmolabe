@@ -4,7 +4,7 @@ import type { BodyMesh } from '../BodyMesh.js';
 import type { ScreenRect } from '../EventCallout.js';
 import { AnnotationBudget, PersistentLabels, type LabelCandidate } from '../annotations/PersistentLabels.js';
 import type { GeographicFeatureRef } from './GeographicIndex.js';
-import { placeAnchor } from './PlaceSurface.js';
+import { placeAnchor, type PlaceAnchor } from './PlaceSurface.js';
 
 export function placeLabelBox(x: number, y: number, textWidth: number, fontSize = 12): ScreenRect {
   // Centered on the geographic anchor, with a consistent text baseline.
@@ -14,7 +14,7 @@ export function placeLabelBox(x: number, y: number, textWidth: number, fontSize 
 interface Projection extends LabelCandidate {
   place: Place;
   world: Vector3;
-  source: 'source-height' | 'terrain-sample' | 'reference-shape';
+  source: PlaceAnchor['source'];
   font: number;
 }
 interface Visibility { anchor: NonNullable<ReturnType<typeof placeAnchor>>; eye: Vector3; point: Vector3; hidden: boolean; at: number }
@@ -27,7 +27,7 @@ export class PlaceNames {
   selectedRef: string | null = null;
   readonly bodies = new Set<string>();
   readonly hiddenLayers = new Set<string>();
-  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0, handoffs: 0 };
+  metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: 0, exits: 0, losChecks: 0, losDeferred: 0, handoffs: 0 };
   indexBuildMs = 0;
   private drawn: Array<{ place: Place; box: ScreenRect }> = [];
   private readonly labels = new Map<string, HTMLDivElement>();
@@ -63,11 +63,13 @@ export class PlaceNames {
   getScreenRects(): ScreenRect[] { return this.drawn.map(d => d.box); }
 
   update(camera: PerspectiveCamera, meshes: ReadonlyMap<string, BodyMesh>, scale: number, width: number, height: number,
-    obstacles: readonly ScreenRect[], occluded: (world: Vector3) => boolean): void {
+    obstacles: readonly ScreenRect[], occluded: (world: Vector3) => boolean,
+    renderedAnchor?: (place: Place, body: BodyMesh, anchor: PlaceAnchor) => PlaceAnchor | null): void {
     const start = performance.now();
-    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0, handoffs: 0 };
+    this.metrics = { scanned: 0, candidates: 0, drawn: 0, terrain: 0, rendered: 0, reference: 0, cpuMs: 0, enters: this.layout.enters, exits: this.layout.exits, losChecks: 0, losDeferred: 0, handoffs: 0 };
     const candidates: Projection[] = [];
     const invalidated = new Set<string>();
+    const considered = new Set<string>();
     const focalPixels = height / (2 * Math.tan(camera.fov * Math.PI / 360));
     const selected = this.selectedRef ? this.index.byRef.get(this.selectedRef) : undefined;
     const names = new Set(this.bodies);
@@ -78,7 +80,11 @@ export class PlaceNames {
       const eye = camera.position.clone().sub(body.position).applyQuaternion(body.mesh.quaternion.clone().invert());
       const lat = Math.atan2(eye.y, Math.hypot(eye.x, eye.z)) * 180 / Math.PI;
       const lon = Math.atan2(-eye.z, eye.x) * 180 / Math.PI;
-      const ratio = eye.length() / (body.displayRadius * scale);
+      // A camera can be below the reference ellipsoid in a terrain basin.
+      // Use a conservative relief envelope for admission; rendered LOS still
+      // decides visibility, without treating areoid heights as ellipsoid ones.
+      const relief = body.hasTerrain ? body.displayRadius * .01 + 30 : 0;
+      const ratio = eye.length() / (Math.max(body.displayRadius * .5, body.displayRadius - relief) * scale);
       const angle = Math.min(100, Math.max(.1, Math.acos(Math.min(1, 1 / Math.max(1, ratio))) * 180 / Math.PI * 1.5));
       const region = this.bodies.has(name) ? this.index.nearby(name, lon, lat, angle, PLACE_LIMIT) : [];
       // Retained IDs bypass regional and candidate admission limits so ordinary
@@ -91,23 +97,27 @@ export class PlaceNames {
       for (const place of region) {
         this.metrics.scanned++;
         if (place !== selected && (!this.bodies.has(name) || this.hiddenLayers.has(place.layer.id))) { invalidated.add(place.ref); continue; }
+        considered.add(place.ref);
         const cached = this.anchors.get(place.ref);
         if (!cached) continue;
         const normal = cached.normal.clone().applyQuaternion(body.mesh.quaternion);
-        const world = cached.offset.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
+        const sampled = this.visibility.get(place.ref)?.anchor;
+        const world = (sampled?.offsetKm ?? cached.offset).clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
         const view = camera.position.clone().sub(world);
+        const provisional = body.hasTerrain && place.feature.geometry.type === 'Point' && place.feature.geometry.coordinates.heightKm === undefined
+          && view.length() < relief * scale * 2;
         // Full physical disk, independent of Sun lighting. Ellipsoid normals
         // are geodetic, not radial. Hide immediately on a proven backside.
-        if (normal.dot(view) <= 0) { invalidated.add(place.ref); continue; }
+        if (normal.dot(body.hasTerrain ? camera.position.clone().sub(body.position) : view) <= 0) { invalidated.add(place.ref); continue; }
         const p = world.clone().project(camera);
-        if (p.z < -1 || p.z > 1) { invalidated.add(place.ref); continue; }
+        if (!provisional && (p.z < -1 || p.z > 1)) { invalidated.add(place.ref); continue; }
         const inViewport = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
-        if (!inViewport && !this.layout.states.has(place.ref)) continue;
+        if (!provisional && !inViewport && !this.layout.states.has(place.ref)) continue;
         const depth = -world.clone().applyMatrix4(camera.matrixWorldInverse).z;
         const extent = place.diameterKm ?? body.displayRadius * .005;
         const apparent = extent * scale * focalPixels / Math.max(1e-12, depth);
         let eligibility = place === selected ? 10 : apparent / place.label.minPixels;
-        if (eligibility < .75) {
+        if (!provisional && eligibility < .75) {
           // Still project a retained label while it fades at the exit threshold.
           if (!this.layout.states.has(place.ref)) continue;
         }
@@ -120,7 +130,7 @@ export class PlaceNames {
           this.widths.set(key, textWidth);
         }
         const box = placeLabelBox((p.x + 1) * width / 2, (1 - p.y) * height / 2, textWidth, font);
-        if (box.x0 < 8 || box.x1 > width - 8 || box.y0 < 8 || box.y1 > height - 8) {
+        if (!provisional && (box.x0 < 8 || box.x1 > width - 8 || box.y0 < 8 || box.y1 > height - 8)) {
           if (!this.layout.states.has(place.ref)) continue;
           eligibility = 0;
         }
@@ -149,7 +159,8 @@ export class PlaceNames {
       const due = !los || start - los.at >= 200 || los.eye.distanceTo(camera.position) > tolerance || los.point.distanceTo(p.world) > tolerance * .1;
       if (due) {
         const result = budget.run(() => {
-          const anchor = placeAnchor(p.place, body);
+          let anchor = placeAnchor(p.place, body);
+          if (anchor && renderedAnchor && anchor.source !== 'source-height') anchor = renderedAnchor(p.place, body, anchor) ?? anchor;
           if (!anchor) return null;
           const world = anchor.offsetKm.clone().multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
           return { anchor, eye: camera.position.clone(), point: world, hidden: occluded(world), at: start };
@@ -165,14 +176,19 @@ export class PlaceNames {
       p.source = checked.anchor.source;
       p.world.copy(checked.anchor.offsetKm).multiplyScalar(scale).applyQuaternion(body.mesh.quaternion).add(body.position);
       // Refinement can move a point. Cheap projection still runs every frame,
-      // using the last completed physical sample if expensive work is deferred.
+      // using the last completed surface anchor if expensive work is deferred.
       const screen = p.world.clone().project(camera);
+      if (screen.z < -1 || screen.z > 1) { invalidated.add(p.id); continue; }
       const cx = (p.box.x0 + p.box.x1) / 2, cy = (p.box.y0 + p.box.y1) / 2;
       const dx = (screen.x + 1) * width / 2 - cx, dy = (1 - screen.y) * height / 2 - cy;
       p.box = { x0:p.box.x0+dx, x1:p.box.x1+dx, y0:p.box.y0+dy, y1:p.box.y1+dy };
+      const depth = -p.world.clone().applyMatrix4(camera.matrixWorldInverse).z;
+      const extent = p.place.diameterKm ?? body.displayRadius * .005;
+      p.eligibility = p.selected ? 10 : extent * scale * focalPixels / Math.max(1e-12, depth) / p.place.label.minPixels;
+      if (p.box.x0 < 8 || p.box.x1 > width - 8 || p.box.y0 < 8 || p.box.y1 > height - 8) p.eligibility = 0;
     }
     for (const p of projected) if (this.visibility.get(p.id)?.hidden) invalidated.add(p.id);
-    const visible = projected.filter(p => this.visibility.get(p.id)?.hidden === false);
+    const visible = projected.filter(p => !invalidated.has(p.id) && this.visibility.get(p.id)?.hidden === false);
     // Area-aware spacing: sparse at a whole globe, progressively more at a
     // regional/surface view. This is a layout clearance, not a source footprint.
     const layoutCandidates = visible.map(p => {
@@ -203,11 +219,18 @@ export class PlaceNames {
       el.dataset.accepted = String(state.accepted);
       el.dataset.anchor = p.source; el.dataset.labelClass = p.place.label.class;
       if (state.accepted && state.opacity >= .5) this.drawn.push({ place:p.place, box:p.box });
-      this.metrics[p.source === 'terrain-sample' ? 'terrain' : 'reference']++;
+      this.metrics[p.source === 'terrain-sample' ? 'terrain' : p.source === 'rendered-surface' ? 'rendered' : 'reference']++;
     }
     for (const [id,el] of this.labels) if (!alive.has(id)) { el.remove(); this.labels.delete(id); }
     const projectedIds = new Set(projected.map(p => p.id));
-    for (const id of this.visibility.keys()) if (!projectedIds.has(id)) this.visibility.delete(id);
+    // Keep offscreen samples in the current region: deleting them on a
+    // frustum exit would admit their provisional reference points again next
+    // frame and repeatedly raycast them. Bound the warm cache independently.
+    for (const id of this.visibility.keys()) if (!considered.has(id)) this.visibility.delete(id);
+    if (this.visibility.size > 1024) {
+      const cold = [...this.visibility].filter(([id]) => !projectedIds.has(id)).sort((a,b) => a[1].at-b[1].at);
+      for (const [id] of cold) { if (this.visibility.size <= 1024) break; this.visibility.delete(id); }
+    }
     this.metrics.drawn = this.drawn.length;
     this.metrics.handoffs = this.layout.handoffs;
     this.metrics.enters = this.layout.enters; this.metrics.exits = this.layout.exits;

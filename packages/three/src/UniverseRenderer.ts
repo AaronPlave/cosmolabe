@@ -68,6 +68,7 @@ import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRela
 import { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 import { PlaceNames } from './geographic/PlaceNames.js';
+import type { PlaceAnchor } from './geographic/PlaceSurface.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -1176,7 +1177,7 @@ export class UniverseRenderer {
         const hit = this._castSurfaces();
         this._surfaceRaycaster.far = Infinity;
         return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
-      });
+      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
@@ -2641,6 +2642,28 @@ export class UniverseRenderer {
       ? new THREE.Vector3(n[0], n[1], n[2])
       : new THREE.Vector3(n[0], n[2], -n[1])).applyQuaternion(rotation) : null;
     return { world, bodyCenter, normal };
+  }
+
+  /** Presentation anchor on the currently drawn surface, like probe pin
+   * re-seating. This is a ray hit, not a conversion of an unknown areoid datum.
+   * Keep explicit source heights intact; PlaceNames only calls for heightless points. */
+  private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {
+    if (!body.hasTerrain) return null;
+    const local = anchor.offsetKm.clone();
+    const up = local.clone().normalize().applyQuaternion(body.mesh.quaternion);
+    const world = local.multiplyScalar(this.scaleFactor).applyQuaternion(body.mesh.quaternion).add(body.position);
+    const span = (body.displayRadius * .01 + 30) * this.scaleFactor;
+    const raycaster = this._surfaceRaycaster;
+    raycaster.set(world.clone().addScaledVector(up, span), up.negate());
+    raycaster.far = span * 2;
+    try {
+      const hit = this._castSurfaces();
+      if (!hit || hit.bm !== body) return null;
+      return {
+        offsetKm: hit.worldPoint.clone().sub(body.position).applyQuaternion(body.mesh.quaternion.clone().invert()).divideScalar(this.scaleFactor),
+        source: 'rendered-surface',
+      };
+    } finally { raycaster.far = Infinity; }
   }
 
   /**

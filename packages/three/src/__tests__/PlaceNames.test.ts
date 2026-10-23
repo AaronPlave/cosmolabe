@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Universe, parseGeographicGeoJson, type Place } from '@cosmolabe/core';
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { PlaceNames } from '../geographic/PlaceNames.js';
-import { placeAnchor } from '../geographic/PlaceSurface.js';
+import { placeAnchor, type PlaceAnchor } from '../geographic/PlaceSurface.js';
 import type { BodyMesh } from '../BodyMesh.js';
 
 function fixture(collisionLon = -90) {
@@ -25,8 +25,8 @@ function fixture(collisionLon = -90) {
   const camera = new PerspectiveCamera(60, 1, 0.01, 100);
   camera.position.set(0, 0, 4); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
   const meshes = new Map([['Moon', body]]);
-  const update = (hidden = false, obstacles: Array<{ x0: number; y0: number; x1: number; y1: number }> = []) => {
-    for(let i=0;i<4;i++) { now+=100; names.update(camera, meshes, 1, 800, 800, obstacles, () => hidden); }
+  const update = (hidden = false, obstacles: Array<{ x0: number; y0: number; x1: number; y1: number }> = [], renderedAnchor?: (place: Place, body: BodyMesh, anchor: PlaceAnchor) => PlaceAnchor | null) => {
+    for(let i=0;i<4;i++) { now+=100; names.update(camera, meshes, 1, 800, 800, obstacles, () => hidden, renderedAnchor); }
   };
   return { names, body, elements, camera, update };
 }
@@ -77,6 +77,47 @@ describe('optional geographic name annotations', () => {
     expect(f.names.metrics.losDeferred).toBeGreaterThan(0);
     expect(f.names.metrics.drawn).toBe(2);
     expect(f.names.pick(400,400)?.featureId).toBe('string:front');
+  });
+  it('anchors on rendered areoid terrain and keeps a close basin label whose reference point is behind the camera', () => {
+    const f = fixture();
+    Object.assign(f.body, { hasTerrain: true });
+    f.names.setBodyVisible('Moon', true);
+    // The actual terrain is below the reference sphere; the camera is above
+    // the ground but below the reference point. No source datum is relabeled.
+    f.camera.position.z = .95; f.camera.lookAt(0, 0, 0); f.camera.updateMatrixWorld(true);
+    const rendered = () => ({ offsetKm: new Vector3(0, 0, .9), source: 'rendered-surface' as const });
+    f.update(false, [], rendered);
+    expect(f.names.pick(400, 400)?.featureId).toBe('string:front');
+    expect(f.names.metrics.rendered).toBe(1);
+    expect(f.elements[0].dataset.anchor).toBe('rendered-surface');
+    // Both retained and newly admitted names use the real anchor at close range.
+    f.camera.position.z = .93; f.camera.updateMatrixWorld(true);
+    f.update(false, [], rendered);
+    expect(f.names.pick(400, 400)?.featureId).toBe('string:front');
+    f.update(true, [], rendered);
+    expect(f.names.metrics.drawn).toBe(0); // a ridge still occludes immediately
+  });
+  it('reprojects a refined terrain anchor instead of its old reference position', () => {
+    const f = fixture();Object.assign(f.body, { hasTerrain: true });f.names.setBodyVisible('Moon', true);
+    let x = 0;
+    const rendered = () => ({ offsetKm: new Vector3(x, 0, .9), source: 'rendered-surface' as const });
+    f.update(false, [], rendered);
+    const element = f.elements[0], originalLeft = element.style.left;
+    x = .1;f.update(false, [], rendered);
+    expect(f.elements[0]).toBe(element);expect(element.style.left).not.toBe(originalLeft);
+    expect(f.names.metrics.drawn).toBe(1);
+  });
+  it('preserves explicit source heights when rendered terrain is available', () => {
+    const f=fixture();Object.assign(f.body,{hasTerrain:true});
+    const place=f.names.index.places[0];
+    if(place.feature.geometry.type!=='Point')throw new Error('Expected point');
+    place.feature.geometry.coordinates.heightKm=.2;
+    f.names.selectedRef=place.ref;
+    const rendered=vi.fn(()=>({offsetKm:new Vector3(0,0,.9),source:'rendered-surface' as const}));
+    f.update(false,[],rendered);
+    expect(rendered).not.toHaveBeenCalled();
+    expect(f.elements[0].dataset.anchor).toBe('source-height');
+    expect(place.feature.geometry.coordinates.heightKm).toBe(.2);
   });
   it('uses supported physical terrain heights and explicitly falls back for an areoid datum', () => {
     const f = fixture(); const place = f.names.index.places[0] as Place;
