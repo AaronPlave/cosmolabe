@@ -115,6 +115,8 @@ jobs:
               - 'apps/viewer/package.json'
               - 'apps/viewer/vite.config.ts'
               - 'scripts/terrain/**'
+              - 'scripts/surface-build/worker.py'
+              - 'scripts/surface-build/source_kernels.py'
               - 'scripts/build-mars-terrain/**'
               - 'scripts/build-moon-terrain/**'
               - 'scripts/build-*terrain*'

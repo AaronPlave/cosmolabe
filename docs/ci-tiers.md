@@ -54,6 +54,10 @@ planner feedback, catalog pinning and rollback. It uploads reports and browser
 logs/screenshots even on failure. This fixture does not publish to production
 or use R2 credentials. The other terrain and browser jobs retain #288's split;
 no separate surface-only change detector or unconditional executor was restored.
+The mask/kernel fixture filter includes its imported worker and source-kernel
+helpers, so helper-only changes select both relevant jobs. The shared setup
+also retains the surface pilot's Ubuntu mirror workaround before browser
+installation; this does not add another check or change the job selection.
 
 Targeted jobs are **not required statuses**; they may be legitimately skipped.
 A failing targeted run is still a regression to fix before merging. The
