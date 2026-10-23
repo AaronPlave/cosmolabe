@@ -242,7 +242,8 @@
       "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/",
       "cube-imagery/imagery-7b4f6169271a5140b1b1c5cd/7b4f6169271a5140b1b1c5cd43e4070a/",
       "cube-imagery/imagery-19a3928769be6186f9ea2fdd/19a3928769be6186f9ea2fdd2725eb8b/"
-    ]
+    ],
+    "scope": "Historical local-store rehearsal; productionPublication below is the actual R2 receipt."
   },
   "skyfall": {
     "version": 1,
@@ -295,5 +296,6 @@
     "deployedViewerOrigin": "https://data.aaronplave.com",
     "mainSiteChanged": false,
     "liveRollback": "passed"
-  }
+  },
+  "productionReadinessScope": "Experimental deployed preview accepted; this does not certify mission placement, global native imagery, unknown absolute registration or the disclosed mixed-LOD CPU/rendered gap."
 }

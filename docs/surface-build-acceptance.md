@@ -40,6 +40,7 @@ Use the exact `identity` in the preflight artifact as `REVIEWED_IDENTITY`:
 node scripts/build-surface.mjs LOCK.json --cache CACHE --publish-r2 \
   --verify-url https://data.aaronplave.com \
   --verify-origin https://aaronplave.com \
+  --verify-origin http://localhost:5174 \
   --verify-origin http://127.0.0.1:5174 \
   --confirm-publication REVIEWED_IDENTITY > publication-receipt.json
 ```
@@ -137,15 +138,16 @@ new Mars observations or a mission trajectory. Its native image interval is
 interval 74 km, and image output interval ~13.27 km. The separate pinned Jezero
 run proves actual 25 cm observed-source preservation and explicit datum conversion.
 
-## Exact remaining owner action for the reviewed real build
+## Reproduce publication of the reviewed real build
 
-No production credentials were read and no production upload occurred. After explicitly authorizing publication and configuring the #137 R2 environment, run from this checkout:
+Owner-authorized publication has completed using the configured private R2 credentials. The following command reproduces immutable reuse and verification; credentials are never written to release artifacts. Compare a fresh publication plan before repeating it:
 
 ```sh
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
   --verify-origin https://aaronplave.com \
+  --verify-origin http://localhost:5174 \
   --verify-origin http://127.0.0.1:5174 \
   --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
   > work/surface-build/production-publication-receipt.json

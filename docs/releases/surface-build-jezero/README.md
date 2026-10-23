@@ -15,7 +15,7 @@ The public store contains **225 objects / 14,449,636 bytes**, including 219 emit
 - `production-publication-receipt.json`: actual content-pinned receipt with `localOnly:false`, exact product identities/inventories/counts/bytes and verified origins.
 - `production-planner-feedback.json`: receipt-bound published planner feedback, validated against the v1 JSON Schema.
 - `production-catalog-candidate.json`: actual receipt-bound candidate, prepared with fresh public HTTP verification. Its `before` equals `catalog.original.json`; its `after` equals `catalog.planned.json` exactly.
-- `production-acceptance.json`: concise publication/catalog/browser validation and remaining approval.
+- `production-acceptance.json`: concise publication/catalog/browser validation, completed deployment authorization and preview acceptance.
 - `production-browser.json`, `production-cold-warm.json`: actual ordinary-browser checks from port 5174 against public R2 products, without request interception or test mode. Physical GPU: Apple M4 Max / ANGLE Metal. Screenshots: `public-restored.png`, `public-hover-footprint.png`, `public-fly-to-layer.png`.
 - `publication-attempt.json`: historical partial attempts; superseded by the successful production receipt. `preparation.json` records the earlier local-only rehearsal.
 
