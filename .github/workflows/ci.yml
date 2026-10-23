@@ -15,7 +15,8 @@ jobs:
     name: Terrain builder fixtures
     # Pin raster dependencies to the same supported LTS as browser checks.
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # Raster mirror downloads can consume most of ten minutes before fixtures start.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +33,8 @@ jobs:
     # Playwright 1.60 cannot install Chromium dependencies on Ubuntu 26.04.
     # Keep the browser smoke on a supported image rather than the moving alias.
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Include cold browser dependencies plus all software-rendered acceptance gates.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
