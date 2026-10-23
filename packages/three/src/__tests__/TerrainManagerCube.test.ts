@@ -271,8 +271,12 @@ describe('known cube-sphere surface appearance capability', () => {
     tm.dispose();
   });
 
-  it('waits for matching metadata, then styles both delayed and already loaded glTF meshes without changing physical buffers', async () => {
-    serveKnown();
+  const sphericalEncodings = [
+    'float32 little-endian, metres above the reference sphere',
+    'float32 little-endian, radial offset metres from equatorial reference radius',
+  ];
+  it.each(sphericalEncodings)('styles delayed and already loaded spherical meshes with %s without changing physical buffers', async encoding => {
+    serveKnown(m => { m.grid.encoding = encoding; });
     const tm = make();
     expect(tm.surfaceAppearance).toBeNull();
     const tiles = (tm as unknown as { tiles: Tiles }).tiles;
@@ -294,6 +298,7 @@ describe('known cube-sphere surface appearance capability', () => {
     expect(tm.surfaceAppearance).toBeNull();
     const cpuSample = tm.sample(0, 0);
     root(tm);
+    expect(tm.surfaceAppearanceStatus.state).toBe('ready');
     expect(tm.surfaceAppearanceDatum).toEqual(manifest().datum);
     expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
     tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true });
@@ -324,16 +329,38 @@ describe('known cube-sphere surface appearance capability', () => {
     tm.dispose();
   });
 
+  it.each(sphericalEncodings)('still validates spherical mesh radial extent with %s', async encoding => {
+    serveKnown(m => { m.grid.encoding = encoding; });
+    const tm = make(), tiles = root(tm);
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).toBe('ready'));
+    const scene = new THREE.Group(), mesh = polarMesh();
+    mesh.position.z = (R + 1) * 1000; // Outside the declared 0.1–0.2 km range.
+    const positions = mesh.geometry.getAttribute('position').array.slice();
+    scene.add(mesh); tiles.group.add(scene);
+    tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    expect(tm.surfaceAppearanceStatus.state).toBe('validation-failed');
+    expect(tm.surfaceAppearanceDatum).toBeNull();
+    expect(mesh.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(mesh.geometry.getAttribute('position').array).toEqual(positions);
+    tm.dispose();
+  });
+
   it.each([
     ['generic generator', { generator: 'unknown' }, (_m: CubeGridManifest) => {}],
     ['missing revision', { tilesetVersion: undefined }, (_m: CubeGridManifest) => {}],
     ['wrong revision', { tilesetVersion: 'other' }, (_m: CubeGridManifest) => {}],
     ['unknown encoding', {}, (m: CubeGridManifest) => { m.grid.encoding = 'unknown'; }],
+    ['legacy spherical reference radius', {}, (m: CubeGridManifest) => { m.geometry = { kind: 'radial-lattice', referenceRadiusKm: R + 1 }; }],
+    ['current spherical reference radius', {}, (m: CubeGridManifest) => {
+      m.grid.encoding = 'float32 little-endian, radial offset metres from equatorial reference radius';
+      m.geometry = { kind: 'radial-lattice', referenceRadiusKm: R + 1 };
+    }],
     ['unsupported datum', {}, (m: CubeGridManifest) => { m.datum.verticalDatum = 'unknown'; }],
   ])('excludes %s', async (_name, asset, change) => {
     serveKnown(change); vi.spyOn(console, 'warn').mockImplementation(() => {});
     const tm = make(); root(tm, asset);
-    await new Promise(r => setTimeout(r, 30));
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).not.toBe('loading'));
+    if (_name === 'unknown encoding') expect(tm.surfaceAppearanceStatus.state).toBe('unsupported-reference');
     expect(tm.surfaceAppearance).toBeNull(); tm.dispose();
   });
 });

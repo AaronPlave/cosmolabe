@@ -1517,9 +1517,12 @@ export class TerrainManager {
         const knownBuilder = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
           source.manifest.source.kind === 'height-grid' && !!source.manifest.source.id;
         const shape = datum.referenceShape, geometry = source.manifest.geometry;
-        const legacySphere = shape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
+        // On a sphere the equatorial reference radius is the sphere radius,
+        // so both known builder encodings describe the same radial heights.
+        const knownSphere = shape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
           (!geometry || geometry.referenceRadiusKm === shape.radiusKm) &&
-          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere';
+          (source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere' ||
+            source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius');
         const generator = (source.manifest.source as typeof source.manifest.source & { generator?: { script?: string; sha256?: string } }).generator;
         const ellipsoidBuilderKnown = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(generator?.script ?? '') && /^[a-f0-9]{64}$/.test(generator?.sha256 ?? '');
         const normalEllipsoid = shape.kind === 'ellipsoid' && shape.radiiKm.every(r => Number.isFinite(r) && r > 0) &&
@@ -1531,9 +1534,9 @@ export class TerrainManager {
           if (!knownBuilder) this.appearanceStatus = { state: 'unsupported-product', message: 'Relief styles are unsupported for this terrain product. Its planetary builder identity is not recognized.' };
           else if (!version || version !== source.manifest.source.version) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain mesh and elevation-grid revisions could not be matched. Relief styles are unavailable.' };
           else if (shape.kind === 'ellipsoid' && !ellipsoidBuilderKnown) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain source and builder metadata could not be validated. Relief styles are unavailable.' };
-          else if (!legacySphere && !normalEllipsoid) this.appearanceStatus = { state: 'unsupported-reference', message: 'This known terrain product uses an unsupported elevation datum or payload encoding. Relief styles are unavailable.' };
+          else if (!knownSphere && !normalEllipsoid) this.appearanceStatus = { state: 'unsupported-reference', message: 'This known terrain product uses an unsupported elevation datum or payload encoding. Relief styles are unavailable.' };
         }
-        if (this.cubeStyleCandidate && knownBuilder && version && version === source.manifest.source.version && (legacySphere || (normalEllipsoid && ellipsoidBuilderKnown))) {
+        if (this.cubeStyleCandidate && knownBuilder && version && version === source.manifest.source.version && (knownSphere || (normalEllipsoid && ellipsoidBuilderKnown))) {
           this.cubeStyleHeightRange = source.manifest.heightRangeKm;
           this.cubeStyleReferenceRadiusKm = geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : null);
           this.surfaceStyle = new SurfaceAppearance(datum);
