@@ -1,8 +1,9 @@
 /**
  * Canvas positions on the surface actually drawn: globe facets or resident
- * terrain tiles. Geographic vectors drape on those triangles, so an overlay
- * placed this way (a label, the selected-feature callout, an edit handle) sits
- * on the drawn feature, even where a coarse reference globe lies hundreds of
+ * terrain tiles; with `occlusion`, hidden where that surface is in the way.
+ * Geographic vectors drape on those triangles, so an overlay placed this way
+ * (a label, the selected-feature callout, an edit handle) sits on the drawn
+ * feature, even where a coarse reference globe lies hundreds of
  * metres below the ideal ellipsoid. The renderer finds each height by a ray
  * down the geodetic normal; heights are cached briefly, since they change only
  * with the drawn level of detail, so following the scene every frame costs a
@@ -37,11 +38,12 @@ export function createDrawnSurfaceProjector(now: () => number = () => performanc
    * Project 2D positions onto the drawn surface; where nothing drawn is hit,
    * onto resident terrain, else the datum. Null for a body that is not drawn.
    */
-  function project(renderer: UniverseRenderer, body: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum): DrawnScreenPosition[] | null {
+  function project(renderer: UniverseRenderer, body: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum,
+    options: { occlusion?: boolean } = {}): DrawnScreenPosition[] | null {
     const h = heightsOf(renderer, body, positions, datum);
     const missing = h.some((x) => x === null);
     return renderer.projectGeographicPositions(body, positions.map((p, i) => h[i] === null ? p : { ...p, heightKm: h[i]! }), datum,
-      { sampleTerrain: missing });
+      { sampleTerrain: missing, occlusion: options.occlusion });
   }
 
   return { project, heightsOf, clear: () => heights.clear() };

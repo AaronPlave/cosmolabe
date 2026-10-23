@@ -11,7 +11,7 @@
   import { Check, RotateCcw } from 'lucide-svelte';
   import {
     geographicCategoricalRule, geographicFeatureFields, geographicSequentialRule, geographicStyleLegend,
-    resolveGeographicStyle, GEOGRAPHIC_COLOR_RAMPS, GEOGRAPHIC_STYLE_LIMITS,
+    resolveGeographicStyle, GEOGRAPHIC_COLOR_RAMPS, GEOGRAPHIC_NAME_KEYS, GEOGRAPHIC_STYLE_LIMITS,
     type GeographicColorRamp, type GeographicLayer, type GeographicPointShape,
   } from '@cosmolabe/core';
   import * as Select from '$lib/components/ui/select';
@@ -27,6 +27,9 @@
   let style = $derived(layerStyle(layer.id));
   let fields = $derived(geographicFeatureFields(layer));
   let numericFields = $derived(fields.filter((f) => f.type === 'number'));
+  /** The property names come from is the default "Name" choice already; listing it again showed two Names. */
+  let nameKey = $derived(GEOGRAPHIC_NAME_KEYS.find((k) => fields.some((f) => f.key === k)) ?? null);
+  let labelFields = $derived(fields.filter((f) => f.key !== nameKey));
   let kinds = $derived.by(() => {
     const has = { point: false, line: false, polygon: false };
     for (const f of layer.features) {
@@ -106,7 +109,7 @@
       </Select.Trigger>
       <Select.Content align="start" class="max-h-64 rounded border border-border-strong bg-surface-2 p-1">
         <Select.Item value="" label="Name" />
-        {#each fields as f (f.key)}<Select.Item value={f.key} label={f.label} />{/each}
+        {#each labelFields as f (f.key)}<Select.Item value={f.key} label={f.label} />{/each}
       </Select.Content>
     </Select.Root>
   {/if}

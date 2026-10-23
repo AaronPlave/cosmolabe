@@ -7,9 +7,13 @@
    * Between layouts the accepted labels follow the scene every frame, on the
    * same drawn surface (heights are cached, so this is a projection, not a
    * raycast). At most `maxLabels` per layer show.
+   *
+   * A label shows only where the drawn surface does not hide it, and, close
+   * to a large area, on a part of it in view (see the layout), so it neither
+   * floats through a crater rim nor vanishes while its area fills the screen.
    */
   import * as THREE from 'three';
-  import type { GeographicLayer } from '@cosmolabe/core';
+  import { bodyFixedToGeodetic, type BodyFixedPosition, type GeographicLayer } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { geo, geographicLoads, layerVisible } from '../lib/geographic-layers.svelte';
   import { geoStyles } from '../lib/geographic-styles.svelte';
@@ -17,6 +21,8 @@
   import { layoutGeographicLabels, type LabelLayer, type LabelView, type PlacedLabel } from '../lib/geographic-label-layout';
 
   const LAYOUT_MS = 200;
+  /** Where to look for a large area under the view, as fractions of the canvas, centre first. */
+  const PROBES: [number, number][] = [[0.5, 0.5], [0.3, 0.5], [0.7, 0.5], [0.5, 0.3], [0.5, 0.7], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]];
 
   let placed = $state<PlacedLabel[]>([]);
   /** The same list, read without subscribing: the effect below both reads and replaces it. */
@@ -42,6 +48,20 @@
       layers.push({ layer, labels, filter: r.geographicVectors.featureFilter(layer.id), skip });
     }
     if (!layers.length) return [];
+    // The surface under a few points of the view, nearest the centre first, per body: one raycast each per layout.
+    const hits = new Map<string, [number, number, number][]>();
+    const probeHits = (body: string) => {
+      let found = hits.get(body);
+      if (found) return found;
+      found = [];
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      for (const [fx, fy] of PROBES) {
+        const hit = r.pickScene(fx * w, fy * h, 'probe', { renderedOnly: true, bodyMeshes: false });
+        if (hit?.kind === 'surface' && hit.point.bodyName === body) found.push([...hit.point.bodyFixedPositionKm] as [number, number, number]);
+      }
+      hits.set(body, found);
+      return found;
+    };
     const view: LabelView = {
       width: canvas.clientWidth, height: canvas.clientHeight,
       horizon: (layer: GeographicLayer) => {
@@ -57,9 +77,13 @@
         return { direction: [camera.x / d, camera.y / d, camera.z / d], angle: Math.acos(radius / d) + 2 * Math.PI / 180 };
       },
       project: (layer, positions) => r.projectGeographicPositions(layer.body, positions, layer.datum) ?? [],
-      place: (layer, positions) => drawnSurface.project(r, layer.body, positions, layer.datum) ?? [],
+      place: (layer, positions) => drawnSurface.project(r, layer.body, positions, layer.datum, { occlusion: true }) ?? [],
+      probes: (layer) => probeHits(layer.body).map(([xKm, yKm, zKm]): BodyFixedPosition => {
+        const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, layer.datum);
+        return { latDeg: p.latDeg, lonDeg: p.lonDeg };
+      }),
     };
-    return layoutGeographicLabels(layers, view, new Set(current.map((p) => p.key)));
+    return layoutGeographicLabels(layers, view, new Set(current.map((p) => p.key)), new Map(current.map((p) => [p.key, p.anchor])));
   }
 
   // Lay out when the view or styles change, at most every LAYOUT_MS; otherwise
@@ -81,7 +105,7 @@
     if (!current.length) return;
     // Follow the scene between layouts without re-deciding which labels show.
     const next = current.map((p) => {
-      const q = drawnSurface.project(r, p.layer.body, [p.anchor], p.layer.datum)?.[0];
+      const q = drawnSurface.project(r, p.layer.body, [p.anchor], p.layer.datum, { occlusion: true })?.[0];
       return q && q.facing && q.inFront ? { ...p, x: q.x, y: q.y } : null;
     }).filter((p): p is PlacedLabel => p !== null);
     show(next);
