@@ -44,7 +44,7 @@ try {
   const open = page.getByRole('button', { name: 'Open Gale regions' });
   if (await open.count()) await open.click();
   await page.getByRole('option', { name: 'Aeolis Mons Area', exact: true }).click();
-  await page.getByRole('button', { name: 'Edit a copy of this feature' }).click();
+  await page.getByRole('button', { name: 'Edit a copy', exact: true }).click();
   await page.getByRole('toolbar', { name: 'Editing shape' }).waitFor();
   // Out of the way of the view: the panel minimized, the scene and the bar remain.
   await page.locator('[aria-label="Minimize"], button[title^="Minimize"]').first().click().catch(() => {});

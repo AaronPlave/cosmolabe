@@ -301,7 +301,7 @@ try {
   await showLayers();
   await page.getByRole('button', { name: 'Open Jezero synthetic science' }).click();
   await page.getByRole('option', { name: 'region Area', exact: true }).click();
-  await page.getByRole('button', { name: 'Edit a copy of this feature' }).click();
+  await page.getByRole('button', { name: 'Edit a copy', exact: true }).click();
   await page.waitForTimeout(400);
   const copied = await selected();
   results.featureCopy = copied;
@@ -310,6 +310,26 @@ try {
   assert.equal(await page.evaluate(() => window.renderer.geographicVectors.isVisible('jezero-science')), true);
   assert.equal(await page.evaluate(() => JSON.stringify(window.renderer.universe.geographicLayers.get('jezero-science').features)), original);
   await page.keyboard.press('Escape');
+
+  // Delete is a visible action on your own shape, confirmed, and Undo brings it back.
+  {
+    const before = await drawn(marsId);
+    await showLayers();
+    await page.getByRole('button', { name: 'Open My annotations · Mars' }).first().click();
+    await page.getByRole('listbox').getByRole('option').first().click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${output}/feature-inspector.png` });
+    await page.getByRole('button', { name: 'Delete this feature' }).click();
+    await page.getByRole('alertdialog', { name: 'Delete this feature?' }).getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.waitForTimeout(400);
+    assert.equal(await drawn(marsId), before - 1, 'deleted');
+    const notice = page.getByRole('status').filter({ hasText: 'Deleted' });
+    results.deleteNotice = await notice.innerText();
+    await notice.getByRole('button', { name: 'Undo' }).click();
+    await page.waitForTimeout(400);
+    assert.equal(await drawn(marsId), before, 'Undo brings it back');
+    assert.equal(await notice.count(), 0, 'the notice goes with the undo');
+  }
 
   // A large multipart feature with holes (20 parts × (160 + 60) = 4,400 points): only the move
   // handle until points are asked for; then thinned and capped handles; an edit keeps every ring.

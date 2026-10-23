@@ -69,11 +69,15 @@ transforms cancel scene translation in double precision before GPU upload.
 Distances/placement offsets are kilometres throughout. No display radius enters
 a physical coordinate conversion.
 
-A reference globe can be drawn when terrain is unavailable. The viewer's small
-surface-status readout identifies each body's rendering mode and reports
-limitations. This is body-wide context: terrain coverage at individual features
-is **not assessed**, even while terrain is streaming elsewhere on the body.
-The readout avoids host UI rectangles and hides when no free space remains. `renderer.geographicVectors.status` and `.diagnostics` provide the
+A reference globe can be drawn when terrain is unavailable. What each body's
+vectors are drawn on (streamed terrain or the reference globe) is body-wide
+context: terrain coverage at individual features is **not assessed**, even while
+terrain is streaming elsewhere on the body. The viewer states it in a layer's
+*About this layer* (`geographicSurfaceNote`), with any drawing problems for that
+layer, rather than over the scene. The small scene readout appears only for an
+actionable problem (datum mismatch, a surface vectors cannot drape on, budgets
+that suppressed drawing, features left out); it avoids host UI rectangles and
+hides when no free space remains. `renderer.geographicVectors.status` and `.diagnostics` provide the
 same information to embed hosts. A feature's appearance is **not a terrain
 measurement**: source uncertainty and displayed mesh deviation may be unknown.
 Surface tools still return the existing `SurfacePoint` with its own hit source,
@@ -232,9 +236,8 @@ regions, seam/polar picking, multipart geometry, budgets, placement and lifetime
 
 The second browser check exercises the real viewer/catalog loader, an explicit
 fixed frame on an oblate Mars globe, automatic vector drawing, stable scene-hit
-identity, selection and the reference-globe readout. It also captures the full
-viewer chrome at desktop and mobile sizes and asserts that the status is clear
-of host UI. Artifacts are `viewer-reference.png`, `viewer-chrome-desktop.png`,
+identity, selection and that no routine readout floats over the scene. It also captures the full
+viewer chrome at desktop and mobile sizes. Artifacts are `viewer-reference.png`, `viewer-chrome-desktop.png`,
 `viewer-chrome-mobile.png` and `viewer.json`.
 
 The review follow-up also exercises absolute Z=0 and Z=2 m against a detailed

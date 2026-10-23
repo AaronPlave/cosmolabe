@@ -1,16 +1,19 @@
 <script lang="ts">
   /**
-   * The selected feature (the panel's Feature view): what it is and where,
-   * Fly to, and its properties. Stepping to the previous or next feature
-   * follows the layer's list. Framing and copying are in the "…" menu; the
-   * coordinate convention, stable reference and source wait under *Location
-   * and source*. Fly and Frame use the shared navigation (docs/navigation.md)
+   * The selected feature (the panel's Feature view): its name and size, where
+   * it is (with a copy action), a small Fly to and, for your own shapes, a
+   * visible Delete (read-only data offers an editable copy instead), then its
+   * properties. The layer and body are in the breadcrumb, not repeated.
+   * Stepping to the previous or next feature follows the layer's list.
+   * Framing, duplicating and the other copies are in the "…" menu; the
+   * convention, stable reference and source wait under *Location and source*.
+   * How to edit a shape is the floating edit bar's help, shown while editing. Fly and Frame use the shared navigation (docs/navigation.md)
    * and are disabled, with the reason, where the body cannot be flown over.
    *
    * Property values are text. A value is a link only when it parses as an
    * http(s) URL, and it opens without access to this page.
    */
-  import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, Plane } from 'lucide-svelte';
+  import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, PenLine, Plane, Trash2 } from 'lucide-svelte';
   import {
     describeGeographicCoordinates, formatGeographicPosition, geographicFeatureAnchor, geographicFeatureExtent,
     geographicFeatureName, geographicPropertyLabel, geographicVertexCount,
@@ -156,26 +159,35 @@
       {:else}
         <h3 class="name">{geographicFeatureName(feature)}</h3>
       {/if}
-      <div class="ui-meta">{geometryLabel(feature.geometry.type)} · {layer.body}{#if measure}{` · ${measure}`}{:else if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}{#if editable} · {layer.name}{/if}</div>
-      <div class="ui-meta mono position">{location.anchor}</div>
+      <div class="ui-meta summary">{geometryLabel(feature.geometry.type)}{#if measure}{` · ${measure}`}{:else if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}</div>
+      <div class="coords">
+        <span class="ui-meta mono" title="{location.isPoint ? 'Position' : 'Centre'}, {describeGeographicCoordinates(layer.coordinates)}">{location.anchor}</span>
+        <button class="icon-button small" onclick={() => copy('coordinates', coordinatesText())} aria-label="Copy coordinates" title="Copy coordinates">
+          {#if copied === 'coordinates'}<Check size={11} />{:else}<Copy size={11} />{/if}
+        </button>
+      </div>
     </div>
 
     <div class="actions">
-      <Button size="sm" class="ui-control flex-1" disabled={!!unavailable} title={unavailable ?? 'Fly over this feature'} onclick={() => geo.selected && goToFeature(geo.selected)}>
+      <Button variant="secondary" size="sm" class="ui-control" disabled={!!unavailable} title={unavailable ?? 'Fly over this feature'} onclick={() => geo.selected && goToFeature(geo.selected)}>
         <Plane size={13} /> Fly to
       </Button>
+      {#if !editable && layer.ownership !== 'user'}
+        <Button variant="secondary" size="sm" class="ui-control" title="An editable copy of just this feature; {layer.name} stays unchanged"
+          onclick={() => geo.selected && copyFeatureToAnnotations(geo.selected)}><PenLine size={13} /> Edit a copy</Button>
+      {/if}
+      <span class="spacer"></span>
+      {#if editable && geo.selected}
+        <button class="icon-action danger" aria-label="Delete this feature" title="Delete this feature" onclick={() => (confirmDelete = true)}><Trash2 size={14} /></button>
+      {/if}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger class="icon-action" aria-label="More for this feature" title="More"><Ellipsis size={14} /></DropdownMenu.Trigger>
         <DropdownMenu.Content align="end">
           <DropdownMenu.Item disabled={!!unavailable} onSelect={() => geo.selected && goToFeature(geo.selected, { cut: true })}>Frame (no flight)</DropdownMenu.Item>
-          <DropdownMenu.Item onSelect={() => copy('coordinates', coordinatesText())}>Copy coordinates</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={copyReference}>Copy reference</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={() => copy('geometry', JSON.stringify(feature.original.geometry))}>Copy source geometry</DropdownMenu.Item>
           {#if editable && geo.selected}
             <DropdownMenu.Item onSelect={() => duplicateFeature(geo.selected!.layerId, editable!.id)}>Duplicate</DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={() => (confirmDelete = true)}>Delete…</DropdownMenu.Item>
-          {:else}
-            <DropdownMenu.Item onSelect={() => geo.selected && copyFeatureToAnnotations(geo.selected)}>Copy to my annotations</DropdownMenu.Item>
           {/if}
         </DropdownMenu.Content>
       </DropdownMenu.Root>
@@ -186,11 +198,6 @@
         <Button variant="destructive" size="sm" class="ui-control" onclick={() => deleteFeature(geo.selected!.layerId, editable!.id)}>Delete</Button>
         <Button variant="secondary" size="sm" class="ui-control" onclick={() => (confirmDelete = false)}>Keep</Button>
       </div>
-    {/if}
-    {#if editable}
-      <p class="ui-helper text-text-muted">Drag its points in the scene to change the shape.</p>
-    {:else if layer.ownership !== 'user'}
-      <button class="copy-link ui-meta" onclick={() => geo.selected && copyFeatureToAnnotations(geo.selected)} title="An editable copy of just this feature; {layer.name} stays unchanged">Edit a copy of this feature</button>
     {/if}
     {#if edits.message && geo.selected?.layerId === edits.target}<p class="ui-helper" role="status">{edits.message}</p>{/if}
     {#if unavailable}<p class="ui-helper text-text-muted">{unavailable}</p>{/if}
@@ -271,7 +278,10 @@
   }
   .crumb :global(.surface-crumb-back) { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .steps { display: inline-flex; flex: none; }
-  .position { margin-top: 2px; }
+  .summary { margin-top: 1px; }
+  .coords { display: flex; align-items: center; gap: 2px; margin-top: 2px; color: var(--color-text-secondary); }
+  .spacer { flex: 1; }
+  .icon-action.danger:hover { color: var(--color-error, #ff6b6b); }
   .copied { display: flex; align-items: center; gap: 4px; color: var(--color-text-secondary); }
   .name {
     margin: 0;
@@ -367,8 +377,6 @@
   .name-input:hover { border-color: var(--color-border); }
   .name-input:focus { border-color: var(--color-border-strong); background: var(--color-surface-3); outline: none; }
   .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .copy-link { align-self: flex-start; border: none; background: none; padding: 0; color: var(--color-text-secondary); text-decoration: underline dotted; cursor: pointer; }
-  .copy-link:hover { color: var(--color-text-primary); }
   .copy-prop {
     opacity: 0.5;
   }

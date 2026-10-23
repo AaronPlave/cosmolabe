@@ -74,6 +74,8 @@ export const edits = $state({
   form: null as null | { mode: 'new' } | { mode: 'import'; text: string; fileName: string },
   /** Last refusal or note. */
   message: '',
+  /** The feature just deleted, which Undo (the panel's notice or Ctrl/⌘ Z) brings back until the next edit. */
+  deleted: null as null | { layerId: string; name: string },
   /** The large feature whose points were asked for ("layer/feature"); others show only their move handle. */
   allPoints: null as string | null,
   /** Points on screen without a handle (thinned or over the limit), from the edit overlay. */
@@ -253,6 +255,7 @@ export function applyEdit(layerId: string, op: GeographicEditOperation): string 
     return null;
   }
   edits.message = result.diagnostics.filter((d) => d.severity === 'warning').map((d) => d.message).join('; ');
+  edits.deleted = null;
   return result.featureId ?? null;
 }
 
@@ -267,7 +270,19 @@ export function setFeatureProperties(layerId: string, featureId: string | number
 
 export function deleteFeature(layerId: string, featureId: string | number): void {
   if (edits.vertex?.featureId === featureId) edits.vertex = null;
-  if (applyEdit(layerId, { type: 'delete', featureId }) !== null && geo.selected?.layerId === layerId) selectFeature(null);
+  const feature = editFeature(layerId, featureId);
+  const name = typeof feature?.properties?.name === 'string' && feature.properties.name ? feature.properties.name : 'feature';
+  if (applyEdit(layerId, { type: 'delete', featureId }) === null) return;
+  if (geo.selected?.layerId === layerId) selectFeature(null);
+  // The selection, and the edit bar's Undo with it, is gone: offer Undo where the panel lands.
+  edits.deleted = { layerId, name };
+}
+
+/** Bring back the feature just deleted. */
+export function undoDelete(): boolean {
+  const d = edits.deleted;
+  edits.deleted = null;
+  return !!d && undo(d.layerId);
 }
 
 export function duplicateFeature(layerId: string, featureId: string | number): void {

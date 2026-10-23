@@ -18,6 +18,8 @@
   import { geo, layerVisible, setLayerVisible, showLayerList } from '../lib/geographic-layers.svelte';
   import { edits, isEditable, renameLayer, deleteLayer, startDrawing, annotationLayerName } from '../lib/geographic-editing.svelte';
   import { layerIssue, layerOrigin, layerSwatch } from '../lib/geographic-layer-labels';
+  import { geographicSurfaceNote } from '@cosmolabe/three';
+  import { vs, getRenderer } from '../lib/viewer-state.svelte';
 
   interface Props { layer: GeographicLayer }
   let { layer }: Props = $props();
@@ -40,6 +42,15 @@
   // "About this layer" from a row's menu opens it once.
   $effect(() => {
     if (geo.showAbout) { about = true; geo.showAbout = false; }
+  });
+
+  // What the layer is drawn on, and drawing problems, read while About is open (they change with the view).
+  let surface = $derived.by(() => {
+    if (!about) return null;
+    void vs.frameTick;
+    const vectors = getRenderer()?.geographicVectors;
+    if (!vectors) return null;
+    return { note: geographicSurfaceNote(vectors.status, layer.body), problems: vectors.diagnostics.filter((d) => d.layerId === layer.id) };
   });
 
   const plural = (n: number, noun: string) => `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
@@ -95,6 +106,7 @@
     <dl class="facts ui-meta">
       <dt>Data</dt><dd>{origin.label}. {origin.title}</dd>
       <dt>Coordinates</dt><dd>{describeGeographicCoordinates(layer.coordinates)} · {layer.frame}</dd>
+      {#if surface?.note}<dt>Drawn on</dt><dd>{surface.note}</dd>{/if}
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
       {#if layer.source.catalog}<dt>Catalog</dt><dd class="mono break">{layer.source.catalog}</dd>{/if}
       <dt>Layer ID</dt><dd class="mono break">{layer.id}</dd>
@@ -102,6 +114,12 @@
         <dt>{key}</dt><dd class="break">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
       {/each}
     </dl>
+    {#if surface?.problems.length}
+      <div class="ui-section-label sub">Drawing problems</div>
+      <ul class="diagnostics ui-meta" aria-label="{layer.name} drawing problems">
+        {#each surface.problems as d, i (i)}<li data-tone="warning">{#if d.featureId !== undefined}{d.featureId}: {/if}{d.message}</li>{/each}
+      </ul>
+    {/if}
     {#if layer.diagnostics.length}
       <div class="ui-section-label sub">Import notes</div>
       <ul class="diagnostics ui-meta" aria-label="{layer.name} import notes">

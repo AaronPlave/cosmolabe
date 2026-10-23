@@ -9,7 +9,7 @@
   import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
   import DrawToolbar from './components/DrawToolbar.svelte';
   import {
-    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature,
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature, undoDelete,
   } from './lib/geographic-editing.svelte';
   import './lib/geographic-styles.svelte';
   import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
@@ -237,6 +237,10 @@
     const renderer = getRenderer();
     if (!renderer) return;
 
+    // Undo a delete, which ended the selection and with it the editing keys.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && edits.deleted && !edits.tool && !editingFeature()) {
+      e.preventDefault(); undoDelete(); return;
+    }
     // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
     if (edits.tool || editingFeature()) {
       const mod = e.ctrlKey || e.metaKey;

@@ -1314,12 +1314,12 @@ export class UniverseRenderer {
     }
 
     this.geographicVectors.end();
-    const vectorText = geographicStatusText(this.geographicVectors.status, this.geographicVectors.diagnostics.length);
+    const vectorText = geographicStatusText(this.geographicVectors.diagnostics.length);
     if (this.geographicStatus.textContent !== vectorText) {
       this.geographicStatus.textContent = vectorText;
       this.geographicStatus.style.display = vectorText ? '' : 'none';
     }
-    this.geographicStatus.title = 'Body rendering mode only; terrain coverage at individual features is not assessed. Vectors follow the displayed triangles, including fallback surfaces. Drawing is not a terrain elevation measurement; source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
+    this.geographicStatus.title = this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
     if (vectorText) {
       const position = geographicStatusPosition(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
         this.geographicStatus.offsetWidth, this.geographicStatus.offsetHeight, this._screenOccluders?.() ?? []);

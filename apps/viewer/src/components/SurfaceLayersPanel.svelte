@@ -16,7 +16,7 @@
   import GeographicFeatureDetails from './GeographicFeatureDetails.svelte';
   import GeographicLayerMenuItems from './GeographicLayerMenuItems.svelte';
   import GeographicLayerForm from './GeographicLayerForm.svelte';
-  import { edits, startDrawing, drawBody, importNeedsConventions, importLayerText } from '../lib/geographic-editing.svelte';
+  import { edits, startDrawing, drawBody, importNeedsConventions, importLayerText, undoDelete } from '../lib/geographic-editing.svelte';
   import { PenLine } from 'lucide-svelte';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import {
@@ -78,6 +78,12 @@
 </script>
 
 <InstrumentPanel key="layers" title="Surface layers" width={340} onClose={close}>
+  {#if edits.deleted}
+    <div class="deleted ui-meta" role="status">
+      <span>Deleted “{edits.deleted.name}”.</span>
+      <button class="undo" onclick={undoDelete}>Undo</button>
+    </div>
+  {/if}
   {#if !vs.assetsReady}
     <p class="ui-helper text-text-muted">Loading the scene…</p>
   {:else if edits.form}
@@ -201,6 +207,9 @@
 </InstrumentPanel>
 
 <style>
+  .deleted { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding: 4px 8px;
+    border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-2); color: var(--color-text-secondary); }
+  .undo { border: none; background: none; padding: 0; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; }
   .body-group {
     margin-top: 10px;
   }
