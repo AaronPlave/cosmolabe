@@ -192,7 +192,8 @@ its remaining passes and picking are suppressed for that frame, its proxies
 are released and `vector-draw-budget` explains the limit. Earlier passes may
 already have drawn part of that group; it cannot acquire invisible pick targets.
 The next frame retries with a fresh budget, so reduced visible detail recovers
-automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs.
+automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs
+(see GPU cost below for what culling changes).
 One surface proxy is reused across pages, without allocating an object per
 feature. The limits diagnose overload rather than silently dropping
 individual polygon rings.
@@ -209,6 +210,65 @@ two passes agree visually. The existing CPU surface hit still describes that
 globe's reference shape; a GPU displacement image is not promoted to measured
 terrain. Float32 geographic projection at planetary radii also limits sub-metre
 display accuracy. Use the shared physical surface queries for scientific data.
+
+## GPU cost
+
+The pass is drawn on proxies of the visible surface meshes (the reference
+globe, or each resident terrain tile), so its fragment shader runs wherever
+those meshes cover the screen, whether or not a feature is near. Two things
+keep that in proportion to the features:
+
+- **Scissoring to the features.** Each batch, and each selection or hover
+  highlight, has a footprint: the longitude/latitude box of its vertices,
+  taking the short way across the 180° seam. Edges are drawn linear in
+  longitude and latitude, so every drawn fragment lies in that box. The box is
+  projected at the lowest and highest heights the meshes that can draw it are
+  drawn at, padded by 16 CSS pixels for marks, and the pass is scissored to that
+  rectangle. Height ranges come from each terrain tile's bounding box in body
+  axes, or for a whole reference globe from its chord sag. Terrain tiles whose
+  extent cannot touch the footprint are not drawn at all. A footprint off
+  screen or wholly behind the camera draws nothing. The full viewport is kept
+  when the box spans more than 60°, reaches within 1° of a pole, is partly
+  behind the camera, uses a displacement-mapped globe or terrain-relative
+  offset on a whole globe, or the pass renders into a render target.
+  Picking is unaffected.
+- **Closed-form latitude.** Every covered fragment converts its body-fixed
+  position to geodetic latitude. This uses Bowring's closed form (at most
+  1e-9° from the exact value on Mars and Earth, far below float32's 5e-6°)
+  instead of a five-step iteration.
+
+`metrics.drawCalls` counts the draws made after culling, and
+`metrics.shadedPixels` the viewport pixels the shader could run on, summed over
+passes and pages. The frame budget still counts every visible mesh.
+
+`scripts/benchmark-geographic-gpu.mjs` measures whole-frame GPU time with timer
+queries over reproducible scenes (`test-catalogs/geographic-vectors-gpu-bench`
+and the dense Jezero and Earth countries catalogs): vectors off and on, one
+point, one small polygon, a selected polygon, 200 annotations, dense Jezero,
+Earth countries, and Jezero on measured terrain when its local data is present.
+`CL_GPU=hardware` runs it on Chrome with Metal at 3840×2160. Results under
+SwiftShader at 1280×720 are in `docs/validation/geographic-gpu/`. That is a
+software renderer, so the absolute numbers are not hardware numbers. Its time
+is dominated by fragment work, though, so it shows how the pass scales with
+covered pixels. Extra GPU time over the same view with vectors off:
+
+| Scene | Before | Scissor | Scissor and closed-form latitude |
+| --- | --- | --- | --- |
+| Jezero close, one point | 112 ms | 6 ms | 11 ms |
+| Jezero close, one small polygon | 251 ms | 13 ms | 11 ms |
+| Jezero close, polygon selected | 392 ms | 32 ms | 16 ms |
+| Jezero close, 200 annotations | 432 ms | 356 ms | 236 ms |
+| Mars disk, one small polygon | 72 ms | 9 ms | 9 ms |
+| Mars disk, 200 annotations | 359 ms | 161 ms | 152 ms |
+| Dense Jezero (1,601 features, 9 pages) | 990 ms | 244 ms | 187 ms |
+| Earth orbit, countries (6 pages) | 1,321 ms | 1,321 ms | 1,249 ms |
+| Rhine close, countries (6 pages) | 2,116 ms | 2,057 ms | 1,863 ms |
+
+Small scenes vary by a few milliseconds between runs. Layers that cover the
+screen, such as global countries or annotations spread across the view, still
+cost one full-screen pass per page. Reducing that needs a different
+presentation for background cartography (the raster path in #266/#267), not
+this pass.
 
 ## Reproducible validation
 
