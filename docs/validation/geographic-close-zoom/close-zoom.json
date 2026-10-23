@@ -1,0 +1,341 @@
+{
+  "steps": [
+    {
+      "label": "Mars disk · 0",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059171730857005,
+        "lonDeg": 137.59999996304043
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 8603.81
+    },
+    {
+      "label": "Mars disk · 1",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059157817792377,
+        "lonDeg": 137.6000000348794
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 7313.24
+    },
+    {
+      "label": "Mars disk · 2",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059157800138702,
+        "lonDeg": 137.59999996452618
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 6216.25
+    },
+    {
+      "label": "Mars disk · 3",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059157826995981,
+        "lonDeg": 137.60000003406526
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 5283.81
+    },
+    {
+      "label": "Mars disk · 4",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059157813649243,
+        "lonDeg": 137.6000000252899
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 4491.24
+    },
+    {
+      "label": "Mars disk · 5",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124298405502,
+        "lonDeg": 137.5999999114202
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 3817.56
+    },
+    {
+      "label": "Gale regional · 0",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124288268957,
+        "lonDeg": 137.60000000221606
+      },
+      "labelOnScreen": true,
+      "labels": 6,
+      "altitudeKm": 420
+    },
+    {
+      "label": "Gale regional · 1",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124287783072,
+        "lonDeg": 137.5999999940869
+      },
+      "labelOnScreen": true,
+      "labels": 6,
+      "altitudeKm": 357
+    },
+    {
+      "label": "Gale regional · 2",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.05912428938231,
+        "lonDeg": 137.59999999383518
+      },
+      "labelOnScreen": true,
+      "labels": 6,
+      "altitudeKm": 303.45
+    },
+    {
+      "label": "Gale regional · 3",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124288308316,
+        "lonDeg": 137.60000000264642
+      },
+      "labelOnScreen": true,
+      "labels": 7,
+      "altitudeKm": 257.93
+    },
+    {
+      "label": "Gale regional · 4",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124288069233,
+        "lonDeg": 137.60000000705116
+      },
+      "labelOnScreen": true,
+      "labels": 7,
+      "altitudeKm": 219.24
+    },
+    {
+      "label": "Gale regional · 5",
+      "floorUnderCentre": false,
+      "centre": {
+        "latDeg": -5.059124288776589,
+        "lonDeg": 137.5999999959354
+      },
+      "labelOnScreen": true,
+      "labels": 8,
+      "altitudeKm": 186.36
+    },
+    {
+      "label": "Gale floor close · 0",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603490835,
+        "lonDeg": 136.70000000023907
+      },
+      "labelOnScreen": true,
+      "labels": 3,
+      "altitudeKm": 25
+    },
+    {
+      "label": "Gale floor close · 1",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603460225,
+        "lonDeg": 136.70000000004853
+      },
+      "labelOnScreen": true,
+      "labels": 3,
+      "altitudeKm": 21.25
+    },
+    {
+      "label": "Gale floor close · 2",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603493035,
+        "lonDeg": 136.7000000000109
+      },
+      "labelOnScreen": true,
+      "labels": 3,
+      "altitudeKm": 18.06
+    },
+    {
+      "label": "Gale floor close · 3",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603513101,
+        "lonDeg": 136.69999999952248
+      },
+      "labelOnScreen": true,
+      "labels": 3,
+      "altitudeKm": 15.35
+    },
+    {
+      "label": "Gale floor close · 4",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.96961760341756,
+        "lonDeg": 136.69999999993544
+      },
+      "labelOnScreen": true,
+      "labels": 3,
+      "altitudeKm": 13.05
+    },
+    {
+      "label": "Gale floor close · 5",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603423322,
+        "lonDeg": 136.70000000009134
+      },
+      "labelOnScreen": true,
+      "labels": 2,
+      "altitudeKm": 11.09
+    },
+    {
+      "label": "Gale floor very close · 0",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603463573,
+        "lonDeg": 136.70000000015486
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 3
+    },
+    {
+      "label": "Gale floor very close · 1",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.96961760347745,
+        "lonDeg": 136.69999999992632
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 2.55
+    },
+    {
+      "label": "Gale floor very close · 2",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.969617603464772,
+        "lonDeg": 136.6999999998832
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 2.17
+    },
+    {
+      "label": "Gale floor very close · 3",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.9696176034588575,
+        "lonDeg": 136.6999999999817
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.84
+    },
+    {
+      "label": "Gale floor very close · 4",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.9696176034724555,
+        "lonDeg": 136.70000000002875
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.57
+    },
+    {
+      "label": "Gale floor very close · 5",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.9696176034867605,
+        "lonDeg": 136.70000000000493
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.33
+    },
+    {
+      "label": "Gale floor edge very close · 0",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.4637821880237105,
+        "lonDeg": 136.0700000000409
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 3
+    },
+    {
+      "label": "Gale floor edge very close · 1",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.4637821880237105,
+        "lonDeg": 136.0700000000409
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 2.55
+    },
+    {
+      "label": "Gale floor edge very close · 2",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.463782188020846,
+        "lonDeg": 136.06999999990552
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 2.17
+    },
+    {
+      "label": "Gale floor edge very close · 3",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.463782188020846,
+        "lonDeg": 136.06999999990552
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.84
+    },
+    {
+      "label": "Gale floor edge very close · 4",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.463782188007896,
+        "lonDeg": 136.0700000001102
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.57
+    },
+    {
+      "label": "Gale floor edge very close · 5",
+      "floorUnderCentre": true,
+      "centre": {
+        "latDeg": -5.463782188017893,
+        "lonDeg": 136.07000000002327
+      },
+      "labelOnScreen": true,
+      "labels": 1,
+      "altitudeKm": 1.33
+    }
+  ],
+  "labelOptions": [
+    "Name",
+    "Kind"
+  ],
+  "floorInViewSteps": 18,
+  "missing": [],
+  "errors": []
+}

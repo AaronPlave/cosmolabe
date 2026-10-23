@@ -125,7 +125,8 @@ A layer's **Style** tab (in its Layer view, or *Style* in a layer row's
 - **Opacity**, and only the sizes the layer has: **Point size** (screen pixels
   at every distance), **Line width** (lines and area outlines), **Fill** (area
   fill opacity; holes stay open).
-- **Labels**: on or off, labelled with the name or a property.
+- **Labels**: on or off, labelled with the name or a property (the property
+  names are read from appears once, as *Name*).
 
 **More options** holds the rest: *Colour by* a **category** palette or a
 **number** ramp over a property, with a legend built from the layer's actual
@@ -141,8 +142,16 @@ Candidates are chosen by where features are (past the horizon, then off
 screen, are dropped first), never by source order, so a large layer labels what
 is in view. Labels sit on the surface as drawn (globe facets or terrain tiles,
 found by a cached ray down the normal, shared with the selection callout), so
-they stay on their features close up on a coarse globe. The selected feature is
-named by its callout instead.
+they stay on their features close up on a coarse globe, and hide where that
+drawn surface is in the way (a line of sight against globe facets or terrain
+tiles), not by a horizon guess: a rim higher than a camera down in a crater
+stays labelled. Close to a large area or a long line, whose anchor is then off
+screen or over the horizon, the label goes on a part of it in view: the point it
+used last time while that stays visible, else the surface under the middle of
+the view where it lies inside the area (or on the line), else one of the
+feature's own interior or along-line samples nearest the centre. The selected
+feature is named by its callout instead. `scripts/test-geographic-close-zoom.mjs`
+checks this on streamed Mars terrain from orbit to about 1 km.
 
 A feature's own colour is set from its Feature view, under *Appearance*: *Give
 this feature its own colour* (and opacity) changes only that feature; turning
