@@ -6,9 +6,9 @@
  * whose properties are mutated. We use the latter.
  */
 import {
-  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
+  etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
-  type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type TerrainDatum, type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
@@ -963,17 +963,44 @@ export function gotoObject(
  * looking straight down with north up, close enough that the box fills the view.
  */
 export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+  const [w, s, e0, n] = bounds;
+  const e = e0 < w ? e0 + 360 : e0;
+  return flyOverSurface(bodyName, { latDeg: (s + n) / 2, lonDeg: (w + e) / 2, northSpanDeg: n - s, eastSpanDeg: e - w });
+}
+
+/**
+ * Look straight down at a surface area: `northSpanDeg` of latitude by
+ * `eastSpanDeg` of longitude around a centre, fitted to the view with north up.
+ * Over a pole there is no north; the 0° meridian runs down the screen over the
+ * north pole and up it over the south, as polar stereographic maps draw them.
+ *
+ * `datum` places the camera for bodies without streamed terrain (a reference
+ * globe); `minSpanKm` keeps a point from putting the camera on the ground.
+ * `seconds: 0` cuts rather than flies.
+ */
+export function flyOverSurface(
+  bodyName: string,
+  area: { latDeg: number; lonDeg: number; northSpanDeg: number; eastSpanDeg: number },
+  opts: { datum?: TerrainDatum; minSpanKm?: number; seconds?: number } = {},
+): boolean {
   if (!_renderer) return false;
   const bm = _renderer.getBodyMesh(bodyName);
   if (!bm) return false;
-  const [w, s, e0, n] = bounds;
-  const e = e0 < w ? e0 + 360 : e0;
   const rad = Math.PI / 180;
   const cam = _renderer.camera;
-  const heightKm = (n - s) * rad * bm.displayRadius;
-  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
-  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
-  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
+  const pole = Math.abs(area.latDeg) >= 90 - 1e-9;
+  const minSpan = opts.minSpanKm ?? 0;
+  const heightKm = Math.max(minSpan, area.northSpanDeg * rad * bm.displayRadius);
+  const widthKm = Math.max(minSpan, pole ? heightKm : area.eastSpanDeg * rad * bm.displayRadius * Math.cos(area.latDeg * rad));
+  // Measured from the ground where it is resident, so a high plateau does not swallow the camera.
+  const groundKm = bm.sampleTerrain(area.latDeg, area.lonDeg)?.elevationKm ?? 0;
+  const altitudeKm = groundKm + 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  let position = bm.geodeticOffsetKm(area.latDeg, area.lonDeg, altitudeKm, new THREE.Vector3());
+  if (!position && opts.datum) {
+    const p = geodeticToBodyFixed({ latDeg: area.latDeg, lonDeg: area.lonDeg, heightKm: altitudeKm }, opts.datum);
+    // Body-fixed is Z-up; the mesh frame is Y-up with -Z toward +90° lon.
+    position = new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+  }
   if (!position) return false;
   const cc = _renderer.cameraController;
   // Modes that frame something else (a spacecraft's LVLH, a surface camera)
@@ -985,9 +1012,11 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
   // One flight from wherever the camera is, switching origin on landing —
   // tracking first would cut to a default framing of the body.
   cc.flyTo(bm, {
-    duration: 1.5,
+    duration: opts.seconds ?? 1.5,
     offset: position.multiplyScalar(_renderer.scaleFactor),
-    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
+    // North in the mesh frame; over a pole, toward the 180° meridian (north)
+    // or the 0° meridian (south).
+    up: pole ? new THREE.Vector3(area.latDeg > 0 ? -1 : 1, 0, 0) : new THREE.Vector3(0, 1, 0),
   });
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.

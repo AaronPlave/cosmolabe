@@ -14,13 +14,23 @@
    * explains why an enabled layer is not showing, or showing worse than it can.
    *
    * A selected rover or spacecraft shows its parent's imagery, since that is
-   * the surface it sits on.
+   * the surface it sits on. The Surface layers panel passes `bodyName` to show
+   * one body's stack under the same controls.
    */
   import { vs, getRenderer, flyToRegion } from '../lib/viewer-state.svelte';
   import type { BodyMesh, ImageryLayerInfo, SurfaceTransitionState } from '@cosmolabe/three';
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Crosshair, Lock } from 'lucide-svelte';
 
-  let open = $state(rememberedOpen);
+  interface Props {
+    /** A specific body, instead of following the selection. */
+    bodyName?: string;
+    /** Open regardless of the remembered state (the Surface layers imagery view). */
+    startOpen?: boolean;
+  }
+  let { bodyName, startOpen = false }: Props = $props();
+
+  // svelte-ignore state_referenced_locally
+  let open = $state(startOpen || rememberedOpen);
   $effect(() => { rememberedOpen = open; });
 
   /** Layers whose details are expanded, by id. */
@@ -47,9 +57,10 @@
     void tick;
     void rev;
     const r = getRenderer();
-    if (!r || !vs.selectedBodyName) return null;
-    let bm = r.getBodyMesh(vs.selectedBodyName);
-    if (bm && bm.imageryLayers.length === 0 && bm.body.parentName) bm = r.getBodyMesh(bm.body.parentName);
+    const target = bodyName ?? vs.selectedBodyName;
+    if (!r || !target) return null;
+    let bm = r.getBodyMesh(target);
+    if (!bodyName && bm && bm.imageryLayers.length === 0 && bm.body.parentName) bm = r.getBodyMesh(bm.body.parentName);
     if (!bm || bm.imageryLayers.length === 0) return null;
     return {
       body: bm.body.name,
@@ -163,7 +174,7 @@
 {#if surface}
   <details class="mt-2 pt-2 border-t border-border" bind:open>
     <summary class="ui-section-label imagery-summary">
-      Imagery{#if surface.body !== vs.selectedBodyName}&nbsp;&middot; {surface.body}{/if}
+      Imagery{#if surface.body !== (bodyName ?? vs.selectedBodyName)}&nbsp;&middot; {surface.body}{/if}
       <span class="ui-meta normal-case tracking-normal font-normal">{enabledCount} of {surface.layers.length} enabled</span>
     </summary>
     <div class="ui-meta mt-1 mb-1">

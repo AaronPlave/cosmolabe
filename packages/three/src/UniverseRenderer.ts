@@ -17,6 +17,9 @@ import {
   type GeometryEvent,
   type SpatialRelationship,
   type SpatialEndpoint,
+  type BodyFixedPosition,
+  type TerrainDatum,
+  geodeticToBodyFixed,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { patchLogDepthPrecision } from './LogDepth.js';
@@ -542,7 +545,7 @@ export class UniverseRenderer {
       name => this.bodyMeshes.get(name)?.axesLengthKm(),
     );
     this.spatialRelationships.attach(this.spatialScene);
-    this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor);
+    this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor, (feature) => this.events.emit('geographic:select', feature));
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
     this.geographicStatus.style.cssText = 'position:absolute;width:max-content;max-width:min(330px,calc(100% - 32px));padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
@@ -1586,6 +1589,39 @@ export class UniverseRenderer {
 
   getBodyMesh(name: string): BodyMesh | undefined {
     return this.bodyMeshes.get(name);
+  }
+
+  /**
+   * Canvas CSS-pixel positions of geodetic points on a body, for host overlays
+   * such as a selected feature's callout or an in-view filter. A 2D position
+   * sits on the datum (height 0), or on the resident CPU terrain sample when
+   * `sampleTerrain` is set and that terrain shares the datum's reference shape.
+   * `facing` is false past the datum's horizon; terrain occlusion is not tested.
+   * Null for a body that is not drawn.
+   */
+  projectGeographicPositions(
+    bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum, options: { sampleTerrain?: boolean } = {},
+  ): { x: number; y: number; facing: boolean; inFront: boolean }[] | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const canvas = this.renderer.domElement;
+    const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const toWorld = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor));
+    const toView = this.camera.matrixWorldInverse;
+    const terrain = options.sampleTerrain ? bm.terrainDatum : null;
+    const sameShape = terrain && JSON.stringify(terrain.referenceShape) === JSON.stringify(datum.referenceShape);
+    const world = new THREE.Vector3(), normal = new THREE.Vector3(), toCamera = new THREE.Vector3(), view = new THREE.Vector3();
+    return positions.map((position) => {
+      const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
+      const p = geodeticToBodyFixed({ ...position, heightKm }, datum);
+      world.set(p.xKm, p.yKm, p.zKm).applyMatrix4(toWorld);
+      const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
+      normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
+      const facing = normal.dot(toCamera.copy(this.camera.position).sub(world)) > 0;
+      const inFront = view.copy(world).applyMatrix4(toView).z < 0;
+      world.project(this.camera);
+      return { x: (world.x + 1) / 2 * canvas.clientWidth, y: (1 - world.y) / 2 * canvas.clientHeight, facing, inFront };
+    });
   }
 
   /** Show or clear the selected event's observer/occulter/background geometry. */
