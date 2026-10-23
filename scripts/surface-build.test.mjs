@@ -319,7 +319,9 @@ w.build(p.parse_args(sys.argv[2:]))
     }
     const host = await serveStore(createLocalStorage(storeDir));
     try {
-      const published = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url });
+      const origins = ['https://custom-viewer.example', 'http://localhost:5173'];
+      const published = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url, origins });
+      expect(published.verificationOrigins).toEqual(origins);
       expect(published.catalogPinned).toBe(false);
       expect(published.storageObjects).toBe(published.objects+2*published.products.length);
       expect(published.storageBytes).toBeGreaterThan(published.bytes);
@@ -344,7 +346,10 @@ w.build(p.parse_args(sys.argv[2:]))
         grids: '/test-catalogs/data/'+report.products[0].id+'/cpu-grids.json',
         imagery: report.products.slice(1).map(p=>'/test-catalogs/data/'+p.id+'/imagery.json'), untouched:'https://example.invalid/trajectory' };
       const catalogPrefixes = Object.fromEntries(report.products.map(p=>[p.id,'data/'+p.id+'/']));
-      const candidate = await catalogCandidate(lock,{cache,receipt:published,catalog,catalogRel:'test-catalogs/skyfall.json',catalogPrefixes});
+      const checkedOrigins = new Set();
+      const candidate = await catalogCandidate(lock,{cache,receipt:published,catalog,catalogRel:'test-catalogs/skyfall.json',catalogPrefixes,
+        fetchImpl: (url, options) => { if (options?.headers?.Origin) checkedOrigins.add(options.headers.Origin); return fetch(url, options); }});
+      expect(checkedOrigins).toEqual(new Set(origins));
       expect(candidate.after.terrain).toContain(published.products[0].prefix);
       expect(candidate.after.untouched).toBe(catalog.untouched);
       const file = join(input,'candidate-catalog.json');await writeFile(file,JSON.stringify(catalog));

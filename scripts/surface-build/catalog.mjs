@@ -8,13 +8,15 @@ import { jsonFile, assert } from './plan.mjs';
 import { catalogCandidate, applyCatalogCandidate } from './publication.mjs';
 
 export async function catalogCli(args) {
-  const { positionals, values: v } = parseArgs({ args, allowPositionals: true, options: Object.fromEntries(
-    ['lock', 'cache', 'receipt', 'catalog', 'catalog-rel', 'prefixes', 'candidate'].map(k => [k, { type: 'string' }])) });
+  const { positionals, values: v } = parseArgs({ args, allowPositionals: true, options: {
+    ...Object.fromEntries(['lock', 'cache', 'receipt', 'catalog', 'catalog-rel', 'prefixes', 'candidate'].map(k => [k, { type: 'string' }])),
+    'verify-origin': { type: 'string', multiple: true },
+  } });
   assert(positionals.length === 1 && ['prepare', 'apply', 'rollback'].includes(positionals[0]),
     'Usage: catalog.mjs prepare --lock FILE --cache DIR --receipt FILE --catalog FILE --catalog-rel PATH --prefixes FILE --candidate NEW_FILE; or apply|rollback --candidate FILE --catalog FILE');
   if (positionals[0] !== 'prepare') return applyCatalogCandidate(await jsonFile(v.candidate), v.catalog, { rollback: positionals[0] === 'rollback' });
   const candidate = await catalogCandidate(await jsonFile(v.lock), { cache: v.cache, receipt: await jsonFile(v.receipt),
-    catalog: await jsonFile(v.catalog), catalogRel: v['catalog-rel'], catalogPrefixes: await jsonFile(v.prefixes) });
+    catalog: await jsonFile(v.catalog), catalogRel: v['catalog-rel'], catalogPrefixes: await jsonFile(v.prefixes), origins: v['verify-origin'] });
   await writeFile(v.candidate, JSON.stringify(candidate, null, 2) + '\n', { flag: 'wx' });
   return { candidate: v.candidate, beforeIdentity: candidate.beforeIdentity, afterIdentity: candidate.afterIdentity, deployed: false };
 }

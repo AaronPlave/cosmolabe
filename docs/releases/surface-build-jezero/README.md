@@ -2,7 +2,7 @@
 
 Prepared for [the production-acceptance handoff](https://github.com/AaronPlave/cosmolabe/pull/287#issuecomment-6366251549) at implementation commit `0e41e6369b5c0bb49cad5868aeb3e1ca39aec69b`.
 
-**Status: offline preparation complete; public upload and deployment unperformed.** No credentials were accessed. The public URLs in `catalog.planned.json` are planned destinations, not verified published content. The receipt-bound production candidate must be generated after publication.
+**Status: data publication authorized and attempted; stopped on public HTTP verification.** The terrain product is uploaded and all 161 data files match their hashes; its immutable prefix contains 163 objects / 13,976,621 bytes including completion metadata. Neither imagery product was uploaded. No verified publication receipt exists, and no catalog or deployment changed. See `publication-attempt.json` for the exact uploaded inventory counts, storage/domain binding, CORS responses and remaining host actions. The full public catalog remains a planned destination, not a verified publication. The receipt-bound production candidate must be generated after successful publication.
 
 ## Reviewed artifacts
 
@@ -22,7 +22,7 @@ Required owner decision, specified by the handoff:
 
 > Authorize publishing the reviewed immutable #251 Jezero pilot products to the configured R2 bucket served by https://data.aaronplave.com. Do not modify or deploy any catalog or mission.
 
-This document does not grant approval. After that approval and private configuration of the existing #137 R2 environment, first verify that the configured bucket/endpoint backs the intended public domain. From the reviewed checkout:
+The user authorized this data-only next step in the session. The configured bucket/public-domain binding was verified using a pre-existing manifest before any writes. The first attempt stopped at the CORS gate. Do not resume writes until the host issues below are corrected. From the reviewed checkout, regenerate the preflight before resuming:
 
 ```sh
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
@@ -36,6 +36,9 @@ Compare the regenerated plan's build, lock, products, hashes and identity with t
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
+  --verify-origin https://aaronplave.com \
+  --verify-origin http://localhost:5173 \
+  --verify-origin http://127.0.0.1:5187 \
   --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
   > work/surface-build/production-publication-receipt.json
 node scripts/surface-build/feedback.mjs \
@@ -45,6 +48,14 @@ node scripts/surface-build/feedback.mjs \
 ```
 
 Require a verified receipt with `localOnly:false`, matching identity, complete object hashes/counts/bytes, expected manifests, MIME types, immutable caching, allowed CORS and non-HTML missing-object 404s. The uploader refuses conflicting bytes and unexpected prefix contents. Stop on failure; leave unused prefixes unreferenced. Keep credentials out of artifacts and logs.
+
+## Host corrections required before resuming
+
+The actual HTTPS viewer origin `https://aaronplave.com` and `http://localhost:5173` are allowed. The pilot origin `http://127.0.0.1:5187` is rejected. Preserve existing CORS rules and add that pilot origin with read-only GET/HEAD access. The initial publisher incorrectly assumed `https://aaronplave.github.io`; repeatable `--verify-origin` now selects the actual origins and records them in the content-pinned receipt. Catalog preparation inherits those recorded origins by default. There is no requirement to add the unused GitHub origin.
+
+Missing product URLs currently return `404 text/html`. The handoff explicitly requires non-HTML 404s; the surface publication verifier now enforces this for cube products as well. Configure the public data host to return status 404 with a non-HTML body/type for missing objects. No error is waived. The configured object read/write credentials return `AccessDenied` (403) for reading bucket CORS; no bucket policy, CDN configuration or routing was changed.
+
+After correcting the host, resume the command above. It checks existing terrain bytes and reuses the identical immutable product, then publishes the two imagery products. Keep the current terrain prefix unreferenced until complete public verification succeeds; do not delete or overwrite it.
 
 ## Receipt-bound candidate and rehearsal
 

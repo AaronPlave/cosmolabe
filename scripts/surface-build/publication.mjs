@@ -12,6 +12,13 @@ import { verifyBuild } from '../data-hosting/lib/verify.mjs';
 import { rewriteCatalog } from '../data-hosting/lib/hosted-catalogs.mjs';
 
 const json = value => JSON.stringify(value, null, 2) + '\n';
+const DEFAULT_ORIGINS = ['http://localhost:5173', 'https://aaronplave.github.io'];
+function validateOrigins(origins) {
+  assert(Array.isArray(origins) && origins.length > 0 && origins.every(o => {
+    try { const u = new URL(o); return ['http:', 'https:'].includes(u.protocol) && u.origin === o; }
+    catch { return false; }
+  }), 'verification requires explicit HTTP(S) origins without paths');
+}
 export async function publicationPlan(lock, { cache }) {
   assert(cache, 'publication requires --cache');
   const dag = await compileBuild(lock), directory = join(resolve(cache), dag.buildId);
@@ -33,13 +40,16 @@ export async function publicationPlan(lock, { cache }) {
 }
 
 /** Full inventory/hash/headers HTTP check, in addition to #137's runtime checks. */
-export async function verifyPublishedProduct(p, { baseUrl, fetchImpl = fetch, origins = ['http://localhost:5173', 'https://aaronplave.github.io'] }) {
+export async function verifyPublishedProduct(p, { baseUrl, fetchImpl = fetch, origins = DEFAULT_ORIGINS }) {
+  validateOrigins(origins);
   const verification = await verifyBuild({ baseUrl, prefix: p.prefix, fetchImpl, origins });
   assert(verification.ok, `publication verification failed: ${verification.problems.join('; ')}`);
   assert(verification.manifest.kind === p.kind && verification.manifest.name === p.productId
     && verification.manifest.build === p.productIdentity.slice(0, 32)
     && verification.manifest.fileCount === p.objects && verification.manifest.totalBytes === p.bytes, 'published manifest identity/count mismatch');
   assert(verification.manifest.inventory.sha256 === p.inventorySha256, 'published inventory pin mismatch');
+  const missing = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/${p.prefix}__missing__/surface-publication-probe`, { headers: { Origin: origins[0] } });
+  assert(missing.status === 404 && !/html/i.test(missing.headers.get('content-type') ?? ''), 'publication requires a non-HTML missing-object 404');
   const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/${p.prefix}inventory.jsonl.gz`);
   assert(response.ok, 'published inventory is missing');
   const inventory = gunzipSync(Buffer.from(await response.arrayBuffer())).toString();
@@ -58,7 +68,8 @@ export async function verifyPublishedProduct(p, { baseUrl, fetchImpl = fetch, or
   return { objects: p.objects, bytes: p.bytes, inventorySha256: p.inventorySha256 };
 }
 
-export async function publishBuild(lock, { cache, localDir, baseUrl, confirm, fetchImpl = fetch, log = () => {} }) {
+export async function publishBuild(lock, { cache, localDir, baseUrl, confirm, origins = DEFAULT_ORIGINS, fetchImpl = fetch, log = () => {} }) {
+  validateOrigins(origins);
   const plan = await publicationPlan(lock, { cache });
   assert(/^https?:\/\//.test(baseUrl ?? ''), 'publication requires absolute --verify-url');
   if (!localDir) assert(confirm === plan.identity, `R2 publication requires --confirm-publication ${plan.identity}; no credentials read`);
@@ -81,7 +92,7 @@ export async function publishBuild(lock, { cache, localDir, baseUrl, confirm, fe
       buildManifest: (entries, inventorySha256) => (terrain ? cubeTerrainManifest : cubeImageryManifest)({
         dataset: { kind: p.kind, name: p.productId }, build: p.productIdentity.slice(0, 32), entries, inventorySha256, srcDir, gitCommit: null,
       }) });
-    const verified = await verifyPublishedProduct(p, { baseUrl, fetchImpl });
+    const verified = await verifyPublishedProduct(p, { baseUrl, fetchImpl, origins });
     const hosted = await storage.list(p.prefix);
     assert(hosted.size === p.objects + 2 && [...hosted.keys()].every(k => allowed.has(k)), 'published object inventory is not exact');
     const storageBytes = [...hosted.values()].reduce((n, bytes) => n + bytes, 0);
@@ -90,7 +101,7 @@ export async function publishBuild(lock, { cache, localDir, baseUrl, confirm, fe
   }
   const receipt = { version: 1, kind: 'surface-publication-receipt', buildId: plan.buildId, lockIdentity: plan.lockIdentity,
     publicationIdentity: plan.identity, baseUrl: baseUrl.replace(/\/$/, ''), localOnly: !!localDir,
-    catalogPinned: false, products, objects: products.reduce((n, p) => n + p.objects, 0), bytes: products.reduce((n, p) => n + p.bytes, 0),
+    catalogPinned: false, verificationOrigins: origins, products, objects: products.reduce((n, p) => n + p.objects, 0), bytes: products.reduce((n, p) => n + p.bytes, 0),
     storageObjects: products.reduce((n,p)=>n+p.storageObjects,0), storageBytes: products.reduce((n,p)=>n+p.storageBytes,0) };
   return { ...receipt, identity: identity(receipt) };
 }
@@ -98,7 +109,7 @@ export async function publishBuild(lock, { cache, localDir, baseUrl, confirm, fe
 /** Reverify HTTP from a receipt, then reuse the existing deployment rewrite.
  * Returns a candidate + exact rollback; neither is applied to any live catalog.
  */
-export async function catalogCandidate(lock, { cache, receipt, catalog, catalogRel, catalogPrefixes, fetchImpl = fetch }) {
+export async function catalogCandidate(lock, { cache, receipt, catalog, catalogRel, catalogPrefixes, origins = receipt.verificationOrigins ?? DEFAULT_ORIGINS, fetchImpl = fetch }) {
   const { identity: pin, ...body } = receipt;
   assert(pin === identity(body), 'publication receipt changed');
   const plan = await publicationPlan(lock, { cache });
@@ -107,7 +118,7 @@ export async function catalogCandidate(lock, { cache, receipt, catalog, catalogR
     && receipt.publicationIdentity === plan.identity && receipt.products.length === plan.products.length
     && plan.products.every(p => receipt.products.some(r => r.verified && r.productId === p.productId
       && r.prefix === p.prefix && r.inventorySha256 === p.inventorySha256)), 'publication receipt does not match completed build');
-  for (const p of plan.products) await verifyPublishedProduct(p, { baseUrl: receipt.baseUrl, fetchImpl });
+  for (const p of plan.products) await verifyPublishedProduct(p, { baseUrl: receipt.baseUrl, fetchImpl, origins });
   const datasets = Object.fromEntries(plan.products.map(p => {
     const prefix = catalogPrefixes[p.productId];
     assert(typeof prefix === 'string' && /^data\/[\w./-]+\/$/.test(prefix) && !prefix.includes('..'), 'explicit safe local catalog prefix required for every product');

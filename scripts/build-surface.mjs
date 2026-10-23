@@ -14,6 +14,7 @@ const USAGE = `Usage: npm run build:surface -- LOCK.json [--bindings FILE] [--ca
   --publication-plan  Preflight completed outputs; print exact inventory/confirmation identity.
   --publish-r2    Explicit remote publish through #137 (credentials read only here).
   --confirm-publication HASH  Required exact preflight identity for --publish-r2.
+  --verify-origin ORIGIN  Repeat for each viewer origin to verify over public HTTP.
   --help          Show limitations and usage.
 The real profile supports pinned existing fusion, masked EQC DEMs and native raster imagery.
 No automatic production upload or source download is performed.
@@ -24,6 +25,7 @@ export async function runBuildCli(args) {
     python: { type: 'string' }, workers: { type: 'string' }, 'publish-local': { type: 'boolean' },
     'local-dir': { type: 'string' }, 'verify-url': { type: 'string' },
     'publication-plan': { type: 'boolean' }, 'publish-r2': { type: 'boolean' }, 'confirm-publication': { type: 'string' },
+    'verify-origin': { type: 'string', multiple: true },
   } });
   if (v.help) return USAGE;
   if (positionals.length !== 1 || [v.execute, v['publish-local'], v['publish-r2'], v['publication-plan']].filter(Boolean).length > 1) throw new Error(USAGE);
@@ -33,7 +35,7 @@ export async function runBuildCli(args) {
   const bindingsDir = v.bindings ? dirname(resolve(v.bindings)) : process.cwd();
   if (v['publication-plan'] || v['publish-r2']) {
     const { publicationPlan, publishBuild } = await import('./surface-build/publication.mjs');
-    const options = { cache: v.cache, baseUrl: v['verify-url'], confirm: v['confirm-publication'], log: text => process.stderr.write(text + '\n') };
+    const options = { cache: v.cache, baseUrl: v['verify-url'], confirm: v['confirm-publication'], origins: v['verify-origin'], log: text => process.stderr.write(text + '\n') };
     const result = v['publication-plan'] ? await publicationPlan(lock, options) : await publishBuild(lock, options);
     return JSON.stringify(result, null, 2) + '\n';
   }
