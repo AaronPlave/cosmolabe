@@ -20,6 +20,19 @@ try {
   await page.screenshot({path:`${out}/inspect-${h}.png`});
  }
  await page.getByRole('button',{name:'Back to places',exact:true}).click();assert.ok(await page.evaluate(()=>window.s.vs.surfaceTarget?.place));
+ await page.getByLabel('Search place body',{exact:true}).selectOption('');
+ await page.getByRole('button',{name:/^Filters and sort/}).click();
+ const typeSelect=page.getByLabel('Search place type',{exact:true});
+ await typeSelect.selectOption(await typeSelect.evaluate(el=>[...el.options].filter(o=>o.value).sort((a,b)=>b.text.length-a.text.length)[0].value));
+ await page.getByLabel('Search place origin',{exact:true}).selectOption('nomenclature');await page.getByLabel('Sort places',{exact:true}).selectOption('diameter-desc');await page.keyboard.press('Escape');
+ for(const width of [240,288,420]) {
+  await page.evaluate(w=>window.sh.setFloat('navigate',{x:70,y:30,w,h:500},{width:innerWidth,height:innerHeight}),width);
+  const metrics=await page.getByRole('button',{name:/^Filters and sort/}).evaluate(el=>{const label=el.querySelector('span'),summary=label.nextElementSibling,b=el.getBoundingClientRect(),l=label.getBoundingClientRect(),s=summary.getBoundingClientRect();return{overflow:el.scrollWidth>el.clientWidth,labelHeight:l.height,lineHeight:parseFloat(getComputedStyle(label).lineHeight),within:s.right<=b.right,summaryWidth:s.width,fullSummary:el.title};});
+  assert.equal(metrics.overflow,false);assert.ok(metrics.labelHeight<=metrics.lineHeight+1);assert.ok(metrics.within);assert.ok(metrics.summaryWidth>0);assert.match(metrics.fullSummary,/Official names.*Largest first/);
+  await page.screenshot({path:`${out}/filters-active-${width}.png`});
+ }
+ checks.push('multiple active filters and sort stay within narrow panels, label remains on one line, full summary available in tooltip');
+ await page.getByRole('button',{name:/^Filters and sort/}).click();await typeSelect.selectOption('');await page.getByLabel('Search place origin',{exact:true}).selectOption('');await page.keyboard.press('Escape');
  await page.getByLabel('Search place body',{exact:true}).selectOption('Mars');const search=page.getByLabel('Search places',{exact:true});await search.fill('');
  await page.getByRole('button',{name:/^Filters and sort/}).click();await page.getByLabel('Sort places',{exact:true}).selectOption('name-asc');
  await page.screenshot({path:`${out}/browse-filters.png`});await page.keyboard.press('Escape');
