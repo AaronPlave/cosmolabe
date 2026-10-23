@@ -49,7 +49,9 @@ export async function verifyPublishedProduct(p, { baseUrl, fetchImpl = fetch, or
     && verification.manifest.fileCount === p.objects && verification.manifest.totalBytes === p.bytes, 'published manifest identity/count mismatch');
   assert(verification.manifest.inventory.sha256 === p.inventorySha256, 'published inventory pin mismatch');
   const missing = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/${p.prefix}__missing__/surface-publication-probe`, { headers: { Origin: origins[0] } });
-  assert(missing.status === 404 && !/html/i.test(missing.headers.get('content-type') ?? ''), 'publication requires a non-HTML missing-object 404');
+  // Cube loaders reject unsuccessful responses before decoding. An HTML 404
+  // is safe; a host that substitutes a successful page for missing data is not.
+  assert(missing.status === 404, 'publication requires missing-object HTTP 404');
   const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/${p.prefix}inventory.jsonl.gz`);
   assert(response.ok, 'published inventory is missing');
   const inventory = gunzipSync(Buffer.from(await response.arrayBuffer())).toString();

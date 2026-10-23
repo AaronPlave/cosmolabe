@@ -12,7 +12,7 @@ for a missing executor requirement below.
 | Independent physical terrain, context and native imagery | Implemented with #272 cube registration, pixel gutters and independent source controls | Real Jezero and synthetic Skyfall fixture; imagery refines beyond geometry without changing terrain IDs or CPU picks |
 | Native masks, checksums and image registration | Implemented: native subset + interpolation halo audit, mask-aware premultiplied filtering, independent source/output registration reference | `test_raster_imagery.py`, projected/masked rebuild and missing finest-coverage regressions; invalid external masks rejected |
 | Geometry seams, faces/poles/antimeridian, CPU/rendered comparison | Implemented numerical gates and measured diagnostics; measured CPU/rendered differences are retained in planner report | Every build runs `validate-cube-terrain.mjs`; real foundation includes 96 boundary rays. Up to 291 m mixed-LOD separation remains disclosed, not relabeled as an executor failure or silently repaired |
-| Immutable publisher and exact inventory verification | Implemented over #137 storage/uploader/verifier, preflight all products, explicit R2 confirmation, hash-check partial objects, verify every emitted object over HTTP | Local hosted-style full publication, re-publication, corrupt/missing-object rejection. Real R2 upload is **externally gated by owner authorization**, exact commands below; no credentials used by build/dry-run/preflight |
+| Immutable publisher and exact inventory verification | Implemented over #137 storage/uploader/verifier, preflight all products, explicit R2 confirmation, hash-check partial objects, verify every emitted object over HTTP | Local hosted-style full publication, re-publication, corrupt/missing-object rejection. Owner-authorized real R2 publication passed: 225 stored objects / 14,449,636 bytes, full public HTTP verification and receipt. No credentials used by build/dry-run/preflight |
 | Safe catalog rewrite, pin and rollback | Implemented with #137 `rewriteCatalog`; receipt must match build and pass fresh HTTP verification before candidate preparation | Tests apply/rollback an offline catalog copy and reject concurrent edits, changed receipts, bad/partial hosted products; candidate never deploys |
 | Actual-versus-planned machine-readable planner feedback | Implemented: report v2 plus standalone `planner-feedback.json` (contract v1) | Requested geometries, native GSD/accuracy, confirmed valid masks, continuous ROI proofs where available, emitted levels/availability, bytes/objects, sources/transfers, time and sampled resources; publication is separately receipt-bound |
 | Changed source/transform/region creates new identity | Implemented: whole-build lock identity and per-product transitive input identity | Source, transform/taper and region identity regressions; region-only execution reuses matching terrain and global context, stable publication prefixes prevent duplicate upload |
@@ -39,6 +39,8 @@ Use the exact `identity` in the preflight artifact as `REVIEWED_IDENTITY`:
 ```sh
 node scripts/build-surface.mjs LOCK.json --cache CACHE --publish-r2 \
   --verify-url https://data.aaronplave.com \
+  --verify-origin https://aaronplave.com \
+  --verify-origin http://127.0.0.1:5174 \
   --confirm-publication REVIEWED_IDENTITY > publication-receipt.json
 ```
 
@@ -143,6 +145,8 @@ No production credentials were read and no production upload occurred. After exp
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
+  --verify-origin https://aaronplave.com \
+  --verify-origin http://127.0.0.1:5174 \
   --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
   > work/surface-build/production-publication-receipt.json
 ```
@@ -168,8 +172,12 @@ The projected-raster incremental regression wraps the actual worker and rejects 
 terrain/datum/fusion copy, elevation audit or terrain builder invocation; it also
 checks the absent scratch files and preserved alignment evidence.
 
-## Production acceptance preparation
+## Production publication and remaining acceptance
 
-The [reviewed Jezero release record](releases/surface-build-jezero/README.md) contains a refreshed full publication inventory, dedicated static experiment catalog, exact product-prefix map, planned public catalog diff and commands for the separate data-publication and catalog-exposure approvals. Fresh full local HTTP verification and exact catalog apply/rollback rehearsal passed. Public upload, receipt-bound public candidate and actual deployed-origin acceptance remain pending; the planned URLs are not a publication claim.
+Owner-authorized immutable R2 publication is complete: **225 stored objects / 14,449,636 bytes**. The [verified public receipt](releases/surface-build-jezero/production-publication-receipt.json) has `localOnly:false`. Every emitted file passed public HTTP hash/type/cache checks; selected production/local CORS origins passed. Both imagery products are published; unchanged terrain was reused.
 
-The owner-authorized data publication attempt uploaded the terrain product (163 storage objects, 13,976,621 bytes; all 161 data-file hashes checked) and stopped at public HTTP verification before either imagery product. The [attempt record](releases/surface-build-jezero/publication-attempt.json) documents the rejected pilot CORS origin and HTML missing-object responses. Verification now supports explicit real viewer origins and pins them into receipts; the actual HTTPS viewer origin is allowed. No verified production receipt, public catalog candidate, deployment or mission change is claimed.
+The [release record](releases/surface-build-jezero/README.md) includes receipt-bound schema-valid planner feedback, a freshly public-HTTP-verified static catalog candidate, and exact apply/rollback on a disposable copy. The ordinary viewer at port 5174 directly loads public R2 URLs without interception; physical M4 Max / Metal validation passed imagery LOD, opacity/hiding/coarse fallback/restoration, physical picking and hover/Fly to. Cold and warm reload evidence is attached separately.
+
+The earlier non-HTML 404 gate was unnecessary for cube loaders, which reject non-success HTTP status before decoding. After the user approved continuing with that correction, genuine HTML 404s are accepted; a successful HTML error page for a missing resource, or HTML replacing any required data object, remains a failure. Regressions cover both publication and actual image-loader fallback.
+
+**Remaining external step:** separately authorize only the dedicated experiment catalog exposure/deployment, then validate from its actual deployed/preview viewer origin. The catalog is prepared but not deployed. Keep #287 draft and #251 open until that acceptance is observed. Mission migrations and the existing physical/source uncertainty remain separate.

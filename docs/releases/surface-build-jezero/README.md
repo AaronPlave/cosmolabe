@@ -1,38 +1,42 @@
-# Jezero pilot release preparation
+# Jezero pilot publication and catalog review
 
-Prepared for [the production-acceptance handoff](https://github.com/AaronPlave/cosmolabe/pull/287#issuecomment-6366251549) at implementation commit `0e41e6369b5c0bb49cad5868aeb3e1ca39aec69b`.
+**Data publication is complete. Catalog deployment and deployed-origin acceptance remain pending.** The user authorized data-only publication, then approved accepting genuine HTML 404 responses after confirming the loaders reject unsuccessful status before decoding. No Cloudflare error-page rewrite is needed.
 
-**Status: data publication authorized and attempted; stopped on public HTTP verification.** The terrain product is uploaded and all 161 data files match their hashes; its immutable prefix contains 163 objects / 13,976,621 bytes including completion metadata. Neither imagery product was uploaded. No verified publication receipt exists, and no catalog or deployment changed. See `publication-attempt.json` for the exact uploaded inventory counts, storage/domain binding, CORS responses and remaining host actions. The full public catalog remains a planned destination, not a verified publication. The receipt-bound production candidate must be generated after successful publication.
+Build: `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`.
+Lock: `sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9`.
+Publication confirmation: `6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99`.
+Verified receipt: `665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e`.
 
-## Reviewed artifacts
+The public store contains **225 objects / 14,449,636 bytes**, including 219 emitted data objects / 14,435,500 bytes. All three products are verified at their immutable prefixes under `https://data.aaronplave.com/`. Existing terrain was reused; the context and native imagery products were uploaded. No immutable product was overwritten.
 
-- `publication-plan.json`: refreshed full inventory and hashes for build `67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab`, lock `sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9`. All supported numerical/build gates passed. Confirmation identity: `6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99`.
-- `catalog.original.json`: dedicated static experiment catalog, captured from the currently validated pilot and converted to explicit local product prefixes. Physical Mars ellipsoid and CPU grids, L13 mandatory fallback, L16 optional native detail, bounded native footprint, attribution, and the existing body-fixed native-detail viewpoint are retained. It contains Sun, Mars and a viewpoint, with no mission trajectories.
-- `prefixes.json`: exact catalog-root-relative product mappings. Intended deployment location is **`test-catalogs/experiments/mars-surface-build-pilot.json`**. The source artifact lives here to keep the catalog out of the deployed viewer until separately approved.
-- `catalog.planned.json`: reviewable public-URL rewrite of the original. Exactly four values change: terrain tileset, physical CPU grids, context imagery manifest, native imagery manifest. Viewpoint, ellipsoid, datum, visibility, bounds, descriptions and attribution are identical.
-- `preparation.json`: schema validation and actual local-publication HTTP/apply/rollback results. This is explicitly local-only evidence.
+## Reviewable evidence
 
-The plan contains **219 data objects / 14,435,500 bytes**. The existing local publication has **225 storage objects / 14,449,636 bytes**, including inventories and completion metadata. Production counts must come from its actual receipt. Each public product root is `https://data.aaronplave.com/` followed by the exact immutable `prefix` in the plan.
+- `publication-plan.json`: exact reviewed source/output identity and data inventory, unchanged by this publication-verifier correction.
+- `production-publication-receipt.json`: actual content-pinned receipt with `localOnly:false`, exact product identities/inventories/counts/bytes and verified origins.
+- `production-planner-feedback.json`: receipt-bound published planner feedback, validated against the v1 JSON Schema.
+- `production-catalog-candidate.json`: actual receipt-bound candidate, prepared with fresh public HTTP verification. Its `before` equals `catalog.original.json`; its `after` equals `catalog.planned.json` exactly.
+- `production-acceptance.json`: concise publication/catalog/browser validation and remaining approval.
+- `production-browser.json`, `production-cold-warm.json`: actual ordinary-browser checks from port 5174 against public R2 products, without request interception or test mode. Physical GPU: Apple M4 Max / ANGLE Metal. Screenshots: `public-restored.png`, `public-hover-footprint.png`, `public-fly-to-layer.png`.
+- `publication-attempt.json`: historical partial attempts; superseded by the successful production receipt. `preparation.json` records the earlier local-only rehearsal.
 
-All four locked sources declare USGS/NASA public-domain licensing with attribution “NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE”; immutable imagery manifests retain verified source provenance. Both imagery layers contain the same observed 512 m, 25 cm crop, not a global native Mars basemap. Absolute registration and illumination remain unknown. The measured maximum mixed-LOD CPU/rendered gap of 291.042 m and 30.24 m rendered clearance at nominal 50 m remain disclosed in [the acceptance record](../../surface-build-acceptance.md).
+The runtime checks cover L16 imagery over L11 terrain, opacity, optional-layer hiding and L13 fallback/restoration, CPU picking, hover alignment and the actual Fly to button, with zero page/product HTTP errors and zero uncovered mandatory-base blocks. Cold and warm browser reload checks separately record cache reuse. These are **local viewer origin → public R2** checks; they do not claim acceptance from the deployed viewer origin.
 
-## Approval A: data publication only
+All four locked sources declare USGS/NASA public-domain licensing with attribution “NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE”; the immutable imagery manifests retain source provenance. Both image layers contain the same observed 512 m, 25 cm crop, not a global native Mars basemap. Absolute registration and illumination remain unknown. The existing maximum 291.042 m mixed-LOD CPU/rendered separation and 30.24 m rendered clearance at nominal 50 m remain disclosed in the [acceptance record](../../surface-build-acceptance.md).
 
-Required owner decision, specified by the handoff:
+## Verification correction
 
-> Authorize publishing the reviewed immutable #251 Jezero pilot products to the configured R2 bucket served by https://data.aaronplave.com. Do not modify or deploy any catalog or mission.
+Require a genuine HTTP 404 for missing objects. Its body can be HTML: cube imagery, manifest and grid loaders check HTTP status before decoding. A missing resource returned as `200 OK`, HTML replacing any required object, wrong hashes/types/revisions, bad CORS or missing inventory still fail. Regressions cover real HTML 404 responses without image decoding, retained mandatory-base coverage, bounded retries, successful HTML error pages and actual HTTP publication/catalog workflow.
 
-The user authorized this data-only next step in the session. The configured bucket/public-domain binding was verified using a pre-existing manifest before any writes. The first attempt stopped at the CORS gate. Do not resume writes until the host issues below are corrected. From the reviewed checkout, regenerate the preflight before resuming:
+The configured data host now allows `https://aaronplave.com`, `http://localhost:5174` and `http://127.0.0.1:5174`. Port 5187 is not required. Verification origins are recorded in the signed-by-content receipt and inherited by catalog preparation. No bucket policy, CDN routing or error-page configuration was changed by the agent.
+
+## Reproduce publication verification
+
+The original data-only authorization remains in effect. Regenerate and compare the preflight before any repeated publication; stop if identities or bytes differ:
 
 ```sh
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publication-plan \
   > work/surface-build/publication-plan.json
-```
-
-Compare the regenerated plan's build, lock, products, hashes and identity with this reviewed plan; stop on changes. Use the regenerated identity with the existing explicit publication command:
-
-```sh
 node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
@@ -40,66 +44,51 @@ node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --verify-origin http://localhost:5174 \
   --verify-origin http://127.0.0.1:5174 \
   --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
-  > work/surface-build/production-publication-receipt.json
-node scripts/surface-build/feedback.mjs \
-  work/surface-build/real-pilot-report.json \
-  work/surface-build/production-publication-receipt.json \
-  work/surface-build/production-planner-feedback.json
+  > work/surface-build/republication-receipt.json
 ```
 
-Require a verified receipt with `localOnly:false`, matching identity, complete object hashes/counts/bytes, expected manifests, MIME types, immutable caching, allowed CORS and non-HTML missing-object 404s. The uploader refuses conflicting bytes and unexpected prefix contents. Stop on failure; leave unused prefixes unreferenced. Keep credentials out of artifacts and logs.
+Already completed products are hash-checked and reused. Public verification covers every data object's bytes, MIME and immutable caching, complete inventories/revisions, CORS and real missing-object 404s. Credentials stay in the private environment, outside artifacts/logs/history.
 
-## Host corrections required before resuming
+## Catalog candidate and exact rollback
 
-The retry now uses port **5174**. CORS passes for all three selected origins: `https://aaronplave.com`, `http://localhost:5174` and `http://127.0.0.1:5174`. No CORS allowance for port 5187 is required. The lingering viewer on port 5174 was stopped and replaced with the pilot. The initial publisher incorrectly assumed `https://aaronplave.github.io`; repeatable `--verify-origin` now selects the actual origins and records them in the content-pinned receipt. Catalog preparation inherits those recorded origins by default. There is no requirement to add the unused GitHub origin.
+Intended catalog location: **`test-catalogs/experiments/mars-surface-build-pilot.json`**. The static artifact stays in this release directory until separately authorized for exposure. `prefixes.json` maps the three product IDs to their exact catalog-root-relative local prefixes.
 
-Missing product URLs currently return `404 text/html`. The handoff explicitly requires non-HTML 404s; the surface publication verifier now enforces this for cube products as well. Configure the public data host to return status 404 with a non-HTML body/type for missing objects. No error is waived. The configured object read/write credentials return `AccessDenied` (403) for reading bucket CORS; no bucket policy, CDN configuration or routing was changed.
+The candidate changes exactly four URLs: terrain tileset, physical CPU grids, context manifest, native manifest. Physical ellipsoid/datum, body-fixed initial camera, visibility, source attribution, bounded native footprint and mandatory base coverage are identical. It contains Sun, Mars and a viewpoint; no mission trajectories. No dataset registry, default entry point, Ingenuity or Curiosity catalog is changed.
 
-After correcting the host, resume the command above. It checks existing terrain bytes and reuses the identical immutable product, then publishes the two imagery products. Keep the current terrain prefix unreferenced until complete public verification succeeds; do not delete or overwrite it.
-
-## Receipt-bound candidate and rehearsal
-
-Only after the public receipt exists, prepare the actual candidate. Preparation freshly verifies public HTTP content:
+Actual candidate identity: `a3038a1e19e81bce59fd3938f4c7631df9cc3f853cc69e3e4d33f3820ee1a899`.
+Before identity: `10e4efa8a1d17fc4d61bba3d5c6634ad8fdfd4a4cbc149e34f310088d3d94b2a`.
+After identity: `49510c3254af426f1e5fedb35eb68942cdbef6443c590fe04b28637289af422f`.
+Fresh public HTTP verification and apply/rollback on a disposable copy passed, restoring the exact original.
 
 ```sh
 node scripts/surface-build/catalog.mjs prepare \
   --lock work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache \
-  --receipt work/surface-build/production-publication-receipt.json \
+  --receipt docs/releases/surface-build-jezero/production-publication-receipt.json \
   --catalog docs/releases/surface-build-jezero/catalog.original.json \
   --catalog-rel test-catalogs/experiments/mars-surface-build-pilot.json \
   --prefixes docs/releases/surface-build-jezero/prefixes.json \
-  --candidate work/surface-build/production-catalog-candidate.json
-cp docs/releases/surface-build-jezero/catalog.original.json work/surface-build/production-catalog-rehearsal.json
+  --candidate work/surface-build/rechecked-public-catalog-candidate.json
+cp docs/releases/surface-build-jezero/catalog.original.json work/surface-build/catalog-copy.json
 node scripts/surface-build/catalog.mjs apply \
-  --candidate work/surface-build/production-catalog-candidate.json \
-  --catalog work/surface-build/production-catalog-rehearsal.json
+  --candidate work/surface-build/rechecked-public-catalog-candidate.json --catalog work/surface-build/catalog-copy.json
 node scripts/surface-build/catalog.mjs rollback \
-  --candidate work/surface-build/production-catalog-candidate.json \
-  --catalog work/surface-build/production-catalog-rehearsal.json
+  --candidate work/surface-build/rechecked-public-catalog-candidate.json --catalog work/surface-build/catalog-copy.json
 ```
 
-Require candidate `before` to equal the reviewed original and `after` to equal the reviewed planned catalog. Require rollback to restore the exact original JSON. The local rehearsal already passed these operations using the local receipt; it does not substitute for public receipt verification.
+## Local viewing and remaining approval
 
-Run the ordinary viewer against the actual public URLs before deployment:
+The running pilot is http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot and now directly loads the public R2 products. Reproduce with:
 
 ```sh
-SURFACE_PUBLICATION_RECEIPT=work/surface-build/production-publication-receipt.json \
-  PILOT_VIEWER_PORT=5174 node scripts/surface-build/serve-pilot.mjs
-SURFACE_HOSTED=1 CL_VIEWER_URL=http://127.0.0.1:5174/ node scripts/test-surface-build-pilot.mjs \
-  work/surface-build/real-pilot-report.json work/surface-build/production-browser
+PILOT_VIEWER_PORT=5174 \
+  SURFACE_PUBLICATION_RECEIPT=docs/releases/surface-build-jezero/production-publication-receipt.json \
+  node scripts/surface-build/serve-pilot.mjs
+SURFACE_HOSTED=1 CL_VIEWER_URL=http://127.0.0.1:5174/ \
+  node scripts/test-surface-build-pilot.mjs \
+  work/surface-build/real-pilot-report.json work/surface-build/public-browser-recheck
 ```
 
-## Approval B: dedicated experiment exposure
+**Approval B is still required:** authorize exposure/deployment of only the reviewed experimental catalog at `test-catalogs/experiments/mars-surface-build-pilot.json`. Review `production-catalog-candidate.json` and preserve the previous deployed file or its absence before exposure. Deployment rollback restores that previous file/absence; immutable published data remains accessible and is not deleted. The rehearsal restores the source catalog JSON; it does not itself exercise a live deployment rollback.
 
-After reviewing the verified production candidate, rollback, receipt and browser evidence, separately authorize a preview/deployment of **only** `test-catalogs/experiments/mars-surface-build-pilot.json`. No default entry-point, dataset-registry, Ingenuity or Curiosity migration is included. The dynamic local pilot route is not itself a deployed static catalog.
-
-Repeat cold/warm loading, near/far LOD, opacity/hiding/fallback, physical picking, hover/Fly to alignment and network checks from the actual deployed/preview viewer origin against the public data host. Record URL, browser/GPU, captures, zero product errors and zero uncovered mandatory-base blocks. Keep #287 draft and #251 open until this acceptance is observed.
-
-Rollback restores the prior deployed catalog pin (or removes this new experimental catalog if it was absent). Preserve the prior deployment artifact before exposure. Keep immutable products accessible; do not delete data as rollback. The JSON apply/rollback rehearsal restores the reviewed original; deployment rollback additionally restores the previous deployed file/absence. No live catalog or deployment was changed during preparation.
-
-## Port 5174 retry result
-
-The updated public CORS checks passed. The real retry revalidated the exact reviewed preflight, verified and reused the existing identical terrain product without upload, then stopped because missing objects still return `404 text/html`. Neither imagery product was uploaded and no verified receipt was issued. The only remaining observed public-host blocker is the non-HTML 404 requirement.
-
-The local pilot is running at http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot using the verified local publication on port 5190. The actual ordinary viewer passed on the physical M4 Max Metal GPU: L16 imagery over L11 terrain, hiding/opacity/coarse fallback/restoration, CPU picking, hover and actual Fly to button, zero errors. This is local-product evidence, not public R2 imagery or deployed-origin acceptance.
+After approval, validate the actual deployed/preview viewer origin against public R2: cold/warm loads, near/far LOD, controls/fallback, physical picks, hover/Fly to, provenance, CORS/cache/network and zero uncovered base blocks. Attach URL, browser/GPU evidence and rollback rehearsal. Keep #287 draft and #251 open until this acceptance is observed; no merge or issue closure is authorized yet.

@@ -218,8 +218,8 @@
     "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
     "layerFlight": {
       "projected": [
-        -0.00007164247009017516,
-        -0.000010503177105631775,
+        -7.164247009017516e-05,
+        -1.0503177105631775e-05,
         0.9999973037171814
       ],
       "surfacePivot": true,
@@ -227,7 +227,7 @@
       "maxFrameMs": 9.399999999997817
     }
   },
-  "productionUpload": false,
+  "productionUpload": true,
   "productionReady": false,
   "publication": {
     "localOnly": true,
@@ -277,5 +277,19 @@
     },
     "sourceIdentity": "All current source and dependency bytes verified; complete prior inventory/audits verified before reuse",
     "limits": "Sampled worker scratch excludes the retained prior cache; full current-source checksum and physical terrain validation remain intentional."
+  },
+  "productionPublication": {
+    "receipt": "../releases/surface-build-jezero/production-publication-receipt.json",
+    "receiptIdentity": "665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e",
+    "localOnly": false,
+    "objects": 219,
+    "bytes": 14435500,
+    "storageObjects": 225,
+    "storageBytes": 14449636,
+    "publicHttpVerified": true,
+    "viewerOrigin": "http://127.0.0.1:5174",
+    "dataOrigin": "https://data.aaronplave.com",
+    "deployedViewerOriginAccepted": false,
+    "catalogDeployed": false
   }
 }

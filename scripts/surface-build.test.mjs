@@ -317,7 +317,7 @@ w.build(p.parse_args(sys.argv[2:]))
     for (const product of report.products) {
       expect(await buildInventory(join(rebuilt.directory, product.id))).toEqual(await buildInventory(join(report.directory, product.id)));
     }
-    const host = await serveStore(createLocalStorage(storeDir));
+    const host = await serveStore(createLocalStorage(storeDir), { html404: true });
     try {
       const origins = ['https://custom-viewer.example', 'http://localhost:5173'];
       const published = await publishLocalFixture(lock, { cache, localDir: storeDir, baseUrl: host.url, origins });
