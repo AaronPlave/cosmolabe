@@ -178,7 +178,7 @@
 
 <style>
   .places-content, .place-browser, .place-inspector { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
-  .place-browser { gap: .5rem; }
+  .place-browser { gap: .5rem; padding: 2px; margin: -2px; }
   .place-browser > :global(*) { flex-shrink: 0; }
   .place-browser.inactive { display: none; }
   .place-browser > .place-results { flex: 1; min-height: 0; overflow-y: auto; }

@@ -11,6 +11,12 @@ async function assertScrollbarInside(locator) {
  assert.ok(geometry.right<=geometry.clipRight+.5,`scrollbar extends outside ancestor clip: ${JSON.stringify(geometry)}`);
  return geometry;
 }
+async function assertSearchFocusInside() {
+ const search=page.getByLabel('Search places',{exact:true});await search.focus();
+ const geometry=await search.evaluate(el=>{const r=el.getBoundingClientRect();let left=r.left-1,right=r.right+1;const clips=[];for(let parent=el.parentElement;parent;parent=parent.parentElement){if(/hidden|clip|auto|scroll/.test(getComputedStyle(parent).overflowX)){const p=parent.getBoundingClientRect();clips.push({name:parent.className,left:p.left,right:p.right});}if(getComputedStyle(parent).position==='fixed')break;}return{left,right,shadow:getComputedStyle(el).boxShadow,clips};});
+ assert.notEqual(geometry.shadow,'none');
+ for(const clip of geometry.clips)assert.ok(geometry.left>=clip.left-.1&&geometry.right<=clip.right+.1,`search focus ring clipped: ${JSON.stringify({geometry,clip})}`);
+}
 try {
  await page.goto(`${base}?catalog=test-catalogs/planetary-places`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.renderer?.placeNames?.index.places.length===11139);
  await page.evaluate(async()=>{window.s=await window.__placeModule('/src/lib/viewer-state.svelte.ts');window.p=await window.__placeModule('/src/lib/places.ts');window.sh=await window.__placeModule('/src/lib/shell.svelte.ts');window.nv=await window.__placeModule('/src/lib/navigation-view.svelte.ts');window.cosmo.setPlaying(false);window.site=window.p.searchPlaces('Valles Marineris')[0];window.p.navigateToPlace(window.site,'jump');});
@@ -35,6 +41,7 @@ try {
   await page.evaluate(w=>window.sh.setFloat('navigate',{x:70,y:30,w,h:500},{width:innerWidth,height:innerHeight}),width);
   const metrics=await page.getByRole('button',{name:/^Filters and sort/}).evaluate(el=>{const label=el.querySelector('span'),summary=label.nextElementSibling,b=el.getBoundingClientRect(),l=label.getBoundingClientRect(),s=summary.getBoundingClientRect();return{overflow:el.scrollWidth>el.clientWidth,labelHeight:l.height,lineHeight:parseFloat(getComputedStyle(label).lineHeight),within:s.right<=b.right,summaryWidth:s.width,fullSummary:el.title};});
   assert.equal(metrics.overflow,false);assert.ok(metrics.labelHeight<=metrics.lineHeight+1);assert.ok(metrics.within);assert.ok(metrics.summaryWidth>0);assert.match(metrics.fullSummary,/Official names.*Largest first/);
+  await assertSearchFocusInside();
   await page.screenshot({path:`${out}/filters-active-${width}.png`});
  }
  checks.push('multiple active filters and sort stay within narrow panels, label remains on one line, full summary available in tooltip');
@@ -45,7 +52,7 @@ try {
  const list=page.locator('.place-results');await assertScrollbarInside(list);await list.evaluate(el=>el.scrollTop=800);const before=await list.evaluate(el=>el.scrollTop);
  await list.locator('button[aria-pressed]').nth(20).click();assert.equal(await search.isVisible(),false);await page.getByRole('button',{name:'Back to places',exact:true}).click();assert.equal(await list.evaluate(el=>el.scrollTop),before);
  assert.ok((await page.getByRole('button',{name:/^Filters and sort/}).textContent()).includes('Name A–Z'));checks.push('focused inspector, discoverable framing, pinned actions, single scroll owner, retained browse filters and scroll');
- await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await assertScrollbarInside(list);await page.screenshot({path:`${out}/browse-compact.png`});
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await assertScrollbarInside(list);await assertSearchFocusInside();await page.screenshot({path:`${out}/browse-compact.png`});
  await page.evaluate(()=>window.p.selectPlace(window.site));await page.getByText('Place details',{exact:true}).click();await assertScrollbarInside(page.locator('.inspector-scroll'));await page.screenshot({path:`${out}/inspect-compact.png`});checks.push('browse and inspector scrollbar tracks remain inside ancestor clipping bounds in floating and compact panels');
  const footer=await page.getByRole('button',{name:'Fly to',exact:true}).evaluate(el=>({button:el.getBoundingClientRect().bottom,panel:el.closest('.instrument').getBoundingClientRect().bottom}));assert.ok(footer.button<footer.panel);checks.push('390x844 inspector and browse remain within sheet, actions visible with expanded details');
  await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>{window.sh.dockPanel('navigate');window.sh.openTool('display');});await page.getByText('Name sources',{exact:true}).click();
