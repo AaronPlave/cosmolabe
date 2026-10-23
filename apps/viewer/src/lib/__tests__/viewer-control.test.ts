@@ -526,7 +526,7 @@ describe('navigation verbs', () => {
     const fly=vi.spyOn(placeActions,'navigateToPlace').mockReturnValue(true);
     const doubleClick=renderer.events.on.mock.calls.find(([event])=>event==='geographic:dblclick')![1];
     doubleClick({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
-    expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly');
+    expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly',{source:'viewport-dblclick'});
     doubleClick({layerId:place.layer.id,featureId:'stale',bodyName:place.layer.body});
     expect(fly).toHaveBeenCalledTimes(1);fly.mockRestore();
     selectPlace(place);const control=createViewerControl();control.track('Titan');

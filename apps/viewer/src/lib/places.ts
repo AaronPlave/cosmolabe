@@ -24,15 +24,18 @@ export function showPlaceDataset(layerId: string, visible: boolean): void {
 
 /** Places use exactly the coordinate panel's resolution, physical terrain
  * refinement, surface pivot and arc-flight path. Extent only guides framing. */
-export function navigateToPlace(place: Place, action: 'fly' | 'jump'): boolean {
+export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: { source?: 'viewport-dblclick' } = {}): boolean {
   if (place.feature.geometry.type !== 'Point') return false;
-  const range = navigationRange();
+  // A scene gesture has predictable framing; it must not inherit invalid or
+  // unrelated form settings, nor overwrite the user's retained form choices.
+  const viewport = options.source === 'viewport-dblclick';
+  const range = viewport ? { ok: true as const, km: undefined } : navigationRange();
   if (!range.ok) return false;
   const { latDeg, lonDeg } = place.feature.geometry.coordinates;
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg,
     latitude: 'planetographic', longitudeDirection: 'east' }, {
     place: { ref: place.ref, name: place.name },
-    preset: navigationView.preset, animate: action === 'fly', rangeKm: range.km,
+    preset: viewport ? 'overhead' : navigationView.preset, animate: action === 'fly', rangeKm: range.km,
   });
   if (!result.ok) return false;
   selectPlace(place);

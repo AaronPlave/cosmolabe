@@ -1,6 +1,8 @@
 import type { GeographicFeature, GeographicLayer } from './model.js';
 import { wrapLon } from './coordinates.js';
 
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
 /** A view of an imported point, retaining the original feature and provenance. */
 export interface Place {
   ref: string;
@@ -88,7 +90,8 @@ export class PlaceIndex {
     for (const cell of this.cells.values()) cell.sort(placePriority);
   }
 
-  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; sort?: PlaceSort; activeBody?: string; limit?: number } = {}): Place[] {
+  /** Numeric limits retain bounded palette results; 'all' exposes the full indexed match set for browsing. */
+  search(query: string, opts: { body?: string; kind?: string; origin?: Place['origin']; sort?: PlaceSort; activeBody?: string; limit?: number | 'all' } = {}): Place[] {
     const tokens = placeText(query).split(' ').filter(Boolean).slice(0, 8);
     let candidates: Set<Place> | undefined;
     for (const token of tokens) {
@@ -103,7 +106,7 @@ export class PlaceIndex {
     const exact = placeText(query);
     return [...(candidates ?? this.places)].filter(p => (!opts.body || p.layer.body === opts.body) && (!opts.kind || p.kind === opts.kind) && (!opts.origin || p.origin === opts.origin))
       .sort((a, b) => {
-        const byName = () => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }) || a.ref.localeCompare(b.ref);
+        const byName = () => nameCollator.compare(a.name, b.name) || a.ref.localeCompare(b.ref);
         if (opts.sort === 'name-asc') return byName();
         if (opts.sort === 'name-desc') return -byName();
         if (opts.sort === 'diameter-desc' || opts.sort === 'diameter-asc') {
@@ -113,9 +116,9 @@ export class PlaceIndex {
           return known || (opts.sort === 'diameter-desc' ? size : -size) || byName();
         }
         return Number(b.layer.body === opts.activeBody) - Number(a.layer.body === opts.activeBody)
-          || Number(placeText(b.name) === exact) - Number(placeText(a.name) === exact) || placePriority(a, b);
+          || (exact ? Number(placeText(b.name) === exact) - Number(placeText(a.name) === exact) : 0) || placePriority(a, b);
       })
-      .slice(0, Math.max(0, Math.min(opts.limit ?? 30, 100)));
+      .slice(0, opts.limit === 'all' ? PLACE_LIMIT : Math.max(0, Math.min(opts.limit ?? 30, 100)));
   }
 
   /** All intersecting cells are ranked together before applying a limit.

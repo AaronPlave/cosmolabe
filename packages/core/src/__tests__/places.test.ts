@@ -45,8 +45,14 @@ describe('shared place index', () => {
     expect(names('diameter-asc')).toEqual(['Able', 'Zulu', 'Alpha', 'Beta']);
     expect(index.search('a', { body: 'Mars', sort: 'diameter-asc' }).map(p => p.name)).toEqual(['Alpha']);
     const crowded = new PlaceIndex([layer([...Array.from({ length: 120 }, (_, i) => ({ name: `Zulu ${i}`, diameterKm: 10 })), { name: 'Aardvark', diameterKm: 100 }])]);
+    expect(crowded.search('', { sort: 'name-asc', limit: 'all' })).toHaveLength(121);
     expect(crowded.search('', { sort: 'name-asc', limit: 1 })[0].name).toBe('Aardvark');
     expect(crowded.search('', { sort: 'diameter-desc', limit: 1 })[0].name).toBe('Aardvark');
+    const natural = new PlaceIndex([layer([{name:'Site 10'},{name:'Site 2'},{name:'éclair'},{name:'ECLAIR'}])]);
+    const ordered = natural.search('',{sort:'name-asc',limit:'all'});
+    expect(ordered.slice(2).map(p=>p.name)).toEqual(['Site 2','Site 10']);
+    expect(ordered.slice(0,2).map(p=>p.ref)).toEqual(ordered.slice(0,2).map(p=>p.ref).sort((a,b)=>a.localeCompare(b)));
+    expect(natural.search('',{sort:'name-desc',limit:'all'})).toEqual([...ordered].reverse());
   });
 
   it('retains logical references across chunk moves and diagnoses duplicates', () => {

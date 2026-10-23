@@ -494,7 +494,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
     const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
-    if (place) navigateToPlace(place, 'fly');
+    if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
   }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 

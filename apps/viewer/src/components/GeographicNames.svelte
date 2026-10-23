@@ -22,6 +22,7 @@
     }
     return [...groups.values()];
   });
+  const noSources = $derived(sources.length > 0 && sources.every(source => [...source.layers].every(id => vs.hiddenPlaceLayers.includes(id))));
   const allVisible = $derived(bodies.every(b => vs.placeBodies.includes(b)));
 </script>
 {#if bodies.length}
@@ -29,6 +30,7 @@
     <Checkbox class="h-3.5 w-3.5" checked={allVisible} indeterminate={!allVisible && bodies.some(b => vs.placeBodies.includes(b))} onCheckedChange={checked => bodies.forEach(b => showPlaceBody(b, checked === true))} />
     <span>Geographic names</span>
   </label>
+  {#if noSources}<p class="px-3 py-1 ui-meta text-text-muted" role="status">No name sources enabled</p>{/if}
   <details class="px-3 py-1 ui-body">
     <summary class="cursor-pointer text-text-secondary">By body</summary>
     <div class="ml-4 mt-1">
