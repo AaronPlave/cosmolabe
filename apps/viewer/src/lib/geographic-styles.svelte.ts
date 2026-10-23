@@ -219,12 +219,16 @@ export function resetLayerStyle(id: string): void {
 
 // ── Draw order ──
 
+/** The renderer's order before any move: the user's own layers over published data. */
+const defaultOrder = (layers: readonly GeographicLayer[]) =>
+  [...layers].sort((a, b) => (a.ownership === 'user' ? 0 : 1) - (b.ownership === 'user' ? 0 : 1)).map((l) => l.id);
+
 /** Move a vector layer up (drawn over) or down among the layers on its body, for this session. */
 export function moveLayer(id: string, up: boolean): void {
   const universe = getUniverse();
   const layer = layerOf(id);
   if (!universe || !layer) return;
-  const all = universe.geographicLayers.layers.map((l) => l.id);
+  const all = defaultOrder(universe.geographicLayers.layers);
   const current = [...geoStyles.order.filter((x) => all.includes(x)), ...all.filter((x) => !geoStyles.order.includes(x))];
   const siblings = current.filter((x) => layerOf(x)?.body === layer.body);
   const at = siblings.indexOf(id), to = at + (up ? -1 : 1);
@@ -241,7 +245,7 @@ export function layerRank(id: string): { index: number; count: number } {
   const universe = getUniverse();
   const layer = layerOf(id);
   if (!universe || !layer) return { index: 0, count: 0 };
-  const all = universe.geographicLayers.layers.map((l) => l.id);
+  const all = defaultOrder(universe.geographicLayers.layers);
   const current = [...geoStyles.order.filter((x) => all.includes(x)), ...all.filter((x) => !geoStyles.order.includes(x))];
   const siblings = current.filter((x) => layerOf(x)?.body === layer.body);
   return { index: siblings.indexOf(id), count: siblings.length };

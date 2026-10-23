@@ -1,0 +1,201 @@
+{
+  "marsConvention": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "0..360",
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    }
+  },
+  "movedVertex": [
+    77.4087437104588,
+    18.411112379606717
+  ],
+  "actions": {
+    "drawNameEdit": 9,
+    "vertices": 4,
+    "select3dEdit": 1
+  },
+  "typedAttributes": {
+    "name": "Delta sample area",
+    "sampled": true,
+    "depth": null,
+    "tags": [
+      "delta",
+      2,
+      {
+        "ok": true
+      }
+    ],
+    "sol": 412
+  },
+  "pickedAtClick": {
+    "kind": "geographic-feature",
+    "layerId": "user:mars:my-annotations-mars",
+    "featureId": "string:user-2",
+    "bodyName": "Mars"
+  },
+  "refusal": "Polygon ring self-intersects",
+  "shapes": [
+    {
+      "kind": "circle",
+      "center": [
+        77.47348194594247,
+        18.438318823455074
+      ],
+      "semiMajorKm": 0.6542330427703503,
+      "semiMinorKm": 0.6542330427703503,
+      "bearingDeg": 0
+    },
+    {
+      "kind": "ellipse",
+      "center": [
+        77.43818914078156,
+        18.473552750891713
+      ],
+      "semiMajorKm": 2.009097615940766,
+      "semiMinorKm": 0.483356259674809,
+      "bearingDeg": 79.98224586615606
+    }
+  ],
+  "exportMeta": {
+    "version": 1,
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "0..360",
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      }
+    },
+    "layer": {
+      "id": "user:mars:my-annotations-mars",
+      "name": "My annotations · Mars"
+    }
+  },
+  "plainImport": {
+    "body": "Mars",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "west",
+      "longitudeDomain": "0..360",
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      }
+    },
+    "feature": {
+      "id": "c1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          282.55,
+          18.45
+        ]
+      },
+      "properties": {
+        "name": "West crater",
+        "rim": true
+      }
+    }
+  },
+  "featureCopy": {
+    "layerId": "user:mars:my-annotations-mars",
+    "featureId": "string:user-6",
+    "bodyName": "Mars"
+  },
+  "deleteNotice": "Deleted “Delta sample area”.\nUndo",
+  "largeFeature": {
+    "before": 1,
+    "note": "4,400 points: drag the cross to move the shape. Show points",
+    "shown": 191,
+    "hint": "Zoom in to edit 4,210 more points. Hide points",
+    "framesPerSecond": 5.4,
+    "edited": true
+  },
+  "drawnLayerStyle": {
+    "version": 1,
+    "point": {
+      "color": "#e69f00"
+    },
+    "line": {
+      "color": "#e69f00"
+    },
+    "polygon": {
+      "fillColor": "#e69f00",
+      "outlineColor": "#e69f00"
+    },
+    "opacity": 0.6,
+    "labels": {
+      "maxLabels": 40,
+      "sizePx": 11,
+      "halo": true
+    }
+  },
+  "moon": {
+    "convention": {
+      "latitude": "planetographic",
+      "longitudeDirection": "east",
+      "longitudeDomain": "-180..180",
+      "referenceShape": {
+        "kind": "sphere",
+        "radiusKm": 1737.4
+      }
+    },
+    "point": [
+      -179.7999999999994,
+      -89.49999999999868
+    ]
+  },
+  "compact": {
+    "sheet": {
+      "x": 19.5,
+      "y": 481.71875,
+      "width": 346,
+      "height": 155.390625
+    },
+    "dock": {
+      "x": 6.5,
+      "y": 741.5,
+      "width": 377,
+      "height": 96
+    },
+    "bar": {
+      "x": 97.5,
+      "y": 265,
+      "width": 195,
+      "height": 120
+    },
+    "afterClosing": {
+      "sheet": {
+        "x": 6.5,
+        "y": 731.5,
+        "width": 377,
+        "height": 0
+      },
+      "bar": {
+        "x": 97.5,
+        "y": 610,
+        "width": 195,
+        "height": 120
+      }
+    }
+  },
+  "errors": []
+}

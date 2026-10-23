@@ -1,16 +1,19 @@
 <script lang="ts">
   /**
-   * The selected feature (the panel's Feature view): what it is and where,
-   * Fly to, and its properties. Stepping to the previous or next feature
-   * follows the layer's list. Framing and copying are in the "…" menu; the
-   * coordinate convention, stable reference and source wait under *Location
-   * and source*. Fly and Frame use the shared navigation (docs/navigation.md)
+   * The selected feature (the panel's Feature view): its name and size, where
+   * it is (with a copy action), a small Fly to and, for your own shapes, a
+   * visible Delete (read-only data offers an editable copy instead), then its
+   * properties. The layer and body are in the breadcrumb, not repeated.
+   * Stepping to the previous or next feature follows the layer's list.
+   * Framing, duplicating and the other copies are in the "…" menu; the
+   * convention, stable reference and source wait under *Location and source*.
+   * How to edit a shape is the floating edit bar's help, shown while editing. Fly and Frame use the shared navigation (docs/navigation.md)
    * and are disabled, with the reason, where the body cannot be flown over.
    *
    * Property values are text. A value is a link only when it parses as an
    * http(s) URL, and it opens without access to this page.
    */
-  import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, Plane } from 'lucide-svelte';
+  import { Check, ChevronLeft, ChevronRight, Copy, Ellipsis, PenLine, Plane, Trash2 } from 'lucide-svelte';
   import {
     describeGeographicCoordinates, formatGeographicPosition, geographicFeatureAnchor, geographicFeatureExtent,
     geographicFeatureName, geographicPropertyLabel, geographicVertexCount,
@@ -22,6 +25,11 @@
   import { geoStyles, featureOverride, setFeatureOverride, layerStyle, openStyleEditor } from '../lib/geographic-styles.svelte';
   import { resolveGeographicStyle } from '@cosmolabe/core';
   import { geometryLabel, layerOrigin } from '../lib/geographic-layer-labels';
+  import GeographicPropertiesEditor from './GeographicPropertiesEditor.svelte';
+  import {
+    edits, editFeatureOf, setFeatureProperties, duplicateFeature, deleteFeature, copyFeatureToAnnotations,
+  } from '../lib/geographic-editing.svelte';
+  import { geographicDatum, geographicPathLengthKm, geographicPolygonAreaKm2, normalizeGeographicPosition, type GeoPosition } from '@cosmolabe/core';
 
   interface Props { layer: GeographicLayer; feature: GeographicFeature }
   let props: Props = $props();
@@ -101,6 +109,35 @@
     backToLayer();
     openStyleEditor(id);
   }
+  // ── Your own features: name, measurements, properties and shape (#200) ──
+  let editable = $derived((void edits.revision, editFeatureOf(geo.selected)));
+  let confirmDelete = $state(false);
+  let nameInput = $state<HTMLInputElement | null>(null);
+  $effect(() => { void props.feature.id; confirmDelete = false; });
+  // A shape just drawn: the cursor waits in its name.
+  $effect(() => {
+    if (edits.focusName && nameInput) { nameInput.focus(); nameInput.select(); edits.focusName = false; }
+  });
+  function rename(text: string) {
+    const name = text.trim();
+    if (!editable || !geo.selected || !name || name === editable.properties?.name) return;
+    setFeatureProperties(geo.selected.layerId, editable.id, { ...(editable.properties ?? {}), name });
+  }
+  /** Length or area along the drawn edges, on the reference shape. */
+  let measure = $derived.by(() => {
+    if (!editable) return '';
+    const l = found.layer.coordinates;
+    const datum = geographicDatum(l);
+    const geoOf = (p: GeoPosition) => normalizeGeographicPosition(p, l);
+    const km = (v: number) => v < 1 ? `${(v * 1000).toFixed(0)} m` : `${v.toFixed(v < 100 ? 2 : 0)} km`;
+    const g = editable.geometry;
+    if (g.type === 'LineString') return `${km(geographicPathLengthKm(g.coordinates.map(geoOf), datum))} long`;
+    if (g.type === 'MultiLineString') return `${km(g.coordinates.reduce((n, line) => n + geographicPathLengthKm(line.map(geoOf), datum), 0))} long`;
+    if (g.type === 'Polygon') return `${geographicPolygonAreaKm2(g.coordinates.map((r) => r.map(geoOf)), datum).toPrecision(4)} km²`;
+    if (g.type === 'MultiPolygon') return `${g.coordinates.reduce((n, poly) => n + geographicPolygonAreaKm2(poly.map((r) => r.map(geoOf)), datum), 0).toPrecision(4)} km²`;
+    return '';
+  });
+
   const copyReference = () => copy('ref', JSON.stringify({ layerId: found.layer.id, featureId: found.feature.id, bodyName: found.layer.body }));
 </script>
 
@@ -115,30 +152,61 @@
       </span>
     </nav>
     <div>
-      <h3 class="name">{geographicFeatureName(feature)}</h3>
-      <div class="ui-meta">{geometryLabel(feature.geometry.type)} · {layer.body}{#if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}</div>
-      <div class="ui-meta mono position">{location.anchor}</div>
+      {#if editable}
+        <input bind:this={nameInput} class="name name-input" value={editable.properties?.name ?? geographicFeatureName(feature)} aria-label="Name"
+          onkeydown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+          onblur={(e) => rename((e.currentTarget as HTMLInputElement).value)} />
+      {:else}
+        <h3 class="name">{geographicFeatureName(feature)}</h3>
+      {/if}
+      <div class="ui-meta summary">{geometryLabel(feature.geometry.type)}{#if measure}{` · ${measure}`}{:else if !location.isPoint}{` · ${geographicVertexCount(feature).toLocaleString()} vertices`}{/if}</div>
+      <div class="coords">
+        <span class="ui-meta mono" title="{location.isPoint ? 'Position' : 'Centre'}, {describeGeographicCoordinates(layer.coordinates)}">{location.anchor}</span>
+        <button class="icon-button small" onclick={() => copy('coordinates', coordinatesText())} aria-label="Copy coordinates" title="Copy coordinates">
+          {#if copied === 'coordinates'}<Check size={11} />{:else}<Copy size={11} />{/if}
+        </button>
+      </div>
     </div>
 
     <div class="actions">
-      <Button size="sm" class="ui-control flex-1" disabled={!!unavailable} title={unavailable ?? 'Fly over this feature'} onclick={() => geo.selected && goToFeature(geo.selected)}>
+      <Button variant="secondary" size="sm" class="ui-control" disabled={!!unavailable} title={unavailable ?? 'Fly over this feature'} onclick={() => geo.selected && goToFeature(geo.selected)}>
         <Plane size={13} /> Fly to
       </Button>
+      {#if !editable && layer.ownership !== 'user'}
+        <Button variant="secondary" size="sm" class="ui-control" title="An editable copy of just this feature; {layer.name} stays unchanged"
+          onclick={() => geo.selected && copyFeatureToAnnotations(geo.selected)}><PenLine size={13} /> Edit a copy</Button>
+      {/if}
+      <span class="spacer"></span>
+      {#if editable && geo.selected}
+        <button class="icon-action danger" aria-label="Delete this feature" title="Delete this feature" onclick={() => (confirmDelete = true)}><Trash2 size={14} /></button>
+      {/if}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger class="icon-action" aria-label="More for this feature" title="More"><Ellipsis size={14} /></DropdownMenu.Trigger>
         <DropdownMenu.Content align="end">
           <DropdownMenu.Item disabled={!!unavailable} onSelect={() => geo.selected && goToFeature(geo.selected, { cut: true })}>Frame (no flight)</DropdownMenu.Item>
-          <DropdownMenu.Item onSelect={() => copy('coordinates', coordinatesText())}>Copy coordinates</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={copyReference}>Copy reference</DropdownMenu.Item>
           <DropdownMenu.Item onSelect={() => copy('geometry', JSON.stringify(feature.original.geometry))}>Copy source geometry</DropdownMenu.Item>
+          {#if editable && geo.selected}
+            <DropdownMenu.Item onSelect={() => duplicateFeature(geo.selected!.layerId, editable!.id)}>Duplicate</DropdownMenu.Item>
+          {/if}
         </DropdownMenu.Content>
       </DropdownMenu.Root>
     </div>
+    {#if confirmDelete && editable && geo.selected}
+      <div class="confirm" role="alertdialog" aria-label="Delete this feature?">
+        <span class="ui-meta">Delete this feature? Undo brings it back.</span>
+        <Button variant="destructive" size="sm" class="ui-control" onclick={() => deleteFeature(geo.selected!.layerId, editable!.id)}>Delete</Button>
+        <Button variant="secondary" size="sm" class="ui-control" onclick={() => (confirmDelete = false)}>Keep</Button>
+      </div>
+    {/if}
+    {#if edits.message && geo.selected?.layerId === edits.target}<p class="ui-helper" role="status">{edits.message}</p>{/if}
     {#if unavailable}<p class="ui-helper text-text-muted">{unavailable}</p>{/if}
     {#if copied}<p class="ui-helper copied" role="status"><Check size={11} /> Copied {copied === 'coordinates' ? 'coordinates' : copied === 'ref' ? 'reference' : copied === 'geometry' ? 'source geometry' : 'value'}</p>{/if}
 
     <div class="ui-section-label props-label">Properties</div>
-    {#if properties.length === 0}
+    {#if editable && geo.selected}
+      <GeographicPropertiesEditor layerId={geo.selected.layerId} feature={editable} />
+    {:else if properties.length === 0}
       <p class="ui-helper text-text-muted">No properties.</p>
     {:else}
       <dl class="props ui-meta">
@@ -210,7 +278,10 @@
   }
   .crumb :global(.surface-crumb-back) { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .steps { display: inline-flex; flex: none; }
-  .position { margin-top: 2px; }
+  .summary { margin-top: 1px; }
+  .coords { display: flex; align-items: center; gap: 2px; margin-top: 2px; color: var(--color-text-secondary); }
+  .spacer { flex: 1; }
+  .icon-action.danger:hover { color: var(--color-error, #ff6b6b); }
   .copied { display: flex; align-items: center; gap: 4px; color: var(--color-text-secondary); }
   .name {
     margin: 0;
@@ -295,6 +366,17 @@
   .swatch-input { width: 24px; height: 20px; padding: 0; border: none; background: none; cursor: pointer; }
   .link { align-self: flex-start; border: none; background: none; padding: 0; color: var(--color-text-secondary); text-decoration: underline dotted; cursor: pointer; }
   .link:hover { color: var(--color-text-primary); }
+  .name-input {
+    width: 100%;
+    margin: 0;
+    padding: 1px 4px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: none;
+  }
+  .name-input:hover { border-color: var(--color-border); }
+  .name-input:focus { border-color: var(--color-border-strong); background: var(--color-surface-3); outline: none; }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .copy-prop {
     opacity: 0.5;
   }

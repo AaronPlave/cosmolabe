@@ -530,4 +530,17 @@ describe('geographic styles', () => {
     expect(order()).toEqual(['other', 'science']);
     vectors.dispose(); universe.dispose();
   });
+
+  it('draws and picks the user\'s own layers over published data unless ordered otherwise', () => {
+    const catalog = mixed();
+    const mine = { ...layer([{ type: 'Point', coordinates: [1, 1] }]), id: 'mine', ownership: 'user' as const };
+    const universe = new Universe();
+    universe.geographicLayers.replaceCatalog('test', [catalog, mine].map(l => ({ id: l.id, status: 'ready' as const, layer: l, source: l.source, diagnostics: [] })));
+    const vectors = new GeographicVectorLayer(universe, 1);
+    const order = () => { vectors.begin(); vectors.end(); return (vectors as unknown as { batches: { layers: GeographicLayer[] }[] }).batches[0].layers.map(l => l.id); };
+    expect(order()).toEqual(['mine', 'science']);
+    vectors.setLayerOrder(['science']);
+    expect(order()).toEqual(['science', 'mine']);
+    vectors.dispose(); universe.dispose();
+  });
 });

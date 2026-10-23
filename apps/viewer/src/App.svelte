@@ -6,6 +6,11 @@
   import ViewportHud from './components/ViewportHud.svelte';
   import GeographicCallout from './components/GeographicCallout.svelte';
   import GeographicLabels from './components/GeographicLabels.svelte';
+  import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
+  import DrawToolbar from './components/DrawToolbar.svelte';
+  import {
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature, undoDelete,
+  } from './lib/geographic-editing.svelte';
   import './lib/geographic-styles.svelte';
   import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
@@ -231,6 +236,23 @@
 
     const renderer = getRenderer();
     if (!renderer) return;
+
+    // Undo a delete, which ended the selection and with it the editing keys.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && edits.deleted && !edits.tool && !editingFeature()) {
+      e.preventDefault(); undoDelete(); return;
+    }
+    // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
+    if (edits.tool || editingFeature()) {
+      const mod = e.ctrlKey || e.metaKey;
+      // Undo and redo apply to the layer being drawn into or edited.
+      const layerId = editingFeature()?.layerId ?? edits.target;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(layerId); else undo(layerId); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(layerId); return; }
+      if (!mod && e.key === 'Enter' && edits.tool) { e.preventDefault(); finishDraft(); return; }
+      if (!mod && e.key === 'Backspace' && removeLastVertex()) { e.preventDefault(); return; }
+      if (!mod && e.key === 'Delete' && deleteSelectedVertex()) { e.preventDefault(); return; }
+      if (e.key === 'Escape' && cancelDrawing()) return;
+    }
 
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
       switch (e.key) {
@@ -606,6 +628,8 @@
     <ViewportHud />
     <GeographicLabels />
     <GeographicCallout />
+    <GeographicEditOverlay />
+    <DrawToolbar />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time

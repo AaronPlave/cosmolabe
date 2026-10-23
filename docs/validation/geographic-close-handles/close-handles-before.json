@@ -1,0 +1,42 @@
+{
+  "views": [
+    {
+      "name": "regional",
+      "pose": true,
+      "vertices": 25,
+      "move": 1,
+      "hidden": []
+    },
+    {
+      "name": "low-looking-at-mons",
+      "pose": {
+        "cameraHeightKm": -4.70263546081658,
+        "targetHeightKm": -5.266434056122904
+      },
+      "vertices": 0,
+      "move": 0,
+      "hidden": []
+    },
+    {
+      "name": "very-close-on-ring",
+      "pose": {
+        "cameraHeightKm": -3.5338296382418575,
+        "targetHeightKm": -4.715211903713936
+      },
+      "vertices": 0,
+      "move": 1,
+      "hidden": []
+    },
+    {
+      "name": "inside-close",
+      "pose": {
+        "cameraHeightKm": -2.449796221797925,
+        "targetHeightKm": -4.266091459214209
+      },
+      "vertices": 0,
+      "move": 1,
+      "hidden": []
+    }
+  ],
+  "errors": []
+}
