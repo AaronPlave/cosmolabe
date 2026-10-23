@@ -182,7 +182,7 @@
   .place-browser > :global(*) { flex-shrink: 0; }
   .place-browser.inactive { display: none; }
   .place-browser > .place-results { flex: 1; min-height: 0; overflow-y: auto; }
-  .place-results, .inspector-scroll { padding: 2px; margin-inline: -2px; }
+  .place-results, .inspector-scroll { padding: 2px; }
   .inspector-scroll { flex: 1; min-height: 0; overflow-y: auto; }
   .places-content { padding: 2px; margin: -2px; }
   summary { list-style: none; } summary::-webkit-details-marker { display: none; }
