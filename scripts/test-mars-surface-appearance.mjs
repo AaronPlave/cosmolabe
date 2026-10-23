@@ -92,6 +92,45 @@ try {
   let coloredPixels = 0;
   for (let i = 0; i < data.length; i += info.channels) if (Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) > 20) coloredPixels++;
   assert(coloredPixels > 10000, 'elevation colors must render in the terrain viewport, beyond grayscale imagery and controls');
+  // A close Mars view resolves metre-scale contours. The former manual menu
+  // started at 10 m, so choosing any fixed interval could remove every line
+  // from the crop even though automatic spacing resolved to 1 m.
+  const contourToggle = page.getByRole('checkbox', { name: 'Contours', exact: true });
+  const intervalSelect = page.getByRole('combobox', { name: 'Contour interval', exact: true });
+  const terrainPixels = async () => sharp(await page.screenshot()).extract({ left: 50, top: 70, width: 850, height: 750 }).removeAlpha().raw().toBuffer();
+  await contourToggle.uncheck();
+  await page.waitForTimeout(300);
+  const withoutContours = await terrainPixels();
+  await contourToggle.check();
+  const fixedContours = [];
+  for (const intervalKm of [0.001, 0.002, 0.005]) {
+    await intervalSelect.selectOption(String(intervalKm));
+    await page.waitForTimeout(300);
+    const resolved = await page.evaluate(() => {
+      const b = window.renderer.getBodyMesh('Mars');
+      return { selected: b.surfaceAppearance.contourIntervalKm, rendered: b.surfaceContourIntervalKm };
+    });
+    assert.equal(resolved.selected, intervalKm);
+    assert.equal(resolved.rendered, intervalKm);
+    const pixels = await terrainPixels();
+    let changedPixels = 0;
+    for (let i = 0; i < pixels.length; i += 3) {
+      if (Math.max(...[0, 1, 2].map(c => Math.abs(pixels[i + c] - withoutContours[i + c]))) > 8) changedPixels++;
+    }
+    assert(changedPixels > 100, `${intervalKm * 1000} m fixed contours must visibly render on Mars`);
+    fixedContours.push({ intervalKm, changedPixels, ...resolved });
+    await page.screenshot({ path: `${out}/fixed-contours-${intervalKm * 1000}m.png` });
+  }
+  // Larger intervals remain literal; do not invent contour levels merely to
+  // keep lines visible on a patch with less relief than the requested spacing.
+  for (const intervalKm of [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5]) {
+    await intervalSelect.selectOption(String(intervalKm));
+    assert.equal(await page.evaluate(() => window.renderer.getBodyMesh('Mars').surfaceContourIntervalKm), intervalKm);
+  }
+  await intervalSelect.selectOption('0');
+  await settle();
+  assert.equal(await page.evaluate(() => window.renderer.getBodyMesh('Mars').surfaceAppearance.contourIntervalKm), 0);
+  assert.equal(requests.length, requestCount, 'contour interval edits must not fetch data');
   // Refinement and coarser fallback must still work while styles are enabled.
   await page.getByRole('checkbox', { name: 'Show HiRISE ortho — native detail', exact: true }).uncheck();
   await page.waitForFunction(() => window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryStats.maxDisplayedLevel <= 13);
@@ -123,14 +162,32 @@ try {
   assert.equal(invariant.gridRequestsAfter, invariant.gridRequestsBefore);
   assert.equal(requests.length, requestsAfterLayerToggle, 'style-only toggles must not fetch data');
   assert.equal(invariant.imagery.baseUncoveredBlocks, 0);
+  // Also check the much smaller visible height range at the declared crop
+  // viewpoint. Even 2 m may legitimately have no crossing in this close view.
+  await page.evaluate(() => window.renderer.applyNamedViewpoint('Native detail', { animate: false }));
+  await settle();
+  const closeWithoutContours = await terrainPixels();
+  await contourToggle.check();
+  await intervalSelect.selectOption('0.001');
+  await page.waitForTimeout(300);
+  const closeWithContours = await terrainPixels();
+  let closeContourPixels = 0;
+  for (let i = 0; i < closeWithContours.length; i += 3) {
+    if (Math.max(...[0, 1, 2].map(c => Math.abs(closeWithContours[i + c] - closeWithoutContours[i + c]))) > 8) closeContourPixels++;
+  }
+  assert(closeContourPixels > 100, '1 m fixed contours must render in the close native-detail view');
+  await page.screenshot({ path: `${out}/close-fixed-contours-1m.png` });
   await page.setViewportSize({ width: 390, height: 844 });
+  // The responsive dock replaces its panel nodes after the viewport changes.
+  await page.waitForTimeout(500);
+  await base.waitFor({ state: 'visible' });
   await base.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${out}/compact-controls.png` });
   const compact = await base.boundingBox();
   assert(compact && compact.x >= 0 && compact.x + compact.width <= 390, 'appearance selector must fit the compact viewer');
   assert.deepEqual(errors, []);
   const evidence = { viewerUrl, viewerOrigin: new URL(viewerUrl).origin, testMode: false, requestInterception: false,
-    before, styled, coloredPixels, invariant, compact, initialRequests: requestCount, finalRequests: requests.length, errors };
+    before, styled, coloredPixels, fixedContours, closeContourPixels, invariant, compact, initialRequests: requestCount, finalRequests: requests.length, errors };
   await writeFile(`${out}/appearance.json`, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify({ gpu: before.gpu, checkedVertices: styled.checkedVertices, invariant, errors }));
 } finally { await browser.close(); }

@@ -70,7 +70,7 @@
               update({ contourIntervalKm: interval });
             }}>
               <option value={0}>Automatic</option>
-              {#each [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5] as interval}
+              {#each [0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5] as interval}
                 <option value={interval}>{interval * 1000} m</option>
               {/each}
             </select>
@@ -88,7 +88,7 @@
           {#if contourInterval}
             <p class="ui-readout text-text-muted my-1" aria-label="Resolved contour interval">Minor {Math.round(contourInterval * 1000)} m · index {Math.round(contourInterval * 5000)} m</p>
           {/if}
-          <p class="ui-meta text-text-muted my-1">Every fifth line is an index contour. Labels follow index lines and show metres above the body reference {datum.referenceShape.kind}; negative values are below it. Automatic spacing adjusts as you zoom; crowded minor lines give way to coarser contours.</p>
+          <p class="ui-meta text-text-muted my-1">Every fifth line is an index contour. Labels follow index lines and show metres above the body reference {datum.referenceShape.kind}; negative values are below it. Automatic spacing adjusts as you zoom; crowded minor lines give way to coarser contours. Fixed intervals can show no lines where the visible elevations do not cross a contour level; try a smaller interval.</p>
         {/if}
         <label class="control-row">
           <span>Hillshade effect</span>
