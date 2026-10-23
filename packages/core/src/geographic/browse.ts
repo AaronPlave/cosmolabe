@@ -11,7 +11,9 @@ import type { GeographicCoordinates, GeographicFeature, GeographicGeometry, Geog
  */
 
 /** Property keys tried, in order, for a feature's display name. */
-const NAME_KEYS = ['name', 'Name', 'NAME', 'title', 'Title', 'label', 'Label', 'clean_name', 'nomenclature'];
+/** Properties a feature's name is read from, first present wins. */
+export const GEOGRAPHIC_NAME_KEYS: readonly string[] = ['name', 'Name', 'NAME', 'title', 'Title', 'label', 'Label', 'clean_name', 'nomenclature'];
+const NAME_KEYS = GEOGRAPHIC_NAME_KEYS;
 /** At most this many fields are inventoried per layer. */
 export const GEOGRAPHIC_MAX_FIELDS = 64;
 /** A string field with at most this many distinct values is offered as categories. */

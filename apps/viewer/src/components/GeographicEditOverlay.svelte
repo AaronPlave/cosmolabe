@@ -25,6 +25,7 @@
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { drawnSurface } from '../lib/drawn-surface';
   import { edits, editLayer, applyEdit, draftShape, surfacePosition, editingFeature, selectedVertex, showsAllPoints } from '../lib/geographic-editing.svelte';
+  import { areaContains } from '../lib/geographic-label-layout';
   import { featureHandles, budgetHandles, needsFineDetail, EDIT_HANDLE_LIMIT, type Handle, type Screen } from '../lib/edit-handles';
   interface Drag { handle: Handle; pointerId: number; current: GeoPosition | null; moved: boolean }
 
@@ -49,8 +50,13 @@
     return drawnSurface.heightsOf(r, l.body, positions.map((p) => normalizeGeographicPosition([p[0], p[1]], l.coordinates)), geographicDatum(l.coordinates));
   }
 
-  /** Project declared-convention positions to the canvas at the given heights (else on the drawn surface). */
-  function project(l: GeographicEditLayer, positions: GeoPosition[], at?: (number | null)[]): Screen[] {
+  /**
+   * Project declared-convention positions to the canvas at the given heights
+   * (else on the drawn surface). With `occlusion`, a position the drawn surface
+   * hides from the camera is not visible; without it only the body's bulk is
+   * tested, which is cheap enough for choosing among many vertices.
+   */
+  function project(l: GeographicEditLayer, positions: GeoPosition[], at?: (number | null)[], occlusion = false): Screen[] {
     const r = getRenderer();
     if (!r || !positions.length) return [];
     const datum = geographicDatum(l.coordinates);
@@ -58,7 +64,7 @@
     const projected = r.projectGeographicPositions(l.body, positions.map((p, i) => {
       const g = normalizeGeographicPosition([p[0], p[1]], l.coordinates);
       return h[i] === null ? g : { ...g, heightKm: h[i]! };
-    }), datum) ?? [];
+    }), datum, { occlusion }) ?? [];
     const canvas = r.renderer.domElement;
     return projected.map((p) => ({ x: p.x, y: p.y, visible: p.facing && p.inFront && p.x > -50 && p.y > -50 && p.x < canvas.clientWidth + 50 && p.y < canvas.clientHeight + 50 }));
   }
@@ -124,6 +130,20 @@
   /** Handles change with the feature, not with the camera: built once per edit. */
   let baseHandles = $derived(layer && feature ? featureHandles(layer, feature, withVertices(layer, feature)) : []);
 
+  /** The surface at a canvas point when it lies inside the feature's area; null for lines, points and outside. */
+  function moveFromCentre(l: GeographicEditLayer, f: GeographicEditFeature, x: number, y: number): GeoPosition | null {
+    const g = f.geometry;
+    if (g.type !== 'Polygon' && g.type !== 'MultiPolygon') return null;
+    const r = getRenderer();
+    const at = r ? surfacePosition(r, l, x, y) : null;
+    if (!at) return null;
+    const n = (p: GeoPosition) => normalizeGeographicPosition([p[0], p[1]], l.coordinates);
+    const geometry = g.type === 'Polygon'
+      ? { type: 'Polygon' as const, coordinates: g.coordinates.map((ring) => ring.map(n)) }
+      : { type: 'MultiPolygon' as const, coordinates: (g.coordinates as GeoPosition[][][]).map((poly) => poly.map((ring) => ring.map(n))) };
+    return areaContains(geometry, n(at)) ? at : null;
+  }
+
   /** The operation a drag stands for. */
   function operation(f: GeographicEditFeature, d: Drag): GeographicEditOperation | null {
     const to = d.current;
@@ -185,9 +205,17 @@
       }
       const hs = d?.moved && !out.invalid ? featureHandles(l, shown, withVertices(l, f)) : baseHandles;
       const canvas = getRenderer()!.renderer.domElement;
-      const budget = budgetHandles(hs, (batch, precise) => project(l, batch.map((h) => h.position), precise ? undefined : batch.map(() => null)), { width: canvas.clientWidth, height: canvas.clientHeight }, selectedVertex());
+      const budget = budgetHandles(hs, (batch, precise) => project(l, batch.map((h) => h.position), precise ? undefined : batch.map(() => null), precise), { width: canvas.clientWidth, height: canvas.clientHeight }, selectedVertex());
       out.handles = budget.handles;
       out.hidden = budget.hidden;
+      // Inside a large area close up its anchor is out of view: move it from the surface at the centre of the view.
+      if (!out.handles.some((h) => h.kind === 'move') && hs.some((h) => h.kind === 'move')) {
+        const centre = moveFromCentre(l, d?.moved && !out.invalid ? shown : f, canvas.clientWidth / 2, canvas.clientHeight / 2);
+        if (centre) {
+          const [at] = project(l, [centre], undefined, true);
+          if (at?.visible) out.handles.push({ key: 'move', kind: 'move', part: [], index: 0, position: centre, ...at });
+        }
+      }
     }
     return out;
   });

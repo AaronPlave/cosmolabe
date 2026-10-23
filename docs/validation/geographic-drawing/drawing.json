@@ -120,12 +120,13 @@
     "featureId": "string:user-6",
     "bodyName": "Mars"
   },
+  "deleteNotice": "Deleted “Delta sample area”.\nUndo",
   "largeFeature": {
     "before": 1,
     "note": "4,400 points: drag the cross to move the shape. Show points",
     "shown": 191,
     "hint": "Zoom in to edit 4,210 more points. Hide points",
-    "framesPerSecond": 7.8,
+    "framesPerSecond": 5.4,
     "edited": true
   },
   "drawnLayerStyle": {

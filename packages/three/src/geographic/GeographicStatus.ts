@@ -1,9 +1,24 @@
 import type { ScreenRect } from '../EventCallout.js';
 import type { GeographicVectorStatus } from './GeographicVectorLayer.js';
 
-export function geographicStatusText(status: readonly GeographicVectorStatus[], warnings: number): string {
-  const modes = [...new Set(status.map(s => `${s.bodyName}: ${s.bodySurfaceMode === 'terrain-streaming' ? 'terrain mode (coverage unverified)' : 'reference globe'}`))];
-  return modes.length || warnings ? `Vector base · ${modes.join(', ')}${warnings ? `${modes.length ? ' · ' : ''}${warnings} limitation${warnings === 1 ? '' : 's'}` : ''}` : '';
+/**
+ * The scene readout: only actionable problems, the render diagnostics (datum
+ * mismatch, a surface vectors cannot drape on, budgets that suppressed
+ * drawing, features left out). Nothing when vectors draw as intended: the
+ * routine caveat of which surface they follow belongs with the layer
+ * (`geographicSurfaceNote`), not floating over the scene.
+ */
+export function geographicStatusText(problems: number): string {
+  return problems ? `Surface vectors · ${problems} problem${problems === 1 ? '' : 's'}` : '';
+}
+
+/** What a body's vectors are drawn on, and what that does not establish: for a layer's details. */
+export function geographicSurfaceNote(status: readonly GeographicVectorStatus[], bodyName: string): string | null {
+  const s = status.find(x => x.bodyName === bodyName);
+  if (!s) return null;
+  return s.bodySurfaceMode === 'terrain-streaming'
+    ? 'Drawn on the streamed terrain as displayed. Whether terrain covers each feature is not checked, and drawing is not an elevation measurement.'
+    : 'Drawn on the reference globe; terrain is not shown under these features.';
 }
 
 /** Keep the compact readout clear of host panels, tracking HUD and timeline.

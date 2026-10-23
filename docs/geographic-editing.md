@@ -58,8 +58,12 @@ hollow midpoint to insert one, drag the cross to move the whole shape (it
 rotates about the body's centre, so its shape is preserved), or click a point
 and press **Delete** to remove it. A drag previews the result and turns red,
 with the reason, if it would be refused; releasing then changes nothing.
-Handles sit on the drawn surface (globe facets or terrain tiles), hide past the
-horizon and are larger on touch screens. They are bounded so a large imported
+Handles sit on the drawn surface (globe facets or terrain tiles) and are
+larger on touch screens. A handle hides only where that drawn surface is in the
+way (a line of sight against it) or behind the camera, not by a horizon guess,
+so the vertices of a shape on a slope stay editable from the floor below it;
+close inside a large area, whose anchor is out of view, the move cross sits at
+the surface in the middle of the view (`scripts/test-geographic-close-handles.mjs`). They are bounded so a large imported
 or copied feature stays usable: vertices closer than 12 px on screen share one
 handle (zoom in to reach the rest; the bar says how many are waiting),
 midpoints show only on edges at least 40 px long, and at most 400 handles show,
@@ -68,7 +72,8 @@ feature of more than 2,000 points shows only its move cross until **Show
 points** is pressed. Thinning uses a cheap projection; the drawn-surface height
 is sampled only for handles shown, and a drag of a large feature previews only
 the ring or line being changed. Holes, rings and parts keep their own handles.
-On a phone the bar sits above the open sheet, from its measured height. The bar offers Delete point, Undo,
+On a phone the bar sits above the open sheet, from its measured height. The
+bar offers Delete point, Undo,
 Redo (Ctrl/⌘ Z, Shift Z, Y; 100 steps per layer) and **Done**, which ends the
 selection. Your layers draw and pick over published data unless their draw
 order is changed.
@@ -76,12 +81,16 @@ order is changed.
 The Feature view of your own shape shows:
 
 - **Name**, edited in place (Enter or leaving the field saves it).
-- Its length or area on the reference shape, and its layer.
+- Its length or area on the reference shape, and its position with a copy
+  button.
+- A small **Fly to** and a visible **Delete** (the bin), confirmed in place.
+  Deleting ends the selection, so the panel then says *Deleted "name". Undo*,
+  and Ctrl/⌘ Z also brings it back until the next edit.
 - **Properties**: each with an explicit type (text, number, yes/no, empty or
   JSON) that it keeps while its value is edited; a new property takes the type
   chosen for it. A number that does not parse, or broken JSON, holds Save back
   rather than being saved as text.
-- **Duplicate** and **Delete…** (confirmed) in its **…** menu.
+- **Duplicate**, Frame and the copy actions in its **…** menu.
 
 Every edit is checked by the same parser that imports GeoJSON. An edit that
 would leave a feature invalid is refused with the parser's reason and changes
@@ -91,9 +100,9 @@ spanning exactly 180°, and positions outside the declared domain. An edit
 changes only its own feature. Holes and Multi parts are kept through edits,
 even though the draw tools create only simple polygons.
 
-A **read-only** layer (catalog or imported file) is never modified. *Edit a
-copy of this feature* in its Feature view (or *Copy to my annotations* in its
-**…** menu) copies just that feature, with its properties and a `copiedFrom`
+A **read-only** layer (catalog or imported file) is never modified, and its
+features have no Delete. *Edit a copy* in its Feature view copies just that
+feature, with its properties and a `copiedFrom`
 reference, into the body's annotations layer in that layer's convention, and
 selects the copy, ready to edit. To edit a whole published layer, *Edit a copy
 of this layer* in its **…** menu copies its original GeoJSON (coordinates,

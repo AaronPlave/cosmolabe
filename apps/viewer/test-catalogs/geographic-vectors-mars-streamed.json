@@ -1,6 +1,6 @@
 {
   "name": "Geographic vectors on streamed Mars terrain",
-  "description": "A modest set of wide regional polygons and lines around Gale crater over streamed MOLA/HRSC terrain with Viking/CTX imagery (network), for LOD-transition correctness and broad-area GPU cost (scripts/test-geographic-streamed-lod.mjs, scripts/benchmark-geographic-gpu.mjs).",
+  "description": "A modest set of wide regional polygons and lines around Gale crater over streamed MOLA/HRSC terrain with Viking/CTX imagery (network), for LOD-transition correctness and broad-area GPU cost (scripts/test-geographic-streamed-lod.mjs, scripts/test-geographic-close-zoom.mjs, scripts/benchmark-geographic-gpu.mjs).",
   "defaultViewpoint": "Gale regional",
   "geographicLayers": [
     {
@@ -53,6 +53,30 @@
       "distance": 12000,
       "latitude": -5.0,
       "longitude": 137.6
+    },
+    {
+      "name": "Gale floor close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3421.19,
+      "latitude": -5.9,
+      "longitude": 136.7
+    },
+    {
+      "name": "Gale floor very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.9,
+      "longitude": 136.7
+    },
+    {
+      "name": "Gale floor edge very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.4,
+      "longitude": 136.07
     },
     {
       "name": "Sun",
