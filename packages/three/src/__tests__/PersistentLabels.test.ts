@@ -44,6 +44,27 @@ describe('persistent annotation arbitration', () => {
     }
     expect(l.states.get('higher')?.opacity).toBe(1);
   });
+  it('keeps a spacing-only collision departure visible through a brief handoff', () => {
+    const l=new PersistentLabels();
+    const old={...candidate('old'),box:{x0:100,y0:100,x1:300,y1:220},renderBox:{x0:180,y0:150,x1:220,y1:170}};
+    const higher={...candidate('higher',80),box:{x0:100,y0:230,x1:300,y1:350},renderBox:{x0:180,y0:280,x1:220,y1:300}};
+    settle(l,[old,higher]);const state=l.states.get('old');
+    const moving={...higher,box:{...higher.box,y0:210},renderBox:higher.renderBox};
+    const drawn=l.update([old,moving],[],416);
+    expect(state?.accepted).toBe(false);expect(state?.opacity).toBeGreaterThan(.9);
+    expect(drawn.map(s=>s.id).sort()).toEqual(['higher','old']);
+    // The neighbor leaves on the next frame, as at the globe horizon. Painted
+    // names never intersected, so do not destroy/recreate or flash the old name.
+    l.update([old],[],432,new Set(['higher']));
+    expect(l.states.get('old')).toBe(state);expect(state?.accepted).toBe(true);
+    expect(state?.opacity).toBe(1);
+    // Genuine painted overlap must still suppress the departure immediately.
+    for(let at=448;at<=848;at+=16) {
+      const drawn=l.update([old,{...moving,renderBox:old.renderBox}],[],at);
+      expect(drawn.length).toBeLessThanOrEqual(1);
+    }
+    expect(l.states.has('old')).toBe(false);
+  });
   it('reserves a bounded render slot for selection ahead of old fading states', () => {
     const l=new PersistentLabels(1);settle(l,[candidate('old')]);
     const selected={...candidate('new'),selected:true,box:{x0:200,y0:0,x1:300,y1:20}};

@@ -1,6 +1,7 @@
 /** Continuous cartographic acceptance. CL_GPU=hardware CL_RECORD=1 records
  * Chrome/Metal; CI uses SwiftShader and still gates churn/identity/picking. */
 import assert from 'node:assert/strict';
+import { checkZoom } from './lib/place-label-motion.mjs';
 import { chromium } from 'playwright';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -18,40 +19,7 @@ const browser=await chromium.launch({executablePath:hardware?'/Applications/Goog
 const context=await browser.newContext({viewport:{width:1440,height:900},...(process.env.CL_RECORD?{recordVideo:{dir:output,size:{width:1440,height:900}}}:{})});
 const page=await context.newPage(),errors=[],results=[];
 page.on('pageerror',e=>errors.push(e.message));
-// Gate the actual on-screen sequence, including fades, in both zoom directions.
-function checkZoom(result) {
-  results.push(result);
-  const sequences = new Map();
-  for (const sample of result.samples) {
-    const visible=sample.labels.filter(l=>l.opacity>.1);
-    for(let i=0;i<visible.length;i++) for(let j=i+1;j<visible.length;j++) {
-      const a=visible[i],b=visible[j];
-      assert.ok(!(a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y),
-        `Overlapping visible names ${JSON.stringify(a)} / ${JSON.stringify(b)} during ${result.phase}`);
-    }
-    for(const l of sample.labels) if(!sequences.has(l.id)) sequences.set(l.id,[]);
-    for(const [id,seq] of sequences) seq.push({visible:visible.some(l=>l.id===id),accepted:sample.labels.some(l=>l.id===id&&l.accepted),range:sample.rangeKm});
-  }
-  const transitions=[];
-  for(const [id,seq] of sequences) {
-    const runs=seq.filter((v,i)=>i===0||v.visible!==seq[i-1].visible).map(v=>v.visible);
-    const acceptedRuns=seq.filter((v,i)=>i===0||v.accepted!==seq[i-1].accepted).map(v=>v.accepted);
-    assert.ok(runs.filter(Boolean).length<=2,`${id} repeatedly flashes during ${result.phase}: ${runs}`);
-    assert.ok(acceptedRuns.filter(Boolean).length<=2,`${id} repeatedly loses ownership during ${result.phase}`);
-    let lastExit;
-    for(let i=1;i<seq.length;i++) {
-      if(!seq[i].visible&&seq[i-1].visible)lastExit=seq[i].range;
-      if(seq[i].visible&&!seq[i-1].visible&&lastExit!==undefined) {
-        const change=Math.max(seq[i].range,lastExit)/Math.min(seq[i].range,lastExit);
-        assert.ok(change>=1.25,`${id} returns without meaningful zoom change (${change}) during ${result.phase}`);
-      }
-    }
-    transitions.push({id,runs,acceptedRuns});
-  }
-  const first=result.samples[0],last=result.samples.at(-1);
-  assert.ok(last.handoffs-first.handoffs<=32,`Excessive collision handoffs during ${result.phase}`);
-  result.sequences=transitions;
-}
+
 try {
   await page.addInitScript(() => {
     // Vite HMR query strings denote module identity. Drive the live module,
@@ -150,12 +118,12 @@ try {
       return{body,phase,elapsedMs:performance.now()-start,samples};
     },{from,to,phase,body,sweepFrames});
     const radius=await page.evaluate(body=>window.renderer.getBodyMesh(body).displayRadius,body);
-    const inward=await sweep(radius*2,radius*.15,'zoom global to regional');checkZoom(inward);
+    const inward=await sweep(radius*2,radius*.15,'zoom global to regional');results.push(inward);checkZoom(inward);
     await page.waitForTimeout(300);await page.screenshot({path:`${output}/${body.toLowerCase()}-regional.png`});
-    const surface=await sweep(radius*.15,body==='Mars'?40:8,'zoom regional to surface');checkZoom(surface);
+    const surface=await sweep(radius*.15,body==='Mars'?40:8,'zoom regional to surface');results.push(surface);checkZoom(surface);
     await page.waitForTimeout(300);await page.screenshot({path:`${output}/${body.toLowerCase()}-surface.png`});
-    const outward=await sweep(body==='Mars'?40:8,radius*2,'zoom out through all tiers');checkZoom(outward);
-    const tiny=await sweep(radius*.18,radius*.15,'tiny zoom reversals');checkZoom(tiny);
+    const outward=await sweep(body==='Mars'?40:8,radius*2,'zoom out through all tiers');results.push(outward);checkZoom(outward);
+    const tiny=await sweep(radius*.18,radius*.15,'tiny zoom reversals');results.push(tiny);checkZoom(tiny);
     // Real selection is retained on the current body, cleared on body change.
     await page.evaluate(async({root,query,body})=>{
       const {navigateToPlace}=await window.__placeModule('/src/lib/places.ts');

@@ -196,7 +196,15 @@ export class PlaceNames {
       const disk = body.displayRadius * scale * focalPixels / Math.max(1e-12, camera.position.distanceTo(body.position));
       const spacing = p.selected ? 6 : Math.max(12, Math.min(100, 45000 / Math.max(200, disk)));
       const gap = Math.max(12, spacing * .25);
-      return { ...p, entryBox: { x0:p.box.x0-spacing-gap, x1:p.box.x1+spacing+gap, y0:p.box.y0-spacing*.45-gap, y1:p.box.y1+spacing*.45+gap }, box: { x0: p.box.x0-spacing, x1:p.box.x1+spacing, y0:p.box.y0-spacing*.45, y1:p.box.y1+spacing*.45 } };
+      const entryBox = { x0:p.box.x0-spacing-gap, x1:p.box.x1+spacing+gap, y0:p.box.y0-spacing*.45-gap, y1:p.box.y1+spacing*.45+gap };
+      // Entry clearance applies to viewport edges as well as neighboring names.
+      // A collision loser near an edge must not briefly reclaim a departing
+      // neighbor's slot just before its own text leaves the viewport. Incumbents
+      // retain their ordinary text bounds, so panning still gives a smooth exit.
+      const enteringAtEdge = !this.layout.states.get(p.id)?.accepted
+        && (entryBox.x0 < 8 || entryBox.x1 > width-8 || entryBox.y0 < 8 || entryBox.y1 > height-8);
+      return { ...p, renderBox: p.box, eligibility: enteringAtEdge && !p.selected ? 0 : p.eligibility, entryBox,
+        box: { x0: p.box.x0-spacing, x1:p.box.x1+spacing, y0:p.box.y0-spacing*.45, y1:p.box.y1+spacing*.45 } };
     });
     const states = this.layout.update(layoutCandidates, obstacles, start, invalidated);
     this.drawn = [];

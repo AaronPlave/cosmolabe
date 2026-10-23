@@ -4,6 +4,8 @@ export const labelOverlaps = (a: ScreenRect, b: ScreenRect): boolean => a.x0 < b
 export interface LabelCandidate {
   id: string;
   box: ScreenRect;
+  /** Painted text bounds, when collision spacing is larger than the text. */
+  renderBox?: ScreenRect;
   priority: number;
   /** Extra clearance for entry; accepted labels retain the smaller footprint. */
   entryBox?: ScreenRect;
@@ -74,12 +76,12 @@ export class PersistentLabels {
     const departing = [...this.states.values()].filter(s => !s.accepted && s.opacity > 0)
       .sort((a,b) => b.priority-a.priority || a.id.localeCompare(b.id));
     for (const state of departing) {
-      if (visible.some(other => labelOverlaps(state.box, other.box))) state.opacity = 0;
+      if (visible.some(other => labelOverlaps(state.renderBox ?? state.box, other.renderBox ?? other.box))) state.opacity = 0;
       else visible.push(state);
     }
     for (const state of winners) {
       const blocked = [...this.states.values()].some(other => other !== state && other.opacity > 0
-        && !other.accepted && labelOverlaps(state.box, other.box));
+        && !other.accepted && labelOverlaps(state.renderBox ?? state.box, other.renderBox ?? other.box));
       if (!blocked) state.opacity = Math.min(1, state.opacity + step);
     }
     for (const [id, state] of this.states) if (!state.accepted && state.opacity === 0) this.states.delete(id);

@@ -67,6 +67,21 @@ describe('optional geographic name annotations', () => {
     expect(f.names.metrics.enters).toBe(enters);
     expect(el.style.background).toBeUndefined();
   });
+  it('requires viewport entry clearance but lets an incumbent pan toward the edge', () => {
+    const f=fixture();f.names.setBodyVisible('Moon',true);
+    const pan=(x: number)=>{f.camera.setViewOffset(800,800,-x,0,800,800);f.camera.updateMatrixWorld(true);};
+    // Text fits, but the entry clearance around this new name does not.
+    pan(250);f.update();expect(f.names.metrics.drawn).toBe(0);
+    pan(0);f.update();expect(f.names.metrics.drawn).toBe(1);
+    const element=f.elements[0];
+    pan(250);f.update();expect(f.names.metrics.drawn).toBe(1);expect(f.elements[0]).toBe(element);
+    // A safety/collision loss removes incumbency. Do not reappear in the
+    // briefly vacated edge slot; moving inward must clear the entry footprint.
+    f.update(false,[{x0:600,y0:350,x1:750,y1:450}]);expect(f.names.metrics.drawn).toBe(0);
+    f.update();expect(f.names.metrics.drawn).toBe(0);
+    pan(0);f.update();expect(f.names.metrics.drawn).toBe(1);
+    expect(f.names.pick(400,400)?.featureId).toBe('string:front');
+  });
   it('does not hide a retained name when a selected name consumes the LOS budget', () => {
     const f=fixture(-85);f.camera.position.z=1.2;f.camera.updateMatrixWorld(true);
     f.names.setBodyVisible('Moon',true);f.names.selectedRef=f.names.index.places[1].ref;f.update();
