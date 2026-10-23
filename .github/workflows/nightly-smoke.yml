@@ -1,0 +1,143 @@
+name: Nightly full smoke
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Manual runs use the branch selected in Actions; scheduled runs use main.
+# Never cancel PR checks or one running full suite with another invocation.
+concurrency:
+  group: nightly-full-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  terrain:
+    name: Nightly terrain builder fixtures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install offline raster tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
+      - name: Run full terrain fixtures
+        run: bash scripts/ci/run-terrain-fixtures.sh
+      - name: Record run and commit
+        if: always()
+        run: |
+          echo "### Terrain fixtures: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+
+  stars:
+    name: Nightly StarField WebGL and calibration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+        with:
+          test-kernels: 'true'
+      - name: Build packages
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: WebGL readback and full normal-viewer calibration
+        run: bash scripts/ci/run-viewer-smoke.sh stars full
+      - name: Upload StarField evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-starfield
+          path: |
+            /tmp/starfield-webgl/
+            /tmp/starfield-viewer/
+            /tmp/viewer-smoke-vite.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Record run and commit
+        if: always()
+        run: |
+          echo "### StarField: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+
+  geographic:
+    name: Nightly geographic global viewer smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+        with:
+          test-kernels: 'true'
+      - name: Build packages
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Full global geographic viewer smoke
+        run: bash scripts/ci/run-viewer-smoke.sh geographic full
+      - name: Upload geographic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-geographic
+          path: |
+            /tmp/geographic-global-smoke/
+            /tmp/viewer-smoke-vite.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Record run and commit
+        if: always()
+        run: |
+          echo "### Geographic smoke: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+
+  visual:
+    name: Nightly golden-image visual regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+        with:
+          test-kernels: 'true'
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Compare pinned visual scenes with committed goldens
+        env:
+          VR_SCENES: earth-moon,atmosphere-earth,cassini-soi
+          UPDATE_VISUAL_GOLDENS: '0'
+          CREATE_VISUAL_GOLDENS: '0'
+        # Harness builds packages and the production viewer from scratch, then
+        # explicitly awaits catalog readiness; never self-baseline on CI.
+        run: node scripts/visual-regression.mjs
+      - name: Upload visual diffs and captured evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-visual-regression
+          path: |
+            apps/viewer/test-screenshots/*-actual.png
+            apps/viewer/test-screenshots/*-diff.png
+            apps/viewer/test-screenshots/*-metrics.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Record run and commit
+        if: always()
+        run: |
+          echo "### Visual regression: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
