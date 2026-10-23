@@ -19,6 +19,8 @@
   import { Button } from '$lib/components/ui/button';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { geo, goToFeature, navigationUnavailable, backToLayer, stepFeature, featureSteps } from '../lib/geographic-layers.svelte';
+  import { geoStyles, featureOverride, setFeatureOverride, layerStyle, openStyleEditor } from '../lib/geographic-styles.svelte';
+  import { resolveGeographicStyle } from '@cosmolabe/core';
   import { geometryLabel, layerOrigin } from '../lib/geographic-layer-labels';
 
   interface Props { layer: GeographicLayer; feature: GeographicFeature }
@@ -85,6 +87,20 @@
 
   let unavailable = $derived(navigationUnavailable(found.layer));
   let properties = $derived(Object.entries(found.feature.properties ?? {}));
+  /** This feature's own colour and opacity, if it has them; otherwise it follows its layer. */
+  let own = $derived((void geoStyles.byLayer, featureOverride(geo.selected)));
+  /** What it draws with now, layer style included. */
+  let drawn = $derived.by(() => {
+    void geoStyles.byLayer;
+    const r = resolveGeographicStyle(found.layer, layerStyle(found.layer.id), found.feature);
+    const t = found.feature.geometry.type;
+    return t.includes('Point') ? r.point.color : t.includes('Line') ? r.line.color : r.outline.color;
+  });
+  function styleLayer() {
+    const id = found.layer.id;
+    backToLayer();
+    openStyleEditor(id);
+  }
   const copyReference = () => copy('ref', JSON.stringify({ layerId: found.layer.id, featureId: found.feature.id, bodyName: found.layer.body }));
 </script>
 
@@ -142,6 +158,27 @@
         {/each}
       </dl>
     {/if}
+
+    <details class="disclosure" open={!!own}>
+      <summary>Appearance</summary>
+      <div class="appearance" role="group" aria-label="Feature style">
+        <label class="own ui-meta">
+          <input type="checkbox" checked={!!own} onchange={(e) => geo.selected && setFeatureOverride(geo.selected, (e.currentTarget as HTMLInputElement).checked ? { color: drawn } : null)} />
+          Give this feature its own colour
+        </label>
+        {#if own}
+          <div class="own-controls">
+            <input type="color" class="swatch-input" value={own.color ?? drawn} aria-label="Feature colour"
+              oninput={(e) => geo.selected && setFeatureOverride(geo.selected, { ...own, color: (e.currentTarget as HTMLInputElement).value })} />
+            <input type="range" min="0" max="1" step="0.05" value={own.opacity ?? 1} aria-label="Feature opacity"
+              oninput={(e) => geo.selected && setFeatureOverride(geo.selected, { ...own, opacity: Number((e.currentTarget as HTMLInputElement).value) })} />
+            <span class="ui-readout">{Math.round((own.opacity ?? 1) * 100)}%</span>
+          </div>
+          <p class="ui-helper text-text-muted">Only this feature; the rest of {layer.name} is unchanged.</p>
+        {/if}
+        <button class="link ui-meta" onclick={styleLayer}>Style the whole layer…</button>
+      </div>
+    </details>
 
     <details class="disclosure">
       <summary>Location and source</summary>
@@ -252,6 +289,12 @@
     color: var(--color-text-primary);
     background: var(--color-surface-3);
   }
+  .appearance { display: flex; flex-direction: column; gap: 6px; }
+  .own { display: flex; align-items: center; gap: 6px; color: var(--color-text-primary); cursor: pointer; }
+  .own-controls { display: grid; grid-template-columns: 26px 1fr 40px; align-items: center; gap: 8px; }
+  .swatch-input { width: 24px; height: 20px; padding: 0; border: none; background: none; cursor: pointer; }
+  .link { align-self: flex-start; border: none; background: none; padding: 0; color: var(--color-text-secondary); text-decoration: underline dotted; cursor: pointer; }
+  .link:hover { color: var(--color-text-primary); }
   .copy-prop {
     opacity: 0.5;
   }

@@ -21,6 +21,7 @@
     GLOBAL_SEARCH_LIMIT,
   } from '../lib/geographic-layers.svelte';
   import { layerSwatch, layerIssue } from '../lib/geographic-layer-labels';
+  import { geoStyles, openStyleEditor, layerRank, moveLayer } from '../lib/geographic-styles.svelte';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
@@ -121,8 +122,8 @@
                   aria-label="{visible ? 'Hide' : 'Show'} {layer.name}" title={visible ? 'Hide layer' : 'Show layer'}>
                   {#if visible}<Eye size={14} />{:else}<EyeOff size={14} />{/if}
                 </button>
-                <span class="swatch" style:background={layerSwatch(layer)} aria-hidden="true"></span>
-                <button class="layer-name" onclick={() => openLayer(layer.id)} aria-label="Open {layer.name}" title="Features, appearance and information">
+                <span class="swatch" style:background={(void geoStyles.byLayer, layerSwatch(layer))} aria-hidden="true"></span>
+                <button class="layer-name" onclick={() => { openLayer(layer.id); openStyleEditor(null); }} aria-label="Open {layer.name}" title="Features, appearance and information">
                   <span class="label">{layer.name}</span>
                   {#if issue}<span class="dot" data-tone={issue.tone} title={issue.title}></span>{/if}
                   <span class="ui-meta count">{layer.features.length.toLocaleString()}</span>
@@ -134,6 +135,11 @@
                       <DropdownMenu.Item onSelect={() => showAllLayers(layer.body)}>Show all {layer.body} layers</DropdownMenu.Item>
                     {:else}
                       <DropdownMenu.Item onSelect={() => isolateLayer(layer.id)}>Show only this layer</DropdownMenu.Item>
+                    {/if}
+                    <DropdownMenu.Item onSelect={() => { openLayer(layer.id); openStyleEditor(layer.id); }}>Style</DropdownMenu.Item>
+                    {#if layerRank(layer.id).count > 1}
+                      <DropdownMenu.Item disabled={layerRank(layer.id).index <= 0} onSelect={() => moveLayer(layer.id, true)}>Draw above other layers</DropdownMenu.Item>
+                      <DropdownMenu.Item disabled={layerRank(layer.id).index >= layerRank(layer.id).count - 1} onSelect={() => moveLayer(layer.id, false)}>Draw below other layers</DropdownMenu.Item>
                     {/if}
                     <DropdownMenu.Item onSelect={() => openLayer(layer.id, { about: true })}>About this layer</DropdownMenu.Item>
                   </DropdownMenu.Content>

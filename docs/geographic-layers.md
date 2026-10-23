@@ -110,6 +110,64 @@ The rules that keep the views and the scene consistent:
 - Visibility, filters and selection reset when a scene loads. Closing the
   panel turns off hiding in 3D.
 
+## Layer styles
+
+A layer's **Style** tab (in its Layer view, or *Style* in a layer row's
+**…** menu) starts with what most annotations need:
+
+- **Colour**: six restrained presets (Okabe–Ito hues, readable for common
+  colour-vision deficiencies) or a custom colour. One colour styles points,
+  lines, area outlines and fill together, and stops any colouring by property.
+- **Opacity**, and only the sizes the layer has: **Point size** (screen pixels
+  at every distance), **Line width** (lines and area outlines), **Fill** (area
+  fill opacity; holes stay open).
+- **Labels**: on or off, labelled with the name or a property (the property
+  names are read from appears once, as *Name*).
+
+**More options** holds the rest: *Colour by* a **category** palette or a
+**number** ramp over a property, with a legend built from the layer's actual
+values and counts that warns about missing values, non-numbers and fields with
+too many values (each category's colour is editable; values beyond the palette
+share *Other*); point shape and halo; dashed lines and a dark outline; separate
+area fill and outline colours and hatching; and label text size, how many show
+at most, a camera range beyond which they hide, and a contrast halo.
+
+Labels are decluttered: overlapping labels are dropped, keeping those already
+shown so a resting view does not reshuffle, and labels past the horizon hide.
+Candidates are chosen by where features are (past the horizon, then off
+screen, are dropped first), never by source order, so a large layer labels what
+is in view. Labels sit on the surface as drawn (globe facets or terrain tiles,
+found by a cached ray down the normal, shared with the selection callout), so
+they stay on their features close up on a coarse globe, and hide where that
+drawn surface is in the way (a line of sight against globe facets or terrain
+tiles), not by a horizon guess: a rim higher than a camera down in a crater
+stays labelled. Close to a large area or a long line, whose anchor is then off
+screen or over the horizon, the label goes on a part of it in view: the point it
+used last time while that stays visible, else the surface under the middle of
+the view where it lies inside the area (or on the line), else one of the
+feature's own interior or along-line samples nearest the centre. The selected
+feature is named by its callout instead. `scripts/test-geographic-close-zoom.mjs`
+checks this on streamed Mars terrain from orbit to about 1 km.
+
+A feature's own colour is set from its Feature view, under *Appearance*: *Give
+this feature its own colour* (and opacity) changes only that feature; turning
+it off returns it to the layer's style.
+
+Changes preview live by restyling in place, without rebuilding the layer.
+**Reset to catalog style** returns to the catalog's defaults, single features'
+colours included. The style is a small declarative object
+(`GeographicLayerStyle`, versioned, in `@cosmolabe/core`): layer defaults per
+geometry type, one optional property rule, labels, and per-feature colours keyed
+by stable feature ID. Opacities multiply: catalog display × layer × part ×
+feature. It is kept in this browser's localStorage, keyed by the layer's catalog
+and ID (at most 64 layers and 256 KiB; the least recently edited go first), and
+restored when the same catalog loads or the layer is installed later in the
+session (drawn and imported layers); a stored style is validated and any
+invalid part is ignored with a reason. It is never written into the catalog or
+the data. Draw order among a body's vector layers (*Draw above/below other
+layers* in the **…** menus; earlier draws over later where fills overlap) is for
+the session.
+
 ## Coordinate interpretation
 
 RFC 7946 GeoJSON itself means Earth WGS84. Planetary GeoJSON is an explicit

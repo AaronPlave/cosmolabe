@@ -4,9 +4,11 @@
  * left anything out.
  */
 import type { GeographicLayer } from '@cosmolabe/core';
+import { layerColor } from './geographic-styles.svelte';
 
+/** The colour the layer draws with, local style included. */
 export function layerSwatch(layer: GeographicLayer): string {
-  return layer.definition.display?.color ?? '#59c5dd';
+  return layerColor(layer);
 }
 
 /** Where the data comes from, in task words. */

@@ -1,14 +1,17 @@
 <script lang="ts">
   /**
-   * One layer (#198): its features first, then its information behind a
-   * disclosure. Showing, hiding and "show only this layer" stay one step away
-   * in the header; everything about where the data comes from is under
-   * *About this layer*.
+   * One layer (#198): its features or its style (#199), then its information
+   * behind a disclosure. Showing, hiding, "show only this layer" and draw
+   * order stay one step away in the header; everything about where the data
+   * comes from is under *About this layer*.
    */
   import { ChevronLeft, Ellipsis, Eye, EyeOff } from 'lucide-svelte';
   import { describeGeographicCoordinates, type GeographicLayer } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+  import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import GeographicFeatureBrowser from './GeographicFeatureBrowser.svelte';
+  import GeographicStyleEditor from './GeographicStyleEditor.svelte';
+  import { geoStyles, openStyleEditor, layerRank, moveLayer } from '../lib/geographic-styles.svelte';
   import { geo, layerVisible, setLayerVisible, isolateLayer, isIsolated, showAllLayers, showLayerList } from '../lib/geographic-layers.svelte';
   import { layerIssue, layerOrigin, layerSwatch } from '../lib/geographic-layer-labels';
 
@@ -19,6 +22,9 @@
   let origin = $derived(layerOrigin(layer));
   let issue = $derived(layerIssue(layer));
   let about = $state(false);
+  /** Features or Style; Style is the layer the style editor has open. */
+  let tab = $derived(geoStyles.editing === layer.id ? 'style' : 'features');
+  let rank = $derived((void geoStyles.order, layerRank(layer.id)));
   // "About this layer" from a row's menu opens it once.
   $effect(() => {
     if (geo.showAbout) { about = true; geo.showAbout = false; }
@@ -44,6 +50,10 @@
         {:else}
           <DropdownMenu.Item onSelect={() => isolateLayer(layer.id)}>Show only this layer</DropdownMenu.Item>
         {/if}
+        {#if rank.count > 1}
+          <DropdownMenu.Item disabled={rank.index <= 0} onSelect={() => moveLayer(layer.id, true)}>Draw above other layers</DropdownMenu.Item>
+          <DropdownMenu.Item disabled={rank.index >= rank.count - 1} onSelect={() => moveLayer(layer.id, false)}>Draw below other layers</DropdownMenu.Item>
+        {/if}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   </div>
@@ -52,7 +62,12 @@
     {#if issue}· <button class="issue" data-tone={issue.tone} onclick={() => (about = true)} title={issue.title}>{layer.skippedFeatures ? `${layer.skippedFeatures} not shown` : 'import notes'}</button>{/if}
   </p>
 
-  <GeographicFeatureBrowser {layer} />
+  <SegmentedControl value={tab} options={['features', 'style']} label="Layer section" onValueChange={(v) => openStyleEditor(v === 'style' ? layer.id : null)} />
+  {#if tab === 'style'}
+    <GeographicStyleEditor {layer} />
+  {:else}
+    <GeographicFeatureBrowser {layer} />
+  {/if}
 
   <details class="disclosure" bind:open={about}>
     <summary>About this layer</summary>
