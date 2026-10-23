@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Place, PlaceSort } from '@cosmolabe/core';
+  import { onDestroy } from 'svelte';
   import { ArrowLeft, ChevronDown, ChevronRight, Copy, X } from 'lucide-svelte';
   import * as Popover from '$lib/components/ui/popover';
   import NavigationView from './NavigationView.svelte';
@@ -53,16 +54,23 @@
   });
   const about = $derived(typeof fields.origin === 'string' ? fields.origin : 'Named point from the catalog. The diameter is approximate; it does not define a feature boundary.');
   let copyStatus = $state('');
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(copyTimer));
+  async function copyText(text: string, success: string) {
+    clearTimeout(copyTimer);
+    copyStatus = '';
+    try { await navigator.clipboard.writeText(text); copyStatus = success; }
+    catch { copyStatus = 'Clipboard unavailable'; }
+    finally { copyTimer = setTimeout(() => { copyStatus = ''; }, 6000); }
+  }
   let navError = $state('');
   async function copySource() {
     if (!place) return;
-    try { await navigator.clipboard.writeText(JSON.stringify({ref:place.ref,provenance:place.layer.definition.provenance,datum:place.layer.datum,source:place.layer.source.identity,fields},null,2)); copyStatus = 'Source details copied'; }
-    catch { copyStatus = 'Clipboard unavailable'; }
+    await copyText(JSON.stringify({ref:place.ref,provenance:place.layer.definition.provenance,datum:place.layer.datum,source:place.layer.source.identity,fields},null,2), 'Source details copied');
   }
   async function copy() {
     if (!place) return;
-    try { await navigator.clipboard.writeText(placeCoordinates(place)); copyStatus = 'Coordinates copied'; }
-    catch { copyStatus = 'Clipboard unavailable'; }
+    await copyText(placeCoordinates(place), 'Coordinates copied');
   }
   function navigate(action: 'fly' | 'jump') {
     navError = !range.ok ? range.error : place && navigateToPlace(place, action) ? '' : 'The place body is unavailable or hidden.';
