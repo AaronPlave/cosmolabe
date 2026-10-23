@@ -10,10 +10,9 @@
  * numeric layers can't see — ring-plane tilt, triaxial-ellipsoid (oblateness)
  * scaling, texture/material orientation.
  *
- * NOT run in CI (`.github/workflows/ci.yml`), deliberately: it needs a browser,
- * a full package + viewer build, and the scenes' LFS-backed SPICE kernels. So
- * this gate has exactly the authority of whoever last ran it by hand. If that
- * changes, delete this paragraph.
+ * Nightly CI runs a curated VR_SCENES subset with committed goldens, a
+ * full package + viewer build, and sparse LFS-backed SPICE test kernels.
+ * Broader scenes can still be run manually; CI never rewrites goldens.
  *
  * Usage:
  *   npx playwright install chromium              # once, fetches the browser
@@ -29,6 +28,7 @@
  * Env:
  *   CL_VIEWER_URL             use an already-running server instead of building + spawning `vite preview`
  *   VR_SKIP_BUILD=1           trust the existing build (fast iteration only — see above)
+ *   VR_SCENES                comma-separated catalog names to select a curated subset
  *   UPDATE_VISUAL_GOLDENS=1   rewrite goldens that already exist
  *   CREATE_VISUAL_GOLDENS=1   write goldens that do not exist yet (separate flag on purpose:
  *                             a renamed scene or viewpoint must not self-baseline)
