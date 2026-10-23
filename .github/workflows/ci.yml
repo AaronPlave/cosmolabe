@@ -96,7 +96,10 @@ jobs:
       # PR API comparisons include added/removed paths across every commit.
       # Conservative shared-renderer and CI-infrastructure fallbacks are
       # intentional. Skipped targeted jobs must not become required statuses.
-      - uses: dorn          filters: |
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
             terrain:
               - '.github/workflows/**'
               - '.github/actions/**'
