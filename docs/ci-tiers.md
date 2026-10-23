@@ -27,16 +27,20 @@ A path filter on PR changes runs independent, visible jobs:
 | Job | Key triggers (conservative by design) |
 | --- | --- |
 | Terrain builder fixtures | Python terrain/builder tooling, terrain fixture/data/catalog/schema, surface plans |
-| StarField WebGL + viewer calibration | `packages/three/**`, renderer/camera integration, star/atmosphere catalogs, test scripts |
-| Global geographic viewer smoke | `packages/three/**`, core geographic/frames, renderer/camera integration, geographic catalogs/data, test scripts |
+| StarField WebGL + viewer calibration | Shared scene engine/browser integration **or** StarField harness changes |
+| Global geographic viewer smoke | Shared scene engine/browser integration **or** geographic harness changes |
 
 Changes to the CI workflow, shared CI actions/scripts, package manifests,
 lockfile, viewer Vite config, and relevant smoke infrastructure trigger all
-three. Changes to shared rendering code trigger **both** browser jobs even
-when a change is not explicitly about stars or geographic layers. Unrelated
-UI/documentation changes should run only the fast gate. Tests that the normal
-viewer transitively imports should be added to the conservative filter if their
-paths change in the future.
+three. The shared browser rule intentionally covers all core scene/math
+implementation (`packages/core/src/**`), Three.js rendering, SPICE/frames,
+viewer integration/state (`apps/viewer/src/lib/**`), viewer workers/entry points,
+and all example catalog inputs. That triggers **both** browser suites when a
+new scene/camera/trajectory/rotation/time integration file appears, without
+maintaining a hand-written list of individual source files. Documentation,
+viewer CSS and UI-only components remain outside this shared browser rule, so
+those changes can use just the fast gate. A suite-specific harness change
+triggers that suite independently. Prefer a few extra runs over false negatives.
 
 Targeted jobs are **not required statuses**; they may be legitimately skipped.
 A failing targeted run is still a regression to fix before merging. The
@@ -49,7 +53,10 @@ implementation: Playwright runs headless Chromium/SwiftShader.
 [`nightly-smoke.yml`](../.github/workflows/nightly-smoke.yml) runs at
 04:23 UTC daily on the latest `main`. Select **Actions → Nightly full smoke
 → Run workflow** to invoke it against a chosen branch (including a feature
-branch for full PR verification). Its jobs run:
+branch for full PR verification). GitHub exposes manual dispatch only after
+the new workflow exists on `main`: run the first full suite immediately after
+merging, inspect its artifacts, and keep issue #288 open until it passes.
+Its jobs run:
 
 - Complete Python terrain builder fixtures
 - StarField WebGL/readback and full normal-viewer calibration
@@ -58,8 +65,10 @@ branch for full PR verification). Its jobs run:
 
 The visual set uses already committed golden PNGs, fixed catalog scenes,
 frozen epochs, deterministic software rendering, and explicit initial-asset
-readiness in `visual-regression.mjs`. It *never* auto-creates or updates
-goldens in CI. Expand this curated set only after verifying the next scene is
+readiness in `visual-regression.mjs`. In CI, missing/timed-out
+initial assets fail the scene instead of yielding a partial golden; unrecognized
+or empty `VR_SCENES` selections fail rather than becoming no-op runs. It
+*never* auto-creates or updates goldens in CI. Expand this curated set only after verifying the next scene is
 stable on the runner. Visual failures provide `*-actual.png` and `*-diff.png`
 in the job's uploaded artifacts. StarField and geographic jobs upload
 screenshots, metrics and viewer server logs, including on failure. Artifacts

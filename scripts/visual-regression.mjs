@@ -121,9 +121,16 @@ const SCENES = [
   // Here that shows up as the cyan arc vanishing.
   { catalog: 'oem-ingest', viewpoints: [] },
 ];
-const selectedScenes = process.env.VR_SCENES
-  ? SCENES.filter((scene) => process.env.VR_SCENES.split(',').includes(scene.catalog))
+const requestedScenes = process.env.VR_SCENES?.split(',').map((name) => name.trim());
+const selectedScenes = requestedScenes
+  ? SCENES.filter((scene) => requestedScenes.includes(scene.catalog))
   : SCENES;
+const unknownScenes = requestedScenes?.filter((name) => !SCENES.some((scene) => scene.catalog === name)) ?? [];
+if (unknownScenes.length || selectedScenes.length === 0) {
+  console.error(`[visual-regression] Invalid VR_SCENES: ${unknownScenes.join(', ') || '(empty selection)'}.`);
+  console.error(`[visual-regression] Available scenes: ${SCENES.map((scene) => scene.catalog).join(', ')}`);
+  process.exit(2);
+}
 
 async function loadPlaywright() {
   try {
@@ -407,14 +414,24 @@ async function main() {
         );
         continue;
       }
+      // A nightly golden is not valid if the scene rendered without all its
+      // initial models/textures. Preserve the old warning for local exploration,
+      // but fail closed when GitHub Actions uses the harness as a correctness gate.
+      const strictAssets = process.env.CI === 'true';
+      if (strictAssets && !assetSummary) {
+        failures.push(`${scene.catalog}: missing initial asset summary in CI`);
+        continue;
+      }
       if (assetSummary && (assetSummary.failed > 0 || assetSummary.timedOut)) {
-        // Not fatal — a scene missing a texture still captures — but it changes
-        // pixels, so say so rather than let it self-baseline as the new normal.
-        warnings.push(
+        const message =
           `${scene.catalog}: ${assetSummary.failed} initial asset(s) failed` +
-            (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
-            `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`,
-        );
+          (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
+          `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`;
+        if (strictAssets) {
+          failures.push(message);
+          continue;
+        }
+        warnings.push(message);
       }
       await page.waitForTimeout(STREAM_SETTLE_MS);
 

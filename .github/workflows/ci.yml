@@ -86,6 +86,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       terrain: ${{ steps.filter.outputs.terrain }}
+      browser: ${{ steps.filter.outputs.browser }}
       stars: ${{ steps.filter.outputs.stars }}
       geographic: ${{ steps.filter.outputs.geographic }}
     steps:
@@ -95,10 +96,7 @@ jobs:
       # PR API comparisons include added/removed paths across every commit.
       # Conservative shared-renderer and CI-infrastructure fallbacks are
       # intentional. Skipped targeted jobs must not become required statuses.
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
+      - uses: dorn          filters: |
             terrain:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -120,7 +118,10 @@ jobs:
               - 'apps/viewer/test-catalogs/data/**'
               - 'apps/viewer/test-catalogs/*terrain*.json'
               - 'apps/viewer/test-catalogs/*imagery*.json'
-            stars:
+            # Any change to the shared scene engine, browser integration, or
+            # infrastructure must exercise BOTH browser suites. Keep this broad:
+            # new camera/scene files must not silently escape the smoke checks.
+            browser:
               - '.github/workflows/**'
               - '.github/actions/**'
               - 'scripts/ci/**'
@@ -129,52 +130,24 @@ jobs:
               - 'package-lock.json'
               - 'apps/viewer/package.json'
               - 'apps/viewer/vite.config.ts'
+              - 'packages/core/src/**'
               - 'packages/three/**'
-              - 'packages/core/src/viewpoint.ts'
-              - 'packages/core/src/frames/**'
-              - 'apps/viewer/src/lib/loader.ts'
-              - 'apps/viewer/src/lib/camera-view-io.ts'
-              - 'apps/viewer/src/lib/catalog-assets.ts'
-              - 'apps/viewer/src/lib/capture.ts'
-              - 'apps/viewer/src/lib/viewer-control.ts'
-              - 'apps/viewer/src/lib/viewer-state.svelte.ts'
+              - 'packages/frames/**'
+              - 'packages/cspice-wasm/**'
+              - 'packages/interop/**'
+              - 'apps/viewer/src/lib/**'
               - 'apps/viewer/src/workers/**'
-              - 'apps/viewer/test-catalogs/atmosphere*.json'
-              - 'apps/viewer/test-catalogs/geographic-vectors.json'
-              - 'apps/viewer/test-catalogs/base/**'
-              - 'apps/viewer/test-catalogs/data/**'
-              - 'apps/viewer/test-catalogs/textures/**'
+              - 'apps/viewer/src/App.svelte'
+              - 'apps/viewer/src/main.ts'
+              - 'apps/viewer/test-catalogs/**'
+              - 'scripts/visual-regression.mjs'
+            # Suites also run independently for changes to their own harness.
+            stars:
               - 'scripts/test-starfield-webgl.mjs'
               - 'scripts/capture-starfield-calibration.mjs'
-              - 'scripts/visual-regression.mjs'
             geographic:
-              - '.github/workflows/**'
-              - '.github/actions/**'
-              - 'scripts/ci/**'
-              - '.gitattributes'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'apps/viewer/package.json'
-              - 'apps/viewer/vite.config.ts'
-              - 'packages/three/**'
-              - 'packages/core/src/geographic/**'
-              - 'packages/core/src/frames/**'
-              - 'packages/core/src/viewpoint.ts'
-              - 'apps/viewer/src/lib/loader.ts'
-              - 'apps/viewer/src/lib/camera-view-io.ts'
-              - 'apps/viewer/src/lib/catalog-assets.ts'
-              - 'apps/viewer/src/lib/geographic-loading.ts'
-              - 'apps/viewer/src/lib/geographic-overlay-comparison.ts'
-              - 'apps/viewer/src/lib/geometry-frames.ts'
-              - 'apps/viewer/src/lib/surface-coordinates.ts'
-              - 'apps/viewer/src/workers/**'
-              - 'apps/viewer/test-catalogs/geographic*'
-              - 'apps/viewer/test-catalogs/geographic/**'
-              - 'apps/viewer/test-catalogs/base/**'
-              - 'apps/viewer/test-catalogs/data/**'
-              - 'scripts/test-geographic*'
+              - 'scripts/test-geographic*.mjs'
               - 'scripts/prepare-natural-earth-countries.py'
-
   terrain:
     name: Targeted terrain fixtures
     needs: changes
@@ -193,7 +166,7 @@ jobs:
   stars:
     name: Targeted StarField WebGL and viewer
     needs: changes
-    if: needs.changes.outputs.stars == 'true'
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.stars == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -224,7 +197,7 @@ jobs:
   geographic:
     name: Targeted geographic viewer smoke
     needs: changes
-    if: needs.changes.outputs.geographic == 'true'
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.geographic == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
