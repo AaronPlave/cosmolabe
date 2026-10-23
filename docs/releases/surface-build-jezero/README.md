@@ -37,8 +37,8 @@ node scripts/build-surface.mjs work/surface-build/real-pilot-inputs/lock.json \
   --cache work/surface-build/real-executor-cache --publish-r2 \
   --verify-url https://data.aaronplave.com \
   --verify-origin https://aaronplave.com \
-  --verify-origin http://localhost:5173 \
-  --verify-origin http://127.0.0.1:5187 \
+  --verify-origin http://localhost:5174 \
+  --verify-origin http://127.0.0.1:5174 \
   --confirm-publication 6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99 \
   > work/surface-build/production-publication-receipt.json
 node scripts/surface-build/feedback.mjs \
@@ -51,7 +51,7 @@ Require a verified receipt with `localOnly:false`, matching identity, complete o
 
 ## Host corrections required before resuming
 
-The actual HTTPS viewer origin `https://aaronplave.com` and `http://localhost:5173` are allowed. The pilot origin `http://127.0.0.1:5187` is rejected. Preserve existing CORS rules and add that pilot origin with read-only GET/HEAD access. The initial publisher incorrectly assumed `https://aaronplave.github.io`; repeatable `--verify-origin` now selects the actual origins and records them in the content-pinned receipt. Catalog preparation inherits those recorded origins by default. There is no requirement to add the unused GitHub origin.
+The retry now uses port **5174**. CORS passes for all three selected origins: `https://aaronplave.com`, `http://localhost:5174` and `http://127.0.0.1:5174`. No CORS allowance for port 5187 is required. The lingering viewer on port 5174 was stopped and replaced with the pilot. The initial publisher incorrectly assumed `https://aaronplave.github.io`; repeatable `--verify-origin` now selects the actual origins and records them in the content-pinned receipt. Catalog preparation inherits those recorded origins by default. There is no requirement to add the unused GitHub origin.
 
 Missing product URLs currently return `404 text/html`. The handoff explicitly requires non-HTML 404s; the surface publication verifier now enforces this for cube products as well. Configure the public data host to return status 404 with a non-HTML body/type for missing objects. No error is waived. The configured object read/write credentials return `AccessDenied` (403) for reading bucket CORS; no bucket policy, CDN configuration or routing was changed.
 
@@ -85,8 +85,8 @@ Run the ordinary viewer against the actual public URLs before deployment:
 
 ```sh
 SURFACE_PUBLICATION_RECEIPT=work/surface-build/production-publication-receipt.json \
-  node scripts/surface-build/serve-pilot.mjs
-SURFACE_HOSTED=1 node scripts/test-surface-build-pilot.mjs \
+  PILOT_VIEWER_PORT=5174 node scripts/surface-build/serve-pilot.mjs
+SURFACE_HOSTED=1 CL_VIEWER_URL=http://127.0.0.1:5174/ node scripts/test-surface-build-pilot.mjs \
   work/surface-build/real-pilot-report.json work/surface-build/production-browser
 ```
 
@@ -97,3 +97,9 @@ After reviewing the verified production candidate, rollback, receipt and browser
 Repeat cold/warm loading, near/far LOD, opacity/hiding/fallback, physical picking, hover/Fly to alignment and network checks from the actual deployed/preview viewer origin against the public data host. Record URL, browser/GPU, captures, zero product errors and zero uncovered mandatory-base blocks. Keep #287 draft and #251 open until this acceptance is observed.
 
 Rollback restores the prior deployed catalog pin (or removes this new experimental catalog if it was absent). Preserve the prior deployment artifact before exposure. Keep immutable products accessible; do not delete data as rollback. The JSON apply/rollback rehearsal restores the reviewed original; deployment rollback additionally restores the previous deployed file/absence. No live catalog or deployment was changed during preparation.
+
+## Port 5174 retry result
+
+The updated public CORS checks passed. The real retry revalidated the exact reviewed preflight, verified and reused the existing identical terrain product without upload, then stopped because missing objects still return `404 text/html`. Neither imagery product was uploaded and no verified receipt was issued. The only remaining observed public-host blocker is the non-HTML 404 requirement.
+
+The local pilot is running at http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot using the verified local publication on port 5190. The actual ordinary viewer passed on the physical M4 Max Metal GPU: L16 imagery over L11 terrain, hiding/opacity/coarse fallback/restoration, CPU picking, hover and actual Fly to button, zero errors. This is local-product evidence, not public R2 imagery or deployed-origin acceptance.

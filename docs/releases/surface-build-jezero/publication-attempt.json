@@ -76,8 +76,7 @@
     "error": "AccessDenied"
   },
   "remainingHostActions": [
-    "Preserve current allowed origins and add http://127.0.0.1:5187 for the pilot browser.",
-    "Return HTTP 404 with a non-HTML Content-Type/body for missing product objects."
+    "Return HTTP 404 with a non-HTML Content-Type/body for missing product objects. CORS now passes using port 5174."
   ],
   "resume": "After host corrections, regenerate the preflight and rerun the documented data-only publication command with explicit origins. Existing verified terrain bytes are reused without overwrite. Do not deploy a catalog.",
   "liveVerifierChecks": [
@@ -102,5 +101,26 @@
     "jsSyntax": "passed",
     "diffCheck": "passed",
     "lint": "No new findings; existing files retain 18 pre-existing unused-variable findings."
+  },
+  "retryPort5174": {
+    "origins": [
+      "https://aaronplave.com",
+      "http://localhost:5174",
+      "http://127.0.0.1:5174"
+    ],
+    "cors": "passed-all-three-origins",
+    "preflight": "exact-reviewed-plan-match",
+    "terrain": "existing-identical-content-reused-without-upload",
+    "result": "stopped: publication requires a non-HTML missing-object 404",
+    "imageryUploaded": false,
+    "verifiedReceiptIssued": false,
+    "pilotUrl": "http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "pilotData": "verified local publication on port 5190; not public R2 imagery",
+    "pilotBrowser": {
+      "renderer": "ANGLE Metal Apple M4 Max",
+      "nativeImageryLevel": 16,
+      "fallbackPickingHoverFlyTo": "passed",
+      "errors": []
+    }
   }
 }
