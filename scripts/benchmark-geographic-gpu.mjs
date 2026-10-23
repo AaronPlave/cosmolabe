@@ -4,7 +4,8 @@
  * frame intervals), CPU render time, and the vector layer's draw calls, pages
  * and proxy surface meshes, for: vectors off/on, one point, one small polygon,
  * a selected polygon, 200 annotations, dense Jezero, global Earth countries,
- * and Jezero on measured terrain when its local data is present.
+ * wide regional polygons over streamed Mars terrain (network), and Jezero on
+ * measured terrain when its local data is present.
  *
  * Default: SwiftShader at 1280×720 (fragment work dominates, so it shows how
  * the pass scales with surface coverage, but it is not a hardware number).
@@ -43,6 +44,12 @@ const scenes = [
   { name: 'Earth orbit · countries', catalog: 'geographic-vectors-earth-countries', view: 'Earth orbit', show: 'all' },
   { name: 'Rhine close · vectors off', catalog: 'geographic-vectors-earth-countries', view: 'Rhine close', show: [] },
   { name: 'Rhine close · countries', catalog: 'geographic-vectors-earth-countries', view: 'Rhine close', show: 'all' },
+  // The review's regional case: a few wide polygons and lines over streamed Mars terrain and
+  // imagery (network). Residency depends on what has streamed in, so each view settles first.
+  { name: 'Gale regional · vectors off', catalog: 'geographic-vectors-mars-streamed', view: 'Gale regional', show: [], settleMs: 15000 },
+  { name: 'Gale regional · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale regional', show: 'all', settleMs: 3000 },
+  { name: 'Gale close · vectors off', catalog: 'geographic-vectors-mars-streamed', view: 'Gale close', show: [], settleMs: 20000 },
+  { name: 'Gale close · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale close', show: 'all', settleMs: 3000 },
 ];
 // Measured terrain is local data, not in Git.
 if (existsSync('apps/viewer/test-catalogs/data/mars-terrain-fused')) {
@@ -74,7 +81,7 @@ try {
       r.geographicVectors.setHovered(null);
     }, { show: scene.show, select: scene.select ?? null });
     await page.mouse.move(2, 2);
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(scene.settleMs ?? 1500);
     const result = await page.evaluate(async (frames) => {
       const r = window.renderer;
       const gl = r.renderer.getContext(), ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');

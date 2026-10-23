@@ -6,6 +6,7 @@ import type { SurfacePoint } from '../SceneHit.js';
 import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, VECTOR_HALO_PX, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
 import { footprintScreenRect, layerFootprint, meshHeightRange, type GeographicFootprint } from './GeographicFootprint.js';
+import { tileFade } from './TileFade.js';
 
 export type GeographicPlacement =
   | { mode: 'clamp' }
@@ -478,6 +479,10 @@ export class GeographicVectorLayer {
           if (map.matrixAutoUpdate) map.updateMatrix();
           material.uniforms.vectorDisplacementTransform.value.copy(map.matrix);
         }
+        // Mid LOD cross-fade: keep only the pixels this tile draws.
+        const fade = tileFade(source.material);
+        material.uniforms.vectorFadeIn.value = fade?.fadeIn ?? 1;
+        material.uniforms.vectorFadeOut.value = fade?.fadeOut ?? 0;
         material.uniformsNeedUpdate = true;
       };
       batch.proxies.set(source, proxy); this.proxyCount++;

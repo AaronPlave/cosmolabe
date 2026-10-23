@@ -34,6 +34,8 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorShape: { value: new THREE.Vector2(equatorialKm, polarKm) },
         vectorSelected: { value: -1 }, vectorHovered: { value: -1 },
         vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 }, vectorHighlight: { value: 0 },
+        // The cross-fade of the tile this proxy copies (1, 0 when it is not fading).
+        vectorFadeIn: { value: 1 }, vectorFadeOut: { value: 0 },
         vectorReach: { value: index.reachPx },
         vectorCellSize: { value: new THREE.Vector2(cells.image.width, cells.image.height) },
         vectorDetailCells: { value: detailCells },
@@ -79,6 +81,8 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform float vectorPixelRatio;
         uniform float vectorPage;
         uniform float vectorHighlight;
+        uniform float vectorFadeIn;
+        uniform float vectorFadeOut;
         uniform float vectorReach;
         uniform vec2 vectorCellSize;
         uniform sampler2D vectorDetailCells;
@@ -96,6 +100,16 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           return r * vec2(cos(radians(ll.x)), sin(radians(ll.x)));
         }
         float vectorCross(vec2 a, vec2 b) { return a.x * b.y - a.y * b.x; }
+        // During an LOD cross-fade a parent tile and its children both draw,
+        // each keeping complementary pixels of a 4×4 Bayer pattern
+        // (3d-tiles-renderer's TilesFadePlugin, wrapFadeMaterial). A proxy keeps
+        // exactly the pixels its tile kept, so the overlay is blended once.
+        float vectorBayer2(vec2 v) { return mod(3.0 * v.y + 2.0 * v.x, 4.0); }
+        float vectorBayer4(vec2 v) { return 4.0 * vectorBayer2(mod(v, 2.0)) + vectorBayer2(floor(0.5 * mod(v, 4.0))); }
+        bool vectorFadedOut() {
+          float dither = (0.5 + vectorBayer4(floor(mod(gl_FragCoord.xy, 4.0)))) / 16.0;
+          return dither >= vectorFadeIn || dither < vectorFadeOut;
+        }
         // Convert coordinate deltas into framebuffer pixels with the local
         // surface Jacobian. Derivatives are evaluated outside divergent loops.
         vec2 vectorPixel(vec2 delta, vec2 dx, vec2 dy) {
@@ -210,7 +224,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               bestCoverage = alpha;
             }
           }
-          if (result.a == 0.0) discard;
+          if (result.a == 0.0 || vectorFadedOut()) discard;
           gl_FragColor = result;
           #include <logdepthbuf_fragment>
           #include <tonemapping_fragment>

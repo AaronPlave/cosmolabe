@@ -187,6 +187,53 @@ try {
         && vectors.metrics.drawCalls === 0 && vectors.diagnostics.some(d => d.code === 'vector-render-budget') });
     metrics.push({ name: '7000 coincident targets: overload safely omitted', ...vectors.metrics, diagnostics: [...vectors.diagnostics] });
     body.body.name = 'Moon'; body.body.radii = [1737.4, 1737.4, 1737.4];
+    // Active LOD: a coarse parent fading out under four refined children fading in, all drawn
+    // at once and dithered by 3d-tiles-renderer's own wrapFadeMaterial, under one translucent
+    // fill. The same frame with and without vectors gives each covered pixel's effective
+    // opacity: blended once it is the style's 0.4, twice 1 − 0.6² = 0.64.
+    {
+      body.body.name = 'Mars'; body.body.radii = [3396.19, 3396.19, 3396.19];
+      const { wrapFadeMaterial } = await import(`/@fs/${root}/node_modules/3d-tiles-renderer/src/three/plugins/fade/wrapFadeMaterial.js`);
+      const fadeLayer = load({ type: 'FeatureCollection', features: [{ type: 'Feature', id: 'wide', properties: {}, geometry: { type: 'Polygon',
+        coordinates: [[[77.2, 18.2], [77.7, 18.2], [77.7, 18.7], [77.2, 18.7], [77.2, 18.2]]] } }] }, 'Mars');
+      datum = fadeLayer.datum; body.terrainDatum = datum; body.surfaceTransitionState = 'streamed';
+      vectors.setStyle('science', { version: 1, polygon: { fillColor: '#56b4e9', fillOpacity: 0.4, outlineOpacity: 0 } });
+      const fading = (mesh, fadeIn, fadeOut) => {
+        const params = wrapFadeMaterial(mesh.material, mesh.material.onBeforeCompile);
+        params.fadeIn.value = fadeIn; params.fadeOut.value = fadeOut;
+        mesh.material.defines.FEATURE_FADE = 1; mesh.material.needsUpdate = true;
+        return mesh;
+      };
+      const tiles = (fade) => {
+        const parent = terrain(77.45, 18.45, 0.4, 16, 0.4);
+        const children = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, j]) => terrain(77.45 + i * 0.1, 18.45 + j * 0.1, 0.2, 32, 1));
+        body.terrainTileGroup.clear();
+        if (fade) { body.terrainTileGroup.add(fading(parent, 1, 0.5)); for (const c of children) body.terrainTileGroup.add(fading(c, 0.5, 0)); }
+        else for (const c of children) body.terrainTileGroup.add(c);
+      };
+      const FILL = [0x56, 0xb4, 0xe9];
+      const opacities = (on, off) => {
+        let covered = 0, doubled = 0;
+        for (let i = 0; i < on.length; i += 4) {
+          const d = [FILL[0] - off[i], FILL[1] - off[i + 1], FILL[2] - off[i + 2]], len2 = d[0] ** 2 + d[1] ** 2 + d[2] ** 2;
+          if (len2 < 60 * 60) continue;
+          const a = ((on[i] - off[i]) * d[0] + (on[i + 1] - off[i + 1]) * d[1] + (on[i + 2] - off[i + 2]) * d[2]) / len2;
+          if (a < 0.15) continue;
+          covered++; if (a > 0.52) doubled++;
+        }
+        return { covered, doubled };
+      };
+      look(77.45, 18.45, 40);
+      tiles(false); const settled = opacities(draw(), draw(false));
+      tiles(true); const fadeOn = draw(); const drawn = { ...vectors.metrics, diagnostics: vectors.diagnostics, status: vectors.status, style: vectors.getStyle('science') };
+      const crossFading = opacities(fadeOn, draw(false)); capture('lod-cross-fade');
+      metrics.push({ name: 'fill opacity through an LOD cross-fade', settled, crossFading, drawn });
+      checks.push({ name: 'translucent fill blended once through an LOD cross-fade',
+        pass: crossFading.covered > 0.5 * settled.covered && crossFading.doubled < 0.01 * crossFading.covered && settled.doubled < 0.01 * settled.covered });
+      vectors.setStyle('science', null);
+      body.body.name = 'Moon'; body.body.radii = [1737.4, 1737.4, 1737.4];
+    }
+
     const ring = lat => [[-135, lat], [-45, lat], [45, lat], [135, lat], [-135, lat]];
     const polar = { type: 'FeatureCollection', features: [...fixtures[1].features,
       { type: 'Feature', id: 'polar-region', properties: {}, geometry: { type: 'Polygon', coordinates: [ring(-85), ring(-89)] } }] };
