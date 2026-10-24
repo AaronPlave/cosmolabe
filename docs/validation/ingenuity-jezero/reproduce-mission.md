@@ -1,0 +1,98 @@
+# Reproduce the full mission candidate without publishing
+
+The historical audit commands in [README](README.md) create a clean fusion,
+original DEM overview dependency, and numerical audit. Their legacy-flight
+snapshot is deliberate: the old coordinate interpretation must be audited using
+the old files. Only the historical comparison reads an old fused product.
+New execution uses the independently recomputed, byte-verified fusion.
+
+Use the exact source hashes in [source inventory](source-inventory.json),
+[mission geometry evidence](mission-geometry-evidence.json), and
+[terrain registration evidence](terrain-registration.json). The lock pins
+Python/GDAL/NumPy versions. Different source, toolchain or implementation bytes
+create a different identity; do not relabel them as this build.
+
+After creating `$RUN/original-dem-inputs`, `$RUN/clean-fusion`, and
+`$RUN/scientific-audit.json`, acquire both **original** orthomosaics as shown in
+the README. Retain their original bytes at `$RUN/upstream/{hirise-ortho,jezero-ctx}.tif`.
+Restore the exact finite original-response inventories:
+
+```sh
+python3 scripts/terrain/acquire_cube_xyz.py \
+  --replay-bundle docs/validation/ingenuity-jezero/evidence/viking-responses.json.gz \
+  --out "$RUN/viking-bundle-1024" --workers 8
+python3 scripts/terrain/acquire_cube_xyz.py \
+  --replay-bundle docs/validation/ingenuity-jezero/evidence/ctx-responses.json.gz \
+  --out "$RUN/ctx-bundle-1024" --workers 8
+node scripts/surface-build/ingenuity.mjs \
+  "$RUN/original-dem-inputs" "$RUN/clean-fusion" "$AREOID_DIR" \
+  "$RUN/scientific-audit.json" "$RUN/mission-inputs" "$RUN"
+node scripts/build-surface.mjs "$RUN/mission-inputs/lock.json" \
+  --bindings "$RUN/mission-inputs/bindings.json" --cache "$RUN/cache" \
+  --execute --workers 4 > "$RUN/mission-build.json"
+```
+
+The response manifests pin all 11,028 Viking and 2,969 global CTX responses,
+including 129 unavailable CTX responses. Replay checks every response hash and
+fails if upstream bytes have changed. It never turns a missing/corrupt response
+into a resampled parent. An incomplete replay has no `bundle.json` and cannot
+be used as a completed source. A complete executor run still checks response
+addressing, decoded dimensions, claimed holes, native mask subsets, terrain
+controls, source registration, output inventories and checksums. No network is
+used by the executor itself.
+
+[mission.lock.json](mission.lock.json) is the reviewed finite selection. The
+global service equatorial intervals are 325.605638 m for Viking and 5.087588 m
+for CTX; the original mosaics' nominal 232 m / 5 m GSDs remain separately
+recorded. The CTX source target is 6 m. Output grid spacing cannot create
+missing native detail. Regional CTX and HiRISE source intervals are 6 m and
+0.25 m; terrain uses the original 1 m HiRISE DTM within a 200 m global base.
+
+To regenerate the explicitly estimated flight representation:
+
+```sh
+node scripts/build-ingenuity-flights.mjs --fusion "$RUN/clean-fusion" \
+  --areoid "$AREOID_DIR/MEGA90N000EB.LBL"
+python3 scripts/terrain/validate_ingenuity_flights.py \
+  --fusion "$RUN/clean-fusion" --areoid "$AREOID_DIR/MEGA90N000EB.LBL" \
+  --out "$RUN/flight-validation.json"
+```
+
+The checked-in official flight-log JSON is a hash-pinned import of NASA's final
+PDF. `import_ingenuity_log.py --help` documents importing that same edition.
+The original path/landing observations are retained; reconstructed altitude,
+interior timing, source conflicts and frame/clock uncertainty are explicit in
+`data/ingenuity/reconstruction.json` and the selected object's inspector.
+
+To run the actual mission acceptance, link only completed product directories
+from the report into `apps/viewer/test-catalogs/data/ingenuity-cube/<productId>`
+and use the matching IDs in the candidate mission catalog. Start the viewer with
+local data, then run the GPU test:
+
+```sh
+DEV_DATA_MODE=local npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5198
+node scripts/test-ingenuity-jezero.mjs http://127.0.0.1:5198/ "$RUN/browser"
+```
+
+The macOS script selects Google Chrome's Metal backend and rejects a software
+renderer. It uses the real catalog and scientific products. Deliberately injected
+404/transparent responses are confined to its outage assertions and restored
+before normal acceptance. A successful script is required; merely creating the
+script is not acceptance evidence.
+
+The only publication command allowed before authorization is the read-only
+preflight:
+
+```sh
+node scripts/build-surface.mjs "$RUN/mission-inputs/lock.json" \
+  --cache "$RUN/cache" --publication-plan > "$RUN/publication-plan.json"
+```
+
+Do not use `--publish-r2` or apply a deployed catalog change without the user's
+explicit authorization. Pending dataset registrations retain `build: null`.
+Retain the baseline commit `70899b98e7bfe218c81e0c73ef7494924ebf9152` and its
+mission catalog, flight files and dataset pins for rollback. After authorization,
+the shared publisher requires the exact preflight identity, verifies immutable
+objects over HTTP, and creates the receipt used to prepare hosted pins and an
+offline rollback candidate. Neither a preflight nor a local GPU pass asserts
+independent absolute source accuracy or exact flight telemetry.

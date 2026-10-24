@@ -131,6 +131,7 @@ export interface CatalogItem {
   label?: LabelSpec;
   naifId?: number;
   mass?: number | string;
+  description?: string;
   radii?: number[];
   startTime?: string;
   endTime?: string | number;
@@ -903,6 +904,7 @@ export class CatalogLoader {
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
+      description: typeof item.description === 'string' ? item.description : undefined,
       trajectory,
       rotation,
       parentName: parentName ?? item.center,

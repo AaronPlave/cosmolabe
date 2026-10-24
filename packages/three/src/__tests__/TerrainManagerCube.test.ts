@@ -48,6 +48,25 @@ const make = (radiusKm = R) => new TerrainManager(
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('TerrainManager with cube-sphere CPU grids', () => {
+  it('keeps navigation above independent coarse rendering, then releases the stale visual radius after refinement', async () => {
+    serve();const tm=make();
+    await vi.waitFor(()=>expect(tm.cubeStats?.residentTiles).toBe(6));
+    const tiles=(tm as unknown as {tiles:{group:THREE.Group;visibleTiles:Set<unknown>}}).tiles;
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,-5,-5,0,5,-5,0,0,5],3));
+    g.setIndex([0,1,2]);g.userData.surfaceTriangles=1;
+    const mesh=new THREE.Mesh(g);mesh.position.x=R*1000+300;
+    const scene=new THREE.Group();scene.add(mesh);tiles.group.add(scene);
+    const tile={engineData:{scene}};tiles.visibleTiles.add(tile);
+    const point={xKm:R+10,yKm:0,zKm:0};
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.3,6),
+      physicalRadiusKm:expect.closeTo(R+.1,6),renderedRadiusKm:expect.closeTo(R+.3,6),settled:false});
+    mesh.position.x=R*1000+100;
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.1,6),settled:true});
+    tiles.visibleTiles.delete(tile);
+    expect(tm.navigationSurface(point)).toMatchObject({radiusKm:expect.closeTo(R+.1,6),renderedRadiusKm:null,settled:false});
+    tm.dispose();
+  });
+
   it('answers CPU samples from the grids, explicitly unloaded until they arrive', async () => {
     const requested = serve();
     const tm = make();

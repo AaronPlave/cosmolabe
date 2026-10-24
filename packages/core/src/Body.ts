@@ -29,6 +29,8 @@ export interface TrajectoryPlotConfig {
 
 export interface BodyProperties {
   name: string;
+  /** Human-readable source/model qualifications, shown in the inspector. */
+  description?: string;
   naifId?: number;
   trajectory: Trajectory;
   rotation?: RotationModel;
@@ -78,6 +80,7 @@ export type BodyChangeCallback = (body: Body, field: BodyChangeField) => void;
 
 export class Body {
   readonly name: string;
+  readonly description?: string;
   readonly naifId?: number;
   private _trajectory: Trajectory;
   private _rotation?: RotationModel;
@@ -104,6 +107,7 @@ export class Body {
 
   constructor(props: BodyProperties) {
     this.name = props.name;
+    this.description = props.description;
     this.naifId = props.naifId;
     this._trajectory = props.trajectory;
     this._rotation = props.rotation;

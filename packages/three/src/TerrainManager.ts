@@ -17,6 +17,7 @@ import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './sur
 import type { CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
+import { needsNearSurfaceDetail, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -203,6 +204,11 @@ export interface TerrainConfig {
     residentLevel?: number;
     /** Finer grids retained (LRU). Default 2048. */
     maxDetailTiles?: number;
+    /** Physical refinement neighbourhood, independent of screen error. Metres;
+     * defaults: 500 m radius, 0.5 m declared geometric error, active within
+     * 5 km of the product's declared radial relief shell.
+     * This is a representation target, never a source-accuracy claim. */
+    nearSurface?: { radiusM?: number; maxErrorM?: number; altitudeM?: number };
     /**
      * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
      * draped at its own levels, independently of this product's geometry LOD; see
@@ -688,6 +694,8 @@ export class TerrainManager {
   readonly sampler: TerrainSampler;
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
+  private nearSurfaceDetail: NearSurfaceDetail | null = null;
+  private nearSurfacePolicy = { radiusM: 500, maxErrorM: 0.5, altitudeM: 5000 };
   private readonly cubeConfigured: boolean;
   private cubeSkirts = true;
   private drawCulling = false;
@@ -818,6 +826,23 @@ export class TerrainManager {
     // the tileset's layer.json / tileset.json.
     const constructWithoutUrl = this.isImageryOnly || config.type === 'cesium-ion';
     this.tiles = new TilesRenderer(constructWithoutUrl ? undefined : config.url);
+    if (this.cubeConfigured) {
+      this.nearSurfacePolicy = { ...this.nearSurfacePolicy, ...config.cubeSphere?.nearSurface };
+      if (Object.values(this.nearSurfacePolicy).some(v => !Number.isFinite(v) || v <= 0)) {
+        throw new Error('Cube near-surface policy requires positive finite metre values');
+      }
+      this.tiles.registerPlugin({
+        name: 'COSMOLABE_NEAR_SURFACE',
+        calculateTileViewError: (tile: { geometricError: number; engineData?: { boundingVolume?: { distanceToPoint(p: THREE.Vector3): number } } },
+          target: { inView: boolean; error: number; distance: number }) => {
+          if (!this.cube || !needsNearSurfaceDetail(tile.engineData?.boundingVolume, tile.geometricError, this.nearSurfaceDetail)) return false;
+          target.inView = true;
+          target.error = Infinity;
+          target.distance = tile.engineData!.boundingVolume!.distanceToPoint(this.nearSurfaceDetail!.eye);
+          return true;
+        },
+      } as never);
+    }
 
     // Upstream bug guard: multiple plugins (QuantizedMeshPlugin, ImageOverlayPlugin)
     // access tile.children.length in disposeTile without null checks. During LRU cache
@@ -1251,6 +1276,14 @@ export class TerrainManager {
     mv.frustum.planes[4].constant = Infinity;
     mv.frustum.planes[5].constant = Infinity;
     mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
+    // The cube root is metres in the physical body-fixed frame. Use its
+    // actual origin/scale instead of a maximum display radius or a camera FOV.
+    // Coarse neighbours under and around the camera refine even behind it.
+    const cubeManifest = this.cube?.source.manifest;
+    const offsetM = mv.eye.length()-(cubeManifest?.geometry?.referenceRadiusKm ?? this.bodyRadiusKm)*1000;
+    this.nearSurfaceDetail = cubeManifest && offsetM >= cubeManifest.heightRangeKm[0]*1000-this.nearSurfacePolicy.altitudeM &&
+      offsetM <= cubeManifest.heightRangeKm[1]*1000+this.nearSurfacePolicy.altitudeM
+      ? { eye: mv.eye.clone(), radiusM: this.nearSurfacePolicy.radiusM, maxErrorM: this.nearSurfacePolicy.maxErrorM } : null;
 
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
@@ -1489,6 +1522,35 @@ export class TerrainManager {
     this.cube.surface.ensureRayCoverage(ray, options, new AbortController().signal)
       .catch((err) => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
     return result;
+  }
+
+  /** Conservative radial ground for navigation while visual and CPU LODs load.
+   * Never changes scientific samples. Unknown/absent visible coverage remains
+   * null; skirts never become collision surfaces. Recompute against the active
+   * scenes every call, including immediately after a refinement or eviction.
+   */
+  navigationSurface(point: BodyFixedCartesian): { radiusKm: number | null; physicalRadiusKm: number | null;
+    renderedRadiusKm: number | null; discrepancyM: number | null; settled: boolean } | null {
+    if (!this.cube) return null;
+    const d = new THREE.Vector3(point.xKm, point.yKm, point.zKm).normalize();
+    const outer = this.bodyRadiusKm + 50;
+    const ray: SurfaceRay = { origin: { xKm: d.x*outer, yKm: d.y*outer, zKm: d.z*outer },
+      direction: [-d.x,-d.y,-d.z], nearKm: 0, farKm: 150 };
+    const hit = this.intersectSurfaceRay(ray, { maxMeshErrorKm: this.nearSurfacePolicy.maxErrorM/1000 });
+    const physical = hit?.kind === 'hit' ? outer-hit.distanceKm : null;
+    const scenes: THREE.Object3D[] = [];
+    for (const tile of this.tiles.visibleTiles) {
+      const scene = (tile as unknown as { engineData?: { scene?: THREE.Object3D } }).engineData?.scene;
+      if (scene) scenes.push(scene);
+    }
+    const renderedM = renderedCubeRadius(scenes, this.tiles.group, d, outer*1000);
+    const rendered = renderedM === null ? null : renderedM/1000;
+    const discrepancyM = physical === null || rendered === null ? null : (rendered-physical)*1000;
+    const position = bodyFixedToGeodetic(point, this.cube.source.manifest.datum);
+    const coverage = this.cube.source.coverage(position.latDeg, position.lonDeg);
+    return { radiusKm: physical === null ? rendered : rendered === null ? physical : Math.max(physical, rendered),
+      physicalRadiusKm: physical, renderedRadiusKm: rendered, discrepancyM,
+      settled: coverage.state === 'finest' && discrepancyM !== null && Math.abs(discrepancyM) <= this.nearSurfacePolicy.maxErrorM };
   }
 
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {

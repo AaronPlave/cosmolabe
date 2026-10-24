@@ -3433,7 +3433,7 @@ export class UniverseRenderer {
 
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
-      if (skipParentName && bm.body.name === skipParentName) continue;
+      if (skipParentName && bm.body.name === skipParentName && !bm.terrainCubeStats) continue;
 
       const toBody = _clampTmpVec.copy(cam).sub(bm.position);
       const dist = toBody.length();
@@ -3461,6 +3461,7 @@ export class UniverseRenderer {
           const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
           if (!terrainPosition) continue;
           const latDeg = terrainPosition.latDeg;
+          const cubeNavigation = bm.terrainNavigationSurface(bodyFixedPoint);
 
           // Sample terrain every 5 frames, use cached value between samples.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
@@ -3469,7 +3470,13 @@ export class UniverseRenderer {
           const bodyName = bm.body.name;
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
-          if (!cached || frame - cached.frame >= 5) {
+          if (cubeNavigation?.radiusKm != null) {
+            // A finer independent CPU grid may be below a still-drawn coarse
+            // triangle. Keep the eye above both; never mutate the CPU field to
+            // match transient visual LOD. No five-frame cache across LOD swaps.
+            clampRadiusKm = cubeNavigation.radiusKm;
+            hasTerrainSample = true;
+          } else if (!cached || frame - cached.frame >= 5) {
             const sample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
             if (sample) {
               const elev = sample.elevationKm;

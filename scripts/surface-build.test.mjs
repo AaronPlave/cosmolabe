@@ -109,6 +109,23 @@ describe('finite locked surface build planning', () => {
       s.transformations[0].areoid.label.checksum.value = 'a'.repeat(64); });
     expect((await inspectBindings(bound, { 'datum:areoid-label': file }, temp)).at(-2).state).toBe('checksum-mismatch');
   });
+  it('retains all 73 mission controls while preserving fixture and real-profile bounds', async () => {
+    const controls = n => Array.from({length:n}, (_,i) => ({lat:i/100,lon:0,heightM:1000,toleranceM:1}));
+    const small = await relock(v => { v.processing.parameters.gates.controls=controls(65); });
+    await expect(compileBuild(small)).rejects.toThrow(/1\.\.64/);
+    const mission = n => relock(v => {
+      convert(v);
+      v.processing.parameters.profile='bounded-real-mars';
+      v.processing.parameters.toolchain={python:'controlled',gdal:'controlled',numpy:'controlled'};
+      v.processing.parameters.terrain.fusionAsset=datumAsset('c');
+      v.processing.parameters.gates.controls=controls(n);
+    });
+    const lock=await mission(73);
+    expect(lock.processing.parameters.gates.controls).toHaveLength(73);
+    expect((await compileBuild(lock)).products).toHaveLength(3);
+    await expect(compileBuild(await mission(128))).resolves.toBeDefined();
+    await expect(compileBuild(await mission(129))).rejects.toThrow(/1\.\.128/);
+  });
   it('checks content hashes even when a source has the correct byte count and never writes on dry-run', async () => {
     const dir = join(temp, 'bindings');
     const { mkdir } = await import('node:fs/promises'); await mkdir(dir);
