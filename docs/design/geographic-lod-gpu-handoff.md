@@ -46,6 +46,12 @@ filled once. A settled tile (1, 0) never discards. No depth offset was added.
   `wrapFadeMaterial`, under one translucent fill. Fails without the fix.
 - `tile-fade.test.ts`: reading the fade from the real `wrapFadeMaterial`.
 
+**Hardware check (M4 Max, Chrome/Metal, 300 ms fade):** `CL_GPU=hardware
+CL_FADE_MS=300` passes, worst step 0.01% doubled
+(`docs/validation/geographic-streamed-lod/m4max-300ms`). Only 2 of 40 steps
+caught a fade in progress, so the stretched software run remains the stronger
+regression.
+
 **Still to check on hardware.** Outline only, opaque fill, holes, seams and
 multiple overlay pages through a live zoom at the normal 300 ms fade. The
 streamed script covers translucent fills, lines and a hole; run it with
@@ -88,6 +94,32 @@ editability.
   streamed LOD script's dolly loop is a starting point.
 - Texture churn.
 - A side-by-side (d) with the upstream raster prototype.
+
+## Hardware results (M4 Max, 3840×2160)
+
+`docs/validation/geographic-gpu/m4max-stack` (existing shader, #278) and
+`m4max-integration` (scissor + closed-form latitude). Vector cost = GPU median
+minus the same view with vectors off; ranges are two runs of the integration
+branch, so streamed scenes vary with what is resident.
+
+| Scene | #278 shader | Integration |
+| --- | --- | --- |
+| Jezero close · one small polygon | 1.36 ms | 0.07–0.09 ms |
+| Dense Jezero · 1,601 features | 7.45 ms | 2.78 ms |
+| Jezero terrain · vectors on | 6.86 ms | 3.8–4.4 ms |
+| Earth orbit · countries | 5.26 ms | 4.1–5.1 ms |
+| Rhine close · countries (full screen, 6 pages) | 13.95 ms | 13.5–13.7 ms |
+| Gale regional · wide regions | 1.7 ms (p95 10 ms) | 3.5–5.0 ms |
+| Gale close · wide regions | 5.73 ms | 3.7–5.3 ms |
+
+**Reading.** The optimizations remove most of the cost of small, local
+annotations. Broad coverage is unchanged, as expected: it is per covered pixel
+per page. The review's regional case (Gale, 9 wide features, 4 pages) costs
+about 4–5 ms at 4K and holds 60 fps on this GPU. The case that nearly fills the
+frame budget is global countries seen close (Rhine: full-screen coverage across
+6 pages, ~15 ms total frame). That case, not Gale, is the one for raster-
+composited fills of broad static regions; reducing pages drawn per pixel (only
+pages whose features touch the tile) is the cheaper first step to try.
 
 ## Checks run here
 

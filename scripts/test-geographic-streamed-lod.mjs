@@ -11,7 +11,7 @@
  * terrain tiles were mid cross-fade. A settled frame and a mid-zoom frame are
  * saved as PNGs.
  *
- * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
+ * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM, CL_GPU=hardware (Chrome with Metal),
  * CL_OUTPUT (default docs/validation/geographic-streamed-lod), CL_STEPS,
  * CL_FADE_MS (the cross-fade, stretched for software rendering; default 6000). */
 import assert from 'node:assert/strict';
@@ -23,8 +23,10 @@ const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-streamed-lod
 const steps = Number(process.env.CL_STEPS ?? 40);
 const FILL = [0x56, 0xb4, 0xe9], OPACITY = 0.4;
 
-const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/opt/pw-browsers/chromium',
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const hardware = process.env.CL_GPU === 'hardware';
+const browser = await chromium.launch({
+  executablePath: process.env.CL_CHROMIUM ?? (hardware ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : '/opt/pw-browsers/chromium'),
+  args: hardware ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const results = { opacity: OPACITY, steps: [] };
 try {
   await mkdir(output, { recursive: true });
