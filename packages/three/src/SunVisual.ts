@@ -140,9 +140,9 @@ export class SunVisual {
   }
 
   update(camera: THREE.PerspectiveCamera, center: THREE.Vector3, radius: number, height: number,
-    physicalRadiusKm = SOLAR_RADIUS_KM): void {
+    physicalRadiusKm = SOLAR_RADIUS_KM, exposureOverride?: number): void {
     const distance = camera.position.distanceTo(center);
-    this.uniforms.uSolarExposure.value = solarDisplayExposure(distance * physicalRadiusKm / Math.max(radius, 1e-20), physicalRadiusKm);
+    this.uniforms.uSolarExposure.value = exposureOverride ?? solarDisplayExposure(distance * physicalRadiusKm / Math.max(radius, 1e-20), physicalRadiusKm);
     const angularRadius = Math.asin(Math.min(1, radius / Math.max(radius, distance)));
     this.diameterPixels = 2 * Math.tan(angularRadius) * height /
       (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));

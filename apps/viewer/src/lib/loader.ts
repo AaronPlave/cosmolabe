@@ -627,6 +627,11 @@ function initScene(
       // relative (a catalog built in code) resolves against the page.
       : (source: string) => new URL(source, location.href).href,
     bloom: { enabled: !TEST_MODE },
+    // Reference capture opt-in: ?solarExposure=fixed holds the same response
+    // through camera moves and time seeking. Default catalogs remain unchanged.
+    solarExposure: new URLSearchParams(location.search).get('solarExposure') === 'fixed'
+      ? { mode: 'fixed-reference' }
+      : undefined,
   });
   // DPR is pinned to 1 for capture via the browser context (Playwright
   // deviceScaleFactor: 1) — the renderer already follows window.devicePixelRatio.
@@ -723,6 +728,7 @@ function initScene(
     const u = universe;
     const hook = {
       ready: true,
+      getExposureMetadata: () => r.getSolarExposureMetadata(),
       /** Flips true once the catalog's initial models, textures and trajectory
        *  caches have loaded or failed. The harness waits on this instead of
        *  sleeping a fixed settle window and hoping the textures made it
