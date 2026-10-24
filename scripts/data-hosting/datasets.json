@@ -273,7 +273,8 @@
       "build": null,
       "localOnly": true,
       "catalogs": [
-        "experiments/mars-terrain-cube-jezero.json"
+        "experiments/mars-terrain-cube-jezero.json",
+        "mars-cube-imagery-experiment.json"
       ]
     }
   }
