@@ -191,6 +191,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // Scientific assets contain no dependency entrypoints.
+    entries: ['index.html'],
     // Don't pre-bundle workspace packages — use source directly for HMR
     exclude: ['@cosmolabe/control', '@cosmolabe/core', '@cosmolabe/three'],
   },

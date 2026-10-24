@@ -346,6 +346,7 @@ describe('which demo catalogs cannot search at all', () => {
     'mars-cube-imagery-experiment.json',
     'mars-imagery-jezero.json',
     'moon-imagery-apollo15.json',
+    'planetary-places.json',
   ];
 
   it('is exactly the catalogs that furnish no kernels', async () => {

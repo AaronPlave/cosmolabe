@@ -47,9 +47,16 @@ case "$suite" in
     ;;
   geographic)
     if [[ "$level" == pr ]]; then
-      CL_SMOKE=1 CL_FRAMES=1 CL_OUTPUT=/tmp/geographic-global-smoke node scripts/test-geographic-global.mjs
-    else
-      CL_OUTPUT=/tmp/geographic-global-smoke node scripts/test-geographic-global.mjs
+      export CL_SMOKE=1 CL_FRAMES=1
     fi
+    CL_OUTPUT=/tmp/geographic-global-smoke node scripts/test-geographic-global.mjs
+    CL_OUTPUT=/tmp/planetary-places node scripts/test-planetary-places.mjs
+    echo '::group::Place inspector/source/framing acceptance'
+    CL_OUTPUT=/tmp/planetary-place-inspector node scripts/test-place-inspector.mjs
+    echo '::endgroup::'
+    echo '::group::Place label-motion acceptance'
+    CL_OUTPUT=/tmp/planetary-places-motion node scripts/test-place-label-motion.mjs
+    echo '::endgroup::'
+    CL_OUTPUT=/tmp/planetary-place-targets node scripts/test-place-targets.mjs
     ;;
 esac

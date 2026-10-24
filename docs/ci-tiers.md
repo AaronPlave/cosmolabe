@@ -61,6 +61,7 @@ installation; this does not add another check or change the job selection.
 
 Targeted jobs are **not required statuses**; they may be legitimately skipped.
 A failing targeted run is still a regression to fix before merging. The
+geographic PR smoke runs global geography and planetary Places, then the inspector/source/framing acceptance **before** label-motion acceptance, followed by shared navigation/target checks. The same sequence runs at full sampling in nightly/manual smoke. All Places output directories are included in the geographic artifacts. The fast gate also runs the planetary nomenclature converter regressions. The
 geographic PR smoke uses the existing `CL_SMOKE=1, CL_FRAMES=1` preset;
 StarField PR calibration uses `CL_STAR_SMOKE=1`. Neither uses a fake graphics
 implementation: Playwright runs headless Chromium/SwiftShader.

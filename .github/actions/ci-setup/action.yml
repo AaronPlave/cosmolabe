@@ -25,17 +25,17 @@ runs:
       uses: actions/cache@v4
       with:
         path: .git/lfs
-        key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
+        key: lfs-test-kernels-${{ hashFiles('kernels/test-data/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc', 'apps/viewer/test-catalogs/textures/mars.dds') }}
 
     - name: Smudge sparse test-kernel LFS files
       if: inputs.test-kernels == 'true'
       shell: bash
-      # These five globs match the original PR CI set. In particular, do not
+      # These sparse paths include the place smoke Mars base texture. In particular, do not
       # fetch all viewer kernels: the other mission catalogs are much larger.
       run: |
         git lfs install --local
-        git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-        git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
+        git lfs fetch --include "kernels/test-data/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc,apps/viewer/test-catalogs/textures/mars.dds"
+        git lfs checkout "kernels/test-data/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc" "apps/viewer/test-catalogs/textures/mars.dds"
 
     - name: Setup Node.js
       uses: actions/setup-node@v4

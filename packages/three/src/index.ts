@@ -188,6 +188,10 @@ export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surfac
 export { CubeImageryLayer } from './CubeImageryLayer.js';
 export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
 export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
+export { placeAnchor } from './geographic/PlaceSurface.js';
 export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
 export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';

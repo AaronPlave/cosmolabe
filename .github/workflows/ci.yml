@@ -83,6 +83,9 @@ jobs:
           npm test -- --exclude scripts/surface-build.test.mjs
           npx vitest run --project scripts scripts/surface-build.test.mjs --testNamePattern '^finite locked surface build planning'
 
+      - name: Planetary nomenclature converter regressions
+        run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
+
   changes:
     name: Detect expensive-check changes
     if: github.event_name == 'pull_request'
@@ -189,6 +192,9 @@ jobs:
               - 'scripts/capture-starfield-calibration.mjs'
             geographic:
               - 'scripts/test-geographic*.mjs'
+              - 'scripts/test-place*.mjs'
+              - 'scripts/test-planetary-places.mjs'
+              - 'scripts/lib/place-label-motion*.mjs'
               - 'scripts/prepare-natural-earth-countries.py'
   terrain:
     name: Targeted terrain fixtures
@@ -308,6 +314,10 @@ jobs:
           name: targeted-geographic
           path: |
             /tmp/geographic-global-smoke/
+            /tmp/planetary-places/
+            /tmp/planetary-place-inspector/
+            /tmp/planetary-places-motion/
+            /tmp/planetary-place-targets/
             /tmp/viewer-smoke-vite.log
           if-no-files-found: ignore
           retention-days: 7

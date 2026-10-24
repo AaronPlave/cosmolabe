@@ -44,6 +44,7 @@
 {#each panels as tool (tool.id)}
   {#if tool.id === 'catalog'}
     <BodyDrawer onClose={() => closeTool('catalog')} />
+
   {:else if tool.id === 'navigate'}
     <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}

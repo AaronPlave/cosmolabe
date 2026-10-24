@@ -1,6 +1,7 @@
 @import "@fontsource-variable/martian-mono";
 @import "@fontsource-variable/public-sans";
-@import "tailwindcss";
+/* Limit utility discovery to UI source, excluding large optional terrain/catalog assets. */
+@import "tailwindcss" source("./");
 
 /* ── Design tokens ── */
 @theme {

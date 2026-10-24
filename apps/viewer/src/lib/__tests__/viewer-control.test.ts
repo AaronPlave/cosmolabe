@@ -7,12 +7,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
-import type { Universe } from '@cosmolabe/core';
+import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe } from '@cosmolabe/core';
+import { placeCoordinates, selectPlace } from '../places';
+import * as placeActions from '../places';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
+  releaseSurfaceTarget, dismissGeographicContext,
   bindRenderer,
   selectBody,
   unbindRenderer,
@@ -106,7 +109,7 @@ function makeFakeRenderer(objects: string[]) {
     // This control-layer fake has no asynchronous assets, but it must expose
     // the same subscription surface so binding it follows the production path.
     events: {
-      on: () => () => {},
+      on: vi.fn((_event: string, _listener: (payload: unknown) => void) => () => {}),
     },
     timeController: {
       get et() {
@@ -257,6 +260,7 @@ function makeFakeRenderer(objects: string[]) {
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
     // Point Probe: bound on every scene, not a script verb.
+    placeNames: { selectedRef: null as string | null },
     setPointProbeActive: () => {},
     setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
@@ -282,6 +286,7 @@ function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
   const all = [...objects, ...catalogOnly];
   const universe = {
+    events: { on: () => () => {} },
     getTimeRange: () => null,
     getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
   } as unknown as Universe;
@@ -512,6 +517,94 @@ describe('navigation verbs', () => {
     expect(control.getTracked()).toBe('Titan');
     expect(vs.trackedBodyName).toBe('Titan');
     expect(control.getSelected()).toBeNull();
+  });
+
+  it('routes geographic double-click to shared Fly and clears place selection on another body', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    vs.places=new PlaceIndex([layer]);const place=vs.places.places[0];
+    const fly=vi.spyOn(placeActions,'navigateToPlace').mockReturnValue(true);
+    const doubleClick=renderer.events.on.mock.calls.find(([event])=>event==='geographic:dblclick')![1];
+    doubleClick({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
+    expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly',{source:'viewport-dblclick'});
+    doubleClick({layerId:place.layer.id,featureId:'stale',bodyName:place.layer.body});
+    expect(fly).toHaveBeenCalledTimes(1);fly.mockRestore();
+    selectPlace(place);const control=createViewerControl();control.track('Titan');
+    expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);
+    expect(parseCoordinatePair(placeCoordinates(place))).toMatchObject({ok:true,latDeg:-30.12345678,lonDeg:-120.12345678});
+    control.track('Saturn');expect(vs.selectedPlaceRef).toBeNull();expect(renderer.placeNames.selectedRef).toBeNull();
+  });
+
+  it('keeps label hiding searchable but excludes disabled sources and reconciles selection/target', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);const place=vs.places.places[0];
+    Object.assign(renderer.placeNames,{hiddenLayers:new Set<string>()});
+    placeActions.showPlaceDataset(layer.id,false);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    Object.assign(renderer.cameraController,{releaseSurface:vi.fn(()=>true)});
+    placeActions.setPlaceSourceEnabled([layer.id],false);
+    expect(placeActions.searchPlaces('Site')).toEqual([]);expect(placeActions.searchPlaces('Other')).toHaveLength(1);
+    expect(vs.selectedPlaceRef).toBeNull();expect(vs.surfaceTarget).toBeNull();
+    placeActions.selectPlace(place);expect(vs.selectedPlaceRef).toBeNull();
+    expect(placeActions.navigateToPlace(place,'jump')).toBe(false);
+    placeActions.setPlaceSourceEnabled([layer.id],true);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);expect(vs.hiddenPlaceLayers).toContain(layer.id);
+    unbindRenderer();expect(vs.excludedPlaceLayers).toEqual([]);
+  });
+
+  it('distinguishes excluded sources from hidden labels and body-wide label visibility', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);vs.placeBodies=['Titan'];
+    expect(placeActions.placeSourceStatus()).toBe('');
+    vs.hiddenPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(2);
+    vs.excludedPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('No name sources included');expect(placeActions.searchPlaces('')).toHaveLength(0);
+    vs.excludedPlaceLayers=[layer.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(1);
+    vs.hiddenPlaceLayers=[layer.id];expect(placeActions.placeSourceStatus()).toBe('');
+    vs.placeBodies=[];expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');
+    vs.excludedPlaceLayers=[];vs.placeBodies=['Titan'];vs.hiddenPlaceLayers=[];
+    expect(placeActions.placeSourceStatus()).toBe('');expect(placeActions.searchPlaces('')).toHaveLength(2);
+  });
+
+  it.each([false,true])('releases an active named target, preserving independent inspection=%s', independent => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Target'},geometry:{type:'Point',coordinates:[0,0]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];vs.places=new PlaceIndex([layer]);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    if(independent) {vs.selectedPlaceRef='independent';renderer.placeNames.selectedRef='independent';}
+    else {selectPlace(null);expect(renderer.placeNames.selectedRef).toBe(place.ref);}
+    const release=vi.fn(()=>true);Object.assign(renderer.cameraController,{releaseSurface:release});
+    const before={position:{...renderer.camera.position},time:vs.et,tracked:vs.trackedBodyName};
+    expect(releaseSurfaceTarget()).toBe(true);expect(release).toHaveBeenCalledOnce();expect(vs.surfaceTarget).toBeNull();
+    expect(renderer.camera.position).toEqual(before.position);expect(vs.et).toBe(before.time);expect(vs.trackedBodyName).toBe(before.tracked);
+    expect(vs.selectedPlaceRef).toBe(independent?'independent':null);expect(renderer.placeNames.selectedRef).toBe(independent?'independent':null);
+    if(independent) {expect(dismissGeographicContext()).toBe(true);expect(vs.selectedPlaceRef).toBeNull();}
+    expect(dismissGeographicContext()).toBe(false);
+  });
+  it('clears target presentation and place inspection when the scene unbinds', () => {
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}}};
+    vs.selectedPlaceRef='old';unbindRenderer();expect(vs.surfaceTarget).toBeNull();expect(vs.selectedPlaceRef).toBeNull();
+  });
+
+  it('converts copied oblate-place latitude to the coordinate input convention', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Oblate site'},geometry:{type:'Point',coordinates:[77,30]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'ellipsoid',radiiKm:[2,2,1]}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];
+    const copied=parseCoordinatePair(placeCoordinates(place),{order:'lon-lat',direction:'west'});
+    if(!copied.ok)throw new Error(copied.error);
+    expect(copied.latDeg).toBeLessThan(30);
+    const target=resolveGeographicTarget({bodyName:'Titan',latDeg:copied.latDeg,lonDeg:copied.lonDeg,latitude:'planetocentric',longitudeDirection:'west'},
+      {bodyName:'Titan',shape:'oblate',datum:{...layer.datum,origin:'body-shape'}});
+    expect(target.latGraphicDeg).toBeCloseTo(30,6);expect(target.lonEastDeg).toBeCloseTo(77,6);
   });
 
   it('frameObject frames what is tracked when not told what, and refuses with nothing tracked', () => {

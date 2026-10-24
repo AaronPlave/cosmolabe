@@ -303,6 +303,15 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.dispose(); h.universe.dispose();
   });
 
+  it('disables source drawing and picking without changing retained visibility', () => {
+    const h=harness(layer([{type:'Point',coordinates:[0,0]}]));
+    h.vectors.begin();expect(h.vectors.featureCount).toBe(1);
+    h.vectors.setSourceEnabled('science',false);h.vectors.begin();expect(h.vectors.featureCount).toBe(0);
+    h.vectors.setSourceEnabled('science',true);h.vectors.begin();expect(h.vectors.featureCount).toBe(1);
+    h.vectors.setVisible('science',false);h.vectors.setSourceEnabled('science',false);h.vectors.setSourceEnabled('science',true);h.vectors.begin();expect(h.vectors.featureCount).toBe(0);
+    h.vectors.dispose();h.universe.dispose();
+  });
+
   it('keeps explicit heights in km and rejects mixed/variable heights with diagnostics', () => {
     const h = harness(layer([{ type: 'Point', coordinates: [0, 0, 2] }, { type: 'LineString', coordinates: [[0, 0, 1], [1, 0, 2]] }]));
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();

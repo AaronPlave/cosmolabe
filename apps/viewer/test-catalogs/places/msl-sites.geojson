@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "dingo-gap",
+      "properties": {
+        "name": "Dingo Gap overlay anchor",
+        "placeRef": "mars:mission:msl-sites/dingo-gap",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "aliases": [
+          "Curiosity Dingo Gap"
+        ],
+        "sourceFields": {
+          "origin": "Reuses the existing Dingo Gap 3D Tiles overlay anchor in this scene; approximate regional context, not a rover landing position.",
+          "sceneOverlay": "Dingo Gap",
+          "accuracy": "Catalog anchor; no survey accuracy supplied."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          137.4417,
+          -4.5895
+        ]
+      }
+    }
+  ]
+}

@@ -93,6 +93,10 @@ jobs:
           name: nightly-geographic
           path: |
             /tmp/geographic-global-smoke/
+            /tmp/planetary-places/
+            /tmp/planetary-place-inspector/
+            /tmp/planetary-places-motion/
+            /tmp/planetary-place-targets/
             /tmp/viewer-smoke-vite.log
           if-no-files-found: ignore
           retention-days: 7
