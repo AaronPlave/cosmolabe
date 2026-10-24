@@ -21,6 +21,8 @@ export interface Command {
   execute: (renderer: UniverseRenderer) => void;
 }
 
+const r0 = getRenderer;
+
 /** Built-in commands */
 function getBuiltinCommands(): Command[] {
   return [
@@ -51,6 +53,13 @@ function getBuiltinCommands(): Command[] {
     { id: 'disp:labels', label: vs.showLabels ? 'Hide labels' : 'Show labels', shortcut: 'L', category: 'Display', execute: () => setDisplayOption('labels', !vs.showLabels) },
     { id: 'disp:grid', label: vs.showGrid ? 'Hide grid' : 'Show grid', shortcut: 'G', category: 'Display', execute: () => setDisplayOption('grid', !vs.showGrid) },
     { id: 'disp:axes', label: vs.showAxes ? 'Hide axes' : 'Show axes', shortcut: 'X', category: 'Display', execute: () => setDisplayOption('axes', !vs.showAxes) },
+
+    // Observations are contextual (shown while active, or when selected); this
+    // keeps every one up to the clock instead — the pin-everything path.
+    { id: 'disp:observations-all', label: r0()?.getObservationsVisualizer().showingAll ? 'Show only active observations' : 'Show all observations', category: 'Display', execute: (r) => {
+      const v = r.getObservationsVisualizer();
+      v.setShowAll(!v.showingAll);
+    }},
 
     // Inspect
     { id: 'probe:toggle', label: vs.probeActive ? 'Stop probing' : 'Probe point', shortcut: 'P', category: 'Inspect', execute: () => toggleProbe() },

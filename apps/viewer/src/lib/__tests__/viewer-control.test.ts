@@ -17,6 +17,7 @@ import {
   DISPLAY_OPTIONS,
   releaseSurfaceTarget, dismissGeographicContext,
   bindRenderer,
+  selectAndFlyTo,
   selectBody,
   unbindRenderer,
   vs,
@@ -25,7 +26,7 @@ import {
 // ── A renderer with no WebGL behind it ──
 
 interface FakeBodyMesh {
-  body: { name: string; classification?: string; parentName?: string };
+  body: { name: string; classification?: string; parentName?: string; geometryType?: string };
   displayRadius: number;
   position: { x: number; y: number; z: number; clone(): FakeVec; sub(v: FakeVec): FakeVec };
   visible: boolean;
@@ -265,6 +266,11 @@ function makeFakeRenderer(objects: string[]) {
     setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
     getPlugins: () => [],
+    getObservationsVisualizer: () => ({
+      setFocus: (names: Iterable<string>) => log(`setObservationFocus(${[...names].join(',')})`),
+      setShowAll: (on: boolean) => log(`setShowAllObservations(${on})`),
+      showingAll: false,
+    }),
   };
   return renderer;
 }
@@ -487,6 +493,40 @@ describe('gotoObject', () => {
 
   it('returns false for an object the scene does not have', () => {
     expect(createViewerControl().gotoObject('Titam')).toBe(false);
+  });
+});
+
+// An observation's catalog body sits at its target's centre with no size, so
+// a flight to *it* would land inside the target (the review on #173: 300 km
+// from Titan's centre). Every path to it — double-click, drawer, palette,
+// script — selects the observation and flies to the target instead.
+describe('an observation as a destination', () => {
+  function bindWithObservation() {
+    bind([...OBJECTS, 'Titan mosaic']);
+    const obs = renderer.getBodyMesh('Titan mosaic')!;
+    obs.body = { name: 'Titan mosaic', geometryType: 'Observations', parentName: 'Titan' };
+    obs.displayRadius = 100; // the fallback an observation body gets: no radii of its own
+    renderer.calls.length = 0;
+  }
+
+  it('double-click / drawer / palette select it and fly to its target', () => {
+    bindWithObservation();
+    expect(selectAndFlyTo('Titan mosaic')).toBe(true);
+    expect(vs.selectedBodyName).toBe('Titan mosaic');
+    expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)']);
+    expect(renderer.calls).toContain('setObservationFocus(Titan mosaic)');
+  });
+
+  it('gotoObject frames the target, not a point inside it', () => {
+    bindWithObservation();
+    expect(createViewerControl().gotoObject('Titan mosaic')).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Titan)']);
+  });
+
+  it('leaves ordinary bodies alone', () => {
+    bindWithObservation();
+    selectAndFlyTo('Enceladus');
+    expect(cameraCalls()).toEqual(['flyTo(Enceladus, direct, undefined)']);
   });
 });
 

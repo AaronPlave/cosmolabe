@@ -234,6 +234,9 @@ export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null 
 export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
+  // A selected observation stays drawn outside its own window (they are
+  // contextual otherwise); selecting anything else releases it.
+  _renderer?.getObservationsVisualizer().setFocus(name ? [name] : []);
   emit('select', name);
 }
 
@@ -986,7 +989,19 @@ export function flyToTracked(path?: FlightPath): boolean {
 export function selectAndFlyTo(name: string): boolean {
   if (!hasBody(name)) return false;
   selectBody(name);
-  return flyToBody(name);
+  return flyToBody(flightDestination(name));
+}
+
+/**
+ * Where the camera goes for a body. An observation is a footprint on its
+ * target: its catalog body sits at the target's centre with no size of its
+ * own, so a flight "to" it lands a few hundred km from the centre — inside
+ * Titan or Saturn — and tracks a point nobody can see. Its target is the
+ * destination instead; the observation stays the selection.
+ */
+export function flightDestination(name: string): string {
+  const body = _renderer?.getBodyMesh(name)?.body;
+  return body?.geometryType === 'Observations' && body.parentName ? body.parentName : name;
 }
 
 /**
@@ -1001,9 +1016,10 @@ export function gotoObject(
   name: string,
   opts: { animate?: boolean; duration?: number } = {},
 ): boolean {
+  const destination = flightDestination(name);
   return opts.animate
-    ? flyToBody(name, { path: 'direct', seconds: opts.duration })
-    : jumpToBody(name);
+    ? flyToBody(destination, { path: 'direct', seconds: opts.duration })
+    : jumpToBody(destination);
 }
 
 /**
