@@ -275,6 +275,41 @@
       "catalogs": [
         "experiments/mars-terrain-cube-jezero.json"
       ]
+    },
+    "cube-terrain/terrain-d50b534964f2aa3b0a409bf8": {
+      "kind": "cube-terrain",
+      "name": "terrain-d50b534964f2aa3b0a409bf8",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/terrain-d50b534964f2aa3b0a409bf8",
+      "catalogPrefix": "data/ingenuity-cube/terrain-d50b534964f2aa3b0a409bf8/",
+      "build": null
+    },
+    "cube-imagery/imagery-a56fb38b20d2d1f39f5de784": {
+      "kind": "cube-imagery",
+      "name": "imagery-a56fb38b20d2d1f39f5de784",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-a56fb38b20d2d1f39f5de784",
+      "catalogPrefix": "data/ingenuity-cube/imagery-a56fb38b20d2d1f39f5de784/",
+      "build": null
+    },
+    "cube-imagery/imagery-3ba45870c9622922ad6db715": {
+      "kind": "cube-imagery",
+      "name": "imagery-3ba45870c9622922ad6db715",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-3ba45870c9622922ad6db715",
+      "catalogPrefix": "data/ingenuity-cube/imagery-3ba45870c9622922ad6db715/",
+      "build": null
+    },
+    "cube-imagery/imagery-4db26fa7c2e48deabf1b7dbb": {
+      "kind": "cube-imagery",
+      "name": "imagery-4db26fa7c2e48deabf1b7dbb",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4db26fa7c2e48deabf1b7dbb",
+      "catalogPrefix": "data/ingenuity-cube/imagery-4db26fa7c2e48deabf1b7dbb/",
+      "build": null
+    },
+    "cube-imagery/imagery-d124d13a3aa86ea4a4e221fc": {
+      "kind": "cube-imagery",
+      "name": "imagery-d124d13a3aa86ea4a4e221fc",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-d124d13a3aa86ea4a4e221fc",
+      "catalogPrefix": "data/ingenuity-cube/imagery-d124d13a3aa86ea4a4e221fc/",
+      "build": null
     }
   }
 }

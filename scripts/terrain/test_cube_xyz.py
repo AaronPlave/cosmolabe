@@ -13,6 +13,65 @@ from cube_xyz import sample, source_pixel, validate, in_bounds, read_tile
 
 
 class CubeXYZTests(unittest.TestCase):
+    def test_pinned_response_replay_refuses_changed_bytes_without_publishing_manifest(self):
+        import gzip
+        import hashlib
+        from acquire_cube_xyz import replay
+        original=b'original response bytes'
+        digest=hashlib.sha256(original).hexdigest()
+        manifest=json.dumps({'version':2,'kind':'locked-xyz-bundle',
+            'config':{'url':'https://example/{z}/{x}/{y}','dimension':2,'levels':1,'latitudeConvention':'planetocentric'},
+            'tiles':{'0/0/0':{'path':'responses/'+digest+'.image','sha256':digest}}}).encode()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);pin=root/'inventory.json.gz';pin.write_bytes(gzip.compress(manifest,mtime=0))
+            with patch('acquire_cube_xyz.urlopen',lambda *args,**kwargs:io.BytesIO(original)):
+                replay(pin,root/'good',2)
+            self.assertEqual((root/'good/bundle.json').read_bytes(),manifest)
+            self.assertEqual((root/'good/responses'/f'{digest}.image').read_bytes(),original)
+            with patch('acquire_cube_xyz.urlopen',lambda *args,**kwargs:io.BytesIO(b'new response')):
+                with self.assertRaisesRegex(ValueError,'Original response changed'):
+                    replay(pin,root/'bad',2)
+            self.assertFalse((root/'bad/bundle.json').exists())
+
+    def test_bundle_staging_rejects_a_falsely_claimed_source_hole(self):
+        import hashlib
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'surface-build'))
+        from worker import bundle
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);stage=root/'stage';stage.mkdir()
+            raster=gdal.GetDriverByName('MEM').Create('',2,2,1,gdal.GDT_Byte);raster.GetRasterBand(1).Fill(37)
+            source=root/'original.png';gdal.GetDriverByName('PNG').CreateCopy(str(source),raster)
+            entry={'path':source.name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+                   'unavailable':{'reason':'decode-failure','httpStatus':200,'url':'https://example/0/0/0'}}
+            manifest=root/'bundle.json'
+            def write():
+                manifest.write_text(json.dumps({'version':2,'kind':'locked-xyz-bundle',
+                  'config':{'url':'https://example/{z}/{x}/{y}','dimension':2,'levels':1,'latitudeConvention':'planetocentric'},'tiles':{'0/0/0':entry}}))
+            write()
+            with self.assertRaisesRegex(AssertionError,'is decodable'):
+                bundle(manifest,stage/'config.json',root)
+            source.write_bytes(b'truncated original response');entry['sha256']=hashlib.sha256(source.read_bytes()).hexdigest();write()
+            receipt=bundle(manifest,stage/'config.json',root)
+            self.assertEqual(len(receipt['unavailableResponses']),1)
+            self.assertEqual(receipt['responseBytes'],len(source.read_bytes()))
+
+    def test_pinned_unavailable_response_stays_transparent_without_network_or_parent(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'bad.image';path.write_bytes(b'original truncated upstream response')
+            entry = {'path':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+                     'unavailable':{'reason':'decode-failure','url':'https://example/1/1/1','httpStatus':200}}
+            config = {'dimension':2,'lockedTiles':{'1/1/1':entry}}
+            with patch('cube_xyz.urllib.request.urlopen',side_effect=AssertionError('network forbidden')):
+                self.assertIsNone(read_tile(config,folder,1,1,1))
+                rgb,alpha=sample(config,np.array([0.]),np.array([-1.]),1,folder,
+                                 read=lambda *args:None)
+                self.assertEqual(float(alpha[0]),0)
+                np.testing.assert_array_equal(rgb,0)
+                path.write_bytes(b'changed')
+                with self.assertRaisesRegex(ValueError,'checksum mismatch'):
+                    read_tile(config,folder,1,1,1)
+
     def test_locked_bundle_cannot_fetch_or_reuse_changed_bytes(self):
         import hashlib
         with tempfile.TemporaryDirectory() as folder:

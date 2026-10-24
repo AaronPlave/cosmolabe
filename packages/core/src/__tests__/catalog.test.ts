@@ -7,12 +7,14 @@ describe('CatalogLoader', () => {
     const result = loader.load({
       name: 'test',
       items: [
-        { name: 'A', trajectory: { type: 'FixedPoint', position: [1, 2, 3] } },
+        { name: 'A', description: 'Estimated position; absolute accuracy unknown.', trajectory: { type: 'FixedPoint', position: [1, 2, 3] } },
         { name: 'B', trajectory: { type: 'FixedPoint', position: [4, 5, 6] } },
       ],
     });
 
     expect(result.bodies.length).toBe(2);
+    expect(result.bodies[0].description).toBe('Estimated position; absolute accuracy unknown.');
+    expect(result.bodies[1].description).toBeUndefined();
     expect(result.bodies[0].stateAt(0).position).toEqual([1, 2, 3]);
     expect(result.bodies[1].stateAt(0).position).toEqual([4, 5, 6]);
   });

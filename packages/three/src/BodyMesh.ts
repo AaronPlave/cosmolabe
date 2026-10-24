@@ -1364,6 +1364,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.intersectSurfaceRay(ray, options) ?? null;
   }
 
+  /** Visual/physical loading agreement, separate from scientific terrain samples. */
+  terrainNavigationSurface(point: BodyFixedCartesian): ReturnType<TerrainManager['navigationSurface']> {
+    return this.terrainManager?.navigationSurface(point) ?? null;
+  }
+
   /**
    * IAU oblate-ellipsoid radius (km) at the given geodetic latitude.
    * For Mars at Jezero's 18°N this is ~2.2 km smaller than the equatorial

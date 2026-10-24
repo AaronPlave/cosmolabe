@@ -60,6 +60,11 @@ def read_tile(config, cache, level, x, y):
         path = Path(entry['path'])
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
             raise ValueError(f'locked XYZ checksum mismatch: {key}')
+        if entry.get('unavailable'):
+            # Explicitly acquired failed response; no generated parent pixels
+            # masquerade as native coverage. Other independent layers supply
+            # runtime fallback. Staging verifies the failure declaration.
+            return None
         return decode(config, path, key)
     url = config['url'].replace('{z}', str(level)).replace('{x}', str(x)).replace('{y}', str(y))
     key = hashlib.sha256(url.encode()).hexdigest()

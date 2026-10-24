@@ -55,7 +55,7 @@ def prepare_imagery(source, target):
     ds = gdal.Open(str(source)); band = ds.GetRasterBand(1)
     assert band.DataType == gdal.GDT_Byte and ds.RasterCount == 1, 'raster imagery requires one byte band'
     out = gdal.GetDriverByName('GTiff').Create(str(target), ds.RasterXSize, ds.RasterYSize, 2, gdal.GDT_Float32,
-                                             options=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3'])
+                                             options=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3', 'BIGTIFF=YES'])
     out.SetGeoTransform(ds.GetGeoTransform()); out.SetProjection(ds.GetProjection())
     out.SetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY', '1')
     for row in range(0, ds.RasterYSize, 128):
@@ -152,15 +152,15 @@ def raster(path, radius, source, global_base=False):
             'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
-def bundle(path, target, source_dir):
+def bundle(path, target, source_dir, source=None):
     from cube_xyz import validate
     doc = json.loads(Path(path).read_text())
-    assert doc.get('version') == 1 and doc.get('kind') == 'locked-xyz-bundle', 'expected locked XYZ bundle v1'
+    assert doc.get('version') in (1, 2) and doc.get('kind') == 'locked-xyz-bundle', 'expected locked XYZ bundle v1/v2'
     config = doc['config']
     allowed = {'type', 'projection', 'latitudeConvention', 'url', 'levels', 'dimension', 'minZoom', 'bounds'}
     assert not set(config) - allowed, 'unsupported/mutable XYZ configuration'
     validate(config)
-    locked, size, seen = {}, 0, set()
+    locked, size, seen, unavailable, opaque = {}, 0, set(), [], {}
     assert 0 < len(doc['tiles']) <= 100000, 'finite XYZ tile list required'
     for key, entry in sorted(doc['tiles'].items()):
         z, x, y = (int(p) for p in key.split('/'))
@@ -171,14 +171,52 @@ def bundle(path, target, source_dir):
         shutil.copyfile(local, frozen)
         assert sha(frozen) == entry['sha256'], 'XYZ source changed during staging'
         from cube_xyz import decode
-        image = decode(config, frozen, key)
-        assert np.all(image[..., 3] == 255), 'v1 unmasked lock cannot contain source alpha/nodata'
-        locked[key] = {'path': str(frozen), 'sha256': entry['sha256']}
+        failure = entry.get('unavailable')
+        if failure:
+            assert doc['version'] == 2 and isinstance(failure, dict), 'unavailable responses require XYZ bundle v2'
+            assert failure.get('reason') in ('http-missing', 'decode-failure'), 'unknown source failure'
+            expected_url = config['url'].replace('{z}', str(z)).replace('{x}', str(x)).replace('{y}', str(y))
+            assert failure.get('url') == expected_url, 'failure receipt URL differs from source address'
+            if failure['reason'] == 'decode-failure':
+                try:
+                    decode(config, frozen, key)
+                except (RuntimeError, ValueError):
+                    pass
+                else:
+                    raise AssertionError('claimed corrupt XYZ response is decodable')
+            else:
+                assert failure.get('httpStatus') in (204, 404), 'missing source requires an explicit HTTP status'
+            unavailable.append({'key': key, 'sha256': entry['sha256'], **failure})
+        else:
+            image = decode(config, frozen, key)
+            opaque[key] = bool(np.all(image[..., 3] == 255))
+            if doc['version'] == 1:
+                assert np.all(image[..., 3] == 255), 'v1 unmasked lock cannot contain source alpha/nodata'
+        locked[key] = {'path': str(frozen), 'sha256': entry['sha256'], **({'unavailable': failure} if failure else {})}
         if entry['sha256'] not in seen:
             size += local.stat().st_size
             seen.add(entry['sha256'])
     write(target, {**config, 'cache': str(Path(target).parent), 'lockedTiles': locked})
-    return {'responses': len(locked), 'responseBytes': size, 'sourceConfig': config}
+    subset_proof = None
+    evidence = (source or {}).get('metadata', {}).get('validData')
+    if evidence:
+        import math
+        from cube_xyz import source_pixel
+        from osgeo import ogr
+        checked = set(); level = config['levels']-1; dim = config.get('dimension',256)
+        for feature in evidence['geometry']['features']:
+            west,east,south,north = ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])).GetEnvelope()
+            px,py = source_pixel(np.array([west,east]),np.array([north,south]),level,dim)
+            for y in range(max(0,math.floor((py.min()-2)/dim)),min(2**level-1,math.floor((py.max()+2)/dim))+1):
+                for x in range(math.floor((px.min()-2)/dim),math.floor((px.max()+2)/dim)+1):
+                    key=f'{level}/{x%(2**(level+1))}/{y}'
+                    assert opaque.get(key), 'declared XYZ valid subset lacks verified opaque original response support'
+                    checked.add(key)
+        subset_proof={'extent':'known-valid-subset','method':'Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling',
+                      'responses':sorted(checked),'nativeSourceLevel':level}
+    return {'responses': len(locked), 'responseBytes': size, 'sourceConfig': config,
+            'nativeValidSubset':subset_proof,'unavailableResponses': unavailable,
+            'fallback': 'Transparent missing pixels; independent runtime layers only. No source-parent substitution.'}
 
 
 def command(*args):
@@ -259,7 +297,7 @@ def build(args):
             audit['imagery'][source['id']] = raster(paths[source['id']], radius, source)
         else:
             audit['imagery'][source['id']] = bundle(paths[source['id']], inputs / f'{source["asset"]["checksum"]["value"]}.config.json',
-                                                   Path(job['paths'][source['id']]).parent)
+                                                   Path(job['paths'][source['id']]).parent, source)
     fusion = out / 'fusion'
     if terrain_required:
         if terrain.get('fusionAsset'):

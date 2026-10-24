@@ -53,7 +53,7 @@ apps/viewer/test-catalogs/data/moon-terrain-fused/
 apps/viewer/test-catalogs/data/moon-terrain-polar/
 apps/viewer/test-catalogs/data/moon-terrain-cube
 apps/viewer/test-catalogs/data/moon-terrain-cube-*/
-apps/viewer/test-catalogs/data/moon-imagery-cube-*/
+apps/viewer/test-catalogs/data/moon-imagery-cube-*
 # Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
 work/surface-build/
 work/ingenuity-246/
@@ -84,3 +84,6 @@ apps/viewer/test-catalogs/models/rosetta/*.part
 /docs/validation/issue-191-places/**/mars-moon-motion.json
 /docs/validation/issue-191-places/**/diagnosis.json
 /docs/validation/issue-191-places/**/original-reference-diagnostics.json
+
+# Local immutable #246 candidate products; published only after explicit authorization.
+apps/viewer/test-catalogs/data/ingenuity-cube/

@@ -129,9 +129,11 @@ source accuracy is not converted into a toolchain or mesh-error guarantee.
 
 ## Reports and publication boundary
 
-The [Ingenuity #246 source audit and clean mission-region terrain prerequisite](validation/ingenuity-jezero/README.md)
-records all 73 controls, a fresh bias-preserving fusion, full original Jezero
-orthomosaic acquisition, and the remaining source/trajectory/LOD failures.
+The [Ingenuity #246 full mission migration](validation/ingenuity-jezero/README.md)
+records all 73 controls, independently evaluated terrain registration,
+explicitly estimated flights, four independent imagery sources and the current
+browser/GPU acceptance status. Its [reproduction guide](validation/ingenuity-jezero/reproduce-mission.md)
+retains exact response inventories and a finite five-product lock.
 The real profile permits up to 128 controls; the synthetic profile retains its
 64-control ceiling. Passing the executor's supported gates does not establish
 near-ground CPU/rendered agreement or authorize the mission catalog migration.

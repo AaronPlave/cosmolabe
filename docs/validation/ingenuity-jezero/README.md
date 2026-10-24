@@ -1,10 +1,62 @@
-# Ingenuity/Jezero #246: source preflight and numerical audit
+# Ingenuity/Jezero #246 migration
 
-Recorded 2026-10-24. **Migration is incomplete; production acceptance fails.**
-No flight files, mission catalog, deployment data pins, or production R2 objects
-were changed. The numerical work below is a prerequisite, not mission acceptance.
+**Working draft: full mission acceptance is in progress in PR #292.** All of
+#246 remains in this PR. Production R2 upload and deployment require separate
+explicit authorization; neither has occurred.
 
-## Sources and access
+The implementation now includes corrected planetocentric/areoid-radial flight
+positions, explicitly estimated altitude/time profiles, a reusable physical
+neighbourhood refinement policy and conservative visual/CPU camera clearance,
+four independently acquired imagery sources, and candidate mission catalog
+integration. Candidate product pins now match the final compiled selection;
+the completed receipt must confirm them before acceptance. The new mission
+browser script has not yet passed.
+
+[Full mission reproduction](reproduce-mission.md) includes exact pinned response
+inventories and the [five-product lock](mission.lock.json). The global service
+grids are distinguished from nominal original mosaic GSDs. Final CTX native
+target is 6 m, above its 5.087588 m service interval.
+
+Current scientific evidence:
+
+- [Terrain registration comparison](terrain-registration.json): 4,634 original
+  source samples, with no Ingenuity observations. HiRISE-minus-CTX mean -0.387 m,
+  RMS 3.739 m; subtracting the old global-base plane gives mean +7.506 m,
+  RMS 10.617 m. The published TRN control chain and this comparison support
+  keeping authored HiRISE heights; no terrain adjustment is made to fit flights.
+- [NASA final flight log](../../../apps/viewer/test-catalogs/data/ingenuity/official-flight-log.json)
+  and [explicit reconstruction model/conflicts](../../../apps/viewer/test-catalogs/data/ingenuity/reconstruction.json).
+  Original horizontal observations, landing locations, and mission event epochs
+  remain unchanged. Interior times and radial AGL are estimates, not telemetry.
+- [PDS frame evidence](mission-geometry-evidence.json) and
+  [archived image geometry replay](pds-geometry-check.json): documented HELI_M to
+  HELI_G to SITE(3) chain, orbital map standard parallel 18.4663 degrees,
+  planetocentric latitude and positive-down Site Z. The sparse Flight 12 event
+  gives 10.280 m clearance against the unchanged terrain. Its nominal SCLK/UTC
+  difference is 276.143 s; do not infer a whole-mission clock correction.
+- [Serialized flight validation](flight-validation.json): 72 flights, 73 landing
+  sites, 266,200 knots/quarter-interval Hermite samples. Maximum horizontal landing
+  change 0.000388 m; minimum estimated clearance -0.000000557 m (roundoff).
+  This sampled representation check is not an absolute accuracy certification.
+  Against linearly interpolated legacy files at matching epochs, maximum
+  displacement is 12,060.271 m, combining the coordinate correction and
+  explicitly estimated profile/timing changes. Every baseline file is hash-pinned.
+
+The unchanged original worst-boundary fixture has been replayed and still
+reproduces its 291.042 m discrepancy. New near-surface loading/clearance tests
+retain that evidence separately from operational mission tolerances. Focused
+renderer tests and the existing MoonFall Metal browser regression have passed.
+Final mission browser/GPU acceptance, exact product IDs, publication preflight,
+rollback, remote-head CI and final report updates remain open.
+
+## Historical source preflight
+
+The report below records the first source audit. Its trajectory hold and
+prerequisite status describe that earlier checkpoint, before the PDS evidence,
+explicit estimated-flight decision and current implementation above. Historical
+numerical evidence is retained rather than silently overwritten.
+
+### Sources and access
 
 [Source inventory](source-inventory.json) pins the original input bytes and GDAL
 grids. [Access receipts](source-access.json) and [original labels/configuration](evidence/)
@@ -54,7 +106,7 @@ that the Viking service is unavailable. Four-source imagery acceptance remains
 open, including useful overview coverage, exact fallback provenance, valid
 footprints, controls and native fidelity.
 
-## Datum and trajectory audit
+### Datum and trajectory audit
 
 [Full numerical report, including all 73 controls and all 72 flights](scientific-audit.json).
 
@@ -97,7 +149,7 @@ or clock-to-ET definition. Preserve observations/timing and record the condition
 reconstruction before choosing a migration model. Unknown absolute accuracy must
 remain unknown; scalar agreement must not be presented as its certification.
 
-## Clean fusion and actual mission-region cube build
+### Clean fusion and actual mission-region cube build
 
 The shared `dem.py fuse` was run from the two original DEMs, with a 1 km taper,
 fit stride 8 and **`--bias none`**. It did not consume the old residual. All four
@@ -147,7 +199,7 @@ error, skirt hits, and current visual residency remain separate. A reusable
 renderer/LOD prerequisite and cold/refining/settled near-ground acceptance are
 still required. This product has not been accepted for ground-level operations.
 
-## Reproduce without publication
+### Reproduce without publication
 
 Use `python3` with GDAL/NumPy (recorded: Python 3.14.5, GDAL 3.13.0, NumPy 2.4.6)
 and build the repository packages. All output directories below must be new.
@@ -159,6 +211,8 @@ SOURCE_DIR="$PWD/scripts/build-mars-terrain/data/source"
 AREOID_DIR="$(cd ../cosmolabe-dupe-1/work/surface-build/mola-meg016 && pwd)"
 RUN="$PWD/work/ingenuity-246/reproduction"
 mkdir -p "$RUN/upstream" "$RUN/original-dem-inputs"
+mkdir -p "$RUN/legacy"
+git archive 70899b98e7bfe218c81e0c73ef7494924ebf9152 apps/viewer/test-catalogs/data/ingenuity | tar -x -C "$RUN/legacy"
 curl -fL 'https://mars.nasa.gov/maps/api/configure/get?mission=M20' -o "$RUN/upstream/mmgis-config.json"
 python3 scripts/terrain/dem.py fuse \
   --base "$SOURCE_DIR/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif" \
@@ -168,6 +222,7 @@ python3 scripts/terrain/dem.py fuse \
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/terrain/audit_ingenuity.py \
   --source "$SOURCE_DIR" --fusion "$RUN/clean-fusion" \
   --old-fusion scripts/build-mars-terrain/data/fused \
+  --flights "$RUN/legacy/apps/viewer/test-catalogs/data/ingenuity" \
   --areoid "$AREOID_DIR/MEGA90N000EB.LBL" \
   --mmgis-config "$RUN/upstream/mmgis-config.json" --out "$RUN/scientific-audit.json"
 ```
@@ -203,7 +258,7 @@ curl -fL "$USGS_ROOT/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_
 curl -fL "$USGS_ROOT/CTX/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.tif" -o "$RUN/upstream/jezero-ctx.tif"
 ```
 
-## Publication, rollback, and remaining acceptance
+### Publication, rollback, and remaining acceptance
 
 The read-only publication preflight rehashes the completed local terrain and
 produces its exact immutable candidate prefix/inventory hash in the

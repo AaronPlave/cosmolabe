@@ -7,6 +7,7 @@
   import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
+  let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
@@ -206,6 +207,9 @@
 
     {#if bodyEntry?.classification}
       <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
+    {/if}
+    {#if description}
+      <p class="text-xs text-text-muted mb-3">{description}</p>
     {/if}
 
     <!-- CAMERA: camera-relative -->

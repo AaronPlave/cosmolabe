@@ -1,5 +1,5 @@
 // Prepare the finite #246 terrain lock from a clean fusion and the numerical audit.
-// This is a mission terrain prerequisite, not imagery or production acceptance.
+// Optional full-size imagery inputs produce all four independent mission products.
 import { mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,7 +12,7 @@ const rectangle = (id, w, s, e, n) => ({ type: 'Feature', id, properties: null,
   geometry: { type: 'Polygon', coordinates: [[[w,s],[e,s],[e,n],[w,n],[w,s]]] } });
 const collection = features => ({ type: 'FeatureCollection', features });
 
-export async function prepareIngenuity({ source, fusion, areoid, audit: auditFile, output }) {
+export async function prepareIngenuity({ source, fusion, areoid, audit: auditFile, output, imageryRoot }) {
   source = resolve(source); fusion = resolve(fusion); areoid = resolve(areoid); output = resolve(output);
   const audit = JSON.parse(await readFile(auditFile, 'utf8'));
   if (audit.controls.count !== 73 || audit.flights.count !== 72 || audit.cleanFusion.registration.removed) {
@@ -100,32 +100,87 @@ export async function prepareIngenuity({ source, fusion, areoid, audit: auditFil
     const distance = Math.min(...vectors.map(v => Math.acos(Math.min(1,Math.max(-1,v.reduce((s,x,i)=>s+x*p[i],0))))*3396.19));
     if (distance > 2) throw new Error('An original path sample falls outside finest terrain caps');
   }
+  const imagery = [], imageSelections = [], imageBindings = {};
+  // A continuous corridor contains every original horizontal path vertex.
+  // Successive retained centres are <=100 m apart; 240 m squares overlap.
+  // Keep individual polygons so coverage validation need not claim the empty
+  // corners of a single envelope as high-resolution operational coverage.
+  const corridor = [];
+  const prior = [];
+  for (const f of paths.features) for (const [lon,lat] of f.geometry.coordinates) {
+    const p = point(lat,lon);
+    if (prior.some(v => Math.acos(Math.min(1,Math.max(-1,v.reduce((s,x,i)=>s+x*p[i],0))))*3396190 < 100)) continue;
+    prior.push(p);
+    const dLat = 120/3396190*180/Math.PI, dLon = dLat/Math.cos(lat*Math.PI/180);
+    corridor.push(rectangle('path',lon-dLon,lat-dLat,lon+dLon,lat+dLat).geometry.coordinates);
+  }
+  const operational = collection([{type:'Feature',id:'operations',properties:null,geometry:{type:'MultiPolygon',coordinates:corridor}}]);
+  if (imageryRoot) {
+    imageryRoot = resolve(imageryRoot);
+    const specs = [
+      ['viking','viking-bundle-1024/bundle.json','EPSG:4326',232,7,400,'NASA Trek / USGS Viking MDIM 2.1'],
+      ['ctx-global','ctx-bundle-1024/bundle.json','EPSG:4326',5,13,6,'Caltech Murray Lab / Esri'],
+      ['jezero-ctx','upstream/jezero-ctx.tif','Mars-EQC-0-0',6,11,6,'NASA/USGS Mars 2020 TRN CTX soc_008'],
+      ['jezero-hirise','upstream/hirise-ortho.tif','Mars-EQC-0-0',.25,14,.5,'NASA/USGS Mars 2020 TRN HiRISE soc_006'],
+    ];
+    for (const [id,relative,projection,gsd,lastLevel,outputGsd,attribution] of specs) {
+      const local = join(imageryRoot,relative), raster = projection !== 'EPSG:4326';
+      const service = raster ? null : JSON.parse(await readFile(local,'utf8')).config;
+      // The service grid can be coarser than the original mosaic's nominal GSD.
+      // Use its equatorial interval conservatively for the source target gate;
+      // keep the original nominal GSD separately as rasterGsdM.
+      const availableGsd = raster ? gsd : Math.max(gsd,2*Math.PI*3396190/(2**(service.levels??8)*(service.dimension??256)));
+      const sourceUrl = raster ? `https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/${id === 'jezero-ctx' ? 'CTX/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.tif' : 'HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif'}`
+        : JSON.parse(await readFile(local,'utf8')).config.url;
+      const valid = raster ? collection(Array.from({length:48},(_,i)=>{ const x=i%8,y=Math.floor(i/8);return rectangle(`native-${i}`,77.320+x*.01675,18.425+y*.013,77.320+(x+1)*.01675,18.425+(y+1)*.013); })) : collection([rectangle('native-check',77.45075,18.44465,77.45085,18.44475)]);
+      sources.push({ id,productId:id,channel:'imagery',body:'Mars',frame:'IAU_MARS',coordinates,
+        footprint:roi,
+        nodata:raster ? {maskUrl:sourceUrl} : 'none',nativeGsdM:availableGsd,accuracyM:null,projection,
+        datum:{referenceShape:coordinates.referenceShape,verticalDatum:'reference-sphere',heightConvention:'radial'},
+        asset:{...await pin(local),retrieval:sourceUrl},license:{name:'NASA/USGS public data; upstream attribution retained',attribution},
+        metadata:{evidenceUrl:sourceUrl,confidence:'verified-mask',rasterGsdM:gsd,dataType:'Byte',bands:['imagery'],
+          acquisitionUtc:null,observationId:null,sourceProjection:projection,sourceCoordinates:'planetocentric, east-positive',
+          sourceDatum:'controlled orbital map directions',registration:{group:id,evidenceUrl:sourceUrl,accuracyM:null},illumination:null,
+          stereoProductIds:[],assets:[{url:sourceUrl,role:'raster',bytes:(await stat(local)).size,sizeEvidence:'verified original bytes or finite response bundle'}],
+          unknowns:['Absolute registration and illumination uncertainty remain unknown.','Native interval is separate from generated output spacing.','CTX service has pinned unavailable responses; gaps remain transparent.'],
+          validData:{geometry:valid,evidenceUrl:sourceUrl,method:raster ? 'Every native cell and halo in this small subset checked; whole-source mask counted separately.' : 'Pinned original source response and complete decoded alpha checked at this mission subset; failures remain separately pinned holes.',extent:'known-valid-subset'},
+          reuse:{status:'allowed',evidenceUrl:raster ? 'https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits' : sourceUrl}} });
+      const regionSpecs = id==='viking' || id==='ctx-global'
+        ? [`mission@18.46,77.4:${Array.from({length:lastLevel-2},(_,j)=>`${j+3}=${[50,35,25,18,12,8,6,4,3,2.5,2][j]}`).join(',')}`]
+        : centres.map(([lat,lon],i)=>`mission${i}@${lat},${lon}:${Array.from({length:lastLevel-2},(_,j)=>`${j+3}=${Math.max(2.4,[50,35,25,18,12,8,6,4,3,2.5,2.4,2.4][j])}`).join(',')}`);
+      imagery.push({sourceId:id,globalLevel:2,regions:regionSpecs,visible:true,opacity:1});
+      imageSelections.push({regionId:`image-${id}`,channel:'imagery',sourceIds:[id],outputGsdM:outputGsd,resampling:'bilinear',transformations:['identity']});
+      imageBindings[id]=local;
+    }
+  }
   const { execFileSync } = await import('node:child_process');
   const toolchain = JSON.parse(execFileSync('python3', ['-c', 'import sys,json,numpy; from osgeo import gdal; print(json.dumps({"python":sys.version.split()[0],"gdal":gdal.VersionInfo("RELEASE_NAME"),"numpy":numpy.__version__}))'], { encoding: 'utf8' }));
   const desired = { version: 1, kind: 'desired-surface-plan', body: 'Mars', frame: 'IAU_MARS', coordinates,
-    layers: [{ id: 'mission', name: 'All Ingenuity operations; source coordinates', body: 'Mars', source: 'embedded', geojson: roi }],
-    regions: [{ id: 'mission', feature: { layerId: 'mission', featureId: 'string:mission' }, elevation: { gsdM: 4 }, fallback: 'require-target' }] };
+    layers: [{ id: 'mission', name: 'All Ingenuity operations; source coordinates', body: 'Mars', source: 'embedded', geojson: roi },
+      ...(imageryRoot ? [{id:'operations',name:'Observed flight corridor',body:'Mars',source:'embedded',geojson:operational},{id:'image-checks',name:'XYZ response check subset; remaining native coverage is reported separately',body:'Mars',source:'embedded',geojson:collection([rectangle('native-check',77.45075,18.44465,77.45085,18.44475)])}] : [])],
+    regions: [{ id: 'mission', feature: { layerId: 'mission', featureId: 'string:mission' }, elevation: { gsdM: 4 }, fallback: 'require-target' },
+      ...imageSelections.map(s=>({id:s.regionId,feature:s.sourceIds[0]==='viking'||s.sourceIds[0]==='ctx-global' ? {layerId:'image-checks',featureId:'string:native-check'} : {layerId:'operations',featureId:'string:operations'},imagery:{gsdM:s.outputGsdM},fallback:'require-target'}))] };
   const lock = await createLockedSurfacePlan({ version: 1, kind: 'locked-surface-plan', desired, sources,
-    selections: [{ regionId: 'mission', channel: 'elevation', sourceIds: ['base','detail'], outputGsdM: 4, resampling: 'cubic', transformations: [transform] }],
+    selections: [{ regionId: 'mission', channel: 'elevation', sourceIds: ['base','detail'], outputGsdM: 4, resampling: 'cubic', transformations: [transform] },...imageSelections],
     processing: { generator: GENERATOR, fusion: 'residual-bias-none', parameters: { profile: 'bounded-real-mars', toolchain,
       terrain: { base: 'base', detail: 'detail', globalLevel: 2, regions, blendM: 1000, fitStride: 8,
         fusionAsset: { ...await pin(bundle), retrieval: 'Clean recomputation from the pinned original DEMs; normalized provenance; complete raster inventory' },
         baseOverviewAsset: { ...await pin(files[0]+'.ovr'), retrieval: 'Pinned global source overview dependency' } },
-      imagery: [], gates: { maxOffsetM: 10, maxBoundaryStepM: 1, clearanceM: 50, controls },
-      caveats: ['Terrain prerequisite only: four-source imagery and mission browser acceptance remain required.',
+      imagery, gates: { maxOffsetM: 10, maxBoundaryStepM: 1, clearanceM: 50, controls },
+      caveats: [imageryRoot ? 'Complete mission product selection: one authoritative terrain/CPU product plus four independent imagery products; publication remains an explicit authorization boundary.' : 'Terrain-only selection; independent imagery is not selected.',
         'Every original path sample is within an L15 cap; ~3.24 m maximum grid spacing is distinct from 1 m native DTM fidelity.',
         '73 scalar controls share provenance, use conditional radial placement, and do not certify absolute physical accuracy.',
-        'Ground-level rendered loading/LOD acceptance remains open; no production upload or catalog switch.'] } },
+        'Runtime near-surface representation/loading evidence is separate from source accuracy and retained in the mission acceptance report. No production publication is performed by execution.'] } },
     output: { representation: 'tiled-raster-pyramid', formatVersion: 'cosmolabe-cube-1', tileSize: 1024, gutter: 2, imageryEncoding: 'png', elevationEncoding: 'float32' } });
   const bindings = { base: files[0], detail: files[1], 'terrain:fusion': bundle, 'terrain:base-overview': files[0]+'.ovr',
-    'datum:areoid-label': join(areoid,'MEGA90N000EB.LBL'), 'datum:areoid-image': join(areoid,'MEGA90N000EB.IMG') };
+    'datum:areoid-label': join(areoid,'MEGA90N000EB.LBL'), 'datum:areoid-image': join(areoid,'MEGA90N000EB.IMG'),...imageBindings };
   await writeFile(join(output, 'lock.json'), json(lock));
   await writeFile(join(output, 'bindings.json'), json(bindings));
   return { lock: join(output,'lock.json'), bindings: join(output,'bindings.json') };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [source, fusion, areoid, audit, output] = process.argv.slice(2);
+  const [source, fusion, areoid, audit, output, imageryRoot] = process.argv.slice(2);
   if (!output) throw new Error('Usage: ingenuity.mjs SOURCE_DIR CLEAN_FUSION_DIR AREOID_DIR AUDIT.json NEW_OUTPUT_DIR');
-  console.log(await prepareIngenuity({source,fusion,areoid,audit,output}));
+  console.log(await prepareIngenuity({source,fusion,areoid,audit,output,imageryRoot}));
 }

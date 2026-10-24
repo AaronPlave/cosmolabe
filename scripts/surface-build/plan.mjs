@@ -17,8 +17,8 @@ export async function hashFile(path) {
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest('hex');
 }
-export async function jsonFile(path) {
-  if ((await stat(path)).size > 2 * 1024 * 1024) throw new Error(`${path}: JSON exceeds 2 MiB`);
+export async function jsonFile(path, maxBytes = 2 * 1024 * 1024) {
+  if ((await stat(path)).size > maxBytes) throw new Error(`${path}: JSON exceeds ${maxBytes} bytes`);
   return JSON.parse(await readFile(path, 'utf8'));
 }
 export function assert(ok, message) { if (!ok) throw new Error(message); }
@@ -247,8 +247,8 @@ export async function inspectBindings(lock, bindings, baseDir) {
         return { sourceId: s.id, state: 'checksum-mismatch', path, downloadBytes: s.asset.bytes };
       const responses = [];
       if ((s.channel === 'imagery' && s.projection === 'EPSG:4326') || s.channel === 'fusion') {
-        const bundle = await jsonFile(path);
-        assert(bundle.version === 1 && bundle.kind === (s.channel === 'fusion' ? 'locked-fusion-bundle' : 'locked-xyz-bundle'), `${s.id}: expected finite locked bundle`);
+        const bundle = await jsonFile(path, 32 * 1024 * 1024);
+        assert((bundle.version === 1 || (s.channel === 'imagery' && bundle.version === 2)) && bundle.kind === (s.channel === 'fusion' ? 'locked-fusion-bundle' : 'locked-xyz-bundle'), `${s.id}: expected finite locked bundle`);
         const entries = s.channel === 'fusion' ? bundle.files : bundle.tiles;
         assert(entries && Object.keys(entries).length > 0 && Object.keys(entries).length <= 100000, 'finite response inventory required');
         const seen = new Set();
