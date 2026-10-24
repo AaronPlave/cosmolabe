@@ -8,6 +8,18 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Use reachable Ubuntu package mirrors
+      if: runner.os == 'Linux'
+      shell: bash
+      # Some hosted images select the Azure HTTP mirror through a mirror list.
+      # Preserve the surface pilot's workaround before Playwright invokes apt.
+      run: |
+        for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+          if [[ -f "$apt_source" ]]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+          fi
+        done
+
     - name: Cache LFS test kernels
       if: inputs.test-kernels == 'true'
       uses: actions/cache@v4

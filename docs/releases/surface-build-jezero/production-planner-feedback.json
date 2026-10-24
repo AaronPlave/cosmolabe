@@ -1,0 +1,6069 @@
+{
+  "version": 1,
+  "kind": "surface-planner-feedback",
+  "lockIdentity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9",
+  "requested": [
+    {
+      "regionId": "pilot",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.4506,
+              18.4445
+            ],
+            [
+              77.451,
+              18.4445
+            ],
+            [
+              77.451,
+              18.4449
+            ],
+            [
+              77.4506,
+              18.4449
+            ],
+            [
+              77.4506,
+              18.4445
+            ]
+          ]
+        ]
+      },
+      "imagery": {
+        "gsdM": 0.5
+      },
+      "elevation": {
+        "gsdM": 100
+      },
+      "fallback": "require-target",
+      "channels": [
+        {
+          "channel": "elevation",
+          "sourceIds": [
+            "base",
+            "detail"
+          ],
+          "outputGsdM": 100,
+          "nativeGsdM": 1,
+          "accuracyM": [
+            {
+              "sourceId": "base",
+              "accuracyM": null
+            },
+            {
+              "sourceId": "detail",
+              "accuracyM": null
+            }
+          ],
+          "targetMetByNativeSource": true,
+          "diagnostic": null
+        },
+        {
+          "channel": "imagery",
+          "sourceIds": [
+            "hirise-ortho"
+          ],
+          "outputGsdM": 0.5,
+          "nativeGsdM": 0.25,
+          "accuracyM": [
+            {
+              "sourceId": "hirise-ortho",
+              "accuracyM": null
+            }
+          ],
+          "targetMetByNativeSource": true,
+          "diagnostic": null
+        }
+      ]
+    },
+    {
+      "regionId": "context",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              77.4506,
+              18.4445
+            ],
+            [
+              77.451,
+              18.4445
+            ],
+            [
+              77.451,
+              18.4449
+            ],
+            [
+              77.4506,
+              18.4449
+            ],
+            [
+              77.4506,
+              18.4445
+            ]
+          ]
+        ]
+      },
+      "imagery": {
+        "gsdM": 5
+      },
+      "elevation": null,
+      "fallback": "require-target",
+      "channels": [
+        {
+          "channel": "imagery",
+          "sourceIds": [
+            "hirise-context"
+          ],
+          "outputGsdM": 5,
+          "nativeGsdM": 0.25,
+          "accuracyM": [
+            {
+              "sourceId": "hirise-context",
+              "accuracyM": null
+            }
+          ],
+          "targetMetByNativeSource": true,
+          "diagnostic": null
+        }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "productId": "terrain-4cfdc5d9806de0ee40605ecd",
+      "productIdentity": "4cfdc5d9806de0ee40605ecd27c138f92e4e9ae3b8b800b9369472fbd934af4a",
+      "sourceProofs": [
+        {
+          "sourceId": "base",
+          "declaredFootprint": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "base-pilot-envelope",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3,
+                        18.3
+                      ],
+                      [
+                        77.6,
+                        18.3
+                      ],
+                      [
+                        77.6,
+                        18.6
+                      ],
+                      [
+                        77.3,
+                        18.6
+                      ],
+                      [
+                        77.3,
+                        18.3
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "declaredNativeValid": {
+            "geometry": {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "id": "valid-pilot",
+                  "properties": null,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [
+                        [
+                          77.4498,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4437
+                        ]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            },
+            "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+            "extent": "known-valid-subset"
+          },
+          "confirmedNativeValid": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 30,
+                "maskSha256": "ad26e9c6db9c66373470323228575f3d61d3ec1559b47f9418f717af18350cd9",
+                "nativeCells": 2,
+                "window": [
+                  76299,
+                  21204,
+                  5,
+                  6
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "nativeGsdM": 200,
+          "accuracyM": null,
+          "invalidPixels": 39957,
+          "illumination": null,
+          "absoluteRegistrationErrorM": null,
+          "sourceGridPreservation": null
+        },
+        {
+          "sourceId": "detail",
+          "declaredFootprint": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "detail",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.22294,
+                        18.30681
+                      ],
+                      [
+                        77.58395,
+                        18.30681
+                      ],
+                      [
+                        77.58395,
+                        18.6693
+                      ],
+                      [
+                        77.22294,
+                        18.6693
+                      ],
+                      [
+                        77.22294,
+                        18.30681
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "declaredNativeValid": {
+            "geometry": {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "id": "valid-pilot",
+                  "properties": null,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [
+                        [
+                          77.4498,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4437
+                        ]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            },
+            "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+            "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+            "extent": "known-valid-subset"
+          },
+          "confirmedNativeValid": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 15376,
+                "maskSha256": "b4c0c1c776af9c323d656962cc15c75af0e711d879a876e21645268f359a6f47",
+                "nativeCells": 14400,
+                "window": [
+                  13445,
+                  13252,
+                  124,
+                  124
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "nativeGsdM": 1,
+          "accuracyM": null,
+          "invalidPixels": 155852242,
+          "illumination": null,
+          "absoluteRegistrationErrorM": null,
+          "sourceGridPreservation": null
+        }
+      ],
+      "emitted": {
+        "availability": [
+          [
+            "px",
+            0,
+            0,
+            0
+          ],
+          [
+            "nx",
+            0,
+            0,
+            0
+          ],
+          [
+            "py",
+            0,
+            0,
+            0
+          ],
+          [
+            "ny",
+            0,
+            0,
+            0
+          ],
+          [
+            "pz",
+            0,
+            0,
+            0
+          ],
+          [
+            "nz",
+            0,
+            0,
+            0
+          ],
+          [
+            "py",
+            1,
+            0,
+            0
+          ],
+          [
+            "py",
+            1,
+            1,
+            0
+          ],
+          [
+            "py",
+            1,
+            0,
+            1
+          ],
+          [
+            "py",
+            1,
+            1,
+            1
+          ],
+          [
+            "py",
+            2,
+            2,
+            0
+          ],
+          [
+            "py",
+            2,
+            3,
+            0
+          ],
+          [
+            "py",
+            2,
+            2,
+            1
+          ],
+          [
+            "py",
+            2,
+            3,
+            1
+          ],
+          [
+            "py",
+            3,
+            4,
+            2
+          ],
+          [
+            "py",
+            3,
+            5,
+            2
+          ],
+          [
+            "py",
+            3,
+            4,
+            3
+          ],
+          [
+            "py",
+            3,
+            5,
+            3
+          ],
+          [
+            "py",
+            4,
+            8,
+            4
+          ],
+          [
+            "py",
+            4,
+            9,
+            4
+          ],
+          [
+            "py",
+            4,
+            10,
+            4
+          ],
+          [
+            "py",
+            4,
+            11,
+            4
+          ],
+          [
+            "py",
+            4,
+            8,
+            5
+          ],
+          [
+            "py",
+            4,
+            9,
+            5
+          ],
+          [
+            "py",
+            4,
+            10,
+            5
+          ],
+          [
+            "py",
+            4,
+            11,
+            5
+          ],
+          [
+            "py",
+            5,
+            18,
+            10
+          ],
+          [
+            "py",
+            5,
+            19,
+            10
+          ],
+          [
+            "py",
+            5,
+            18,
+            11
+          ],
+          [
+            "py",
+            5,
+            19,
+            11
+          ],
+          [
+            "py",
+            6,
+            38,
+            20
+          ],
+          [
+            "py",
+            6,
+            39,
+            20
+          ],
+          [
+            "py",
+            6,
+            38,
+            21
+          ],
+          [
+            "py",
+            6,
+            39,
+            21
+          ],
+          [
+            "py",
+            7,
+            78,
+            40
+          ],
+          [
+            "py",
+            7,
+            79,
+            40
+          ],
+          [
+            "py",
+            7,
+            78,
+            41
+          ],
+          [
+            "py",
+            7,
+            79,
+            41
+          ],
+          [
+            "py",
+            7,
+            76,
+            42
+          ],
+          [
+            "py",
+            7,
+            77,
+            42
+          ],
+          [
+            "py",
+            7,
+            78,
+            42
+          ],
+          [
+            "py",
+            7,
+            79,
+            42
+          ],
+          [
+            "py",
+            7,
+            76,
+            43
+          ],
+          [
+            "py",
+            7,
+            77,
+            43
+          ],
+          [
+            "py",
+            7,
+            78,
+            43
+          ],
+          [
+            "py",
+            7,
+            79,
+            43
+          ],
+          [
+            "py",
+            8,
+            156,
+            82
+          ],
+          [
+            "py",
+            8,
+            157,
+            82
+          ],
+          [
+            "py",
+            8,
+            156,
+            83
+          ],
+          [
+            "py",
+            8,
+            157,
+            83
+          ],
+          [
+            "py",
+            8,
+            156,
+            84
+          ],
+          [
+            "py",
+            8,
+            157,
+            84
+          ],
+          [
+            "py",
+            8,
+            156,
+            85
+          ],
+          [
+            "py",
+            8,
+            157,
+            85
+          ],
+          [
+            "py",
+            9,
+            312,
+            166
+          ],
+          [
+            "py",
+            9,
+            313,
+            166
+          ],
+          [
+            "py",
+            9,
+            312,
+            167
+          ],
+          [
+            "py",
+            9,
+            313,
+            167
+          ],
+          [
+            "py",
+            9,
+            312,
+            168
+          ],
+          [
+            "py",
+            9,
+            313,
+            168
+          ],
+          [
+            "py",
+            9,
+            312,
+            169
+          ],
+          [
+            "py",
+            9,
+            313,
+            169
+          ],
+          [
+            "py",
+            10,
+            624,
+            336
+          ],
+          [
+            "py",
+            10,
+            625,
+            336
+          ],
+          [
+            "py",
+            10,
+            626,
+            336
+          ],
+          [
+            "py",
+            10,
+            627,
+            336
+          ],
+          [
+            "py",
+            10,
+            624,
+            337
+          ],
+          [
+            "py",
+            10,
+            625,
+            337
+          ],
+          [
+            "py",
+            10,
+            626,
+            337
+          ],
+          [
+            "py",
+            10,
+            627,
+            337
+          ],
+          [
+            "py",
+            11,
+            1252,
+            672
+          ],
+          [
+            "py",
+            11,
+            1253,
+            672
+          ],
+          [
+            "py",
+            11,
+            1252,
+            673
+          ],
+          [
+            "py",
+            11,
+            1253,
+            673
+          ],
+          [
+            "py",
+            11,
+            1252,
+            674
+          ],
+          [
+            "py",
+            11,
+            1253,
+            674
+          ],
+          [
+            "py",
+            11,
+            1252,
+            675
+          ],
+          [
+            "py",
+            11,
+            1253,
+            675
+          ]
+        ],
+        "maximumLevel": 11,
+        "outputSpacingMByLevel": [
+          106130.9375,
+          53065.46875,
+          26532.734375,
+          13266.3671875,
+          6633.18359375,
+          3316.591796875,
+          1658.2958984375,
+          829.14794921875,
+          414.573974609375,
+          207.2869873046875,
+          103.64349365234375,
+          51.821746826171875
+        ],
+        "objects": 161,
+        "bytes": 13966554,
+        "validPixelCount": null,
+        "transparentPixelCount": null
+      },
+      "continuousNativeCoverage": null,
+      "continuousNativeCoverageStatus": "not-proved-by-tile-availability",
+      "publication": {
+        "status": "verified-hosted-http",
+        "objects": 161,
+        "bytes": 13966554,
+        "receipt": "665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e",
+        "baseUrl": "https://data.aaronplave.com",
+        "prefix": "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/"
+      },
+      "reusedFromBuild": null
+    },
+    {
+      "productId": "imagery-7b4f6169271a5140b1b1c5cd",
+      "productIdentity": "7b4f6169271a5140b1b1c5cd43e4070ae4d784bfc4653c98d0ba3eadd5e7ecce",
+      "sourceProofs": [
+        {
+          "sourceId": "hirise-context",
+          "declaredFootprint": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "hirise-ortho",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.44647702664388,
+                        18.44038511660434
+                      ],
+                      [
+                        77.45511477633124,
+                        18.44038511660434
+                      ],
+                      [
+                        77.45511477633124,
+                        18.449022866291692
+                      ],
+                      [
+                        77.44647702664388,
+                        18.449022866291692
+                      ],
+                      [
+                        77.44647702664388,
+                        18.44038511660434
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "declaredNativeValid": {
+            "geometry": {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "id": "valid-pilot",
+                  "properties": null,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [
+                        [
+                          77.4498,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4437
+                        ]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            },
+            "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+            "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+            "extent": "known-valid-subset"
+          },
+          "confirmedNativeValid": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 230400,
+                "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                "nativeCells": 226576,
+                "window": [
+                  785,
+                  785,
+                  480,
+                  480
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "nativeGsdM": 0.25,
+          "accuracyM": null,
+          "invalidPixels": 0,
+          "illumination": null,
+          "absoluteRegistrationErrorM": null,
+          "sourceGridPreservation": {
+            "absoluteGeolocationErrorM": null,
+            "checkedGutterPixels": 0,
+            "checkedPixels": 180,
+            "continuousRequestedCoverage": [
+              {
+                "face": "py",
+                "finestTiles": [
+                  "py/13/5007/2696"
+                ],
+                "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                "uBounds": [
+                  0.22259155842684852,
+                  0.22259992225556025
+                ],
+                "vBounds": [
+                  -0.34168961906424455,
+                  -0.341681140307978
+                ]
+              }
+            ],
+            "maximumAlphaErrorDn": 5.684341886080802e-14,
+            "maximumErrorDn": 0.49638990735776645,
+            "maximumGutterErrorDn": null,
+            "maximumOutputSpacingM": 3.238859176635742,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 9.437843504867773,
+            "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+            "requestedNativeCellsWithFinestCoverage": 8836,
+            "rmsErrorDn": 0.2657846102087784,
+            "sourcePixelSizeM": 0.25,
+            "tiles": [
+              {
+                "checkedPixels": 180,
+                "tile": "py/13/5007/2696"
+              }
+            ]
+          }
+        }
+      ],
+      "emitted": {
+        "availability": [
+          "px/0/0/0",
+          "nx/0/0/0",
+          "py/0/0/0",
+          "ny/0/0/0",
+          "pz/0/0/0",
+          "nz/0/0/0",
+          "py/1/1/0",
+          "py/2/2/1",
+          "py/3/4/2",
+          "py/4/9/5",
+          "py/5/19/10",
+          "py/6/39/21",
+          "py/7/78/42",
+          "py/8/156/84",
+          "py/9/312/168",
+          "py/9/313/168",
+          "py/10/625/337",
+          "py/10/626/337",
+          "py/11/1251/674",
+          "py/11/1252/674",
+          "py/12/2503/1348",
+          "py/12/2504/1348",
+          "py/13/5007/2696",
+          "py/13/5008/2696"
+        ],
+        "maximumLevel": 13,
+        "outputSpacingMByLevel": [
+          26532.734375,
+          13266.3671875,
+          6633.18359375,
+          3316.591796875,
+          1658.2958984375,
+          829.14794921875,
+          414.573974609375,
+          207.2869873046875,
+          103.64349365234375,
+          51.821746826171875,
+          25.910873413085938,
+          12.955436706542969,
+          6.477718353271484,
+          3.238859176635742
+        ],
+        "objects": 25,
+        "bytes": 55090,
+        "validPixelCount": 40583,
+        "transparentPixelCount": 1532281
+      },
+      "continuousNativeCoverage": [
+        {
+          "face": "py",
+          "finestTiles": [
+            "py/13/5007/2696"
+          ],
+          "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+          "uBounds": [
+            0.22259155842684852,
+            0.22259992225556025
+          ],
+          "vBounds": [
+            -0.34168961906424455,
+            -0.341681140307978
+          ]
+        }
+      ],
+      "continuousNativeCoverageStatus": "proved-for-checked-requested-ROI-only",
+      "publication": {
+        "status": "verified-hosted-http",
+        "objects": 25,
+        "bytes": 55090,
+        "receipt": "665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e",
+        "baseUrl": "https://data.aaronplave.com",
+        "prefix": "cube-imagery/imagery-7b4f6169271a5140b1b1c5cd/7b4f6169271a5140b1b1c5cd43e4070a/"
+      },
+      "reusedFromBuild": null
+    },
+    {
+      "productId": "imagery-19a3928769be6186f9ea2fdd",
+      "productIdentity": "19a3928769be6186f9ea2fdd2725eb8bf82ddc32ba6bf632b7b89a5e964d9038",
+      "sourceProofs": [
+        {
+          "sourceId": "hirise-ortho",
+          "declaredFootprint": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "hirise-ortho",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.44647702664388,
+                        18.44038511660434
+                      ],
+                      [
+                        77.45511477633124,
+                        18.44038511660434
+                      ],
+                      [
+                        77.45511477633124,
+                        18.449022866291692
+                      ],
+                      [
+                        77.44647702664388,
+                        18.449022866291692
+                      ],
+                      [
+                        77.44647702664388,
+                        18.44038511660434
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "declaredNativeValid": {
+            "geometry": {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "id": "valid-pilot",
+                  "properties": null,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [
+                        [
+                          77.4498,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4437
+                        ],
+                        [
+                          77.4518,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4457
+                        ],
+                        [
+                          77.4498,
+                          18.4437
+                        ]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            },
+            "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+            "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+            "extent": "known-valid-subset"
+          },
+          "confirmedNativeValid": {
+            "declaredExtent": "known-valid-subset",
+            "extent": "known-valid-subset",
+            "features": [
+              {
+                "featureId": "valid-pilot",
+                "kernelSupportCells": 230400,
+                "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                "nativeCells": 226576,
+                "window": [
+                  785,
+                  785,
+                  480,
+                  480
+                ]
+              }
+            ],
+            "method": "all touched native cells plus two-cell interpolation halo"
+          },
+          "nativeGsdM": 0.25,
+          "accuracyM": null,
+          "invalidPixels": 0,
+          "illumination": null,
+          "absoluteRegistrationErrorM": null,
+          "sourceGridPreservation": {
+            "absoluteGeolocationErrorM": null,
+            "checkedGutterPixels": 640,
+            "checkedPixels": 9224,
+            "continuousRequestedCoverage": [
+              {
+                "face": "py",
+                "finestTiles": [
+                  "py/16/40061/21571",
+                  "py/16/40062/21571"
+                ],
+                "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                "uBounds": [
+                  0.22259155842684852,
+                  0.22259992225556025
+                ],
+                "vBounds": [
+                  -0.34168961906424455,
+                  -0.341681140307978
+                ]
+              }
+            ],
+            "maximumAlphaErrorDn": 1.1368683772161603e-13,
+            "maximumErrorDn": 0.49996122585152136,
+            "maximumGutterErrorDn": 0.49900616090836536,
+            "maximumOutputSpacingM": 0.4048573970794678,
+            "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+            "nativeValueStdDevDn": 12.191124802665758,
+            "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+            "requestedNativeCellsWithFinestCoverage": 8836,
+            "rmsErrorDn": 0.28808855071593614,
+            "sourcePixelSizeM": 0.25,
+            "tiles": [
+              {
+                "checkedPixels": 4351,
+                "tile": "py/16/40061/21571"
+              },
+              {
+                "checkedPixels": 4873,
+                "tile": "py/16/40062/21571"
+              }
+            ]
+          }
+        }
+      ],
+      "emitted": {
+        "availability": [
+          "px/0/0/0",
+          "nx/0/0/0",
+          "py/0/0/0",
+          "ny/0/0/0",
+          "pz/0/0/0",
+          "nz/0/0/0",
+          "py/1/1/0",
+          "py/2/2/1",
+          "py/3/4/2",
+          "py/4/9/5",
+          "py/5/19/10",
+          "py/6/39/21",
+          "py/7/78/42",
+          "py/8/156/84",
+          "py/9/312/168",
+          "py/9/313/168",
+          "py/10/625/337",
+          "py/10/626/337",
+          "py/11/1251/674",
+          "py/11/1252/674",
+          "py/12/2503/1348",
+          "py/12/2504/1348",
+          "py/13/5007/2696",
+          "py/13/5008/2696",
+          "py/14/10015/5392",
+          "py/14/10015/5393",
+          "py/15/20030/10785",
+          "py/15/20031/10785",
+          "py/15/20030/10786",
+          "py/15/20031/10786",
+          "py/16/40061/21571",
+          "py/16/40062/21571"
+        ],
+        "maximumLevel": 16,
+        "outputSpacingMByLevel": [
+          26532.734375,
+          13266.3671875,
+          6633.18359375,
+          3316.591796875,
+          1658.2958984375,
+          829.14794921875,
+          414.573974609375,
+          207.2869873046875,
+          103.64349365234375,
+          51.821746826171875,
+          25.910873413085938,
+          12.955436706542969,
+          6.477718353271484,
+          3.238859176635742,
+          1.619429588317871,
+          0.8097147941589355,
+          0.4048573970794678
+        ],
+        "objects": 33,
+        "bytes": 413856,
+        "validPixelCount": 526235,
+        "transparentPixelCount": 1570917
+      },
+      "continuousNativeCoverage": [
+        {
+          "face": "py",
+          "finestTiles": [
+            "py/16/40061/21571",
+            "py/16/40062/21571"
+          ],
+          "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+          "uBounds": [
+            0.22259155842684852,
+            0.22259992225556025
+          ],
+          "vBounds": [
+            -0.34168961906424455,
+            -0.341681140307978
+          ]
+        }
+      ],
+      "continuousNativeCoverageStatus": "proved-for-checked-requested-ROI-only",
+      "publication": {
+        "status": "verified-hosted-http",
+        "objects": 33,
+        "bytes": 413856,
+        "receipt": "665906d2fc1b47c6e65118ee498afc3fd90c0ac106f692dbf6b1a4575d4e971e",
+        "baseUrl": "https://data.aaronplave.com",
+        "prefix": "cube-imagery/imagery-19a3928769be6186f9ea2fdd/19a3928769be6186f9ea2fdd2725eb8b/"
+      },
+      "reusedFromBuild": null
+    }
+  ],
+  "sourceTransfers": [
+    {
+      "sourceId": "base",
+      "state": "verified",
+      "pinnedSourceBytes": 11384463908,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "detail",
+      "state": "verified",
+      "pinnedSourceBytes": 1839545409,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "hirise-ortho",
+      "state": "verified",
+      "pinnedSourceBytes": 2643975,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "hirise-context",
+      "state": "verified",
+      "pinnedSourceBytes": 2643975,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "terrain:fusion",
+      "state": "verified",
+      "pinnedSourceBytes": null,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 1091102274
+    },
+    {
+      "sourceId": "terrain:base-overview",
+      "state": "verified",
+      "pinnedSourceBytes": null,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "datum:areoid-label",
+      "state": "verified",
+      "pinnedSourceBytes": null,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    },
+    {
+      "sourceId": "datum:areoid-image",
+      "state": "verified",
+      "pinnedSourceBytes": null,
+      "downloadedBytesThisExecution": 0,
+      "missingDownloadBytes": 0,
+      "boundResponseBytes": 0
+    }
+  ],
+  "resources": {
+    "planned": {
+      "stage": "source-aware-uncalibrated",
+      "rawSourceBytes": 15109985903,
+      "publishedBytes": {
+        "min": 82540,
+        "max": 1976951
+      },
+      "publishedObjects": {
+        "min": 2,
+        "max": 13
+      },
+      "peakDiskBytes": {
+        "min": 13229310079,
+        "max": null
+      },
+      "peakRamBytes": null,
+      "caveats": [
+        "Planner raster scenarios are not cube packing bounds.",
+        "Decoded raster dimensions and worker concurrency determine peak RAM; unknown before inspection.",
+        "XYZ bundles have additional response bytes recorded at inspection.",
+        "No shared global terrain patch composition is promised."
+      ],
+      "browser": {
+        "decodedTileBytes": {
+          "imagery": 199692,
+          "elevation": 266256
+        },
+        "visibleDecodedBytes": {
+          "min": 7455168,
+          "max": 29820672
+        },
+        "visibleNetworkBytes": {
+          "min": 1320630,
+          "max": 20022452
+        },
+        "visibleRequests": {
+          "min": 32,
+          "max": 128
+        }
+      }
+    },
+    "actual": {
+      "outputBytes": 14435500,
+      "publishedBytes": null,
+      "objects": 219,
+      "workDiskBytesAtCompletion": 16218643999,
+      "peakDiskBytes": null,
+      "sampledPeakScratchBytes": 16218479724,
+      "peakConcurrentWorkerRssBytes": 11276959744,
+      "elapsedSeconds": 123.90132325,
+      "sourceAudit": {
+        "baselineSampling": {
+          "invalidUsedKernels": 0,
+          "levels": [
+            {
+              "sourcePyramidLevel": 8,
+              "sourceSize": [
+                417,
+                209
+              ],
+              "tiles": 10,
+              "vertexAndNormalSamples": 211250
+            },
+            {
+              "sourcePyramidLevel": 7,
+              "sourceSize": [
+                834,
+                417
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 6,
+              "sourceSize": [
+                1668,
+                834
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 5,
+              "sourceSize": [
+                3335,
+                1668
+              ],
+              "tiles": 8,
+              "vertexAndNormalSamples": 169000
+            },
+            {
+              "sourcePyramidLevel": 4,
+              "sourceSize": [
+                6669,
+                3335
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 3,
+              "sourceSize": [
+                13337,
+                6669
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 2,
+              "sourceSize": [
+                26674,
+                13337
+              ],
+              "tiles": 12,
+              "vertexAndNormalSamples": 253500
+            },
+            {
+              "sourcePyramidLevel": 1,
+              "sourceSize": [
+                53347,
+                26674
+              ],
+              "tiles": 8,
+              "vertexAndNormalSamples": 169000
+            },
+            {
+              "sourcePyramidLevel": 0,
+              "sourceSize": [
+                106694,
+                53347
+              ],
+              "tiles": 24,
+              "vertexAndNormalSamples": 507000
+            }
+          ],
+          "method": "all Catmull-Rom support cells at the exact pinned pyramid level for every emitted lattice vertex and four normal probes",
+          "nativeCoverageNote": "Native voids are retained in the source audit; valid coarse overview samples do not establish native-resolution coverage."
+        },
+        "executionWork": {
+          "auditedSources": [
+            "base",
+            "detail",
+            "hirise-context",
+            "hirise-ortho"
+          ],
+          "fusion": true,
+          "stagedSources": [
+            "base",
+            "detail",
+            "hirise-context",
+            "hirise-ortho"
+          ],
+          "terrainStaging": true
+        },
+        "fusion": {
+          "base": {
+            "areaOrPoint": "Area",
+            "bounds": [
+              -180,
+              -89.99922395220543,
+              179.99844790441085,
+              90
+            ],
+            "crs": "+proj=longlat +R=3396190 +no_defs",
+            "dataType": "Int16",
+            "geographic": true,
+            "geotransform": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "nodata": -32768,
+            "overviews": [
+              [
+                53347,
+                26674
+              ],
+              [
+                26674,
+                13337
+              ],
+              [
+                13337,
+                6669
+              ],
+              [
+                6669,
+                3335
+              ],
+              [
+                3335,
+                1668
+              ],
+              [
+                1668,
+                834
+              ],
+              [
+                834,
+                417
+              ],
+              [
+                417,
+                209
+              ]
+            ],
+            "path": "/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/source/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "semiMajorM": 3396190,
+            "semiMinorM": 3396190,
+            "size": [
+              106694,
+              53347
+            ]
+          },
+          "boundary": {
+            "baseStepM": {
+              "maxAbsM": 0.372314453125,
+              "meanM": -0.014921045204702369,
+              "n": 96680,
+              "p95AbsM": 0.1669921875,
+              "rmsM": 0.07585174386314933
+            },
+            "fusedStepM": {
+              "maxAbsM": 0.3720703125,
+              "meanM": -0.014931064111711962,
+              "n": 96680,
+              "p95AbsM": 0.1669921875,
+              "rmsM": 0.07586397442200908
+            },
+            "hardSwitchStepM": {
+              "maxAbsM": 80.138427734375,
+              "meanM": -4.061592698639762,
+              "n": 96680,
+              "p95AbsM": 37.15882568359376,
+              "rmsM": 18.829964155991533
+            },
+            "note": "pixel pairs across the coverage edge; step = inside − outside (m)",
+            "pairs": 96680
+          },
+          "coverageFraction": 0.6610752491283985,
+          "created": "2026-10-02T23:36:51Z",
+          "detail": {
+            "areaOrPoint": "Area",
+            "bounds": [
+              4577366,
+              1085130,
+              4598766,
+              1106618
+            ],
+            "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs",
+            "dataType": "Float32",
+            "geographic": false,
+            "geotransform": [
+              4577366,
+              1,
+              0,
+              1106618,
+              0,
+              -1
+            ],
+            "nodata": -3.4028226550889045e+38,
+            "overviews": [],
+            "path": "/Users/aplave/code/cosmolabe/scripts/build-mars-terrain/data/source/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+            "semiMajorM": 3396190,
+            "semiMinorM": 3396190,
+            "size": [
+              21400,
+              21488
+            ]
+          },
+          "generator": "scripts/terrain/dem.py fuse",
+          "grid": {
+            "crs": "+proj=longlat +R=3396190 +no_defs",
+            "geotransform": [
+              77.22293307697143,
+              0.00001687060485811522,
+              0,
+              18.66931500687775,
+              0,
+              -0.00001687060485811522
+            ],
+            "size": [
+              21400,
+              21488
+            ]
+          },
+          "kernel": "base: Catmull-Rom, pixel-is-area, longitude wraps",
+          "products": {
+            "coverage": "coverage.tif",
+            "fused": "fused.tif",
+            "residual": "residual.tif",
+            "weight": "weight.tif"
+          },
+          "registration": {
+            "afterPlane": {
+              "maxAbsM": 96.78352399830243,
+              "meanM": 8.499790859098853e-14,
+              "n": 4749862,
+              "p95AbsM": 33.68761187276017,
+              "rmsM": 15.880520798838809
+            },
+            "centroid": {
+              "latDeg": 18.48804879297973,
+              "lonDeg": 77.4034569842557
+            },
+            "fitStridePx": 8,
+            "model": "detail − base = offset + slopeEast·east + slopeNorth·north (least squares)",
+            "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base",
+            "offsetM": -8.645969777066195,
+            "raw": {
+              "maxAbsM": 89.161376953125,
+              "meanM": -7.893571008697858,
+              "n": 4749862,
+              "p95AbsM": 39.94189453125,
+              "rmsM": 18.93642389993706
+            },
+            "removed": false,
+            "slopeEastMPerKm": 1.0121736526817324,
+            "slopeNorthMPerKm": -0.6852599991318675,
+            "tiltDeg": 0.07003399047059078
+          },
+          "residual": {
+            "all": {
+              "maxAbsM": 87.53271484375,
+              "meanM": -7.26290945372306,
+              "n": 4749862,
+              "p95AbsM": 36.7574401855469,
+              "rmsM": 17.078623449622114
+            },
+            "fullWeight": {
+              "maxAbsM": 87.53271484375,
+              "meanM": -8.650158062055366,
+              "n": 3483465,
+              "p95AbsM": 38.97800292968748,
+              "rmsM": 18.43168956585401
+            }
+          },
+          "taper": {
+            "bandFraction": 0.17625186585340394,
+            "blendM": 1000,
+            "fullWeightFraction": 0.4848233832749946,
+            "function": "smoothstep(distance to coverage edge / blendM)"
+          },
+          "verticalDatum": "MOLA areoid heights (m); the renderer places them as IAU-ellipsoid heights"
+        },
+        "imagery": {
+          "hirise-context": {
+            "crsWkt": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+            "decodedBytes": 4194304,
+            "dtmGridAlignment": {
+              "absoluteGeolocationErrorM": null,
+              "maximumGridPhaseErrorM": 0,
+              "nativePixelRatio": 4,
+              "note": "Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.",
+              "originOffsetsInImagePixels": [
+                53002,
+                52231
+              ]
+            },
+            "filtering": {
+              "bytes": 5621456,
+              "gdal": "3.13.0",
+              "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+              "overviewFactors": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                64,
+                128,
+                256,
+                512,
+                1024,
+                2048
+              ],
+              "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+              "supersample": 4
+            },
+            "grid": [
+              77.44647702664389,
+              0.000004217651214528805,
+              0,
+              18.449022866291696,
+              0,
+              -0.000004217651214528805
+            ],
+            "height": 2048,
+            "invalidPixels": 0,
+            "nativeGrid": [
+              4590616.5,
+              0.25,
+              0,
+              1093560.25,
+              0,
+              -0.25
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "valid-pilot",
+                  "kernelSupportCells": 230400,
+                  "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                  "nativeCells": 226576,
+                  "window": [
+                    785,
+                    785,
+                    480,
+                    480
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 0.25,
+            "sourceSha256": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9",
+            "sourceToOutputRegistration": {
+              "absoluteGeolocationErrorM": null,
+              "checkedGutterPixels": 0,
+              "checkedPixels": 180,
+              "continuousRequestedCoverage": [
+                {
+                  "face": "py",
+                  "finestTiles": [
+                    "py/13/5007/2696"
+                  ],
+                  "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                  "uBounds": [
+                    0.22259155842684852,
+                    0.22259992225556025
+                  ],
+                  "vBounds": [
+                    -0.34168961906424455,
+                    -0.341681140307978
+                  ]
+                }
+              ],
+              "maximumAlphaErrorDn": 5.684341886080802e-14,
+              "maximumErrorDn": 0.49638990735776645,
+              "maximumGutterErrorDn": null,
+              "maximumOutputSpacingM": 3.238859176635742,
+              "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+              "nativeValueStdDevDn": 9.437843504867773,
+              "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+              "requestedNativeCellsWithFinestCoverage": 8836,
+              "rmsErrorDn": 0.2657846102087784,
+              "sourcePixelSizeM": 0.25,
+              "tiles": [
+                {
+                  "checkedPixels": 180,
+                  "tile": "py/13/5007/2696"
+                }
+              ]
+            },
+            "validPixels": 4194304,
+            "width": 2048
+          },
+          "hirise-ortho": {
+            "crsWkt": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+            "decodedBytes": 4194304,
+            "dtmGridAlignment": {
+              "absoluteGeolocationErrorM": null,
+              "maximumGridPhaseErrorM": 0,
+              "nativePixelRatio": 4,
+              "note": "Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.",
+              "originOffsetsInImagePixels": [
+                53002,
+                52231
+              ]
+            },
+            "filtering": {
+              "bytes": 5621456,
+              "gdal": "3.13.0",
+              "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+              "overviewFactors": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                64,
+                128,
+                256,
+                512,
+                1024,
+                2048
+              ],
+              "sha256": "ac3a0ec11ab220d53676aea2a8dd114f3ba5d8a88b08c32f17f9bd4a837d0403",
+              "supersample": 4
+            },
+            "grid": [
+              77.44647702664389,
+              0.000004217651214528805,
+              0,
+              18.449022866291696,
+              0,
+              -0.000004217651214528805
+            ],
+            "height": 2048,
+            "invalidPixels": 0,
+            "nativeGrid": [
+              4590616.5,
+              0.25,
+              0,
+              1093560.25,
+              0,
+              -0.25
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "valid-pilot",
+                  "kernelSupportCells": 230400,
+                  "maskSha256": "d4af5eee517e6a279105350901f2b0a9f2d2d41ed4a065dc9de5d07e859ab533",
+                  "nativeCells": 226576,
+                  "window": [
+                    785,
+                    785,
+                    480,
+                    480
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 0.25,
+            "sourceSha256": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9",
+            "sourceToOutputRegistration": {
+              "absoluteGeolocationErrorM": null,
+              "checkedGutterPixels": 640,
+              "checkedPixels": 9224,
+              "continuousRequestedCoverage": [
+                {
+                  "face": "py",
+                  "finestTiles": [
+                    "py/16/40061/21571",
+                    "py/16/40062/21571"
+                  ],
+                  "method": "conservative trigonometric interval enclosure of complete requested lon/lat bounds on one face",
+                  "uBounds": [
+                    0.22259155842684852,
+                    0.22259992225556025
+                  ],
+                  "vBounds": [
+                    -0.34168961906424455,
+                    -0.341681140307978
+                  ]
+                }
+              ],
+              "maximumAlphaErrorDn": 1.1368683772161603e-13,
+              "maximumErrorDn": 0.49996122585152136,
+              "maximumGutterErrorDn": 0.49900616090836536,
+              "maximumOutputSpacingM": 0.4048573970794678,
+              "method": "independent affine inversion, area-averaged native DN/validity reference and footprint quadrature",
+              "nativeValueStdDevDn": 12.191124802665758,
+              "note": "Verifies preservation of source registration and native texture; does not certify absolute image/DTM geolocation.",
+              "requestedNativeCellsWithFinestCoverage": 8836,
+              "rmsErrorDn": 0.28808855071593614,
+              "sourcePixelSizeM": 0.25,
+              "tiles": [
+                {
+                  "checkedPixels": 4351,
+                  "tile": "py/16/40061/21571"
+                },
+                {
+                  "checkedPixels": 4873,
+                  "tile": "py/16/40062/21571"
+                }
+              ]
+            },
+            "validPixels": 4194304,
+            "width": 2048
+          }
+        },
+        "largestChildPeakRssBytes": 7443628032,
+        "peakConcurrentRssBytes": 11276959744,
+        "rasters": {
+          "base": {
+            "crsWkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST]]",
+            "decodedBytes": 11383609636,
+            "grid": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "height": 53347,
+            "invalidPixels": 39957,
+            "nativeGrid": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "valid-pilot",
+                  "kernelSupportCells": 30,
+                  "maskSha256": "ad26e9c6db9c66373470323228575f3d61d3ec1559b47f9418f717af18350cd9",
+                  "nativeCells": 2,
+                  "window": [
+                    76299,
+                    21204,
+                    5,
+                    6
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 199.999991643332,
+            "sourceSha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419",
+            "validPixels": 5691764861,
+            "width": 106694
+          },
+          "detail": {
+            "crsWkt": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+            "decodedBytes": 1839372800,
+            "grid": [
+              77.22293307697143,
+              0.00001687060485811522,
+              0,
+              18.66931500687775,
+              0,
+              -0.00001687060485811522
+            ],
+            "height": 21488,
+            "invalidPixels": 155852242,
+            "nativeGrid": [
+              4577366,
+              1,
+              0,
+              1106618,
+              0,
+              -1
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "valid-pilot",
+                  "kernelSupportCells": 15376,
+                  "maskSha256": "b4c0c1c776af9c323d656962cc15c75af0e711d879a876e21645268f359a6f47",
+                  "nativeCells": 14400,
+                  "window": [
+                    13445,
+                    13252,
+                    124,
+                    124
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 1,
+            "sourceSha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8",
+            "validPixels": 303990958,
+            "width": 21400
+          }
+        },
+        "sampledResources": {
+          "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
+          "peakConcurrentRssBytes": 11276959744,
+          "peakScratchBytes": 16218479724,
+          "physicalPeakRamBytes": null,
+          "rssUnavailableReason": null,
+          "sampleIntervalSeconds": 1,
+          "samples": 100
+        },
+        "toolchain": {
+          "gdal": "3.13.0",
+          "numpy": "2.4.6",
+          "python": "3.14.5"
+        },
+        "workerPeakRssBytes": 2964324352
+      }
+    }
+  },
+  "sourceAcquisition": "offline verified bindings; no network acquisition during execution",
+  "terrainValidation": [
+    {
+      "productId": "terrain-4cfdc5d9806de0ee40605ecd",
+      "generator": "scripts/validate-cube-terrain.mjs",
+      "created": "2026-10-22T23:26:34.096Z",
+      "product": {
+        "dir": "work/surface-build/real-executor-cache/67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab.building/output/terrain-4cfdc5d9806de0ee40605ecd",
+        "version": "cube-fused-f4e1dae18a09-g0-m11-baacd50c2",
+        "tileCount": 78,
+        "tilesPerLevel": {
+          "0": 6,
+          "1": 4,
+          "2": 4,
+          "3": 4,
+          "4": 8,
+          "5": 4,
+          "6": 4,
+          "7": 12,
+          "8": 8,
+          "9": 8,
+          "10": 8,
+          "11": 8
+        },
+        "bytes": {
+          "cpuGrids": 1318200,
+          "glb": 12549844
+        },
+        "skirts": "per edge: 1.25 × the largest gap to any other level across it + 0.1 × vertex spacing; triangles after glTF primitive extras.surfaceTriangles"
+      },
+      "structure": {
+        "faceRoots": [
+          "px",
+          "nx",
+          "py",
+          "ny",
+          "pz",
+          "nz"
+        ],
+        "replaceComplete": true,
+        "maxBoundsExcessM": 4.656612873077393e-10,
+        "boundsEscapes": 0,
+        "cpuGridVsVertexMismatches": 0
+      },
+      "sharedVertices": {
+        "tolerance": "sum of both tiles' float32 offset precision (1e-4 m + 4·2⁻²⁴·largest box half-extent)",
+        "sameFace": {
+          "n": 5565,
+          "maxM": 0.09451493283678483,
+          "rmsM": 0.012162220819894284,
+          "p95M": 0.02243229822409911
+        },
+        "crossFace": {
+          "n": 764,
+          "maxM": 0.1882653279802074,
+          "rmsM": 0.1035542025356728,
+          "p95M": 0.1497436583893554
+        },
+        "corner": {
+          "n": 8,
+          "maxM": 0.1375132398154718,
+          "rmsM": 0.0992380104696951,
+          "p95M": 0.1375132398154718
+        },
+        "normalDeg": {
+          "n": 6337,
+          "maxM": 0,
+          "rmsM": 0,
+          "p95M": 0
+        },
+        "cpuHeightMismatches": 0
+      },
+      "mixedLodCracksNoSkirts": {
+        "note": "gap between a tile edge vertex and the straight edge of each coarser neighbour present across that edge (fine-coarse level pairs)",
+        "deltaLevel1": {
+          "n": 6240,
+          "maxM": 851.7460978910256,
+          "rmsM": 67.21310431629153,
+          "p95M": 170.19823279019218
+        },
+        "deltaLevel1ByLevel": {
+          "1-0": {
+            "n": 520,
+            "maxM": 851.7460978910256,
+            "rmsM": 154.9830758795188,
+            "p95M": 277.8660919089204
+          },
+          "2-1": {
+            "n": 260,
+            "maxM": 800.6625321301125,
+            "rmsM": 147.7638723575411,
+            "p95M": 298.6689657296903
+          },
+          "3-2": {
+            "n": 260,
+            "maxM": 458.08624354869795,
+            "rmsM": 105.06377963907845,
+            "p95M": 251.63402449753775
+          },
+          "4-3": {
+            "n": 520,
+            "maxM": 453.0436220479888,
+            "rmsM": 100.21834490839883,
+            "p95M": 252.78628790475273
+          },
+          "5-4": {
+            "n": 390,
+            "maxM": 468.93637984901505,
+            "rmsM": 54.505132831648666,
+            "p95M": 122.53043448871598
+          },
+          "6-5": {
+            "n": 260,
+            "maxM": 141.79780418517362,
+            "rmsM": 33.39126114233684,
+            "p95M": 73.48933539029741
+          },
+          "7-6": {
+            "n": 780,
+            "maxM": 130.9063014621057,
+            "rmsM": 22.757175478515673,
+            "p95M": 43.82880120751311
+          },
+          "8-7": {
+            "n": 910,
+            "maxM": 46.606259696812224,
+            "rmsM": 7.7996740524191495,
+            "p95M": 17.137649125127254
+          },
+          "9-8": {
+            "n": 780,
+            "maxM": 24.93690651093933,
+            "rmsM": 5.088912800856831,
+            "p95M": 11.007563029270768
+          },
+          "10-9": {
+            "n": 780,
+            "maxM": 8.785299664464576,
+            "rmsM": 1.3632030394570211,
+            "p95M": 3.044705501262844
+          },
+          "11-10": {
+            "n": 780,
+            "maxM": 6.6473298388310935,
+            "rmsM": 0.7930427020261209,
+            "p95M": 1.5237323573335213
+          }
+        },
+        "crossFace": {
+          "n": 780,
+          "maxM": 1015.8392101956786,
+          "rmsM": 178.50130551398604,
+          "p95M": 331.4616733159906
+        },
+        "byLevelPair": {
+          "1-0": {
+            "n": 520,
+            "maxM": 851.7460978910256,
+            "rmsM": 154.9830758795188,
+            "p95M": 277.8660919089204
+          },
+          "2-0": {
+            "n": 260,
+            "maxM": 1015.8392101956786,
+            "rmsM": 218.05650779657716,
+            "p95M": 425.1514109345196
+          },
+          "2-1": {
+            "n": 260,
+            "maxM": 800.6625321301125,
+            "rmsM": 147.7638723575411,
+            "p95M": 298.6689657296903
+          },
+          "3-1": {
+            "n": 260,
+            "maxM": 1069.3587669794854,
+            "rmsM": 212.77471691851764,
+            "p95M": 482.49128397837956
+          },
+          "3-2": {
+            "n": 260,
+            "maxM": 458.08624354869795,
+            "rmsM": 105.06377963907845,
+            "p95M": 251.63402449753775
+          },
+          "4-1": {
+            "n": 130,
+            "maxM": 126.37045017944286,
+            "rmsM": 73.35415610006609,
+            "p95M": 113.91757559245295
+          },
+          "4-2": {
+            "n": 390,
+            "maxM": 853.9075520130318,
+            "rmsM": 161.4942261703523,
+            "p95M": 363.0035064860892
+          },
+          "4-3": {
+            "n": 520,
+            "maxM": 453.0436220479888,
+            "rmsM": 100.21834490839883,
+            "p95M": 252.78628790475273
+          },
+          "5-3": {
+            "n": 260,
+            "maxM": 764.4068358283489,
+            "rmsM": 135.6958452825724,
+            "p95M": 279.55980770904864
+          },
+          "5-4": {
+            "n": 390,
+            "maxM": 468.93637984901505,
+            "rmsM": 54.505132831648666,
+            "p95M": 122.53043448871598
+          },
+          "6-3": {
+            "n": 130,
+            "maxM": 992.1140843843796,
+            "rmsM": 217.33158059306746,
+            "p95M": 400.63024113907454
+          },
+          "6-4": {
+            "n": 260,
+            "maxM": 696.644190328821,
+            "rmsM": 99.24676021618605,
+            "p95M": 207.46218334005894
+          },
+          "6-5": {
+            "n": 260,
+            "maxM": 141.79780418517362,
+            "rmsM": 33.39126114233684,
+            "p95M": 73.48933539029741
+          },
+          "7-3": {
+            "n": 260,
+            "maxM": 1061.736579850498,
+            "rmsM": 221.78604595660596,
+            "p95M": 448.1610778973137
+          },
+          "7-4": {
+            "n": 390,
+            "maxM": 766.2668149741587,
+            "rmsM": 113.38459473439724,
+            "p95M": 213.21977474555757
+          },
+          "7-5": {
+            "n": 390,
+            "maxM": 216.97916381204737,
+            "rmsM": 43.87132792868126,
+            "p95M": 97.81652971386934
+          },
+          "7-6": {
+            "n": 780,
+            "maxM": 130.9063014621057,
+            "rmsM": 22.757175478515673,
+            "p95M": 43.82880120751311
+          },
+          "8-6": {
+            "n": 520,
+            "maxM": 139.25585452623673,
+            "rmsM": 23.893285367708224,
+            "p95M": 51.746889379175116
+          },
+          "8-7": {
+            "n": 910,
+            "maxM": 46.606259696812224,
+            "rmsM": 7.7996740524191495,
+            "p95M": 17.137649125127254
+          },
+          "9-6": {
+            "n": 520,
+            "maxM": 149.50879136051023,
+            "rmsM": 27.201433046608642,
+            "p95M": 69.6357597890327
+          },
+          "9-7": {
+            "n": 390,
+            "maxM": 51.37863195814532,
+            "rmsM": 11.488543954728177,
+            "p95M": 28.890946104533125
+          },
+          "9-8": {
+            "n": 780,
+            "maxM": 24.93690651093933,
+            "rmsM": 5.088912800856831,
+            "p95M": 11.007563029270768
+          },
+          "10-6": {
+            "n": 390,
+            "maxM": 150.60662471908924,
+            "rmsM": 30.852310757860753,
+            "p95M": 74.11288049971051
+          },
+          "10-7": {
+            "n": 390,
+            "maxM": 48.18227752144153,
+            "rmsM": 11.583794768413306,
+            "p95M": 29.73873813386825
+          },
+          "10-8": {
+            "n": 390,
+            "maxM": 26.507673746246702,
+            "rmsM": 5.306240679045895,
+            "p95M": 11.879431686845823
+          },
+          "10-9": {
+            "n": 780,
+            "maxM": 8.785299664464576,
+            "rmsM": 1.3632030394570211,
+            "p95M": 3.044705501262844
+          },
+          "11-6": {
+            "n": 130,
+            "maxM": 42.43789746807233,
+            "rmsM": 19.12410438883505,
+            "p95M": 37.59579999363053
+          },
+          "11-7": {
+            "n": 130,
+            "maxM": 35.8609703189968,
+            "rmsM": 13.775435802929612,
+            "p95M": 32.84651089185213
+          },
+          "11-8": {
+            "n": 130,
+            "maxM": 18.411802915524955,
+            "rmsM": 7.2392832017386555,
+            "p95M": 15.770719167386554
+          },
+          "11-9": {
+            "n": 520,
+            "maxM": 8.650437217831591,
+            "rmsM": 1.9132576138647195,
+            "p95M": 4.584620884546597
+          },
+          "11-10": {
+            "n": 780,
+            "maxM": 6.6473298388310935,
+            "rmsM": 0.7930427020261209,
+            "p95M": 1.5237323573335213
+          }
+        },
+        "worstEdges": [
+          {
+            "tile": "py/3/4/3",
+            "edge": "N",
+            "against": "py/1/1/1",
+            "crossFace": false,
+            "maxM": 1069.3587669794854,
+            "worstS": 22,
+            "level": 3,
+            "coarseLevel": 1
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "maxM": 1061.736579850498,
+            "worstS": 52,
+            "level": 7,
+            "coarseLevel": 3
+          },
+          {
+            "tile": "py/2/2/0",
+            "edge": "S",
+            "against": "pz/0/0/0",
+            "crossFace": true,
+            "maxM": 1015.8392101956786,
+            "worstS": 54,
+            "level": 2,
+            "coarseLevel": 0
+          },
+          {
+            "tile": "py/6/39/21",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "maxM": 992.1140843843796,
+            "worstS": 26,
+            "level": 6,
+            "coarseLevel": 3
+          },
+          {
+            "tile": "py/4/10/4",
+            "edge": "S",
+            "against": "py/2/2/0",
+            "crossFace": false,
+            "maxM": 853.9075520130318,
+            "worstS": 9,
+            "level": 4,
+            "coarseLevel": 2
+          },
+          {
+            "tile": "py/1/0/1",
+            "edge": "N",
+            "against": "nz/0/0/0",
+            "crossFace": true,
+            "maxM": 851.7460978910256,
+            "worstS": 41,
+            "level": 1,
+            "coarseLevel": 0
+          },
+          {
+            "tile": "py/2/2/1",
+            "edge": "N",
+            "against": "py/1/1/1",
+            "crossFace": false,
+            "maxM": 800.6625321301125,
+            "worstS": 11,
+            "level": 2,
+            "coarseLevel": 1
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "maxM": 766.2668149741587,
+            "worstS": 52,
+            "level": 7,
+            "coarseLevel": 4
+          },
+          {
+            "tile": "py/5/19/10",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "maxM": 764.4068358283489,
+            "worstS": 45,
+            "level": 5,
+            "coarseLevel": 3
+          },
+          {
+            "tile": "py/2/3/1",
+            "edge": "E",
+            "against": "px/0/0/0",
+            "crossFace": true,
+            "maxM": 760.1161883550272,
+            "worstS": 59,
+            "level": 2,
+            "coarseLevel": 0
+          }
+        ]
+      },
+      "parentChildHeights": {
+        "note": "child − parent CPU heights at the parent's own lattice positions, by child level (as validate-terrain.mjs reports for the geographic pyramid)",
+        "byChildLevel": {
+          "1": {
+            "n": 4356,
+            "maxM": 0,
+            "rmsM": 0,
+            "p95M": 0
+          },
+          "2": {
+            "n": 4356,
+            "maxM": 991.0439453125,
+            "rmsM": 134.169425784716,
+            "p95M": 309.07275390625
+          },
+          "3": {
+            "n": 4356,
+            "maxM": 898.5591793060303,
+            "rmsM": 87.52077302285785,
+            "p95M": 197.929443359375
+          },
+          "4": {
+            "n": 8712,
+            "maxM": 518.037109375,
+            "rmsM": 62.22753940001094,
+            "p95M": 141.11328125
+          },
+          "5": {
+            "n": 4356,
+            "maxM": 542.95751953125,
+            "rmsM": 43.86679637130169,
+            "p95M": 90.2861328125
+          },
+          "6": {
+            "n": 4356,
+            "maxM": 246.2373046875,
+            "rmsM": 35.23051054884381,
+            "p95M": 71.0634765625
+          },
+          "7": {
+            "n": 13068,
+            "maxM": 189.6259765625,
+            "rmsM": 18.242859787933476,
+            "p95M": 37.96826171875
+          },
+          "8": {
+            "n": 8712,
+            "maxM": 86.820068359375,
+            "rmsM": 7.213456855431506,
+            "p95M": 13.969482421875
+          },
+          "9": {
+            "n": 8712,
+            "maxM": 31.1357421875,
+            "rmsM": 2.818938363291296,
+            "p95M": 5.515380859375
+          },
+          "10": {
+            "n": 8712,
+            "maxM": 10.572265625,
+            "rmsM": 1.0208372334909883,
+            "p95M": 2.1220703125
+          },
+          "11": {
+            "n": 8712,
+            "maxM": 11.22021484375,
+            "rmsM": 0.730096506833087,
+            "p95M": 1.45458984375
+          }
+        }
+      },
+      "simplification": null,
+      "tilesetMeasured": {
+        "parentChildPairsChecked": 78
+      },
+      "cpuSampleVsTriangles": {
+        "note": "radial storage diagnostic: emitted float32 triangle minus reference radius plus interpolated payload; not public ellipsoid-normal height samples",
+        "samplesPerTile": 24,
+        "byLevel": {
+          "0": {
+            "n": 144,
+            "maxM": 758.1096183802001,
+            "rmsM": 361.131688753046,
+            "p95M": 621.1265355795622,
+            "meanM": -328.80001115028995
+          },
+          "1": {
+            "n": 96,
+            "maxM": 188.75239398609847,
+            "rmsM": 85.06392494012874,
+            "p95M": 154.1700899489224,
+            "meanM": -76.37952921307199
+          },
+          "2": {
+            "n": 96,
+            "maxM": 47.370470150373876,
+            "rmsM": 20.978671244937843,
+            "p95M": 35.340637693647295,
+            "meanM": -18.912815997823298
+          },
+          "3": {
+            "n": 96,
+            "maxM": 12.482802683487535,
+            "rmsM": 7.394341298886026,
+            "p95M": 11.144820507615805,
+            "meanM": -6.965733825951854
+          },
+          "4": {
+            "n": 192,
+            "maxM": 2.82754875253886,
+            "rmsM": 1.7880004627743928,
+            "p95M": 2.542976753320545,
+            "meanM": -1.6960950426049142
+          },
+          "5": {
+            "n": 96,
+            "maxM": 0.7050573020242155,
+            "rmsM": 0.45197205566373927,
+            "p95M": 0.6874049212783575,
+            "meanM": -0.4280033275669363
+          },
+          "6": {
+            "n": 96,
+            "maxM": 0.17281975969672203,
+            "rmsM": 0.1206647385451116,
+            "p95M": 0.16913057072088122,
+            "meanM": -0.1153423793487794
+          },
+          "7": {
+            "n": 288,
+            "maxM": 0.044007052667438984,
+            "rmsM": 0.029378808043741857,
+            "p95M": 0.041927068028599024,
+            "meanM": -0.027839029925720144
+          },
+          "8": {
+            "n": 192,
+            "maxM": 0.011038127355277538,
+            "rmsM": 0.007331207922775977,
+            "p95M": 0.010325055103749037,
+            "meanM": -0.00697665152256377
+          },
+          "9": {
+            "n": 192,
+            "maxM": 0.002695927396416664,
+            "rmsM": 0.0018066235265871157,
+            "p95M": 0.002591318916529417,
+            "meanM": -0.001712151788524352
+          },
+          "10": {
+            "n": 192,
+            "maxM": 0.0007254523225128651,
+            "rmsM": 0.0004733276997248461,
+            "p95M": 0.0006547076627612114,
+            "meanM": -0.00045007925897759077
+          },
+          "11": {
+            "n": 192,
+            "maxM": 0.00019770441576838493,
+            "rmsM": 0.00011840491642327982,
+            "p95M": 0.00016496377065777779,
+            "meanM": -0.00011153956923711424
+          }
+        }
+      },
+      "representationVsFusedField": {
+        "0": {
+          "maxM": 6903.596713243984,
+          "meanRmsM": 328.1161562964629
+        },
+        "1": {
+          "maxM": 4887.441732952837,
+          "meanRmsM": 257.59766073336795
+        },
+        "2": {
+          "maxM": 2924.401357845869,
+          "meanRmsM": 191.12452811308628
+        },
+        "3": {
+          "maxM": 2145.220449642744,
+          "meanRmsM": 122.23095765709155
+        },
+        "4": {
+          "maxM": 1184.258483539801,
+          "meanRmsM": 79.48583100032982
+        },
+        "5": {
+          "maxM": 677.1537030693144,
+          "meanRmsM": 50.468703034346525
+        },
+        "6": {
+          "maxM": 370.2071725507267,
+          "meanRmsM": 32.49241468908123
+        },
+        "7": {
+          "maxM": 189.14567280979827,
+          "meanRmsM": 14.432914836852822
+        },
+        "8": {
+          "maxM": 84.60868804948404,
+          "meanRmsM": 5.0118010878391805
+        },
+        "9": {
+          "maxM": 41.077557194978,
+          "meanRmsM": 1.5984368706583056
+        },
+        "10": {
+          "maxM": 25.70330242952332,
+          "meanRmsM": 1.0723732972201416
+        },
+        "11": {
+          "maxM": 14.2418963923119,
+          "meanRmsM": 0.7967255886112905
+        }
+      },
+      "ownership": {
+        "shackletonBefore": {
+          "state": "parent-fallback",
+          "availableLevel": 10,
+          "residentLevel": 2,
+          "residentTileId": "py/2/2/1"
+        },
+        "shackletonAfter": {
+          "state": "finest",
+          "availableLevel": 10,
+          "residentLevel": 10,
+          "residentTileId": "py/10/625/337"
+        },
+        "cases": [
+          {
+            "label": "south pole, any longitude",
+            "points": [
+              [
+                -90,
+                0
+              ],
+              [
+                -90,
+                90
+              ],
+              [
+                -90,
+                137
+              ],
+              [
+                -90,
+                180
+              ],
+              [
+                -90,
+                -180
+              ],
+              [
+                -90,
+                -45
+              ],
+              [
+                -90,
+                360
+              ]
+            ],
+            "tileId": "nz/0/0/0",
+            "elevationKm": 6.13433886718758,
+            "ok": true
+          },
+          {
+            "label": "north pole, any longitude",
+            "points": [
+              [
+                90,
+                0
+              ],
+              [
+                90,
+                90
+              ],
+              [
+                90,
+                -180
+              ],
+              [
+                90,
+                270
+              ]
+            ],
+            "tileId": "pz/0/0/0",
+            "elevationKm": -0.06224999999993486,
+            "ok": true
+          },
+          {
+            "label": "antimeridian equator",
+            "points": [
+              [
+                0,
+                180
+              ],
+              [
+                0,
+                -180
+              ],
+              [
+                0,
+                540
+              ],
+              [
+                0,
+                -540
+              ]
+            ],
+            "tileId": "nx/0/0/0",
+            "elevationKm": -3.3852888183591716,
+            "ok": true
+          },
+          {
+            "label": "antimeridian 60°S",
+            "points": [
+              [
+                -60,
+                180
+              ],
+              [
+                -60,
+                -180
+              ]
+            ],
+            "tileId": "nz/0/0/0",
+            "elevationKm": 2.157729633606664,
+            "ok": true
+          },
+          {
+            "label": "prime meridian equator (px centre: child boundary at every level)",
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                360
+              ],
+              [
+                0,
+                -360
+              ]
+            ],
+            "tileId": "px/0/0/0",
+            "elevationKm": -1.8784467773439246,
+            "ok": true
+          },
+          {
+            "label": "px/nz edge midpoint (selected detail)",
+            "points": [
+              [
+                -45,
+                0
+              ],
+              [
+                -45,
+                360
+              ]
+            ],
+            "tileId": "px/0/0/0",
+            "elevationKm": 1.9893137461337886,
+            "ok": true
+          }
+        ]
+      },
+      "controlPoints": {
+        "reference": "Source-specific controls are validated by the build caller; no lunar controls used",
+        "stats": {
+          "n": 0
+        },
+        "rows": []
+      },
+      "picking": {
+        "rays": 120,
+        "cpuVsFloat32Triangles": {
+          "n": 120,
+          "maxM": 0.13074711113449666,
+          "rmsM": 0.040540200762387194,
+          "p95M": 0.09636422788048549
+        },
+        "clearanceM": 50,
+        "raysWithFullClearance": 120,
+        "lineOfSightErrorM": {
+          "n": 120,
+          "maxM": 4.3145576000824803e-10,
+          "rmsM": 1.556509235106796e-10,
+          "p95M": 3.552855787347653e-10
+        },
+        "minHeightAboveCpuSampleM": 49.998260086070445,
+        "rows": [
+          {
+            "float32ToleranceM": 0.0024215835964825454,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000022443874968303135,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.055204870758985,
+            "lineOfSightM": 49.999999999741405,
+            "renderedNormalUp": 0.9988970877793351
+          },
+          {
+            "float32ToleranceM": 0.002422785993708799,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00003614638194449071,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00050879782236,
+            "lineOfSightM": 49.999999999975394,
+            "renderedNormalUp": 0.9999898238525318
+          },
+          {
+            "float32ToleranceM": 0.002786633188037097,
+            "site": "shackleton",
+            "tileId": "py/10/627/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000014543147926815436,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.224951581441246,
+            "lineOfSightM": 50.0000000003026,
+            "renderedNormalUp": 0.9955209866902721
+          },
+          {
+            "float32ToleranceM": 0.00210966268863875,
+            "site": "shackleton",
+            "tileId": "py/10/627/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000012245180414538481,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.40811412888502,
+            "lineOfSightM": 49.99999999986551,
+            "renderedNormalUp": 0.9919035629273638
+          },
+          {
+            "float32ToleranceM": 0.0032128445171465255,
+            "site": "shackleton",
+            "tileId": "py/9/312/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000016971115883279708,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.05409872173061,
+            "lineOfSightM": 50.00000000014743,
+            "renderedNormalUp": 0.9989191629159934
+          },
+          {
+            "float32ToleranceM": 0.001774747729405314,
+            "site": "shackleton",
+            "tileId": "py/10/627/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000007075876965245698,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.31579765088168,
+            "lineOfSightM": 50.00000000011554,
+            "renderedNormalUp": 0.9939515287237929
+          },
+          {
+            "float32ToleranceM": 0.0022445206124256374,
+            "site": "shackleton",
+            "tileId": "py/10/625/336",
+            "detail": "coarse",
+            "pickVsGlbM": 4.7233379518729635e-7,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00805030756794,
+            "lineOfSightM": 50.000000000385775,
+            "renderedNormalUp": 0.9998390150309397
+          },
+          {
+            "float32ToleranceM": 0.0009685130548310223,
+            "site": "shackleton",
+            "tileId": "py/11/1253/674",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000005993706281515188,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.08948998531082,
+            "lineOfSightM": 50.00000000004751,
+            "renderedNormalUp": 0.9982133448368107
+          },
+          {
+            "float32ToleranceM": 0.0009802284539027395,
+            "site": "shackleton",
+            "tileId": "py/11/1252/673",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000005706195224775001,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 49.998260086070445,
+            "lineOfSightM": 50.00000000004269,
+            "renderedNormalUp": 0.9998164171537252
+          },
+          {
+            "float32ToleranceM": 0.001975639744858434,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00001554704931550077,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00048251523026,
+            "lineOfSightM": 50.000000000355286,
+            "renderedNormalUp": 0.9999903494955145
+          },
+          {
+            "float32ToleranceM": 0.003216749463850585,
+            "site": "shackleton",
+            "tileId": "py/9/312/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0000366174269856856,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.03502509001123,
+            "lineOfSightM": 50.000000000294435,
+            "renderedNormalUp": 0.9992999678834018
+          },
+          {
+            "float32ToleranceM": 0.0026666369017496684,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000041808594687609,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.036518173087075,
+            "lineOfSightM": 49.99999999994753,
+            "renderedNormalUp": 0.9992701480677918
+          },
+          {
+            "float32ToleranceM": 0.001322649901581168,
+            "site": "shackleton",
+            "tileId": "py/11/1252/675",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000010472767598912469,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.07049206901115,
+            "lineOfSightM": 49.99999999989162,
+            "renderedNormalUp": 0.9985921016350418
+          },
+          {
+            "float32ToleranceM": 0.0009539911809527451,
+            "site": "shackleton",
+            "tileId": "py/11/1252/674",
+            "detail": "coarse",
+            "pickVsGlbM": 4.685125531977974e-7,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00387862547484,
+            "lineOfSightM": 50.00000000026959,
+            "renderedNormalUp": 0.9999224312278109
+          },
+          {
+            "float32ToleranceM": 0.0020640217581811755,
+            "site": "shackleton",
+            "tileId": "py/10/624/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000005663958518198342,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.04840191431015,
+            "lineOfSightM": 50.000000000116614,
+            "renderedNormalUp": 0.9990328691652506
+          },
+          {
+            "float32ToleranceM": 0.003556303204611814,
+            "site": "shackleton",
+            "tileId": "py/9/312/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00010605703550936596,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.030904541742416,
+            "lineOfSightM": 49.99999999997652,
+            "renderedNormalUp": 0.9993822726106304
+          },
+          {
+            "float32ToleranceM": 0.0020104540247559374,
+            "site": "shackleton",
+            "tileId": "py/10/625/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000015972673736541765,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00059608613583,
+            "lineOfSightM": 49.9999999999879,
+            "renderedNormalUp": 0.9999880780740894
+          },
+          {
+            "float32ToleranceM": 0.003304684949448135,
+            "site": "shackleton",
+            "tileId": "py/9/312/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000025562797191014397,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.12642493858266,
+            "lineOfSightM": 49.99999999995383,
+            "renderedNormalUp": 0.9974778037441152
+          },
+          {
+            "float32ToleranceM": 0.0033233640391144323,
+            "site": "shackleton",
+            "tileId": "py/9/312/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0000045196495648269774,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.015247979004585,
+            "lineOfSightM": 50.00000000020913,
+            "renderedNormalUp": 0.9996951244136191
+          },
+          {
+            "float32ToleranceM": 0.0010218975410998875,
+            "site": "shackleton",
+            "tileId": "py/11/1252/673",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000012378957308101235,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01686589640997,
+            "lineOfSightM": 49.999999999939654,
+            "renderedNormalUp": 0.9996627858296714
+          },
+          {
+            "float32ToleranceM": 0.0019420092538912788,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000027050175731346826,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.004180766507034,
+            "lineOfSightM": 50.000000000174886,
+            "renderedNormalUp": 0.9999163891928736
+          },
+          {
+            "float32ToleranceM": 0.0017394459803410501,
+            "site": "shackleton",
+            "tileId": "py/10/627/336",
+            "detail": "coarse",
+            "pickVsGlbM": 2.545207280491013e-7,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.3669828407709,
+            "lineOfSightM": 49.99999999983524,
+            "renderedNormalUp": 0.9927178299284196
+          },
+          {
+            "float32ToleranceM": 0.0019499401189161287,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000003500946831991314,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.006574213952604,
+            "lineOfSightM": 49.9999999998834,
+            "renderedNormalUp": 0.9998685291000505
+          },
+          {
+            "float32ToleranceM": 0.0017029172608242998,
+            "site": "shackleton",
+            "tileId": "py/10/625/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00005401257499215717,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.000762263650245,
+            "lineOfSightM": 50.000000000373056,
+            "renderedNormalUp": 0.9999847545321511
+          },
+          {
+            "float32ToleranceM": 0.003278378119858997,
+            "site": "shackleton",
+            "tileId": "py/9/313/169",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00001618312330720073,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.78312438186572,
+            "lineOfSightM": 49.99999999984863,
+            "renderedNormalUp": 0.9845785916847308
+          },
+          {
+            "float32ToleranceM": 0.00198793152998861,
+            "site": "shackleton",
+            "tileId": "py/10/625/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0000014218242085917154,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.018711105224156,
+            "lineOfSightM": 50.00000000017271,
+            "renderedNormalUp": 0.9996259067660244
+          },
+          {
+            "float32ToleranceM": 0.001497395314420956,
+            "site": "shackleton",
+            "tileId": "py/11/1253/672",
+            "detail": "coarse",
+            "pickVsGlbM": 5.323988716554595e-7,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.14913009063093,
+            "lineOfSightM": 49.99999999984045,
+            "renderedNormalUp": 0.9970261797495354
+          },
+          {
+            "float32ToleranceM": 0.0020907157793694947,
+            "site": "shackleton",
+            "tileId": "py/10/625/336",
+            "detail": "coarse",
+            "pickVsGlbM": 0.00002160470580747642,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02443563351733,
+            "lineOfSightM": 50.00000000003511,
+            "renderedNormalUp": 0.9995115116427472
+          },
+          {
+            "float32ToleranceM": 0.0012404188052472192,
+            "site": "shackleton",
+            "tileId": "py/11/1253/674",
+            "detail": "coarse",
+            "pickVsGlbM": 0.000002904331040554098,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.6867998123397,
+            "lineOfSightM": 49.99999999993749,
+            "renderedNormalUp": 0.9864497279651636
+          },
+          {
+            "float32ToleranceM": 0.0025523501107823383,
+            "site": "shackleton",
+            "tileId": "py/10/624/337",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0000031083147860044846,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00090145652791,
+            "lineOfSightM": 50.000000000021736,
+            "renderedNormalUp": 0.999981970673676
+          },
+          {
+            "float32ToleranceM": 1.6865286258065006,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.02177045313283088,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0137686577915,
+            "lineOfSightM": 49.99999999981224,
+            "renderedNormalUp": 0.9997246909897998
+          },
+          {
+            "float32ToleranceM": 1.1539908566041253,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014928179526123131,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01398218593067,
+            "lineOfSightM": 49.999999999982144,
+            "renderedNormalUp": 0.9997204423361568
+          },
+          {
+            "float32ToleranceM": 1.5243822515539944,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.017340583882514693,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01146330623385,
+            "lineOfSightM": 49.999999999994216,
+            "renderedNormalUp": 0.9997707800087122
+          },
+          {
+            "float32ToleranceM": 1.1553655458192207,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.013542489753490372,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01052782443338,
+            "lineOfSightM": 49.999999999831225,
+            "renderedNormalUp": 0.9997894804792351
+          },
+          {
+            "float32ToleranceM": 1.1891887582880405,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014343920262945176,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01105010222062,
+            "lineOfSightM": 49.99999999968085,
+            "renderedNormalUp": 0.999779039086346
+          },
+          {
+            "float32ToleranceM": 1.3989920150068988,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.01805749106165422,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0120431479516,
+            "lineOfSightM": 49.99999999971861,
+            "renderedNormalUp": 0.9997591800917406
+          },
+          {
+            "float32ToleranceM": 1.4636072857642959,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.018579338857080074,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01361840064078,
+            "lineOfSightM": 49.99999999986376,
+            "renderedNormalUp": 0.9997276929198743
+          },
+          {
+            "float32ToleranceM": 1.4175458114545483,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.017719674601721636,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01293100909976,
+            "lineOfSightM": 50.00000000017861,
+            "renderedNormalUp": 0.9997414505666562
+          },
+          {
+            "float32ToleranceM": 1.4997752312135466,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.01762154739003563,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01211553285856,
+            "lineOfSightM": 50.00000000005886,
+            "renderedNormalUp": 0.9997577371577423
+          },
+          {
+            "float32ToleranceM": 1.54057577646385,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.019711105730948475,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01366097253168,
+            "lineOfSightM": 49.9999999997868,
+            "renderedNormalUp": 0.9997268548030372
+          },
+          {
+            "float32ToleranceM": 1.3071813332214726,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.016519978986480055,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02610690396381,
+            "lineOfSightM": 50.00000000019809,
+            "renderedNormalUp": 0.9994781145278493
+          },
+          {
+            "float32ToleranceM": 2.051268066379445,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.02342261739681817,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01154722255308,
+            "lineOfSightM": 50.000000000111235,
+            "renderedNormalUp": 0.9997690987161748
+          },
+          {
+            "float32ToleranceM": 1.5628629209505673,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.020236872598616173,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02732007172028,
+            "lineOfSightM": 50.000000000290335,
+            "renderedNormalUp": 0.9994538469360625
+          },
+          {
+            "float32ToleranceM": 1.636405590720185,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.021028038981739883,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01336261295819,
+            "lineOfSightM": 49.999999999959314,
+            "renderedNormalUp": 0.9997328044765246
+          },
+          {
+            "float32ToleranceM": 1.3483433472748143,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.016937999294441397,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.025709150489206,
+            "lineOfSightM": 50.00000000007717,
+            "renderedNormalUp": 0.9994860642658916
+          },
+          {
+            "float32ToleranceM": 1.4486009984209505,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.018339343525212826,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02518400051059,
+            "lineOfSightM": 50.00000000037572,
+            "renderedNormalUp": 0.9994965555560575
+          },
+          {
+            "float32ToleranceM": 1.182557217950161,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.015255327101385774,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01203268916754,
+            "lineOfSightM": 49.9999999999758,
+            "renderedNormalUp": 0.9997593729054357
+          },
+          {
+            "float32ToleranceM": 1.1519320489872558,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014880901156402615,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0138443663829,
+            "lineOfSightM": 49.99999999983409,
+            "renderedNormalUp": 0.9997231960436298
+          },
+          {
+            "float32ToleranceM": 1.1484303795826742,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014820515592646188,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01378466625539,
+            "lineOfSightM": 49.99999999997984,
+            "renderedNormalUp": 0.9997243905328141
+          },
+          {
+            "float32ToleranceM": 1.143340253301239,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.013020803490007893,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01012768415336,
+            "lineOfSightM": 49.99999999979872,
+            "renderedNormalUp": 0.9997974826284384
+          },
+          {
+            "float32ToleranceM": 1.1429481258307341,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014499015070668975,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.011750216732764,
+            "lineOfSightM": 50.00000000004295,
+            "renderedNormalUp": 0.9997650614731639
+          },
+          {
+            "float32ToleranceM": 1.1453059569794724,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014640684664527726,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0128303170726,
+            "lineOfSightM": 49.99999999966715,
+            "renderedNormalUp": 0.9997434521819442
+          },
+          {
+            "float32ToleranceM": 2.1367339519223765,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.026289770630228304,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.011254597023935,
+            "lineOfSightM": 49.99999999994908,
+            "renderedNormalUp": 0.9997749551055627
+          },
+          {
+            "float32ToleranceM": 1.2085182823847542,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.015295335033215451,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.013098453881355,
+            "lineOfSightM": 50.00000000028995,
+            "renderedNormalUp": 0.9997381053670261
+          },
+          {
+            "float32ToleranceM": 1.317688787363509,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014830858946197623,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01149991018394,
+            "lineOfSightM": 50.000000000000675,
+            "renderedNormalUp": 0.9997700457598131
+          },
+          {
+            "float32ToleranceM": 1.1600854642151979,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.01488555461469332,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02642993509454,
+            "lineOfSightM": 50.000000000114326,
+            "renderedNormalUp": 0.999471660979725
+          },
+          {
+            "float32ToleranceM": 1.151428880505004,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014826040396201279,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01368970676623,
+            "lineOfSightM": 49.99999999986408,
+            "renderedNormalUp": 0.9997262612541613
+          },
+          {
+            "float32ToleranceM": 1.6231404287960327,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.018430367234259393,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01167397361428,
+            "lineOfSightM": 50.00000000041822,
+            "renderedNormalUp": 0.9997665654610598
+          },
+          {
+            "float32ToleranceM": 1.2489061619716582,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.015951260577139692,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02599187838541,
+            "lineOfSightM": 50.000000000431456,
+            "renderedNormalUp": 0.9994804227450094
+          },
+          {
+            "float32ToleranceM": 1.407698431068071,
+            "site": "pole",
+            "tileId": "nz/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.017870778798396714,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.013845298849446,
+            "lineOfSightM": 49.99999999972388,
+            "renderedNormalUp": 0.9997231591769048
+          },
+          {
+            "float32ToleranceM": 0.9713848828600933,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.025947569841719087,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01349041906167,
+            "lineOfSightM": 50.000000000021636,
+            "renderedNormalUp": 0.9997302564371324
+          },
+          {
+            "float32ToleranceM": 1.1744532325346548,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.016993933335243128,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.011277569751655,
+            "lineOfSightM": 49.99999999997694,
+            "renderedNormalUp": 0.9997744928093828
+          },
+          {
+            "float32ToleranceM": 0.7492513911807588,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.01705107895782021,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.011479326059316,
+            "lineOfSightM": 50.00000000003463,
+            "renderedNormalUp": 0.9997704594240917
+          },
+          {
+            "float32ToleranceM": 2.2856617916001594,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.05919986845606218,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0086253241534,
+            "lineOfSightM": 50.00000000006913,
+            "renderedNormalUp": 0.9998275181927323
+          },
+          {
+            "float32ToleranceM": 1.5493506276839053,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.005587483914951008,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.012375601866665,
+            "lineOfSightM": 50.0000000001352,
+            "renderedNormalUp": 0.9997525418935248
+          },
+          {
+            "float32ToleranceM": 0.5826991797550027,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.007250239991890339,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.016535117734406,
+            "lineOfSightM": 50.0000000001085,
+            "renderedNormalUp": 0.9996693972368064
+          },
+          {
+            "float32ToleranceM": 1.478011777080391,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.007107354026857138,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01251354734393,
+            "lineOfSightM": 50.00000000006913,
+            "renderedNormalUp": 0.9997497843036347
+          },
+          {
+            "float32ToleranceM": 1.44255297803663,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.023616458069000146,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.010472018158225,
+            "lineOfSightM": 50.00000000000672,
+            "renderedNormalUp": 0.999790597318527
+          },
+          {
+            "float32ToleranceM": 0.5756135395708035,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.002450399019608085,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02169168450621,
+            "lineOfSightM": 49.99999999994097,
+            "renderedNormalUp": 0.9995663416341296
+          },
+          {
+            "float32ToleranceM": 1.3852210125949698,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0218501232448034,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0115360747202,
+            "lineOfSightM": 49.99999999998428,
+            "renderedNormalUp": 0.9997693249247911
+          },
+          {
+            "float32ToleranceM": 0.6834279703216243,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.006426862172247638,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01726346141311,
+            "lineOfSightM": 50.000000000044686,
+            "renderedNormalUp": 0.9996548397716796
+          },
+          {
+            "float32ToleranceM": 1.87607562277086,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.03358352089003347,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00819562877723,
+            "lineOfSightM": 50.00000000013561,
+            "renderedNormalUp": 0.9998361094516535
+          },
+          {
+            "float32ToleranceM": 0.9357903414454543,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.020041183376633853,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.014508573298144,
+            "lineOfSightM": 49.99999999993488,
+            "renderedNormalUp": 0.9997099041614084
+          },
+          {
+            "float32ToleranceM": 1.4411601552046243,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.03275569548259227,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00938813904554,
+            "lineOfSightM": 50.00000000001692,
+            "renderedNormalUp": 0.9998122669319971
+          },
+          {
+            "float32ToleranceM": 1.2873390425541775,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.040262591123109814,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.008388248272695,
+            "lineOfSightM": 49.99999999997011,
+            "renderedNormalUp": 0.9998322582273786
+          },
+          {
+            "float32ToleranceM": 0.5748992668303752,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.013827705877929475,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01419841815391,
+            "lineOfSightM": 50.00000000004593,
+            "renderedNormalUp": 0.9997161038843916
+          },
+          {
+            "float32ToleranceM": 0.6675738406375326,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.02240047816076185,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0104086092108,
+            "lineOfSightM": 49.99999999998486,
+            "renderedNormalUp": 0.9997918649987132
+          },
+          {
+            "float32ToleranceM": 0.6137580171175492,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.01027596808967246,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.015552045309164,
+            "lineOfSightM": 49.99999999999869,
+            "renderedNormalUp": 0.9996890466440993
+          },
+          {
+            "float32ToleranceM": 1.657847819810127,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.020005462919698402,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01018149410186,
+            "lineOfSightM": 49.99999999994595,
+            "renderedNormalUp": 0.9997964055710913
+          },
+          {
+            "float32ToleranceM": 0.6767996302717937,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.009744112905309521,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00821288098223,
+            "lineOfSightM": 50.000000000018495,
+            "renderedNormalUp": 0.9998357645007618
+          },
+          {
+            "float32ToleranceM": 1.1472261858873656,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0019140244801292283,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01094069946532,
+            "lineOfSightM": 50.000000000041396,
+            "renderedNormalUp": 0.9997812274200015
+          },
+          {
+            "float32ToleranceM": 0.6133273655815585,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.003284717124643066,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00768738074157,
+            "lineOfSightM": 49.999999999962625,
+            "renderedNormalUp": 0.9998462714785536
+          },
+          {
+            "float32ToleranceM": 0.5903893370618101,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.004866107490897775,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01948998493333,
+            "lineOfSightM": 49.999999999955755,
+            "renderedNormalUp": 0.9996103406796375
+          },
+          {
+            "float32ToleranceM": 0.5741737575579422,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.014723009271847332,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.0138423070382,
+            "lineOfSightM": 49.99999999998212,
+            "renderedNormalUp": 0.9997232223302628
+          },
+          {
+            "float32ToleranceM": 0.8458478137852019,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.004586727226751464,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.02182377107545,
+            "lineOfSightM": 49.99999999998073,
+            "renderedNormalUp": 0.9995637021113826
+          },
+          {
+            "float32ToleranceM": 0.6035646348829348,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.001398686002175964,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01891886804799,
+            "lineOfSightM": 50.00000000006665,
+            "renderedNormalUp": 0.9996217546077805
+          },
+          {
+            "float32ToleranceM": 0.7172343924678716,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.005323870843312761,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.017688136065885,
+            "lineOfSightM": 50.00000000006686,
+            "renderedNormalUp": 0.9996463519640582
+          },
+          {
+            "float32ToleranceM": 1.7817798513360439,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.025329602737429013,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00897658442227,
+            "lineOfSightM": 50.000000000041794,
+            "renderedNormalUp": 0.9998204952444523
+          },
+          {
+            "float32ToleranceM": 0.5837923272345918,
+            "site": "corner",
+            "tileId": "py/1/1/1",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0020503614123299485,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.01862514288291,
+            "lineOfSightM": 50.00000000009524,
+            "renderedNormalUp": 0.9996276248822287
+          },
+          {
+            "float32ToleranceM": 1.928309238771469,
+            "site": "corner",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.012647226467834116,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00809789514449,
+            "lineOfSightM": 50.00000000004547,
+            "renderedNormalUp": 0.9998380635384161
+          },
+          {
+            "float32ToleranceM": 1.2637963468202549,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0710540165648581,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00892007403479,
+            "lineOfSightM": 50.000000000130235,
+            "renderedNormalUp": 0.9998216251168395
+          },
+          {
+            "float32ToleranceM": 1.1481518791654182,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.06963898581943795,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00520329397773,
+            "lineOfSightM": 49.99999999991467,
+            "renderedNormalUp": 0.9998959418911628
+          },
+          {
+            "float32ToleranceM": 1.2254060251534575,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.0691667995113221,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.007540619887436,
+            "lineOfSightM": 49.99999999998104,
+            "renderedNormalUp": 0.9998492059128941
+          },
+          {
+            "float32ToleranceM": 1.4001876784300724,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.06551208510813922,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00074544605582,
+            "lineOfSightM": 49.99999999984597,
+            "renderedNormalUp": 0.9999850908419241
+          },
+          {
+            "float32ToleranceM": 1.361601658564949,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.03088308528072048,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00177284924234,
+            "lineOfSightM": 50.00000000005515,
+            "renderedNormalUp": 0.9999645432305654
+          },
+          {
+            "float32ToleranceM": 1.1823022118333355,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.037322758643313136,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.000759329236644,
+            "lineOfSightM": 49.9999999998148,
+            "renderedNormalUp": 0.9999848131943493
+          },
+          {
+            "float32ToleranceM": 1.1548840474133764,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.06396464280146574,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.006517542129814,
+            "lineOfSightM": 50.000000000115115,
+            "renderedNormalUp": 0.9998696623267727
+          },
+          {
+            "float32ToleranceM": 2.1513471024901563,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.11805044465177161,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00647693451299,
+            "lineOfSightM": 49.99999999991803,
+            "renderedNormalUp": 0.9998704742826721
+          },
+          {
+            "float32ToleranceM": 2.087754856968499,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.12157177724429857,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00849746237179,
+            "lineOfSightM": 49.99999999987464,
+            "renderedNormalUp": 0.9998300746456337
+          },
+          {
+            "float32ToleranceM": 1.147530453682965,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.061236957646315204,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00655487008032,
+            "lineOfSightM": 50.00000000019645,
+            "renderedNormalUp": 0.9998689159409886
+          },
+          {
+            "float32ToleranceM": 1.1916864240150098,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.08448645802968713,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00754184395362,
+            "lineOfSightM": 49.99999999982892,
+            "renderedNormalUp": 0.9998491814357975
+          },
+          {
+            "float32ToleranceM": 1.8517893164505121,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.13074711113449666,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.006037593902875,
+            "lineOfSightM": 50.00000000002107,
+            "renderedNormalUp": 0.9998792591475862
+          },
+          {
+            "float32ToleranceM": 1.631557183937847,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.026660620477059638,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.001051970568255,
+            "lineOfSightM": 49.9999999998663,
+            "renderedNormalUp": 0.999978960403215
+          },
+          {
+            "float32ToleranceM": 1.9080849006804619,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.10689322728217121,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00096780190688,
+            "lineOfSightM": 50.00000000005922,
+            "renderedNormalUp": 0.9999806437701053
+          },
+          {
+            "float32ToleranceM": 1.7891677828264803,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.054616241999838167,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.000883454629275,
+            "lineOfSightM": 50.000000000084064,
+            "renderedNormalUp": 0.9999823306960282
+          },
+          {
+            "float32ToleranceM": 1.4738177425266137,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.07114699834460225,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.001509253178256,
+            "lineOfSightM": 50.000000000031434,
+            "renderedNormalUp": 0.9999698149700089
+          },
+          {
+            "float32ToleranceM": 1.9046862902685995,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.08849517655426098,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.001419279467996,
+            "lineOfSightM": 50.00000000006329,
+            "renderedNormalUp": 0.9999716143759152
+          },
+          {
+            "float32ToleranceM": 1.777793091077922,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.09636422788048549,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00918996434223,
+            "lineOfSightM": 49.99999999995459,
+            "renderedNormalUp": 0.9998162290894093
+          },
+          {
+            "float32ToleranceM": 1.5305005546897807,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.07597777464116007,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00748513498365,
+            "lineOfSightM": 50.00000000000907,
+            "renderedNormalUp": 0.9998503153102247
+          },
+          {
+            "float32ToleranceM": 1.8229551390612486,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.07791526625669576,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00078188413681,
+            "lineOfSightM": 49.999999999793104,
+            "renderedNormalUp": 0.999984362102255
+          },
+          {
+            "float32ToleranceM": 1.4236066983162194,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.07669752783317563,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00807131688134,
+            "lineOfSightM": 49.99999999992306,
+            "renderedNormalUp": 0.9998385949719677
+          },
+          {
+            "float32ToleranceM": 1.9736040331511344,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.11530418027768974,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00092492448971,
+            "lineOfSightM": 49.999999999887535,
+            "renderedNormalUp": 0.9999815013105602
+          },
+          {
+            "float32ToleranceM": 1.1573550520391767,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.025615155147534097,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.001929179515514,
+            "lineOfSightM": 50.00000000006283,
+            "renderedNormalUp": 0.9999614167531201
+          },
+          {
+            "float32ToleranceM": 1.1451383783178712,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.022208258103091794,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00031297845453,
+            "lineOfSightM": 50.00000000002624,
+            "renderedNormalUp": 0.9999937402854787
+          },
+          {
+            "float32ToleranceM": 1.2371588881848992,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.06989622638911897,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.008788990254516,
+            "lineOfSightM": 50.000000000141604,
+            "renderedNormalUp": 0.999824245929962
+          },
+          {
+            "float32ToleranceM": 1.1972132491582135,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.06247280680145195,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.000837677117715,
+            "lineOfSightM": 49.9999999999395,
+            "renderedNormalUp": 0.9999832462600668
+          },
+          {
+            "float32ToleranceM": 1.3111388342254222,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.07540984229444803,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00849066982482,
+            "lineOfSightM": 50.00000000011687,
+            "renderedNormalUp": 0.9998302104609706
+          },
+          {
+            "float32ToleranceM": 1.1603249487824365,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.05919505313272566,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00884688418239,
+            "lineOfSightM": 50.000000000246736,
+            "renderedNormalUp": 0.9998230884202595
+          },
+          {
+            "float32ToleranceM": 1.2474843154095658,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.05954168908237989,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00045281630605,
+            "lineOfSightM": 50.000000000009976,
+            "renderedNormalUp": 0.9999909434940781
+          },
+          {
+            "float32ToleranceM": 1.1533925714221833,
+            "site": "edge",
+            "tileId": "px/0/0/0",
+            "detail": "coarse",
+            "pickVsGlbM": 0.048761564491087483,
+            "radialVsGlbM": null,
+            "clearanceAboveSampleM": 50.00813495792045,
+            "lineOfSightM": 50.00000000015301,
+            "renderedNormalUp": 0.9998373225228716
+          }
+        ]
+      },
+      "skirts": {
+        "description": "per edge: 1.25 × the largest gap to any other level across it + 0.1 × vertex spacing; triangles after glTF primitive extras.surfaceTriangles",
+        "builder": {
+          "byLevel": {
+            "0": {
+              "depthMaxM": 11877.306,
+              "depthMeanM": 10694.062,
+              "edges": 24,
+              "gapMaxM": 1011.37,
+              "vertexSpacingM": 106130.938
+            },
+            "1": {
+              "depthMaxM": 6364.893,
+              "depthMeanM": 5647.006,
+              "edges": 16,
+              "gapMaxM": 846.677,
+              "vertexSpacingM": 53065.469
+            },
+            "2": {
+              "depthMaxM": 3720.855,
+              "depthMeanM": 3034.566,
+              "edges": 16,
+              "gapMaxM": 854.065,
+              "vertexSpacingM": 26532.734
+            },
+            "3": {
+              "depthMaxM": 2663.164,
+              "depthMeanM": 1652.9,
+              "edges": 16,
+              "gapMaxM": 1069.222,
+              "vertexSpacingM": 13266.367
+            },
+            "4": {
+              "depthMaxM": 1288.064,
+              "depthMeanM": 827.982,
+              "edges": 32,
+              "gapMaxM": 499.796,
+              "vertexSpacingM": 6633.184
+            },
+            "5": {
+              "depthMaxM": 1287.09,
+              "depthMeanM": 498.897,
+              "edges": 16,
+              "gapMaxM": 764.345,
+              "vertexSpacingM": 3316.592
+            },
+            "6": {
+              "depthMaxM": 1405.895,
+              "depthMeanM": 361.136,
+              "edges": 16,
+              "gapMaxM": 992.052,
+              "vertexSpacingM": 1658.296
+            },
+            "7": {
+              "depthMaxM": 1410.009,
+              "depthMeanM": 182.665,
+              "edges": 48,
+              "gapMaxM": 1061.675,
+              "vertexSpacingM": 829.148
+            },
+            "8": {
+              "depthMaxM": 215.525,
+              "depthMeanM": 72.042,
+              "edges": 32,
+              "gapMaxM": 139.254,
+              "vertexSpacingM": 414.574
+            },
+            "9": {
+              "depthMaxM": 207.613,
+              "depthMeanM": 41.802,
+              "edges": 32,
+              "gapMaxM": 149.507,
+              "vertexSpacingM": 207.287
+            },
+            "10": {
+              "depthMaxM": 198.621,
+              "depthMeanM": 21.746,
+              "edges": 32,
+              "gapMaxM": 150.605,
+              "vertexSpacingM": 103.643
+            },
+            "11": {
+              "depthMaxM": 58.229,
+              "depthMeanM": 9.17,
+              "edges": 32,
+              "gapMaxM": 42.437,
+              "vertexSpacingM": 51.822
+            }
+          },
+          "crossFacePairs": 12,
+          "pairs": 192,
+          "pairsByLevelDelta": {
+            "1": 96,
+            "2": 56,
+            "3": 26,
+            "4": 12,
+            "5": 2
+          }
+        },
+        "coverage": {
+          "pairs": 192,
+          "samples": 12480,
+          "uncovered": 0,
+          "radialGapM": {
+            "n": 12480,
+            "maxM": 1069.220515532419,
+            "rmsM": 85.47097724525645,
+            "p95M": 182.49513482302427
+          },
+          "marginM": {
+            "n": 12480,
+            "maxM": 11877.140001564752,
+            "rmsM": 2062.618017657062,
+            "p95M": 5557.478897339664
+          },
+          "minMarginM": 5.381008416414261,
+          "higherSide": {
+            "fine": 6464,
+            "coarse": 6016
+          }
+        }
+      },
+      "mixedLodCrackPairsByDeltaLevel": {
+        "1": 96,
+        "2": 56,
+        "3": 26,
+        "4": 12,
+        "5": 2
+      },
+      "boundaryPicks": {
+        "note": "rays (0–60° off nadir, 2 km) at the worst-gap vertex of mixed-level edges: CPU hit (finest grids) vs the rendered pair (fine tile + coarse neighbour) with skirts; clearance = the #148 camera 50 m along the CPU normal, straight down onto the rendered pair",
+        "rays": 96,
+        "raysOnPair": 96,
+        "renderedMinusCpuM": {
+          "n": 96,
+          "maxM": 291.04234626754646,
+          "rmsM": 38.71513743273922,
+          "p95M": 30.79653014879591
+        },
+        "skirtHitRenderedMinusCpuM": {
+          "n": 25,
+          "maxM": 0.18188703816645102,
+          "rmsM": 0.03711129842195834,
+          "p95M": 0.029581713830793888
+        },
+        "skirtHitOverEdgeGap": {
+          "n": 25,
+          "maxM": 0.00377497801106454,
+          "rmsM": 0.0007561738115713945,
+          "p95M": 0.00015130121263694788
+        },
+        "renderedOnSkirt": 25,
+        "throughCrackWithoutSkirts": 8,
+        "renderedClearanceM": {
+          "n": 93,
+          "maxM": 160.2719588771191,
+          "rmsM": 28.84919033665647,
+          "p95M": 19.758893433429776
+        },
+        "renderedClearanceMinM": 30.23935542566977,
+        "unavailable": [],
+        "rows": [
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 150.60662471908924,
+            "cpuM": 1999.9999999999673,
+            "renderedM": 2000.0000120092288,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000012009261581624742,
+            "renderedClearanceM": 49.999913720276886
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 150.60662471908924,
+            "cpuM": 1999.9999999999059,
+            "renderedM": 1999.9999365260983,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00006347380758597865,
+            "renderedClearanceM": 49.99989395354195
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 150.60662471908924,
+            "cpuM": 2000.0000000000764,
+            "renderedM": 1999.999814081854,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00018591822231428523,
+            "renderedClearanceM": 49.999913720276886
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 150.60662471908924,
+            "cpuM": 1999.9999999999263,
+            "renderedM": 2000.000018664463,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00001866453658294631,
+            "renderedClearanceM": 49.999913720276886
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 48.18227752144153,
+            "cpuM": 2000.000000000219,
+            "renderedM": 1999.997001579919,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.002998420299945792,
+            "renderedClearanceM": 49.997487288385045
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 48.18227752144153,
+            "cpuM": 2000.000000000184,
+            "renderedM": 1999.9994918837046,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0005081164792954951,
+            "renderedClearanceM": 49.99755255731362
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 48.18227752144153,
+            "cpuM": 2000.0000000000414,
+            "renderedM": 1949.3974270196024,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -50.602572980438936,
+            "renderedClearanceM": 49.997487288385045
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 48.18227752144153,
+            "cpuM": 1999.9999999998602,
+            "renderedM": 1999.8181129616937,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.18188703816645102,
+            "renderedClearanceM": 49.997487288385045
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 42.43789746807233,
+            "cpuM": 2000.0000000002144,
+            "renderedM": 1999.9999936498368,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000006350377589114942,
+            "renderedClearanceM": 49.99999034762881
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 42.43789746807233,
+            "cpuM": 2000.0000000000182,
+            "renderedM": 1999.9999945149955,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000005485022711582133,
+            "renderedClearanceM": 49.99999034762881
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 42.43789746807233,
+            "cpuM": 2000.0000000002217,
+            "renderedM": 1999.9999946031812,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000005397040467869374,
+            "renderedClearanceM": 49.99999034762881
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 42.43789746807233,
+            "cpuM": 1999.9999999999932,
+            "renderedM": 1999.9999925297996,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000007470193622793886,
+            "renderedClearanceM": 49.99999034762881
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 41.45235182155843,
+            "cpuM": 2000.0000000000778,
+            "renderedM": 1999.9999271554057,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00007284467210411094,
+            "renderedClearanceM": 49.99999677624448
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 41.45235182155843,
+            "cpuM": 1999.9423223886893,
+            "renderedM": 1999.999996665835,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.0576742771456793,
+            "renderedClearanceM": 50.05619459439825
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 41.45235182155843,
+            "cpuM": 1999.901972357223,
+            "renderedM": 1999.999994154719,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.09802179749590323,
+            "renderedClearanceM": 50.053979315736576
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 41.45235182155843,
+            "cpuM": 1999.9364398684745,
+            "renderedM": 1999.9999962781644,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.06355640968990883,
+            "renderedClearanceM": 50.05503403584824
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              11,
+              7
+            ],
+            "gapM": 35.8609703189968,
+            "cpuM": 2000.0000000001323,
+            "renderedM": 1999.999953446739,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000046553393303838675,
+            "renderedClearanceM": 50.000014684544986
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              11,
+              7
+            ],
+            "gapM": 35.8609703189968,
+            "cpuM": 2000.0000000001883,
+            "renderedM": 2000.0000147286678,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000014728479527548188,
+            "renderedClearanceM": 50.000014684544986
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              11,
+              7
+            ],
+            "gapM": 35.8609703189968,
+            "cpuM": 1999.9999999999707,
+            "renderedM": 2000.0000233249143,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000023324943640545825,
+            "renderedClearanceM": 50.000014684544986
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              11,
+              7
+            ],
+            "gapM": 35.8609703189968,
+            "cpuM": 2000.0000000000578,
+            "renderedM": 2000.0000177464212,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000017746363482729066,
+            "renderedClearanceM": 50.000014684544986
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 33.33270865818999,
+            "cpuM": 1997.1876571407415,
+            "renderedM": 1999.9999512559182,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 2.8122941151766554,
+            "renderedClearanceM": 52.54076512463645
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 33.33270865818999,
+            "cpuM": 2000.0000000001235,
+            "renderedM": 1999.999952874099,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000047126024355748086,
+            "renderedClearanceM": 49.99995578207397
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 33.33270865818999,
+            "cpuM": 2000.0000000001216,
+            "renderedM": 1999.999931612555,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00006838756667093548,
+            "renderedClearanceM": 49.99995578207397
+          },
+          {
+            "tile": "py/10/626/336",
+            "edge": "S",
+            "against": "py/7/78/41",
+            "crossFace": false,
+            "levels": [
+              10,
+              7
+            ],
+            "gapM": 33.33270865818999,
+            "cpuM": 1999.9999999999561,
+            "renderedM": 1999.9998809784117,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00011902154437848367,
+            "renderedClearanceM": 49.999955826138034
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 26.507673746246702,
+            "cpuM": 2000.0000000003527,
+            "renderedM": 1999.9999043276605,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00009567269216859131,
+            "renderedClearanceM": 49.99995198593262
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 26.507673746246702,
+            "cpuM": 2000.0000000004482,
+            "renderedM": 1999.9999479429423,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00005205750585446367,
+            "renderedClearanceM": 49.99995198597359
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 26.507673746246702,
+            "cpuM": 2000.0000000004502,
+            "renderedM": 1999.999949613959,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00005038649123889627,
+            "renderedClearanceM": 49.99995198599836
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 26.507673746246702,
+            "cpuM": 2000.0000000004472,
+            "renderedM": 1999.999946968534,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00005303191323946521,
+            "renderedClearanceM": 49.99995198603933
+          },
+          {
+            "tile": "py/11/1253/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 22.30196173237809,
+            "cpuM": 2000.0000000000587,
+            "renderedM": 2000.000021164109,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000021164050394872902,
+            "renderedClearanceM": 50.00001440641739
+          },
+          {
+            "tile": "py/11/1253/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 22.30196173237809,
+            "cpuM": 1999.9999999998188,
+            "renderedM": 2000.00001448275,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000014482931192105752,
+            "renderedClearanceM": 50.00001447037781
+          },
+          {
+            "tile": "py/11/1253/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 22.30196173237809,
+            "cpuM": 2000.0000000000737,
+            "renderedM": 2000.0000174581057,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00001745803206176788,
+            "renderedClearanceM": 50.00001443545449
+          },
+          {
+            "tile": "py/11/1253/672",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              11,
+              6
+            ],
+            "gapM": 22.30196173237809,
+            "cpuM": 2000.0000000002026,
+            "renderedM": 2000.000014538765,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000014538562481902773,
+            "renderedClearanceM": 50.00001447037781
+          },
+          {
+            "tile": "py/10/624/337",
+            "edge": "W",
+            "against": "py/6/38/21",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 19.718508387185214,
+            "cpuM": 1999.9999999999986,
+            "renderedM": 1999.9970165657683,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.00298343423037295,
+            "renderedClearanceM": 30.241106566570224
+          },
+          {
+            "tile": "py/10/624/337",
+            "edge": "W",
+            "against": "py/6/38/21",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 19.718508387185214,
+            "cpuM": 1989.9662465642407,
+            "renderedM": 1980.276820829946,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -9.689425734294673,
+            "renderedClearanceM": 40.312489335078055
+          },
+          {
+            "tile": "py/10/624/337",
+            "edge": "W",
+            "against": "py/6/38/21",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 19.718508387185214,
+            "cpuM": 1987.296340294237,
+            "renderedM": 1974.9380964189745,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -12.358243875262588,
+            "renderedClearanceM": 40.276250063478834
+          },
+          {
+            "tile": "py/10/624/337",
+            "edge": "W",
+            "against": "py/6/38/21",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 19.718508387185214,
+            "cpuM": 1999.9999999999363,
+            "renderedM": 1999.9978374563368,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.0021625435995247244,
+            "renderedClearanceM": 30.23935542566977
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "E",
+            "against": "py/8/157/84",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 19.47281772362313,
+            "cpuM": 2000.0000000005912,
+            "renderedM": 1999.999952353299,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00004764729214912222,
+            "renderedClearanceM": 49.99995981751457
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "E",
+            "against": "py/8/157/84",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 19.47281772362313,
+            "cpuM": 2000.0000000004006,
+            "renderedM": 1999.9999587635057,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000041236894958274206,
+            "renderedClearanceM": 49.99995981754682
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "E",
+            "against": "py/8/157/84",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 19.47281772362313,
+            "cpuM": 2000.0000000001644,
+            "renderedM": 1999.9999549581455,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000045042018882668344,
+            "renderedClearanceM": 49.99995981763027
+          },
+          {
+            "tile": "py/10/627/336",
+            "edge": "E",
+            "against": "py/8/157/84",
+            "crossFace": false,
+            "levels": [
+              10,
+              8
+            ],
+            "gapM": 19.47281772362313,
+            "cpuM": 2000.0000000003783,
+            "renderedM": 1999.9999523614101,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00004763896822623792,
+            "renderedClearanceM": 49.99995981759803
+          },
+          {
+            "tile": "py/10/625/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 18.699318907193344,
+            "cpuM": 1998.2724390408112,
+            "renderedM": 1967.4759088920152,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -30.79653014879591,
+            "renderedClearanceM": 32.29144726467422
+          },
+          {
+            "tile": "py/10/625/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 18.699318907193344,
+            "cpuM": 1999.9999999995825,
+            "renderedM": 2000.0000248096005,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000024810017976051313,
+            "renderedClearanceM": 50.00002132871739
+          },
+          {
+            "tile": "py/10/625/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 18.699318907193344,
+            "cpuM": 1998.8927339156792,
+            "renderedM": 1978.612716207926,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -20.28001770775313,
+            "renderedClearanceM": 49.30955422987308
+          },
+          {
+            "tile": "py/10/625/336",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              10,
+              6
+            ],
+            "gapM": 18.699318907193344,
+            "cpuM": 1999.999999999579,
+            "renderedM": 2000.0000282306291,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000028231050237081945,
+            "renderedClearanceM": 50.00002133551628
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              11,
+              8
+            ],
+            "gapM": 18.411802915524955,
+            "cpuM": 2000.0000000002412,
+            "renderedM": 1999.9999877846292,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000012215612059662817,
+            "renderedClearanceM": 50.00000742641228
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              11,
+              8
+            ],
+            "gapM": 18.411802915524955,
+            "cpuM": 2000.0000000000741,
+            "renderedM": 2000.0000102628096,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000010262735486321617,
+            "renderedClearanceM": 50.000007420495436
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              11,
+              8
+            ],
+            "gapM": 18.411802915524955,
+            "cpuM": 2000.0000000002624,
+            "renderedM": 1999.9999344744695,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00006552579293384042,
+            "renderedClearanceM": 50.00000742641228
+          },
+          {
+            "tile": "py/11/1252/672",
+            "edge": "S",
+            "against": "py/8/156/83",
+            "crossFace": false,
+            "levels": [
+              11,
+              8
+            ],
+            "gapM": 18.411802915524955,
+            "cpuM": 2000.000000000041,
+            "renderedM": 2000.0000075080025,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.000007507961527153384,
+            "renderedClearanceM": 50.00000742641228
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 1061.736579850498,
+            "cpuM": 1999.9999999997979,
+            "renderedM": 1999.9996623445445,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0003376552533609356,
+            "renderedClearanceM": 49.99959570251709
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 1061.736579850498,
+            "cpuM": 1999.9999999999325,
+            "renderedM": 1999.9997794594306,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00022054050191400165,
+            "renderedClearanceM": 49.99959570251709
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 1061.736579850498,
+            "cpuM": 1999.999999999922,
+            "renderedM": 1999.9997199416528,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0002800582692543685,
+            "renderedClearanceM": 49.999601547724374
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 1061.736579850498,
+            "cpuM": 1999.9999999998827,
+            "renderedM": 1999.9997273696765,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00027263020615464484,
+            "renderedClearanceM": 49.99958002439894
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 766.2668149741587,
+            "cpuM": 2000.0000000000568,
+            "renderedM": 1999.9998487139192,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00015128613767956267,
+            "renderedClearanceM": 49.99959570251709
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 766.2668149741587,
+            "cpuM": 2000.000000000047,
+            "renderedM": 1999.9995167574266,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0004832426204757212,
+            "renderedClearanceM": 49.99958002439894
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 766.2668149741587,
+            "cpuM": 1999.9999999999777,
+            "renderedM": 1999.9997732871461,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000226712831590703,
+            "renderedClearanceM": 49.999601547724374
+          },
+          {
+            "tile": "py/7/79/42",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 766.2668149741587,
+            "cpuM": 1999.999999999869,
+            "renderedM": 1999.9998585478809,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0001414519881564047,
+            "renderedClearanceM": 49.999601547724374
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 488.1823994759279,
+            "cpuM": 1999.999999999935,
+            "renderedM": 1999.9704182861042,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.029581713830793888,
+            "renderedClearanceM": 49.88937038084739
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 488.1823994759279,
+            "cpuM": 1999.9999999999127,
+            "renderedM": 1999.9921455300744,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.007854469838321165,
+            "renderedClearanceM": 49.88348813825083
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 488.1823994759279,
+            "cpuM": 1999.9999999998242,
+            "renderedM": 1999.9849748161553,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.015025183668967657,
+            "renderedClearanceM": 49.92758080038078
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 488.1823994759279,
+            "cpuM": 2000.0000000000275,
+            "renderedM": 1999.9872665837124,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": true,
+            "renderedMinusCpuM": -0.012733416315086288,
+            "renderedClearanceM": 49.92758080038078
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 315.15845741023236,
+            "cpuM": 1999.9999999998947,
+            "renderedM": 2000.0001973996687,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.0001973997739241895,
+            "renderedClearanceM": 50.00010916362427
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 315.15845741023236,
+            "cpuM": 2000.0000000001976,
+            "renderedM": 2000.0001140986453,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.0001140984477387974,
+            "renderedClearanceM": 50.00011135492567
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 315.15845741023236,
+            "cpuM": 1999.9999999999404,
+            "renderedM": 1999.999643056219,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0003569437214991922,
+            "renderedClearanceM": 50.00011135492567
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 315.15845741023236,
+            "cpuM": 2000.000000000064,
+            "renderedM": 2000.0002869162745,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00028691621059806494,
+            "renderedClearanceM": 50.00010916362427
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 302.3680370668593,
+            "cpuM": 2000.0000000000512,
+            "renderedM": 1999.999974120511,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00002587954008959059,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 302.3680370668593,
+            "cpuM": 1999.9999999998215,
+            "renderedM": 1999.9999757678768,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000024231944735220168,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 302.3680370668593,
+            "cpuM": 1999.9999999999884,
+            "renderedM": 1999.9999608561568,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00003914383160008583,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 302.3680370668593,
+            "cpuM": 1999.9999999997992,
+            "renderedM": 1999.9999752859783,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000024713820948818466,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 267.50229367607676,
+            "cpuM": 1999.999999999861,
+            "renderedM": 1999.99997599271,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00002400715106887219,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 267.50229367607676,
+            "cpuM": 1999.999999999968,
+            "renderedM": 1999.9997228949908,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.0002771049771581602,
+            "renderedClearanceM": 49.99997739109257
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 267.50229367607676,
+            "cpuM": 2000.0000000000816,
+            "renderedM": 1999.9999764471725,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000023552909169666236,
+            "renderedClearanceM": 49.99997736572363
+          },
+          {
+            "tile": "py/7/79/41",
+            "edge": "E",
+            "against": "py/4/10/5",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 267.50229367607676,
+            "cpuM": 1999.999999999798,
+            "renderedM": 1999.9999763596052,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000023640192921448033,
+            "renderedClearanceM": 49.99997723938809
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 260.61069612364633,
+            "cpuM": 1891.3243181952992,
+            "renderedM": 1727.2322542258237,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -164.09206396947548,
+            "renderedClearanceM": null
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 260.61069612364633,
+            "cpuM": 1890.148878301043,
+            "renderedM": 1722.5684088525452,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -167.58046944849775,
+            "renderedClearanceM": null
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 260.61069612364633,
+            "cpuM": 2000.0000000000807,
+            "renderedM": 2000.0001008007728,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00010080069205287145,
+            "renderedClearanceM": 50.00009108752143
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "E",
+            "against": "py/3/5/2",
+            "crossFace": false,
+            "levels": [
+              7,
+              3
+            ],
+            "gapM": 260.61069612364633,
+            "cpuM": 1813.3502690003531,
+            "renderedM": 1522.3079227328067,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -291.04234626754646,
+            "renderedClearanceM": null
+          },
+          {
+            "tile": "py/7/78/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 216.97916381204737,
+            "cpuM": 1999.9999999998215,
+            "renderedM": 2000.0002576332156,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00025763339408513275,
+            "renderedClearanceM": 50.00030772770533
+          },
+          {
+            "tile": "py/7/78/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 216.97916381204737,
+            "cpuM": 1999.9999999999968,
+            "renderedM": 2000.0000974873649,
+            "renderedOnSkirt": true,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00009748736806614033,
+            "renderedClearanceM": 50.00030772770533
+          },
+          {
+            "tile": "py/7/78/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 216.97916381204737,
+            "cpuM": 2000.0000000001373,
+            "renderedM": 2000.000390369832,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00039036969474182115,
+            "renderedClearanceM": 50.00030772770533
+          },
+          {
+            "tile": "py/7/78/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 216.97916381204737,
+            "cpuM": 2000.0000000001319,
+            "renderedM": 2000.0003964912116,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.0003964910797549237,
+            "renderedClearanceM": 50.00030772770533
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 151.15531642217263,
+            "cpuM": 2000.0000000001257,
+            "renderedM": 2000.0002446358255,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.0002446356998007104,
+            "renderedClearanceM": 50.00023019306196
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 151.15531642217263,
+            "cpuM": 2000.0000000000387,
+            "renderedM": 2000.0004386034418,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00043860340315404756,
+            "renderedClearanceM": 50.00023019306196
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 151.15531642217263,
+            "cpuM": 1999.999999999902,
+            "renderedM": 2000.000358722708,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00035872280591320305,
+            "renderedClearanceM": 50.00023019306196
+          },
+          {
+            "tile": "py/7/79/43",
+            "edge": "N",
+            "against": "py/5/19/11",
+            "crossFace": false,
+            "levels": [
+              7,
+              5
+            ],
+            "gapM": 151.15531642217263,
+            "cpuM": 1999.9999999999889,
+            "renderedM": 2000.000234734433,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00023473444412047684,
+            "renderedClearanceM": 50.00023019306196
+          },
+          {
+            "tile": "py/9/313/167",
+            "edge": "N",
+            "against": "py/6/39/21",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 2000.0000000001417,
+            "renderedM": 2000.0000296825872,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00002968244552903343,
+            "renderedClearanceM": 50.00002635258238
+          },
+          {
+            "tile": "py/9/313/167",
+            "edge": "N",
+            "against": "py/6/39/21",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 2000.0000000000355,
+            "renderedM": 2000.0000482322494,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00004823221388505772,
+            "renderedClearanceM": 50.00002635258238
+          },
+          {
+            "tile": "py/9/313/167",
+            "edge": "N",
+            "against": "py/6/39/21",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.999999999963,
+            "renderedM": 2000.0000302532942,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00003025333126061014,
+            "renderedClearanceM": 50.000026374994725
+          },
+          {
+            "tile": "py/9/313/167",
+            "edge": "N",
+            "against": "py/6/39/21",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.9999999998918,
+            "renderedM": 2000.0000522745013,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.00005227460951573448,
+            "renderedClearanceM": 50.00002635258238
+          },
+          {
+            "tile": "py/9/313/168",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.5630254121056,
+            "renderedM": 2000.0000458010095,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.43702038890387485,
+            "renderedClearanceM": 210.2719588771191
+          },
+          {
+            "tile": "py/9/313/168",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.5188546178254,
+            "renderedM": 2000.000049609502,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.4811949916766025,
+            "renderedClearanceM": 207.31900708994394
+          },
+          {
+            "tile": "py/9/313/168",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.5867363140542,
+            "renderedM": 2000.0000474364217,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.4133111223675314,
+            "renderedClearanceM": 50.39890301245198
+          },
+          {
+            "tile": "py/9/313/168",
+            "edge": "S",
+            "against": "py/6/39/20",
+            "crossFace": false,
+            "levels": [
+              9,
+              6
+            ],
+            "gapM": 149.50879136051023,
+            "cpuM": 1999.5734919286479,
+            "renderedM": 2000.0000480462038,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": 0.4265561175559469,
+            "renderedClearanceM": 210.23498780326722
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "S",
+            "against": "py/4/9/4",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 142.72898297842713,
+            "cpuM": 1999.9999999998793,
+            "renderedM": 1999.9999545216176,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000045478261654352536,
+            "renderedClearanceM": 49.99996449860552
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "S",
+            "against": "py/4/9/4",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 142.72898297842713,
+            "cpuM": 2000.0000000001016,
+            "renderedM": 1999.999938464523,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00006153557865218318,
+            "renderedClearanceM": 49.99996455012026
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "S",
+            "against": "py/4/9/4",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 142.72898297842713,
+            "cpuM": 1999.9999999998922,
+            "renderedM": 1999.9999642914183,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.000035708473888007575,
+            "renderedClearanceM": 49.99996455012026
+          },
+          {
+            "tile": "py/7/79/40",
+            "edge": "S",
+            "against": "py/4/9/4",
+            "crossFace": false,
+            "levels": [
+              7,
+              4
+            ],
+            "gapM": 142.72898297842713,
+            "cpuM": 2000.0000000001216,
+            "renderedM": 1999.9999574284595,
+            "renderedOnSkirt": false,
+            "throughCrackWithoutSkirts": false,
+            "renderedMinusCpuM": -0.00004257166210663854,
+            "renderedClearanceM": 49.99996455012026
+          }
+        ]
+      },
+      "sourceStats": {
+        "residentTiles": 14,
+        "detailTiles": 44,
+        "requests": 58,
+        "bytes": 980200,
+        "failed": 0,
+        "inFlight": 0
+      },
+      "failures": [],
+      "seconds": 0.8972156670000001
+    }
+  ],
+  "unsupported": [
+    {
+      "code": "terrain-patch-composition-unsupported",
+      "message": "One authoritative terrain/CPU product. Geometric patch composition is unsupported; unknown terrain patch fields fail capability validation."
+    }
+  ],
+  "caveats": [
+    "Native GSD and unknown source accuracy are distinct from resampled output spacing.",
+    "No independent absolute geolocation or baked illumination certification.",
+    "Emitted tile addresses do not certify continuous valid/native coverage.",
+    "Physical RAM/disk peaks are unknown; sampled summed RSS may double-count shared pages."
+  ]
+}

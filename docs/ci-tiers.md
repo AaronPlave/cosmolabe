@@ -9,9 +9,12 @@ a separate push-to-main workflow.
 [`ci.yml`](../.github/workflows/ci.yml) runs **Fast PR CI** for every PR
 targeting `main` and every push to `main` (also verifying the merged result).
 It retains the previous LFS-pointer check, purity lint, ESLint, package build,
-test/viewer/Svelte typechecking, and the **entire Vitest suite**, including
-SPICE/geometry. The original sparse LFS test-kernel set, cached LRO download and
-Cosmographia data setup are preserved. Do not remove fixture-dependent tests to
+test/viewer/Svelte typechecking, and the Vitest suite, including
+SPICE/geometry and deterministic surface-build planning. The GDAL executor
+rebuild/publication cases in `scripts/surface-build.test.mjs` run in the targeted
+Surface build executor job instead of making every unrelated PR install GDAL
+and rebuild terrain. The original sparse LFS test-kernel set, cached LRO
+download and Cosmographia data setup are preserved. Do not remove fixture-dependent tests to
 improve CI time. Target ~2–4 minutes on warm runners, *measure rather than
 impose a hard four-minute cutoff*.
 
@@ -26,21 +29,35 @@ A path filter on PR changes runs independent, visible jobs:
 
 | Job | Key triggers (conservative by design) |
 | --- | --- |
-| Terrain builder fixtures | Python terrain/builder tooling, terrain fixture/data/catalog/schema, surface plans |
+| Terrain builder fixtures | Python terrain/builder tooling, terrain fixture/data/catalog/schema, surface plans; includes raster validity masks/filtering and source-kernel nodata regressions |
+| Surface build executor | Locked executor, terrain/raster and publication tooling, shared scene/runtime dependencies, pilot catalogs/harness and surface-plan fixtures |
 | StarField WebGL + viewer calibration | Shared scene engine/browser integration **or** StarField harness changes |
 | Global geographic viewer smoke | Shared scene engine/browser integration **or** geographic harness changes |
 
 Changes to the CI workflow, shared CI actions/scripts, package manifests,
 lockfile, viewer Vite config, and relevant smoke infrastructure trigger all
-three. The shared browser rule intentionally covers all core scene/math
+four. The shared browser rule intentionally covers all core scene/math
 implementation (`packages/core/src/**`), Three.js rendering, SPICE/frames,
 viewer integration/state (`apps/viewer/src/lib/**`), viewer workers/entry points,
 and all example catalog inputs. That triggers **both** browser suites when a
 new scene/camera/trajectory/rotation/time integration file appears, without
 maintaining a hand-written list of individual source files. Documentation,
 viewer CSS and UI-only components remain outside this shared browser rule, so
-those changes can use just the fast gate. A suite-specific harness change
-triggers that suite independently. Prefer a few extra runs over false negatives.
+those changes can use just the fast gate. The surface executor additionally
+tracks the imagery-layer and body-info controls used by its hosted acceptance.
+A suite-specific harness change triggers that suite independently. Prefer a few extra runs over false negatives.
+
+The surface executor installs GDAL/NumPy and Chromium, explicitly verifies the
+Python imports, runs all surface-build planning/rebuild/publication regressions,
+then runs the hosted synthetic Skyfall acceptance through HTTP publication,
+planner feedback, catalog pinning and rollback. It uploads reports and browser
+logs/screenshots even on failure. This fixture does not publish to production
+or use R2 credentials. The other terrain and browser jobs retain #288's split;
+no separate surface-only change detector or unconditional executor was restored.
+The mask/kernel fixture filter includes its imported worker and source-kernel
+helpers, so helper-only changes select both relevant jobs. The shared setup
+also retains the surface pilot's Ubuntu mirror workaround before browser
+installation; this does not add another check or change the job selection.
 
 Targeted jobs are **not required statuses**; they may be legitimately skipped.
 A failing targeted run is still a regression to fix before merging. The
@@ -87,9 +104,15 @@ To run the same browser checks locally after `npm ci` and
 and run `bash scripts/ci/run-viewer-smoke.sh stars full` or
 `bash scripts/ci/run-viewer-smoke.sh geographic full`.
 For visual checks run `VR_SCENES=earth-moon,atmosphere-earth,cassini-soi
-node scripts/visual-regression.mjs`. For terrain fixtures use
-`python3 scripts/terrain/test_cube_ellipsoid.py` and
-`python3 scripts/terrain/dem.py selftest` with GDAL/NumPy installed.
+node scripts/visual-regression.mjs`. For all terrain fixtures use
+`bash scripts/ci/run-terrain-fixtures.sh` on Ubuntu with GDAL/NumPy installed.
+For the targeted surface job after package build and Chromium/GDAL installation,
+run `npx vitest run --project scripts scripts/surface-build.test.mjs` and
+`node scripts/surface-build/acceptance.mjs work/surface-build/skyfall-ci /usr/bin/python3`.
+The fast gate runs that file separately with
+`--testNamePattern '^finite locked surface build planning'` while excluding it
+from the other Vitest invocation, so only its expensive GDAL cases move out of
+the always-on job.
 
 ## Duration baseline and follow-up
 

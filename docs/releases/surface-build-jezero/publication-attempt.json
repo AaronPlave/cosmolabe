@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "status": "stopped-public-http-verification-failed",
+  "authorizedAction": "Data-only publication authorized by the user: do next step; no catalog exposure or deployment authorized.",
+  "buildId": "67fcad0f749be705e94401070d04fc953c21a61ef83047987087ee547628c9ab",
+  "publicationIdentity": "6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99",
+  "storageBinding": {
+    "baseUrl": "https://data.aaronplave.com",
+    "probeKey": "kernels/generic-2026-10-02/manifest.json",
+    "probeSha256": "f19565bd43168f7f4ccdd1a678815469ee0bf6925f5b7aa7541d441d3a6a09ed",
+    "configuredStorageMatchesPublicHost": true,
+    "writePerformed": false
+  },
+  "uploadedProducts": [
+    {
+      "productId": "terrain-4cfdc5d9806de0ee40605ecd",
+      "objects": 163,
+      "bytes": 13976621,
+      "manifestPresent": true
+    },
+    {
+      "productId": "imagery-7b4f6169271a5140b1b1c5cd",
+      "objects": 0,
+      "bytes": 0,
+      "manifestPresent": false
+    },
+    {
+      "productId": "imagery-19a3928769be6186f9ea2fdd",
+      "objects": 0,
+      "bytes": 0,
+      "manifestPresent": false
+    }
+  ],
+  "integrity": {
+    "uploadedTerrainObjectsHashChecked": 161,
+    "sample": [
+      {
+        "key": "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/nx/0/0/0.glb",
+        "origin": "http://localhost:5173",
+        "status": 200,
+        "contentType": "model/gltf-binary",
+        "cacheControl": "public, max-age=31536000, immutable",
+        "allowOrigin": "http://localhost:5173"
+      },
+      {
+        "key": "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/nx/0/0/0.glb",
+        "origin": "http://127.0.0.1:5187",
+        "status": 200,
+        "contentType": "model/gltf-binary",
+        "cacheControl": "public, max-age=31536000, immutable",
+        "allowOrigin": null
+      },
+      {
+        "key": "cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/nx/0/0/0.glb",
+        "origin": "https://aaronplave.github.io",
+        "status": 200,
+        "contentType": "model/gltf-binary",
+        "cacheControl": "public, max-age=31536000, immutable",
+        "allowOrigin": null
+      }
+    ],
+    "missingObject": {
+      "status": 404,
+      "contentType": "text/html"
+    }
+  },
+  "verifiedPublicationReceiptIssued": false,
+  "catalogPinned": false,
+  "deployed": false,
+  "actualHttpsViewerOrigin": "https://aaronplave.com",
+  "actualViewerOriginCors": "allowed",
+  "pilotOriginCors": "http://127.0.0.1:5187 rejected",
+  "initialVerifierOrigin": "https://aaronplave.github.io rejected; explicit verification origins now supported",
+  "bucketCorsRead": {
+    "status": 403,
+    "error": "AccessDenied"
+  },
+  "remainingHostActions": [
+    "Return HTTP 404 with a non-HTML Content-Type/body for missing product objects. CORS now passes using port 5174."
+  ],
+  "resume": "After host corrections, regenerate the preflight and rerun the documented data-only publication command with explicit origins. Existing verified terrain bytes are reused without overwrite. Do not deploy a catalog.",
+  "liveVerifierChecks": [
+    {
+      "origins": [
+        "https://aaronplave.com",
+        "http://localhost:5173"
+      ],
+      "diagnostic": "publication requires a non-HTML missing-object 404"
+    },
+    {
+      "origins": [
+        "https://aaronplave.com",
+        "http://127.0.0.1:5187"
+      ],
+      "diagnostic": "publication verification failed: manifest.json: Access-Control-Allow-Origin is null for origin http://127.0.0.1:5187"
+    }
+  ],
+  "validation": {
+    "focusedTestsPassed": 7,
+    "focusedTestsSkippedByNameFilter": 8,
+    "jsSyntax": "passed",
+    "diffCheck": "passed",
+    "lint": "No new findings; existing files retain 18 pre-existing unused-variable findings."
+  },
+  "retryPort5174": {
+    "origins": [
+      "https://aaronplave.com",
+      "http://localhost:5174",
+      "http://127.0.0.1:5174"
+    ],
+    "cors": "passed-all-three-origins",
+    "preflight": "exact-reviewed-plan-match",
+    "terrain": "existing-identical-content-reused-without-upload",
+    "result": "stopped: publication requires a non-HTML missing-object 404",
+    "imageryUploaded": false,
+    "verifiedReceiptIssued": false,
+    "pilotUrl": "http://127.0.0.1:5174/?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+    "pilotData": "verified local publication on port 5190; not public R2 imagery",
+    "pilotBrowser": {
+      "renderer": "ANGLE Metal Apple M4 Max",
+      "nativeImageryLevel": 16,
+      "fallbackPickingHoverFlyTo": "passed",
+      "errors": []
+    }
+  }
+}

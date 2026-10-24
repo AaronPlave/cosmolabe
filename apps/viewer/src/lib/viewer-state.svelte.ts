@@ -962,33 +962,19 @@ export function gotoObject(
  * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
  * looking straight down with north up, close enough that the box fills the view.
  */
-export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number], latitudeConvention: 'planetocentric' | 'geodetic'): boolean {
   if (!_renderer) return false;
   const bm = _renderer.getBodyMesh(bodyName);
   if (!bm) return false;
-  const [w, s, e0, n] = bounds;
-  const e = e0 < w ? e0 + 360 : e0;
-  const rad = Math.PI / 180;
-  const cam = _renderer.camera;
-  const heightKm = (n - s) * rad * bm.displayRadius;
-  const widthKm = (e - w) * rad * bm.displayRadius * Math.cos((s + n) / 2 * rad);
-  const altitudeKm = 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
-  const position = bm.geodeticOffsetKm((s + n) / 2, (w + e) / 2, altitudeKm, new THREE.Vector3());
-  if (!position) return false;
-  const cc = _renderer.cameraController;
-  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
-  // would take the camera back on landing; orbit the body freely instead,
-  // keeping the current up so the flight starts without a roll.
-  const up = cc.camera.up.clone();
-  cc.resetToFreeOrbit();
-  cc.camera.up.copy(up);
-  // One flight from wherever the camera is, switching origin on landing —
-  // tracking first would cut to a default framing of the body.
-  cc.flyTo(bm, {
-    duration: 1.5,
-    offset: position.multiplyScalar(_renderer.scaleFactor),
-    up: new THREE.Vector3(0, 1, 0), // north, in the mesh frame
-  });
+  const view = bm.imageryRegionView(bounds, _renderer.camera.aspect, _renderer.camera.fov, latitudeConvention);
+  if (!view) return false;
+  // Preserve the imagery coordinate convention and rendered surface height;
+  // land with the regional image as the orbit pivot, rather than the body centre.
+  _renderer.cameraController.flyToSurface(bm, {
+    position: view.position.multiplyScalar(_renderer.scaleFactor),
+    target: view.target.multiplyScalar(_renderer.scaleFactor),
+    up: view.up,
+  }, { path: 'arc', duration: 1.5 });
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.
   vs.trackedBodyName = bodyName;

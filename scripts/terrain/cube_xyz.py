@@ -50,6 +50,17 @@ def in_bounds(lon, lat, bounds):
 
 
 def read_tile(config, cache, level, x, y):
+    # Finite locked builds never fall through to live HTTP or a mutable URL cache.
+    # The bundle itself is pinned by the executor; every response has its own hash.
+    if 'lockedTiles' in config:
+        key = f'{level}/{x}/{y}'
+        entry = config['lockedTiles'].get(key)
+        if entry is None:
+            raise ValueError(f'locked XYZ bundle missing required tile {key}')
+        path = Path(entry['path'])
+        if hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
+            raise ValueError(f'locked XYZ checksum mismatch: {key}')
+        return decode(config, path, key)
     url = config['url'].replace('{z}', str(level)).replace('{x}', str(x)).replace('{y}', str(y))
     key = hashlib.sha256(url.encode()).hexdigest()
     path = Path(cache) / key[:2] / (key + '.image')

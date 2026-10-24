@@ -76,8 +76,12 @@ jobs:
       - name: Fetch Cosmographia data
         run: bash scripts/fetch-cosmographia-data.sh
 
-      - name: Run complete Vitest suite
-        run: npm test
+      # Keep deterministic surface planning in the fast gate; GDAL rebuilds
+      # and hosted acceptance belong to the path-filtered surface-builds job.
+      - name: Run Vitest suite and surface planning tests
+        run: |
+          npm test -- --exclude scripts/surface-build.test.mjs
+          npx vitest run --project scripts scripts/surface-build.test.mjs --testNamePattern '^finite locked surface build planning'
 
   changes:
     name: Detect expensive-check changes
@@ -86,6 +90,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       terrain: ${{ steps.filter.outputs.terrain }}
+      surface: ${{ steps.filter.outputs.surface }}
       browser: ${{ steps.filter.outputs.browser }}
       stars: ${{ steps.filter.outputs.stars }}
       geographic: ${{ steps.filter.outputs.geographic }}
@@ -110,6 +115,8 @@ jobs:
               - 'apps/viewer/package.json'
               - 'apps/viewer/vite.config.ts'
               - 'scripts/terrain/**'
+              - 'scripts/surface-build/worker.py'
+              - 'scripts/surface-build/source_kernels.py'
               - 'scripts/build-mars-terrain/**'
               - 'scripts/build-moon-terrain/**'
               - 'scripts/build-*terrain*'
@@ -121,6 +128,38 @@ jobs:
               - 'apps/viewer/test-catalogs/data/**'
               - 'apps/viewer/test-catalogs/*terrain*.json'
               - 'apps/viewer/test-catalogs/*imagery*.json'
+            surface:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - 'scripts/ci/**'
+              - '.gitattributes'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vitest.config.*'
+              - 'apps/viewer/package.json'
+              - 'apps/viewer/vite.config.ts'
+              - 'packages/core/**'
+              - 'packages/three/**'
+              - 'packages/frames/**'
+              - 'packages/control/**'
+              - 'packages/cspice-wasm/**'
+              - 'packages/interop/**'
+              - 'apps/viewer/src/lib/**'
+              - 'apps/viewer/src/workers/**'
+              - 'apps/viewer/src/App.svelte'
+              - 'apps/viewer/src/main.ts'
+              - 'apps/viewer/src/components/ImageryLayersSection.svelte'
+              - 'apps/viewer/src/components/BodyInfoPanel.svelte'
+              - 'apps/viewer/test-catalogs/experiments/mars-terrain-cube-jezero.json'
+              - 'apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json'
+              - 'scripts/surface-build/**'
+              - 'scripts/surface-build.test.mjs'
+              - 'scripts/build-surface.mjs'
+              - 'scripts/terrain/**'
+              - 'scripts/data-hosting/**'
+              - 'scripts/test-surface-build*.mjs'
+              - 'scripts/validate-cube-terrain.mjs'
+              - 'docs/examples/surface-plans/**'
             # Any change to the shared scene engine, browser integration, or
             # infrastructure must exercise BOTH browser suites. Keep this broad:
             # new camera/scene files must not silently escape the smoke checks.
@@ -165,6 +204,52 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
       - name: Run all terrain builder fixtures
         run: bash scripts/ci/run-terrain-fixtures.sh
+
+  surface-builds:
+    needs: changes
+    if: needs.changes.outputs.surface == 'true'
+    name: Surface build executor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+      - name: Install surface build raster tooling
+        timeout-minutes: 5
+        run: |
+          # Hosted runners may select Azure through a mirror list, not the sources file.
+          for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$apt_source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+            fi
+          done
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends python3-gdal python3-numpy
+      - run: npm run build
+      - name: Install fixture browser
+        run: npx playwright install --with-deps chromium
+      - name: Verify executor prerequisites
+        run: /usr/bin/python3 -c 'from osgeo import gdal; import numpy'
+      - name: Surface build rebuild and publication regressions
+        run: npx vitest run --project scripts scripts/surface-build.test.mjs
+      - name: Hosted Skyfall fixture, planner report, catalog pin and rollback
+        run: node scripts/surface-build/acceptance.mjs work/surface-build/skyfall-ci /usr/bin/python3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: surface-build-acceptance
+          path: |
+            work/surface-build/skyfall-ci/acceptance.json
+            work/surface-build/skyfall-ci/report.json
+            work/surface-build/skyfall-ci/published-planner-feedback.json
+            work/surface-build/skyfall-ci/catalog-candidate.json
+            work/surface-build/skyfall-ci/browser.log
+            work/surface-build/skyfall-ci/viewer.log
+            work/surface-build/skyfall-ci/browser/
+          if-no-files-found: warn
+          retention-days: 7
 
   stars:
     name: Targeted StarField WebGL and viewer

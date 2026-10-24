@@ -55,6 +55,7 @@ apps/viewer/test-catalogs/data/moon-terrain-cube
 apps/viewer/test-catalogs/data/moon-terrain-cube-*/
 apps/viewer/test-catalogs/data/moon-imagery-cube-*/
 # Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
+work/surface-build/
 work/cube-terrain/
 work/cube-imagery/
 work/cube-surface-appearance/

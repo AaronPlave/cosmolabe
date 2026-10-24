@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "identity": "ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df",
+  "prefix": "previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/",
+  "viewerUrl": "https://data.aaronplave.com/previews/pr-287/ca8aa413102f0cf59cf8f6d4df91567b0dcfabab707062b4c54ceb6e80a7b4df/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+  "previousPrefixAbsent": true,
+  "entries": [
+    {
+      "path": "apple-touch-icon.png",
+      "bytes": 3091,
+      "sha256": "134d88528c28bb20bb5671de81562d3186582ba4402f644d38840b0bc6f90dc7",
+      "contentType": "image/png"
+    },
+    {
+      "path": "assets/__vite-browser-external-BIHI7g3E.js",
+      "bytes": 33,
+      "sha256": "82507b0bb9ac4affaeb17c40968d830cbd6d14a2ffa04d8994faf1a78e58e1b5",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "assets/cspice-C8eo9VgL.wasm",
+      "bytes": 1411943,
+      "sha256": "9f18d5c8266dc7f002c3ccb4adc3d04192b4e51c4fb533eae5a897d28c23180c",
+      "contentType": "application/wasm"
+    },
+    {
+      "path": "assets/geographic.worker-DsltM7RA.js",
+      "bytes": 31348,
+      "sha256": "e521111170e196ebeb029f200bf47efaf44a988bf010d7f75942e91b7c41db64",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "assets/index-B_FHQo3a.css",
+      "bytes": 127893,
+      "sha256": "e4060ec2446c84c7f603516d08584b52346b60f8177a350e74d23f685eaf047d",
+      "contentType": "text/css"
+    },
+    {
+      "path": "assets/index-TCFakVCj.js",
+      "bytes": 2645392,
+      "sha256": "a0133d6df23c33431f2aa75cb72fb117d71ce18c18cd773305f119e7beaf32ee",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "assets/martian-mono-cyrillic-wght-normal-B84CD5C_.woff2",
+      "bytes": 10560,
+      "sha256": "2d30189f145a92ec118dc73194c7d813f218db9ec084444f6c071d419ce6b529",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/martian-mono-latin-ext-wght-normal-DlL6xMw5.woff2",
+      "bytes": 15908,
+      "sha256": "c26a87eedc388afebc0c6331d99b248196ea64a883322fc519831278ffd169d5",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/martian-mono-latin-wght-normal-5W32yIyr.woff2",
+      "bytes": 23556,
+      "sha256": "d0be3a78a854bcea53a9dc26b6620ba322eaa515ccbd92bb4b6ec20a3c91b291",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/public-sans-latin-ext-wght-normal-MQgHevqp.woff2",
+      "bytes": 18472,
+      "sha256": "3a00a32f0242b723dcea79935747d6d27dd93675d03ef23f470dfe274e79586a",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/public-sans-latin-wght-normal-DdeTHZLK.woff2",
+      "bytes": 26832,
+      "sha256": "5ed4d31c988e73b258894244f209069ebe77dc7e564861954b21198b6de90d68",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/public-sans-vietnamese-wght-normal-CtlIRbEm.woff2",
+      "bytes": 7716,
+      "sha256": "94593e69fad0885b2b0b74cd18d036c7e9cd6051b2256ab281a20f5bc9ccb46f",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "assets/script-editor-DD8VI376.js",
+      "bytes": 364176,
+      "sha256": "56819542f760314880fa7d8481fc1b427a0a642f22411d033b4490e3adda5ead",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "assets/spice-cache-relay-DOf5vA3n.js",
+      "bytes": 89235,
+      "sha256": "fb1dd862ba5d8c5e341bd65bfac931249e45fa762fd4dfc2d37ebaa1b82d877c",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "favicon-16.png",
+      "bytes": 586,
+      "sha256": "93fccabe95086de3b7c4bd7c174e19564a07a19167c5fa28f8e7d9eb4fb3a5d9",
+      "contentType": "image/png"
+    },
+    {
+      "path": "favicon-32.png",
+      "bytes": 1336,
+      "sha256": "41a0a04cee1a9e733ccf6648382b3d4ac6bd543657b04dfcfdfad5c824859e08",
+      "contentType": "image/png"
+    },
+    {
+      "path": "favicon-64.png",
+      "bytes": 3224,
+      "sha256": "62a5e6c93cf90879c31748881aaf1c118951f8b03173cbd7958a2918a6c34237",
+      "contentType": "image/png"
+    },
+    {
+      "path": "favicon.ico",
+      "bytes": 5200,
+      "sha256": "dd9a0188b013ebfcaffe5d5de7d11836529e246adbc57c7050962b8705487d7a",
+      "contentType": "image/x-icon"
+    },
+    {
+      "path": "hero/dione-1k.jpg",
+      "bytes": 164328,
+      "sha256": "4c9cfa0f519d2440d8daad5d0cc6a16642a90ce27ae71bb5cb8f7da69b648a47",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "hero/saturn-rings.png",
+      "bytes": 2787,
+      "sha256": "9921487a2af75ccd204b49a7569a0e481668d0ef94d1b1c87912dbafcf9a06d4",
+      "contentType": "image/png"
+    },
+    {
+      "path": "hero/saturn.jpg",
+      "bytes": 32972,
+      "sha256": "f4a7cb0e6375476f72a2251122f68208ebe0748fe92661399334cb9b04b5171a",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "index.html",
+      "bytes": 821,
+      "sha256": "6f3c9bc4f09a09885b7062a02e33e0faf559fe7b093b1ca564409da08be90e86",
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "path": "stars.bin",
+      "bytes": 88276,
+      "sha256": "31ee08041e1a0356ada6f928586b8561e6545d6ab3960838415ef3ca392f09c1",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "path": "test-catalogs/experiments/mars-surface-build-pilot.json",
+      "bytes": 3767,
+      "sha256": "e5f3f7b9b78b0eac84f60f55b1a202e9ae6965a603eabf84fd837a4b6afd06a3",
+      "contentType": "application/json"
+    }
+  ],
+  "objectCount": 24,
+  "bytes": 5079452,
+  "mainSiteChanged": false,
+  "immutableProductsChanged": false
+}
