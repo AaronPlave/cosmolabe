@@ -1,9 +1,0 @@
-{
-  "checks": [
-    "Places demo starts with Mars and Moon names enabled without selection",
-    "Display master and per-body checkboxes reflect defaults",
-    "manual off works; reload restores authored defaults",
-    "same data without defaultGeographicNames remains opt-in"
-  ],
-  "errors": []
-}
