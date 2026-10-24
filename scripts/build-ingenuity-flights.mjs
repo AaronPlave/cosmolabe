@@ -14,9 +14,10 @@
  *     One file per flight, "JD x y z vx vy vz" in km / km/s, body-fixed Mars
  *     (IAU_MARS). Catalog uses InterpolatedStates + trajectoryFrame: BodyFixed.
  *
- * Time:
- *   MMGIS's `SCLK_START` / `SCLK_END` are numerically ET (J2000 TDB seconds),
- *   not real spacecraft clock ticks — used directly here, no SCS2E needed.
+ * Time (legacy interpretation, preserved):
+ *   The existing builder treats SCLK_START / SCLK_END as J2000 TDB seconds.
+ *   The independent clock conversion has not been established by #246; do not
+ *   change source timing while resolving the coordinate/datum audit.
  *
  * Altitude profile (synthesized — MMGIS ground tracks are 2D):
  *   - Takeoff terrain: previous flight's landing Elev_Geoid (= this flight's
@@ -26,19 +27,17 @@
  *   - Linear climb / descent of 5 s each (capped at 30% of duration for
  *     short flights).
  *
- * Reference frame:
- *   Standard geodetic → ECEF conversion against the IAU 2015 Mars oblate
- *   ellipsoid (a=3396.19, b=3376.20 km), with height = Elev_Geoid + alt_profile.
- *   MMGIS lat/lon and HiRISE/CTX DTMs use geodetic latitude (angle of local
- *   ellipsoid normal to equator); we apply the prime-vertical formula to
- *   match. The trajectory is data-correct against the MOLA-areoid datum that
- *   all NASA Mars mission data (MMGIS, SPICE, JPL Horizons, PDS) references —
- *   and shares the same lat/lon convention as 3D Tiles renderers' terrain.
+ * Legacy reference-frame interpretation — not accepted for cube migration:
+ *   This code feeds MMGIS source angles and Elev_Geoid into an ellipsoidal
+ *   geodetic conversion without an areoid conversion. The original USGS source
+ *   labels declare planetocentric latitude on a spherical map; the MMGIS map
+ *   also declares equal radii. An IAU ellipsoid is not the MOLA areoid.
  *
- *   Note: if the active terrain mesh has its own MOLA-registration bias (as
- *   Cesium Ion's Cesium Mars HiRISE Jezero DTM does — ~65-200 m at Jezero),
- *   the heli may appear visually below or above the rendered ground. That's a
- *   mesh-vs-MOLA issue, not a trajectory issue.
+ *   #246's read-only audit quantifies the coordinate alternatives, all 73
+ *   controls, and the synthesized profile's clearance failures before any
+ *   derived files are regenerated. See docs/validation/ingenuity-jezero/README.md.
+ *   Retain this legacy calculation for baseline reproduction pending that gate;
+ *   do not interpret its output as independently validated spacecraft placement.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -51,32 +50,15 @@ const DATA_DIR = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'data'
 const FLIGHT_PATH_PATH = join(DATA_DIR, 'm20_heli_flight_path.json');
 const WAYPOINTS_PATH = join(DATA_DIR, 'm20_heli_waypoints.json');
 
-// Mars IAU 2015 ellipsoid (matches SPICE pck00010.tpc Mars radii). The IAU
-// ellipsoid is the canonical analytical approximation to the MOLA areoid that
-// all published Mars mission data references — MMGIS Elev_Geoid, NASA papers,
-// JPL Horizons output, SPICE recgeo all use this reference. Trajectory output
-// is data-correct against this datum, regardless of what any given renderer's
-// terrain mesh ends up displaying.
+// Legacy conversion parameters. These ellipsoid radii do not make MMGIS
+// Elev_Geoid an ellipsoid-normal height or source-map latitude geodetic.
 const MARS_IAU_EQUATORIAL_RADIUS_KM = 3396.19;
 const MARS_IAU_POLAR_RADIUS_KM = 3376.20;
 
 /**
- * Convert geodetic (lat, lon, height above IAU ellipsoid) to body-fixed ECEF Cartesian (km).
- *
- * MMGIS and every Mars mission product (HiRISE/CTX DTMs, USGS Trek WMTS) use
- * **geodetic** latitude (angle of the local ellipsoid normal to the equatorial
- * plane), not geocentric (angle of the radial line). The two differ by up to
- * 0.2° on Mars at mid-latitudes, which at the surface = ~12 km of ground —
- * easily large enough to misplace a helicopter relative to its airfield.
- *
- * 3D Tiles renderers (Cesium, 3d-tiles-renderer) interpret lat/lon as geodetic
- * via the standard oblate ellipsoid → ECEF formula:
- *   N = a / √(1 - e²sin²φ)              (prime vertical radius of curvature)
- *   x = (N + h)·cos(φ)·cos(λ)
- *   y = (N + h)·cos(φ)·sin(λ)
- *   z = (N·(1 - e²) + h)·sin(φ)
- * Using this formula makes our trajectory share the same 3D position
- * convention as the rendered terrain.
+ * Convert geodetic latitude and ellipsoid-normal height to Cartesian km.
+ * The current MMGIS caller does not establish those source semantics; this
+ * function reproduces the legacy files, not the proposed areoid-radial model.
  */
 function geodeticToBodyFixed(latDeg, lonDeg, heightKm) {
   const lat = latDeg * Math.PI / 180;
@@ -115,11 +97,9 @@ function buildXyzv(pathFeature, takeoffElevGeoidM, landingElevGeoidM, maxAltM) {
   // height = interpolated ground elevation (m above MOLA areoid) + altitude
   // profile (m above takeoff terrain).
   //
-  // Ground elevation linearly interpolates between takeoff and landing airfield
-  // MMGIS Elev_Geoid values — only approximation in the cruise positions.
-  // Across Jezero's flat-ish crater floor (≤200 m airfield-to-airfield elevation
-  // spread) it's fine; for missions overflying significant topography you'd
-  // want per-point DEM sampling.
+  // This profile is synthesized from endpoint scalar elevations and the
+  // advertised peak, with uniform sample timing. It is not observed vertical
+  // telemetry. The #246 audit measures its conditional clearance separately.
   const positions = new Array(n);
   const ets = new Array(n);
   for (let i = 0; i < n; i++) {

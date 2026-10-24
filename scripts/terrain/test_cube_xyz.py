@@ -49,7 +49,7 @@ class CubeXYZTests(unittest.TestCase):
             self.assertEqual(json.loads(receipts[0].read_text())['fallbackLevel'], 0)
             config['allowSourceFallback'] = False
             with patch('cube_xyz.urllib.request.urlopen', fetch), patch('cube_xyz.time.sleep'):
-                with self.assertRaises(RuntimeError):
+                with self.assertRaisesRegex(RuntimeError, 'after 5 attempts: https://example/1/1/1'):
                     read_tile(config, folder, 1, 1, 1)
 
     def test_pixel_centres_and_xyz_y(self):

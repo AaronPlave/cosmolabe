@@ -83,13 +83,14 @@ def read_tile(config, cache, level, x, y):
                 return None
             if attempt == 4:
                 raise
-        except (OSError, TimeoutError, RuntimeError, ValueError):
+        except (OSError, TimeoutError, RuntimeError, ValueError) as error:
             # Some source responses are truncated PNGs despite HTTP 200. Verify
             # decoding before trusting the disk cache; refetch on a later try.
             path.unlink(missing_ok=True)
             if attempt == 4:
                 if not config.get('allowSourceFallback') or level <= config.get('minZoom', 0):
-                    raise
+                    raise RuntimeError(f'Original XYZ response failed after 5 attempts: {url} '
+                                       f'({type(error).__name__}: {error})') from error
                 failure.write_text(json.dumps({'url': url, 'reason': 'HTTP 200 image decode failure after retries', 'sourceLevel': level, 'fallbackLevel': level - 1}))
                 return fallback(config, cache, level, x, y)
         time.sleep(2 ** attempt)

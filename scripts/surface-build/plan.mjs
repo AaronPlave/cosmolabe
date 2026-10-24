@@ -162,7 +162,11 @@ export async function compileBuild(lock) {
   keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM'], 'gates');
   assert(positive(p.gates.clearanceM) && p.gates.clearanceM <= 500, 'explicit clearance must be in (0, 500] metres');
   assert(positive(p.gates.maxOffsetM) && positive(p.gates.maxBoundaryStepM), 'explicit registration and boundary limits required');
-  assert(Array.isArray(p.gates.controls) && p.gates.controls.length > 0 && p.gates.controls.length <= 64, 'independent terrain controls required');
+  // Ingenuity has 73 landing/deployment controls. Keep the fixture bound and
+  // permit a finite mission audit without dropping controls to fit the pilot.
+  const maxControls = real ? 128 : 64;
+  assert(Array.isArray(p.gates.controls) && p.gates.controls.length > 0 && p.gates.controls.length <= maxControls,
+    `terrain controls required (1..${maxControls}); source independence must be stated in provenance`);
   for (const cp of p.gates.controls) {
     keys(cp, ['lat', 'lon', 'heightM', 'toleranceM'], 'control');
     assert(Number.isFinite(cp.lat) && Math.abs(cp.lat) <= 90 && Number.isFinite(cp.lon) && Math.abs(cp.lon) <= 360
