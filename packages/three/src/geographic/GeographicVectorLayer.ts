@@ -321,6 +321,8 @@ export class GeographicVectorLayer {
       const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
       const bodyMatrix = new THREE.Matrix4().compose(bm.position.clone().sub(origin), rotation, new THREE.Vector3().setScalar(this.scaleFactor));
       const toBody = bodyMatrix.clone().invert();
+      const anchor = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).applyMatrix4(toBody);
+      for (const material of this.drawMaterials(batch)) material.setAnchor(anchor);
       batch.material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
       if (!overlays) this._status.push({ bodyName: batch.bodyName, layerIds: batch.layers.map(l => l.id),
         features: batch.index.features.length, primitives: batch.index.primitives.length,
@@ -470,7 +472,8 @@ export class GeographicVectorLayer {
       proxy = { mesh, sourceGeometry: geometry, localToBody: localToBody.clone(), worldMatrix: new THREE.Matrix4(), owned, seen: false, touches: true };
       mesh.onBeforeRender = () => {
         const material = mesh.material as GeographicMaterial;
-        material.uniforms.vectorLocalToBody.value.copy(proxy!.localToBody);
+        const toAnchor = material.uniforms.vectorLocalToAnchor.value.copy(proxy!.localToBody), anchor = material.uniforms.vectorAnchor.value;
+        toAnchor.elements[12] -= anchor.x; toAnchor.elements[13] -= anchor.y; toAnchor.elements[14] -= anchor.z;
         const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
         const map = sourceMaterial.displacementMap;
         material.uniforms.vectorDisplacement.value.set(map ? 1 : 0, sourceMaterial.displacementScale ?? 0, sourceMaterial.displacementBias ?? 0);

@@ -58,6 +58,28 @@ streamed script covers translucent fills, lines and a hole; run it with
 `CL_FADE_MS=300` on a GPU. Separately, look for terrain or imagery LOD
 artifacts with vectors off: the script's off frames are the baseline.
 
+## 1b. Speckled fills and staircased edges at very close range
+
+**Cause.** The shader derived latitude/longitude from absolute body-fixed
+float32 positions, which step by ~0.25 m at Mars radius (~1 m in degrees):
+below ~100 m range neighbouring pixels got equal or jumping coordinates, and
+fills and strokes turned to speckle (review screenshot, 2026-10-24).
+
+**Fix.** Positions are offsets from an anchor at the camera, and the shader
+computes exact differences of longitude and (Bowring) latitude from the
+anchor's, which goes up in whole degrees plus remainder. ANGLE's Metal
+compiler reorders float sums, which folded the anchor's whole degrees back in
+and left a ~1 m staircase along every edge; whole degrees are therefore
+subtracted in integers. Candidates are rejected on coarse coordinates before
+the exact arithmetic, which keeps the cost at its previous level (Rhine close
+13.1 ms vector cost against 13.5–13.7 ms).
+
+**Regression.** `scripts/test-geographic-close-precision.mjs` (streamed Mars,
+network) dollies to ~10 m over the Gale floor and over a region vertex and
+asserts no speckle (coverage flips < 1%) and a straight edge (row-to-row jump
+≤ 6 px). Before: up to 85% flips; the reorderable float version: 91 px jumps;
+now: ≤ 0.25% and 1 px (`docs/validation/geographic-close-precision`).
+
 ## 2. Broad-area GPU cost: to measure on hardware
 
 **Scene.** `test-catalogs/geographic-vectors-mars-streamed.json` has six wide

@@ -30,7 +30,13 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         vectorRecords: { value: records }, vectorCells: { value: cells }, vectorReferences: { value: references },
         vectorRecordSize: { value: new THREE.Vector2(records.image.width, records.image.height) },
         vectorReferenceSize: { value: new THREE.Vector2(references.image.width, references.image.height) },
-        vectorLocalToBody: { value: new THREE.Matrix4() },
+        // Positions are offsets from an anchor near the camera (see setAnchor):
+        // absolute body-fixed float32 steps ~0.25 m at Mars radius, which turns
+        // close-range fills and strokes into speckle.
+        vectorLocalToAnchor: { value: new THREE.Matrix4() },
+        vectorAnchor: { value: new THREE.Vector3() },
+        vectorAnchorLL: { value: new THREE.Vector4() },
+        vectorAnchorNorth: { value: new THREE.Vector4() }, vectorAnchorSouth: { value: new THREE.Vector4() },
         vectorShape: { value: new THREE.Vector2(equatorialKm, polarKm) },
         vectorSelected: { value: -1 }, vectorHovered: { value: -1 },
         vectorPixelRatio: { value: 1 }, vectorPage: { value: 0 }, vectorHighlight: { value: 0 },
@@ -51,18 +57,18 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
       vertexShader: `
         #include <common>
         #include <logdepthbuf_pars_vertex>
-        uniform mat4 vectorLocalToBody;
+        uniform mat4 vectorLocalToAnchor;
         uniform vec3 vectorDisplacement;
         uniform sampler2D vectorDisplacementMap;
         uniform mat3 vectorDisplacementTransform;
-        varying vec3 vectorBody;
+        varying vec3 vectorOffset;
         void main() {
           #include <begin_vertex>
           if (vectorDisplacement.x > 0.5) {
             vec2 mapUv = (vectorDisplacementTransform * vec3(uv, 1.0)).xy;
             transformed += normalize(normal) * (texture2D(vectorDisplacementMap, mapUv).x * vectorDisplacement.y + vectorDisplacement.z);
           }
-          vectorBody = (vectorLocalToBody * vec4(transformed, 1.0)).xyz;
+          vectorOffset = (vectorLocalToAnchor * vec4(transformed, 1.0)).xyz;
           #include <project_vertex>
           #include <logdepthbuf_vertex>
         }
@@ -90,16 +96,27 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         uniform vec4 vectorDetailBounds[${DETAIL_LEVELS}];
         uniform vec2 vectorDetailStep[${DETAIL_LEVELS}];
         uniform vec4 vectorDetailGrid[${DETAIL_LEVELS}];
-        varying vec3 vectorBody;
+        uniform vec3 vectorAnchor;
+        uniform vec4 vectorAnchorLL, vectorAnchorNorth, vectorAnchorSouth;
+        varying vec3 vectorOffset;
         vec4 vectorTexel(sampler2D tex, vec2 size, float i) {
           return texture2D(tex, (vec2(mod(i, size.x), floor(i / size.x)) + 0.5) / size);
         }
-        vec2 vectorChart(vec2 ll, float chart, float anchor) {
-          if (chart == 0.0) return vec2(anchor + mod(ll.x - anchor + 180.0, 360.0) - 180.0, ll.y);
-          float r = 90.0 - chart * ll.y;
-          return r * vec2(cos(radians(ll.x)), sin(radians(ll.x)));
-        }
         float vectorCross(vec2 a, vec2 b) { return a.x * b.y - a.y * b.x; }
+        // point − (base + delta) for a base given as whole units (xy) and the
+        // rest (zw). Fast-math GPU compilers (ANGLE on Metal) reorder float
+        // sums, which here would round to the step at ±180° (~1 m on Mars), so
+        // whole units are subtracted in integers and only small floats are added.
+        vec2 vectorRelative(vec2 point, vec4 base, vec2 delta) {
+          vec2 whole = floor(point);
+          return vec2(ivec2(whole) - ivec2(base.xy)) + ((fract(point) - base.zw) - delta);
+        }
+        // A polar chart point minus the anchor's, from the anchor's longitude
+        // (radians), the longitude and latitude differences and the anchor's radius.
+        vec2 vectorPolarDelta(float lon0, float dLon, float dRadius, float radius0) {
+          float halfSin = sin(0.5 * dLon), mid = lon0 + 0.5 * dLon;
+          return dRadius * vec2(cos(lon0 + dLon), sin(lon0 + dLon)) + radius0 * 2.0 * halfSin * vec2(-sin(mid), cos(mid));
+        }
         // During an LOD cross-fade a parent tile and its children both draw,
         // each keeping complementary pixels of a 4×4 Bayer pattern
         // (3d-tiles-renderer's TilesFadePlugin, wrapFadeMaterial). A proxy keeps
@@ -119,22 +136,38 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
         void main() {
           // Geodetic latitude in closed form (Bowring): exact to well below
           // float precision near the surface, at a fraction of an iterative
-          // solve's cost, which every covered fragment pays.
-          float p = length(vectorBody.xy);
+          // solve's cost, which every covered fragment pays. Evaluated as the
+          // exact difference from the anchor's, so nothing near the camera is
+          // rounded at planetary magnitude.
+          vec3 anchor = vectorAnchor, offset = vectorOffset;
+          vec3 body = anchor + offset;
           float equatorial = vectorShape.x, polar = vectorShape.y;
           float e2 = 1.0 - (polar * polar) / (equatorial * equatorial), ep2 = (equatorial * equatorial) / (polar * polar) - 1.0;
-          float beta = atan(vectorBody.z * equatorial, p * polar);
-          float sb = sin(beta), cb = cos(beta);
-          float latitude = atan(vectorBody.z + ep2 * polar * sb * sb * sb, p - e2 * equatorial * cb * cb * cb);
-          vec2 ll = degrees(vec2(atan(vectorBody.y, vectorBody.x), latitude));
-          // Differentiate Cartesian positions first: longitude itself is
-          // discontinuous at the seam. The differential of atan2 is continuous.
-          vec3 bx = dFdx(vectorBody), by = dFdy(vectorBody);
-          float longitudeDenominator = max(dot(vectorBody.xy, vectorBody.xy), 1e-20);
-          vec2 dx = vec2(degrees(vectorCross(vectorBody.xy, bx.xy) / longitudeDenominator), dFdx(ll.y));
-          vec2 dy = vec2(degrees(vectorCross(vectorBody.xy, by.xy) / longitudeDenominator), dFdy(ll.y));
-          vec2 north = vectorChart(ll, 1.0, 0.0), south = vectorChart(ll, -1.0, 0.0);
+          float dLon = atan(vectorCross(anchor.xy, offset.xy), dot(anchor.xy, anchor.xy) + dot(anchor.xy, offset.xy));
+          float p0 = length(anchor.xy), p = length(body.xy);
+          float dp = (2.0 * dot(anchor.xy, offset.xy) + dot(offset.xy, offset.xy)) / max(p + p0, 1e-20);
+          float beta0 = atan(anchor.z * equatorial, p0 * polar);
+          float dBeta = atan(equatorial * polar * (p0 * offset.z - anchor.z * dp), p0 * p * polar * polar + anchor.z * body.z * equatorial * equatorial);
+          float sb0 = sin(beta0), cb0 = cos(beta0), halfSin = sin(0.5 * dBeta), mid = beta0 + 0.5 * dBeta;
+          float dsb = 2.0 * cos(mid) * halfSin, dcb = -2.0 * sin(mid) * halfSin, sb = sb0 + dsb, cb = cb0 + dcb;
+          float x0 = p0 - e2 * equatorial * cb0 * cb0 * cb0, y0 = anchor.z + ep2 * polar * sb0 * sb0 * sb0;
+          float dX = dp - e2 * equatorial * dcb * (cb * cb + cb * cb0 + cb0 * cb0);
+          float dY = offset.z + ep2 * polar * dsb * (sb * sb + sb * sb0 + sb0 * sb0);
+          float dLat = atan(x0 * dY - y0 * dX, x0 * (x0 + dX) + y0 * (y0 + dY));
+          vec2 dll = degrees(vec2(dLon, dLat));
+          // Coarse absolute coordinates choose index cells and seam shifts only.
+          vec2 llRaw = vectorAnchorLL.xy + vectorAnchorLL.zw + dll;
+          vec2 ll = vec2(mod(llRaw.x + 180.0, 360.0) - 180.0, llRaw.y);
+          // Differentiate Cartesian offsets: longitude itself is discontinuous
+          // at the seam. The differential of atan2 is continuous.
+          vec3 bx = dFdx(offset), by = dFdy(offset);
+          float longitudeDenominator = max(dot(body.xy, body.xy), 1e-20);
+          vec2 dx = vec2(degrees(vectorCross(body.xy, bx.xy) / longitudeDenominator), dFdx(dll.y));
+          vec2 dy = vec2(degrees(vectorCross(body.xy, by.xy) / longitudeDenominator), dFdy(dll.y));
+          float lon0 = radians(vectorAnchorLL.x + vectorAnchorLL.z), lat0 = vectorAnchorLL.y + vectorAnchorLL.w;
+          vec2 north = vectorPolarDelta(lon0, dLon, -dll.y, 90.0 - lat0), south = vectorPolarDelta(lon0, dLon, dll.y, 90.0 + lat0);
           vec2 ndx = dFdx(north), ndy = dFdy(north), sdx = dFdx(south), sdy = dFdy(south);
+          vec2 northCoarse = vectorAnchorNorth.xy + vectorAnchorNorth.zw + north, southCoarse = vectorAnchorSouth.xy + vectorAnchorSouth.zw + south;
           vec2 cell = clamp(floor((ll + vec2(180.0, 90.0)) / vec2(360.0, 180.0) * vec2(${VECTOR_GRID})), vec2(0.0), vec2(${VECTOR_GRID[0] - 1}.0, ${VECTOR_GRID[1] - 1}.0));
           vec4 range = vec4(0.0);
           // The largest styled mark decides how far a candidate can reach this fragment.
@@ -163,17 +196,27 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             vec4 reference = vectorTexel(vectorReferences, vectorReferenceSize, range.x + float(j));
             float id = reference.x * 4.0;
             vec4 ab = vectorTexel(vectorRecords, vectorRecordSize, id);
-            vec2 q = vectorChart(ll, reference.z, reference.w);
+            vec4 ck = reference.y == 2.0 ? vectorTexel(vectorRecords, vectorRecordSize, id + 1.0) : vec4(ab.xy, 0.0, 0.0);
             vec2 jx = reference.z == 0.0 ? dx : (reference.z > 0.0 ? ndx : sdx);
             vec2 jy = reference.z == 0.0 ? dy : (reference.z > 0.0 ? ndy : sdy);
             // Most candidates in a padded cell are far outside this fragment's
-            // few-pixel mark. Reject them before extra texture reads/matrix work.
-            vec2 padding = vectorReach * vectorPixelRatio * (abs(jx) + abs(jy));
+            // few-pixel mark (or its triangle). Reject them on coarse coordinates,
+            // with a margin over their rounding, before the exact arithmetic.
+            vec2 padding = reference.y < 2.0 ? vectorReach * vectorPixelRatio * (abs(jx) + abs(jy)) : vec2(0.0);
             // A grazing footprint outside the index padding is unresolved.
             // Partial MSAA coverage must not stretch a hidden stroke over it.
-            if (reference.y < 2.0 && any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
-            if (reference.y < 2.0 && (any(lessThan(q, min(ab.xy, ab.zw) - padding)) || any(greaterThan(q, max(ab.xy, ab.zw) + padding)))) continue;
+            if (any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
+            vec2 q = reference.z == 0.0 ? vec2(reference.w + mod(ll.x - reference.w + 180.0, 360.0) - 180.0, ll.y) : (reference.z > 0.0 ? northCoarse : southCoarse);
+            vec2 low = min(min(ab.xy, ab.zw), ck.xy) - padding - 1e-4, high = max(max(ab.xy, ab.zw), ck.xy) + padding + 1e-4;
+            if (any(lessThan(q, low)) || any(greaterThan(q, high))) continue;
             if (abs(vectorCross(jx, jy)) < 1e-18) continue;
+            // Index coordinates minus this fragment's, exactly: anchor-relative,
+            // so the tiny differences near the camera are not rounded away.
+            vec4 base = reference.z == 0.0 ? vectorAnchorLL : (reference.z > 0.0 ? vectorAnchorNorth : vectorAnchorSouth);
+            vec2 delta = reference.z == 0.0 ? dll : (reference.z > 0.0 ? north : south);
+            // Equirectangular references wrap near their own anchor longitude.
+            vec2 shift = vec2(reference.z == 0.0 ? 360.0 * floor((q.x - llRaw.x) / 360.0 + 0.5) : 0.0, 0.0);
+            vec2 ra = vectorRelative(ab.xy - shift, base, delta), rb = vectorRelative(ab.zw - shift, base, delta);
             vec4 identity = vectorTexel(vectorRecords, vectorRecordSize, id + 3.0);
             // Separate sparse highlight passes follow every ordinary page.
             if (vectorHighlight == 0.0 && reference.y == 1.0 && (identity.x == vectorSelected || identity.x == vectorHovered)) continue;
@@ -187,15 +230,15 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             // Coverage of the mark itself; the rest of alpha is the halo around it.
             float core = 1.0;
             if (reference.y == 2.0) {
-              vec4 ck = vectorTexel(vectorRecords, vectorRecordSize, id + 1.0);
-              vec3 signs = vec3(vectorCross(ab.zw - ab.xy, q - ab.xy), vectorCross(ck.xy - ab.zw, q - ab.zw), vectorCross(ab.xy - ck.xy, q - ck.xy));
+              vec2 rc = vectorRelative(ck.xy - shift, base, delta);
+              vec3 signs = vec3(vectorCross(rb - ra, -ra), vectorCross(rc - rb, -rb), vectorCross(ra - rc, -rc));
               if (all(greaterThanEqual(signs, vec3(0.0))) || all(lessThanEqual(signs, vec3(0.0)))) {
                 alpha = 1.0;
                 // Diagonal screen-space stripes, 8 CSS px apart.
                 if (hatch) alpha = mod((gl_FragCoord.x + gl_FragCoord.y) / vectorPixelRatio, 8.0) < 2.0 ? 4.0 : 0.35;
               }
             } else {
-              vec2 a = vectorPixel(ab.xy - q, jx, jy), b = vectorPixel(ab.zw - q, jx, jy);
+              vec2 a = vectorPixel(ra, jx, jy), b = vectorPixel(rb, jx, jy);
               vec2 v = b - a;
               float t = reference.y == 0.0 ? 0.0 : clamp(-dot(a, v) / max(dot(v, v), 1e-20), 0.0, 1.0);
               vec2 offset = (a + t * v) / vectorPixelRatio;
@@ -234,6 +277,24 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
     });
     this.pages = packed.pages;
     this.textures = packed.detail ? [records, cells, references, detailCells] : [records, cells, references];
+  }
+  /** Anchor the shader's coordinates at `bodyKm` (body-fixed, ideally the
+   * camera): its geodetic position goes up in double-float pairs, and the
+   * fragment shader works with exact differences from it. */
+  setAnchor(bodyKm: THREE.Vector3): void {
+    const u = this.uniforms;
+    const [x, y, z] = [Math.fround(bodyKm.x), Math.fround(bodyKm.y), Math.fround(bodyKm.z)];
+    u.vectorAnchor.value.set(x, y, z);
+    const [a, b] = (u.vectorShape.value as THREE.Vector2).toArray();
+    const e2 = 1 - (b * b) / (a * a), ep2 = (a * a) / (b * b) - 1, p = Math.hypot(x, y);
+    const beta = Math.atan2(z * a, p * b);
+    const lat = Math.atan2(z + ep2 * b * Math.sin(beta) ** 3, p - e2 * a * Math.cos(beta) ** 3) * 180 / Math.PI;
+    const lon = Math.atan2(y, x), r = 90 - lat, s = 90 + lat;
+    // Whole units and the remainder, as vectorRelative takes them.
+    const pair = (v: THREE.Vector4, p0: number, p1: number) => v.set(Math.floor(p0), Math.floor(p1), p0 - Math.floor(p0), p1 - Math.floor(p1));
+    pair(u.vectorAnchorLL.value, lon * 180 / Math.PI, lat);
+    pair(u.vectorAnchorNorth.value, r * Math.cos(lon), r * Math.sin(lon));
+    pair(u.vectorAnchorSouth.value, s * Math.cos(lon), s * Math.sin(lon));
   }
   /** Re-upload the primitive records after `GeographicIndex.restyle`; the same texture, no new program. */
   restyle(index: GeographicIndex): void {
