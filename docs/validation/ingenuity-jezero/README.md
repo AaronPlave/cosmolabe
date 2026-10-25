@@ -21,7 +21,13 @@ now explicitly declares CTX's independent original grid; source-to-output
 registration remains required. The HiRISE 0.25 m / DTM 1 m coincident-grid gate
 remains strict, including a shifted-grid rejection regression. Neither source
 is moved or regridded to manufacture coincidence. A fresh immutable build is
-running with that policy; the rejected run has no publication receipt.
+completed with that policy; the rejected earlier run has no publication receipt.
+The completed V9 build contains 1,148,202,493 product bytes across one terrain
+and four imagery products. Its 6.4 MB completion receipt exposed a preflight
+reader limit intended for small fixtures. Completion receipts now allow up to
+32 MiB while ordinary JSON remains bounded to 2 MiB and full inventory checking
+is unchanged. This changes the locked executor identity, so V10 is rebuilding
+and must receive its own verified publication preflight and runtime replay.
 
 Local candidate viewing may use those generated files while validation finishes;
 the inspector labels that preview explicitly. Such a preview is not acceptance.
@@ -43,7 +49,11 @@ the shared changes. [Catalog preservation](catalog-contract.json) checks all 72
 arc identities/epochs, viewpoints, model, rotation and controls against the
 baseline. These records do not substitute for a completed five-product receipt
 or independent source accuracy. The local [390 px capture](captures/candidate-compact.png)
-visibly qualifies the reconstruction and candidate status.
+visibly qualifies the reconstruction; build status is recorded above.
+The completed V9 replay additionally checks inspector clearance at all 15 flight
+phases. The inspector now subtracts heights in the same normal datum coordinate,
+correcting a prior radial/normal mix that overstated clearance on Mars. Flight
+positions and terrain are unchanged by that display correction.
 The same-pose [coarse imagery](captures/candidate-imagery-coarse.png) and
 [fine imagery](captures/candidate-imagery-fine.png) captures change only the
 imagery cap. CPU hits, selected geometry and source position/normal/index buffer

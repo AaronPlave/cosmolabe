@@ -171,6 +171,7 @@ try{
   // a traverse and final landing. This checks playback of the explicit estimate,
   // not an independent observation of helicopter altitude.
   const flights=JSON.parse(await readFile('apps/viewer/test-catalogs/data/ingenuity/flights_index.json','utf8'));
+  await page.evaluate(async()=>{(await window.ingenuityImport('viewer-state.svelte.ts')).selectBody('Ingenuity');(await window.ingenuityImport('shell.svelte.ts')).restorePanel('info');});
   result.playback=[];
   for(const number of [1,12,72]){
     const flight=flights[number-1];
@@ -194,7 +195,10 @@ try{
       assert.ok(sample.nav?.settled,`flight ${number} fraction ${fraction}: ${JSON.stringify(sample.nav)}`);
       assert.ok(sample.estimatedClearanceM>=-.5,`estimated flight below physical representation: ${JSON.stringify(sample)}`);
       assert.ok(sample.modelPositionErrorM<.001,'displayed model is not at its catalog-derived position');
-      result.playback.push({flight:number,fraction,et,...point,...sample});
+      const readout=await page.locator('.ui-data-row').filter({hasText:'Above Mars terrain'}).locator('.ui-readout').innerText();
+      assert.match(readout,/^-?\d+ m$/,'ground-level inspector must show metre units');
+      assert.ok(Math.abs(parseFloat(readout)-sample.estimatedClearanceM)<=.6,`inspector mixes radial and normal height: ${readout} versus ${sample.estimatedClearanceM} m`);
+      result.playback.push({flight:number,fraction,et,...point,...sample,inspectorClearance:readout});
       if(fraction===.5)await page.locator('canvas').first().screenshot({path:`${out}/flight-${number}-estimated.png`});
       await save();
     }

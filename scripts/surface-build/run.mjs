@@ -32,7 +32,10 @@ export async function validateProduct(product, dir) {
 /** Reuse only a complete build whose entire output inventory still matches. */
 export async function readCompleted(path, dag) {
   if (!await exists(join(path, 'complete.json'))) return null;
-  const receipt = await jsonFile(join(path, 'complete.json'));
+  // Finite original-response inventories make completed receipts larger than
+  // ordinary user JSON. Keep the general 2 MiB bound and scope this 32 MiB
+  // allowance to completion receipts; full inventory verification still follows.
+  const receipt = await jsonFile(join(path, 'complete.json'), 32 * 1024 * 1024);
   assert(receipt.buildId === dag.buildId && receipt.lockIdentity === dag.lockIdentity, 'completed build identity mismatch');
   const actual = (await buildInventory(path)).filter(e => e.path !== 'complete.json');
   assert(sameInventory(receipt.inventory, actual), 'completed build cache content changed; refusing unsafe resume');
@@ -46,7 +49,7 @@ async function matchingProducts(cache, dag) {
   try { names = await readdir(cache); } catch (e) { if (e.code === 'ENOENT') return matched; throw e; }
   for (const name of names.filter(n => /^[a-f0-9]{64}$/.test(n)).sort()) {
     const directory = join(resolve(cache), name);
-    const prior = await jsonFile(join(directory, 'complete.json'));
+    const prior = await jsonFile(join(directory, 'complete.json'), 32 * 1024 * 1024);
     const wanted = dag.products.filter(p => !matched[p.id] && prior.report.products.some(x => x.productIdentity === p.productIdentity));
     if (!wanted.length) continue;
     // Validate full completion, including original audit, before trusting reuse.

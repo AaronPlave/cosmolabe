@@ -1,10 +1,10 @@
 {
   "kind": "ingenuity-candidate-runtime-acceptance",
-  "status": "candidate runtime passed; final completed-build replay required",
+  "status": "completed V9 runtime passed; new executor identity V10 replay required",
   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
-  "sourceBuild": "887d847c51fcabb8836d2970e9dc68da1e2f2b43bd368a65119a2ee830adfd4e (generated outputs; cross-grid validation rejected)",
-  "targetBuild": "683c6b411ecef47d8b7f7c522e33c5113e3074394249a138e3f17d32eb662f4a",
-  "rawResultSha256": "ad70393ed1dfacca3c405852035934e2061f2b3466ae3fcf2c88af99ce57027f",
+  "sourceBuild": "683c6b411ecef47d8b7f7c522e33c5113e3074394249a138e3f17d32eb662f4a (completed, supported gates passed)",
+  "targetBuild": "c5988b54f637beb04bb57c093bf4a7fea6eeeced7e86771c3392d5e09c76b108",
+  "rawResultSha256": "2e996fb92e28a74634b8a007082df286c16a3a0bee0b027023a22a3d61f5c6d3",
   "rayToleranceM": 0.5,
   "views": [
     {
@@ -16,9 +16,9 @@
         "discrepancyM": 9.549694368615746e-08,
         "settled": true
       },
-      "clearanceM": 49.99999990423021,
+      "clearanceM": 49.9999999051397,
       "rayCount": 25,
-      "maximumAbsoluteRayOffsetM": 0.05575978389190633,
+      "maximumAbsoluteRayOffsetM": 0.05575975692971725,
       "imageryLevel": 14,
       "pinnedTextures": 6,
       "textureBytes": 129632163,
@@ -27,13 +27,13 @@
     {
       "name": "delta",
       "nav": {
-        "radiusKm": 3391.966741026428,
-        "physicalRadiusKm": 3391.966741026428,
-        "renderedRadiusKm": 3391.9667410262987,
+        "radiusKm": 3391.9667410264274,
+        "physicalRadiusKm": 3391.9667410264274,
+        "renderedRadiusKm": 3391.966741026298,
         "discrepancyM": -1.291482476517558e-07,
         "settled": true
       },
-      "clearanceM": 49.999999999272404,
+      "clearanceM": 49.99999999972715,
       "rayCount": 25,
       "maximumAbsoluteRayOffsetM": 4.1716452159262517e-07,
       "imageryLevel": 14,
@@ -44,15 +44,15 @@
     {
       "name": "last-airfield",
       "nav": {
-        "radiusKm": 3392.08914789448,
+        "radiusKm": 3392.089147894481,
         "physicalRadiusKm": 3392.0891478940553,
-        "renderedRadiusKm": 3392.08914789448,
-        "discrepancyM": 4.247340257279575e-07,
+        "renderedRadiusKm": 3392.089147894481,
+        "discrepancyM": 4.256435204297304e-07,
         "settled": true
       },
-      "clearanceM": 49.99999957544787,
+      "clearanceM": 49.99999957453838,
       "rayCount": 25,
-      "maximumAbsoluteRayOffsetM": 0.32224021727784874,
+      "maximumAbsoluteRayOffsetM": 0.3222401539691276,
       "imageryLevel": 14,
       "pinnedTextures": 6,
       "textureBytes": 129632163,
@@ -76,13 +76,13 @@
       "settled": true
     }
   },
-  "sampledLoadingMinimumClearanceM": 49.99999990423021,
+  "sampledLoadingMinimumClearanceM": 49.9999999051397,
   "measurement": {
     "count": 1,
-    "distanceKm": 0.01321374937470412,
+    "distanceKm": 0.013213752120132512,
     "unchangedByImagery": true
   },
-  "flyToClearanceM": 33893.92716206385,
+  "flyToClearanceM": 33893.92716209068,
   "estimatedPlayback": {
     "flights": [
       1,
@@ -106,7 +106,7 @@
     }
   },
   "eviction": {
-    "evicted": 296,
+    "evicted": 286,
     "textureBytes": 45089448,
     "maxTextureBytes": 50331648,
     "baseUncoveredBlocks": 0
@@ -146,9 +146,101 @@
   ],
   "compactWidth": 390,
   "limitations": [
-    "Runtime evidence uses generated candidate data; the fresh lock must complete and be replayed before acceptance.",
+    "V9 completed products passed supported source/quality gates and runtime acceptance. New receipt-reader implementation creates a V10 identity which must complete and be replayed before final publication approval.",
     "Small CPU/rendered differences measure shared representation agreement, not physical source accuracy.",
     "Sampled loading traces and rays are not a formal continuous error bound.",
     "Camera clearance changes during coarse loading; paired policy captures are not a same-pose image-fidelity comparison."
+  ],
+  "inspectorClearanceChecks": [
+    {
+      "flight": 1,
+      "fraction": 0,
+      "estimatedClearanceM": -0.012910838904645061,
+      "inspectorClearance": "-0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.02,
+      "estimatedClearanceM": 0.46266424124041805,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.5,
+      "estimatedClearanceM": 2.9864403554711316,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.98,
+      "estimatedClearanceM": 0.46311920414154883,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 1,
+      "estimatedClearanceM": -0.012458522633096436,
+      "inspectorClearance": "-0 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0,
+      "estimatedClearanceM": 0.009477303592575481,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.02,
+      "estimatedClearanceM": 2.586968137165968,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.5,
+      "estimatedClearanceM": 10.000161340940394,
+      "inspectorClearance": "10 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.98,
+      "estimatedClearanceM": 2.5805493551160907,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 1,
+      "estimatedClearanceM": 0.0030384612728084903,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0,
+      "estimatedClearanceM": 0.007802115305821644,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.02,
+      "estimatedClearanceM": 0.25088540132855996,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.5,
+      "estimatedClearanceM": 12.028910528442793,
+      "inspectorClearance": "12 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.98,
+      "estimatedClearanceM": 0.27531492969501414,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 1,
+      "estimatedClearanceM": 0.03223439671273809,
+      "inspectorClearance": "0 m"
+    }
   ]
 }

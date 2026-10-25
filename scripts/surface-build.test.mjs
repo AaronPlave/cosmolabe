@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createLockedSurfacePlan } from '../packages/core/dist/surface-plan/index.js';
-import { compileBuild, inspectBindings, hashFile, buildInputs, identity as contentIdentity } from './surface-build/plan.mjs';
+import { compileBuild, inspectBindings, hashFile, buildInputs, jsonFile, identity as contentIdentity } from './surface-build/plan.mjs';
 import { buildInventory } from './data-hosting/lib/publish.mjs';
 import { runBuildCli } from './build-surface.mjs';
 import { createFixture } from './surface-build/fixture.mjs';
@@ -37,6 +37,16 @@ beforeAll(async () => { temp = await mkdtemp(join(tmpdir(), 'surface-build-test-
 afterAll(async () => { await rm(temp, { recursive: true, force: true }); });
 
 describe('finite locked surface build planning', () => {
+  it('reads a bounded large completion receipt without relaxing ordinary JSON or inventory verification', async () => {
+    const directory=join(temp,'large-completion');await mkdir(directory);
+    const dag={buildId:'a'.repeat(64),lockIdentity:'sha256:'+'b'.repeat(64)};
+    const path=join(directory,'complete.json');
+    await writeFile(path,JSON.stringify({...dag,inventory:[],report:{diagnostic:'x'.repeat(3*1024*1024)}}));
+    await expect(jsonFile(path)).rejects.toThrow(/JSON exceeds/);
+    expect((await readCompleted(directory,dag)).report.diagnostic.length).toBe(3*1024*1024);
+    await writeFile(join(directory,'unexpected.txt'),'tampered cache');
+    await expect(readCompleted(directory,dag)).rejects.toThrow(/content changed/);
+  });
   it('produces a stable DAG with independent imagery, physical source fidelity and honest unknown resources', async () => {
     const a = await compileBuild(fixture), b = await compileBuild(fixture);
     expect(a).toEqual(b);
