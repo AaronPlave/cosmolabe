@@ -429,12 +429,22 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
    * horizon occluder for the draw cull.
    */
   get renderedInnerRadiusKm(): number {
-    // An ellipsoid-normal datum does not certify a sphere below the emitted
-    // terrain. Keep frustum culling and disable the horizon test for now.
     if (this.source.manifest.datum.referenceShape.kind !== 'sphere') return 0;
+    return this.radialRenderedInnerRadiusKm;
+  }
+
+  /** Conservative radial-storage bound used only by imagery request culling.
+   * It does not alter physical queries or the terrain renderer's selection.
+   */
+  get radialRenderedInnerRadiusKm(): number {
+    // This is a bound on Cartesian radial storage, not a relabeling of public
+    // geodetic-normal heights. Ellipsoidal products require an explicit radial
+    // lattice, whose offset range and reference radius certify the same bound.
+    if (this.source.manifest.datum.referenceShape.kind !== 'sphere' && !this.source.manifest.geometry) return 0;
     const { heightRangeKm, tiles, renderedMesh } = this.source.manifest;
     const deviationKm = renderedMesh ? tiles.reduce((m, t) => Math.max(m, t[5] ?? Infinity), 0) : 0;
-    return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm);
+    return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm
+      - (this.source.manifest.renderedLatticeRoundingBoundKm ?? 0));
   }
 
   private point(ray: SurfaceRay, d: SurfaceVector, t: number): CubeFaceCoordinate {

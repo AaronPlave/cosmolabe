@@ -1,6 +1,6 @@
 {
   "kind": "ingenuity-imagery-loading-regression",
-  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
   "passed": true,
   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
   "configuredHardBudgetBytes": 268435456,
@@ -65,15 +65,21 @@
     "Keep a drawn ancestor during refinement; inherit its source request priority.",
     "Coarsen explicitly when constrained; replace obsolete fine tiles without stranding the coarser target.",
     "Rebind resident ancestor samplers before disposing an old texture.",
-    "Establish view-driven optional ancestors for uncovered footprints, without pinning six roots per optional source."
+    "Establish view-driven optional ancestors for uncovered footprints, without pinning six roots per optional source.",
+    "Charge actual discrete fitted cover allocation, returning unused slots to lower layers.",
+    "Use conservative patch boxes and a proven inner sphere to exclude offscreen and occulted imagery demand.",
+    "Replace repeated beta CTX service pixels with official V01 CTX1 originals, including real global overviews; audit decoded pixel identity at distinct geographic addresses.",
+    "Preserve PNG nodata masks independently of the presence of an alpha band."
   ],
   "regressions": [
     "Original PR head loses a ready texture while replacement is unresolved; new regression retains it.",
     "Mandatory coarse requests precede detail at partial startup.",
-    "Two non-base texture slots still converge to a complete fitted cover, an empty queue and mandatory base coverage."
+    "Two non-base texture slots still converge to a complete fitted cover, an empty queue and mandatory base coverage.",
+    "Different encoded PNG hashes with identical decoded pixels now fail the enabled distinctImageTiles source gate.",
+    "Twelve nadir/tilt cases and four native mouse orbit steps verify real CTX sampling."
   ],
   "limits": [
     "A small budget reduces actual resolution explicitly; raising a byte limit alone is not the fix.",
-    "Source masks and physical terrain are unchanged."
+    "Physical terrain is unchanged; the decoder now preserves original PNG nodata masks."
   ]
 }

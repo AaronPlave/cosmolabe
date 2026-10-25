@@ -102,19 +102,19 @@
         "baseMap": "textures/mars.dds",
         "terrain": {
           "type": "3dtiles",
-          "url": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/tileset-measured.json",
+          "url": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/tileset-measured.json",
           "datum": {
             "verticalDatum": "ellipsoid",
             "heightConvention": "geodetic-normal"
           },
           "sourceMetadata": {
-            "id": "terrain-419154e47324aa446cd9c921",
-            "version": "419154e47324aa446cd9c921d92f1a8caf7b1930358fe80d5717db902a66a811"
+            "id": "terrain-3846907d293e9e5d0b0243ce",
+            "version": "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395"
           },
           "errorTarget": 3,
           "fadeDurationMs": 0,
           "cubeSphere": {
-            "cpuGrids": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/cpu-grids.json",
+            "cpuGrids": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/cpu-grids.json",
             "residentLevel": 2,
             "nearSurface": {
               "radiusM": 500,
@@ -136,16 +136,16 @@
             "resolutionMeters": 325.60563825058347,
             "attribution": "NASA Trek / USGS Viking MDIM 2.1",
             "type": "cube",
-            "url": "data/ingenuity-cube/imagery-67c8de41ba60020ba061abeb/imagery.json"
+            "url": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json"
           },
           {
             "id": "ctx-global",
             "name": "Global \u00b7 CTX",
-            "description": "Murray Lab CTX global mosaic; nominal original 5 m, available service grid 5.0876 m at equator; original response gaps remain transparent",
+            "description": "Murray Lab CTX V01 global mosaic; nominal original 5 m, available service grid 5.0876 m at equator; original response gaps remain transparent",
             "resolutionMeters": 5.087588097665367,
             "attribution": "Caltech Murray Lab / Esri",
             "type": "cube",
-            "url": "data/ingenuity-cube/imagery-634384b8f9eeb21c8bd4a62e/imagery.json"
+            "url": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json"
           },
           {
             "id": "jezero-ctx",
@@ -160,7 +160,7 @@
               18.72
             ],
             "type": "cube",
-            "url": "data/ingenuity-cube/imagery-5e6fab0c580bafe0fdd5d189/imagery.json"
+            "url": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json"
           },
           {
             "id": "jezero-hirise",
@@ -175,7 +175,7 @@
               18.67
             ],
             "type": "cube",
-            "url": "data/ingenuity-cube/imagery-4cd46626d81b2e5f677b7b45/imagery.json"
+            "url": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json"
           }
         ],
         "atmosphere": "Mars"

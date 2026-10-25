@@ -119,7 +119,7 @@ export async function prepareIngenuity({ source, fusion, areoid, audit: auditFil
     imageryRoot = resolve(imageryRoot);
     const specs = [
       ['viking','viking-bundle-1024/bundle.json','EPSG:4326',232,7,400,'NASA Trek / USGS Viking MDIM 2.1'],
-      ['ctx-global','ctx-bundle-1024/bundle.json','EPSG:4326',5,13,6,'Caltech Murray Lab / Esri'],
+      ['ctx-global','ctx-v01-bundle-1024/bundle.json','EPSG:4326',5,13,6,'Caltech Murray Lab / Esri'],
       ['jezero-ctx','upstream/jezero-ctx.tif','Mars-EQC-0-0',6,11,6,'NASA/USGS Mars 2020 TRN CTX soc_008'],
       ['jezero-hirise','upstream/hirise-ortho.tif','Mars-EQC-0-0',.25,14,.5,'NASA/USGS Mars 2020 TRN HiRISE soc_006'],
     ];
@@ -133,7 +133,7 @@ export async function prepareIngenuity({ source, fusion, areoid, audit: auditFil
       const sourceUrl = raster ? `https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/${id === 'jezero-ctx' ? 'CTX/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.tif' : 'HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif'}`
         : JSON.parse(await readFile(local,'utf8')).config.url;
       const valid = raster ? collection(Array.from({length:48},(_,i)=>{ const x=i%8,y=Math.floor(i/8);return rectangle(`native-${i}`,77.320+x*.01675,18.425+y*.013,77.320+(x+1)*.01675,18.425+(y+1)*.013); })) : collection([rectangle('native-check',77.45075,18.44465,77.45085,18.44475)]);
-      sources.push({ id,productId:id,channel:'imagery',body:'Mars',frame:'IAU_MARS',coordinates,
+      sources.push({ id,productId:id==='ctx-global'?'murray-ctx-v01':id,channel:'imagery',body:'Mars',frame:'IAU_MARS',coordinates,
         footprint:roi,
         nodata:raster ? {maskUrl:sourceUrl} : 'none',nativeGsdM:availableGsd,accuracyM:null,projection,
         datum:{referenceShape:coordinates.referenceShape,verticalDatum:'reference-sphere',heightConvention:'radial'},
@@ -167,7 +167,7 @@ export async function prepareIngenuity({ source, fusion, areoid, audit: auditFil
         fusionAsset: { ...await pin(bundle), retrieval: 'Clean recomputation from the pinned original DEMs; normalized provenance; complete raster inventory' },
         baseOverviewAsset: { ...await pin(files[0]+'.ovr'), retrieval: 'Pinned global source overview dependency' } },
       imagery, gates: { maxOffsetM: 10, maxBoundaryStepM: 1, clearanceM: 50, controls,
-        ...(imageryRoot ? { independentImageGrids: ['jezero-ctx'] } : {}) },
+        ...(imageryRoot ? { independentImageGrids: ['jezero-ctx'], distinctImageTiles: ['viking', 'ctx-global'] } : {}) },
       caveats: [imageryRoot ? 'Complete mission product selection: one authoritative terrain/CPU product plus four independent imagery products; publication remains an explicit authorization boundary.' : 'Terrain-only selection; independent imagery is not selected.',
         'Every original path sample is within an L15 cap; ~3.24 m maximum grid spacing is distinct from 1 m native DTM fidelity.',
         '73 scalar controls share provenance, use conditional radial placement, and do not certify absolute physical accuracy.',

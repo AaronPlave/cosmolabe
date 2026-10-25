@@ -159,7 +159,13 @@ export async function compileBuild(lock) {
     assert(!s.metadata || s.metadata.reuse.status === 'allowed', `${s.id}: permissions unknown or restricted`);
     assert(s.projection === 'EPSG:4326' || (real && s.projection === 'Mars-EQC-0-0'), `${s.id}: source reprojection is unsupported`);
   }
-  keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM', 'independentImageGrids'], 'gates');
+  keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM', 'independentImageGrids', 'distinctImageTiles'], 'gates');
+  if (p.gates.distinctImageTiles !== undefined) {
+    const ids = p.gates.distinctImageTiles;
+    assert(Array.isArray(ids) && new Set(ids).size === ids.length && ids.every(id =>
+      p.imagery.some(image => image.sourceId === id) && byId.get(id)?.projection === 'EPSG:4326'),
+    'distinct image tiles must name unique selected XYZ imagery sources');
+  }
   if (p.gates.independentImageGrids !== undefined) {
     const ids = p.gates.independentImageGrids;
     assert(Array.isArray(ids) && new Set(ids).size === ids.length && ids.every(id =>

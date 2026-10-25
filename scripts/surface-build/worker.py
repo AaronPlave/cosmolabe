@@ -172,8 +172,8 @@ def raster(path, radius, source, global_base=False):
             'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
-def bundle(path, target, source_dir, source=None):
-    from cube_xyz import validate
+def bundle(path, target, source_dir, source=None, require_distinct=False):
+    from cube_xyz import validate, textured_content_digest
     doc = json.loads(Path(path).read_text())
     assert doc.get('version') in (1, 2) and doc.get('kind') == 'locked-xyz-bundle', 'expected locked XYZ bundle v1/v2'
     config = doc['config']
@@ -181,6 +181,7 @@ def bundle(path, target, source_dir, source=None):
     assert not set(config) - allowed, 'unsupported/mutable XYZ configuration'
     validate(config)
     locked, size, seen, unavailable, opaque = {}, 0, set(), [], {}
+    content_groups = {}; textured_responses = 0
     assert 0 < len(doc['tiles']) <= 100000, 'finite XYZ tile list required'
     for key, entry in sorted(doc['tiles'].items()):
         z, x, y = (int(p) for p in key.split('/'))
@@ -210,12 +211,19 @@ def bundle(path, target, source_dir, source=None):
         else:
             image = decode(config, frozen, key)
             opaque[key] = bool(np.all(image[..., 3] == 255))
+            digest = textured_content_digest(image)
+            if digest:
+                textured_responses += 1
+                content_groups.setdefault((z, digest), []).append(key)
             if doc['version'] == 1:
                 assert np.all(image[..., 3] == 255), 'v1 unmasked lock cannot contain source alpha/nodata'
         locked[key] = {'path': str(frozen), 'sha256': entry['sha256'], **({'unavailable': failure} if failure else {})}
         if entry['sha256'] not in seen:
             size += local.stat().st_size
             seen.add(entry['sha256'])
+    duplicates = [{'sourceLevel': level, 'decodedSha256': digest, 'addresses': addresses}
+                  for (level, digest), addresses in sorted(content_groups.items()) if len(addresses) > 1]
+    assert not require_distinct or not duplicates, f'Repeated nonuniform decoded XYZ pixels at distinct addresses: {duplicates[:3]}'
     write(target, {**config, 'cache': str(Path(target).parent), 'lockedTiles': locked})
     subset_proof = None
     evidence = (source or {}).get('metadata', {}).get('validData')
@@ -235,6 +243,8 @@ def bundle(path, target, source_dir, source=None):
         subset_proof={'extent':'known-valid-subset','method':'Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling',
                       'responses':sorted(checked),'nativeSourceLevel':level}
     return {'responses': len(locked), 'responseBytes': size, 'sourceConfig': config,
+            'decodedIdentity': {'method': 'SHA-256 of full decoded RGBA, grouped within source level; uniform/transparent tiles excluded',
+                                'requiredDistinct': require_distinct, 'texturedResponses': textured_responses, 'duplicateGroups': duplicates},
             'nativeValidSubset':subset_proof,'unavailableResponses': unavailable,
             'fallback': 'Transparent missing pixels; independent runtime layers only. No source-parent substitution.'}
 
@@ -317,7 +327,7 @@ def build(args):
             audit['imagery'][source['id']] = raster(paths[source['id']], radius, source)
         else:
             audit['imagery'][source['id']] = bundle(paths[source['id']], inputs / f'{source["asset"]["checksum"]["value"]}.config.json',
-                                                   Path(job['paths'][source['id']]).parent, source)
+                                                   Path(job['paths'][source['id']]).parent, source, source['id'] in p['gates'].get('distinctImageTiles', []))
     fusion = out / 'fusion'
     if terrain_required:
         if terrain.get('fusionAsset'):

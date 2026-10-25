@@ -82,7 +82,9 @@ async function pose(lat,lon,altitudeKm=.05){
     controls.target.copy(toWorld(target));c.position.copy(toWorld(target.map((x,i)=>x+d[i]*altitudeKm)));
     c.fov=45;c.updateProjectionMatrix();
     c.up.copy(toWorld([-Math.sin(la)*Math.cos(lo),-Math.sin(la)*Math.sin(lo),Math.cos(la)]).sub(centre).normalize());
-    c.lookAt(controls.target);c.updateMatrixWorld(true);return hit;
+    c.lookAt(controls.target);c.updateMatrixWorld(true);
+    if(window.ingenuityFrameProbeArmed){window.ingenuityFrameSamples=[];window.ingenuityCaptureFrames=true;}
+    return hit;
   },{lat,lon,altitudeKm});
 }
 async function snapshot(buffers=false){
@@ -140,8 +142,66 @@ async function imageryCenter(pixels=false,ndc=null){
     });
   },{root:resolve('.'),pixels,ndc});
 }
+async function replayCorridors(){
+  // Fresh application residency, then representative observed corridors. CPU
+  // controls are loaded before placing the camera; visual GLBs still start
+  // cold/coarse and refine normally. A smaller cache exercises return visits.
+  await page.reload({waitUntil:'domcontentloaded'});await ready();
+  await page.evaluate(()=>{const c=window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache;window.corridorCache={minSize:c.minSize,maxSize:c.maxSize,minBytesSize:c.minBytesSize,maxBytesSize:c.maxBytesSize};c.minSize=0;c.minBytesSize=0;c.maxBytesSize=64*2**20;});
+  await page.evaluate(() => {
+    const r = window.renderer;
+    window.ingenuityFrameProbeArmed = true; window.ingenuityCaptureFrames = false;
+    r.use({name: 'ingenuity-rendered-frame-clearance', onAfterRender: () => {
+      if (!window.ingenuityCaptureFrames) return;
+      const b = r.getBodyMesh('Mars'), V = r.camera.position.constructor, centre = new V(); b.getWorldPosition(centre);
+      const p = r.camera.position.clone().sub(centre).divideScalar(r.scaleFactor).applyQuaternion(b.mesh.quaternion.clone().invert());
+      const nav = b.terrainManager.navigationSurface({xKm:p.x, yKm:-p.z, zKm:p.y});
+      window.ingenuityFrameSamples.push({clearanceM:nav?.radiusKm == null ? null : (p.length()-nav.radiusKm)*1000,
+        discrepancyM:nav?.discrepancyM ?? null, settled:nav?.settled ?? false, clampCorrectionM:r.cameraClampCorrectionKm*1000});
+    }});
+  });
+  result.corridors=[];
+  const corridorFlights=JSON.parse(await readFile('apps/viewer/test-catalogs/data/ingenuity/flights_index.json','utf8'));
+  for(const flight of [1,12,72]){
+    const rows=(await readFile(`apps/viewer/test-catalogs/${corridorFlights[flight-1].file}`,'utf8')).split('\n').filter(x=>x.trim()&&!x.startsWith('#')).map(x=>x.trim().split(/\s+/).map(Number));
+    for(const fraction of [0,.25,.5,.75,1]){
+      const row=rows[Math.round((rows.length-1)*fraction)],lat=Math.atan2(row[3],Math.hypot(row[1],row[2]))*180/Math.PI,lon=Math.atan2(row[2],row[1])*180/Math.PI;
+      await pose(lat,lon,.05);
+      const loading=[];
+      for(let i=0;i<15;i++){await page.waitForTimeout(50);const state=await snapshot();loading.push({nav:state.nav,clearanceM:state.clearanceM,network:state.network,cpu:state.cpu});}
+      result.lastCorridorProbe = {flight, fraction, lat, lon, loading}; await save();
+      assert.ok(loading.every(x=>x.clearanceM==null||x.clearanceM>=1.9), `corridor camera crossed the conservative ground: ${JSON.stringify(result.lastCorridorProbe)}`);
+      await settle();await groundReady();const final=await snapshot();
+      assert.ok(final.nav?.settled&&Math.abs(final.nav.discrepancyM)<=.5,'corridor did not reach the operational geometry tolerance');
+      const renderedFrames = await page.evaluate(() => { window.ingenuityCaptureFrames = false; return window.ingenuityFrameSamples; });
+      result.lastCorridorProbe.renderedFrames = renderedFrames; await save();
+      assert.ok(renderedFrames.length > 0 && renderedFrames.every(frame => frame.clearanceM != null && frame.clearanceM >= 1.9),
+        `rendered frame crossed the ground: ${JSON.stringify(result.lastCorridorProbe)}`);
+      result.corridors.push({flight,fraction,lat,lon,loading,renderedFrames,final:{nav:final.nav,clearanceM:final.clearanceM,network:final.network,cpu:final.cpu}});await save();
+      await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache.unloadUnusedContent());
+    }
+  }
+  await page.evaluate(() => { window.ingenuityFrameProbeArmed = false; window.ingenuityCaptureFrames = false; });
+  // Return to a previously visited site after the distant final-flight sweep.
+  await pose(18.44486301,77.45101915,.05);await settle();await groundReady();
+  result.corridorReturn=await snapshot();assert.ok(result.corridorReturn.nav?.settled&&result.corridorReturn.clearanceM>=1.9);
+  await page.evaluate(()=>Object.assign(window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache,window.corridorCache));
+}
+
 try{
   await page.goto(`${base}?catalog=test-catalogs/ingenuity-jezero`,{waitUntil:'domcontentloaded',timeout:120000});console.log('catalog loaded');await ready();console.log('sources ready');
+  result.loadedImageryProducts = await page.evaluate(() => window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.sources.map(source => ({
+    id: source.info.id, url: source.baseUrl, productIdentity: source.manifest.provenance?.productIdentity,
+  })));
+  for (const [i, source] of mars.geometry.imagery.entries()) assert.equal(new URL(result.loadedImageryProducts[i].url).pathname,
+    new URL(source.url, new URL('test-catalogs/ingenuity-jezero.json', base)).pathname, 'browser loaded a different imagery product');
+  if(process.argv[4] === '--clearance-frames-only') {
+    await page.evaluate(() => { sessionStorage.setItem('ingenuity-baseline-done', '1'); });
+    await replayCorridors();
+    result.passed = true; result.clearanceFramesOnly = true; await save();
+    console.log(JSON.stringify({passed:true, corridors:result.corridors.length,
+      renderedFrames:result.corridors.reduce((sum,c)=>sum+c.renderedFrames.length,0)},null,2));
+  } else {
   // Paired policy comparison on the same scientific product and CPU grids.
   await page.evaluate(()=>{
     if(!window.ingenuityNearPlugin||!window.ingenuityNearCalculate)throw new Error('Cold policy baseline was not installed before rendering');
@@ -221,47 +281,84 @@ try{
     }
   }
   assert.equal(await page.evaluate(()=>window.imageryPrematureEvictions),0,'disposed a drawn ancestor to reserve pending refinement');
-  // Fresh application residency, then representative observed corridors. CPU
-  // controls are loaded before placing the camera; visual GLBs still start
-  // cold/coarse and refine normally. A smaller cache exercises return visits.
-  await page.reload({waitUntil:'domcontentloaded'});await ready();
-  await page.evaluate(()=>{const c=window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache;window.corridorCache={minSize:c.minSize,maxSize:c.maxSize,minBytesSize:c.minBytesSize,maxBytesSize:c.maxBytesSize};c.minSize=0;c.minBytesSize=0;c.maxBytesSize=64*2**20;});
-  result.corridors=[];
-  const corridorFlights=JSON.parse(await readFile('apps/viewer/test-catalogs/data/ingenuity/flights_index.json','utf8'));
-  for(const flight of [1,12,72]){
-    const rows=(await readFile(`apps/viewer/test-catalogs/${corridorFlights[flight-1].file}`,'utf8')).split('\n').filter(x=>x.trim()&&!x.startsWith('#')).map(x=>x.trim().split(/\s+/).map(Number));
-    for(const fraction of [0,.25,.5,.75,1]){
-      const row=rows[Math.round((rows.length-1)*fraction)],lat=Math.atan2(row[3],Math.hypot(row[1],row[2]))*180/Math.PI,lon=Math.atan2(row[2],row[1])*180/Math.PI;
-      await pose(lat,lon,.05);
-      const loading=[];
-      for(let i=0;i<15;i++){await page.waitForTimeout(50);const state=await snapshot();loading.push({nav:state.nav,clearanceM:state.clearanceM,network:state.network,cpu:state.cpu});}
-      assert.ok(loading.every(x=>x.clearanceM==null||x.clearanceM>=1.9),'corridor camera crossed the conservative ground');
-      await settle();await groundReady();const final=await snapshot();
-      assert.ok(final.nav?.settled&&Math.abs(final.nav.discrepancyM)<=.5,'corridor did not reach the operational geometry tolerance');
-      result.corridors.push({flight,fraction,lat,lon,loading,final:{nav:final.nav,clearanceM:final.clearanceM,network:final.network,cpu:final.cpu}});await save();
-      await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache.unloadUnusedContent());
+  await replayCorridors();
+  // Straight-down and tilted views must budget the actual visible cover.
+  // The superseded beta service had repeated pixels and a corrupt L8 source
+  // here. The independently pinned V01 responses must remain usable at both
+  // angles, including the low-resolution global overviews.
+  result.globalCtxAngles = [];
+  for (const fullStack of [false, true]) {
+    await page.evaluate(full => { const b = window.renderer.getBodyMesh('Mars');
+      b.setImageryLayerVisible('ctx-global', true);
+      b.setImageryLayerVisible('jezero-ctx', full); b.setImageryLayerVisible('jezero-hirise', full);
+    }, fullStack);
+    for (const altitudeKm of [5, 50, 500]) for (const tilt of [0, 1.1]) {
+      await pose(18.44486301, 77.45101915, altitudeKm);
+      if (tilt) await page.evaluate(tilt => {
+        const r = window.renderer, c = r.camera, target = r.cameraController.controls.target, offset = c.position.clone().sub(target);
+        c.position.copy(target).addScaledVector(offset, Math.cos(tilt)).addScaledVector(c.up, offset.length() * Math.sin(tilt));
+        c.lookAt(target); c.updateMatrixWorld(true);
+      }, tilt);
+      await settle();
+      const state = await snapshot(), center = await imageryCenter(true);
+      const ctx = center?.find(s => s.id === 'ctx-global');
+      const requiredExposedLevel = altitudeKm === 500 ? 2 : 7;
+      assert.ok(ctx?.enabled === 1, `CTX cover missing: ${JSON.stringify({fullStack, altitudeKm, tilt, center})}`);
+      if (ctx.level < requiredExposedLevel) {
+        assert.ok(fullStack && state.imagery.budgetLimited && center.some(source => source.id === 'jezero-hirise'
+          && source.enabled && source.level >= requiredExposedLevel && source.pixelRGBA?.[3] === 255),
+        `exposed CTX detail starved: ${JSON.stringify({fullStack, altitudeKm, tilt, center, imagery:state.imagery})}`);
+      }
+      assert.equal(state.imagery.baseUncoveredBlocks, 0);
+      assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes);
+      assert.ok(ctx.pixelRGBA?.[3] > 0, 'available original V01 CTX response was lost');
+      result.globalCtxAngles.push({fullStack, altitudeKm, tilt, center, imagery: state.imagery});
+      if (fullStack && altitudeKm === 50) await page.locator('canvas').first().screenshot({path: `${out}/ctx-${tilt ? 'tilted' : 'nadir'}.png`});
+      await save();
     }
   }
-  // Return to a previously visited site after the distant final-flight sweep.
-  await pose(18.44486301,77.45101915,.05);await settle();await groundReady();
-  result.corridorReturn=await snapshot();assert.ok(result.corridorReturn.nav?.settled&&result.corridorReturn.clearanceM>=1.9);
-  await page.evaluate(()=>Object.assign(window.renderer.getBodyMesh('Mars').terrainManager.tiles.lruCache,window.corridorCache));
-  // Real global coverage/fallback, including the centre of an original CTX
-  // response explicitly retained as unavailable (12/5860/1622). Read alpha
+  await page.evaluate(() => { const b = window.renderer.getBodyMesh('Mars'); b.setImageryLayerVisible('jezero-ctx', true); b.setImageryLayerVisible('jezero-hirise', true); });
+  // Reproduce the user's free-orbit view with actual tracking/playback and
+  // pointer/wheel input. The old beta source repeats craters during this move;
+  // decoded source identity is gated by the executor, and these captures verify
+  // the complete V01 product in the loaded viewer rather than a centre-only pose.
+  await pose(18.44486301, 77.45101915, 500); await settle();
+  await page.evaluate(() => { window.cosmo.track('Mars'); window.cosmo.setPlaying(true); });
+  result.nativeMarsOrbit = [];
+  for (let step = 0; step < 4; step++) {
+    await page.mouse.move(1100, 450); await page.mouse.down();
+    await page.mouse.move(1100 + (step % 2 ? 90 : -90), 500, {steps: 8}); await page.mouse.up();
+    if (step === 0) await page.mouse.wheel(0, -500);
+    await page.waitForTimeout(200); await page.evaluate(() => window.cosmo.setPlaying(false)); await settle();
+    const state = await snapshot(), samples = [];
+    for (const y of [-.6, 0, .6]) for (const x of [-.6, 0, .6]) {
+      const layers = await imageryCenter(true, [x, y]);
+      assert.ok(layers?.some(source => source.id === 'viking' && source.enabled && source.pixelRGBA?.[3] === 255), 'native orbit lost mandatory base coverage');
+      samples.push({x, y, layers});
+    }
+    assert.equal(state.imagery.baseUncoveredBlocks, 0);
+    assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes);
+    result.nativeMarsOrbit.push({step, samples, imagery: state.imagery});
+    await page.locator('canvas').first().screenshot({path: `${out}/native-mars-orbit-${step}.png`}); await save();
+    await page.evaluate(() => window.cosmo.setPlaying(true));
+  }
+  await page.evaluate(() => { window.cosmo.setPlaying(false); window.cosmo.untrack(); });
+  // Real global coverage/fallback, including the centre of an original V01 CTX
+  // response explicitly retained as unavailable (5/32/16). Read alpha
   // from the exact resident bitmap used by the centre's shader, not residency
   // counts. The generated hole must expose independent lower imagery products.
   result.globalImagery=[];
   for(const [name,lat,lon,altitude] of [
     ['jezero-overhead',18.44486301,77.45101915,500],
     ['distant-mars',0,-60,3000],
-    ['ctx-original-unavailable',18.69873046875,77.54150390625,5],
+    ['ctx-original-unavailable',-2.8125,2.8125,500],
   ]){
     await pose(lat,lon,altitude);await settle();
     const state=await snapshot(),center=await imageryCenter(true);
     assert.equal(state.imagery.baseUncoveredBlocks,0,`${name}: missing base coverage`);
     assert.ok(center?.some(x=>x.id==='viking'&&x.enabled===1&&x.pixelRGBA?.[3]===255),`${name}: no opaque real Viking pixel`);
     if(name==='ctx-original-unavailable')assert.ok(center.some(x=>x.id==='ctx-global'&&x.pixelRGBA?.[3]===0),'original unavailable CTX response was replaced by invented pixels');
-    if(name==='distant-mars')assert.ok(center.some(x=>x.id==='ctx-global'&&(!x.enabled||x.pixelRGBA?.[3]===0)),'coarse CTX overview should retain its unsupported transparent pixels');
+    if(name==='distant-mars')assert.ok(center.some(x=>x.id==='ctx-global'&&x.enabled&&x.pixelRGBA?.[3]>0),'V01 global overview must display available real CTX pixels');
     result.globalImagery.push({name,lat,lon,altitudeKm:altitude,center,imagery:state.imagery,staticVisible:state.staticVisible});
     await page.locator('canvas').first().screenshot({path:`${out}/${name}.png`});await save();
   }
@@ -396,5 +493,6 @@ try{
   result.compact=await snapshot();assert.ok(result.compact.clearanceM>=1.9);
   assert.equal(errors.length,0,errors.join('\n'));result.passed=true;await save();
   console.log(JSON.stringify({passed:true,gpu:result.refinedPolicy.gpu,maxSettledDiscrepancyM:Math.max(...result.views.map(x=>Math.abs(x.nav.discrepancyM))),views:result.views.length},null,2));
+  }
 }catch(error){result.failure=String(error.stack??error);result.lastState=await snapshot().catch(e=>({error:String(e)}));await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});await save();throw error;}
 finally{await browser.close();}

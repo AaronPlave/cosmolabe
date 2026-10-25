@@ -1,57 +1,57 @@
 {
   "kind": "ingenuity-mission-publication-preflight",
-  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
-  "lockIdentity": "sha256:a98a58e5902dacc401e1147337b6e20e722791843c41beb79c0724b4b1c133a5",
-  "fullPlanIdentity": "422106b1408453c45c50380327501bdb8d26aa2adc11f513706957b515536bca",
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "lockIdentity": "sha256:f48448a081c2b8b1c6bd6ff28b1db2c5389d2412a20a8a22862e2370d2e42f47",
+  "fullPlanIdentity": "63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1",
   "products": [
     {
-      "productId": "terrain-419154e47324aa446cd9c921",
+      "productId": "terrain-3846907d293e9e5d0b0243ce",
       "kind": "cube-terrain",
-      "productIdentity": "419154e47324aa446cd9c921d92f1a8caf7b1930358fe80d5717db902a66a811",
-      "prefix": "cube-terrain/terrain-419154e47324aa446cd9c921/419154e47324aa446cd9c921d92f1a8c/",
-      "inventorySha256": "230b6327dcb09286adebef5d1599b331115d7483379456111e595eaa855c2773",
+      "productIdentity": "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395",
+      "prefix": "cube-terrain/terrain-3846907d293e9e5d0b0243ce/3846907d293e9e5d0b0243cefc2ed446/",
+      "inventorySha256": "161a6f390cfc3d6f52763a6fbf973ef22be39a6f3c81226c266c7f792d4c5208",
       "objects": 4089,
       "bytes": 364965715
     },
     {
-      "productId": "imagery-67c8de41ba60020ba061abeb",
+      "productId": "imagery-04513d4681559e949e39e30f",
       "kind": "cube-imagery",
-      "productIdentity": "67c8de41ba60020ba061abebcd29c6d52b03150055738881674af498a251e215",
-      "prefix": "cube-imagery/imagery-67c8de41ba60020ba061abeb/67c8de41ba60020ba061abebcd29c6d5/",
-      "inventorySha256": "be5060c2103ea19f6cb86d77cef1599cdcd95316b8cc2f927a9109f752eb2f1c",
+      "productIdentity": "04513d4681559e949e39e30fcaaaec3f1b74b07a3adec4685c3bd19ef5d34b61",
+      "prefix": "cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/",
+      "inventorySha256": "76138a93011c6459f1b5615ba14de6cb8f170c78c8954f11c9056caead99d7a4",
       "objects": 140,
       "bytes": 279133060
     },
     {
-      "productId": "imagery-634384b8f9eeb21c8bd4a62e",
+      "productId": "imagery-11f675fe48a13579126bb3cd",
       "kind": "cube-imagery",
-      "productIdentity": "634384b8f9eeb21c8bd4a62e32a54e9ab636758ea9a0d3e3f54832a1ba1b4a50",
-      "prefix": "cube-imagery/imagery-634384b8f9eeb21c8bd4a62e/634384b8f9eeb21c8bd4a62e32a54e9a/",
-      "inventorySha256": "20fb78ea8492636fd18dc4de9fdd6ff5e23755023b13f5ba918e730660efbf24",
+      "productIdentity": "11f675fe48a13579126bb3cd85c3cb4249f38db36d7c59523c5ce15567a48a5d",
+      "prefix": "cube-imagery/imagery-11f675fe48a13579126bb3cd/11f675fe48a13579126bb3cd85c3cb42/",
+      "inventorySha256": "e9841588c291f2bd767a117243d5d90c5b439440207337dddec8fa467b433568",
       "objects": 221,
-      "bytes": 115215655
+      "bytes": 210322550
     },
     {
-      "productId": "imagery-5e6fab0c580bafe0fdd5d189",
+      "productId": "imagery-ab90c8bd749d673d3f786918",
       "kind": "cube-imagery",
-      "productIdentity": "5e6fab0c580bafe0fdd5d18912cde49672c15fc53e4f8ccf06bfd43c01c1752f",
-      "prefix": "cube-imagery/imagery-5e6fab0c580bafe0fdd5d189/5e6fab0c580bafe0fdd5d18912cde496/",
-      "inventorySha256": "6acd6ac76378be0f1190bf3e08f43ac1ad36e3747655e28d182657c0a556e50f",
+      "productIdentity": "ab90c8bd749d673d3f7869185cbf504040b76728efbd46be89fac370f6465596",
+      "prefix": "cube-imagery/imagery-ab90c8bd749d673d3f786918/ab90c8bd749d673d3f7869185cbf5040/",
+      "inventorySha256": "125976fb31a0aac4c0ae3b16d5a442e91b133dd504acb054a6ef55d1f370a6bd",
       "objects": 58,
       "bytes": 16823792
     },
     {
-      "productId": "imagery-4cd46626d81b2e5f677b7b45",
+      "productId": "imagery-4992e13935cc9898d6522634",
       "kind": "cube-imagery",
-      "productIdentity": "4cd46626d81b2e5f677b7b4550655b36b10940fb6c2d8ac66b898bb904268c3e",
-      "prefix": "cube-imagery/imagery-4cd46626d81b2e5f677b7b45/4cd46626d81b2e5f677b7b4550655b36/",
-      "inventorySha256": "0faf85c4e458026d264c254924e71c145be7e18392ad192041a9c69947c7ddae",
+      "productIdentity": "4992e13935cc9898d65226349f2cf222b009cdbd7d4076bff3500232e2d818a0",
+      "prefix": "cube-imagery/imagery-4992e13935cc9898d6522634/4992e13935cc9898d65226349f2cf222/",
+      "inventorySha256": "f1d6ff1bfcf898ee52168ca5b8b9d1a25966331c1aaff4b9042b8bc02a98a309",
       "objects": 595,
       "bytes": 372064271
     }
   ],
   "objects": 5103,
-  "plannedProductBytes": 1148202493,
+  "plannedProductBytes": 1243309388,
   "publishedBytes": null,
   "status": "not-published; production authorization required",
   "rollbackBaselineCommit": "70899b98e7bfe218c81e0c73ef7494924ebf9152"

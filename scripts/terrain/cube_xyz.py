@@ -137,7 +137,23 @@ def decode(config, path, url):
     else:
         rgb = np.stack(arrays[:3], axis=-1)
         alpha = arrays[3] if len(arrays) >= 4 else np.full((dim, dim), 255, np.uint8)
+    # PNG grayscale/RGB tRNS may be exposed as a GDAL nodata mask rather
+    # than a separate alpha band. Preserve that original validity as well.
+    alpha = np.minimum(alpha, bands[0].GetMaskBand().ReadAsArray())
     return np.concatenate([rgb, alpha[..., None]], axis=-1).astype(np.uint8)
+
+
+def textured_content_digest(image):
+    """Identity of decoded nonuniform pixels, independent of PNG/JPEG encoding.
+
+    Uniform/transparent responses are not evidence of repeated geographic
+    features. A match is diagnostic only; a lock explicitly enables rejection
+    for observational sources that require distinct same-level image tiles.
+    """
+    valid = image[..., 3] > 0
+    if not np.any(valid) or np.max(np.ptp(image[valid, :3], axis=0)) < 16:
+        return None
+    return hashlib.sha256(np.ascontiguousarray(image).tobytes()).hexdigest()
 
 
 def sample(config, lon, lat, level, cache, read=read_tile):

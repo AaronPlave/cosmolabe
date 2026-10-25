@@ -1,11 +1,11 @@
 {
   "kind": "ingenuity-mission-hardware-acceptance",
   "version": 1,
-  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
   "passed": true,
   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
   "commands": [
-    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/browser-whole-viewport-v4"
+    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/browser-v12"
   ],
   "operationalToleranceM": 0.5,
   "views": [
@@ -15,44 +15,44 @@
       "lon": 77.45101915,
       "navigation": {
         "radiusKm": 3391.936496222438,
-        "physicalRadiusKm": 3391.9364962223435,
+        "physicalRadiusKm": 3391.936496222343,
         "renderedRadiusKm": 3391.936496222438,
-        "discrepancyM": 9.458744898438454e-08,
+        "discrepancyM": 9.5042196335271e-08,
         "settled": true
       },
       "clearanceM": 49.9999999051397,
       "pickRays": 25,
-      "maximumPickOffsetM": 0.05575979155196978
+      "maximumPickOffsetM": 0.055759794091991104
     },
     {
       "name": "delta",
       "lat": 18.455,
       "lon": 77.405,
       "navigation": {
-        "radiusKm": 3391.9667410264274,
-        "physicalRadiusKm": 3391.9667410264274,
-        "renderedRadiusKm": 3391.966741026298,
-        "discrepancyM": -1.291482476517558e-07,
+        "radiusKm": 3391.9667410264283,
+        "physicalRadiusKm": 3391.9667410264283,
+        "renderedRadiusKm": 3391.9667410262987,
+        "discrepancyM": -1.2960299500264227e-07,
         "settled": true
       },
-      "clearanceM": 50.000000000636646,
+      "clearanceM": 49.99999999881766,
       "pickRays": 25,
-      "maximumPickOffsetM": 4.1716452159262517e-07
+      "maximumPickOffsetM": 4.1761149547797494e-07
     },
     {
       "name": "last-airfield",
       "lat": 18.498,
       "lon": 77.3273,
       "navigation": {
-        "radiusKm": 3392.08914789448,
-        "physicalRadiusKm": 3392.089147894055,
-        "renderedRadiusKm": 3392.08914789448,
-        "discrepancyM": 4.2518877307884395e-07,
+        "radiusKm": 3392.0891478944795,
+        "physicalRadiusKm": 3392.0891478940557,
+        "renderedRadiusKm": 3392.0891478944795,
+        "discrepancyM": 4.2382453102618456e-07,
         "settled": true
       },
-      "clearanceM": 49.99999957635737,
+      "clearanceM": 49.99999957544787,
       "pickRays": 25,
-      "maximumPickOffsetM": 0.32224013075212365
+      "maximumPickOffsetM": 0.3222401974624466
     }
   ],
   "corridors": [
@@ -64,19 +64,19 @@
       "loadingDiscrepancyM": {
         "count": 15,
         "minimum": 9.595169103704393e-08,
-        "p95": 0.7711390526310424,
-        "maximum": 0.7711390526310424
+        "p95": 0.7711390521762951,
+        "maximum": 0.7711390521762951
       },
-      "minimumLoadingClearanceM": 49.999999904684955,
+      "minimumLoadingClearanceM": 288.9752101305021,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9364962157088,
-          "physicalRadiusKm": 3391.936496215613,
-          "renderedRadiusKm": 3391.9364962157088,
+          "radiusKm": 3391.936496215709,
+          "physicalRadiusKm": 3391.9364962156133,
+          "renderedRadiusKm": 3391.936496215709,
           "discrepancyM": 9.595169103704393e-08,
           "settled": true
         },
-        "clearanceM": 49.999999904684955,
+        "clearanceM": 288.9752101305021,
         "network": {
           "requests": 182,
           "queued": 0,
@@ -102,22 +102,22 @@
       "lon": 77.45101751913798,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 1.3142198440618813e-07,
-        "p95": 1.3142198440618813e-07,
-        "maximum": 1.3142198440618813e-07
+        "minimum": 1.3096723705530167e-07,
+        "p95": 1.3096723705530167e-07,
+        "maximum": 1.3096723705530167e-07
       },
-      "minimumLoadingClearanceM": 49.99999987012416,
+      "minimumLoadingClearanceM": 49.99999986648618,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9364944477484,
-          "physicalRadiusKm": 3391.936494447617,
-          "renderedRadiusKm": 3391.9364944477484,
-          "discrepancyM": 1.3142198440618813e-07,
+          "radiusKm": 3391.936494447749,
+          "physicalRadiusKm": 3391.936494447618,
+          "renderedRadiusKm": 3391.936494447749,
+          "discrepancyM": 1.3096723705530167e-07,
           "settled": true
         },
-        "clearanceM": 49.99999987012416,
+        "clearanceM": 49.99999986648618,
         "network": {
-          "requests": 182,
+          "requests": 190,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -145,7 +145,7 @@
         "p95": 1.6689227777533233e-07,
         "maximum": 1.6689227777533233e-07
       },
-      "minimumLoadingClearanceM": 49.999999834199116,
+      "minimumLoadingClearanceM": 49.99999983192538,
       "settled": {
         "nav": {
           "radiusKm": 3391.936492608293,
@@ -154,9 +154,9 @@
           "discrepancyM": 1.6689227777533233e-07,
           "settled": true
         },
-        "clearanceM": 49.999999834199116,
+        "clearanceM": 49.99999983192538,
         "network": {
-          "requests": 182,
+          "requests": 190,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -184,18 +184,18 @@
         "p95": 9.868017514236271e-08,
         "maximum": 9.868017514236271e-08
       },
-      "minimumLoadingClearanceM": 49.99999990241122,
+      "minimumLoadingClearanceM": 49.99999989922799,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9364961621654,
-          "physicalRadiusKm": 3391.9364961620668,
-          "renderedRadiusKm": 3391.9364961621654,
+          "radiusKm": 3391.9364961621663,
+          "physicalRadiusKm": 3391.9364961620677,
+          "renderedRadiusKm": 3391.9364961621663,
           "discrepancyM": 9.868017514236271e-08,
           "settled": true
         },
-        "clearanceM": 49.99999990241122,
+        "clearanceM": 49.99999989922799,
         "network": {
-          "requests": 182,
+          "requests": 190,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -219,22 +219,22 @@
       "lon": 77.45101958974305,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 9.549694368615746e-08,
-        "p95": 9.549694368615746e-08,
-        "maximum": 9.549694368615746e-08
+        "minimum": 9.595169103704393e-08,
+        "p95": 9.595169103704393e-08,
+        "maximum": 9.595169103704393e-08
       },
-      "minimumLoadingClearanceM": 49.99999990423021,
+      "minimumLoadingClearanceM": 49.99999990377546,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9364961409656,
-          "physicalRadiusKm": 3391.93649614087,
-          "renderedRadiusKm": 3391.9364961409656,
-          "discrepancyM": 9.549694368615746e-08,
+          "radiusKm": 3391.9364961409647,
+          "physicalRadiusKm": 3391.9364961408687,
+          "renderedRadiusKm": 3391.9364961409647,
+          "discrepancyM": 9.595169103704393e-08,
           "settled": true
         },
-        "clearanceM": 49.99999990423021,
+        "clearanceM": 49.99999990377546,
         "network": {
-          "requests": 182,
+          "requests": 190,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -258,22 +258,22 @@
       "lon": 77.43879656231803,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 4.274625098332763e-08,
+        "minimum": 4.18367562815547e-08,
         "p95": 0.0070389246502600145,
         "maximum": 0.0070389246502600145
       },
-      "minimumLoadingClearanceM": 49.992961075986386,
+      "minimumLoadingClearanceM": 49.9929610732579,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9389905160388,
-          "physicalRadiusKm": 3391.9389905160388,
+          "radiusKm": 3391.938990516038,
+          "physicalRadiusKm": 3391.938990516038,
           "renderedRadiusKm": 3391.938990515996,
-          "discrepancyM": -4.274625098332763e-08,
+          "discrepancyM": -4.18367562815547e-08,
           "settled": true
         },
-        "clearanceM": 50.000000000636646,
+        "clearanceM": 49.99999999790816,
         "network": {
-          "requests": 222,
+          "requests": 230,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -297,22 +297,22 @@
       "lon": 77.44038550585974,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 9.322320693172514e-08,
-        "p95": 9.322320693172514e-08,
-        "maximum": 9.322320693172514e-08
+        "minimum": 9.276845958083868e-08,
+        "p95": 9.276845958083868e-08,
+        "maximum": 9.276845958083868e-08
       },
-      "minimumLoadingClearanceM": 49.99999999972715,
+      "minimumLoadingClearanceM": 49.99999999836291,
       "settled": {
         "nav": {
           "radiusKm": 3391.9376397317897,
           "physicalRadiusKm": 3391.9376397317897,
-          "renderedRadiusKm": 3391.9376397316964,
-          "discrepancyM": -9.322320693172514e-08,
+          "renderedRadiusKm": 3391.937639731697,
+          "discrepancyM": -9.276845958083868e-08,
           "settled": true
         },
-        "clearanceM": 49.99999999972715,
+        "clearanceM": 49.99999999836291,
         "network": {
-          "requests": 234,
+          "requests": 242,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -340,18 +340,18 @@
         "p95": 4.9112713895738125e-08,
         "maximum": 4.9112713895738125e-08
       },
-      "minimumLoadingClearanceM": 49.99999995197868,
+      "minimumLoadingClearanceM": 49.999999949250196,
       "settled": {
         "nav": {
-          "radiusKm": 3391.939091591922,
-          "physicalRadiusKm": 3391.939091591873,
-          "renderedRadiusKm": 3391.939091591922,
+          "radiusKm": 3391.939091591923,
+          "physicalRadiusKm": 3391.939091591874,
+          "renderedRadiusKm": 3391.939091591923,
           "discrepancyM": 4.9112713895738125e-08,
           "settled": true
         },
-        "clearanceM": 49.99999995197868,
+        "clearanceM": 49.999999949250196,
         "network": {
-          "requests": 238,
+          "requests": 246,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -379,18 +379,18 @@
         "p95": 1.9372237147763371e-07,
         "maximum": 1.9372237147763371e-07
       },
-      "minimumLoadingClearanceM": 50.000000001091394,
+      "minimumLoadingClearanceM": 49.999999999272404,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9361827933003,
-          "physicalRadiusKm": 3391.9361827933003,
-          "renderedRadiusKm": 3391.9361827931066,
+          "radiusKm": 3391.9361827933008,
+          "physicalRadiusKm": 3391.9361827933008,
+          "renderedRadiusKm": 3391.936182793107,
           "discrepancyM": -1.9372237147763371e-07,
           "settled": true
         },
-        "clearanceM": 50.000000001091394,
+        "clearanceM": 49.999999999272404,
         "network": {
-          "requests": 242,
+          "requests": 250,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -414,22 +414,22 @@
       "lon": 77.43923885736224,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 0,
-        "p95": 0,
-        "maximum": 0
+        "minimum": 4.547473508864641e-10,
+        "p95": 4.547473508864641e-10,
+        "maximum": 4.547473508864641e-10
       },
-      "minimumLoadingClearanceM": 50.000000000636646,
+      "minimumLoadingClearanceM": 49.99999999836291,
       "settled": {
         "nav": {
-          "radiusKm": 3391.9385074881893,
-          "physicalRadiusKm": 3391.9385074881893,
-          "renderedRadiusKm": 3391.9385074881893,
-          "discrepancyM": 0,
+          "radiusKm": 3391.938507488189,
+          "physicalRadiusKm": 3391.938507488189,
+          "renderedRadiusKm": 3391.9385074881884,
+          "discrepancyM": -4.547473508864641e-10,
           "settled": true
         },
-        "clearanceM": 50.000000000636646,
+        "clearanceM": 49.99999999836291,
         "network": {
-          "requests": 242,
+          "requests": 250,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -453,22 +453,22 @@
       "lon": 77.3224956065288,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 4.7566572902724147e-07,
-        "p95": 0.8201508221645781,
-        "maximum": 0.8201508221645781
+        "minimum": 4.75210981676355e-07,
+        "p95": 0.8201508217098308,
+        "maximum": 0.8201508217098308
       },
-      "minimumLoadingClearanceM": 49.17984917847207,
+      "minimumLoadingClearanceM": 49.179849177107826,
       "settled": {
         "nav": {
-          "radiusKm": 3392.101619194935,
-          "physicalRadiusKm": 3392.1016191944595,
-          "renderedRadiusKm": 3392.101619194935,
-          "discrepancyM": 4.7566572902724147e-07,
+          "radiusKm": 3392.1016191949343,
+          "physicalRadiusKm": 3392.101619194459,
+          "renderedRadiusKm": 3392.1016191949343,
+          "discrepancyM": 4.75210981676355e-07,
           "settled": true
         },
-        "clearanceM": 49.99999952497092,
+        "clearanceM": 49.999999523606675,
         "network": {
-          "requests": 362,
+          "requests": 370,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -492,22 +492,22 @@
       "lon": 77.32249560652684,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 4.7612047637812793e-07,
-        "p95": 4.7612047637812793e-07,
-        "maximum": 4.7612047637812793e-07
+        "minimum": 4.7566572902724147e-07,
+        "p95": 4.7566572902724147e-07,
+        "maximum": 4.7566572902724147e-07
       },
-      "minimumLoadingClearanceM": 49.99999952588041,
+      "minimumLoadingClearanceM": 49.99999952315193,
       "settled": {
         "nav": {
-          "radiusKm": 3392.1016191949334,
-          "physicalRadiusKm": 3392.1016191944573,
-          "renderedRadiusKm": 3392.1016191949334,
-          "discrepancyM": 4.7612047637812793e-07,
+          "radiusKm": 3392.101619194934,
+          "physicalRadiusKm": 3392.101619194458,
+          "renderedRadiusKm": 3392.101619194934,
+          "discrepancyM": 4.7566572902724147e-07,
           "settled": true
         },
-        "clearanceM": 49.99999952588041,
+        "clearanceM": 49.99999952315193,
         "network": {
-          "requests": 362,
+          "requests": 370,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -531,22 +531,22 @@
       "lon": 77.32248443291795,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 2.2646418074145913e-07,
-        "p95": 2.2646418074145913e-07,
-        "maximum": 2.2646418074145913e-07
+        "minimum": 2.2737367544323206e-07,
+        "p95": 2.2737367544323206e-07,
+        "maximum": 2.2737367544323206e-07
       },
-      "minimumLoadingClearanceM": 49.999999774172466,
+      "minimumLoadingClearanceM": 49.999999772353476,
       "settled": {
         "nav": {
-          "radiusKm": 3392.101618356212,
-          "physicalRadiusKm": 3392.1016183559855,
-          "renderedRadiusKm": 3392.101618356212,
-          "discrepancyM": 2.2646418074145913e-07,
+          "radiusKm": 3392.1016183562124,
+          "physicalRadiusKm": 3392.101618355985,
+          "renderedRadiusKm": 3392.1016183562124,
+          "discrepancyM": 2.2737367544323206e-07,
           "settled": true
         },
-        "clearanceM": 49.999999774172466,
+        "clearanceM": 49.999999772353476,
         "network": {
-          "requests": 362,
+          "requests": 370,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -570,22 +570,22 @@
       "lon": 77.32253448766173,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 7.912603905424476e-08,
-        "p95": 7.912603905424476e-08,
-        "maximum": 7.912603905424476e-08
+        "minimum": 7.867129170335829e-08,
+        "p95": 7.867129170335829e-08,
+        "maximum": 7.867129170335829e-08
       },
-      "minimumLoadingClearanceM": 49.999999921965355,
+      "minimumLoadingClearanceM": 49.99999991969162,
       "settled": {
         "nav": {
           "radiusKm": 3392.1015221657854,
-          "physicalRadiusKm": 3392.1015221657062,
+          "physicalRadiusKm": 3392.1015221657067,
           "renderedRadiusKm": 3392.1015221657854,
-          "discrepancyM": 7.912603905424476e-08,
+          "discrepancyM": 7.867129170335829e-08,
           "settled": true
         },
-        "clearanceM": 49.999999921965355,
+        "clearanceM": 49.99999991969162,
         "network": {
-          "requests": 362,
+          "requests": 370,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -609,22 +609,22 @@
       "lon": 77.32253448766251,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 7.912603905424476e-08,
-        "p95": 7.912603905424476e-08,
-        "maximum": 7.912603905424476e-08
+        "minimum": 7.821654435247183e-08,
+        "p95": 7.821654435247183e-08,
+        "maximum": 7.821654435247183e-08
       },
-      "minimumLoadingClearanceM": 49.99999992287485,
+      "minimumLoadingClearanceM": 49.99999991969162,
       "settled": {
         "nav": {
           "radiusKm": 3392.1015221657985,
-          "physicalRadiusKm": 3392.1015221657194,
+          "physicalRadiusKm": 3392.1015221657203,
           "renderedRadiusKm": 3392.1015221657985,
-          "discrepancyM": 7.912603905424476e-08,
+          "discrepancyM": 7.821654435247183e-08,
           "settled": true
         },
-        "clearanceM": 49.99999992287485,
+        "clearanceM": 49.99999991969162,
         "network": {
-          "requests": 362,
+          "requests": 370,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
@@ -645,11 +645,11 @@
   "corridorMethod": "Fresh application residency; CPU controls loaded before placing the camera; selected GLBs start cold/coarse and refine; 64 MiB geometry cache, fifteen sites along flights 1/12/72 plus a return visit. 15 loading samples per site.",
   "corridorLoadingDiscrepancyM": {
     "count": 225,
-    "minimum": 0,
-    "p95": 0.7711390526310424,
-    "maximum": 0.8201508221645781
+    "minimum": 4.547473508864641e-10,
+    "p95": 0.7711390521762951,
+    "maximum": 0.8201508217098308
   },
-  "corridorMinimumClearanceM": 49.17984917847207,
+  "corridorMinimumClearanceM": 49.179849177107826,
   "imageryViewport": [
     {
       "fullStack": false,
@@ -712,22 +712,22 @@
         {
           "id": "viking",
           "enabled": 1,
-          "level": 0,
+          "level": 1,
           "pixelRGBA": [
+            37,
+            30,
             40,
-            32,
-            43,
             255
           ]
         },
         {
           "id": "ctx-global",
           "enabled": 1,
-          "level": 2,
+          "level": 4,
           "pixelRGBA": [
-            125,
-            125,
-            125,
+            103,
+            103,
+            103,
             255
           ]
         },
@@ -778,10 +778,10 @@
           "enabled": 1,
           "level": 1,
           "pixelRGBA": [
-            0,
-            0,
-            0,
-            0
+            98,
+            98,
+            98,
+            255
           ]
         },
         {
@@ -801,25 +801,25 @@
     },
     {
       "name": "ctx-original-unavailable",
-      "lat": 18.69873046875,
-      "lon": 77.54150390625,
-      "altitudeKm": 5,
+      "lat": -2.8125,
+      "lon": 2.8125,
+      "altitudeKm": 500,
       "center": [
         {
           "id": "viking",
           "enabled": 1,
-          "level": 7,
+          "level": 2,
           "pixelRGBA": [
-            63,
-            55,
-            63,
+            103,
+            87,
+            93,
             255
           ]
         },
         {
           "id": "ctx-global",
           "enabled": 1,
-          "level": 9,
+          "level": 2,
           "pixelRGBA": [
             0,
             0,
@@ -829,25 +829,15 @@
         },
         {
           "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 9,
-          "pixelRGBA": [
-            123,
-            123,
-            123,
-            255
-          ]
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
         },
         {
           "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 9,
-          "pixelRGBA": [
-            0,
-            0,
-            0,
-            0
-          ]
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
         }
       ],
       "staticVisible": false
@@ -1264,33 +1254,33 @@
     "measurement": {
       "a": {
         "bodyName": "Mars",
-        "latDeg": 18.648996248281264,
-        "lonDeg": 77.45101914998851,
-        "altKm": -2.2364049481087562,
-        "cameraDistanceKm": 0.0999999999180584,
+        "latDeg": 18.648996248259174,
+        "lonDeg": 77.45101914990146,
+        "altKm": -2.2364049481756325,
+        "cameraDistanceKm": 0.22658359011281792,
         "bodyFixedHitKm": [
-          699.1203860995734,
-          3140.8192878448667,
-          1073.1812900192156
+          699.1203861044219,
+          3140.8192878441464,
+          1073.1812900179666
         ],
         "point": {
           "bodyName": "Mars",
           "bodyFixedPositionKm": [
-            699.1203860995734,
-            3140.8192878448667,
-            1073.1812900192156
+            699.1203861044219,
+            3140.8192878441464,
+            1073.1812900179666
           ],
           "source": "terrain",
-          "latDeg": 18.648996248281264,
-          "lonDeg": 77.45101914998851,
+          "latDeg": 18.648996248259174,
+          "lonDeg": 77.45101914990146,
           "latitudeKind": "geodetic",
           "resolution": {
-            "surfaceKm": 9.206408823969827e-05,
-            "latDeg": 1.5551245451467937e-06,
-            "lonDeg": 1.6413005257449642e-06
+            "surfaceKm": 0.0002086021127418474,
+            "latDeg": 3.5236569643715705e-06,
+            "lonDeg": 3.718917591659063e-06
           },
           "hit": {
-            "heightKm": -2.236404948012023,
+            "heightKm": -2.2364049480797803,
             "datum": {
               "referenceShape": {
                 "kind": "ellipsoid",
@@ -1306,7 +1296,7 @@
             }
           },
           "terrainSample": {
-            "elevationKm": -2.2364049481087562,
+            "elevationKm": -2.2364049481756325,
             "datum": {
               "referenceShape": {
                 "kind": "ellipsoid",
@@ -1325,7 +1315,7 @@
             "describesHit": true
           },
           "altitude": {
-            "km": -2.2364049481087562,
+            "km": -2.2364049481756325,
             "from": "terrain-sample",
             "datum": {
               "referenceShape": {
@@ -1342,9 +1332,9 @@
             }
           },
           "surfaceNormal": [
-            0.22058077525397524,
-            0.9190618325545993,
-            0.3266029233331157
+            0.22058077525397551,
+            0.9190618325545994,
+            0.32660292333311547
           ]
         },
         "physical": {
@@ -1357,43 +1347,43 @@
             0.32660311362975125
           ],
           "bodyFixedKm": [
-            699.1203860995535,
-            3140.8192878447776,
-            1073.181290019185
+            699.1203861044021,
+            3140.8192878440577,
+            1073.1812900179364
           ],
-          "renderedOffsetKm": 9.627234750020697e-11,
+          "renderedOffsetKm": 9.575590682863247e-11,
           "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
         }
       },
       "b": {
         "bodyName": "Mars",
-        "latDeg": 18.648996227236506,
-        "lonDeg": 77.45125436095354,
-        "altKm": -2.2360611990885673,
-        "cameraDistanceKm": 0.10052789573477172,
+        "latDeg": 18.648996216050126,
+        "lonDeg": 77.45155271426796,
+        "altKm": -2.235886473975029,
+        "cameraDistanceKm": 0.22804250046761804,
         "bodyFixedHitKm": [
-          699.107563235018,
-          3140.8224761570386,
-          1073.181398770441
+          699.0912441990108,
+          3140.8262783417435,
+          1073.1814540205237
         ],
         "point": {
           "bodyName": "Mars",
           "bodyFixedPositionKm": [
-            699.107563235018,
-            3140.8224761570386,
-            1073.181398770441
+            699.0912441990108,
+            3140.8262783417435,
+            1073.1814540205237
           ],
           "source": "terrain",
-          "latDeg": 18.648996227236506,
-          "lonDeg": 77.45125436095354,
+          "latDeg": 18.648996216050126,
+          "lonDeg": 77.45155271426796,
           "latitudeKind": "geodetic",
           "resolution": {
-            "surfaceKm": 9.350802033934158e-05,
-            "latDeg": 1.5795149405284525e-06,
-            "lonDeg": 1.6670424951368136e-06
+            "surfaceKm": 0.00021123901024858665,
+            "latDeg": 3.5681982605551183e-06,
+            "lonDeg": 3.7659271073666365e-06
           },
           "hit": {
-            "heightKm": -2.2360611986946424,
+            "heightKm": -2.23588647396582,
             "datum": {
               "referenceShape": {
                 "kind": "ellipsoid",
@@ -1409,7 +1399,7 @@
             }
           },
           "terrainSample": {
-            "elevationKm": -2.2360611990885673,
+            "elevationKm": -2.235886473975029,
             "datum": {
               "referenceShape": {
                 "kind": "ellipsoid",
@@ -1428,7 +1418,7 @@
             "describesHit": true
           },
           "altitude": {
-            "km": -2.2360611990885673,
+            "km": -2.235886473975029,
             "from": "terrain-sample",
             "datum": {
               "referenceShape": {
@@ -1445,9 +1435,9 @@
             }
           },
           "surfaceNormal": [
-            0.19402783420027747,
-            0.9299620759898188,
-            0.3122879068684157
+            0.22642034484295492,
+            0.9249711463880379,
+            0.30522484464865657
           ]
         },
         "physical": {
@@ -1455,544 +1445,22 @@
           "detail": "coarse",
           "tileId": "py/15/20030/10785",
           "normal": [
-            0.19402795628237143,
-            0.929961901953801,
-            0.3122883492789236
+            0.2264200408559517,
+            0.924971237295841,
+            0.3052247946582822
           ],
           "bodyFixedKm": [
-            699.1075632348858,
-            3140.822476156685,
-            1073.1813987703163
+            699.0912441990075,
+            3140.826278341735,
+            1073.1814540205207
           ],
-          "renderedOffsetKm": 3.977856314055459e-10,
+          "renderedOffsetKm": 9.708749442633265e-12,
           "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
         }
       },
-      "beforeKm": 0.01321374778897509,
-      "afterKm": 0.01321374778897509,
+      "beforeKm": 0.029969054238836487,
+      "afterKm": 0.029969054238836487,
       "count": 1
-    },
-    "independentImagery": {
-      "coarse": {
-        "physicalBufferHash": {
-          "bytes": 18064632,
-          "fnv1a32": "27da55d"
-        },
-        "cpuHit": {
-          "kind": "hit",
-          "position": {
-            "xKm": 699.1203860989523,
-            "yKm": 3140.819287845046,
-            "zKm": 1073.1812900188365
-          },
-          "normal": [
-            0.22058107018840248,
-            0.9190616941434839,
-            0.32660311362975125
-          ],
-          "distanceKm": 108.06350377765766,
-          "triangleIndex": 6393,
-          "metadata": {
-            "bodyId": "body",
-            "frame": "body-fixed",
-            "source": {
-              "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
-              "kind": "height-grid",
-              "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
-              "fusion": {
-                "sha256": "e7a6cf73d2373f2dfceac62d38ef5ef2c67e93f8c6dfe4419f49716a31c3a409",
-                "created": null,
-                "base": "base.tif",
-                "detail": "detail.tif"
-              },
-              "generator": {
-                "script": "scripts/terrain/dem.py cube-tile",
-                "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
-              },
-              "build": {
-                "global_level": 2,
-                "region": [
-                  "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
-                  "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
-                  "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
-                ],
-                "skirt_cells": 0.1,
-                "ellipsoid": [
-                  3396190,
-                  3376200
-                ],
-                "simplify": 0,
-                "sourceConvention": "areoid-radial",
-                "body": "Mars",
-                "frame": "IAU_MARS",
-                "inputs": {
-                  "base": {
-                    "file": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif",
-                    "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
-                  },
-                  "residual": {
-                    "file": "residual.tif",
-                    "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
-                  },
-                  "areoid": {
-                    "file": "MEGA90N000EB.LBL",
-                    "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
-                  },
-                  "areoidFiles": [
-                    {
-                      "file": "MEGA90N000EB.IMG",
-                      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
-                    },
-                    {
-                      "file": "MEGA90N000EB.LBL",
-                      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
-                    }
-                  ]
-                }
-              }
-            },
-            "shape": {
-              "kind": "globe",
-              "datum": {
-                "referenceShape": {
-                  "kind": "ellipsoid",
-                  "radiiKm": [
-                    3396.19,
-                    3396.19,
-                    3376.2
-                  ]
-                },
-                "verticalDatum": "ellipsoid",
-                "heightConvention": "geodetic-normal"
-              }
-            },
-            "coverage": "partial-product"
-          },
-          "accuracy": {
-            "meshDeviationBoundKm": null
-          },
-          "detail": "coarse",
-          "tileId": "py/15/20030/10785"
-        },
-        "geometry": [
-          "px/0/0/0.glb",
-          "py/1/0/0.glb",
-          "py/1/1/1.glb",
-          "py/10/624/336.glb",
-          "py/10/624/337.glb",
-          "py/10/627/336.glb",
-          "py/10/627/337.glb",
-          "py/11/1250/672.glb",
-          "py/11/1250/673.glb",
-          "py/11/1250/674.glb",
-          "py/11/1250/675.glb",
-          "py/11/1251/672.glb",
-          "py/11/1251/675.glb",
-          "py/11/1252/672.glb",
-          "py/11/1252/675.glb",
-          "py/11/1253/672.glb",
-          "py/11/1253/673.glb",
-          "py/11/1253/674.glb",
-          "py/11/1253/675.glb",
-          "py/12/2502/1346.glb",
-          "py/12/2502/1347.glb",
-          "py/12/2502/1348.glb",
-          "py/12/2502/1349.glb",
-          "py/12/2503/1346.glb",
-          "py/12/2503/1349.glb",
-          "py/12/2504/1346.glb",
-          "py/12/2504/1349.glb",
-          "py/12/2505/1346.glb",
-          "py/12/2505/1347.glb",
-          "py/12/2505/1348.glb",
-          "py/12/2505/1349.glb",
-          "py/13/5006/2694.glb",
-          "py/13/5006/2695.glb",
-          "py/13/5006/2696.glb",
-          "py/13/5006/2697.glb",
-          "py/13/5007/2694.glb",
-          "py/13/5007/2697.glb",
-          "py/13/5008/2694.glb",
-          "py/13/5008/2695.glb",
-          "py/13/5008/2697.glb",
-          "py/13/5009/2694.glb",
-          "py/13/5009/2695.glb",
-          "py/13/5009/2696.glb",
-          "py/13/5009/2697.glb",
-          "py/14/10014/5390.glb",
-          "py/14/10014/5391.glb",
-          "py/14/10014/5392.glb",
-          "py/14/10015/5390.glb",
-          "py/14/10015/5391.glb",
-          "py/14/10017/5392.glb",
-          "py/14/10017/5393.glb",
-          "py/15/20028/10786.glb",
-          "py/15/20028/10787.glb",
-          "py/15/20029/10786.glb",
-          "py/15/20029/10787.glb",
-          "py/15/20030/10784.glb",
-          "py/15/20030/10785.glb",
-          "py/15/20030/10786.glb",
-          "py/15/20030/10787.glb",
-          "py/15/20031/10784.glb",
-          "py/15/20031/10785.glb",
-          "py/15/20031/10786.glb",
-          "py/15/20031/10787.glb",
-          "py/15/20032/10784.glb",
-          "py/15/20032/10785.glb",
-          "py/15/20032/10786.glb",
-          "py/15/20032/10787.glb",
-          "py/15/20033/10784.glb",
-          "py/15/20033/10785.glb",
-          "py/15/20033/10786.glb",
-          "py/15/20033/10787.glb",
-          "py/2/2/0.glb",
-          "py/2/3/0.glb",
-          "py/2/3/1.glb",
-          "py/3/4/3.glb",
-          "py/3/5/3.glb",
-          "py/4/10/4.glb",
-          "py/4/10/5.glb",
-          "py/4/11/4.glb",
-          "py/4/11/5.glb",
-          "py/4/8/4.glb",
-          "py/4/8/5.glb",
-          "py/4/9/4.glb",
-          "py/5/18/10.glb",
-          "py/5/18/11.glb",
-          "py/5/19/11.glb",
-          "py/6/38/20.glb",
-          "py/7/76/42.glb",
-          "py/7/76/43.glb",
-          "py/7/77/43.glb",
-          "py/7/78/40.glb",
-          "py/7/78/43.glb",
-          "py/7/79/40.glb",
-          "py/7/79/41.glb",
-          "py/7/79/42.glb",
-          "py/7/79/43.glb",
-          "py/8/154/84.glb",
-          "py/8/154/85.glb",
-          "py/8/155/84.glb",
-          "py/8/155/85.glb",
-          "py/8/156/82.glb",
-          "py/8/156/85.glb",
-          "py/8/157/82.glb",
-          "py/8/157/83.glb",
-          "py/8/157/84.glb",
-          "py/8/157/85.glb",
-          "py/9/312/166.glb",
-          "py/9/312/167.glb",
-          "py/9/312/169.glb",
-          "py/9/313/166.glb",
-          "py/9/313/167.glb",
-          "py/9/313/169.glb",
-          "pz/0/0/0.glb"
-        ],
-        "imagery": {
-          "version": "cube-imagery-xyz-504117a8a19dc467",
-          "ready": true,
-          "textures": 47,
-          "pinnedTextures": 6,
-          "textureBytes": 264900507,
-          "maxTextureBytes": 268435456,
-          "requests": 332,
-          "bytes": 204756107,
-          "failures": 0,
-          "aborted": 0,
-          "evicted": 277,
-          "blockBuildMs": 168.10000026226044,
-          "inFlight": 0,
-          "failedTiles": 0,
-          "blockGeometryBytes": 985620,
-          "tiles": 20,
-          "splitTiles": 2,
-          "blocks": 26,
-          "displayedLevels": {
-            "0": 5,
-            "2": 4,
-            "4": 1,
-            "8": 16
-          },
-          "wantedLevels": {
-            "0": 1,
-            "1": 2,
-            "2": 6,
-            "4": 1,
-            "8": 16
-          },
-          "fallbackBlocks": 0,
-          "failedBlocks": 0,
-          "untexturedBlocks": 0,
-          "baseUncoveredBlocks": 0,
-          "maxDisplayedLevel": 8,
-          "queued": 0,
-          "budgetLimited": false,
-          "extraDraws": 6,
-          "updateMs": 0.9000000357627869
-        }
-      },
-      "fine": {
-        "physicalBufferHash": {
-          "bytes": 18064632,
-          "fnv1a32": "27da55d"
-        },
-        "cpuHit": {
-          "kind": "hit",
-          "position": {
-            "xKm": 699.1203860989523,
-            "yKm": 3140.819287845046,
-            "zKm": 1073.1812900188365
-          },
-          "normal": [
-            0.22058107018840248,
-            0.9190616941434839,
-            0.32660311362975125
-          ],
-          "distanceKm": 108.06350377765766,
-          "triangleIndex": 6393,
-          "metadata": {
-            "bodyId": "body",
-            "frame": "body-fixed",
-            "source": {
-              "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
-              "kind": "height-grid",
-              "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
-              "fusion": {
-                "sha256": "e7a6cf73d2373f2dfceac62d38ef5ef2c67e93f8c6dfe4419f49716a31c3a409",
-                "created": null,
-                "base": "base.tif",
-                "detail": "detail.tif"
-              },
-              "generator": {
-                "script": "scripts/terrain/dem.py cube-tile",
-                "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
-              },
-              "build": {
-                "global_level": 2,
-                "region": [
-                  "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
-                  "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
-                  "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
-                ],
-                "skirt_cells": 0.1,
-                "ellipsoid": [
-                  3396190,
-                  3376200
-                ],
-                "simplify": 0,
-                "sourceConvention": "areoid-radial",
-                "body": "Mars",
-                "frame": "IAU_MARS",
-                "inputs": {
-                  "base": {
-                    "file": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif",
-                    "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
-                  },
-                  "residual": {
-                    "file": "residual.tif",
-                    "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
-                  },
-                  "areoid": {
-                    "file": "MEGA90N000EB.LBL",
-                    "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
-                  },
-                  "areoidFiles": [
-                    {
-                      "file": "MEGA90N000EB.IMG",
-                      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
-                    },
-                    {
-                      "file": "MEGA90N000EB.LBL",
-                      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
-                    }
-                  ]
-                }
-              }
-            },
-            "shape": {
-              "kind": "globe",
-              "datum": {
-                "referenceShape": {
-                  "kind": "ellipsoid",
-                  "radiiKm": [
-                    3396.19,
-                    3396.19,
-                    3376.2
-                  ]
-                },
-                "verticalDatum": "ellipsoid",
-                "heightConvention": "geodetic-normal"
-              }
-            },
-            "coverage": "partial-product"
-          },
-          "accuracy": {
-            "meshDeviationBoundKm": null
-          },
-          "detail": "coarse",
-          "tileId": "py/15/20030/10785"
-        },
-        "geometry": [
-          "px/0/0/0.glb",
-          "py/1/0/0.glb",
-          "py/1/1/1.glb",
-          "py/10/624/336.glb",
-          "py/10/624/337.glb",
-          "py/10/627/336.glb",
-          "py/10/627/337.glb",
-          "py/11/1250/672.glb",
-          "py/11/1250/673.glb",
-          "py/11/1250/674.glb",
-          "py/11/1250/675.glb",
-          "py/11/1251/672.glb",
-          "py/11/1251/675.glb",
-          "py/11/1252/672.glb",
-          "py/11/1252/675.glb",
-          "py/11/1253/672.glb",
-          "py/11/1253/673.glb",
-          "py/11/1253/674.glb",
-          "py/11/1253/675.glb",
-          "py/12/2502/1346.glb",
-          "py/12/2502/1347.glb",
-          "py/12/2502/1348.glb",
-          "py/12/2502/1349.glb",
-          "py/12/2503/1346.glb",
-          "py/12/2503/1349.glb",
-          "py/12/2504/1346.glb",
-          "py/12/2504/1349.glb",
-          "py/12/2505/1346.glb",
-          "py/12/2505/1347.glb",
-          "py/12/2505/1348.glb",
-          "py/12/2505/1349.glb",
-          "py/13/5006/2694.glb",
-          "py/13/5006/2695.glb",
-          "py/13/5006/2696.glb",
-          "py/13/5006/2697.glb",
-          "py/13/5007/2694.glb",
-          "py/13/5007/2697.glb",
-          "py/13/5008/2694.glb",
-          "py/13/5008/2695.glb",
-          "py/13/5008/2697.glb",
-          "py/13/5009/2694.glb",
-          "py/13/5009/2695.glb",
-          "py/13/5009/2696.glb",
-          "py/13/5009/2697.glb",
-          "py/14/10014/5390.glb",
-          "py/14/10014/5391.glb",
-          "py/14/10014/5392.glb",
-          "py/14/10015/5390.glb",
-          "py/14/10015/5391.glb",
-          "py/14/10017/5392.glb",
-          "py/14/10017/5393.glb",
-          "py/15/20028/10786.glb",
-          "py/15/20028/10787.glb",
-          "py/15/20029/10786.glb",
-          "py/15/20029/10787.glb",
-          "py/15/20030/10784.glb",
-          "py/15/20030/10785.glb",
-          "py/15/20030/10786.glb",
-          "py/15/20030/10787.glb",
-          "py/15/20031/10784.glb",
-          "py/15/20031/10785.glb",
-          "py/15/20031/10786.glb",
-          "py/15/20031/10787.glb",
-          "py/15/20032/10784.glb",
-          "py/15/20032/10785.glb",
-          "py/15/20032/10786.glb",
-          "py/15/20032/10787.glb",
-          "py/15/20033/10784.glb",
-          "py/15/20033/10785.glb",
-          "py/15/20033/10786.glb",
-          "py/15/20033/10787.glb",
-          "py/2/2/0.glb",
-          "py/2/3/0.glb",
-          "py/2/3/1.glb",
-          "py/3/4/3.glb",
-          "py/3/5/3.glb",
-          "py/4/10/4.glb",
-          "py/4/10/5.glb",
-          "py/4/11/4.glb",
-          "py/4/11/5.glb",
-          "py/4/8/4.glb",
-          "py/4/8/5.glb",
-          "py/4/9/4.glb",
-          "py/5/18/10.glb",
-          "py/5/18/11.glb",
-          "py/5/19/11.glb",
-          "py/6/38/20.glb",
-          "py/7/76/42.glb",
-          "py/7/76/43.glb",
-          "py/7/77/43.glb",
-          "py/7/78/40.glb",
-          "py/7/78/43.glb",
-          "py/7/79/40.glb",
-          "py/7/79/41.glb",
-          "py/7/79/42.glb",
-          "py/7/79/43.glb",
-          "py/8/154/84.glb",
-          "py/8/154/85.glb",
-          "py/8/155/84.glb",
-          "py/8/155/85.glb",
-          "py/8/156/82.glb",
-          "py/8/156/85.glb",
-          "py/8/157/82.glb",
-          "py/8/157/83.glb",
-          "py/8/157/84.glb",
-          "py/8/157/85.glb",
-          "py/9/312/166.glb",
-          "py/9/312/167.glb",
-          "py/9/312/169.glb",
-          "py/9/313/166.glb",
-          "py/9/313/167.glb",
-          "py/9/313/169.glb",
-          "pz/0/0/0.glb"
-        ],
-        "imagery": {
-          "version": "cube-imagery-xyz-504117a8a19dc467",
-          "ready": true,
-          "textures": 47,
-          "pinnedTextures": 6,
-          "textureBytes": 264900507,
-          "maxTextureBytes": 268435456,
-          "requests": 332,
-          "bytes": 204756107,
-          "failures": 0,
-          "aborted": 0,
-          "evicted": 277,
-          "blockBuildMs": 168.10000026226044,
-          "inFlight": 0,
-          "failedTiles": 0,
-          "blockGeometryBytes": 985620,
-          "tiles": 20,
-          "splitTiles": 2,
-          "blocks": 26,
-          "displayedLevels": {
-            "0": 5,
-            "2": 4,
-            "4": 1,
-            "13": 2,
-            "14": 14
-          },
-          "wantedLevels": {
-            "0": 1,
-            "1": 2,
-            "2": 6,
-            "4": 1,
-            "13": 2,
-            "14": 14
-          },
-          "fallbackBlocks": 0,
-          "failedBlocks": 0,
-          "untexturedBlocks": 0,
-          "baseUncoveredBlocks": 0,
-          "maxDisplayedLevel": 14,
-          "queued": 0,
-          "budgetLimited": false,
-          "extraDraws": 6,
-          "updateMs": 0.7999999523162842
-        }
-      }
     }
   },
   "outages": {
@@ -2049,24 +1517,1180 @@
     "Representation agreement and sampled corridor checks do not certify absolute source accuracy or all far-field mixed LODs.",
     "Hardware measurements apply to this Chrome/Metal device, not untested devices."
   ],
-  "flyTo": {
-    "clearanceM": 33893.92716203929,
-    "navigation": {
-      "radiusKm": 3391.937835727053,
-      "physicalRadiusKm": 3391.9364962270683,
-      "renderedRadiusKm": 3391.937835727053,
-      "discrepancyM": 1.3394999846241262,
-      "settled": false
+  "loadedImageryProducts": [
+    {
+      "id": "viking",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json",
+      "productIdentity": "04513d4681559e949e39e30fcaaaec3f1b74b07a3adec4685c3bd19ef5d34b61"
+    },
+    {
+      "id": "ctx-global",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json",
+      "productIdentity": "11f675fe48a13579126bb3cd85c3cb4249f38db36d7c59523c5ce15567a48a5d"
+    },
+    {
+      "id": "jezero-ctx",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json",
+      "productIdentity": "ab90c8bd749d673d3f7869185cbf504040b76728efbd46be89fac370f6465596"
+    },
+    {
+      "id": "jezero-hirise",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json",
+      "productIdentity": "4992e13935cc9898d65226349f2cf222b009cdbd7d4076bff3500232e2d818a0"
     }
+  ],
+  "renderedFrameClearance": {
+    "passed": true,
+    "command": "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/corridor-rendered-frames-v12 --clearance-frames-only",
+    "corridors": 15,
+    "frames": 1324,
+    "clearanceM": {
+      "count": 1324,
+      "minimum": 1.9999999985884642,
+      "p95": 288.97521013004734,
+      "maximum": 288.9752102255443
+    },
+    "discrepancyM": {
+      "count": 1324,
+      "minimum": 4.547473508864641e-10,
+      "p95": 4.765752237290144e-07,
+      "maximum": 286.9752102269558
+    },
+    "method": "onAfterRender probe armed synchronously with each camera pose; every drawn frame, in addition to 225 timed loading samples; same 1.9m minimum and 0.5m settled limits."
   },
-  "corridorReturn": {
-    "clearanceM": 49.9999999051397,
-    "navigation": {
-      "radiusKm": 3391.936496222438,
-      "physicalRadiusKm": 3391.9364962223435,
-      "renderedRadiusKm": 3391.936496222438,
-      "discrepancyM": 9.458744898438454e-08,
-      "settled": true
+  "globalCtxAngles": [
+    {
+      "fullStack": false,
+      "altitudeKm": 5,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 33,
+        "pinnedTextures": 6,
+        "textureBytes": 185993973,
+        "maxTextureBytes": 268435456,
+        "requests": 87,
+        "bytes": 66068446,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 31,
+        "blockBuildMs": 110.200000166893,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 1065324,
+        "tiles": 18,
+        "splitTiles": 2,
+        "blocks": 24,
+        "displayedLevels": {
+          "0": 7,
+          "2": 2,
+          "4": 1,
+          "10": 10,
+          "11": 4
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 2,
+          "2": 6,
+          "4": 1,
+          "10": 10,
+          "11": 4
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 11,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 6,
+        "updateMs": 0.30000001192092896
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 5,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 103,
+        "bytes": 83500892,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 33,
+        "blockBuildMs": 113.90000015497208,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 2022768,
+        "tiles": 39,
+        "splitTiles": 3,
+        "blocks": 48,
+        "displayedLevels": {
+          "0": 7,
+          "2": 5,
+          "4": 3,
+          "6": 3,
+          "7": 4,
+          "8": 1,
+          "9": 3,
+          "10": 13,
+          "11": 8,
+          "12": 1
+        },
+        "wantedLevels": {
+          "1": 6,
+          "2": 6,
+          "4": 3,
+          "6": 3,
+          "7": 4,
+          "8": 1,
+          "9": 3,
+          "10": 13,
+          "11": 8,
+          "12": 1
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 9,
+        "updateMs": 0.30000001192092896
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 50,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 113,
+        "bytes": 97291292,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 43,
+        "blockBuildMs": 117.00000023841858,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 2559564,
+        "tiles": 18,
+        "splitTiles": 4,
+        "blocks": 36,
+        "displayedLevels": {
+          "0": 17,
+          "1": 2,
+          "2": 4,
+          "4": 1,
+          "6": 3,
+          "7": 8,
+          "8": 1
+        },
+        "wantedLevels": {
+          "0": 3,
+          "1": 9,
+          "2": 11,
+          "4": 1,
+          "6": 3,
+          "7": 8,
+          "8": 1
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 18,
+        "updateMs": 0.40000003576278687
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 50,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            88,
+            88,
+            88,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 114,
+        "bytes": 98583109,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 44,
+        "blockBuildMs": 117.00000023841858,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 2559564,
+        "tiles": 25,
+        "splitTiles": 2,
+        "blocks": 31,
+        "displayedLevels": {
+          "0": 7,
+          "1": 2,
+          "2": 3,
+          "4": 3,
+          "6": 7,
+          "7": 8,
+          "8": 1
+        },
+        "wantedLevels": {
+          "1": 6,
+          "2": 6,
+          "4": 3,
+          "6": 7,
+          "7": 8,
+          "8": 1
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 6,
+        "updateMs": 0.19999998807907104
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 500,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 1,
+          "pixelRGBA": [
+            37,
+            30,
+            40,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            103,
+            103,
+            103,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 137,
+        "bytes": 133956956,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 67,
+        "blockBuildMs": 124.60000032186508,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4183716,
+        "tiles": 16,
+        "splitTiles": 8,
+        "blocks": 49,
+        "displayedLevels": {
+          "0": 9,
+          "1": 17,
+          "2": 12,
+          "3": 5,
+          "4": 6
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 25,
+          "2": 12,
+          "3": 5,
+          "4": 6
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 4,
+        "queued": 0,
+        "budgetLimited": true,
+        "extraDraws": 33,
+        "updateMs": 0.19999998807907104
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 500,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            103,
+            103,
+            103,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 149,
+        "bytes": 158514644,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 79,
+        "blockBuildMs": 124.60000032186508,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4183716,
+        "tiles": 17,
+        "splitTiles": 5,
+        "blocks": 41,
+        "displayedLevels": {
+          "0": 6,
+          "1": 18,
+          "2": 10,
+          "3": 4,
+          "4": 3
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 20,
+          "2": 13,
+          "3": 4,
+          "4": 3
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 4,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 24,
+        "updateMs": 0.19999998807907104
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 5,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            129,
+            129,
+            129,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 184,
+        "bytes": 179093943,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 114,
+        "blockBuildMs": 124.60000032186508,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 3756636,
+        "tiles": 18,
+        "splitTiles": 2,
+        "blocks": 24,
+        "displayedLevels": {
+          "0": 5,
+          "1": 2,
+          "2": 2,
+          "4": 1,
+          "10": 10,
+          "11": 4
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 2,
+          "2": 6,
+          "4": 1,
+          "10": 10,
+          "11": 4
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 11,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 6,
+        "updateMs": 0.5
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 5,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 2,
+          "pixelRGBA": [
+            94,
+            94,
+            94,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            129,
+            129,
+            129,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 207,
+        "bytes": 190856960,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 137,
+        "blockBuildMs": 126.30000030994415,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 3756420,
+        "tiles": 39,
+        "splitTiles": 4,
+        "blocks": 51,
+        "displayedLevels": {
+          "0": 8,
+          "2": 12,
+          "7": 3,
+          "8": 2,
+          "9": 4,
+          "10": 12,
+          "11": 8,
+          "12": 2
+        },
+        "wantedLevels": {
+          "1": 6,
+          "2": 6,
+          "4": 3,
+          "6": 3,
+          "7": 3,
+          "8": 4,
+          "9": 4,
+          "10": 12,
+          "11": 8,
+          "12": 2
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "queued": 0,
+        "budgetLimited": true,
+        "extraDraws": 12,
+        "updateMs": 0.7999999523162842
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 50,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            131,
+            131,
+            131,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            100,
+            100,
+            100,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 237,
+        "bytes": 223818909,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 167,
+        "blockBuildMs": 128.3000003695488,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4075740,
+        "tiles": 18,
+        "splitTiles": 5,
+        "blocks": 39,
+        "displayedLevels": {
+          "0": 17,
+          "1": 2,
+          "2": 4,
+          "4": 1,
+          "6": 3,
+          "7": 11,
+          "8": 1
+        },
+        "wantedLevels": {
+          "0": 3,
+          "1": 9,
+          "2": 11,
+          "4": 1,
+          "6": 3,
+          "7": 11,
+          "8": 1
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 21,
+        "updateMs": 0.40000003576278687
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 50,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            88,
+            88,
+            88,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            131,
+            131,
+            131,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 245,
+        "bytes": 229800511,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 175,
+        "blockBuildMs": 128.3000003695488,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4075740,
+        "tiles": 25,
+        "splitTiles": 2,
+        "blocks": 31,
+        "displayedLevels": {
+          "0": 5,
+          "1": 2,
+          "2": 7,
+          "4": 1,
+          "6": 7,
+          "7": 7,
+          "8": 2
+        },
+        "wantedLevels": {
+          "1": 6,
+          "2": 6,
+          "4": 3,
+          "6": 7,
+          "7": 7,
+          "8": 2
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 6,
+        "updateMs": 0.3999999761581421
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 500,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 1,
+          "pixelRGBA": [
+            37,
+            30,
+            40,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            103,
+            103,
+            103,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            132,
+            132,
+            132,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 276,
+        "bytes": 270098828,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 206,
+        "blockBuildMs": 128.3000003695488,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4075740,
+        "tiles": 16,
+        "splitTiles": 8,
+        "blocks": 49,
+        "displayedLevels": {
+          "0": 9,
+          "1": 17,
+          "2": 12,
+          "3": 5,
+          "4": 6
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 25,
+          "2": 12,
+          "3": 5,
+          "4": 6
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 4,
+        "queued": 0,
+        "budgetLimited": true,
+        "extraDraws": 33,
+        "updateMs": 0.6000000238418579
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 500,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            103,
+            103,
+            103,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            132,
+            132,
+            132,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 47,
+        "pinnedTextures": 6,
+        "textureBytes": 264900507,
+        "maxTextureBytes": 268435456,
+        "requests": 290,
+        "bytes": 297743140,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 220,
+        "blockBuildMs": 128.3000003695488,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 4075740,
+        "tiles": 17,
+        "splitTiles": 5,
+        "blocks": 41,
+        "displayedLevels": {
+          "0": 10,
+          "1": 14,
+          "2": 10,
+          "3": 4,
+          "4": 3
+        },
+        "wantedLevels": {
+          "0": 1,
+          "1": 20,
+          "2": 13,
+          "3": 4,
+          "4": 3
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 4,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 24,
+        "updateMs": 0.5
+      }
     }
-  }
+  ],
+  "nativeMarsOrbit": [
+    {
+      "step": 0,
+      "viewportSamples": 9,
+      "baseUncoveredBlocks": 0,
+      "textureBytes": 264900507,
+      "maxTextureBytes": 268435456
+    },
+    {
+      "step": 1,
+      "viewportSamples": 9,
+      "baseUncoveredBlocks": 0,
+      "textureBytes": 264900507,
+      "maxTextureBytes": 268435456
+    },
+    {
+      "step": 2,
+      "viewportSamples": 9,
+      "baseUncoveredBlocks": 0,
+      "textureBytes": 264900507,
+      "maxTextureBytes": 268435456
+    },
+    {
+      "step": 3,
+      "viewportSamples": 9,
+      "baseUncoveredBlocks": 0,
+      "textureBytes": 264900507,
+      "maxTextureBytes": 268435456
+    }
+  ]
 }

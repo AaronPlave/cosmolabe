@@ -1,0 +1,132 @@
+{
+  "kind": "ctx-repeated-source-pixel-diagnostic",
+  "date": "2026-10-25",
+  "cause": "Repeated nonuniform decoded pixels are present in distinct original beta-service tile responses; generated cube PNG and GPU faithfully reproduce those incorrect source pixels. Different encoded SHA-256 hashes did not detect the duplication.",
+  "supersededService": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer",
+  "supersededAudit": {
+    "bundle": "ctx-bundle-1024",
+    "responses": 2969,
+    "texturedResponses": 2840,
+    "duplicateGroups": [
+      {
+        "sourceLevel": 6,
+        "decodedSha256": "7d39f28dcfda223fb6538d8ab5654f799dc820d01fc911dc098cda77776a6d0d",
+        "addresses": [
+          "6/85/21",
+          "6/85/22",
+          "6/86/21",
+          "6/86/22",
+          "6/87/21",
+          "6/87/22"
+        ]
+      },
+      {
+        "sourceLevel": 7,
+        "decodedSha256": "427057e21ae962f0ea8113c968f81c739fd44a83933f767356e31759345fd25c",
+        "addresses": [
+          "7/181/44",
+          "7/183/44",
+          "7/183/48",
+          "7/184/44",
+          "7/184/46",
+          "7/184/47",
+          "7/184/48",
+          "7/185/45",
+          "7/185/46",
+          "7/185/47",
+          "7/185/48",
+          "7/185/55",
+          "7/186/45",
+          "7/186/47",
+          "7/186/48",
+          "7/186/49",
+          "7/187/45"
+        ]
+      },
+      {
+        "sourceLevel": 11,
+        "decodedSha256": "ab4b5bb8586ff6afe4f743eaa82da3070cec7e83793ea8312122accd8571f332",
+        "addresses": [
+          "11/2926/813",
+          "11/2928/811"
+        ]
+      },
+      {
+        "sourceLevel": 11,
+        "decodedSha256": "b94e63b9e35e3dc6a14289011988bcc986a318f8eb99e8f3f181fb1ec29d8a12",
+        "addresses": [
+          "11/2925/809",
+          "11/2928/808",
+          "11/2928/809",
+          "11/2929/808",
+          "11/2929/809",
+          "11/2929/818",
+          "11/2930/808",
+          "11/2931/808",
+          "11/2931/810",
+          "11/2932/808",
+          "11/2932/811"
+        ]
+      }
+    ]
+  },
+  "replacementService": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer",
+  "officialV01Item": "https://www.arcgis.com/home/item.html?id=30c4acfe36284b1784bf07d5d73f9e4d",
+  "officialProject": "https://murray-lab.caltech.edu/CTX/",
+  "replacementAudit": {
+    "bundle": "ctx-v01-bundle-1024",
+    "responses": 3609,
+    "texturedResponses": 3607,
+    "duplicateGroups": []
+  },
+  "unavailableReplacementResponses": [
+    {
+      "address": "5/32/16",
+      "sha256": "9de49222a179c1f2a745365cdbb3992c8b65f37b426367bf78020fe6fabad45c",
+      "reason": "decode-failure",
+      "httpStatus": 200,
+      "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/5/16/32"
+    },
+    {
+      "address": "5/38/20",
+      "sha256": "3dd00e2c848008b95e72cf03f1c44941e3ba75be995dde88c1d38c9267438e9f",
+      "reason": "decode-failure",
+      "httpStatus": 200,
+      "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/5/20/38"
+    }
+  ],
+  "sourceMetadataSha256": {
+    "metadata": "bce4cb3727f38dfe8c7bf89513140d10eb0f8706a702b70ecbea5b65bd2093e6",
+    "ctx1-meta": "7e2b7767b6bb5471559b24100a6dd39c9d2088e0b3f49f2a61201ddcc42f1198",
+    "v01-item": "0311d6faade28fc838d53c5c4dc7e2c19c28761bc4e24f705f9f88bc988d2675"
+  },
+  "freshOriginalResponseRecheck": {
+    "urls": [
+      "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/185",
+      "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/186"
+    ],
+    "encodedSha256": [
+      "ee0223ef5b9aa78e6e9ef74f2473196bbc76d96f2700c8c8c171b0a75ad8641d",
+      "11af9ea764fd962809a4e60aa8023c68f2621f2de98fb60f83764c3371ee8edc"
+    ],
+    "result": "Fresh downloads matched the pinned encoded bytes; decoded RGBA arrays are identical. Strict blankTile=false gave the same bytes."
+  },
+  "newGates": [
+    "Locked observational XYZ sources must have distinct nonuniform decoded content at distinct addresses within a source level.",
+    "Transparent or uniform responses are not classified as repeated geographic features.",
+    "PNG nodata masks remain transparent even when GDAL exposes them without a separate alpha band."
+  ],
+  "limits": [
+    "This decoded identity gate detects exact repeated features, not all possible image corruption or absolute registration error.",
+    "Source-native masks and explicitly unavailable responses remain holes; no parent substitution is presented as native data.",
+    "The V01 audit covers the acquired finite inventory, not every unrequested tile in the remote service; native global coverage is not certified."
+  ],
+  "productionUpload": false,
+  "decodedIdentityCriterion": {
+    "bytes": "full decoded RGBA",
+    "grouping": "same source level",
+    "minimumValidChannelSpanDn": 16,
+    "excluded": "transparent, uniform or very low-contrast responses",
+    "replacementCoverage": "All 3,607 decodable replacement responses meet the textured criterion; the other two responses are explicitly unavailable."
+  }
+}

@@ -39,7 +39,7 @@ python3 scripts/terrain/acquire_cube_xyz.py \
   --out "$RUN/viking-bundle-1024" --workers 8
 python3 scripts/terrain/acquire_cube_xyz.py \
   --replay-bundle docs/validation/ingenuity-jezero/evidence/ctx-responses.json.gz \
-  --out "$RUN/ctx-bundle-1024" --workers 8
+  --out "$RUN/ctx-v01-bundle-1024" --workers 8
 node scripts/surface-build/ingenuity.mjs \
   "$RUN/original-dem-inputs" "$RUN/clean-fusion" "$AREOID_DIR" \
   "$RUN/scientific-audit.json" "$RUN/mission-inputs" "$RUN"
@@ -48,12 +48,24 @@ node scripts/build-surface.mjs "$RUN/mission-inputs/lock.json" \
   --execute --workers 4 > "$RUN/mission-build.json"
 ```
 
-The response manifests pin all 11,028 Viking and 2,969 global CTX responses,
-including 129 unavailable CTX responses. Replay checks every response hash and
+The active CTX manifest uses the official V01 `OnMars/CTX1` service, with
+available original low-resolution overviews (`minZoom: 0`). The superseded
+beta-service inventory is retained only as
+[`ctx-beta-responses.json.gz`](evidence/ctx-beta-responses.json.gz), alongside
+[the repeated-pixel diagnostic](ctx-source-diagnostic.json). It contains 36
+nonuniform source responses duplicated at different addresses despite different
+encoded hashes; the new mission lock rejects that inventory. The two V01
+unavailable responses remain transparent, and the decoded-content gate passes
+all 3,607 textured V01 responses. This audit covers the acquired inventory;
+it does not certify all unrequested remote service tiles or absolute registration.
+
+The response manifests pin all 11,028 Viking and 3,609 V01 global CTX responses,
+including two unavailable V01 responses. Replay checks every response hash and
 fails if upstream bytes have changed. It never turns a missing/corrupt response
 into a resampled parent. An incomplete replay has no `bundle.json` and cannot
 be used as a completed source. A complete executor run still checks response
-addressing, decoded dimensions, claimed holes, native mask subsets, terrain
+addressing, decoded dimensions, decoded pixel identity across same-level
+geographic addresses, original PNG nodata masks, claimed holes, native mask subsets, terrain
 controls, source registration, output inventories and checksums. No network is
 used by the executor itself.
 
@@ -121,12 +133,12 @@ independent absolute source accuracy or exact flight telemetry.
 ## Completed review identity and publication boundary
 
 The completed local build is
-`3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee`.
+`56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e`.
 [Build/coverage/native-grid evidence](mission-build.json) and
 [physical GPU acceptance](mission-runtime.json) refer to those exact five
 products. [Publication preflight](mission-publication-plan.json) contains their
 immutable prefixes, object counts and inventory hashes. The confirmation identity
-is `422106b1408453c45c50380327501bdb8d26aa2adc11f513706957b515536bca`.
+is `63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1`.
 It must be regenerated and matched before any authorized remote publication.
 
 The [offline catalog plan](publication-catalog-plan.json) prepares all six URL
@@ -137,12 +149,13 @@ missing-object HTTP 404 and the selected deployment/localhost CORS origins befor
 pinning. Capture the exact live deployment/catalog backup before switching it;
 rollback restores that backup and leaves immutable scientific data intact.
 The upload would create 5,103 product objects plus ten publication metadata
-objects. Product bytes total 1,148,202,493; published bytes remain null.
+objects. Product bytes total 1,243,309,388; published bytes remain null.
 
 Final local acceptance commands:
 
 ```sh
 node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ "$RUN/browser"
+node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ "$RUN/clearance-frames" --clearance-frames-only
 node scripts/test-near-surface-performance.mjs http://localhost:5173/ "$RUN/navigation"
 CUBE_STYLE_URL=http://localhost:5173 CUBE_STYLE_OUT="$RUN/moonfall" \
   CUBE_STYLE_CATALOGS=test-catalogs/moonfall-shackleton \

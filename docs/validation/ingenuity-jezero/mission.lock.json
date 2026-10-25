@@ -3938,7 +3938,7 @@
     },
     {
       "id": "ctx-global",
-      "productId": "ctx-global",
+      "productId": "murray-ctx-v01",
       "channel": "imagery",
       "body": "Mars",
       "frame": "IAU_MARS",
@@ -4001,19 +4001,19 @@
         "heightConvention": "radial"
       },
       "asset": {
-        "bytes": 635641,
+        "bytes": 741553,
         "checksum": {
           "algorithm": "sha256",
-          "value": "e71cffca58bed1814bc5d8520c3aff431855f65d5e25d3e2cec40597cf8d5a6d"
+          "value": "2f488fecc22f0daa3ceb8e5ce13cd187f0555e75542076e95c8e065529f8d87b"
         },
-        "retrieval": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}"
+        "retrieval": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}"
       },
       "license": {
         "name": "NASA/USGS public data; upstream attribution retained",
         "attribution": "Caltech Murray Lab / Esri"
       },
       "metadata": {
-        "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+        "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}",
         "confidence": "verified-mask",
         "rasterGsdM": 5,
         "dataType": "Byte",
@@ -4027,16 +4027,16 @@
         "sourceDatum": "controlled orbital map directions",
         "registration": {
           "group": "ctx-global",
-          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}",
           "accuracyM": null
         },
         "illumination": null,
         "stereoProductIds": [],
         "assets": [
           {
-            "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+            "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}",
             "role": "raster",
-            "bytes": 635641,
+            "bytes": 741553,
             "sizeEvidence": "verified original bytes or finite response bundle"
           }
         ],
@@ -4083,13 +4083,13 @@
               }
             ]
           },
-          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
+          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}",
           "method": "Pinned original source response and complete decoded alpha checked at this mission subset; failures remain separately pinned holes.",
           "extent": "known-valid-subset"
         },
         "reuse": {
           "status": "allowed",
-          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}"
+          "evidenceUrl": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/{z}/{y}/{x}"
         }
       }
     },
@@ -8044,6 +8044,10 @@
         ],
         "independentImageGrids": [
           "jezero-ctx"
+        ],
+        "distinctImageTiles": [
+          "viking",
+          "ctx-global"
         ]
       },
       "caveats": [
@@ -8063,5 +8067,5 @@
     "elevationEncoding": "float32"
   },
   "desiredIdentity": "sha256:1a7f4760a6bc053ff5b833430f7b8ff0f32e8a74f51a6d63e162bad09973f608",
-  "identity": "sha256:a98a58e5902dacc401e1147337b6e20e722791843c41beb79c0724b4b1c133a5"
+  "identity": "sha256:f48448a081c2b8b1c6bd6ff28b1db2c5389d2412a20a8a22862e2370d2e42f47"
 }

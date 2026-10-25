@@ -1440,7 +1440,7 @@ export class BodyMesh extends THREE.Object3D {
    * @param renderer WebGL renderer
    * @param screenPixels How many pixels the body subtends on screen
    */
-  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number, labelObstacles: readonly ScreenRect[] = []): void {
+  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number, labelObstacles: readonly ScreenRect[] | null = []): void {
     const tm = this.terrainManager;
     if (!tm) return;
 
@@ -1517,6 +1517,11 @@ export class BodyMesh extends THREE.Object3D {
         gridScale * this.ellipsoidRatios[2],
       );
     }
+  }
+
+  /** Defer contour layout until the renderer has its final post-selection camera. */
+  updateTerrainLabels(camera: THREE.Camera, renderer: THREE.WebGLRenderer, labelObstacles: readonly ScreenRect[]): void {
+    if (this.terrainVisible) this.terrainManager?.updateContourLabels(camera, renderer, labelObstacles);
   }
 
   private showStaticSurface(): void {

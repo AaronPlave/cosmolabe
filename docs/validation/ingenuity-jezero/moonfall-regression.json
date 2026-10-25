@@ -10,19 +10,19 @@
     "failures": [],
     "stillPending": [],
     "timedOut": false,
-    "durationMs": 1895.1000000238419
+    "durationMs": 1866
   },
   "views": {
     "close": {
       "physicalUnchanged": true,
-      "lightChangedPixels": 774239,
+      "lightChangedPixels": 774235,
       "debugRestorePixels": 0,
       "restoredPixelDifference": 0,
       "normal": {
         "cpuMs": {
           "n": 60,
-          "median": 8.399999976158142,
-          "p95": 9.899999976158142
+          "median": 8.899999976158142,
+          "p95": 10.699999988079071
         },
         "styleCpuMs": {
           "n": 60,
@@ -31,16 +31,16 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 2.76725,
-          "p95": 2.825791
+          "median": 2.762416,
+          "p95": 2.868333
         },
         "gpuTimerAvailable": true
       },
       "hillshade": {
         "cpuMs": {
           "n": 60,
-          "median": 8.5,
-          "p95": 9.900000035762787
+          "median": 8.899999976158142,
+          "p95": 10.699999988079071
         },
         "styleCpuMs": {
           "n": 60,
@@ -49,16 +49,16 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 2.568541,
-          "p95": 2.642666
+          "median": 2.577583,
+          "p95": 2.653625
         },
         "gpuTimerAvailable": true
       },
       "elevation": {
         "cpuMs": {
           "n": 60,
-          "median": 8.300000011920929,
-          "p95": 9.599999964237213
+          "median": 8.699999988079071,
+          "p95": 9.899999976158142
         },
         "styleCpuMs": {
           "n": 60,
@@ -67,16 +67,16 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 2.320875,
-          "p95": 2.408875
+          "median": 2.323374,
+          "p95": 2.384749
         },
         "gpuTimerAvailable": true
       },
       "restored": {
         "cpuMs": {
           "n": 60,
-          "median": 8.699999988079071,
-          "p95": 10.800000011920929
+          "median": 9,
+          "p95": 10.899999976158142
         },
         "styleCpuMs": {
           "n": 60,
@@ -85,8 +85,8 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 2.811333,
-          "p95": 2.898666
+          "median": 2.817708,
+          "p95": 2.900249
         },
         "gpuTimerAvailable": true
       },
@@ -95,24 +95,24 @@
       "selectedTilesUnchanged": true,
       "sourceVertices": 928395,
       "sampled": 0,
-      "maxHeightErrorKm": 2.1327059585019015e-07,
+      "maxHeightErrorKm": 0,
       "activation": {
         "samples": 21,
-        "medianMs": 5.399999976158142,
-        "p95Ms": 6.899999976158142,
-        "maximumMs": 6.899999976158142
+        "medianMs": 5.400000035762787,
+        "p95Ms": 6.300000011920929,
+        "maximumMs": 6.399999976158142
       }
     },
     "far": {
       "physicalUnchanged": true,
-      "lightChangedPixels": 511857,
+      "lightChangedPixels": 511863,
       "debugRestorePixels": 0,
       "restoredPixelDifference": 0,
       "normal": {
         "cpuMs": {
           "n": 60,
-          "median": 9.599999964237213,
-          "p95": 11.199999988079071
+          "median": 10.100000023841858,
+          "p95": 11.899999976158142
         },
         "styleCpuMs": {
           "n": 60,
@@ -121,33 +121,15 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 1.932916,
-          "p95": 1.986999
+          "median": 1.94375,
+          "p95": 1.953874
         },
         "gpuTimerAvailable": true
       },
       "hillshade": {
         "cpuMs": {
           "n": 60,
-          "median": 9.399999976158142,
-          "p95": 11.300000011920929
-        },
-        "styleCpuMs": {
-          "n": 60,
-          "median": 0,
-          "p95": 0.10000002384185791
-        },
-        "gpuMs": {
-          "n": 60,
-          "median": 1.838833,
-          "p95": 1.88825
-        },
-        "gpuTimerAvailable": true
-      },
-      "elevation": {
-        "cpuMs": {
-          "n": 60,
-          "median": 9.899999976158142,
+          "median": 10,
           "p95": 11.600000023841858
         },
         "styleCpuMs": {
@@ -157,16 +139,34 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 1.65775,
-          "p95": 2.307708
+          "median": 1.826374,
+          "p95": 1.835791
+        },
+        "gpuTimerAvailable": true
+      },
+      "elevation": {
+        "cpuMs": {
+          "n": 60,
+          "median": 10.099999964237213,
+          "p95": 11.699999988079071
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 1.638291,
+          "p95": 1.649625
         },
         "gpuTimerAvailable": true
       },
       "restored": {
         "cpuMs": {
           "n": 60,
-          "median": 9.900000035762787,
-          "p95": 12.199999988079071
+          "median": 10,
+          "p95": 12.699999988079071
         },
         "styleCpuMs": {
           "n": 60,
@@ -175,8 +175,8 @@
         },
         "gpuMs": {
           "n": 60,
-          "median": 1.933624,
-          "p95": 1.990291
+          "median": 1.932625,
+          "p95": 1.95225
         },
         "gpuTimerAvailable": true
       },
@@ -185,12 +185,12 @@
       "selectedTilesUnchanged": true,
       "sourceVertices": 1296165,
       "sampled": 0,
-      "maxHeightErrorKm": 4.2371834751975257e-07,
+      "maxHeightErrorKm": 0,
       "activation": {
         "samples": 15,
-        "medianMs": 5.300000011920929,
-        "p95Ms": 6.699999988079071,
-        "maximumMs": 6.699999988079071
+        "medianMs": 5.199999988079071,
+        "p95Ms": 6.599999964237213,
+        "maximumMs": 6.599999964237213
       }
     }
   },
@@ -198,7 +198,7 @@
   "pick": {
     "x": 200,
     "y": 350,
-    "height": 1.14251727841262
+    "height": 1.1425170365413413
   },
   "navigation": {
     "diagnostics": {
@@ -211,16 +211,16 @@
     "imageryBefore": {
       "version": "cube-imagery-composite-3f34a19541af7710",
       "ready": true,
-      "textures": 240,
+      "textures": 234,
       "pinnedTextures": 30,
-      "textureBytes": 89210880,
+      "textureBytes": 86980608,
       "maxTextureBytes": 167772160,
-      "requests": 240,
-      "bytes": 5525093,
+      "requests": 234,
+      "bytes": 5417240,
       "failures": 0,
       "aborted": 0,
       "evicted": 0,
-      "blockBuildMs": 1431.7000002264977,
+      "blockBuildMs": 1357.299999654293,
       "inFlight": 0,
       "failedTiles": 0,
       "blockGeometryBytes": 20223560,
@@ -255,21 +255,21 @@
       "queued": 0,
       "budgetLimited": false,
       "extraDraws": 87,
-      "updateMs": 3.399999976158142
+      "updateMs": 3.600000023841858
     },
     "imageryAfter": {
       "version": "cube-imagery-composite-3f34a19541af7710",
       "ready": true,
-      "textures": 240,
+      "textures": 234,
       "pinnedTextures": 30,
-      "textureBytes": 89210880,
+      "textureBytes": 86980608,
       "maxTextureBytes": 167772160,
-      "requests": 240,
-      "bytes": 5525093,
+      "requests": 234,
+      "bytes": 5417240,
       "failures": 0,
       "aborted": 0,
       "evicted": 0,
-      "blockBuildMs": 1516.7000002264977,
+      "blockBuildMs": 1447.5999995470047,
       "inFlight": 0,
       "failedTiles": 0,
       "blockGeometryBytes": 11154412,
@@ -304,7 +304,7 @@
       "queued": 0,
       "budgetLimited": false,
       "extraDraws": 87,
-      "updateMs": 3.5
+      "updateMs": 3.600000023841858
     },
     "sameTiles": true,
     "changedPixels": 0

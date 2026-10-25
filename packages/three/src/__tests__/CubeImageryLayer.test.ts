@@ -5,7 +5,7 @@ import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppeara
 import { injectAerialPerspectiveIntoShader } from '../AerialPerspective.js';
 import { injectShadowIntoShader, makeShadowUniforms } from '../EclipseShadow.js';
 import { cubeFaceToDirection, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
-import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress } from '../surface/CubeImagery.js';
+import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress, type ImageryBlock } from '../surface/CubeImagery.js';
 
 const R = 1737.4e3; // metres, like the tile set
 const faces: CubeFace[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
@@ -172,6 +172,29 @@ describe('CubeImageryLayer', () => {
     expect(current.uniforms.cubeLayer2_enabled.value).toBe(0);
     expect(layer.imageryLayers.map(s => s.id)).toEqual(['viking', 'hirise', 'ctx-global', 'jezero-ctx']);
     expect(layer.stats.textureBytes).toBeLessThanOrEqual(budget + 1);
+    layer.dispose();
+  });
+
+  it('does not budget or request imagery behind the globe in a nadir view', async () => {
+    const layers = ['base', 'global'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const requests: string[] = [];
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 30 }, {
+      fetchManifest: async () => manifest(1), horizonRadiusKm: () => R / 1000 - 10,
+      loadTexture: async url => { requests.push(url); return { texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }; },
+    });
+    await layer.ready;
+    const root = new THREE.Group();
+    for (const face of faces) {
+      const address = { face, level: 0, x: 0, y: 0 }, { scene } = geometryTile(address);
+      root.add(scene); layer.addTile(scene, scene, address);
+    }
+    for (let i = 0; i < 20; i++) {
+      layer.update(camera(50_000), root.matrixWorld, .001, null); await new Promise(r => setTimeout(r, 0));
+    }
+    const optional = requests.filter(url => url.includes('//global/'));
+    expect(optional.length).toBeGreaterThan(0);
+    expect(optional.every(url => !url.includes('/tiles/pz/')), JSON.stringify(optional)).toBe(true); // opposite face is fully occulted
+    expect(layer.stats.baseUncoveredBlocks).toBe(0);
     layer.dispose();
   });
 
@@ -489,6 +512,28 @@ describe('CubeImageryLayer', () => {
     tick(camera(1000));
     expect(loader.pending.size).toBe(1);
     expect(Number([...loader.pending.keys()][0].split('/')[1])).toBeLessThanOrEqual(1);
+    layer.dispose();
+  });
+
+  it('reuses slots between discrete cover sizes for lower layers', async () => {
+    const tileBytes = 264 * 264 * 4 * 4 / 3;
+    const layers = ['base', 'lower', 'upper'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const loader = controlledLoader();
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxTextureBytes: 15 * tileBytes, maxConcurrentRequests: 3 }, {
+      fetchManifest: async url => { const m = manifest(5); return url.includes('//base/') ? { ...m, maxLevel: 0, tiles: m.tiles.filter(id => Number(id.split('/')[1]) === 0) } : m; }, loadTexture: loader.loadTexture,
+    });
+    await layer.ready;
+    const leaves: ImageryBlock[] = [];
+    for (const x of [0, 1]) for (const y of [0, 1]) for (const child of [0, 1]) {
+      const image: ImageryAddress = { face: 'nz', level: 5, x: 16 + 2 * x + child, y: 16 + 2 * y };
+      leaves.push({ ...image, image, desiredLevel: 5, inView: true });
+    }
+    const fitting = layer as unknown as { fitView: (leaves: ImageryBlock[]) => void; sourceLevelCaps: Map<number, number> };
+    fitting.fitView(leaves);
+    // Eight free cover slots fit two four-tile level-4 covers. Reserving seven
+    // for the upper source wastes three and strands the lower source at L3.
+    expect(fitting.sourceLevelCaps.get(1)).toBe(4);
+    expect(fitting.sourceLevelCaps.get(2)).toBe(4);
     layer.dispose();
   });
 

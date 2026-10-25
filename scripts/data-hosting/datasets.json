@@ -276,39 +276,39 @@
         "experiments/mars-terrain-cube-jezero.json"
       ]
     },
-    "cube-terrain/terrain-419154e47324aa446cd9c921": {
+    "cube-terrain/terrain-3846907d293e9e5d0b0243ce": {
       "kind": "cube-terrain",
-      "name": "terrain-419154e47324aa446cd9c921",
-      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/terrain-419154e47324aa446cd9c921",
-      "catalogPrefix": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/",
+      "name": "terrain-3846907d293e9e5d0b0243ce",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce",
+      "catalogPrefix": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/",
       "build": null
     },
-    "cube-imagery/imagery-67c8de41ba60020ba061abeb": {
+    "cube-imagery/imagery-04513d4681559e949e39e30f": {
       "kind": "cube-imagery",
-      "name": "imagery-67c8de41ba60020ba061abeb",
-      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-67c8de41ba60020ba061abeb",
-      "catalogPrefix": "data/ingenuity-cube/imagery-67c8de41ba60020ba061abeb/",
+      "name": "imagery-04513d4681559e949e39e30f",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f",
+      "catalogPrefix": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/",
       "build": null
     },
-    "cube-imagery/imagery-634384b8f9eeb21c8bd4a62e": {
+    "cube-imagery/imagery-11f675fe48a13579126bb3cd": {
       "kind": "cube-imagery",
-      "name": "imagery-634384b8f9eeb21c8bd4a62e",
-      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-634384b8f9eeb21c8bd4a62e",
-      "catalogPrefix": "data/ingenuity-cube/imagery-634384b8f9eeb21c8bd4a62e/",
+      "name": "imagery-11f675fe48a13579126bb3cd",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd",
+      "catalogPrefix": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/",
       "build": null
     },
-    "cube-imagery/imagery-5e6fab0c580bafe0fdd5d189": {
+    "cube-imagery/imagery-ab90c8bd749d673d3f786918": {
       "kind": "cube-imagery",
-      "name": "imagery-5e6fab0c580bafe0fdd5d189",
-      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-5e6fab0c580bafe0fdd5d189",
-      "catalogPrefix": "data/ingenuity-cube/imagery-5e6fab0c580bafe0fdd5d189/",
+      "name": "imagery-ab90c8bd749d673d3f786918",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918",
+      "catalogPrefix": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/",
       "build": null
     },
-    "cube-imagery/imagery-4cd46626d81b2e5f677b7b45": {
+    "cube-imagery/imagery-4992e13935cc9898d6522634": {
       "kind": "cube-imagery",
-      "name": "imagery-4cd46626d81b2e5f677b7b45",
-      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4cd46626d81b2e5f677b7b45",
-      "catalogPrefix": "data/ingenuity-cube/imagery-4cd46626d81b2e5f677b7b45/",
+      "name": "imagery-4992e13935cc9898d6522634",
+      "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634",
+      "catalogPrefix": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/",
       "build": null
     }
   }

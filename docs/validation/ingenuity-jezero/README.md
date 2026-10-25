@@ -3,9 +3,9 @@
 **All #246 implementation and local acceptance remain in PR #292. Production
 R2 upload and deployment require explicit authorization and have not occurred.**
 
-The completed [V11 build](mission-build.json) passes the supported source,
+The completed [V12 build](mission-build.json) passes the supported source,
 datum, native-grid, coverage and fidelity gates. Its five immutable products
-contain **5,103 data objects / 1,148,202,493 bytes**: authoritative terrain/CPU
+contain **5,103 data objects / 1,243,309,388 bytes**: authoritative terrain/CPU
 lattice plus independent Viking, global CTX, Jezero CTX and HiRISE imagery.
 The local mission catalog and unpublished dataset registrations match those
 exact products. All 72 estimated flights, original horizontal observations,
@@ -20,6 +20,31 @@ along flights 1/12/72 plus a return visit use a 64 MiB geometry cache. Loading
 samples retain conservative clearance; settled CPU/selected-GLB agreement is
 required within 0.5 m. [MoonFall](moonfall-regression.json) also passes after the
 shared renderer changes.
+
+The repeated-crater screenshot was traced to **the original beta CTX service
+responses**: different PNG hashes contained identical decoded pixels at different
+geographic addresses. [The source audit](ctx-source-diagnostic.json) records four
+duplicate groups across 36 responses. The replacement uses the officially
+published V01 `OnMars/CTX1` service: all 3,607 acquired decodable textured responses
+have distinct decoded pixels; two truncated original responses stay transparent.
+This finite acquired inventory does not certify every unrequested remote tile.
+A lock-controlled decoded identity gate now rejects such source repetition.
+Compare the [old repetition](captures/superseded-ctx-beta-repetition.png) with the
+[current native orbit](captures/mission-native-mars-orbit.png), plus
+[nadir](captures/mission-ctx-nadir.png) and [tilted](captures/mission-ctx-tilted.png)
+views. Twelve angle cases and four native mouse orbit steps pass. Conservative
+patch visibility and discrete budget allocation fix wasted loading demand without
+raising the 256 MiB hard budget. All **4,084 terrain payloads remain byte-identical**
+to V11 ([comparison](terrain-rebuild-comparison.json)); flight estimates are unchanged.
+
+A separate every-rendered-frame audit caught a first-frame loading defect missed
+by the timed probes: a newly selected coarse GLB initially stood 286.975 m above
+the CPU surface. The camera now clamps again after streaming selection, before
+view transport and labels. All **1,324 rendered frames across fifteen corridors**
+retain at least 2 m clearance, including that initial discrepancy; all corridors
+settle within 0.5 m. The separate 225 timed loading samples have a maximum
+0.820151 m discrepancy. Neither result changes physical terrain or certifies
+sub-metre agreement during every transient frame.
 
 The user's recording exposed an imagery defect that settled-site checks missed.
 The [loading regression](imagery-loading.json) now fits complete visible source
@@ -43,16 +68,17 @@ Actual [Jezero overhead](captures/mission-jezero-overhead.png),
 [distant Mars](captures/mission-distant-mars.png), and a
 [pinned original CTX missing-response location](captures/mission-ctx-hole.png)
 are recorded with alpha read from the exact bitmap used by the centre shader.
-The distant view shows transparent unsupported CTX over real opaque Viking.
-The pinned unavailable CTX response remains transparent; independent Jezero CTX
-and Viking remain below it. No holes are replaced with invented native pixels.
+The distant view uses real V01 CTX global overviews. The pinned unavailable
+V01 response at latitude -2.8125°, longitude 2.8125° remains transparent over
+real Viking. No holes are replaced with invented native pixels.
 The mandatory-base outage independently proves the static surface stays visible
 when transparent optional imagery is resident.
 
 [Navigation profiling](navigation-performance.json) covers stationary ground,
 moving ground, flight follow and orbit-to-surface transitions on Mars and
 MoonFall, 360 physical GPU frames each. The pre-optimization Mars navigation p99
-was 7.3–7.6 ms; all final scenarios are below 1 ms and the 4 ms navigation budget.
+was 7.3–7.6 ms. Final navigation p99, summed across both clamps per rendered
+frame, is 1.0–1.3 ms on Mars and 0.7–1.2 ms on MoonFall, below the 4 ms budget.
 Strict interior radial queries intersect the two original lattice triangles;
 cell/tile/face edges retain the general closed-boundary ownership rule. Radial
 coverage requests include all incident footprints without marching repeated
@@ -67,9 +93,9 @@ The coincident HiRISE 0.25 m / DTM 1 m gate remains strict. Neither source is mo
 to manufacture coincidence. Native source/service intervals remain separate
 from generated output spacing and unknown absolute accuracy remains unknown.
 
-The completed receipt includes 19,132 entries. Its 32 MiB reader bound and
+The completed receipt includes 19,772 entries. Its 32 MiB reader bound and
 entry-wise canonical inventory comparison preserve ordinary 2 MiB JSON limits
-and reject changed, missing or reordered entries. The clean V11 run and its
+and reject changed, missing or reordered entries. The clean V12 run and its
 [read-only publication preflight](mission-publication-plan.json) verify the full
 inventory. [Publication/candidate/rollback plan](publication-catalog-plan.json)
 contains the six URL replacements and five post-verification dataset pins.

@@ -5,7 +5,7 @@ import type { SurfaceAppearance } from './SurfaceAppearance.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
 import { cubeTileId, cubeFaceBasis } from './surface/CubeSphere.js';
 import {
-  CubeImageryAvailability, blockBoundingSphere, imageryTileRect, blockRectInTile, clipTrianglesToTileRect, imageryTextureTransform, imageryTileUri,
+  CubeImageryAvailability, blockBoundingSphere, blockBoundingBox, boxBeyondHorizon, imageryTileRect, blockRectInTile, clipTrianglesToTileRect, imageryTextureTransform, imageryTileUri,
   parseImageryAddress, selectImageryBlocks, tileProjectiveBasis, validateCubeImageryManifest,
   type CubeImageryManifest, type ImageryAddress, type ImageryBlock, type Vec3,
 } from './surface/CubeImagery.js';
@@ -170,6 +170,7 @@ export function isDrawnCubeImagerySource(object: THREE.Object3D): boolean { retu
 
 const CACHE_KEY = '_cubeimg_v1';
 const DEBUG_CODE: Record<CubeImageryDebug, number> = { none: 0, unlit: 1, level: 2 };
+const _bodyFrustum = new THREE.Frustum(), _box = new THREE.Box3();
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _v = new THREE.Vector3(), _frustum = new THREE.Frustum(), _sphere = new THREE.Sphere();
 
 const VERTEX_PARS = 'attribute vec3 cubeImageryUvw;\nvarying vec3 vCubeImageryUvw;\n';
@@ -284,6 +285,7 @@ export class CubeImageryLayer {
   private sourceLevelCaps = new Map<number, number>();
   private viewSelectionKey = '';
   private viewBudgetLimited = false;
+  private readonly horizonRadiusKm: () => number;
   private anisotropy = 1;
   private disposed = false;
   private counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 };
@@ -292,7 +294,8 @@ export class CubeImageryLayer {
     displayedLevels: {}, wantedLevels: {}, fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
   };
 
-  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number } = {}) {
+  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number } = {}) {
+    this.horizonRadiusKm = deps.horizonRadiusKm ?? (() => 0);
     this.options = {
       maxScreenTexelError: config.maxScreenTexelError ?? 1.5,
       maxTextureBytes: config.maxTextureBytes ?? 160 * 2 ** 20,
@@ -495,12 +498,14 @@ export class CubeImageryLayer {
     _v.setFromMatrixPosition(camera.matrixWorld).applyMatrix4(toBody);
     const cameraKm: Vec3 = [_v.x / 1000, _v.y / 1000, _v.z / 1000];
     _frustum.setFromProjectionMatrix(_m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    _bodyFrustum.setFromProjectionMatrix(_m.multiply(tileSetMatrixWorld));
     const scale = tileSetMatrixWorld.getMaxScaleOnAxis();
     const inView = (centre: Vec3, radius: number) => {
       _sphere.center.set(centre[0] * 1000, centre[1] * 1000, centre[2] * 1000).applyMatrix4(tileSetMatrixWorld);
       _sphere.radius = radius * 1000 * scale;
       return _frustum.intersectsSphere(_sphere);
     };
+    const innerRadiusKm = this.horizonRadiusKm();
     const wanted = new Map<string, number>();
     const stats = { tiles: 0, splitTiles: 0, blocks: 0, displayedLevels: {} as Record<number, number>, wantedLevels: {} as Record<number, number>,
       fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1 };
@@ -530,7 +535,12 @@ export class CubeImageryLayer {
         if (!useImagery) { this.unsplit(m); continue; }
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
           maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile,
-          inView: culled ? () => false : inView });
+          inView: culled ? () => false : (centre, radius, address) => {
+            if (!inView(centre, radius)) return false;
+            const box = blockBoundingBox(address, m.radiusRangeKm);
+            _box.min.fromArray(box.min).multiplyScalar(1000); _box.max.fromArray(box.max).multiplyScalar(1000);
+            return _bodyFrustum.intersectsBox(_box) && !boxBeyondHorizon(box, cameraKm, innerRadiusKm);
+          } });
         selections.push({ record, m, leaves, culled });
       }
     }
@@ -678,12 +688,16 @@ export class CubeImageryLayer {
     for (const source of this.order) if (used>capacity && source.index>0 && quota.has(source)) {
       used -= quota.get(source)!;quota.delete(source);
     }
-    // Admit a complete upper source before refining the next one. Every lower
-    // source still owns a fitted coarse cover under transparency/opacity.
-    const active = [...this.order].reverse().filter(source=>quota.has(source));
+    // Admit complete upper-source detail before refining the next source,
+    // charging only its actual fitted cover. Slots between discrete levels
+    // remain available to lower sources rather than being silently wasted.
+    const active = [...this.order].reverse().filter(source => quota.has(source));
     for (const source of active) {
-      const extra = Math.min(capacity-used, counts.get(source)!.at(-1)!-quota.get(source)!);
-      quota.set(source,quota.get(source)!+extra);used+=extra;
+      const levels = counts.get(source)!;
+      const available = capacity - used + quota.get(source)!;
+      let count = quota.get(source)!;
+      for (const candidate of levels) if (candidate <= available) count = candidate;
+      used += count - quota.get(source)!; quota.set(source, count);
     }
     this.sourceLevelCaps.clear();this.viewBudgetLimited=false;
     for (const [source,levels] of counts) {

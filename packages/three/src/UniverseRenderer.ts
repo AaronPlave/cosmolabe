@@ -1112,6 +1112,26 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    // Streaming can expose a coarse triangle above the previous selection.
+    // Account for that newly selected surface before this frame is drawn, and
+    // before view-dependent transport/labels consume the final camera.
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.hasTerrain || bm.hasSurfaceTiles) {
+        bm.updateMatrixWorld(true);
+        const dist = bm.position.distanceTo(this.camera.position);
+        const realSceneRadius = bm.displayRadius * this.scaleFactor;
+        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
+        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
+      }
+    }
+    if (this.clampCameraAboveSurfaces({ cubeOnly: true, resetCorrection: false })) {
+      const distance = this.camera.position.distanceTo(this.cameraController.controls.target);
+      this.camera.near = Math.max(1e-12, distance * 1e-8);
+      this.camera.far = Math.max(1e6, distance * 1e6);
+      this.camera.updateProjectionMatrix();
+      this.camera.updateMatrixWorld();
+    }
     // View transport must use the final current-frame camera, after tracking,
     // surface clamping, and refreshed eclipse occluders.
     const maxSkyBrightness = this.updateAtmospheres(this.camera);
@@ -1180,14 +1200,7 @@ export class UniverseRenderer {
       }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.hasTerrain || bm.hasSurfaceTiles) {
-        bm.updateMatrixWorld(true);
-        const dist = bm.position.distanceTo(this.camera.position);
-        const realSceneRadius = bm.displayRadius * this.scaleFactor;
-        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, contourLabelObstacles);
-        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
-      }
+      if (bm.hasTerrain) bm.updateTerrainLabels(this.camera, this.renderer, contourLabelObstacles);
     }
 
     // Count every pass in this frame, including the early instrument feed.
@@ -3408,9 +3421,10 @@ export class UniverseRenderer {
   get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
   private _cameraClampCorrectionKm = 0;
 
-  private clampCameraAboveSurfaces(): void {
+  private clampCameraAboveSurfaces({ cubeOnly = false, resetCorrection = true }: { cubeOnly?: boolean; resetCorrection?: boolean } = {}): boolean {
     const cam = this.camera.position;
-    this._cameraClampCorrectionKm = 0;
+    if (resetCorrection) this._cameraClampCorrectionKm = 0;
+    let pushed = false;
     const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
 
     // When the camera is tracking OR flying to a surface-locked body
@@ -3433,6 +3447,7 @@ export class UniverseRenderer {
 
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
+      if (cubeOnly && !bm.terrainCubeStats) continue;
       if (skipParentName && bm.body.name === skipParentName && !bm.terrainCubeStats) continue;
 
       const toBody = _clampTmpVec.copy(cam).sub(bm.position);
@@ -3505,8 +3520,10 @@ export class UniverseRenderer {
         this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
+        pushed = true;
       }
     }
+    return pushed;
   }
 
   /** Position attached visuals relative to their parent body each frame. */

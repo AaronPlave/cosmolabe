@@ -82,6 +82,12 @@ describe('finite locked surface build planning', () => {
       const independent = await relock(v => { v.processing.parameters.gates.independentImageGrids = ids; });
       await expect(compileBuild(independent)).rejects.toThrow(/independent image grids/);
     }
+    for (const ids of [['base'], ['not-selected'], ['context', 'context']]) {
+      const distinct = await relock(v => { v.processing.parameters.gates.distinctImageTiles = ids; });
+      await expect(compileBuild(distinct)).rejects.toThrow(/distinct image tiles/);
+    }
+    const distinct = await relock(v => { v.processing.parameters.gates.distinctImageTiles = ['context']; });
+    expect((await compileBuild(distinct)).buildId).not.toBe((await compileBuild(fixture)).buildId);
     const versionOnly = await relock(v => { v.sources[0].asset.version = 'v1'; delete v.sources[0].asset.checksum; });
     await expect(compileBuild(versionOnly)).rejects.toThrow(/requires SHA-256/);
     const bias = await relock(v => { v.processing.fusion = 'residual-plane'; });

@@ -811,7 +811,13 @@ export class TerrainManager {
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery?.url || cubeSources) {
       const cubeConfig = config.cubeSphere?.imagery ?? {};
-      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm });
+      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm, horizonRadiusKm: () => {
+        const manifest = this.cube?.source.manifest;
+        // The new ellipsoidal imagery cull needs an emitted-mesh rounding
+        // bound as well as the explicit radial payload. Unknown means no cull.
+        if (manifest?.datum.referenceShape.kind === 'ellipsoid' && manifest.renderedLatticeRoundingBoundKm == null) return 0;
+        return this.cube?.surface.radialRenderedInnerRadiusKm ?? 0;
+      } });
       this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
     }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
@@ -1211,7 +1217,7 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
-  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] = []): void {
+  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] | null = []): void {
     if (this.disposed) return;
 
     // Compute terrain-appropriate near/far from camera position.
@@ -1373,6 +1379,11 @@ export class TerrainManager {
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
       }
     }
+    if (labelObstacles) this.updateContourLabels(camera, renderer, labelObstacles);
+  }
+
+  /** Layout against the final camera after streaming and any clearance correction. */
+  updateContourLabels(camera: THREE.Camera, renderer: THREE.WebGLRenderer, labelObstacles: readonly ScreenRect[] = []): void {
     if (this.surfaceStyle) {
       const size = renderer.getSize(_bufferSize);
       const settings = this.surfaceStyle.current;
