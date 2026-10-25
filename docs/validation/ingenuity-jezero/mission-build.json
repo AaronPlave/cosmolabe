@@ -1,0 +1,1344 @@
+{
+  "kind": "ingenuity-completed-mission-build",
+  "version": 1,
+  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "lockIdentity": "sha256:a98a58e5902dacc401e1147337b6e20e722791843c41beb79c0724b4b1c133a5",
+  "validation": "passed-supported-gates",
+  "executorProductionReady": false,
+  "limitation": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.",
+  "completionReceiptSha256": "1ad72f9a83636d9cb9fad70c3837d31a7b553786a313abf6b38f6270dfdc8d53",
+  "products": [
+    {
+      "id": "terrain-419154e47324aa446cd9c921",
+      "productIdentity": "419154e47324aa446cd9c921d92f1a8caf7b1930358fe80d5717db902a66a811",
+      "kind": "cube-terrain",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "objects": 4089,
+      "bytes": 364965715,
+      "revision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+      "maxLevel": 15,
+      "nativeFidelity": [
+        {
+          "sourceId": "base",
+          "nativeGsdM": 200,
+          "accuracyM": null
+        },
+        {
+          "sourceId": "detail",
+          "nativeGsdM": 1,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        106130.9375,
+        53065.46875,
+        26532.734375,
+        13266.3671875,
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742
+      ],
+      "availabilityEntries": 2042,
+      "controls": {
+        "count": 73,
+        "maximumErrorM": 0.06173292214862158,
+        "toleranceM": 1
+      }
+    },
+    {
+      "id": "imagery-67c8de41ba60020ba061abeb",
+      "productIdentity": "67c8de41ba60020ba061abebcd29c6d52b03150055738881674af498a251e215",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "viking"
+      ],
+      "objects": 140,
+      "bytes": 279133060,
+      "revision": "cube-imagery-xyz-504117a8a19dc467",
+      "maxLevel": 7,
+      "validPixels": 145752064,
+      "transparentPixels": 0,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "viking",
+          "nativeGsdM": 325.60563825058347,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875
+      ],
+      "availabilityEntries": 139
+    },
+    {
+      "id": "imagery-634384b8f9eeb21c8bd4a62e",
+      "productIdentity": "634384b8f9eeb21c8bd4a62e32a54e9ab636758ea9a0d3e3f54832a1ba1b4a50",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "ctx-global"
+      ],
+      "objects": 221,
+      "bytes": 115215655,
+      "revision": "cube-imagery-xyz-2b6445bbb2ee6c1a",
+      "maxLevel": 13,
+      "validPixels": 196291834,
+      "transparentPixels": 34394886,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "ctx-global",
+          "nativeGsdM": 5.087588097665367,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742,
+        1.619429588317871,
+        0.8097147941589355
+      ],
+      "availabilityEntries": 220
+    },
+    {
+      "id": "imagery-5e6fab0c580bafe0fdd5d189",
+      "productIdentity": "5e6fab0c580bafe0fdd5d18912cde49672c15fc53e4f8ccf06bfd43c01c1752f",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "jezero-ctx"
+      ],
+      "objects": 58,
+      "bytes": 16823792,
+      "revision": "cube-imagery-raster-423514ff094ce3a4",
+      "maxLevel": 11,
+      "validPixels": 36372584,
+      "transparentPixels": 23396248,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "jezero-ctx",
+          "nativeGsdM": 6,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742
+      ],
+      "availabilityEntries": 57
+    },
+    {
+      "id": "imagery-4cd46626d81b2e5f677b7b45",
+      "productIdentity": "4cd46626d81b2e5f677b7b4550655b36b10940fb6c2d8ac66b898bb904268c3e",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "jezero-hirise"
+      ],
+      "objects": 595,
+      "bytes": 372064271,
+      "revision": "cube-imagery-raster-1f9a24652d0a0db4",
+      "maxLevel": 14,
+      "validPixels": 598343375,
+      "transparentPixels": 24510769,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "jezero-hirise",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742,
+        1.619429588317871,
+        0.8097147941589355,
+        0.4048573970794678
+      ],
+      "availabilityEntries": 594
+    }
+  ],
+  "sourceImagery": {
+    "ctx-global": {
+      "responses": 2969,
+      "unavailableResponses": [
+        {
+          "httpStatus": 200,
+          "key": "11/2926/812",
+          "reason": "decode-failure",
+          "sha256": "f0f8f0b7e7efba97f44bc9aee2a1947314ab332f0557da49d496acc24dcb32a1",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2926"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2926/814",
+          "reason": "decode-failure",
+          "sha256": "6b3bae7dfe63ca9642943e42ae9d32ea30660cccc43661327277aef30c49da23",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2926"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2926/815",
+          "reason": "decode-failure",
+          "sha256": "b6ea5ac3015b382ee3d7aad60e980927689591bfb489c21171dac5e003c725bb",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2926"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2927/812",
+          "reason": "decode-failure",
+          "sha256": "b93000d6c800024dbdd2f162e978a0d188ca0e0ee063efe8c06d6a1c6c210b3a",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2927"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2927/814",
+          "reason": "decode-failure",
+          "sha256": "d5e920504abe0fc3db76bcbc1e4118e74c86f57a238567351bd24e87f1130bd5",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2927"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2927/815",
+          "reason": "decode-failure",
+          "sha256": "ca96c41562ba93673cb3d4af302dd9008917b6bdfafe01bf5d386e565a625c0a",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2927"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2928/812",
+          "reason": "decode-failure",
+          "sha256": "e4b78618054164ceae699b27d2dce8ce9aaca75f7856b5b8dc72ef9f18f26aba",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2928"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2928/813",
+          "reason": "decode-failure",
+          "sha256": "d3cc24bb7b570a319d75c5b2b8b725045af5d6ca20ddcf16f67eb3cfe6c2a92c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/813/2928"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2928/814",
+          "reason": "decode-failure",
+          "sha256": "39b5d24d4b672626471a31a904924b956b9b4683394d0a5b9c4d75c1778d818f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2928"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2928/815",
+          "reason": "decode-failure",
+          "sha256": "3eb6ac5c96b585046005bc39f498d18a9ad489947113c93eaad6f8d6715312bc",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2928"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2929/812",
+          "reason": "decode-failure",
+          "sha256": "4d094087cfea5d750651f1d67781df0802d04fd7fbb2536760493b7df35bd940",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2929"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2929/813",
+          "reason": "decode-failure",
+          "sha256": "590fcf3bf1694277bc89dd7d1ec82db517f8e6e598bb657375919a051df008de",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/813/2929"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2929/814",
+          "reason": "decode-failure",
+          "sha256": "5b373d81ff4c99db4d2ed4a7d1c78291329e4d7363b71e911b38b2c4aae29a64",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2929"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2929/815",
+          "reason": "decode-failure",
+          "sha256": "40206b62a68d6d1b9d4dac0f5ccc6d05767bee283844acbe9eddb240bb81840c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2929"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2930/812",
+          "reason": "decode-failure",
+          "sha256": "ae303b917227aa5aced32c6a98d2a2ef1da2038c819628fffe41493561912eb7",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2930"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2930/813",
+          "reason": "decode-failure",
+          "sha256": "b0a3c69d2d78d082dbfcd0f04bcf9e2f6a1499b580836ad339dbf42f1e908704",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/813/2930"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2930/814",
+          "reason": "decode-failure",
+          "sha256": "fdcaf00240b2d1366c008911e665ddb008fcee0d9d437b058f0eb0bc27820f0f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2930"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2930/815",
+          "reason": "decode-failure",
+          "sha256": "d987443c9daf4ef35092d77d70b35a50e8aa17d3a500143ca4eac5f96dca3f88",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2930"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2931/812",
+          "reason": "decode-failure",
+          "sha256": "1bc9d1278642b43ac700ee6f99592494f0a4c59bd4ecaac52dd11cd8ae851916",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2931"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2931/813",
+          "reason": "decode-failure",
+          "sha256": "5e9b45cd767caa15dba6f01b6e9729ab905ca9437dd05fb124b45c5abbcd66bb",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/813/2931"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2931/814",
+          "reason": "decode-failure",
+          "sha256": "9dc0b3a0f555b2ff51169aa2c7fa6a76d1cec54820dba756aeaa50276487478f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2931"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2931/815",
+          "reason": "decode-failure",
+          "sha256": "962fffa9cc217729a3bebe05fe7af5e467880c2a10c34ba8ec16be9784d19d09",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2931"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2932/812",
+          "reason": "decode-failure",
+          "sha256": "b25f4c07c91d35ae33afc41ddfdc09005f29a3025605733de84d5745e5f0e71d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/812/2932"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2932/813",
+          "reason": "decode-failure",
+          "sha256": "4eb17f8c8206d7889b40775c5761208f6a8f9881043140ad067c5301e43c75dc",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/813/2932"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2932/814",
+          "reason": "decode-failure",
+          "sha256": "8ac95d2e4aee5ca1373fb823a0e9032042ea90069e45db712d1ad0168dc230e5",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/814/2932"
+        },
+        {
+          "httpStatus": 200,
+          "key": "11/2932/815",
+          "reason": "decode-failure",
+          "sha256": "38b23572544c53d67ccf26dcd7b85367b4e403be27bb8086ec2031c01989e1e6",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/11/815/2932"
+        },
+        {
+          "httpStatus": 200,
+          "key": "12/5852/1620",
+          "reason": "decode-failure",
+          "sha256": "c3021b6f97be49709c85c5b3de7e58e2305033bd89c113af80530505095041ff",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/12/1620/5852"
+        },
+        {
+          "httpStatus": 200,
+          "key": "12/5854/1620",
+          "reason": "decode-failure",
+          "sha256": "27a56ade4f1428d70a4ca8688ee6808e9bb937f9d5a3eded3e1811f9ee8863f9",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/12/1620/5854"
+        },
+        {
+          "httpStatus": 200,
+          "key": "12/5854/1634",
+          "reason": "decode-failure",
+          "sha256": "a467f3f42abb709678d6ce79ccdde86478d0d28e49ee1d4a5f5d0fac3a1ced0c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/12/1634/5854"
+        },
+        {
+          "httpStatus": 200,
+          "key": "12/5860/1622",
+          "reason": "decode-failure",
+          "sha256": "c554111a1390d9a0bbc2e50dbdd37cbe0c1c240ca2ea8334ae8f2eab2e730ad1",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/12/1622/5860"
+        },
+        {
+          "httpStatus": 200,
+          "key": "12/5864/1620",
+          "reason": "decode-failure",
+          "sha256": "4f8fcdb1e34c263008bfc62783dcfb2bd99179d45bb237242ef2f8e90795c5d8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/12/1620/5864"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/85/23",
+          "reason": "decode-failure",
+          "sha256": "f08c1a416dccb442f183f861912a02804df55beef0896f9575fbe4b851dee0bf",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/23/85"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/85/24",
+          "reason": "decode-failure",
+          "sha256": "f04b38456e27b91d3c3fbb5d5998a7eed40d39551e15834d05bb903fb4ab9a9f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/24/85"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/86/24",
+          "reason": "decode-failure",
+          "sha256": "5dacf74ed101e6b47d993424f1819c359487a45061bfb26423df215d3e54825c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/24/86"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/87/25",
+          "reason": "decode-failure",
+          "sha256": "7a59df41007e5c6f8a2cf16f61429fa7783eb696eba687915a3b1d875be49b5d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/25/87"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/88/22",
+          "reason": "decode-failure",
+          "sha256": "e5d72f04e62b6766d968cd0cb9ed8e3e0d9af09328b630da896c8180c393f01d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/22/88"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/89/22",
+          "reason": "decode-failure",
+          "sha256": "18fcf1fb8aca9cd09e533501df28f8f0c80038e7562cf229e2b162bff4a8a315",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/22/89"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/96/23",
+          "reason": "decode-failure",
+          "sha256": "defae444708463b72b90ceea174104ce3ae9af0d0914c82b7d691a96d366176a",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/23/96"
+        },
+        {
+          "httpStatus": 200,
+          "key": "6/97/23",
+          "reason": "decode-failure",
+          "sha256": "216bfcb9afa689607769d9c672d774f89b9b08b587724ba997275d0552304bf8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/6/23/97"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/48",
+          "reason": "decode-failure",
+          "sha256": "d2061d42f719a076244d662e4264260dc0e086de1f8136237a24fe5480dc382b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/49",
+          "reason": "decode-failure",
+          "sha256": "85a96ebb9ec5229ff0058045b1db0c9dce3a04ed8148e1f5ff7bfca0b7ed6fee",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/50",
+          "reason": "decode-failure",
+          "sha256": "1619f155fd72bac57a9c07fed68c382d5438b2158ea1f0945a9ab39471858437",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/51",
+          "reason": "decode-failure",
+          "sha256": "2aa3c236821dcc8557347cc8be45b6ab1b488c63285b418d06c608e0395f8335",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/52",
+          "reason": "decode-failure",
+          "sha256": "c47b6c0e45f4ea058b9497b475e71903772222de2a70db31baf8b187288fb513",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/53",
+          "reason": "decode-failure",
+          "sha256": "78094cf4ca603f7a7ff6105c2246acf417faddfbb5c75529f9ede54ae5453d0c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/54",
+          "reason": "decode-failure",
+          "sha256": "6df23f9033a8a9a0d4557555fadbf963ae00e73a01ad680fb07a9436f2f4de67",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/176/55",
+          "reason": "decode-failure",
+          "sha256": "bed7a45674ff5f0815886bb38a995ec5d2d18b7b7f0a0d2f3c034eef85d86567",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/176"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/48",
+          "reason": "decode-failure",
+          "sha256": "3e5b81b1e9ac397487f9531361aedb0b2041783d11cbcce1c094836c3cd47675",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/49",
+          "reason": "decode-failure",
+          "sha256": "480d94cf211c01eeb65d1531c0b37f3d85ed4c31c4418ed30b2c329ea119d023",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/50",
+          "reason": "decode-failure",
+          "sha256": "de82d8092f8bc6e9276c41e4d647fea2d3f0ec80c7d489e2125ed1992e95ae42",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/51",
+          "reason": "decode-failure",
+          "sha256": "9af242aa883f0d97dd707dbf9458dcfa89bafc0c12eff2e71b1b03dd39be71be",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/52",
+          "reason": "decode-failure",
+          "sha256": "c9498105e5d7f92ecf24795e15938ec7dc60cdeb5fe2131845e7bb9628d108ad",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/53",
+          "reason": "decode-failure",
+          "sha256": "998a81bb5199c8b5e7ebda61b2a73e763f65876c595f53a30ce75857b79e3c24",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/54",
+          "reason": "decode-failure",
+          "sha256": "ac0e479d4ab2729fcd1cc08deeaeae47fcd873e0e8d1cd042981beb4bd20fe96",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/177/55",
+          "reason": "decode-failure",
+          "sha256": "8601c6c5940af5f4b7f731a632a755e7e9912a526e711a777644949ce75d4f88",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/177"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/48",
+          "reason": "decode-failure",
+          "sha256": "2bcfcc8acbba988969a87c2cb2a17a1d5ae715ed28efb613d00517015211e4b0",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/49",
+          "reason": "decode-failure",
+          "sha256": "85b630a953400871661b970401a2cd53cdc528a0a6349936a7de2c219c2eee6b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/50",
+          "reason": "decode-failure",
+          "sha256": "a0cb93b42595771b401d0b17bb0b69116d69581506b40ec15616851ff6ddca4c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/51",
+          "reason": "decode-failure",
+          "sha256": "afadb73bb933106bd74afe116c3b3eef186b2043424daa17c49514b69b359dd8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/52",
+          "reason": "decode-failure",
+          "sha256": "45d75494c4608dbe6a37bb9036a29be889fca7d1259e69b16b16350515c856c1",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/53",
+          "reason": "decode-failure",
+          "sha256": "7817e77126ec9f49e745fe814468164dd22f15cd19ca2f8dedc44981c74a8ae2",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/54",
+          "reason": "decode-failure",
+          "sha256": "6f871ef3f6aeaa13f90f4bebfd11fdd83c59e24e6ce2d0c54da4dd375a439fd8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/178/55",
+          "reason": "decode-failure",
+          "sha256": "cfe7e00089fedaa7b718ff14329f23bd0ef03a3e1144ddc20aac8e8c6b8f2d07",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/178"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/48",
+          "reason": "decode-failure",
+          "sha256": "c6d9f8ae553ff61334f5391ed3bbbf31b657198036e64ba1cd8ec59506f1f11e",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/49",
+          "reason": "decode-failure",
+          "sha256": "2191f76807b4c49feb11e89eeb1c074b4a28417da9599a4ea1e1cb9ec4d172b2",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/50",
+          "reason": "decode-failure",
+          "sha256": "87bb5ba523a55b94df7d56a136f91506a1a820d1c4067a7453b45238d7f57bec",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/51",
+          "reason": "decode-failure",
+          "sha256": "47a2dd5453a1dcf9725c22032811424e5edd9368898cd0042c07ded0c714c872",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/52",
+          "reason": "decode-failure",
+          "sha256": "36e511a0837f80a7f9ed2413b53457c681f668004c67197c5cd63cffd30c11b3",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/53",
+          "reason": "decode-failure",
+          "sha256": "d47328800bcb96d58464993a583ff2cd177935a44ba2ed298280a7d163139e57",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/54",
+          "reason": "decode-failure",
+          "sha256": "149455fb7ec13f5038cf267521c27e2de4e2234f271b92b50c40d8c71d1aac78",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/179/55",
+          "reason": "decode-failure",
+          "sha256": "ce1ef6ff7041c7204fda14f058b14621df4c0a397c1b83a898aa5f4c9bbd471d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/179"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/48",
+          "reason": "decode-failure",
+          "sha256": "95a4a05f4230f3f1dfa3ddae073d84ced4473b82ac0339f12829a53d3d9b6d68",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/49",
+          "reason": "decode-failure",
+          "sha256": "b9276ea87d2a4a3a4b2b8cdc668cc224cffcb53cbce7f6aefc73a78dc9855b9b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/50",
+          "reason": "decode-failure",
+          "sha256": "8b42267f5cf9ae81f9e8a679ec966e3ec508735971591e9cdeaa9f5ab1c79ab1",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/53",
+          "reason": "decode-failure",
+          "sha256": "48dd532b24fc8762681e8ba840574ef50fb6b7123b7aaa31f070da49c6fc5169",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/54",
+          "reason": "decode-failure",
+          "sha256": "0891e5b82f48c5638dab4c0ad4988fa09cd16a6434320b1ff4e32283f05001ac",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/180/55",
+          "reason": "decode-failure",
+          "sha256": "51d566e45bcb3253c4f8d53351c854c44ce286e8b2294bdfb4e2c0f1d59f210e",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/180"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/45",
+          "reason": "decode-failure",
+          "sha256": "24dc088de6b30e9176da3c3347f45cdc68eda2b018952d3c31843579191887ee",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/45/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/46",
+          "reason": "decode-failure",
+          "sha256": "be74d39538c561a874fb563ee9e5f1ed09eaacaaba2f41b28a7fffc05edc47a0",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/46/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/47",
+          "reason": "decode-failure",
+          "sha256": "d4d670f1151c7a4f66ee74a604c9711c4e217b257a17d7e67bc7dd76daeb4fd4",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/48",
+          "reason": "decode-failure",
+          "sha256": "e194fea6648153135dd92b69d758f9feeae054f940fc7193d7a2dfaf4f79e73d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/53",
+          "reason": "decode-failure",
+          "sha256": "e2088d2e4fc94f5583684b67935ef837f0887f5cb7095989ccf3d4648c735d7f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/54",
+          "reason": "decode-failure",
+          "sha256": "df1590ea253feeab6528e51619e4fd45c435fd11117c682031011e6e0d762373",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/181/55",
+          "reason": "decode-failure",
+          "sha256": "8a318afb7c67912ece2fe66463b0d625bd44c84039c2b989f0a5910bde08cc30",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/181"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/44",
+          "reason": "decode-failure",
+          "sha256": "73e0a35d1d6aa1f93dc9d8a97545cd9cfd611305c0a58402ad2e65a8b14aa330",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/44/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/45",
+          "reason": "decode-failure",
+          "sha256": "a9951b1695e9f97b99777cd454e6b198f0399040526b5d89906f5ade58cde50b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/45/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/46",
+          "reason": "decode-failure",
+          "sha256": "fe57cc0abc059d81169ddde7f481bd68fed86231223ced003347cc35f09d9a59",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/46/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/47",
+          "reason": "decode-failure",
+          "sha256": "5ca2cdecd61d614774417e310fef38f60e06d27c65a384840192dfef39e1bd99",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/48",
+          "reason": "decode-failure",
+          "sha256": "1e0c42f403a0a3f6c5101f2d8779250b1a690d98943edfac6fbd8931f80c70c8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/53",
+          "reason": "decode-failure",
+          "sha256": "103a886f7d657929db0c004a87ec0fdafe97c792dc004a8e1e21c8b7831c760f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/54",
+          "reason": "decode-failure",
+          "sha256": "7caf586074d2849aea1901e9a9df6f4f48e894e3a9127fd09d064a03121a7892",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/182/55",
+          "reason": "decode-failure",
+          "sha256": "ce4eb026bad9ccbd2eead2894c2e204dc221f69eeccaca36429c0ce6308ea4b8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/182"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/45",
+          "reason": "decode-failure",
+          "sha256": "7c07e5ca62187214561874c4b5e7991a6f182cb00dc3e7200e0ee04f9521b0dc",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/45/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/46",
+          "reason": "decode-failure",
+          "sha256": "8aae7027ee9a6089f24e2c632592ec3cd271dff60c36d784cd347d4676ceb0ab",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/46/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/47",
+          "reason": "decode-failure",
+          "sha256": "f1ba6a25c6f3613be23fe5469ed166e1a5a89bb4ce6fc077af2894a3c9f2e1af",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/53",
+          "reason": "decode-failure",
+          "sha256": "8e40ab3860de7d085284282027d24dbf858373ffe088df017402e5fd38f77b1c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/54",
+          "reason": "decode-failure",
+          "sha256": "e8d3a875f69f03023127702d60463e309491fedaf663935b68a65b964cc2feb1",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/183/55",
+          "reason": "decode-failure",
+          "sha256": "db20c0ad4f0dfaedfa5ca07d1a2bd8ebd95a6805ccf679ca775747f28100815b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/183"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/184/45",
+          "reason": "decode-failure",
+          "sha256": "d4973385fa2d2430fb384c35523e34710211864f77e8b3c43e8d01ec4aa18494",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/45/184"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/184/52",
+          "reason": "decode-failure",
+          "sha256": "65f1354b33d41070f9004fc70beea246289ef18dc1ad71df40d2bba9f2c01b15",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/184"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/184/53",
+          "reason": "decode-failure",
+          "sha256": "e83508911eb7cc410d8930c4c3ff8bba4938cd461e3739aa15fa0676bde11fb2",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/184"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/184/54",
+          "reason": "decode-failure",
+          "sha256": "4c82c5b642453bba13f99e5b84b19bd0845410434a5ad9effe5dc46c8a2011dd",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/184"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/184/55",
+          "reason": "decode-failure",
+          "sha256": "7bbc4d9b201f9cccdb5a9cb4e4b03f8cb1e4aa72ab263d0caaf06067f0d5aa73",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/184"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/44",
+          "reason": "decode-failure",
+          "sha256": "617a152017b643ff61380d231282116e7a3625acab4e91fa2d3b2cdcf78d47d5",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/44/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/49",
+          "reason": "decode-failure",
+          "sha256": "10c4ecbabf74c5a5bac5c625d38c3ee6beca54e289cebf9d5aa826d5ab4fa586",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/50",
+          "reason": "decode-failure",
+          "sha256": "0b36572863b7fbf68b995ed3b12df694bfb25157a85e4711be18523adf7ee686",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/51",
+          "reason": "decode-failure",
+          "sha256": "4a330b210d888219a04c50b1daaaa7851f04e264a3040efe08a454227d2b4118",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/52",
+          "reason": "decode-failure",
+          "sha256": "f75da1ca22459d3ce2a63c957954017666b2dee7ac8b3d55c574c092a167a78d",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/53",
+          "reason": "decode-failure",
+          "sha256": "986c74055a79afc3183ba1bf9ce4741f56f1cfb7d399751e2f7b9d63955f5265",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/185/54",
+          "reason": "decode-failure",
+          "sha256": "6bd8f73ed9f0b5bade0abada177f091450146f5090c0b20f8122010c1ee1f73f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/185"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/44",
+          "reason": "decode-failure",
+          "sha256": "e47940f924053e7bf429d6db3c36e20838e099baefd6b1a4a1769ec2c05a90eb",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/44/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/46",
+          "reason": "decode-failure",
+          "sha256": "5f0147c2fe43b21aa07cf7b7b1652e651f2dcbe2333381f79fa8945993eaf2e2",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/46/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/50",
+          "reason": "decode-failure",
+          "sha256": "6e0a7cdc6bd68ce8832adc76997c91c2ae769228877f733a70f6205aba3d8d3e",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/51",
+          "reason": "decode-failure",
+          "sha256": "d6cc67af656bfe17adfa3ee5a98c61dfea2e86cb55ca7fb7a5e01dc535b81108",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/52",
+          "reason": "decode-failure",
+          "sha256": "69c94175eea7c68363bafbf5020339d8233ac01781201abf3227e96d3f03fd1a",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/53",
+          "reason": "decode-failure",
+          "sha256": "7ec2d378cf32fca2a7ccad74421223d28c714e615659b96f70a4f648f942c303",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/54",
+          "reason": "decode-failure",
+          "sha256": "62b84b08c20612477e809adabf981a2ea80b16183b38ccd0f19b6ce5a9d439c3",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/186/55",
+          "reason": "decode-failure",
+          "sha256": "c1d2d106cd0783a99eb9f32d96a370a7132addabb183d47cbbe855a6ce8232d0",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/186"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/44",
+          "reason": "decode-failure",
+          "sha256": "abc39e5c8214019a6110728241ae53be6b980ebe652bf4ebc6882f0018487433",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/44/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/46",
+          "reason": "decode-failure",
+          "sha256": "06637ccdc1116cc489eaa5d9d7fd1d7b04ce9803c0979b61de4cb90ae7b2cd48",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/46/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/47",
+          "reason": "decode-failure",
+          "sha256": "153ae3551a2a84768e62364cd6fa973218b23186d1f4bd05e51b9c0af35520db",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/47/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/48",
+          "reason": "decode-failure",
+          "sha256": "2186ce59aa319b26b9350d35f16245fdbb1f766d17f714406b6cbdb2fc2ee7df",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/48/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/49",
+          "reason": "decode-failure",
+          "sha256": "2c1f05fb34237b78576d9f3b4d790801db7d2194489090daad116939aa84207b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/49/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/50",
+          "reason": "decode-failure",
+          "sha256": "a97c55bf356d52616999056a0cf0e33437521d2e21b0f8598cc1894f776702d8",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/50/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/51",
+          "reason": "decode-failure",
+          "sha256": "ae489294a03b52b382444cd05e1197eb1129408b68f14ed4f23887564668b210",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/51/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/52",
+          "reason": "decode-failure",
+          "sha256": "22d2c5e50c80be3328524939b8d86e213e8ac2378eff4ceecba3b0cf017923f0",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/52/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/53",
+          "reason": "decode-failure",
+          "sha256": "c481c0d5402a3a105ffc1c0e474743e441d4186abcb2407a865c22f84dedf86e",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/53/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/54",
+          "reason": "decode-failure",
+          "sha256": "59c0bb179fcdf8aadf3d5ccd091dbedc8fc9ce7c95db06972d67286e2f41c61b",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/54/187"
+        },
+        {
+          "httpStatus": 200,
+          "key": "7/187/55",
+          "reason": "decode-failure",
+          "sha256": "f99bda14d10b06b7cc8477f221cf8b82045f22560d2f082b0d0504822aea3e53",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/7/55/187"
+        }
+      ],
+      "responseBytes": 303455544,
+      "fallback": "Transparent missing pixels; independent runtime layers only. No source-parent substitution.",
+      "nativeValidSubset": {
+        "extent": "known-valid-subset",
+        "method": "Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling",
+        "nativeSourceLevel": 12,
+        "responses": [
+          "12/5858/1628"
+        ]
+      }
+    },
+    "jezero-ctx": {
+      "sourceSha256": "842b457afee7c2672022b66e3f60be836c6d52e99474015bfd9ced60099b8615",
+      "nativeGrid": [
+        4573663.250853,
+        6,
+        0,
+        1109693.140188,
+        0,
+        -6
+      ],
+      "rasterGsdM": 6.000000000000001,
+      "validPixels": 26822880,
+      "invalidPixels": 0,
+      "dtmGridAlignment": {
+        "absoluteGeolocationErrorM": null,
+        "coincident": false,
+        "finestSpacingM": 1,
+        "maximumGridPhaseErrorM": 0.25085300020873547,
+        "nativePixelRatio": 0.16666666666666666,
+        "note": "Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.",
+        "originOffsetsInFinestPixels": [
+          -3702.7491469997913,
+          3075.140187999932
+        ],
+        "policy": "independent-original-grids"
+      },
+      "filtering": {
+        "bytes": 41351444,
+        "gdal": "3.13.0",
+        "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+        "overviewFactors": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096
+        ],
+        "sha256": "665408b7a6e0fcf580771ade8b4a0c5f35b268dc0e677be8fec98412c586f7c5",
+        "supersample": 4
+      },
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "method": "all touched native cells plus two-cell interpolation halo",
+        "featuresChecked": 48
+      },
+      "sourceToOutputRegistration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 304,
+        "checkedPixels": 475,
+        "maximumAlphaErrorDn": 0,
+        "maximumErrorDn": 0.499923648941234,
+        "maximumGutterErrorDn": 0.499923648941234,
+        "maximumOutputSpacingM": 3.238859176635742,
+        "method": "stratified finest-output and gutter samples; independent affine inversion and native 2x2 masked windows; no staged overview reads",
+        "nativeValueStdDevDn": 22.79000656043986,
+        "note": "Sampled preservation of source registration/texture plus continuous requested output-tile coverage; not exhaustive native validity or absolute geolocation certification.",
+        "rmsErrorDn": 0.2814456846683545,
+        "sourcePixelSizeM": 6,
+        "sampledTiles": 19,
+        "continuousRequestedRegions": 118
+      }
+    },
+    "jezero-hirise": {
+      "sourceSha256": "83f3faeabc87ba54db9af278611bd070494a0b0d43757108c871c763943e80d9",
+      "nativeGrid": [
+        4577366,
+        0.25,
+        0,
+        1106618,
+        0,
+        -0.25
+      ],
+      "rasterGsdM": 0.25,
+      "validPixels": 4863409846,
+      "invalidPixels": 2494081354,
+      "dtmGridAlignment": {
+        "absoluteGeolocationErrorM": null,
+        "coincident": true,
+        "finestSpacingM": 0.25,
+        "maximumGridPhaseErrorM": 0,
+        "nativePixelRatio": 4,
+        "note": "Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.",
+        "originOffsetsInFinestPixels": [
+          0,
+          0
+        ],
+        "policy": "require-coincident-grids"
+      },
+      "filtering": {
+        "bytes": 6667852672,
+        "gdal": "3.13.0",
+        "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+        "overviewFactors": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          16384,
+          32768,
+          65536
+        ],
+        "sha256": "4f1833f16b66483ca652ff9ef7411d277eebfe337079da6d5591153f71dbfce5",
+        "supersample": 4
+      },
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "method": "all touched native cells plus two-cell interpolation halo",
+        "featuresChecked": 48
+      },
+      "sourceToOutputRegistration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 1568,
+        "checkedPixels": 2450,
+        "maximumAlphaErrorDn": 0,
+        "maximumErrorDn": 0.4999750111031318,
+        "maximumGutterErrorDn": 0.49981995189747863,
+        "maximumOutputSpacingM": 0.4048573970794678,
+        "method": "stratified finest-output and gutter samples; independent affine inversion and native 2x2 masked windows; no staged overview reads",
+        "nativeValueStdDevDn": 29.71453936674329,
+        "note": "Sampled preservation of source registration/texture plus continuous requested output-tile coverage; not exhaustive native validity or absolute geolocation certification.",
+        "rmsErrorDn": 0.29501737363048364,
+        "sourcePixelSizeM": 0.25,
+        "sampledTiles": 98,
+        "continuousRequestedRegions": 118
+      }
+    },
+    "viking": {
+      "responses": 11028,
+      "unavailableResponses": [],
+      "responseBytes": 512935344,
+      "fallback": "Transparent missing pixels; independent runtime layers only. No source-parent substitution.",
+      "nativeValidSubset": {
+        "extent": "known-valid-subset",
+        "method": "Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling",
+        "nativeSourceLevel": 7,
+        "responses": [
+          "7/183/50"
+        ]
+      }
+    }
+  },
+  "baselineInvalidUsedKernels": 0,
+  "fusionPlaneRetained": {
+    "afterPlane": {
+      "maxAbsM": 96.78352399830243,
+      "meanM": 8.499790859098853e-14,
+      "n": 4749862,
+      "p95AbsM": 33.68761187276017,
+      "rmsM": 15.880520798838809
+    },
+    "axes": "local east/north (km)",
+    "centroid": {
+      "latDeg": 18.48804879297973,
+      "lonDeg": 77.4034569842557
+    },
+    "fitStridePx": 8,
+    "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+    "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base",
+    "offsetM": -8.645969777066195,
+    "raw": {
+      "maxAbsM": 89.161376953125,
+      "meanM": -7.893571008697858,
+      "n": 4749862,
+      "p95AbsM": 39.94189453125,
+      "rmsM": 18.93642389993706
+    },
+    "removed": false,
+    "slopeEastMPerKm": 1.0121736526817324,
+    "slopeNorthMPerKm": -0.6852599991318675,
+    "tiltDeg": 0.07003399047059078
+  },
+  "toolchain": {
+    "gdal": "3.13.0",
+    "numpy": "2.4.6",
+    "python": "3.14.5"
+  },
+  "resources": {
+    "outputBytes": 1148202493,
+    "publishedBytes": null,
+    "objects": 5103,
+    "workDiskBytesAtCompletion": 34247344944,
+    "peakDiskBytes": null,
+    "sampledPeakScratchBytes": 34246808703,
+    "peakConcurrentWorkerRssBytes": 33164787712,
+    "elapsedSeconds": 2328.540069084,
+    "memoryMeasurement": {
+      "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
+      "peakConcurrentRssBytes": 33164787712,
+      "peakScratchBytes": 34246808703,
+      "physicalPeakRamBytes": null,
+      "rssUnavailableReason": null,
+      "sampleIntervalSeconds": 1,
+      "samples": 1909
+    }
+  },
+  "absoluteAccuracyCertified": false,
+  "productionUpload": false
+}

@@ -1,68 +1,90 @@
 # Ingenuity/Jezero #246 migration
 
-**Working draft: full mission acceptance is in progress in PR #292.** All of
-#246 remains in this PR. Production R2 upload and deployment require separate
-explicit authorization; neither has occurred.
+**All #246 implementation and local acceptance remain in PR #292. Production
+R2 upload and deployment require explicit authorization and have not occurred.**
 
-The implementation now includes corrected planetocentric/areoid-radial flight
-positions, explicitly estimated altitude/time profiles, a reusable physical
-neighbourhood refinement policy and conservative visual/CPU camera clearance,
-four independently acquired imagery sources, and candidate mission catalog
-integration. Candidate product pins now match the final compiled selection;
-the completed receipt must confirm them before acceptance. The actual mission
-Metal browser script passed on generated candidate data; replay against the
-fresh completed build remains required.
+The completed [V11 build](mission-build.json) passes the supported source,
+datum, native-grid, coverage and fidelity gates. Its five immutable products
+contain **5,103 data objects / 1,148,202,493 bytes**: authoritative terrain/CPU
+lattice plus independent Viking, global CTX, Jezero CTX and HiRISE imagery.
+The local mission catalog and unpublished dataset registrations match those
+exact products. All 72 estimated flights, original horizontal observations,
+landing sites, epochs, model, viewpoints and controls remain integrated.
 
-The full five-product run generated its imagery but failed a cross-product
-grid gate that assumed all orthomosaics shared the 1 m DTM lattice. The original
-6 m CTX grid has origin (4573663.250853, 1109693.140188) m; the DTM origin is
-(4577366, 1106618) m. Their finest-grid phase residual is 0.250853 m. The lock
-now explicitly declares CTX's independent original grid; source-to-output
-registration remains required. The HiRISE 0.25 m / DTM 1 m coincident-grid gate
-remains strict, including a shifted-grid rejection regression. Neither source
-is moved or regridded to manufacture coincidence. A fresh immutable build is
-completed with that policy; the rejected earlier run has no publication receipt.
-The completed V9 build contains 1,148,202,493 product bytes across one terrain
-and four imagery products. Its 6.4 MB completion receipt exposed a preflight
-reader limit intended for small fixtures. Completion receipts now allow up to
-32 MiB while ordinary JSON remains bounded to 2 MiB and full inventory checking
-is unchanged. This changes the locked executor identity, so V10 is rebuilding
-and must receive its own verified publication preflight and runtime replay.
+[Mission hardware acceptance](mission-runtime.json) passes on Chrome / physical
+Apple M4 Max Metal. It includes three sites / 75 operational pick rays,
+measurements and Fly to, fifteen estimated flight phases with real inspector
+readouts, visibility/opacity/order controls, eviction and independent optional
+and mandatory-base outage recovery. Fifteen cold/refining corridor positions
+along flights 1/12/72 plus a return visit use a 64 MiB geometry cache. Loading
+samples retain conservative clearance; settled CPU/selected-GLB agreement is
+required within 0.5 m. [MoonFall](moonfall-regression.json) also passes after the
+shared renderer changes.
 
-Local candidate viewing may use those generated files while validation finishes;
-the inspector labels that preview explicitly. Such a preview is not acceptance.
-GPU diagnostics also found optional roots could exhaust a four-source texture
-budget. Mandatory base roots now own unconditional residency; visible upper
-layers get refinement priority. The four-source regression uses a budget too
-small for all optional roots and still requires detail, unchanged geometry,
-bounded requests/memory, working controls and mandatory base fallback.
-Higher-priority refinement can replace a drawn optional ancestor or lower layer
-without a full-cache deadlock. Samplers are detached before their old texture is
-disposed; mandatory base roots continue to supply coverage.
+The user's recording exposed an imagery defect that settled-site checks missed.
+The [loading regression](imagery-loading.json) now fits complete visible source
+sets into the cache, prioritizes complete upper-source demand, reserves bounded
+transition room, retains a ready ancestor during refinement, and preserves that
+ancestor's source priority. Budget coarsening replaces obsolete fine tiles without
+stranding the new target; evictions immediately rebind ready ancestor samplers.
+View-driven optional ancestors establish fallback without pinning six roots for
+every source. The mission's hard imagery budget is **256 MiB**.
 
-[Candidate hardware acceptance](candidate-runtime.json) records three views,
-75 operational pick rays, measurements, Fly to, 15 explicitly estimated flight
-phase samples, imagery controls, eviction, optional outage/recovery and the
-mandatory-base outage with transparent overlays. The GPU was Apple M4 Max via
-Chrome Metal. [MoonFall regression](moonfall-regression.json) also passed after
-the shared changes. [Catalog preservation](catalog-contract.json) checks all 72
-arc identities/epochs, viewpoints, model, rotation and controls against the
-baseline. These records do not substitute for a completed five-product receipt
-or independent source accuracy. The local [390 px capture](captures/candidate-compact.png)
-visibly qualifies the reconstruction; build status is recorded above.
-The completed V9 replay additionally checks inspector clearance at all 15 flight
-phases. The inspector now subtracts heights in the same normal datum coordinate,
-correcting a prior radial/normal mix that overstated clearance on Mars. Flight
-positions and terrain are unchanged by that display correction.
-The same-pose [coarse imagery](captures/candidate-imagery-coarse.png) and
-[fine imagery](captures/candidate-imagery-fine.png) captures change only the
-imagery cap. CPU hits, selected geometry and source position/normal/index buffer
-signatures remain equal; displayed imagery advances from level 8 to 14.
+The GPU replay checks **49 actual viewport samplers** for each combination of
+two-layer/full-stack imagery and 256/128 MiB budgets: **196 points**. Default
+foreground HiRISE is level 14 at every point. At 128 MiB, the two-layer view
+settles uniformly at level 12 and the full stack at level 11, with the reduction
+reported as budget-limited. This verifies complete lower-resolution coverage,
+rather than accepting one detailed tile while other blocks remain near-blank.
+[256 MiB](captures/mission-imagery-motion-256.png) and
+[128 MiB](captures/mission-imagery-motion-128.png) captures show the difference.
 
-[Full mission reproduction](reproduce-mission.md) includes exact pinned response
-inventories and the [five-product lock](mission.lock.json). The global service
-grids are distinguished from nominal original mosaic GSDs. Final CTX native
-target is 6 m, above its 5.087588 m service interval.
+Actual [Jezero overhead](captures/mission-jezero-overhead.png),
+[distant Mars](captures/mission-distant-mars.png), and a
+[pinned original CTX missing-response location](captures/mission-ctx-hole.png)
+are recorded with alpha read from the exact bitmap used by the centre shader.
+The distant view shows transparent unsupported CTX over real opaque Viking.
+The pinned unavailable CTX response remains transparent; independent Jezero CTX
+and Viking remain below it. No holes are replaced with invented native pixels.
+The mandatory-base outage independently proves the static surface stays visible
+when transparent optional imagery is resident.
+
+[Navigation profiling](navigation-performance.json) covers stationary ground,
+moving ground, flight follow and orbit-to-surface transitions on Mars and
+MoonFall, 360 physical GPU frames each. The pre-optimization Mars navigation p99
+was 7.3–7.6 ms; all final scenarios are below 1 ms and the 4 ms navigation budget.
+Strict interior radial queries intersect the two original lattice triangles;
+cell/tile/face edges retain the general closed-boundary ownership rule. Radial
+coverage requests include all incident footprints without marching repeated
+coordinates. Selected GLB intersections retain original triangle math and mesh
+bounds. Full frame timings and occasional unrelated long frames are disclosed.
+There is no stale scalar-height cache or change to physical geometry.
+
+The independently phased 6 m CTX affine grid is explicitly retained in the
+[lock](mission.lock.json); its finest-grid phase residual against the 1 m DTM is
+0.250853 m. Its original-native-to-output registration proof remains required.
+The coincident HiRISE 0.25 m / DTM 1 m gate remains strict. Neither source is moved
+to manufacture coincidence. Native source/service intervals remain separate
+from generated output spacing and unknown absolute accuracy remains unknown.
+
+The completed receipt includes 19,132 entries. Its 32 MiB reader bound and
+entry-wise canonical inventory comparison preserve ordinary 2 MiB JSON limits
+and reject changed, missing or reordered entries. The clean V11 run and its
+[read-only publication preflight](mission-publication-plan.json) verify the full
+inventory. [Publication/candidate/rollback plan](publication-catalog-plan.json)
+contains the six URL replacements and five post-verification dataset pins.
+No production write, catalog pin or deployment has been made. Remote HTTP/CORS
+verification and capture of the exact live rollback baseline occur only after
+authorization, before the catalog switch.
+
+Focused validation: 155 renderer/catalog/Places tests, 20 executor/publication
+tests, full TypeScript/Svelte checks, changed-source lint and script syntax checks.
+The exact pushed-head CI is reported on PR #292. [Reproduction](reproduce-mission.md)
+and [catalog preservation](catalog-contract.json) remain part of the evidence.
+The [390 px inspector](captures/mission-compact.png) qualifies the estimates.
+The [coarse](captures/mission-imagery-coarse.png) and
+[fine](captures/mission-imagery-fine.png) paired captures retain identical CPU
+hits, selected geometry and position/normal/index buffers.
 
 Current scientific evidence:
 
@@ -89,12 +111,13 @@ Current scientific evidence:
   displacement is 12,060.271 m, combining the coordinate correction and
   explicitly estimated profile/timing changes. Every baseline file is hash-pinned.
 
-The unchanged original worst-boundary fixture has been replayed and still
-reproduces its 291.042 m discrepancy. New near-surface loading/clearance tests
-retain that evidence separately from operational mission tolerances. Focused
-renderer tests and the existing MoonFall Metal browser regression have passed.
-Final mission browser/GPU acceptance, exact product IDs, publication preflight,
-rollback, remote-head CI and final report updates remain open.
+The unchanged original worst-boundary fixture still reproduces 291.042 m.
+The new product's independently selected static worst boundaries remain
+280.094 m maximum / 182.272 m p95, with 48.496 m minimum rendered clearance at
+nominal 50 m CPU clearance. Those far-field diagnostics are retained separately
+from the runtime operational gate: all fifteen corridor samples settle within
+0.5 m, and loading keeps the camera above both physical and selected surfaces.
+No global edge-stitching or absolute terrain accuracy claim is made.
 
 ## Historical source preflight
 
@@ -230,7 +253,7 @@ The real profile now permits up to 128 controls so the 73-site mission audit is
 not truncated to the pilot's 64-control ceiling; the synthetic profile keeps its
 64-control ceiling and the 2,048-tile bound is unchanged.
 
-**The geometry/LOD acceptance still fails.** Generated worst-boundary samples
+**Historical static geometry/LOD diagnostic (retained, not an operational acceptance).** Generated worst-boundary samples
 have maximum CPU/rendered difference **280.094 m**, p95 **182.272 m** and minimum
 rendered clearance **48.496 m** for nominal 50 m CPU clearance. The old foundation
 had 291.042 m / 30.797 m / 30.239 m respectively. These are different products
@@ -242,9 +265,10 @@ fixture is unchanged, and has not been rebound to the new product.
 
 The executor's `passed-supported-gates` result does **not** gate these CPU/rendered
 deviations against a mission-operation tolerance. Source accuracy, representation
-error, skirt hits, and current visual residency remain separate. A reusable
-renderer/LOD prerequisite and cold/refining/settled near-ground acceptance are
-still required. This product has not been accepted for ground-level operations.
+error, skirt hits, and current visual residency remain separate. At that checkpoint a reusable renderer/loading fix and operational acceptance
+were still required. The current mission runtime report above now records those
+checks on the completed five-product build. These static worst-boundary values
+remain separate from that local runtime acceptance.
 
 ### Reproduce without publication
 

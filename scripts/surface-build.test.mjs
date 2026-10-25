@@ -8,7 +8,7 @@ import { compileBuild, inspectBindings, hashFile, buildInputs, jsonFile, identit
 import { buildInventory } from './data-hosting/lib/publish.mjs';
 import { runBuildCli } from './build-surface.mjs';
 import { createFixture } from './surface-build/fixture.mjs';
-import { executeBuild, publishLocalFixture, readCompleted } from './surface-build/run.mjs';
+import { executeBuild, publishLocalFixture, readCompleted, sameInventory } from './surface-build/run.mjs';
 import { publicationPlan, publishBuild, catalogCandidate, applyCatalogCandidate } from './surface-build/publication.mjs';
 import { publishedFeedback } from './surface-build/report.mjs';
 import { createLocalStorage } from './data-hosting/lib/storage.mjs';
@@ -37,6 +37,16 @@ beforeAll(async () => { temp = await mkdtemp(join(tmpdir(), 'surface-build-test-
 afterAll(async () => { await rm(temp, { recursive: true, force: true }); });
 
 describe('finite locked surface build planning', () => {
+  it('compares full response inventories beyond ordinary JSON limits and rejects altered or reordered entries', () => {
+    const entries = Array.from({ length: 10_000 }, (_, i) => ({ path: `${String(i).padStart(5, '0')}/${'x'.repeat(200)}.png`, size: i, sha256: 'a'.repeat(64), gzip: false }));
+    expect(() => contentIdentity(entries)).toThrow(/exceeds/);
+    const copy = structuredClone(entries);
+    expect(sameInventory(entries, copy)).toBe(true);
+    copy[9999].sha256 = 'b'.repeat(64);
+    expect(sameInventory(entries, copy)).toBe(false);
+    expect(sameInventory(entries, [...entries].reverse())).toBe(false);
+    expect(sameInventory(entries, entries.slice(1))).toBe(false);
+  });
   it('reads a bounded large completion receipt without relaxing ordinary JSON or inventory verification', async () => {
     const directory=join(temp,'large-completion');await mkdir(directory);
     const dag={buildId:'a'.repeat(64),lockIdentity:'sha256:'+'b'.repeat(64)};

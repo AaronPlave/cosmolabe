@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { needsNearSurfaceDetail, renderedCubeRadius } from '../surface/CubeNavigation.js';
+import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius } from '../surface/CubeNavigation.js';
+import { cubeFaceToDirection, type CubeHeightTile } from '../surface/CubeSphere.js';
+import { cubeTileMesh } from '../surface/CubeSphereGrids.js';
 
 function tile(root: THREE.Group, radius: number, skirtRadius = radius+50): THREE.Group {
   const geometry = new THREE.BufferGeometry();
@@ -15,6 +17,43 @@ function tile(root: THREE.Group, radius: number, skirtRadius = radius+50): THREE
 }
 
 describe('cube near-surface loading and navigation', () => {
+  it('matches exhaustive radial lattice triangle intersections across cube faces and levels', () => {
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), hit = new THREE.Vector3();
+    for (const face of ['px','nx','py','ny','pz','nz'] as const) for (const level of [0,3,15]) {
+      const tile: CubeHeightTile = { face, level, x: level ? 2 : 0, y: level ? 3 : 0, width: 17, height: 17,
+        elevationsKm: Float64Array.from({length: 289}, (_, i) => Math.sin(i*.73)*.01) };
+      const mesh = cubeTileMesh(tile, 3396.19);
+      for (const [u,v] of [[.173,.371],[.913,.613],[.437,.843]]) {
+        const direction = new THREE.Vector3(...cubeFaceToDirection(face, -1+2*(tile.x+u)/2**level, -1+2*(tile.y+v)/2**level));
+        const ray = new THREE.Ray(direction.clone().multiplyScalar(3450), direction.clone().negate());
+        let expected: number | null = null;
+        for (let i = 0; i < mesh.indices.length; i += 3) {
+          a.fromArray(mesh.positionsKm, mesh.indices[i]*3); b.fromArray(mesh.positionsKm, mesh.indices[i+1]*3); c.fromArray(mesh.positionsKm, mesh.indices[i+2]*3);
+          if (ray.intersectTriangle(a,b,c,false,hit)) expected = Math.max(expected ?? -Infinity, hit.dot(direction));
+        }
+        expect(expected).not.toBeNull();
+        expect(radialCellRadius(tile,u,v,direction,3396.19,3450)).toBeCloseTo(expected!,9);
+      }
+      expect(radialCellRadius(tile,0,.371,new THREE.Vector3(1,0,0),3396.19,3450)).toBeNull();
+      expect(radialCellRadius(tile,.5,.371,new THREE.Vector3(1,0,0),3396.19,3450)).toBeNull();
+    }
+  });
+  it('requests radial coverage at all closed incident tile edges and cube faces without a shell march', () => {
+    const interior = radialCubeCoordinates(new THREE.Vector3(1, .12345, .31415), 15);
+    expect(interior).toHaveLength(1);
+    expect(interior[0].face).toBe('px');
+    const centre = radialCubeCoordinates(new THREE.Vector3(1, 0, 0), 15);
+    expect(centre).toHaveLength(4);
+    expect(centre.some(c => c.u < 0 && c.v < 0)).toBe(true);
+    expect(centre.some(c => c.u > 0 && c.v > 0)).toBe(true);
+    const edge = radialCubeCoordinates(new THREE.Vector3(1, 1, 0), 15);
+    expect(edge).toHaveLength(4);
+    expect(new Set(edge.map(c => c.face))).toEqual(new Set(['px', 'py']));
+    const corner = radialCubeCoordinates(new THREE.Vector3(1, 1, 1), 15);
+    expect(corner).toHaveLength(3);
+    expect(new Set(corner.map(c => c.face))).toEqual(new Set(['px', 'py', 'pz']));
+    expect([...centre, ...edge, ...corner].every(c => Math.abs(c.u) <= 1 && Math.abs(c.v) <= 1)).toBe(true);
+  });
   it('refines all nearby neighbours at a shared boundary independently of the view frustum', () => {
     const detail = { eye: new THREE.Vector3(100,0,0), radiusM: 500, maxErrorM: .5 };
     const volume = (distance: number) => ({ distanceToPoint: () => distance });

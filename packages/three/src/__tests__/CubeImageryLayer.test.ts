@@ -135,6 +135,11 @@ describe('CubeImageryLayer', () => {
     }
     expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(address.level);
     expect(layer.stats.pinnedTextures).toBe(6);
+    // A settled camera must not repeatedly replace visible detail with requests
+    // for other blocks that cannot all fit in the texture budget.
+    const settledRequests = layer.stats.requests;
+    for (let i = 0; i < 30; i++) await tick();
+    expect(layer.stats.requests).toBe(settledRequests);
     layer.setOptions({maxLevel:4});
     for(let i=0;i<20;i++)await tick();
     expect(layer.stats.maxDisplayedLevel).toBeLessThanOrEqual(4);
@@ -435,7 +440,77 @@ describe('CubeImageryLayer', () => {
       expect(s.pinnedTextures).toBe(30);
       expect(s.textureBytes).toBeLessThanOrEqual(40 * tile + 1);
     }
+    // Fitting the visible set can avoid churn entirely. Force a real trim to
+    // the mandatory footprint after leaving detail, and verify those entries
+    // are evicted while every mandatory texture survives.
+    layer.setOptions({ maxTextureBytes: 30 * tile });
+    tick(camera(2_000_000));
+    expect(layer.stats.pinnedTextures).toBe(30);
+    expect(layer.stats.textureBytes).toBeLessThanOrEqual(30 * tile + 1);
     expect(layer.stats.evicted).toBeGreaterThan(0);
+    layer.dispose();
+  });
+
+  it('retains drawn detail while a zoom needs a finer tile in a full cache', async () => {
+    const tileBytes = 264 * 264 * 4 * 4 / 3;
+    // Thirty mandatory coarse tiles plus one detail tile, with downloads held
+    // by the controlled loader. A pending replacement cannot provide fallback.
+    const { layer, loader, tick } = await setup({ maxTextureBytes: 31 * tileBytes, maxConcurrentRequests: 30 });
+    await loader.settle();
+    for (let i = 0; i < 12; i++) { tick(camera(100_000)); await loader.settle(); }
+    const before = layer.stats.maxDisplayedLevel;
+    expect(before).toBeGreaterThan(1);
+    expect(before).toBeLessThan(9);
+    tick(camera(1000));
+    // No ready foreground texture may be disposed to make room for an
+    // unresolved request. Budget pressure is exposed explicitly instead.
+    expect(layer.stats.textures).toBe(31);
+    expect(layer.stats.inFlight).toBe(0);
+    expect(layer.stats.budgetLimited).toBe(true);
+    tick(camera(1000));
+    expect(layer.stats.maxDisplayedLevel).toBeGreaterThanOrEqual(before);
+    layer.dispose();
+  });
+
+  it('prioritizes the finest foreground request after mandatory coverage fits', async () => {
+    const tileBytes = 264 * 264 * 4 * 4 / 3;
+    const { layer, loader, tick } = await setup({ maxTextureBytes: 100 * tileBytes, maxConcurrentRequests: 30 });
+    await loader.settle();
+    tick(camera(100_000));
+    expect(loader.pending.size).toBeGreaterThan(0);
+    const requestedLevel = Number([...loader.pending.keys()][0].split('/')[1]);
+    expect(requestedLevel).toBe(Math.max(...Object.keys(layer.stats.wantedLevels).map(Number)));
+    layer.dispose();
+  });
+
+  it('keeps mandatory coarse requests ahead of foreground detail during partial startup', async () => {
+    const { layer, loader, tick } = await setup({ maxConcurrentRequests: 1 });
+    await loader.settle(); // only the first mandatory request has completed
+    tick(camera(1000));
+    expect(loader.pending.size).toBe(1);
+    expect(Number([...loader.pending.keys()][0].split('/')[1])).toBeLessThanOrEqual(1);
+    layer.dispose();
+  });
+
+  it('converges to a complete fitted cover with only two non-base texture slots', async () => {
+    const tileBytes=264*264*4*4/3;
+    const layers=['base','lower','upper'].map(id=>({type:'cube' as const,id,url:`http://${id}/imagery.json`}));
+    const layer=new CubeImageryLayer({url:layers[0].url,layers,maxConcurrentRequests:3,maxTextureBytes:8*tileBytes},{
+      fetchManifest:async()=>manifest(7),
+      loadTexture:async()=>({texture:new THREE.Texture(),bytes:tileBytes,downloadBytes:1}),
+    });
+    await layer.ready;
+    const root=new THREE.Group(),address=directionToTexel(southPole,3,256,4).address,{scene}=geometryTile(address);
+    root.add(scene);layer.addTile(scene,scene,address);
+    for(let i=0;i<60;i++){
+      layer.update(camera(3000),root.matrixWorld,.001,null);await new Promise(r=>setTimeout(r,0));
+      expect(layer.stats.textureBytes+layer.stats.inFlight*tileBytes).toBeLessThanOrEqual(8*tileBytes+1);
+    }
+    expect(layer.stats.pinnedTextures).toBe(6);
+    expect(layer.stats.queued).toBe(0); // a ready root must not strand its fitted replacement
+    expect(layer.stats.maxDisplayedLevel).toBeGreaterThanOrEqual(3);
+    expect(layer.stats.baseUncoveredBlocks).toBe(0);
+    expect(layer.stats.budgetLimited).toBe(true); // lower sources/detail are explicitly constrained
     layer.dispose();
   });
 

@@ -1,4 +1,4 @@
-# Reproduce the full mission candidate without publishing
+# Reproduce the validated full mission without publishing
 
 The historical audit commands in [README](README.md) create a clean fusion,
 original DEM overview dependency, and numerical audit. Their legacy-flight
@@ -116,3 +116,40 @@ the shared publisher requires the exact preflight identity, verifies immutable
 objects over HTTP, and creates the receipt used to prepare hosted pins and an
 offline rollback candidate. Neither a preflight nor a local GPU pass asserts
 independent absolute source accuracy or exact flight telemetry.
+
+
+## Completed review identity and publication boundary
+
+The completed local build is
+`3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee`.
+[Build/coverage/native-grid evidence](mission-build.json) and
+[physical GPU acceptance](mission-runtime.json) refer to those exact five
+products. [Publication preflight](mission-publication-plan.json) contains their
+immutable prefixes, object counts and inventory hashes. The confirmation identity
+is `422106b1408453c45c50380327501bdb8d26aa2adc11f513706957b515536bca`.
+It must be regenerated and matched before any authorized remote publication.
+
+The [offline catalog plan](publication-catalog-plan.json) prepares all six URL
+replacements, five post-verification dataset pins and local rollback operations.
+It does not claim a remote receipt or capture of the live deployment. After
+explicit authorization, publication verifies every object/hash/type/cache policy,
+missing-object HTTP 404 and the selected deployment/localhost CORS origins before
+pinning. Capture the exact live deployment/catalog backup before switching it;
+rollback restores that backup and leaves immutable scientific data intact.
+The upload would create 5,103 product objects plus ten publication metadata
+objects. Product bytes total 1,148,202,493; published bytes remain null.
+
+Final local acceptance commands:
+
+```sh
+node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ "$RUN/browser"
+node scripts/test-near-surface-performance.mjs http://localhost:5173/ "$RUN/navigation"
+CUBE_STYLE_URL=http://localhost:5173 CUBE_STYLE_OUT="$RUN/moonfall" \
+  CUBE_STYLE_CATALOGS=test-catalogs/moonfall-shackleton \
+  node scripts/test-cube-surface-appearance.mjs
+```
+
+The mission uses a 256 MiB hard imagery budget. The first command additionally
+checks 49 viewport samplers in both two-layer/full-stack configurations at
+256 MiB and 128 MiB; lower budgets explicitly fit coarser complete covers.
+Neither these commands nor the publication preflight upload or deploy anything.

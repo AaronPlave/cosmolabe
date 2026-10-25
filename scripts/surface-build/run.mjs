@@ -11,7 +11,11 @@ import { CubeSphereGridSource } from '../../packages/three/dist/surface/CubeSphe
 import { validateCubeImageryManifest } from '../../packages/three/dist/surface/CubeImagery.js';
 
 const json = v => JSON.stringify(v, null, 2) + '\n';
-const sameInventory = (a, b) => identity(a) === identity(b);
+// A completion receipt may contain many original-response files. Compare each
+// canonical entry in order instead of applying the ordinary 2 MiB JSON limit
+// to their aggregate; the enclosing receipt is independently bounded to 32 MiB.
+export const sameInventory = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
+  a.every((entry, i) => identity(entry) === identity(b[i]));
 async function exists(p) { try { await stat(p); return true; } catch (e) { if (e.code !== 'ENOENT') throw e; return false; } }
 async function command(file, args, log) {
   await new Promise((done, reject) => {

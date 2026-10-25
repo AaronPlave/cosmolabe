@@ -1,0 +1,130 @@
+{
+  "kind": "ingenuity-offline-publication-catalog-plan",
+  "version": 1,
+  "status": "prepared only; no upload, deployment, catalog pin or remote verification",
+  "publicationPlanIdentity": "422106b1408453c45c50380327501bdb8d26aa2adc11f513706957b515536bca",
+  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "documentedDataBaseUrl": "https://data.aaronplave.com",
+  "catalogFile": "apps/viewer/test-catalogs/ingenuity-jezero.json",
+  "beforeIdentity": "5b90153f55d8de0a70a6ac10bca96e6bd922538af73b899b23668129b6f7e6af",
+  "afterIdentity": "3963b5714f021412d956ef4e738c648eb276cb3832f2a9eb5d6300b4a124b25b",
+  "operations": [
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/terrain/url",
+      "fromValue": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/tileset-measured.json",
+      "value": "https://data.aaronplave.com/cube-terrain/terrain-419154e47324aa446cd9c921/419154e47324aa446cd9c921d92f1a8c/tileset-measured.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/terrain/cubeSphere/cpuGrids",
+      "fromValue": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/cpu-grids.json",
+      "value": "https://data.aaronplave.com/cube-terrain/terrain-419154e47324aa446cd9c921/419154e47324aa446cd9c921d92f1a8c/cpu-grids.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/0/url",
+      "fromValue": "data/ingenuity-cube/imagery-67c8de41ba60020ba061abeb/imagery.json",
+      "value": "https://data.aaronplave.com/cube-imagery/imagery-67c8de41ba60020ba061abeb/67c8de41ba60020ba061abebcd29c6d5/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/1/url",
+      "fromValue": "data/ingenuity-cube/imagery-634384b8f9eeb21c8bd4a62e/imagery.json",
+      "value": "https://data.aaronplave.com/cube-imagery/imagery-634384b8f9eeb21c8bd4a62e/634384b8f9eeb21c8bd4a62e32a54e9a/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/2/url",
+      "fromValue": "data/ingenuity-cube/imagery-5e6fab0c580bafe0fdd5d189/imagery.json",
+      "value": "https://data.aaronplave.com/cube-imagery/imagery-5e6fab0c580bafe0fdd5d189/5e6fab0c580bafe0fdd5d18912cde496/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/3/url",
+      "fromValue": "data/ingenuity-cube/imagery-4cd46626d81b2e5f677b7b45/imagery.json",
+      "value": "https://data.aaronplave.com/cube-imagery/imagery-4cd46626d81b2e5f677b7b45/4cd46626d81b2e5f677b7b4550655b36/imagery.json"
+    }
+  ],
+  "rollbackOperations": [
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/terrain/url",
+      "fromValue": "https://data.aaronplave.com/cube-terrain/terrain-419154e47324aa446cd9c921/419154e47324aa446cd9c921d92f1a8c/tileset-measured.json",
+      "value": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/tileset-measured.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/terrain/cubeSphere/cpuGrids",
+      "fromValue": "https://data.aaronplave.com/cube-terrain/terrain-419154e47324aa446cd9c921/419154e47324aa446cd9c921d92f1a8c/cpu-grids.json",
+      "value": "data/ingenuity-cube/terrain-419154e47324aa446cd9c921/cpu-grids.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/0/url",
+      "fromValue": "https://data.aaronplave.com/cube-imagery/imagery-67c8de41ba60020ba061abeb/67c8de41ba60020ba061abebcd29c6d5/imagery.json",
+      "value": "data/ingenuity-cube/imagery-67c8de41ba60020ba061abeb/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/1/url",
+      "fromValue": "https://data.aaronplave.com/cube-imagery/imagery-634384b8f9eeb21c8bd4a62e/634384b8f9eeb21c8bd4a62e32a54e9a/imagery.json",
+      "value": "data/ingenuity-cube/imagery-634384b8f9eeb21c8bd4a62e/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/2/url",
+      "fromValue": "https://data.aaronplave.com/cube-imagery/imagery-5e6fab0c580bafe0fdd5d189/5e6fab0c580bafe0fdd5d18912cde496/imagery.json",
+      "value": "data/ingenuity-cube/imagery-5e6fab0c580bafe0fdd5d189/imagery.json"
+    },
+    {
+      "op": "replace",
+      "path": "/items/5/geometry/imagery/3/url",
+      "fromValue": "https://data.aaronplave.com/cube-imagery/imagery-4cd46626d81b2e5f677b7b45/4cd46626d81b2e5f677b7b4550655b36/imagery.json",
+      "value": "data/ingenuity-cube/imagery-4cd46626d81b2e5f677b7b45/imagery.json"
+    }
+  ],
+  "datasetPins": {
+    "cube-terrain/terrain-419154e47324aa446cd9c921": {
+      "before": null,
+      "after": "419154e47324aa446cd9c921d92f1a8c"
+    },
+    "cube-imagery/imagery-67c8de41ba60020ba061abeb": {
+      "before": null,
+      "after": "67c8de41ba60020ba061abebcd29c6d5"
+    },
+    "cube-imagery/imagery-634384b8f9eeb21c8bd4a62e": {
+      "before": null,
+      "after": "634384b8f9eeb21c8bd4a62e32a54e9a"
+    },
+    "cube-imagery/imagery-5e6fab0c580bafe0fdd5d189": {
+      "before": null,
+      "after": "5e6fab0c580bafe0fdd5d18912cde496"
+    },
+    "cube-imagery/imagery-4cd46626d81b2e5f677b7b45": {
+      "before": null,
+      "after": "4cd46626d81b2e5f677b7b4550655b36"
+    }
+  },
+  "preconditions": [
+    "Explicit production R2 upload/deployment authorization.",
+    "Regenerate the publication plan and require its exact confirmation identity.",
+    "Verify every remote object/hash/type/cache header and exact inventory, missing-object HTTP 404 and CORS for the deployment and localhost origins.",
+    "Only then apply the five dataset pins and create the verified catalog candidate.",
+    "Capture and hash the exact live catalog/deployment before the authorized switch; reject concurrent changes."
+  ],
+  "rollback": {
+    "deployment": "Restore the exact pre-switch live catalog/deployment backup; do not delete immutable scientific objects.",
+    "localCandidate": "Apply rollbackOperations only if the current canonical identity equals afterIdentity.",
+    "repositoryBaselineCommit": "70899b98e7bfe218c81e0c73ef7494924ebf9152",
+    "repositoryBaselineCatalogSha256": "4671767d2cb2d7b1730c860e49b3f1686823613a2eb01df30a819287422a8c23",
+    "liveBaselineCaptured": false
+  },
+  "storage": {
+    "productObjects": 5103,
+    "metadataObjects": 10,
+    "plannedTotalObjects": 5113,
+    "productBytes": 1148202493,
+    "publishedBytes": null
+  }
+}

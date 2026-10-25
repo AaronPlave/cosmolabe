@@ -121,6 +121,7 @@ interface Entry {
   texture: THREE.Texture | null;
   bytes: number;
   lastUsed: number;
+  drawPriority: number;
   lastWanted: number;
   pinned: boolean;
   controller: AbortController | null;
@@ -280,6 +281,9 @@ export class CubeImageryLayer {
   private readonly order: Source[];
   private retryManifests: () => void = () => {};
   private frame = 0;
+  private sourceLevelCaps = new Map<number, number>();
+  private viewSelectionKey = '';
+  private viewBudgetLimited = false;
   private anisotropy = 1;
   private disposed = false;
   private counters = { requests: 0, bytes: 0, failures: 0, aborted: 0, evicted: 0, blockBuildMs: 0 };
@@ -503,6 +507,7 @@ export class CubeImageryLayer {
     for (const s of this.sources) s.info.view = s.info.visible ? { inCoverage: false, zoomLevel: null, missingTiles: 0, degradedTiles: 0, cacheFull: false } : null;
     const { tileSize } = this.manifest;
     const culledStats = { ...stats, displayedLevels: {}, wantedLevels: {} };
+    const selections: { record: TileRecord; m: MeshRecord; leaves: ImageryBlock[]; culled: boolean }[] = [];
     for (const record of this.tiles.values()) {
       // A tile is drawn this frame exactly when the renderer has its scene attached.
       if (!record.scene.parent) continue;
@@ -510,7 +515,6 @@ export class CubeImageryLayer {
       // may be by the instrument view: it gets the best resident imagery at its own
       // level, unsplit and requesting nothing, and stays out of the drawn stats.
       const culled = !record.scene.visible;
-      const s = culled ? culledStats : stats;
       for (const m of record.meshes) {
         // Reclip only when source style fields change (activation, visibility or
         // LOD neighbours). Uniform-only edits do not rebuild geometry.
@@ -527,35 +531,40 @@ export class CubeImageryLayer {
         const leaves = selectImageryBlocks({ geometry: record.address, radiusRangeKm: m.radiusRangeKm, cameraKm, pixelAngleRad,
           maxScreenTexelError: this.options.maxScreenTexelError, tileSize, availability: this.availability, maxBlocks: this.options.maxBlocksPerTile,
           inView: culled ? () => false : inView });
-        s.tiles++;
-        const whole = leaves.length === 1 && leaves[0].level === record.address.level;
-        if (whole) {
-          this.unsplit(m);
-          this.show(record.address, leaves[0], m.uniforms, wanted, s);
-          continue;
-        }
-        stats.splitTiles++;
-        m.mesh.visible = false;
-        splitSources.add(m.mesh);
-        const live = new Set<string>();
-        for (const leaf of leaves) {
-          const id = cubeTileId(leaf);
-          live.add(id);
-          const block = m.blocks.get(id) ?? this.buildBlock(record, m, leaf, id);
-          // Fade uniforms are shared with the source callback, but clones
-          // also need its current compile-time fade switch on every frame.
-          const sourceDefines = (m.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
-          const blockDefines = (block.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
-          if (sourceDefines && blockDefines && blockDefines.FEATURE_FADE !== sourceDefines.FEATURE_FADE) {
-            blockDefines.FEATURE_FADE = sourceDefines.FEATURE_FADE;
-            block.material.needsUpdate = true;
-          }
-          block.mesh.visible = true;
-          block.lastUsed = this.frame;
-          this.show(record.address, leaf, block.uniforms, wanted, stats);
-        }
-        for (const [id, block] of m.blocks) if (!live.has(id)) block.mesh.visible = false;
+        selections.push({ record, m, leaves, culled });
       }
+    }
+    this.fitView(selections.flatMap(s => s.leaves));
+    for (const { record, m, leaves, culled } of selections) {
+      const s = culled ? culledStats : stats;
+      s.tiles++;
+      const whole = leaves.length === 1 && leaves[0].level === record.address.level;
+      if (whole) {
+        this.unsplit(m);
+        this.show(record.address, leaves[0], m.uniforms, wanted, s);
+        continue;
+      }
+      stats.splitTiles++;
+      m.mesh.visible = false;
+      splitSources.add(m.mesh);
+      const live = new Set<string>();
+      for (const leaf of leaves) {
+        const id = cubeTileId(leaf);
+        live.add(id);
+        const block = m.blocks.get(id) ?? this.buildBlock(record, m, leaf, id);
+        // Fade uniforms are shared with the source callback, but clones
+        // also need its current compile-time fade switch on every frame.
+        const sourceDefines = (m.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
+        const blockDefines = (block.material as THREE.Material & { defines?: Record<string, unknown> }).defines;
+        if (sourceDefines && blockDefines && blockDefines.FEATURE_FADE !== sourceDefines.FEATURE_FADE) {
+          blockDefines.FEATURE_FADE = sourceDefines.FEATURE_FADE;
+          block.material.needsUpdate = true;
+        }
+        block.mesh.visible = true;
+        block.lastUsed = this.frame;
+        this.show(record.address, leaf, block.uniforms, wanted, stats);
+      }
+      for (const [id, block] of m.blocks) if (!live.has(id)) block.mesh.visible = false;
     }
     // Blocks unused for ~2 s are rebuilt on demand rather than held.
     for (const record of this.tiles.values()) for (const m of record.meshes) {
@@ -564,6 +573,7 @@ export class CubeImageryLayer {
     // Coarse fallback participates in the same queue and reservations as fine imagery.
     for (const [id, priority] of this.coarseWanted()) wanted.set(id, priority);
     const queued = this.schedule(wanted);
+    queued.budgetLimited ||= this.viewBudgetLimited;
     for (const s of this.sources) if (s.info.view) s.info.view.cacheFull = queued.budgetLimited;
     this.last = { ...stats, queued: queued.count, budgetLimited: queued.budgetLimited, extraDraws: stats.blocks - stats.tiles,
       updateMs: performance.now() - start };
@@ -618,6 +628,72 @@ export class CubeImageryLayer {
     return wanted;
   }
 
+  private cappedImage(image: ImageryAddress, cap: number): ImageryAddress {
+    const level = Math.min(image.level, cap), shift = image.level-level;
+    return { face: image.face, level, x: image.x >> shift, y: image.y >> shift };
+  }
+
+  /** Fit complete visible source sets, rather than admitting arbitrary tiles
+   * until the cache fills. Reserve bounded transition room while prioritizing
+   * the upper source's complete view. Small budgets reduce source LOD coherently,
+   * never physical LOD.
+   */
+  private fitView(leaves: ImageryBlock[]): void {
+    const desired = new Map<Source, Map<string, ImageryAddress>>();
+    for (const source of this.order) {
+      if (!source.info.visible || source.info.opacity <= 0 || !source.availability) continue;
+      const images = new Map<string, ImageryAddress>();
+      for (const leaf of leaves) if (leaf.inView && cubeBlockOverlapsBounds(leaf, source.info.bounds)) {
+        const image = source.availability.deepestAncestor(leaf.image);
+        if (image) images.set(cubeTileId(image), image);
+      }
+      if (images.size) desired.set(source, images);
+    }
+    const key = `${this.options.maxTextureBytes}/${this.options.residentLevel}/` + [...desired].map(([source, images]) => `${source.index}:${[...images.keys()].sort().join(',')}`).join(';');
+    if (key === this.viewSelectionKey) return;
+    this.viewSelectionKey = key;
+    const span = this.manifest!.tileSize + 2*this.manifest!.gutter, tileBytes = Math.round(span*span*4*4/3);
+    const free = Math.max(0, Math.floor(this.options.maxTextureBytes/tileBytes)-this.coarseWanted().size);
+    const reserve = free>1 ? Math.min(this.options.maxConcurrentRequests, Math.max(1,Math.floor(free/8))) : 0;
+    const capacity = free-reserve;
+    const counts = new Map<Source, number[]>();
+    for (const [source, images] of desired) {
+      const max = Math.max(...[...images.values()].map(a => a.level));
+      const levels = [];
+      for (let level = 0; level <= max; level++) {
+        const ids = new Set<string>();
+        for (const image of images.values()) {
+          const a = this.cappedImage(image,level);
+          if (source.index !== 0 || a.level > this.options.residentLevel) ids.add(cubeTileId(a));
+        }
+        levels.push(ids.size);
+      }
+      counts.set(source,levels);
+    }
+    // Every active optional source starts with complete coarse view coverage.
+    // If even that cannot fit, retain the base and disable lower-priority
+    // optional contributions explicitly through the fitted cap.
+    const quota = new Map([...counts].map(([source,levels]) => [source,levels[0]]));
+    let used = [...quota.values()].reduce((a,b)=>a+b,0);
+    for (const source of this.order) if (used>capacity && source.index>0 && quota.has(source)) {
+      used -= quota.get(source)!;quota.delete(source);
+    }
+    // Admit a complete upper source before refining the next one. Every lower
+    // source still owns a fitted coarse cover under transparency/opacity.
+    const active = [...this.order].reverse().filter(source=>quota.has(source));
+    for (const source of active) {
+      const extra = Math.min(capacity-used, counts.get(source)!.at(-1)!-quota.get(source)!);
+      quota.set(source,quota.get(source)!+extra);used+=extra;
+    }
+    this.sourceLevelCaps.clear();this.viewBudgetLimited=false;
+    for (const [source,levels] of counts) {
+      let cap=-1;
+      if(quota.has(source))for(let level=0;level<levels.length;level++)if(levels[level]<=quota.get(source)!)cap=level;
+      this.sourceLevelCaps.set(source.index,cap);
+      if(cap<levels.length-1)this.viewBudgetLimited=true;
+    }
+  }
+
   private availabilityFor(manifest: CubeImageryManifest): CubeImageryAvailability {
     const maxLevel = Math.min(manifest.maxLevel, this.options.maxLevel ?? Infinity);
     return new CubeImageryAvailability(manifest.tiles.filter(id => Number(id.split('/')[1]) <= maxLevel), manifest.minLevel, maxLevel);
@@ -657,20 +733,33 @@ export class CubeImageryLayer {
       if (!source.info.visible || source.info.opacity <= 0 || !source.manifest || !source.availability || !cubeBlockOverlapsBounds(leaf, source.info.bounds)) continue;
       const image = source.availability.deepestAncestor(leaf.image);
       if (!image) continue;
-      const wantId = `${source.index}:${cubeTileId(image)}`;
-      const failed = this.failedAbove(image, source);
+      const cap = this.sourceLevelCaps.get(source.index) ?? image.level;
+      if (cap < 0) continue;
+      const target = this.cappedImage(image, cap);
+      const wantId = `${source.index}:${cubeTileId(target)}`;
+      const failed = this.failedAbove(target, source);
+      const stackPriority = (this.order.length-1-i)*1_000_000;
       if ((leaf.inView || (source.index === 0 && image.level <= this.options.residentLevel)) && !failed) {
         // After guaranteed base roots, load the top visible layer first. Lower
         // layers may use their resident fallback while sharper imagery arrives;
         // refining them first can permanently starve the top source's detail.
-        const stackPriority = (this.order.length-1-i)*1_000_000;
-        wanted.set(wantId, Math.min(wanted.get(wantId) ?? Infinity, stackPriority + image.level * 64 - Math.min(leaf.desiredLevel, 63)));
+        // Spend a bounded cache on the near, detailed view first. Coarse-first
+        // ordering lets distant blocks evict foreground detail during zooms,
+        // leaving a blurry centre even while maxDisplayedLevel looks healthy.
+        wanted.set(wantId, Math.min(wanted.get(wantId) ?? Infinity, stackPriority + (63-target.level) * 64 - Math.min(leaf.desiredLevel, 63)));
       }
-      let shown: Entry | null = null;
+      const selected = this.entries.get(wantId);
+      let shown: Entry | null = selected?.state === 'ready' ? selected : null;
       for (let level = image.level; level >= 0 && !shown; level--) {
         const shift = image.level - level;
         const e = this.entries.get(`${source.index}:${cubeTileId({ face: image.face, level, x: image.x >> shift, y: image.y >> shift })}`);
         if (e?.state === 'ready') shown = e;
+      }
+      if (!shown && leaf.inView && source.index>0) {
+        const root={face:image.face,level:0,x:0,y:0}, rootId=`${source.index}:${cubeTileId(root)}`;
+        // Establish a ready ancestor before filling detail for a newly exposed
+        // source footprint. This is view-driven, never six pinned roots/source.
+        if(!this.failedAbove(root,source))wanted.set(rootId,Math.min(wanted.get(rootId)??Infinity,stackPriority-50));
       }
       const e = this.entries.get(wantId);
       if (e) e.lastWanted = this.frame;
@@ -685,8 +774,14 @@ export class CubeImageryLayer {
       // The mandatory base is the coverage guarantee. Optional sources may
       // contain alpha/nodata even when their textures are resident.
       if (source.index === 0) baseCovered = true;
-      shown.lastUsed = this.frame;
-      if (shown.address.level < image.level && leaf.inView) { if (failed) failedBlock = true; else fallback = true; }
+      // Offscreen blocks may reuse resident imagery (e.g. an instrument view)
+      // but must not lock the main-view cache against visible refinement.
+      if (leaf.inView) {
+        const priority=stackPriority+(63-target.level)*64-Math.min(leaf.desiredLevel,63);
+        shown.drawPriority=shown.lastUsed===this.frame?Math.min(shown.drawPriority,priority):priority;
+        shown.lastUsed = this.frame;
+      }
+      if (shown.address.level < target.level && leaf.inView) { if (failed) failedBlock = true; else fallback = true; }
       maxShown = Math.max(maxShown, shown.address.level);
       if (shown.texture && shown.texture.anisotropy !== this.anisotropy) { shown.texture.anisotropy = this.anisotropy; shown.texture.needsUpdate = true; }
       u.map.value = shown.texture;
@@ -786,7 +881,7 @@ export class CubeImageryLayer {
     let budgetLimited = false, started = 0;
     for (const [id, priority] of missing) {
       if (loading >= this.options.maxConcurrentRequests) break;
-      if (used + estimate > this.options.maxTextureBytes) used -= this.evict(used + estimate - this.options.maxTextureBytes, wanted, priority);
+      if (used + estimate > this.options.maxTextureBytes) used -= this.evict(used + estimate - this.options.maxTextureBytes, wanted, priority, id);
       if (used + estimate > this.options.maxTextureBytes) { budgetLimited = true; break; }
       this.request(id, id.startsWith('0:') && Number(id.split(':')[1].split('/')[1]) <= this.options.residentLevel);
       used += estimate; loading++; started++;
@@ -810,26 +905,51 @@ export class CubeImageryLayer {
     return false;
   }
 
-  /** Keep mandatory fallback; allow a higher-priority refinement to replace a
-   * drawn optional ancestor/lower layer instead of deadlocking a full budget. */
-  private evict(need: number, wanted?: Map<string, number>, incomingPriority = Infinity): number {
-    const priority = (e: Entry) => wanted?.get(e.id) ?? Infinity;
+  /** Keep mandatory fallback and drawn same-source detail. A higher layer may
+   * reclaim a lower layer's textures while it refines within the shared budget. */
+  private evict(need: number, wanted?: Map<string, number>, incomingPriority = Infinity, incomingId?: string): number {
+    const priority = (e: Entry) => Math.min(wanted?.get(e.id) ?? Infinity,e.lastUsed===this.frame?e.drawPriority:Infinity);
+    const incomingSource = incomingId?.split(':')[0];
+    const incoming = incomingId ? parseImageryAddress(incomingId.split(':')[1]) : null;
+    const coarsens = (e: Entry) => {
+      if (!incoming || incoming.face !== e.address.face || incoming.level >= e.address.level) return false;
+      const shift = e.address.level-incoming.level;
+      return e.address.x >> shift === incoming.x && e.address.y >> shift === incoming.y;
+    };
     const candidates = [...this.entries.values()].filter(e => e.state === 'ready' && !e.pinned &&
-      (e.lastUsed < this.frame || incomingPriority < priority(e)))
+      (e.lastUsed < this.frame ||
+        (coarsens(e) && incomingSource===String(e.source.index) && !wanted?.has(e.id)) ||
+        (incomingPriority < priority(e) &&
+        // Keep a drawn ancestor until its replacement is resident. Dropping
+        // it to reserve a pending download exposes the coarse base every zoom.
+        // A constrained cache can retain detail and report budgetLimited.
+        (incomingSource === undefined || !e.id.startsWith(`${incomingSource}:`)))))
       .sort((a, b) => (priority(b)-priority(a)) || a.lastUsed-b.lastUsed);
     let freed = 0;
     for (const e of candidates) {
       if (freed >= need) break;
       freed += e.bytes;
-      // schedule runs after show(), before drawing. Detach any sampler using
-      // this texture before disposing/closing its image; mandatory base uniforms
-      // remain available while the higher-priority replacement is in flight.
+      // Rebind a resident ancestor before closing an evicted image. A hard
+      // budget reduction can replace finer tiles with a coarser fitted cover;
+      // it must neither deadlock on old fine textures nor blank their samplers.
+      let fallback: Entry | undefined;
+      for(let level=e.address.level-1;level>=0;level--){
+        const shift=e.address.level-level;
+        const candidate=this.entries.get(`${e.source.index}:${cubeTileId({face:e.address.face,level,x:e.address.x>>shift,y:e.address.y>>shift})}`);
+        if(candidate?.state==='ready'){fallback=candidate;break;}
+      }
       for (const tile of this.tiles.values()) for (const mesh of tile.meshes) {
         for (const uniforms of [mesh.uniforms, ...[...mesh.blocks.values()].map(b => b.uniforms)]) {
           for (const layer of uniforms.layers) if (layer.map.value === e.texture) {
-            layer.enabled.value = 0;
-            layer.map.value = null;
+            layer.map.value = fallback?.texture ?? null;
+            if(fallback){
+              layer.transform.value.fromArray(imageryTextureTransform(tile.address,fallback.address,e.source.manifest!.tileSize,e.source.manifest!.gutter));
+              layer.level.value=fallback.address.level;
+            }else layer.enabled.value = 0;
           }
+          const levels=uniforms.layers.filter(l=>l.enabled.value>0).map(l=>l.level.value);
+          uniforms.cubeImageryEnabled.value=levels.length?1:0;
+          uniforms.cubeImageryLevel.value=levels.length?Math.max(...levels):0;
         }
       }
       this.releaseTexture(e);
@@ -847,7 +967,7 @@ export class CubeImageryLayer {
     if (!source.manifest) return;
     const address = parseImageryAddress(tileId);
     const failures = this.entries.get(id)?.failures ?? 0;
-    const entry: Entry = { source, id, address, state: 'loading', texture: null, bytes: 0, lastUsed: 0, lastWanted: this.frame, pinned, controller, failedAt: 0, failures };
+    const entry: Entry = { source, id, address, state: 'loading', texture: null, bytes: 0, lastUsed: 0, drawPriority: Infinity, lastWanted: this.frame, pinned, controller, failedAt: 0, failures };
     this.entries.set(id, entry);
     this.counters.requests++;
     source.info.requests++;

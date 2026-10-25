@@ -1,0 +1,2072 @@
+{
+  "kind": "ingenuity-mission-hardware-acceptance",
+  "version": 1,
+  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "passed": true,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "commands": [
+    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/browser-whole-viewport-v4"
+  ],
+  "operationalToleranceM": 0.5,
+  "views": [
+    {
+      "name": "wright",
+      "lat": 18.44486301,
+      "lon": 77.45101915,
+      "navigation": {
+        "radiusKm": 3391.936496222438,
+        "physicalRadiusKm": 3391.9364962223435,
+        "renderedRadiusKm": 3391.936496222438,
+        "discrepancyM": 9.458744898438454e-08,
+        "settled": true
+      },
+      "clearanceM": 49.9999999051397,
+      "pickRays": 25,
+      "maximumPickOffsetM": 0.05575979155196978
+    },
+    {
+      "name": "delta",
+      "lat": 18.455,
+      "lon": 77.405,
+      "navigation": {
+        "radiusKm": 3391.9667410264274,
+        "physicalRadiusKm": 3391.9667410264274,
+        "renderedRadiusKm": 3391.966741026298,
+        "discrepancyM": -1.291482476517558e-07,
+        "settled": true
+      },
+      "clearanceM": 50.000000000636646,
+      "pickRays": 25,
+      "maximumPickOffsetM": 4.1716452159262517e-07
+    },
+    {
+      "name": "last-airfield",
+      "lat": 18.498,
+      "lon": 77.3273,
+      "navigation": {
+        "radiusKm": 3392.08914789448,
+        "physicalRadiusKm": 3392.089147894055,
+        "renderedRadiusKm": 3392.08914789448,
+        "discrepancyM": 4.2518877307884395e-07,
+        "settled": true
+      },
+      "clearanceM": 49.99999957635737,
+      "pickRays": 25,
+      "maximumPickOffsetM": 0.32224013075212365
+    }
+  ],
+  "corridors": [
+    {
+      "flight": 1,
+      "fraction": 0,
+      "lat": 18.44486301376033,
+      "lon": 77.45101914507781,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 9.595169103704393e-08,
+        "p95": 0.7711390526310424,
+        "maximum": 0.7711390526310424
+      },
+      "minimumLoadingClearanceM": 49.999999904684955,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9364962157088,
+          "physicalRadiusKm": 3391.936496215613,
+          "renderedRadiusKm": 3391.9364962157088,
+          "discrepancyM": 9.595169103704393e-08,
+          "settled": true
+        },
+        "clearanceM": 49.999999904684955,
+        "network": {
+          "requests": 182,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 1,
+      "fraction": 0.25,
+      "lat": 18.444863546056837,
+      "lon": 77.45101751913798,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 1.3142198440618813e-07,
+        "p95": 1.3142198440618813e-07,
+        "maximum": 1.3142198440618813e-07
+      },
+      "minimumLoadingClearanceM": 49.99999987012416,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9364944477484,
+          "physicalRadiusKm": 3391.936494447617,
+          "renderedRadiusKm": 3391.9364944477484,
+          "discrepancyM": 1.3142198440618813e-07,
+          "settled": true
+        },
+        "clearanceM": 49.99999987012416,
+        "network": {
+          "requests": 182,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 1,
+      "fraction": 0.5,
+      "lat": 18.44486536542558,
+      "lon": 77.45101675175322,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 1.6689227777533233e-07,
+        "p95": 1.6689227777533233e-07,
+        "maximum": 1.6689227777533233e-07
+      },
+      "minimumLoadingClearanceM": 49.999999834199116,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.936492608293,
+          "physicalRadiusKm": 3391.936492608126,
+          "renderedRadiusKm": 3391.936492608293,
+          "discrepancyM": 1.6689227777533233e-07,
+          "settled": true
+        },
+        "clearanceM": 49.999999834199116,
+        "network": {
+          "requests": 182,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 1,
+      "fraction": 0.75,
+      "lat": 18.44486090195009,
+      "lon": 77.45101754166724,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 9.868017514236271e-08,
+        "p95": 9.868017514236271e-08,
+        "maximum": 9.868017514236271e-08
+      },
+      "minimumLoadingClearanceM": 49.99999990241122,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9364961621654,
+          "physicalRadiusKm": 3391.9364961620668,
+          "renderedRadiusKm": 3391.9364961621654,
+          "discrepancyM": 9.868017514236271e-08,
+          "settled": true
+        },
+        "clearanceM": 49.99999990241122,
+        "network": {
+          "requests": 182,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 1,
+      "fraction": 1,
+      "lat": 18.444863739207005,
+      "lon": 77.45101958974305,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 9.549694368615746e-08,
+        "p95": 9.549694368615746e-08,
+        "maximum": 9.549694368615746e-08
+      },
+      "minimumLoadingClearanceM": 49.99999990423021,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9364961409656,
+          "physicalRadiusKm": 3391.93649614087,
+          "renderedRadiusKm": 3391.9364961409656,
+          "discrepancyM": 9.549694368615746e-08,
+          "settled": true
+        },
+        "clearanceM": 49.99999990423021,
+        "network": {
+          "requests": 182,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 12,
+      "fraction": 0,
+      "lat": 18.432687127091345,
+      "lon": 77.43879656231803,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 4.274625098332763e-08,
+        "p95": 0.0070389246502600145,
+        "maximum": 0.0070389246502600145
+      },
+      "minimumLoadingClearanceM": 49.992961075986386,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9389905160388,
+          "physicalRadiusKm": 3391.9389905160388,
+          "renderedRadiusKm": 3391.938990515996,
+          "discrepancyM": -4.274625098332763e-08,
+          "settled": true
+        },
+        "clearanceM": 50.000000000636646,
+        "network": {
+          "requests": 222,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 44,
+          "requests": 170,
+          "bytes": 2873000,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 12,
+      "fraction": 0.25,
+      "lat": 18.433122712182783,
+      "lon": 77.44038550585974,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 9.322320693172514e-08,
+        "p95": 9.322320693172514e-08,
+        "maximum": 9.322320693172514e-08
+      },
+      "minimumLoadingClearanceM": 49.99999999972715,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9376397317897,
+          "physicalRadiusKm": 3391.9376397317897,
+          "renderedRadiusKm": 3391.9376397316964,
+          "discrepancyM": -9.322320693172514e-08,
+          "settled": true
+        },
+        "clearanceM": 49.99999999972715,
+        "network": {
+          "requests": 234,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 44,
+          "requests": 170,
+          "bytes": 2873000,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 12,
+      "fraction": 0.5,
+      "lat": 18.43377520057538,
+      "lon": 77.44280344609959,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 4.9112713895738125e-08,
+        "p95": 4.9112713895738125e-08,
+        "maximum": 4.9112713895738125e-08
+      },
+      "minimumLoadingClearanceM": 49.99999995197868,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.939091591922,
+          "physicalRadiusKm": 3391.939091591873,
+          "renderedRadiusKm": 3391.939091591922,
+          "discrepancyM": 4.9112713895738125e-08,
+          "settled": true
+        },
+        "clearanceM": 49.99999995197868,
+        "network": {
+          "requests": 238,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 46,
+          "requests": 172,
+          "bytes": 2906800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 12,
+      "fraction": 0.75,
+      "lat": 18.433142680437086,
+      "lon": 77.4406123543992,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 1.9372237147763371e-07,
+        "p95": 1.9372237147763371e-07,
+        "maximum": 1.9372237147763371e-07
+      },
+      "minimumLoadingClearanceM": 50.000000001091394,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9361827933003,
+          "physicalRadiusKm": 3391.9361827933003,
+          "renderedRadiusKm": 3391.9361827931066,
+          "discrepancyM": -1.9372237147763371e-07,
+          "settled": true
+        },
+        "clearanceM": 50.000000001091394,
+        "network": {
+          "requests": 242,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 46,
+          "requests": 172,
+          "bytes": 2906800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 12,
+      "fraction": 1,
+      "lat": 18.43268899973247,
+      "lon": 77.43923885736224,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 0,
+        "p95": 0,
+        "maximum": 0
+      },
+      "minimumLoadingClearanceM": 50.000000000636646,
+      "settled": {
+        "nav": {
+          "radiusKm": 3391.9385074881893,
+          "physicalRadiusKm": 3391.9385074881893,
+          "renderedRadiusKm": 3391.9385074881893,
+          "discrepancyM": 0,
+          "settled": true
+        },
+        "clearanceM": 50.000000000636646,
+        "network": {
+          "requests": 242,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 46,
+          "requests": 172,
+          "bytes": 2906800,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 72,
+      "fraction": 0,
+      "lat": 18.497297511626968,
+      "lon": 77.3224956065288,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 4.7566572902724147e-07,
+        "p95": 0.8201508221645781,
+        "maximum": 0.8201508221645781
+      },
+      "minimumLoadingClearanceM": 49.17984917847207,
+      "settled": {
+        "nav": {
+          "radiusKm": 3392.101619194935,
+          "physicalRadiusKm": 3392.1016191944595,
+          "renderedRadiusKm": 3392.101619194935,
+          "discrepancyM": 4.7566572902724147e-07,
+          "settled": true
+        },
+        "clearanceM": 49.99999952497092,
+        "network": {
+          "requests": 362,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 52,
+          "requests": 178,
+          "bytes": 3008200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 72,
+      "fraction": 0.25,
+      "lat": 18.497297511626645,
+      "lon": 77.32249560652684,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 4.7612047637812793e-07,
+        "p95": 4.7612047637812793e-07,
+        "maximum": 4.7612047637812793e-07
+      },
+      "minimumLoadingClearanceM": 49.99999952588041,
+      "settled": {
+        "nav": {
+          "radiusKm": 3392.1016191949334,
+          "physicalRadiusKm": 3392.1016191944573,
+          "renderedRadiusKm": 3392.1016191949334,
+          "discrepancyM": 4.7612047637812793e-07,
+          "settled": true
+        },
+        "clearanceM": 49.99999952588041,
+        "network": {
+          "requests": 362,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 52,
+          "requests": 178,
+          "bytes": 3008200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 72,
+      "fraction": 0.5,
+      "lat": 18.497299420530346,
+      "lon": 77.32248443291795,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 2.2646418074145913e-07,
+        "p95": 2.2646418074145913e-07,
+        "maximum": 2.2646418074145913e-07
+      },
+      "minimumLoadingClearanceM": 49.999999774172466,
+      "settled": {
+        "nav": {
+          "radiusKm": 3392.101618356212,
+          "physicalRadiusKm": 3392.1016183559855,
+          "renderedRadiusKm": 3392.101618356212,
+          "discrepancyM": 2.2646418074145913e-07,
+          "settled": true
+        },
+        "clearanceM": 49.999999774172466,
+        "network": {
+          "requests": 362,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 52,
+          "requests": 178,
+          "bytes": 3008200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 72,
+      "fraction": 0.75,
+      "lat": 18.497268662885,
+      "lon": 77.32253448766173,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 7.912603905424476e-08,
+        "p95": 7.912603905424476e-08,
+        "maximum": 7.912603905424476e-08
+      },
+      "minimumLoadingClearanceM": 49.999999921965355,
+      "settled": {
+        "nav": {
+          "radiusKm": 3392.1015221657854,
+          "physicalRadiusKm": 3392.1015221657062,
+          "renderedRadiusKm": 3392.1015221657854,
+          "discrepancyM": 7.912603905424476e-08,
+          "settled": true
+        },
+        "clearanceM": 49.999999921965355,
+        "network": {
+          "requests": 362,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 52,
+          "requests": 178,
+          "bytes": 3008200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    },
+    {
+      "flight": 72,
+      "fraction": 1,
+      "lat": 18.497268662891194,
+      "lon": 77.32253448766251,
+      "loadingDiscrepancyM": {
+        "count": 15,
+        "minimum": 7.912603905424476e-08,
+        "p95": 7.912603905424476e-08,
+        "maximum": 7.912603905424476e-08
+      },
+      "minimumLoadingClearanceM": 49.99999992287485,
+      "settled": {
+        "nav": {
+          "radiusKm": 3392.1015221657985,
+          "physicalRadiusKm": 3392.1015221657194,
+          "renderedRadiusKm": 3392.1015221657985,
+          "discrepancyM": 7.912603905424476e-08,
+          "settled": true
+        },
+        "clearanceM": 49.99999992287485,
+        "network": {
+          "requests": 362,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "cpu": {
+          "residentTiles": 126,
+          "detailTiles": 52,
+          "requests": 178,
+          "bytes": 3008200,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      }
+    }
+  ],
+  "corridorMethod": "Fresh application residency; CPU controls loaded before placing the camera; selected GLBs start cold/coarse and refine; 64 MiB geometry cache, fifteen sites along flights 1/12/72 plus a return visit. 15 loading samples per site.",
+  "corridorLoadingDiscrepancyM": {
+    "count": 225,
+    "minimum": 0,
+    "p95": 0.7711390526310424,
+    "maximum": 0.8201508221645781
+  },
+  "corridorMinimumClearanceM": 49.17984917847207,
+  "imageryViewport": [
+    {
+      "fullStack": false,
+      "budgetBytes": 268435456,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 14,
+        "p95": 14,
+        "maximum": 14
+      },
+      "fittedCap": null
+    },
+    {
+      "fullStack": false,
+      "budgetBytes": 134217728,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 12,
+        "p95": 12,
+        "maximum": 12
+      },
+      "fittedCap": 12
+    },
+    {
+      "fullStack": true,
+      "budgetBytes": 268435456,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 14,
+        "p95": 14,
+        "maximum": 14
+      },
+      "fittedCap": null
+    },
+    {
+      "fullStack": true,
+      "budgetBytes": 134217728,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 11,
+        "p95": 11,
+        "maximum": 11
+      },
+      "fittedCap": 11
+    }
+  ],
+  "imageryMotionCases": 14,
+  "imageryMotionSamples": 112,
+  "globalImagery": [
+    {
+      "name": "jezero-overhead",
+      "lat": 18.44486301,
+      "lon": 77.45101915,
+      "altitudeKm": 500,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 2,
+          "pixelRGBA": [
+            125,
+            125,
+            125,
+            255
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            132,
+            132,
+            132,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 4,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ]
+        }
+      ],
+      "staticVisible": false
+    },
+    {
+      "name": "distant-mars",
+      "lat": 0,
+      "lon": -60,
+      "altitudeKm": 3000,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 1,
+          "pixelRGBA": [
+            85,
+            56,
+            48,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 1,
+          "pixelRGBA": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": 0,
+          "pixelRGBA": null
+        }
+      ],
+      "staticVisible": false
+    },
+    {
+      "name": "ctx-original-unavailable",
+      "lat": 18.69873046875,
+      "lon": 77.54150390625,
+      "altitudeKm": 5,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            63,
+            55,
+            63,
+            255
+          ]
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            123,
+            123,
+            123,
+            255
+          ]
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "staticVisible": false
+    }
+  ],
+  "playback": [
+    {
+      "flight": 1,
+      "fraction": 0,
+      "et": 672089519.3,
+      "position": [
+        699.120383691,
+        3140.819275755,
+        1073.181286143
+      ],
+      "velocity": [
+        7.381806881e-07,
+        3.316300536e-06,
+        1.133138994e-06
+      ],
+      "lat": 18.444863013760333,
+      "lon": 77.45101914507781,
+      "nav": {
+        "radiusKm": 3391.9364962157088,
+        "physicalRadiusKm": 3391.936496215613,
+        "renderedRadiusKm": 3391.9364962157088,
+        "discrepancyM": 9.595169103704393e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": -0.01291083844989771,
+      "modelPositionErrorM": 2.8205241954722744e-06,
+      "inspectorClearance": "-0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.02,
+      "et": 672089520.0819999,
+      "position": [
+        699.1204817124813,
+        3140.819716121534,
+        1073.1814366114825
+      ],
+      "velocity": [
+        0.00023550998972057382,
+        0.0010580407614044665,
+        0.0003615193587782578
+      ],
+      "lat": 18.444863013766927,
+      "lon": 77.45101914508591,
+      "nav": {
+        "radiusKm": 3391.936496215712,
+        "physicalRadiusKm": 3391.9364962156164,
+        "renderedRadiusKm": 3391.936496215712,
+        "discrepancyM": 9.549694368615746e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.46266424033092335,
+      "modelPositionErrorM": 5.433123251274514e-06,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.5,
+      "et": 672089538.8499999,
+      "position": [
+        699.1211182299967,
+        3140.8220017730746,
+        1073.1823008461254
+      ],
+      "velocity": [
+        3.656611306664205e-05,
+        -2.9929547782202313e-05,
+        5.963597668720135e-05
+      ],
+      "lat": 18.444864199487366,
+      "lon": 77.4510169246429,
+      "nav": {
+        "radiusKm": 3391.9364935072717,
+        "physicalRadiusKm": 3391.936493507122,
+        "renderedRadiusKm": 3391.9364935072717,
+        "discrepancyM": 1.496118784416467e-07,
+        "settled": true
+      },
+      "estimatedClearanceM": 2.986440355925879,
+      "modelPositionErrorM": 1.2051605909247551e-05,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 0.98,
+      "et": 672089557.618,
+      "position": [
+        699.1204544630984,
+        3140.8197086362834,
+        1073.1814774714298
+      ],
+      "velocity": [
+        -0.00023551054892339225,
+        -0.0010580457498796693,
+        -0.00036152023123994044
+      ],
+      "lat": 18.4448637391976,
+      "lon": 77.45101958975098,
+      "nav": {
+        "radiusKm": 3391.9364961409783,
+        "physicalRadiusKm": 3391.936496140882,
+        "renderedRadiusKm": 3391.9364961409783,
+        "discrepancyM": 9.640643838793039e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.46311920414154883,
+      "modelPositionErrorM": 8.599462247620259e-06,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 1,
+      "fraction": 1,
+      "et": 672089558.4,
+      "position": [
+        699.120356441,
+        3140.819268267,
+        1073.181327003
+      ],
+      "velocity": [
+        -7.381813703e-07,
+        -3.316308721e-06,
+        -1.133142177e-06
+      ],
+      "lat": 18.444863739207005,
+      "lon": 77.45101958974305,
+      "nav": {
+        "radiusKm": 3391.9364961409656,
+        "physicalRadiusKm": 3391.9364961408696,
+        "renderedRadiusKm": 3391.9364961409656,
+        "discrepancyM": 9.595169103704393e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": -0.012458522633096436,
+      "modelPositionErrorM": 5.719142552912303e-06,
+      "inspectorClearance": "-0 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0,
+      "et": 682390499.7,
+      "position": [
+        699.840483594,
+        3140.894926626,
+        1072.49826904
+      ],
+      "velocity": [
+        -2.269825927e-08,
+        -1.018779585e-07,
+        -3.478726285e-08
+      ],
+      "lat": 18.432687127091345,
+      "lon": 77.43879656231803,
+      "nav": {
+        "radiusKm": 3391.9389905160388,
+        "physicalRadiusKm": 3391.9389905160388,
+        "renderedRadiusKm": 3391.938990515996,
+        "discrepancyM": -4.274625098332763e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.009477302228333429,
+      "modelPositionErrorM": 1.4080593523896674e-06,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.02,
+      "et": 682390503.09,
+      "position": [
+        699.8410153936835,
+        3140.897313351828,
+        1072.4990840171608
+      ],
+      "velocity": [
+        0.00028370727832557007,
+        0.001273267908586483,
+        0.00043477429595640307
+      ],
+      "lat": 18.432687127082886,
+      "lon": 77.43879656232042,
+      "nav": {
+        "radiusKm": 3391.9389905160097,
+        "physicalRadiusKm": 3391.9389905160097,
+        "renderedRadiusKm": 3391.9389905159683,
+        "discrepancyM": -4.1382008930668235e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 2.586968137165968,
+      "modelPositionErrorM": 1.4117863992836738e-05,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.5,
+      "et": 682390584.45,
+      "position": [
+        699.6241194038192,
+        3140.9322627459705,
+        1072.561275076743
+      ],
+      "velocity": [
+        -0.003264505048906065,
+        0.0006138731476249832,
+        0.0007837489630397566
+      ],
+      "lat": 18.433753447839806,
+      "lon": 77.44270135685309,
+      "nav": {
+        "radiusKm": 3391.938860951448,
+        "physicalRadiusKm": 3391.938860951448,
+        "renderedRadiusKm": 3391.9388609512243,
+        "discrepancyM": -2.2373569663614035e-07,
+        "settled": true
+      },
+      "estimatedClearanceM": 10.000161340485647,
+      "modelPositionErrorM": 1.4116835391126379e-06,
+      "inspectorClearance": "10 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 0.98,
+      "et": 682390665.8100001,
+      "position": [
+        699.8166605960625,
+        3140.9022282476312,
+        1072.499034432386
+      ],
+      "velocity": [
+        -0.0002836279845540323,
+        -0.0012729756536985714,
+        -0.00043467281766350883
+      ],
+      "lat": 18.432688999720447,
+      "lon": 77.43923885737092,
+      "nav": {
+        "radiusKm": 3391.938507488166,
+        "physicalRadiusKm": 3391.9385074881657,
+        "renderedRadiusKm": 3391.938507488166,
+        "discrepancyM": 4.547473508864641e-10,
+        "settled": true
+      },
+      "estimatedClearanceM": 2.5805493551160907,
+      "modelPositionErrorM": 9.943906758880905e-06,
+      "inspectorClearance": "3 m"
+    },
+    {
+      "flight": 12,
+      "fraction": 1,
+      "et": 682390669.2,
+      "position": [
+        699.8161288110005,
+        3140.8998414990024,
+        1072.4982194490008
+      ],
+      "velocity": [
+        -4.043318141681418e-08,
+        -1.8146899344688664e-07,
+        -6.196497296605218e-08
+      ],
+      "lat": 18.432688999732466,
+      "lon": 77.43923885736224,
+      "nav": {
+        "radiusKm": 3391.938507488189,
+        "physicalRadiusKm": 3391.938507488189,
+        "renderedRadiusKm": 3391.9385074881884,
+        "discrepancyM": -4.547473508864641e-10,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.0030384612728084903,
+      "modelPositionErrorM": 8.51445395101956e-06,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0,
+      "et": 758898091.213,
+      "position": [
+        705.982509887,
+        3138.436433307,
+        1076.177911731
+      ],
+      "velocity": [
+        -1.324779078e-07,
+        -5.889269232e-07,
+        -2.019432941e-07
+      ],
+      "lat": 18.497297511626968,
+      "lon": 77.3224956065288,
+      "nav": {
+        "radiusKm": 3392.101619194935,
+        "physicalRadiusKm": 3392.1016191944595,
+        "renderedRadiusKm": 3392.101619194935,
+        "discrepancyM": 4.7566572902724147e-07,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.007802114851074293,
+      "modelPositionErrorM": 1.3182128645753311e-05,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.02,
+      "et": 758898091.85696,
+      "position": [
+        705.9825604787535,
+        3138.436658212266,
+        1076.1779888515478
+      ],
+      "velocity": [
+        0.00015612945634201525,
+        0.0006940737114170148,
+        0.00023799890141372226
+      ],
+      "lat": 18.49729751162631,
+      "lon": 77.32249560652981,
+      "nav": {
+        "radiusKm": 3392.1016191949348,
+        "physicalRadiusKm": 3392.1016191944586,
+        "renderedRadiusKm": 3392.1016191949348,
+        "discrepancyM": 4.7612047637812793e-07,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.25088540041906526,
+      "modelPositionErrorM": 6.966014008996416e-06,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.5,
+      "et": 758898107.312,
+      "position": [
+        705.9843902268736,
+        3138.44764612642,
+        1076.1818915813724
+      ],
+      "velocity": [
+        -0.00041130634381250495,
+        0.00011097265597835663,
+        -1.6969957602422342e-05
+      ],
+      "lat": 18.497300428199296,
+      "lon": 77.32250676161092,
+      "nav": {
+        "radiusKm": 3392.1016263924894,
+        "physicalRadiusKm": 3392.1016263917427,
+        "renderedRadiusKm": 3392.1016263924894,
+        "discrepancyM": 7.466951501555741e-07,
+        "settled": true
+      },
+      "estimatedClearanceM": 12.02891052889754,
+      "modelPositionErrorM": 8.043180297905983e-06,
+      "inspectorClearance": "12 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 0.98,
+      "et": 758898122.76704,
+      "position": [
+        705.9805345319968,
+        3138.437598774847,
+        1076.176346111386
+      ],
+      "velocity": [
+        -0.0001561285483533455,
+        -0.0006940689782534443,
+        -0.0002379974147928536
+      ],
+      "lat": 18.49726866288753,
+      "lon": 77.32253448766443,
+      "nav": {
+        "radiusKm": 3392.101522165786,
+        "physicalRadiusKm": 3392.101522165707,
+        "renderedRadiusKm": 3392.101522165786,
+        "discrepancyM": 7.867129170335829e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.27531492969501414,
+      "modelPositionErrorM": 1.050019280466277e-05,
+      "inspectorClearance": "0 m"
+    },
+    {
+      "flight": 72,
+      "fraction": 1,
+      "et": 758898123.411,
+      "position": [
+        705.980483941,
+        3138.437373872,
+        1076.176268992
+      ],
+      "velocity": [
+        -1.756789061e-07,
+        -7.809831004e-07,
+        -2.678016244e-07
+      ],
+      "lat": 18.497268662891194,
+      "lon": 77.32253448766251,
+      "nav": {
+        "radiusKm": 3392.1015221657985,
+        "physicalRadiusKm": 3392.10152216572,
+        "renderedRadiusKm": 3392.1015221657985,
+        "discrepancyM": 7.867129170335829e-08,
+        "settled": true
+      },
+      "estimatedClearanceM": 0.03223439671273809,
+      "modelPositionErrorM": 9.583220017157284e-06,
+      "inspectorClearance": "0 m"
+    }
+  ],
+  "physicalBufferComparison": {
+    "measurement": {
+      "a": {
+        "bodyName": "Mars",
+        "latDeg": 18.648996248281264,
+        "lonDeg": 77.45101914998851,
+        "altKm": -2.2364049481087562,
+        "cameraDistanceKm": 0.0999999999180584,
+        "bodyFixedHitKm": [
+          699.1203860995734,
+          3140.8192878448667,
+          1073.1812900192156
+        ],
+        "point": {
+          "bodyName": "Mars",
+          "bodyFixedPositionKm": [
+            699.1203860995734,
+            3140.8192878448667,
+            1073.1812900192156
+          ],
+          "source": "terrain",
+          "latDeg": 18.648996248281264,
+          "lonDeg": 77.45101914998851,
+          "latitudeKind": "geodetic",
+          "resolution": {
+            "surfaceKm": 9.206408823969827e-05,
+            "latDeg": 1.5551245451467937e-06,
+            "lonDeg": 1.6413005257449642e-06
+          },
+          "hit": {
+            "heightKm": -2.236404948012023,
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            }
+          },
+          "terrainSample": {
+            "elevationKm": -2.2364049481087562,
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            },
+            "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+            "tileId": "py/15/20030/10785",
+            "describesHit": true
+          },
+          "altitude": {
+            "km": -2.2364049481087562,
+            "from": "terrain-sample",
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            }
+          },
+          "surfaceNormal": [
+            0.22058077525397524,
+            0.9190618325545993,
+            0.3266029233331157
+          ]
+        },
+        "physical": {
+          "kind": "hit",
+          "detail": "coarse",
+          "tileId": "py/15/20030/10785",
+          "normal": [
+            0.22058107018840248,
+            0.9190616941434839,
+            0.32660311362975125
+          ],
+          "bodyFixedKm": [
+            699.1203860995535,
+            3140.8192878447776,
+            1073.181290019185
+          ],
+          "renderedOffsetKm": 9.627234750020697e-11,
+          "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      "b": {
+        "bodyName": "Mars",
+        "latDeg": 18.648996227236506,
+        "lonDeg": 77.45125436095354,
+        "altKm": -2.2360611990885673,
+        "cameraDistanceKm": 0.10052789573477172,
+        "bodyFixedHitKm": [
+          699.107563235018,
+          3140.8224761570386,
+          1073.181398770441
+        ],
+        "point": {
+          "bodyName": "Mars",
+          "bodyFixedPositionKm": [
+            699.107563235018,
+            3140.8224761570386,
+            1073.181398770441
+          ],
+          "source": "terrain",
+          "latDeg": 18.648996227236506,
+          "lonDeg": 77.45125436095354,
+          "latitudeKind": "geodetic",
+          "resolution": {
+            "surfaceKm": 9.350802033934158e-05,
+            "latDeg": 1.5795149405284525e-06,
+            "lonDeg": 1.6670424951368136e-06
+          },
+          "hit": {
+            "heightKm": -2.2360611986946424,
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            }
+          },
+          "terrainSample": {
+            "elevationKm": -2.2360611990885673,
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            },
+            "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+            "tileId": "py/15/20030/10785",
+            "describesHit": true
+          },
+          "altitude": {
+            "km": -2.2360611990885673,
+            "from": "terrain-sample",
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal",
+              "origin": "terrain"
+            }
+          },
+          "surfaceNormal": [
+            0.19402783420027747,
+            0.9299620759898188,
+            0.3122879068684157
+          ]
+        },
+        "physical": {
+          "kind": "hit",
+          "detail": "coarse",
+          "tileId": "py/15/20030/10785",
+          "normal": [
+            0.19402795628237143,
+            0.929961901953801,
+            0.3122883492789236
+          ],
+          "bodyFixedKm": [
+            699.1075632348858,
+            3140.822476156685,
+            1073.1813987703163
+          ],
+          "renderedOffsetKm": 3.977856314055459e-10,
+          "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        }
+      },
+      "beforeKm": 0.01321374778897509,
+      "afterKm": 0.01321374778897509,
+      "count": 1
+    },
+    "independentImagery": {
+      "coarse": {
+        "physicalBufferHash": {
+          "bytes": 18064632,
+          "fnv1a32": "27da55d"
+        },
+        "cpuHit": {
+          "kind": "hit",
+          "position": {
+            "xKm": 699.1203860989523,
+            "yKm": 3140.819287845046,
+            "zKm": 1073.1812900188365
+          },
+          "normal": [
+            0.22058107018840248,
+            0.9190616941434839,
+            0.32660311362975125
+          ],
+          "distanceKm": 108.06350377765766,
+          "triangleIndex": 6393,
+          "metadata": {
+            "bodyId": "body",
+            "frame": "body-fixed",
+            "source": {
+              "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+              "kind": "height-grid",
+              "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+              "fusion": {
+                "sha256": "e7a6cf73d2373f2dfceac62d38ef5ef2c67e93f8c6dfe4419f49716a31c3a409",
+                "created": null,
+                "base": "base.tif",
+                "detail": "detail.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+              },
+              "build": {
+                "global_level": 2,
+                "region": [
+                  "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                  "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                  "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  3396190,
+                  3376200
+                ],
+                "simplify": 0,
+                "sourceConvention": "areoid-radial",
+                "body": "Mars",
+                "frame": "IAU_MARS",
+                "inputs": {
+                  "base": {
+                    "file": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif",
+                    "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+                  },
+                  "residual": {
+                    "file": "residual.tif",
+                    "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+                  },
+                  "areoid": {
+                    "file": "MEGA90N000EB.LBL",
+                    "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                  },
+                  "areoidFiles": [
+                    {
+                      "file": "MEGA90N000EB.IMG",
+                      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+                    },
+                    {
+                      "file": "MEGA90N000EB.LBL",
+                      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                    }
+                  ]
+                }
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "ellipsoid",
+                  "radiiKm": [
+                    3396.19,
+                    3396.19,
+                    3376.2
+                  ]
+                },
+                "verticalDatum": "ellipsoid",
+                "heightConvention": "geodetic-normal"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "py/15/20030/10785"
+        },
+        "geometry": [
+          "px/0/0/0.glb",
+          "py/1/0/0.glb",
+          "py/1/1/1.glb",
+          "py/10/624/336.glb",
+          "py/10/624/337.glb",
+          "py/10/627/336.glb",
+          "py/10/627/337.glb",
+          "py/11/1250/672.glb",
+          "py/11/1250/673.glb",
+          "py/11/1250/674.glb",
+          "py/11/1250/675.glb",
+          "py/11/1251/672.glb",
+          "py/11/1251/675.glb",
+          "py/11/1252/672.glb",
+          "py/11/1252/675.glb",
+          "py/11/1253/672.glb",
+          "py/11/1253/673.glb",
+          "py/11/1253/674.glb",
+          "py/11/1253/675.glb",
+          "py/12/2502/1346.glb",
+          "py/12/2502/1347.glb",
+          "py/12/2502/1348.glb",
+          "py/12/2502/1349.glb",
+          "py/12/2503/1346.glb",
+          "py/12/2503/1349.glb",
+          "py/12/2504/1346.glb",
+          "py/12/2504/1349.glb",
+          "py/12/2505/1346.glb",
+          "py/12/2505/1347.glb",
+          "py/12/2505/1348.glb",
+          "py/12/2505/1349.glb",
+          "py/13/5006/2694.glb",
+          "py/13/5006/2695.glb",
+          "py/13/5006/2696.glb",
+          "py/13/5006/2697.glb",
+          "py/13/5007/2694.glb",
+          "py/13/5007/2697.glb",
+          "py/13/5008/2694.glb",
+          "py/13/5008/2695.glb",
+          "py/13/5008/2697.glb",
+          "py/13/5009/2694.glb",
+          "py/13/5009/2695.glb",
+          "py/13/5009/2696.glb",
+          "py/13/5009/2697.glb",
+          "py/14/10014/5390.glb",
+          "py/14/10014/5391.glb",
+          "py/14/10014/5392.glb",
+          "py/14/10015/5390.glb",
+          "py/14/10015/5391.glb",
+          "py/14/10017/5392.glb",
+          "py/14/10017/5393.glb",
+          "py/15/20028/10786.glb",
+          "py/15/20028/10787.glb",
+          "py/15/20029/10786.glb",
+          "py/15/20029/10787.glb",
+          "py/15/20030/10784.glb",
+          "py/15/20030/10785.glb",
+          "py/15/20030/10786.glb",
+          "py/15/20030/10787.glb",
+          "py/15/20031/10784.glb",
+          "py/15/20031/10785.glb",
+          "py/15/20031/10786.glb",
+          "py/15/20031/10787.glb",
+          "py/15/20032/10784.glb",
+          "py/15/20032/10785.glb",
+          "py/15/20032/10786.glb",
+          "py/15/20032/10787.glb",
+          "py/15/20033/10784.glb",
+          "py/15/20033/10785.glb",
+          "py/15/20033/10786.glb",
+          "py/15/20033/10787.glb",
+          "py/2/2/0.glb",
+          "py/2/3/0.glb",
+          "py/2/3/1.glb",
+          "py/3/4/3.glb",
+          "py/3/5/3.glb",
+          "py/4/10/4.glb",
+          "py/4/10/5.glb",
+          "py/4/11/4.glb",
+          "py/4/11/5.glb",
+          "py/4/8/4.glb",
+          "py/4/8/5.glb",
+          "py/4/9/4.glb",
+          "py/5/18/10.glb",
+          "py/5/18/11.glb",
+          "py/5/19/11.glb",
+          "py/6/38/20.glb",
+          "py/7/76/42.glb",
+          "py/7/76/43.glb",
+          "py/7/77/43.glb",
+          "py/7/78/40.glb",
+          "py/7/78/43.glb",
+          "py/7/79/40.glb",
+          "py/7/79/41.glb",
+          "py/7/79/42.glb",
+          "py/7/79/43.glb",
+          "py/8/154/84.glb",
+          "py/8/154/85.glb",
+          "py/8/155/84.glb",
+          "py/8/155/85.glb",
+          "py/8/156/82.glb",
+          "py/8/156/85.glb",
+          "py/8/157/82.glb",
+          "py/8/157/83.glb",
+          "py/8/157/84.glb",
+          "py/8/157/85.glb",
+          "py/9/312/166.glb",
+          "py/9/312/167.glb",
+          "py/9/312/169.glb",
+          "py/9/313/166.glb",
+          "py/9/313/167.glb",
+          "py/9/313/169.glb",
+          "pz/0/0/0.glb"
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-504117a8a19dc467",
+          "ready": true,
+          "textures": 47,
+          "pinnedTextures": 6,
+          "textureBytes": 264900507,
+          "maxTextureBytes": 268435456,
+          "requests": 332,
+          "bytes": 204756107,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 277,
+          "blockBuildMs": 168.10000026226044,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 985620,
+          "tiles": 20,
+          "splitTiles": 2,
+          "blocks": 26,
+          "displayedLevels": {
+            "0": 5,
+            "2": 4,
+            "4": 1,
+            "8": 16
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 2,
+            "2": 6,
+            "4": 1,
+            "8": 16
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 8,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 6,
+          "updateMs": 0.9000000357627869
+        }
+      },
+      "fine": {
+        "physicalBufferHash": {
+          "bytes": 18064632,
+          "fnv1a32": "27da55d"
+        },
+        "cpuHit": {
+          "kind": "hit",
+          "position": {
+            "xKm": 699.1203860989523,
+            "yKm": 3140.819287845046,
+            "zKm": 1073.1812900188365
+          },
+          "normal": [
+            0.22058107018840248,
+            0.9190616941434839,
+            0.32660311362975125
+          ],
+          "distanceKm": 108.06350377765766,
+          "triangleIndex": 6393,
+          "metadata": {
+            "bodyId": "body",
+            "frame": "body-fixed",
+            "source": {
+              "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+              "kind": "height-grid",
+              "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+              "fusion": {
+                "sha256": "e7a6cf73d2373f2dfceac62d38ef5ef2c67e93f8c6dfe4419f49716a31c3a409",
+                "created": null,
+                "base": "base.tif",
+                "detail": "detail.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+              },
+              "build": {
+                "global_level": 2,
+                "region": [
+                  "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                  "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                  "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  3396190,
+                  3376200
+                ],
+                "simplify": 0,
+                "sourceConvention": "areoid-radial",
+                "body": "Mars",
+                "frame": "IAU_MARS",
+                "inputs": {
+                  "base": {
+                    "file": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif",
+                    "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+                  },
+                  "residual": {
+                    "file": "residual.tif",
+                    "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+                  },
+                  "areoid": {
+                    "file": "MEGA90N000EB.LBL",
+                    "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                  },
+                  "areoidFiles": [
+                    {
+                      "file": "MEGA90N000EB.IMG",
+                      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+                    },
+                    {
+                      "file": "MEGA90N000EB.LBL",
+                      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                    }
+                  ]
+                }
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "ellipsoid",
+                  "radiiKm": [
+                    3396.19,
+                    3396.19,
+                    3376.2
+                  ]
+                },
+                "verticalDatum": "ellipsoid",
+                "heightConvention": "geodetic-normal"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "py/15/20030/10785"
+        },
+        "geometry": [
+          "px/0/0/0.glb",
+          "py/1/0/0.glb",
+          "py/1/1/1.glb",
+          "py/10/624/336.glb",
+          "py/10/624/337.glb",
+          "py/10/627/336.glb",
+          "py/10/627/337.glb",
+          "py/11/1250/672.glb",
+          "py/11/1250/673.glb",
+          "py/11/1250/674.glb",
+          "py/11/1250/675.glb",
+          "py/11/1251/672.glb",
+          "py/11/1251/675.glb",
+          "py/11/1252/672.glb",
+          "py/11/1252/675.glb",
+          "py/11/1253/672.glb",
+          "py/11/1253/673.glb",
+          "py/11/1253/674.glb",
+          "py/11/1253/675.glb",
+          "py/12/2502/1346.glb",
+          "py/12/2502/1347.glb",
+          "py/12/2502/1348.glb",
+          "py/12/2502/1349.glb",
+          "py/12/2503/1346.glb",
+          "py/12/2503/1349.glb",
+          "py/12/2504/1346.glb",
+          "py/12/2504/1349.glb",
+          "py/12/2505/1346.glb",
+          "py/12/2505/1347.glb",
+          "py/12/2505/1348.glb",
+          "py/12/2505/1349.glb",
+          "py/13/5006/2694.glb",
+          "py/13/5006/2695.glb",
+          "py/13/5006/2696.glb",
+          "py/13/5006/2697.glb",
+          "py/13/5007/2694.glb",
+          "py/13/5007/2697.glb",
+          "py/13/5008/2694.glb",
+          "py/13/5008/2695.glb",
+          "py/13/5008/2697.glb",
+          "py/13/5009/2694.glb",
+          "py/13/5009/2695.glb",
+          "py/13/5009/2696.glb",
+          "py/13/5009/2697.glb",
+          "py/14/10014/5390.glb",
+          "py/14/10014/5391.glb",
+          "py/14/10014/5392.glb",
+          "py/14/10015/5390.glb",
+          "py/14/10015/5391.glb",
+          "py/14/10017/5392.glb",
+          "py/14/10017/5393.glb",
+          "py/15/20028/10786.glb",
+          "py/15/20028/10787.glb",
+          "py/15/20029/10786.glb",
+          "py/15/20029/10787.glb",
+          "py/15/20030/10784.glb",
+          "py/15/20030/10785.glb",
+          "py/15/20030/10786.glb",
+          "py/15/20030/10787.glb",
+          "py/15/20031/10784.glb",
+          "py/15/20031/10785.glb",
+          "py/15/20031/10786.glb",
+          "py/15/20031/10787.glb",
+          "py/15/20032/10784.glb",
+          "py/15/20032/10785.glb",
+          "py/15/20032/10786.glb",
+          "py/15/20032/10787.glb",
+          "py/15/20033/10784.glb",
+          "py/15/20033/10785.glb",
+          "py/15/20033/10786.glb",
+          "py/15/20033/10787.glb",
+          "py/2/2/0.glb",
+          "py/2/3/0.glb",
+          "py/2/3/1.glb",
+          "py/3/4/3.glb",
+          "py/3/5/3.glb",
+          "py/4/10/4.glb",
+          "py/4/10/5.glb",
+          "py/4/11/4.glb",
+          "py/4/11/5.glb",
+          "py/4/8/4.glb",
+          "py/4/8/5.glb",
+          "py/4/9/4.glb",
+          "py/5/18/10.glb",
+          "py/5/18/11.glb",
+          "py/5/19/11.glb",
+          "py/6/38/20.glb",
+          "py/7/76/42.glb",
+          "py/7/76/43.glb",
+          "py/7/77/43.glb",
+          "py/7/78/40.glb",
+          "py/7/78/43.glb",
+          "py/7/79/40.glb",
+          "py/7/79/41.glb",
+          "py/7/79/42.glb",
+          "py/7/79/43.glb",
+          "py/8/154/84.glb",
+          "py/8/154/85.glb",
+          "py/8/155/84.glb",
+          "py/8/155/85.glb",
+          "py/8/156/82.glb",
+          "py/8/156/85.glb",
+          "py/8/157/82.glb",
+          "py/8/157/83.glb",
+          "py/8/157/84.glb",
+          "py/8/157/85.glb",
+          "py/9/312/166.glb",
+          "py/9/312/167.glb",
+          "py/9/312/169.glb",
+          "py/9/313/166.glb",
+          "py/9/313/167.glb",
+          "py/9/313/169.glb",
+          "pz/0/0/0.glb"
+        ],
+        "imagery": {
+          "version": "cube-imagery-xyz-504117a8a19dc467",
+          "ready": true,
+          "textures": 47,
+          "pinnedTextures": 6,
+          "textureBytes": 264900507,
+          "maxTextureBytes": 268435456,
+          "requests": 332,
+          "bytes": 204756107,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 277,
+          "blockBuildMs": 168.10000026226044,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "blockGeometryBytes": 985620,
+          "tiles": 20,
+          "splitTiles": 2,
+          "blocks": 26,
+          "displayedLevels": {
+            "0": 5,
+            "2": 4,
+            "4": 1,
+            "13": 2,
+            "14": 14
+          },
+          "wantedLevels": {
+            "0": 1,
+            "1": 2,
+            "2": 6,
+            "4": 1,
+            "13": 2,
+            "14": 14
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 14,
+          "queued": 0,
+          "budgetLimited": false,
+          "extraDraws": 6,
+          "updateMs": 0.7999999523162842
+        }
+      }
+    }
+  },
+  "outages": {
+    "outage": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 6
+    },
+    "recovery": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 0
+    },
+    "baseOutage": {
+      "baseUncoveredBlocks": 26,
+      "readyToShow": false,
+      "staticVisible": true,
+      "failedTiles": 6
+    },
+    "baseRecovery": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 0
+    }
+  },
+  "visibleControls": [
+    {
+      "id": "viking",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "ctx-global",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "jezero-ctx",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "jezero-hirise",
+      "visible": true,
+      "opacity": 1
+    }
+  ],
+  "errors": [],
+  "scientificLimits": [
+    "Estimated profiles are not telemetry; no terrain or flight snapping.",
+    "Representation agreement and sampled corridor checks do not certify absolute source accuracy or all far-field mixed LODs.",
+    "Hardware measurements apply to this Chrome/Metal device, not untested devices."
+  ],
+  "flyTo": {
+    "clearanceM": 33893.92716203929,
+    "navigation": {
+      "radiusKm": 3391.937835727053,
+      "physicalRadiusKm": 3391.9364962270683,
+      "renderedRadiusKm": 3391.937835727053,
+      "discrepancyM": 1.3394999846241262,
+      "settled": false
+    }
+  },
+  "corridorReturn": {
+    "clearanceM": 49.9999999051397,
+    "navigation": {
+      "radiusKm": 3391.936496222438,
+      "physicalRadiusKm": 3391.9364962223435,
+      "renderedRadiusKm": 3391.936496222438,
+      "discrepancyM": 9.458744898438454e-08,
+      "settled": true
+    }
+  }
+}

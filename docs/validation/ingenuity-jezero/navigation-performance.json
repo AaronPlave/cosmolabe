@@ -1,0 +1,1034 @@
+{
+  "kind": "ingenuity-near-surface-navigation-performance",
+  "passed": true,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "inputs": "Completed V11 mission products (3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee), 256 MiB mission imagery cache, and existing pinned MoonFall products.",
+  "environment": "Chrome physical Metal, 1440x900, 360 frames per scenario; final run after all imagery fixes, no concurrent browser acceptance or product rebuild.",
+  "navigationP99BudgetMs": 4,
+  "baseline": [
+    {
+      "body": "Mars",
+      "scenario": "stationary-ground",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 6.200000047683716,
+        "p95": 7.100000023841858,
+        "p99": 7.399999976158142,
+        "max": 7.700000047683716
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 14.599999964237213,
+        "p95": 19.80000001192093,
+        "p99": 22,
+        "max": 28.19999998807907
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.699999999999818,
+        "p95": 16.800000000000182,
+        "p99": 16.800000000000182,
+        "max": 33.30000000000018
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 9.5042196335271e-08,
+        "p95": 9.5042196335271e-08,
+        "p99": 9.5042196335271e-08,
+        "max": 9.5042196335271e-08
+      },
+      "minimumQueriedClearanceM": 49.999999902865966,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "moving-ground",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 6.100000023841858,
+        "p95": 6.899999976158142,
+        "p99": 7.399999976158142,
+        "max": 7.600000023841858
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 15,
+        "p95": 19.200000047683716,
+        "p99": 20.80000001192093,
+        "max": 21.30000001192093
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999891,
+        "p95": 16.700000000000728,
+        "p99": 16.80000000000109,
+        "max": 33.400000000001455
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 2.937667886726558e-07,
+        "p95": 1.0045368981081992e-06,
+        "p99": 1.165062712971121e-06,
+        "max": 1.3228600437287241e-06
+      },
+      "minimumQueriedClearanceM": 49.43751470045754,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "flight-follow",
+      "frames": 360,
+      "visibleTiles": 143,
+      "navigationMs": {
+        "count": 360,
+        "p50": 6.599999964237213,
+        "p95": 7.300000011920929,
+        "p99": 7.600000023841858,
+        "max": 7.800000011920929
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 18.5,
+        "p95": 20.80000001192093,
+        "p99": 24.30000001192093,
+        "max": 25.19999998807907
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.700000000000728,
+        "p95": 33.30000000000109,
+        "p99": 33.400000000001455,
+        "max": 33.400000000001455
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 6.352820491883904e-07,
+        "p95": 1.24236976262182e-06,
+        "p99": 1.5420482668559998e-06,
+        "max": 0.004521549271885306
+      },
+      "minimumQueriedClearanceM": 47.99268013857727,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "orbit-to-surface",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 6.300000011920929,
+        "p95": 7.099999964237213,
+        "p99": 7.300000011920929,
+        "max": 7.5
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 17.30000001192093,
+        "p95": 19.600000023841858,
+        "p99": 21.399999976158142,
+        "max": 34.80000001192093
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.700000000000728,
+        "p95": 33.29999999999927,
+        "p99": 33.400000000001455,
+        "max": 33.400000000001455
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 1.1940538574890525,
+        "p95": 1.5380411382466264,
+        "p99": 1.538041139156121,
+        "max": 1.5380411396108684
+      },
+      "minimumQueriedClearanceM": 49.99999990377546,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "stationary-ground",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 1.100000023841858,
+        "p95": 1.2999999523162842,
+        "p99": 1.300000011920929,
+        "max": 1.5
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 8.899999976158142,
+        "p95": 10.600000023841858,
+        "p99": 11.400000035762787,
+        "max": 12.399999976158142
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.699999999999818,
+        "p95": 16.700000000000728,
+        "p99": 16.800000000000182,
+        "max": 50.099999999999454
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 6.538584784721024e-05,
+        "p95": 6.538584784721024e-05,
+        "p99": 6.538584784721024e-05,
+        "max": 6.538584784721024e-05
+      },
+      "minimumQueriedClearanceM": 49.99993461410668,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "moving-ground",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 1.0999999642372131,
+        "p95": 1.300000011920929,
+        "p99": 1.399999976158142,
+        "max": 1.5
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 9,
+        "p95": 10.5,
+        "p99": 10.799999952316284,
+        "max": 11.300000011920929
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999891,
+        "p95": 16.700000000000728,
+        "p99": 16.80000000000109,
+        "max": 16.80000000000109
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 5.667902769346256e-05,
+        "p95": 7.186281436588615e-05,
+        "p99": 7.209177965705749e-05,
+        "max": 7.210201147245243e-05
+      },
+      "minimumQueriedClearanceM": 47.80197243144357,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "flight-follow",
+      "frames": 360,
+      "visibleTiles": 135,
+      "navigationMs": {
+        "count": 360,
+        "p50": 1.100000023841858,
+        "p95": 1.300000011920929,
+        "p99": 1.4000000357627869,
+        "max": 1.800000011920929
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 10.5,
+        "p95": 12.699999988079071,
+        "p99": 19.399999976158142,
+        "max": 89.79999995231628
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.700000000000728,
+        "p95": 16.700000000000728,
+        "p99": 33.29999999999927,
+        "max": 83.29999999999927
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 3.394166014913935e-05,
+        "p95": 8.306233212351799e-05,
+        "p99": 9.76776846073335e-05,
+        "max": 0.04367261431070801
+      },
+      "minimumQueriedClearanceM": 49.60390487076438,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "orbit-to-surface",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 1.199999988079071,
+        "p95": 1.5,
+        "p99": 1.7000000476837158,
+        "max": 2
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 10.099999964237213,
+        "p95": 15.199999988079071,
+        "p99": 21.5,
+        "max": 54.10000002384186
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999709,
+        "p95": 16.799999999999272,
+        "p99": 16.80000000000291,
+        "max": 50
+      },
+      "rayCalls": 360,
+      "coverageCalls": 360,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 0.04631117099052062,
+        "p95": 5.938487271123449,
+        "p99": 5.938533763128362,
+        "max": 5.938544177752192
+      },
+      "minimumQueriedClearanceM": 49.97989854496154,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    }
+  ],
+  "optimized": [
+    {
+      "body": "Mars",
+      "scenario": "stationary-ground",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.5,
+        "p95": 0.6000000238418579,
+        "p99": 0.6000000238418579,
+        "max": 0.800000011920929
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 1131,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 7.5,
+        "p95": 12.199999988079071,
+        "p99": 12.800000011920929,
+        "max": 13.200000047683716
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.699999999999818,
+        "p95": 16.799999999999727,
+        "p99": 16.800000000000182,
+        "max": 16.800000000000182
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 1131,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 9.5042196335271e-08,
+        "p95": 9.5042196335271e-08,
+        "p99": 9.5042196335271e-08,
+        "max": 9.5042196335271e-08
+      },
+      "minimumQueriedClearanceM": 49.99999990377546,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "moving-ground",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.5,
+        "p95": 0.699999988079071,
+        "p99": 0.7000000476837158,
+        "max": 0.8999999761581421
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 1203,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 7.699999988079071,
+        "p95": 10.5,
+        "p99": 12.300000011920929,
+        "max": 12.899999976158142
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999891,
+        "p95": 16.799999999999272,
+        "p99": 16.80000000000109,
+        "max": 16.80000000000109
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 1203,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 2.937667886726558e-07,
+        "p95": 1.0045368981081992e-06,
+        "p99": 1.1655174603220075e-06,
+        "max": 1.3228600437287241e-06
+      },
+      "minimumQueriedClearanceM": 49.43751470227653,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "flight-follow",
+      "frames": 360,
+      "visibleTiles": 143,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.5,
+        "p95": 0.6000000238418579,
+        "p99": 0.7999999523162842,
+        "max": 0.8999999761581421
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 1096,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.5
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 9.900000035762787,
+        "p95": 11.399999976158142,
+        "p99": 15.699999988079071,
+        "max": 22.900000035762787
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999891,
+        "p95": 16.799999999999272,
+        "p99": 16.80000000000109,
+        "max": 16.80000000000291
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 1096,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 5.607034836430103e-07,
+        "p95": 1.2628333934117109e-06,
+        "p99": 1.5015757526271045e-06,
+        "max": 0.004565856215776876
+      },
+      "minimumQueriedClearanceM": 48.34347378437087,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 38,
+        "requests": 164,
+        "bytes": 2771600,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Mars",
+      "scenario": "orbit-to-surface",
+      "frames": 360,
+      "visibleTiles": 134,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.3999999761581421,
+        "p95": 0.6000000238418579,
+        "p99": 0.699999988079071,
+        "max": 0.800000011920929
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 1642,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 9.299999952316284,
+        "p95": 11.399999976158142,
+        "p99": 13.300000011920929,
+        "max": 26
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.700000000000728,
+        "p95": 16.799999999999272,
+        "p99": 16.80000000000291,
+        "max": 16.80000000000291
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 1642,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 1.1949873078265227,
+        "p95": 1.5404553632833995,
+        "p99": 1.5405496228595439,
+        "max": 1.5405707758873177
+      },
+      "minimumQueriedClearanceM": 49.998484615571215,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 39,
+        "requests": 165,
+        "bytes": 2788500,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "stationary-ground",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.30000001192092896,
+        "p95": 0.3999999761581421,
+        "p99": 0.40000003576278687,
+        "max": 0.5
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 863,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 7.099999964237213,
+        "p95": 8.199999988079071,
+        "p99": 8.400000035762787,
+        "max": 17.69999998807907
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.699999999999818,
+        "p95": 16.700000000000728,
+        "p99": 16.800000000000182,
+        "max": 16.80000000000109
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 863,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 6.538584784721024e-05,
+        "p95": 6.538584784721024e-05,
+        "p99": 6.538584784721024e-05,
+        "max": 6.538584784721024e-05
+      },
+      "minimumQueriedClearanceM": 49.99993461365193,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "moving-ground",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.2999999523162842,
+        "p95": 0.30000001192092896,
+        "p99": 0.40000003576278687,
+        "max": 0.40000003576278687
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 924,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 7.099999964237213,
+        "p95": 8.200000047683716,
+        "p99": 9,
+        "max": 10.699999988079071
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999891,
+        "p95": 16.700000000000728,
+        "p99": 16.80000000000109,
+        "max": 16.80000000000109
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 924,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 5.6679255067138e-05,
+        "p95": 7.186281436588615e-05,
+        "p99": 7.209177965705749e-05,
+        "max": 7.210155672510155e-05
+      },
+      "minimumQueriedClearanceM": 47.801972430988826,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "flight-follow",
+      "frames": 360,
+      "visibleTiles": 136,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.30000001192092896,
+        "p95": 0.40000003576278687,
+        "p99": 0.5,
+        "max": 0.699999988079071
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 805,
+        "p50": 0,
+        "p95": 0.10000002384185791,
+        "p99": 0.10000002384185791,
+        "max": 0.5
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 8.300000011920929,
+        "p95": 10.400000035762787,
+        "p99": 16.30000001192093,
+        "max": 86.20000004768372
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.700000000000728,
+        "p95": 16.700000000000728,
+        "p99": 16.80000000000291,
+        "max": 83.29999999999927
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 805,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 3.198988451913465e-05,
+        "p95": 8.628171599411871e-05,
+        "p99": 9.795121513889171e-05,
+        "max": 0.048567233307039714
+      },
+      "minimumQueriedClearanceM": 49.99993461365193,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 66,
+        "requests": 192,
+        "bytes": 3244800,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    },
+    {
+      "body": "Moon",
+      "scenario": "orbit-to-surface",
+      "frames": 360,
+      "visibleTiles": 66,
+      "navigationMs": {
+        "count": 360,
+        "p50": 0.30000001192092896,
+        "p95": 0.6000000238418579,
+        "p99": 0.699999988079071,
+        "max": 0.9000000357627869
+      },
+      "physicalRayMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "coordinateMs": {
+        "count": 1284,
+        "p50": 0,
+        "p95": 0.09999996423721313,
+        "p99": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "frameMs": {
+        "count": 360,
+        "p50": 10.100000023841858,
+        "p95": 14.700000047683716,
+        "p99": 19.599999964237213,
+        "max": 51.5
+      },
+      "frameIntervalsMs": {
+        "count": 359,
+        "p50": 16.69999999999709,
+        "p95": 16.700000000000728,
+        "p99": 16.799999999999272,
+        "max": 50
+      },
+      "rayCalls": 0,
+      "coverageCalls": 0,
+      "coordinateCalls": 1284,
+      "maxCallsPerFrame": 1,
+      "discrepanciesM": {
+        "count": 360,
+        "p50": 0.04944648048876843,
+        "p95": 5.940883138237041,
+        "p99": 5.940922233776291,
+        "max": 5.940930991300775
+      },
+      "minimumQueriedClearanceM": 49.985439270358256,
+      "networkBefore": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      },
+      "networkAfter": {
+        "residentTiles": 126,
+        "detailTiles": 82,
+        "requests": 208,
+        "bytes": 3515200,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+      }
+    }
+  ],
+  "method": "Exact radial containing-cell triangle intersection for strict interiors, original general ownership query on cell/tile/face boundaries; bounded incident-coordinate coverage requests replace a constant-coordinate shell march. Selected GLB queries retain mesh bounding-box culling and original triangle intersections. No stale scalar-height cache.",
+  "limits": [
+    "CPU timings on this device and populated scenes, not a universal frame-rate guarantee.",
+    "Full frame costs include unrelated application work and recorded occasional long frames; raw maxima are retained.",
+    "No absolute terrain accuracy claim."
+  ]
+}

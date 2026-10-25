@@ -10,13 +10,304 @@
     "failures": [],
     "stillPending": [],
     "timedOut": false,
-    "durationMs": 2535.599999964237
+    "durationMs": 1895.1000000238419
+  },
+  "views": {
+    "close": {
+      "physicalUnchanged": true,
+      "lightChangedPixels": 774239,
+      "debugRestorePixels": 0,
+      "restoredPixelDifference": 0,
+      "normal": {
+        "cpuMs": {
+          "n": 60,
+          "median": 8.399999976158142,
+          "p95": 9.899999976158142
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.76725,
+          "p95": 2.825791
+        },
+        "gpuTimerAvailable": true
+      },
+      "hillshade": {
+        "cpuMs": {
+          "n": 60,
+          "median": 8.5,
+          "p95": 9.900000035762787
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.568541,
+          "p95": 2.642666
+        },
+        "gpuTimerAvailable": true
+      },
+      "elevation": {
+        "cpuMs": {
+          "n": 60,
+          "median": 8.300000011920929,
+          "p95": 9.599999964237213
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.320875,
+          "p95": 2.408875
+        },
+        "gpuTimerAvailable": true
+      },
+      "restored": {
+        "cpuMs": {
+          "n": 60,
+          "median": 8.699999988079071,
+          "p95": 10.800000011920929
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 2.811333,
+          "p95": 2.898666
+        },
+        "gpuTimerAvailable": true
+      },
+      "selectedTiles": 122,
+      "tileIdsSha256": "54f7dcefdf7f52a66c6f4df3956f043b877dcbd985fe87c3b87ba81895729ff5",
+      "selectedTilesUnchanged": true,
+      "sourceVertices": 928395,
+      "sampled": 0,
+      "maxHeightErrorKm": 2.1327059585019015e-07,
+      "activation": {
+        "samples": 21,
+        "medianMs": 5.399999976158142,
+        "p95Ms": 6.899999976158142,
+        "maximumMs": 6.899999976158142
+      }
+    },
+    "far": {
+      "physicalUnchanged": true,
+      "lightChangedPixels": 511857,
+      "debugRestorePixels": 0,
+      "restoredPixelDifference": 0,
+      "normal": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.599999964237213,
+          "p95": 11.199999988079071
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 1.932916,
+          "p95": 1.986999
+        },
+        "gpuTimerAvailable": true
+      },
+      "hillshade": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.399999976158142,
+          "p95": 11.300000011920929
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 1.838833,
+          "p95": 1.88825
+        },
+        "gpuTimerAvailable": true
+      },
+      "elevation": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.899999976158142,
+          "p95": 11.600000023841858
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0.10000002384185791
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 1.65775,
+          "p95": 2.307708
+        },
+        "gpuTimerAvailable": true
+      },
+      "restored": {
+        "cpuMs": {
+          "n": 60,
+          "median": 9.900000035762787,
+          "p95": 12.199999988079071
+        },
+        "styleCpuMs": {
+          "n": 60,
+          "median": 0,
+          "p95": 0
+        },
+        "gpuMs": {
+          "n": 60,
+          "median": 1.933624,
+          "p95": 1.990291
+        },
+        "gpuTimerAvailable": true
+      },
+      "selectedTiles": 108,
+      "tileIdsSha256": "06963e364ec2bb3167ef657b50193d909573961856e228b666f137215634ee02",
+      "selectedTilesUnchanged": true,
+      "sourceVertices": 1296165,
+      "sampled": 0,
+      "maxHeightErrorKm": 4.2371834751975257e-07,
+      "activation": {
+        "samples": 15,
+        "medianMs": 5.300000011920929,
+        "p95Ms": 6.699999988079071,
+        "maximumMs": 6.699999988079071
+      }
+    }
   },
   "errors": [],
   "pick": {
     "x": 200,
     "y": 350,
-    "height": 1.1425164643320085
+    "height": 1.14251727841262
+  },
+  "navigation": {
+    "diagnostics": {
+      "maxNormalDifference": 0,
+      "missing": 0,
+      "active": 48,
+      "beforeActive": 48,
+      "cameraDifference": 0
+    },
+    "imageryBefore": {
+      "version": "cube-imagery-composite-3f34a19541af7710",
+      "ready": true,
+      "textures": 240,
+      "pinnedTextures": 30,
+      "textureBytes": 89210880,
+      "maxTextureBytes": 167772160,
+      "requests": 240,
+      "bytes": 5525093,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 1431.7000002264977,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 20223560,
+      "tiles": 48,
+      "splitTiles": 27,
+      "blocks": 135,
+      "displayedLevels": {
+        "1": 4,
+        "4": 5,
+        "5": 11,
+        "6": 7,
+        "7": 21,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "wantedLevels": {
+        "3": 3,
+        "4": 3,
+        "5": 6,
+        "6": 14,
+        "7": 22,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 87,
+      "updateMs": 3.399999976158142
+    },
+    "imageryAfter": {
+      "version": "cube-imagery-composite-3f34a19541af7710",
+      "ready": true,
+      "textures": 240,
+      "pinnedTextures": 30,
+      "textureBytes": 89210880,
+      "maxTextureBytes": 167772160,
+      "requests": 240,
+      "bytes": 5525093,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 1516.7000002264977,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 11154412,
+      "tiles": 48,
+      "splitTiles": 27,
+      "blocks": 135,
+      "displayedLevels": {
+        "1": 4,
+        "4": 5,
+        "5": 11,
+        "6": 7,
+        "7": 21,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "wantedLevels": {
+        "3": 3,
+        "4": 3,
+        "5": 6,
+        "6": 14,
+        "7": 22,
+        "8": 25,
+        "9": 26,
+        "10": 36
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 10,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 87,
+      "updateMs": 3.5
+    },
+    "sameTiles": true,
+    "changedPixels": 0
   },
   "mobile": {
     "viewport": 390,
@@ -29,26 +320,5 @@
       "bodyScroll": 486,
       "dockScroll": 0
     }
-  },
-  "rawResultSha256": "75ef221c234aedce91b6878502242d68aeda596077df47eee1902d912f3b0cd4",
-  "views": {
-    "close": {
-      "physicalUnchanged": true,
-      "restoredPixelDifference": 0,
-      "lightChangedPixels": 774255
-    },
-    "far": {
-      "physicalUnchanged": true,
-      "restoredPixelDifference": 0,
-      "lightChangedPixels": 511862
-    }
-  },
-  "navigationDiagnostics": {
-    "maxNormalDifference": 0,
-    "missing": 0,
-    "active": 48,
-    "beforeActive": 48,
-    "cameraDifference": 0
-  },
-  "passed": true
+  }
 }

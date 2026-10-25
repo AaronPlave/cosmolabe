@@ -1,0 +1,79 @@
+{
+  "kind": "ingenuity-imagery-loading-regression",
+  "buildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "passed": true,
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "configuredHardBudgetBytes": 268435456,
+  "constrainedBudgetBytes": 134217728,
+  "tileEstimatedBytes": 5636181,
+  "mandatoryPinnedRoots": 6,
+  "viewport": [
+    {
+      "fullStack": false,
+      "budgetBytes": 268435456,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 14,
+        "p95": 14,
+        "maximum": 14
+      },
+      "fittedCap": null
+    },
+    {
+      "fullStack": false,
+      "budgetBytes": 134217728,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 12,
+        "p95": 12,
+        "maximum": 12
+      },
+      "fittedCap": 12
+    },
+    {
+      "fullStack": true,
+      "budgetBytes": 268435456,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 14,
+        "p95": 14,
+        "maximum": 14
+      },
+      "fittedCap": null
+    },
+    {
+      "fullStack": true,
+      "budgetBytes": 134217728,
+      "points": 49,
+      "hiriseDisplayedLevels": {
+        "count": 49,
+        "minimum": 11,
+        "p95": 11,
+        "maximum": 11
+      },
+      "fittedCap": 11
+    }
+  ],
+  "motionCases": 14,
+  "motionSamples": 112,
+  "corrections": [
+    "Fit complete visible source sets within a bounded budget with transition room.",
+    "Prioritize complete upper-source demand, retaining independent coarse lower-source coverage.",
+    "Keep a drawn ancestor during refinement; inherit its source request priority.",
+    "Coarsen explicitly when constrained; replace obsolete fine tiles without stranding the coarser target.",
+    "Rebind resident ancestor samplers before disposing an old texture.",
+    "Establish view-driven optional ancestors for uncovered footprints, without pinning six roots per optional source."
+  ],
+  "regressions": [
+    "Original PR head loses a ready texture while replacement is unresolved; new regression retains it.",
+    "Mandatory coarse requests precede detail at partial startup.",
+    "Two non-base texture slots still converge to a complete fitted cover, an empty queue and mandatory base coverage."
+  ],
+  "limits": [
+    "A small budget reduces actual resolution explicitly; raising a byte limit alone is not the fix.",
+    "Source masks and physical terrain are unchanged."
+  ]
+}

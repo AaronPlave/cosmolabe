@@ -14,10 +14,10 @@ import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './Terra
 import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
-import type { CubeFace } from './surface/CubeSphere.js';
+import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
 import { fetchWithRetry } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
-import { needsNearSurfaceDetail, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
+import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
@@ -1536,8 +1536,19 @@ export class TerrainManager {
     const outer = this.bodyRadiusKm + 50;
     const ray: SurfaceRay = { origin: { xKm: d.x*outer, yKm: d.y*outer, zKm: d.z*outer },
       direction: [-d.x,-d.y,-d.z], nearKm: 0, farKm: 150 };
-    const hit = this.intersectSurfaceRay(ray, { maxMeshErrorKm: this.nearSurfacePolicy.maxErrorM/1000 });
-    const physical = hit?.kind === 'hit' ? outer-hit.distanceKm : null;
+    const resident = this.cube.source.sampler.finestResident(directionToCubeFace([d.x,d.y,d.z]));
+    const shape = this.cube.source.manifest.datum.referenceShape;
+    const referenceRadius = this.cube.source.manifest.geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : NaN);
+    const sampledRadius = resident ? radialCellRadius(resident.tile, resident.localU, resident.localV, d, referenceRadius, outer) : null;
+    const cellRadius = sampledRadius !== null && outer-sampledRadius <= ray.farKm ? sampledRadius : null;
+    const hit = cellRadius === null ? this.cube.surface.intersectRay(ray, { maxMeshErrorKm: this.nearSurfacePolicy.maxErrorM/1000 }) : null;
+    // This ray is radial: its cube coordinates never change through the shell.
+    // Avoid marching thousands of identical points every camera frame. Keep
+    // closed edge/face neighbours and the source's existing LRU/retry policy.
+    void Promise.all(radialCubeCoordinates(d, this.cube.source.manifest.maxLevel)
+      .map(coordinate => this.cube!.source.requestCoordinate(coordinate)))
+      .catch(err => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
+    const physical = cellRadius ?? (hit?.kind === 'hit' ? outer-hit.distanceKm : null);
     const scenes: THREE.Object3D[] = [];
     for (const tile of this.tiles.visibleTiles) {
       const scene = (tile as unknown as { engineData?: { scene?: THREE.Object3D } }).engineData?.scene;
