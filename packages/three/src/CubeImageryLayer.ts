@@ -607,7 +607,10 @@ export class CubeImageryLayer {
 
   private coarseWanted(): Map<string, number> {
     const wanted = new Map<string, number>();
-    for (const source of this.sources) if (source.info.visible && source.info.opacity > 0 && source.manifest) {
+    // Only the mandatory base owns unconditional fallback residency. Optional
+    // global roots can otherwise consume the entire shared budget before any
+    // source can refine (especially four 1024px products).
+    for (const source of this.sources) if (source.index === 0 && source.info.visible && source.info.opacity > 0 && source.manifest) {
       for (const id of source.manifest.tiles) if (Number(id.split('/')[1]) <= this.options.residentLevel) {
         wanted.set(`${source.index}:${id}`, -100 + Number(id.split('/')[1]));
       }
@@ -656,7 +659,13 @@ export class CubeImageryLayer {
       if (!image) continue;
       const wantId = `${source.index}:${cubeTileId(image)}`;
       const failed = this.failedAbove(image, source);
-      if ((leaf.inView || image.level <= this.options.residentLevel) && !failed) wanted.set(wantId, Math.min(wanted.get(wantId) ?? Infinity, image.level * 64 - Math.min(leaf.desiredLevel, 63)));
+      if ((leaf.inView || (source.index === 0 && image.level <= this.options.residentLevel)) && !failed) {
+        // After guaranteed base roots, load the top visible layer first. Lower
+        // layers may use their resident fallback while sharper imagery arrives;
+        // refining them first can permanently starve the top source's detail.
+        const stackPriority = (this.order.length-1-i)*1_000_000;
+        wanted.set(wantId, Math.min(wanted.get(wantId) ?? Infinity, stackPriority + image.level * 64 - Math.min(leaf.desiredLevel, 63)));
+      }
       let shown: Entry | null = null;
       for (let level = image.level; level >= 0 && !shown; level--) {
         const shift = image.level - level;
@@ -775,14 +784,14 @@ export class CubeImageryLayer {
       return !e || (e.state === 'failed' && this.retryDue(e, now));
     }).sort((a, b) => a[1] - b[1]);
     let budgetLimited = false, started = 0;
-    for (const [id] of missing) {
+    for (const [id, priority] of missing) {
       if (loading >= this.options.maxConcurrentRequests) break;
-      if (used + estimate > this.options.maxTextureBytes) used -= this.evict(used + estimate - this.options.maxTextureBytes);
+      if (used + estimate > this.options.maxTextureBytes) used -= this.evict(used + estimate - this.options.maxTextureBytes, wanted, priority);
       if (used + estimate > this.options.maxTextureBytes) { budgetLimited = true; break; }
-      this.request(id, Number(id.split(':')[1].split('/')[1]) <= this.options.residentLevel);
+      this.request(id, id.startsWith('0:') && Number(id.split(':')[1].split('/')[1]) <= this.options.residentLevel);
       used += estimate; loading++; started++;
     }
-    if (used > this.options.maxTextureBytes) this.evict(used - this.options.maxTextureBytes);
+    if (used > this.options.maxTextureBytes) this.evict(used - this.options.maxTextureBytes, wanted, -Infinity);
     return { count: missing.length - started, budgetLimited };
   }
 
@@ -801,13 +810,28 @@ export class CubeImageryLayer {
     return false;
   }
 
-  /** Evict least recently used, unpinned textures not drawn this frame. Returns bytes freed. */
-  private evict(need: number): number {
-    const candidates = [...this.entries.values()].filter(e => e.state === 'ready' && !e.pinned && e.lastUsed < this.frame).sort((a, b) => a.lastUsed - b.lastUsed);
+  /** Keep mandatory fallback; allow a higher-priority refinement to replace a
+   * drawn optional ancestor/lower layer instead of deadlocking a full budget. */
+  private evict(need: number, wanted?: Map<string, number>, incomingPriority = Infinity): number {
+    const priority = (e: Entry) => wanted?.get(e.id) ?? Infinity;
+    const candidates = [...this.entries.values()].filter(e => e.state === 'ready' && !e.pinned &&
+      (e.lastUsed < this.frame || incomingPriority < priority(e)))
+      .sort((a, b) => (priority(b)-priority(a)) || a.lastUsed-b.lastUsed);
     let freed = 0;
     for (const e of candidates) {
       if (freed >= need) break;
       freed += e.bytes;
+      // schedule runs after show(), before drawing. Detach any sampler using
+      // this texture before disposing/closing its image; mandatory base uniforms
+      // remain available while the higher-priority replacement is in flight.
+      for (const tile of this.tiles.values()) for (const mesh of tile.meshes) {
+        for (const uniforms of [mesh.uniforms, ...[...mesh.blocks.values()].map(b => b.uniforms)]) {
+          for (const layer of uniforms.layers) if (layer.map.value === e.texture) {
+            layer.enabled.value = 0;
+            layer.map.value = null;
+          }
+        }
+      }
       this.releaseTexture(e);
       this.entries.delete(e.id);
       this.counters.evicted++;

@@ -58,6 +58,10 @@ describe('finite locked surface build planning', () => {
     await expect(compileBuild(lock)).rejects.toThrow(/unsupported generator/);
   });
   it('refuses version-only pins, silent bias removal, unknown transforms and mismatched resampling', async () => {
+    for (const ids of [['missing'], ['base'], ['detail-image'], ['detail-image','detail-image']]) {
+      const independent = await relock(v => { v.processing.parameters.gates.independentImageGrids = ids; });
+      await expect(compileBuild(independent)).rejects.toThrow(/independent image grids/);
+    }
     const versionOnly = await relock(v => { v.sources[0].asset.version = 'v1'; delete v.sources[0].asset.checksum; });
     await expect(compileBuild(versionOnly)).rejects.toThrow(/requires SHA-256/);
     const bias = await relock(v => { v.processing.fusion = 'residual-plane'; });

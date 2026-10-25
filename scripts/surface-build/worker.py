@@ -45,6 +45,26 @@ def reject_external_masks(path):
     ), 'external mask dependencies are unsupported; use a pinned TIFF with an internal mask'
 
 
+def grid_alignment(detail, image, independent=False):
+    """Measure original grids; independently phased maps keep their own affine.
+
+    Coincident grids remain a gate unless the lock explicitly declares this
+    source independent. Both cases still require original-native-to-output
+    registration validation, and neither certifies absolute geolocation.
+    """
+    spacing=min(abs(detail[1]),abs(image[1]))
+    ratio=max(abs(detail[1]),abs(image[1]))/spacing
+    phase=[(image[0]-detail[0])/spacing,(image[3]-detail[3])/spacing]
+    error=max(abs(p-round(p))*spacing for p in phase)
+    coincident=abs(ratio-round(ratio))<1e-8 and error<1e-6
+    assert independent or coincident,'DTM/ortho native grid alignment exceeds gate'
+    return {'nativePixelRatio':detail[1]/image[1],'originOffsetsInFinestPixels':phase,
+            'finestSpacingM':spacing,'maximumGridPhaseErrorM':error,'coincident':coincident,
+            'policy':'independent-original-grids' if independent else 'require-coincident-grids',
+            'absoluteGeolocationErrorM':None,
+            'note':'Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.'}
+
+
 def prepare_imagery(source, target):
     """Deterministic area-average pyramid of premultiplied DN and coverage.
 
@@ -439,13 +459,9 @@ def build(args):
         image_srs.ImportFromWkt(image_grid['crsWkt'])
         assert detail_srs.IsSame(image_srs), 'DTM and ortho map projections differ'
         dgt, igt = detail_grid['nativeGrid'], image_grid['nativeGrid']
-        ratio = dgt[1]/igt[1]
-        phase = [(igt[0]-dgt[0])/igt[1], (igt[3]-dgt[3])/igt[5]]
-        phase_error = max(abs(p-round(p))*abs(igt[1]) for p in phase)
-        assert ratio>=1 and abs(ratio-round(ratio))<1e-8 and phase_error<1e-6, 'DTM/ortho native grid alignment exceeds gate'
-        audit['imagery'][source['id']]['dtmGridAlignment'] = {'nativePixelRatio':ratio,'originOffsetsInImagePixels':phase,
-            'maximumGridPhaseErrorM':phase_error,'absoluteGeolocationErrorM':None,
-            'note':'Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.'}
+        proof=audit['imagery'][source['id']]
+        assert proof.get('sourceToOutputRegistration'), 'original-native-to-output imagery registration proof required'
+        proof['dtmGridAlignment']=grid_alignment(dgt,igt,source['id'] in p['gates'].get('independentImageGrids',[]))
     audit['workerPeakRssBytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['largestChildPeakRssBytes'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['sampledResources'] = sampler.finish()

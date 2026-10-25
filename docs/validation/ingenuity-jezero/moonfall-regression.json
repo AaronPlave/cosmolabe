@@ -1,0 +1,54 @@
+{
+  "name": "moonfall",
+  "catalog": "test-catalogs/moonfall-shackleton",
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "assets": {
+    "total": 8,
+    "settled": 8,
+    "loaded": 8,
+    "failed": 0,
+    "failures": [],
+    "stillPending": [],
+    "timedOut": false,
+    "durationMs": 2535.599999964237
+  },
+  "errors": [],
+  "pick": {
+    "x": 200,
+    "y": 350,
+    "height": 1.1425164643320085
+  },
+  "mobile": {
+    "viewport": 390,
+    "documentWidth": 390,
+    "sectionWidth": 346,
+    "sectionLeft": 19.5,
+    "panelScroll": 361,
+    "dockScroll": 0,
+    "scrolling": {
+      "bodyScroll": 486,
+      "dockScroll": 0
+    }
+  },
+  "rawResultSha256": "75ef221c234aedce91b6878502242d68aeda596077df47eee1902d912f3b0cd4",
+  "views": {
+    "close": {
+      "physicalUnchanged": true,
+      "restoredPixelDifference": 0,
+      "lightChangedPixels": 774255
+    },
+    "far": {
+      "physicalUnchanged": true,
+      "restoredPixelDifference": 0,
+      "lightChangedPixels": 511862
+    }
+  },
+  "navigationDiagnostics": {
+    "maxNormalDifference": 0,
+    "missing": 0,
+    "active": 48,
+    "beforeActive": 48,
+    "cameraDifference": 0
+  },
+  "passed": true
+}

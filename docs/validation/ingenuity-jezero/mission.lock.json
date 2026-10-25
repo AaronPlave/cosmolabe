@@ -8041,6 +8041,9 @@
             "heightM": -2060.2853136451813,
             "toleranceM": 1
           }
+        ],
+        "independentImageGrids": [
+          "jezero-ctx"
         ]
       },
       "caveats": [
@@ -8060,5 +8063,5 @@
     "elevationEncoding": "float32"
   },
   "desiredIdentity": "sha256:1a7f4760a6bc053ff5b833430f7b8ff0f32e8a74f51a6d63e162bad09973f608",
-  "identity": "sha256:23acf5efc09500a8308430d8137a112cdefcc293b662c641950c2af703e042f0"
+  "identity": "sha256:a98a58e5902dacc401e1147337b6e20e722791843c41beb79c0724b4b1c133a5"
 }

@@ -9,8 +9,45 @@ positions, explicitly estimated altitude/time profiles, a reusable physical
 neighbourhood refinement policy and conservative visual/CPU camera clearance,
 four independently acquired imagery sources, and candidate mission catalog
 integration. Candidate product pins now match the final compiled selection;
-the completed receipt must confirm them before acceptance. The new mission
-browser script has not yet passed.
+the completed receipt must confirm them before acceptance. The actual mission
+Metal browser script passed on generated candidate data; replay against the
+fresh completed build remains required.
+
+The full five-product run generated its imagery but failed a cross-product
+grid gate that assumed all orthomosaics shared the 1 m DTM lattice. The original
+6 m CTX grid has origin (4573663.250853, 1109693.140188) m; the DTM origin is
+(4577366, 1106618) m. Their finest-grid phase residual is 0.250853 m. The lock
+now explicitly declares CTX's independent original grid; source-to-output
+registration remains required. The HiRISE 0.25 m / DTM 1 m coincident-grid gate
+remains strict, including a shifted-grid rejection regression. Neither source
+is moved or regridded to manufacture coincidence. A fresh immutable build is
+running with that policy; the rejected run has no publication receipt.
+
+Local candidate viewing may use those generated files while validation finishes;
+the inspector labels that preview explicitly. Such a preview is not acceptance.
+GPU diagnostics also found optional roots could exhaust a four-source texture
+budget. Mandatory base roots now own unconditional residency; visible upper
+layers get refinement priority. The four-source regression uses a budget too
+small for all optional roots and still requires detail, unchanged geometry,
+bounded requests/memory, working controls and mandatory base fallback.
+Higher-priority refinement can replace a drawn optional ancestor or lower layer
+without a full-cache deadlock. Samplers are detached before their old texture is
+disposed; mandatory base roots continue to supply coverage.
+
+[Candidate hardware acceptance](candidate-runtime.json) records three views,
+75 operational pick rays, measurements, Fly to, 15 explicitly estimated flight
+phase samples, imagery controls, eviction, optional outage/recovery and the
+mandatory-base outage with transparent overlays. The GPU was Apple M4 Max via
+Chrome Metal. [MoonFall regression](moonfall-regression.json) also passed after
+the shared changes. [Catalog preservation](catalog-contract.json) checks all 72
+arc identities/epochs, viewpoints, model, rotation and controls against the
+baseline. These records do not substitute for a completed five-product receipt
+or independent source accuracy. The local [390 px capture](captures/candidate-compact.png)
+visibly qualifies the reconstruction and candidate status.
+The same-pose [coarse imagery](captures/candidate-imagery-coarse.png) and
+[fine imagery](captures/candidate-imagery-fine.png) captures change only the
+imagery cap. CPU hits, selected geometry and source position/normal/index buffer
+signatures remain equal; displayed imagery advances from level 8 to 14.
 
 [Full mission reproduction](reproduce-mission.md) includes exact pinned response
 inventories and the [five-product lock](mission.lock.json). The global service

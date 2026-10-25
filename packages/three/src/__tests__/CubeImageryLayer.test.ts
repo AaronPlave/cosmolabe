@@ -114,10 +114,13 @@ describe('CubeImageryLayer', () => {
 
   it('composites a four-source stack on shared geometry, with one request and residency budget', async () => {
     const tileBytes = 264 * 264 * 4 * 4 / 3;
+    const disposed = new Set<THREE.Texture>();
     const layers = ['viking', 'ctx-global', 'jezero-ctx', 'hirise'].map(id => ({ type: 'cube' as const, id, name: id, url: `http://${id}/imagery.json` }));
-    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 3, maxTextureBytes: 40 * tileBytes }, {
+    // Four sets of six roots cannot fit; optional roots must not pin out detail.
+    const budget = 20 * tileBytes;
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 3, maxTextureBytes: budget }, {
       fetchManifest: async () => manifest(7),
-      loadTexture: async url => { const texture = new THREE.Texture(); texture.name = url; return { texture, bytes: tileBytes, downloadBytes: 1000 }; },
+      loadTexture: async url => { const texture = new THREE.Texture(); texture.name = url; texture.addEventListener('dispose',()=>disposed.add(texture)); return { texture, bytes: tileBytes, downloadBytes: 1000 }; },
     });
     await layer.ready;
     const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
@@ -128,25 +131,42 @@ describe('CubeImageryLayer', () => {
     for (let i = 0; i < 60; i++) {
       await tick();
       expect(layer.stats.inFlight).toBeLessThanOrEqual(3);
-      expect(layer.stats.textureBytes + layer.stats.inFlight * tileBytes).toBeLessThanOrEqual(40 * tileBytes + 1);
+      expect(layer.stats.textureBytes + layer.stats.inFlight * tileBytes).toBeLessThanOrEqual(budget + 1);
     }
     expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(address.level);
+    expect(layer.stats.pinnedTextures).toBe(6);
+    layer.setOptions({maxLevel:4});
+    for(let i=0;i<20;i++)await tick();
+    expect(layer.stats.maxDisplayedLevel).toBeLessThanOrEqual(4);
+    layer.setOptions({maxLevel:undefined});
+    for(let i=0;i<60;i++)await tick();
+    expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(4);
     expect(layer.stats.blocks).toBeLessThanOrEqual(64);
     expect(mesh.geometry.getAttribute('position')).toBe(position);
     expect(mesh.geometry.index).toBe(index);
-    const block = scene.children.find(c => c.name.startsWith('cube-imagery-block') && c.visible) as THREE.Mesh;
-    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
-    (block.material as THREE.Material).onBeforeCompile(shader as never, undefined as never);
+    const activeShader = (layerIndex = 3) => {
+      const shaders = scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible).map(c => {
+        const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+        ((c as THREE.Mesh).material as THREE.Material).onBeforeCompile(shader as never, undefined as never);
+        for(const [name,uniform] of Object.entries(shader.uniforms)) if (/^cubeLayer\d_map$/.test(name)) {
+          expect(disposed.has(uniform.value as THREE.Texture)).toBe(false);
+        }
+        return shader;
+      });
+      return shaders.find(s => s.uniforms[`cubeLayer${layerIndex}_enabled`].value === 1) ?? shaders[0];
+    };
+    const shader = activeShader();
     expect(Object.keys(shader.uniforms).filter(k => /^cubeLayer\d_map$/.test(k))).toHaveLength(4);
     expect(layer.moveLayer('hirise', 1)).toBe(true);
     expect(layer.setLayerOpacity('hirise', 0.25)).toBe(true);
     expect(layer.setLayerVisible('ctx-global', false)).toBe(true);
     expect(layer.setLayerVisible('viking', false)).toBe(false);
-    await tick();
-    expect(shader.uniforms.cubeLayer1_opacity.value).toBe(0.25);
-    expect(shader.uniforms.cubeLayer2_enabled.value).toBe(0);
+    for (let i=0;i<30;i++) await tick();
+    const current = activeShader(1); // eviction may have rebuilt the original block
+    expect(current.uniforms.cubeLayer1_opacity.value).toBe(0.25);
+    expect(current.uniforms.cubeLayer2_enabled.value).toBe(0);
     expect(layer.imageryLayers.map(s => s.id)).toEqual(['viking', 'hirise', 'ctx-global', 'jezero-ctx']);
-    expect(layer.stats.textureBytes).toBeLessThanOrEqual(40 * tileBytes + 1);
+    expect(layer.stats.textureBytes).toBeLessThanOrEqual(budget + 1);
     layer.dispose();
   });
 
@@ -177,7 +197,7 @@ describe('CubeImageryLayer', () => {
       const { scene } = geometryTile(address); tileSet.add(scene); layer.addTile(scene, scene, address);
       const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
       for (let i = 0; i < 10; i++) await tick();
-      expect(layer.stats.failedTiles).toBe(6);
+      expect(layer.stats.failedTiles).toBe(1); // only the optional face actually in view is requested
       expect(layer.stats.baseUncoveredBlocks).toBe(0);
       expect(layer.stats.untexturedBlocks).toBe(0);
       expect(layer.stats.textures).toBe(6);
@@ -258,6 +278,10 @@ describe('CubeImageryLayer', () => {
       layer.retryFailed(); layer.retryFailed(); // overlapping recovery calls share one request
       await vi.runAllTimersAsync();
       expect(optionalRequests).toBe(5);
+      expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'idle']);
+      const tileSet = new THREE.Group(), address = directionToTexel(southPole,3,256,4).address;
+      const {scene}=geometryTile(address);tileSet.add(scene);layer.addTile(scene,scene,address);
+      for(let i=0;i<5;i++) { layer.update(camera(3000),tileSet.matrixWorld,.001,null);await vi.runAllTimersAsync(); }
       expect(layer.imageryLayers.map(s => s.status)).toEqual(['ok', 'ok']);
     } finally { layer.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
   });

@@ -159,7 +159,13 @@ export async function compileBuild(lock) {
     assert(!s.metadata || s.metadata.reuse.status === 'allowed', `${s.id}: permissions unknown or restricted`);
     assert(s.projection === 'EPSG:4326' || (real && s.projection === 'Mars-EQC-0-0'), `${s.id}: source reprojection is unsupported`);
   }
-  keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM'], 'gates');
+  keys(p.gates, ['maxOffsetM', 'maxBoundaryStepM', 'controls', 'clearanceM', 'independentImageGrids'], 'gates');
+  if (p.gates.independentImageGrids !== undefined) {
+    const ids = p.gates.independentImageGrids;
+    assert(Array.isArray(ids) && new Set(ids).size === ids.length && ids.every(id =>
+      p.imagery.some(image => image.sourceId === id) && byId.get(id)?.projection === 'Mars-EQC-0-0'),
+    'independent image grids must name unique selected raster imagery sources');
+  }
   assert(positive(p.gates.clearanceM) && p.gates.clearanceM <= 500, 'explicit clearance must be in (0, 500] metres');
   assert(positive(p.gates.maxOffsetM) && positive(p.gates.maxBoundaryStepM), 'explicit registration and boundary limits required');
   // Ingenuity has 73 landing/deployment controls. Keep the fixture bound and

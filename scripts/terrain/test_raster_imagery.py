@@ -6,7 +6,7 @@ import tempfile
 import unittest
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'surface-build'))
-from worker import prepare_imagery, reject_external_masks, valid_subset
+from worker import prepare_imagery, reject_external_masks, valid_subset, grid_alignment
 from validate_imagery import validate_large_native
 import cube_imagery as cube
 from osgeo import gdal,osr
@@ -15,6 +15,21 @@ import numpy as np
 gdal.UseExceptions()
 
 class RasterImageryTests(unittest.TestCase):
+    def test_original_ctx_grid_requires_explicit_independent_policy(self):
+        detail=(4577366.,1.,0.,1106618.,0.,-1.)
+        ctx=(4573663.250853,6.,0.,1109693.140188,0.,-6.)
+        with self.assertRaisesRegex(AssertionError,'grid alignment'):
+            grid_alignment(detail,ctx)
+        proof=grid_alignment(detail,ctx,independent=True)
+        self.assertFalse(proof['coincident'])
+        self.assertAlmostEqual(proof['maximumGridPhaseErrorM'],.250853)
+        self.assertEqual(proof['nativePixelRatio'],1/6)
+        hirise=(4577366.,.25,0.,1106618.,0.,-.25)
+        self.assertTrue(grid_alignment(detail,hirise)['coincident'])
+        shifted=(4577366.+.125,.25,0.,1106618.,0.,-.25)
+        with self.assertRaisesRegex(AssertionError,'grid alignment'):
+            grid_alignment(detail,shifted)
+
     def test_native_window_reference_catches_shifted_large_source_output(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);source=root/'original.tif'

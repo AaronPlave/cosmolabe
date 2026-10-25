@@ -6,6 +6,22 @@ snapshot is deliberate: the old coordinate interpretation must be audited using
 the old files. Only the historical comparison reads an old fused product.
 New execution uses the independently recomputed, byte-verified fusion.
 
+Reproduce the terrain registration decision independently of flight observations:
+
+```sh
+curl -fL 'https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/DTM_MOLAtopography_DeltaGeoid_20m_Jezero_F05X_v7pt1_Eqc_latTs0_lon0.tif' -o "$RUN/upstream/ctx-dtm.tif"
+python3 scripts/terrain/audit_ingenuity_registration.py \
+  --base "$SOURCE_DIR/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif" \
+  --detail "$SOURCE_DIR/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif" \
+  --reference "$RUN/upstream/ctx-dtm.tif" --fusion "$RUN/clean-fusion" \
+  --out "$RUN/terrain-registration.json"
+```
+
+The CTX LVS reference is 9,662,387 bytes, SHA-256
+`16a1aa66c3f48c1bca252795827db7b417876217aff0f5e1aff18027fab2327b`.
+It corroborates the published HiRISE control parent; it is not independent
+absolute truth or a reason to fit terrain to the flight reconstruction.
+
 Use the exact source hashes in [source inventory](source-inventory.json),
 [mission geometry evidence](mission-geometry-evidence.json), and
 [terrain registration evidence](terrain-registration.json). The lock pins
@@ -47,6 +63,10 @@ for CTX; the original mosaics' nominal 232 m / 5 m GSDs remain separately
 recorded. The CTX source target is 6 m. Output grid spacing cannot create
 missing native detail. Regional CTX and HiRISE source intervals are 6 m and
 0.25 m; terrain uses the original 1 m HiRISE DTM within a 200 m global base.
+The lock explicitly lists Jezero CTX under `independentImageGrids`: its original
+6 m map has a different origin from the DTM. Each source's own affine/native
+registration is validated against its output. HiRISE's shared-origin 4:1 grid
+relationship to the DTM remains a separate required check.
 
 To regenerate the explicitly estimated flight representation:
 

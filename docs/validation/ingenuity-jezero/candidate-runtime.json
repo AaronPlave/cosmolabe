@@ -1,0 +1,154 @@
+{
+  "kind": "ingenuity-candidate-runtime-acceptance",
+  "status": "candidate runtime passed; final completed-build replay required",
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "sourceBuild": "887d847c51fcabb8836d2970e9dc68da1e2f2b43bd368a65119a2ee830adfd4e (generated outputs; cross-grid validation rejected)",
+  "targetBuild": "683c6b411ecef47d8b7f7c522e33c5113e3074394249a138e3f17d32eb662f4a",
+  "rawResultSha256": "ad70393ed1dfacca3c405852035934e2061f2b3466ae3fcf2c88af99ce57027f",
+  "rayToleranceM": 0.5,
+  "views": [
+    {
+      "name": "wright",
+      "nav": {
+        "radiusKm": 3391.936496222438,
+        "physicalRadiusKm": 3391.9364962223426,
+        "renderedRadiusKm": 3391.936496222438,
+        "discrepancyM": 9.549694368615746e-08,
+        "settled": true
+      },
+      "clearanceM": 49.99999990423021,
+      "rayCount": 25,
+      "maximumAbsoluteRayOffsetM": 0.05575978389190633,
+      "imageryLevel": 14,
+      "pinnedTextures": 6,
+      "textureBytes": 129632163,
+      "baseUncoveredBlocks": 0
+    },
+    {
+      "name": "delta",
+      "nav": {
+        "radiusKm": 3391.966741026428,
+        "physicalRadiusKm": 3391.966741026428,
+        "renderedRadiusKm": 3391.9667410262987,
+        "discrepancyM": -1.291482476517558e-07,
+        "settled": true
+      },
+      "clearanceM": 49.999999999272404,
+      "rayCount": 25,
+      "maximumAbsoluteRayOffsetM": 4.1716452159262517e-07,
+      "imageryLevel": 14,
+      "pinnedTextures": 6,
+      "textureBytes": 129632163,
+      "baseUncoveredBlocks": 0
+    },
+    {
+      "name": "last-airfield",
+      "nav": {
+        "radiusKm": 3392.08914789448,
+        "physicalRadiusKm": 3392.0891478940553,
+        "renderedRadiusKm": 3392.08914789448,
+        "discrepancyM": 4.247340257279575e-07,
+        "settled": true
+      },
+      "clearanceM": 49.99999957544787,
+      "rayCount": 25,
+      "maximumAbsoluteRayOffsetM": 0.32224021727784874,
+      "imageryLevel": 14,
+      "pinnedTextures": 6,
+      "textureBytes": 129632163,
+      "baseUncoveredBlocks": 0
+    }
+  ],
+  "errors": [],
+  "coldPolicy": {
+    "coarsePolicyBaseline": {
+      "radiusKm": 3391.936496222438,
+      "physicalRadiusKm": 3391.9364962223426,
+      "renderedRadiusKm": 3391.936496222438,
+      "discrepancyM": 9.549694368615746e-08,
+      "settled": true
+    },
+    "refinedPolicy": {
+      "radiusKm": 3391.936496222438,
+      "physicalRadiusKm": 3391.9364962223426,
+      "renderedRadiusKm": 3391.936496222438,
+      "discrepancyM": 9.549694368615746e-08,
+      "settled": true
+    }
+  },
+  "sampledLoadingMinimumClearanceM": 49.99999990423021,
+  "measurement": {
+    "count": 1,
+    "distanceKm": 0.01321374937470412,
+    "unchangedByImagery": true
+  },
+  "flyToClearanceM": 33893.92716206385,
+  "estimatedPlayback": {
+    "flights": [
+      1,
+      12,
+      72
+    ],
+    "samples": 15,
+    "minimumEstimatedClearanceM": -0.012910838904645061,
+    "maximumModelPositionDifferenceM": 1.4117863992836738e-05,
+    "note": "Checks rendering/interpolation of the explicit estimate, not observed flight telemetry or absolute positioning accuracy."
+  },
+  "independentImagery": {
+    "coarseLevel": 8,
+    "fineLevel": 14,
+    "cpuHitUnchanged": true,
+    "geometrySelectionUnchanged": true,
+    "physicalBuffersUnchanged": true,
+    "physicalBufferSignature": {
+      "bytes": 18064632,
+      "fnv1a32": "27da55d"
+    }
+  },
+  "eviction": {
+    "evicted": 296,
+    "textureBytes": 45089448,
+    "maxTextureBytes": 50331648,
+    "baseUncoveredBlocks": 0
+  },
+  "optionalOutage": {
+    "failures": 5,
+    "baseUncoveredBlocks": 0,
+    "recoveryFailedTiles": 0
+  },
+  "baseOutage": {
+    "uncovered": 26,
+    "readyToShow": false,
+    "staticVisible": true,
+    "recoveryUncovered": 0
+  },
+  "visibleControlsRestored": [
+    {
+      "id": "viking",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "ctx-global",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "jezero-ctx",
+      "visible": true,
+      "opacity": 1
+    },
+    {
+      "id": "jezero-hirise",
+      "visible": true,
+      "opacity": 1
+    }
+  ],
+  "compactWidth": 390,
+  "limitations": [
+    "Runtime evidence uses generated candidate data; the fresh lock must complete and be replayed before acceptance.",
+    "Small CPU/rendered differences measure shared representation agreement, not physical source accuracy.",
+    "Sampled loading traces and rays are not a formal continuous error bound.",
+    "Camera clearance changes during coarse loading; paired policy captures are not a same-pose image-fidelity comparison."
+  ]
+}

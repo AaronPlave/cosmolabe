@@ -40,6 +40,7 @@ def compare(base, detail, reference, fusion):
     north = (lat - centre['latDeg']) * k
     plane = reg['offsetM'] + east * reg['slopeEastMPerKm'] + north * reg['slopeNorthMPerKm']
     return dict(kind='terrain-registration-source-comparison',
+                referenceUrl='https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/DTM_MOLAtopography_DeltaGeoid_20m_Jezero_F05X_v7pt1_Eqc_latTs0_lon0.tif',
                 inputs={k: pin(p) for k, p in [('base', base), ('detail', detail), ('ctxLvs', reference)]},
                 sampling=dict(method='Every 256th native pixel centre, starting at (128,128); original detail mask; cubic comparison kernels',
                               count=len(raw), excluded=int(mask.size-mask.sum()), observationInputs=[]),
