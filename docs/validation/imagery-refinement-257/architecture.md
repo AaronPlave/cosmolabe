@@ -232,3 +232,75 @@ node scripts/test-surface-flight-pacing.mjs http://localhost:5173/ work/moonfall
 node scripts/test-surface-flight-pacing.mjs http://localhost:5173/ work/moonfall-jank/after
 node scripts/test-near-surface-performance.mjs http://localhost:5173/ work/moonfall-jank/navigation
 ```
+
+## Camera-history eviction recovery and distant horizon follow-up
+
+The later MoonFall recordings exposed two defects missed by cold overview
+captures. The first was retained topology being mistaken for retained texture
+residency: a committed split survived eviction, so revisiting it could display
+L1/L3 images indefinitely with no queued work. The hierarchy now reconciles
+residency for committed branches, re-admits missing replacements as coherent
+frontiers, and retains usable previously published detail while the frontier
+loads. Recovery emits disjoint covers so transparent descendants cannot acquire
+a false opaque-parent proof. Completed intermediate parents must become the
+next wave's fallback; otherwise they become unreferenced and are evicted while
+the next wave loads. Deterministic tests cover that feedback cycle, missing
+intermediate parents and out-of-order recovery without flashing new siblings.
+Resident ancestors of displayed images remain protected for usable coarsening;
+culled branches remain evictable.
+
+[Camera-history evidence](imagery-history.json) separates the state repair from
+capacity. At the **same 160 MiB target**, silent coarse gaps fall from 54 to zero;
+remaining capacity limitations are reported explicitly. MoonFall now declares a
+**512 MiB imagery target**, in both its catalog and generator, for the measured
+Retina working set including retained parents. The generic default stays
+160 MiB. At 1876×1080 CSS / DPR 2, the final 18-pose close/tilt/zoom sequence
+checks 358 physical pixel-centre rays against native demand and GPU debug
+levels. All meet native demand; 1,080 stationary frames have zero requests,
+aborts or evictions. Reported peak resident bytes include the four-page
+transition headroom; this is a target with explicit overage, not a hard cap.
+
+![Before: coarse blocks after camera history](moonfall-history-before.jpg)
+![After: recovered native imagery at the same view](moonfall-history-after.jpg)
+
+A separate filtering regression also existed: the shared array defaulted to 1x
+anisotropy where the previous per-image sampler requested 8x. It now requests
+8x before allocation, clamped by Three to the device limit. Changing the
+descriptor after allocation would replace the storage and is avoided. A/B
+captures use the exact same resident source pages. An explicitly synthetic,
+known stripe integration fixture measures oblique error 127.5→0 and nadir
+error 0→0. This fixes grazing filtering; it was **not** the cause of the large
+coarse blocks. Source pixels, footprints and native inventory stay unchanged.
+
+The Mons Malapert recording exposed another selection error. Imagery inherited
+the terrain traversal camera's **50 km far plane** even though physical meshes
+beyond that plane were still drawn by the main camera. Those distant regions
+could remain at root imagery with no requests. Imagery now uses the side planes
+and conservative physical horizon, with both traversal depth planes disabled,
+matching the existing main-view terrain draw-culling policy. This does not
+extend physical geometry, change terrain heights or infer source coverage.
+The unit regression deliberately draws geometry outside the streaming depth
+slab and requires native refinement. [Horizon GPU evidence](imagery-horizon.json)
+compares the exact same runtime with only this depth-plane repair removed,
+then restored, through near-horizon altitude changes and reversals. Across
+five views, **49 of 398 distant samples** previously had no demand and used
+root imagery; all 398 now meet native demand. All 392 unambiguous GPU debug
+pixels agree; six mixed multisample pixels are retained explicitly. Stationary
+300-frame totals have zero requests, aborts or evictions. Per-view frame p95
+is 18.0–19.5 ms before and 18.2–19.2 ms after; sampled imagery update cost
+increases from 1.1–1.5 ms to 1.7–2.0 ms as distant coverage is restored.
+
+![Before: distant horizon falls back to root imagery](moonfall-horizon-before.jpg)
+![After: distant native imagery remains visible](moonfall-horizon-after.jpg)
+
+```sh
+node scripts/test-imagery-filtering.mjs http://localhost:5173/ work/moonfall-jank/history --history --hidpi --expect-default --assert-recovery
+node scripts/test-imagery-horizon.mjs http://localhost:5173/ work/moonfall-jank/horizon-before --depth-baseline
+node scripts/test-imagery-horizon.mjs http://localhost:5173/ work/moonfall-jank/horizon-after
+```
+
+Historical reports retain their original source hashes. The horizon report
+records the subsequent source set. Refreshed full cross-mission GPU regressions
+are running at publication; their results will be recorded separately.
+Production R2 upload/deployment remains unauthorized; no scientific data,
+mission reconstruction or production pins change in this follow-up.

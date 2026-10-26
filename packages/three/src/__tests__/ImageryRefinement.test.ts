@@ -8,6 +8,38 @@ const ids = [root, ...children, ...grandchildren].map(cubeTileId);
 const levels = (frame: ReturnType<ImageryRefinement['update']>) => [...new Set(frame.cover.map(c => c.image.level))];
 
 describe('persistent imagery replacement hierarchy', () => {
+  it('requeues evicted committed pages and restores a sibling group coherently', () => {
+    const tree = new ImageryRefinement(ids), ready = new Set(ids);
+    const tick = (n: number) => tree.update(grandchildren, a => ready.has(cubeTileId(a)), n);
+    expect(levels(tick(0))).toEqual([2]);
+    const lost = imageryChildren(children[0]);
+    lost.forEach(a => ready.delete(cubeTileId(a)));
+    const evicted = tick(1);
+    expect(evicted.loading.flat().map(cubeTileId)).toEqual(lost.map(cubeTileId));
+    expect(evicted.cover.filter(c => c.image.level === 2)).toHaveLength(12);
+    for (let n = 0; n < lost.length; n++) {
+      ready.add(cubeTileId(lost[n])); const frame = tick(n + 2);
+      expect(frame.cover.filter(c => c.image.level === 2)).toHaveLength(n === 3 ? 16 : 12);
+    }
+  });
+  it('recovers missing intermediate pages without hiding valid published descendants', () => {
+    const tree = new ImageryRefinement(ids), ready = new Set(ids);
+    tree.update(grandchildren, a => ready.has(cubeTileId(a)), 0);
+    children.forEach(a => ready.delete(cubeTileId(a)));
+    grandchildren.slice(0, 4).forEach(a => ready.delete(cubeTileId(a)));
+    const frame = tree.update(grandchildren, a => ready.has(cubeTileId(a)), 1);
+    expect(frame.loading.flat().map(cubeTileId)).toEqual(children.map(cubeTileId));
+    expect(frame.cover.filter(c => c.image.level === 2)).toHaveLength(12);
+    expect(frame.cover.filter(c => c.image.level === 0)).toHaveLength(1);
+    // Coverage remains disjoint even while source alpha can vary by child.
+    for (const c of grandchildren) expect(frame.cover.filter(p => p.patch.level <= c.level &&
+      (c.x >> (c.level - p.patch.level)) === p.patch.x && (c.y >> (c.level - p.patch.level)) === p.patch.y)).toHaveLength(1);
+    children.forEach(a => ready.add(cubeTileId(a)));
+    const parents = tree.update(grandchildren, a => ready.has(cubeTileId(a)), 2);
+    expect(parents.cover.filter(c => c.image.level === 2)).toHaveLength(12);
+    expect(parents.cover.filter(c => c.image.level === 1)).toHaveLength(1);
+    expect(parents.cover.some(c => c.image.level === 0)).toBe(false);
+  });
   it('holds the visible refinement frontier until neighboring groups complete',()=>{
     const deep=grandchildren.flatMap(imageryChildren), tree=new ImageryRefinement([...ids,...deep.map(cubeTileId)]);
     const ready=new Set([root,...children].map(cubeTileId));

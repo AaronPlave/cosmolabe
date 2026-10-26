@@ -46,6 +46,10 @@ export class CubeImageryPages {
     this.array.source.dataReady = false;
     this.array.minFilter = THREE.LinearMipmapLinearFilter;
     this.array.magFilter = THREE.LinearFilter;
+    // Preserve the old per-image sampler's grazing-view quality. Three clamps
+    // this request to the device limit; configure it before allocating pages,
+    // since changing the texture descriptor later would replace their storage.
+    this.array.anisotropy = 8;
     // Allocate the mip chain once; copies populate each page's own mip chain.
     this.array.generateMipmaps = true;
     this.array.needsUpdate = true;

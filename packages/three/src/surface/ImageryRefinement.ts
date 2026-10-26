@@ -23,6 +23,8 @@ export class ImageryRefinement {
   private readonly available: Set<string>;
   readonly branches = new Set<string>();
   private readonly lastSplitWanted = new Map<string, number>();
+  private readonly recovering = new Set<string>();
+  private previousCover: ImageryCover[] = [];
   readonly topology: Set<string>;
 
   constructor(ids: Iterable<string>, readonly coarsenDelayFrames = 30) {
@@ -72,13 +74,16 @@ export class ImageryRefinement {
     const pending: Array<{ address: ImageryAddress; replacements: ImageryAddress[]; missing: boolean }> = [];
     const scan = (a: ImageryAddress): void => {
       if (!needed(a) || !wantsSplit(a)) return;
-      if (!this.branches.has(cubeTileId(a))) {
-        const replacements = replacementsFor(a);
-        if (replacements.some(c => c.level > a.level)) {
-          const missing = replacements.some(c => !ready(c));
-          pending.push({ address: a, replacements, missing });
-          if (missing) return;
-        }
+      const committed = this.branches.has(cubeTileId(a));
+      const replacements = replacementsFor(a);
+      if (replacements.some(c => c.level > a.level)) {
+        const missing = replacements.some(c => !ready(c));
+        // A remembered split is topology, not proof of texture residency.
+        // Culled pages may have been evicted since this branch last drew.
+        // Re-admit missing replacements without dropping usable descendants.
+        if (missing && committed) this.recovering.add(cubeTileId(a));
+        if (missing || !committed || this.recovering.has(cubeTileId(a))) pending.push({ address: a, replacements, missing });
+        if (missing && !committed) return;
       }
       for (const c of imageryChildren(a)) if (this.topology.has(cubeTileId(c))) scan(c);
     };
@@ -87,6 +92,22 @@ export class ImageryRefinement {
     const wave = [...new Map(pending.filter(p => p.address.level === frontier)
       .flatMap(p => p.replacements).map(a => [cubeTileId(a), a])).values()];
     const result: ImageryRefinementFrame = { cover: [], loading: wave.length ? [wave] : [], committed: 0, waiting: 0 };
+    const contains = (a: ImageryAddress, b: ImageryAddress): boolean => a.face === b.face && a.level <= b.level &&
+      Math.floor(b.x / 2 ** (b.level - a.level)) === a.x && Math.floor(b.y / 2 ** (b.level - a.level)) === a.y;
+    const retain = (a: ImageryAddress, fallback: ImageryAddress | null, previous: ImageryCover[]): void => {
+      if (!needed(a)) return;
+      const exact = previous.find(c => cubeTileId(c.patch) === cubeTileId(a));
+      if (exact) {
+        // A completed coarser frontier becomes the fallback for the next
+        // wave. Retaining an older, rougher image here would leave the newly
+        // loaded parent unreferenced and evictable, cycling the same waves.
+        result.cover.push(fallback && fallback.level > exact.image.level ? { patch: a, image: fallback } : exact);
+        return;
+      }
+      if (previous.length) {
+        for (const child of imageryChildren(a)) retain(child, fallback, previous.filter(c => contains(child, c.patch)));
+      } else if (fallback) result.cover.push({ patch: a, image: fallback });
+    };
     const visit = (a: ImageryAddress, inherited: ImageryAddress | null): void => {
       if (!needed(a)) return;
       const id = cubeTileId(a), image = this.ancestor(a);
@@ -95,9 +116,17 @@ export class ImageryRefinement {
       const children = imageryChildren(a).filter(c => this.topology.has(cubeTileId(c)));
       if (split && children.length) {
         const replacements = replacementsFor(a);
-        if (!this.branches.has(id) && a.level >= frontier && replacements.some(c => c.level > a.level)) {
+        if ((!this.branches.has(id) || this.recovering.has(id)) && a.level >= frontier && replacements.some(c => c.level > a.level)) {
           result.waiting++;
+          // Recover as one sibling/frontier replacement. Keep only previously
+          // published, still-resident detail while downloads arrive out of
+          // order; newly returned pages cannot flash in individually. Emit a
+          // disjoint cover so transparent descendants never inherit a false
+          // opaque-parent proof during layer compositing.
+          retain(a, usable, this.previousCover.filter(c => contains(a, c.patch) && ready(c.image)));
+          return;
         } else {
+          this.recovering.delete(id);
           if (!this.branches.has(id)) { this.branches.add(id); result.committed++; }
           // Every quadrant still has an explicit fallback, including quadrants
           // absent from a regional inventory. They must not borrow other texels.
@@ -111,6 +140,7 @@ export class ImageryRefinement {
         // Coarsen only to an already usable parent. Descendants can then be
         // retired without touching any sampler referenced by this frame.
         this.branches.delete(id);
+        this.recovering.delete(id);
       } else if (this.branches.has(id)) {
         // A missing/evicted parent must never blank an existing child cover.
         for (const child of imageryChildren(a)) visit(child, usable);
@@ -121,6 +151,7 @@ export class ImageryRefinement {
       else if (image) result.loading.push([image]);
     };
     for (const root of roots.values()) visit(root, null);
+    this.previousCover = result.cover;
     return result;
   }
 }

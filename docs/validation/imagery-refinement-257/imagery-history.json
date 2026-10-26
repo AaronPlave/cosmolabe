@@ -1,0 +1,2251 @@
+{
+  "kind": "imagery-eviction-recovery-and-filtering",
+  "date": "2026-10-26",
+  "passed": true,
+  "baselineCommit": "9f83a451b9af045fd939bb68517a01e6f8efcdc0",
+  "sourceSha256": {
+    "packages/three/src/CubeImageryLayer.ts": "cccf9e3076608deac3f8cadc9dfb09964162a978ceb1c573070ecfd9fa3436bd",
+    "packages/three/src/CubeImageryPages.ts": "82cc65488975031d67bbb9612169063d1636135e9dec4c6045069820e7eb0010",
+    "packages/three/src/surface/ImageryRefinement.ts": "495a524ff12491337483c453f7d905974c71dec893f7aaa370d5c4b5430d5a07",
+    "apps/viewer/test-catalogs/moonfall-shackleton.json": "4639beeae08826a54a16058b802ad2f2f8f73d33c3b34bfac418ffe224e38476",
+    "scripts/build-moonfall-flights.mjs": "28ef1f3f05bebe52d7aa380f4defa0f5c8e024a99499c16a31d42fdac8eb9bd2",
+    "scripts/test-imagery-filtering.mjs": "078be8d86de9cdf75a5f632a09e769c76ecb382585a23bd1fceacaf4113e5e6a"
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "viewportCss": [
+    1876,
+    1080
+  ],
+  "deviceScaleFactor": 2,
+  "drawingBuffer": [
+    3752,
+    2160
+  ],
+  "method": "Actual MoonFall catalog; repeated 2/10/2/40/2/100/2/200/60 km views with nadir and 1.45 rad tilt. Same native inventory, physical terrain and 8x filtering for history comparisons. Old code at 160MiB, repaired state machine at 160MiB, and final mission target at 512MiB are reported separately. Final acceptance waits 30 consecutive fully idle frames before sampling and then measures 60 stationary frames per view.",
+  "cause": "Committed split flags survived eviction, so returning branches silently reused L1/L3 without requesting their evicted pages. Recovery now reconciles residency, queues coherent frontiers, retains usable prior detail and parents, and publishes completed intermediate fallback waves before proceeding deeper.",
+  "before160MiB": {
+    "passed": true,
+    "views": [
+      {
+        "view": "0-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 128984064,
+        "allocatedBytes": 169145344,
+        "requests": 347,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 20.200000047683716,
+          "maximum": 20.799999952316284
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "1-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 143,
+        "waitingGroups": 42,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "3": 1,
+          "7": 23,
+          "8": 23,
+          "9": 12,
+          "10": 148,
+          "11": 9,
+          "12": 30,
+          "13": 76
+        },
+        "residentBytes": 120806400,
+        "allocatedBytes": 169145344,
+        "requests": 573,
+        "evicted": 248,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 23.30000001192093,
+          "maximum": 24.5
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "2-Moon-10-nadir",
+        "distanceKm": 10,
+        "tiltRad": 0,
+        "samples": 24,
+        "gapsOverOneLevel": 3,
+        "silentGaps": 3,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 142,
+          "12": 52
+        },
+        "displayedLevels": {
+          "1": 24,
+          "10": 3,
+          "11": 110,
+          "12": 54
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 710,
+        "evicted": 255,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 20.30000001192093,
+          "maximum": 20.5
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "3-Moon-10-oblique",
+        "distanceKm": 10,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 2,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 28,
+        "waitingGroups": 47,
+        "wantedLevels": {
+          "7": 19,
+          "8": 27,
+          "9": 39,
+          "10": 119,
+          "11": 163,
+          "12": 59
+        },
+        "displayedLevels": {
+          "1": 36,
+          "3": 19,
+          "7": 19,
+          "8": 27,
+          "9": 46,
+          "10": 7,
+          "11": 86,
+          "12": 54
+        },
+        "residentBytes": 155747328,
+        "allocatedBytes": 169145344,
+        "requests": 878,
+        "evicted": 451,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 12.800000011920929,
+          "p95": 25.099999964237213,
+          "maximum": 30.099999964237213
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "4-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "1": 18,
+          "11": 3,
+          "12": 38,
+          "13": 79
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1001,
+        "evicted": 546,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.799999952316284,
+          "p95": 20.30000001192093,
+          "maximum": 21.30000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "5-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "1": 149,
+          "3": 33,
+          "10": 4,
+          "11": 147,
+          "12": 55,
+          "13": 84
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169161728,
+        "requests": 1116,
+        "evicted": 661,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.599999964237213,
+          "p95": 18.5,
+          "maximum": 20.30000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "6-Moon-40-nadir",
+        "distanceKm": 40,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 9,
+        "silentGaps": 9,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "8": 20,
+          "9": 132,
+          "10": 54
+        },
+        "displayedLevels": {
+          "1": 95,
+          "3": 44,
+          "8": 5,
+          "9": 35,
+          "10": 141
+        },
+        "residentBytes": 164296704,
+        "allocatedBytes": 169145344,
+        "requests": 1204,
+        "evicted": 762,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 19.69999998807907,
+          "maximum": 19.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "7-Moon-40-oblique",
+        "distanceKm": 40,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 5,
+        "silentGaps": 5,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 14,
+          "8": 43,
+          "9": 98,
+          "10": 160,
+          "11": 4
+        },
+        "displayedLevels": {
+          "1": 109,
+          "3": 80,
+          "7": 6,
+          "8": 6,
+          "9": 33,
+          "10": 150,
+          "11": 8
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169161728,
+        "requests": 1302,
+        "evicted": 847,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.700000047683716,
+          "p95": 18.69999998807907,
+          "maximum": 18.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "8-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 22,
+          "12": 56,
+          "13": 60
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1380,
+        "evicted": 925,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 20.100000023841858,
+          "maximum": 20.399999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "9-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "1": 136,
+          "3": 33,
+          "10": 6,
+          "11": 166,
+          "12": 71,
+          "13": 60
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169161728,
+        "requests": 1501,
+        "evicted": 1046,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 18.30000001192093,
+          "maximum": 18.599999964237213
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "10-Moon-100-nadir",
+        "distanceKm": 100,
+        "tiltRad": 0,
+        "samples": 24,
+        "gapsOverOneLevel": 8,
+        "silentGaps": 8,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 20,
+          "8": 78
+        },
+        "displayedLevels": {
+          "1": 76,
+          "3": 37,
+          "7": 8,
+          "8": 14,
+          "9": 104
+        },
+        "residentBytes": 154260480,
+        "allocatedBytes": 169145344,
+        "requests": 1591,
+        "evicted": 1176,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.599999964237213,
+          "p95": 19,
+          "maximum": 19.30000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "11-Moon-100-oblique",
+        "distanceKm": 100,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 6,
+        "silentGaps": 6,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 15,
+          "8": 49,
+          "9": 48
+        },
+        "displayedLevels": {
+          "1": 53,
+          "3": 3,
+          "7": 8,
+          "8": 10,
+          "9": 75
+        },
+        "residentBytes": 160951296,
+        "allocatedBytes": 169145344,
+        "requests": 1609,
+        "evicted": 1176,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.899999976158142,
+          "maximum": 19.299999952316284
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "12-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 23,
+          "12": 55,
+          "13": 60
+        },
+        "residentBytes": 168385536,
+        "allocatedBytes": 169145344,
+        "requests": 1629,
+        "evicted": 1176,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.899999976158142,
+          "p95": 19.399999976158142,
+          "maximum": 20.100000023841858
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "13-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "1": 41,
+          "3": 13,
+          "10": 207,
+          "11": 98,
+          "12": 53,
+          "13": 60
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169161728,
+        "requests": 1810,
+        "evicted": 1355,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.30000001192093,
+          "p95": 25.69999998807907,
+          "maximum": 26.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "14-Moon-200-nadir",
+        "distanceKm": 200,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 14,
+        "silentGaps": 14,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "6": 71,
+          "7": 95
+        },
+        "displayedLevels": {
+          "1": 64,
+          "3": 34,
+          "6": 61,
+          "7": 30,
+          "8": 61
+        },
+        "residentBytes": 151286784,
+        "allocatedBytes": 169145344,
+        "requests": 1957,
+        "evicted": 1550,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 19.399999976158142,
+          "maximum": 19.5
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "15-Moon-200-oblique",
+        "distanceKm": 200,
+        "tiltRad": 1.45,
+        "samples": 13,
+        "gapsOverOneLevel": 7,
+        "silentGaps": 7,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "5": 22,
+          "6": 124,
+          "7": 118,
+          "8": 20
+        },
+        "displayedLevels": {
+          "1": 62,
+          "3": 26,
+          "5": 12,
+          "6": 117,
+          "7": 59,
+          "8": 61
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 2111,
+        "evicted": 1656,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.80000001192093,
+          "maximum": 18.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "16-Moon-60-nadir",
+        "distanceKm": 60,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 20,
+          "8": 70,
+          "9": 164
+        },
+        "displayedLevels": {
+          "1": 24,
+          "3": 10,
+          "7": 5,
+          "8": 51,
+          "9": 170,
+          "10": 6
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 2271,
+        "evicted": 1816,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 17.900000035762787,
+          "maximum": 19.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "17-Moon-60-oblique",
+        "distanceKm": 60,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 2,
+        "silentGaps": 2,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 8,
+          "8": 45,
+          "9": 122,
+          "10": 122
+        },
+        "displayedLevels": {
+          "1": 10,
+          "3": 8,
+          "8": 34,
+          "9": 136,
+          "10": 148
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 2413,
+        "evicted": 1958,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 18.200000047683716,
+          "maximum": 18.200000047683716
+        },
+        "quietChurn": null
+      }
+    ],
+    "samples": 356,
+    "gapsOverOneLevel": 56,
+    "silentGaps": 54
+  },
+  "stateRepair160MiB": {
+    "passed": true,
+    "views": [
+      {
+        "view": "0-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 118204416,
+        "allocatedBytes": 169145344,
+        "requests": 318,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 19.19999998807907,
+          "maximum": 19.399999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "1-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 21,
+        "waitingGroups": 49,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 46,
+          "10": 12,
+          "11": 7,
+          "12": 29,
+          "13": 76
+        },
+        "residentBytes": 158349312,
+        "allocatedBytes": 169145344,
+        "requests": 541,
+        "evicted": 107,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.30000001192093,
+          "p95": 23.899999976158142,
+          "maximum": 24.19999998807907
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "2-Moon-10-nadir",
+        "distanceKm": 10,
+        "tiltRad": 0,
+        "samples": 23,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 142,
+          "12": 52
+        },
+        "displayedLevels": {
+          "11": 117,
+          "12": 74
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 737,
+        "evicted": 282,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 19.599999964237213,
+          "maximum": 20
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "3-Moon-10-oblique",
+        "distanceKm": 10,
+        "tiltRad": 1.45,
+        "samples": 14,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 136,
+        "waitingGroups": 41,
+        "wantedLevels": {
+          "7": 19,
+          "8": 27,
+          "9": 39,
+          "10": 119,
+          "11": 163,
+          "12": 59
+        },
+        "displayedLevels": {
+          "7": 19,
+          "8": 27,
+          "9": 60,
+          "11": 93,
+          "12": 74
+        },
+        "residentBytes": 144595968,
+        "allocatedBytes": 169145344,
+        "requests": 856,
+        "evicted": 467,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 17,
+          "p95": 18.19999998807907,
+          "maximum": 18.600000023841858
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "4-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 935,
+        "evicted": 480,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 19.399999976158142,
+          "maximum": 19.80000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "5-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 146,
+        "waitingGroups": 39,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 159,
+          "11": 4,
+          "12": 29,
+          "13": 76
+        },
+        "residentBytes": 165040128,
+        "allocatedBytes": 169145344,
+        "requests": 1188,
+        "evicted": 744,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 15.600000023841858,
+          "p95": 23.30000001192093,
+          "maximum": 26.099999964237213
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "6-Moon-40-nadir",
+        "distanceKm": 40,
+        "tiltRad": 0,
+        "samples": 24,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 48,
+        "waitingGroups": 14,
+        "wantedLevels": {
+          "8": 20,
+          "9": 132,
+          "10": 54
+        },
+        "displayedLevels": {
+          "8": 20,
+          "9": 97,
+          "10": 123,
+          "11": 4,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 156490752,
+        "allocatedBytes": 169145344,
+        "requests": 1277,
+        "evicted": 856,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.80000001192093,
+          "maximum": 18.80000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "7-Moon-40-oblique",
+        "distanceKm": 40,
+        "tiltRad": 1.45,
+        "samples": 14,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 32,
+        "waitingGroups": 38,
+        "wantedLevels": {
+          "7": 14,
+          "8": 43,
+          "9": 98,
+          "10": 160,
+          "11": 4
+        },
+        "displayedLevels": {
+          "6": 1,
+          "7": 20,
+          "8": 43,
+          "9": 86,
+          "10": 110,
+          "11": 4,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 168385536,
+        "allocatedBytes": 169145344,
+        "requests": 1342,
+        "evicted": 889,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 18.5,
+          "maximum": 18.900000035762787
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "8-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1390,
+        "evicted": 935,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.899999976158142,
+          "p95": 19.700000047683716,
+          "maximum": 20.19999998807907
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "9-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 146,
+        "waitingGroups": 39,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 159,
+          "11": 4,
+          "12": 29,
+          "13": 76
+        },
+        "residentBytes": 165040128,
+        "allocatedBytes": 169145344,
+        "requests": 1613,
+        "evicted": 1169,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 17,
+          "p95": 18.900000035762787,
+          "maximum": 19.899999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "10-Moon-100-nadir",
+        "distanceKm": 100,
+        "tiltRad": 0,
+        "samples": 19,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 20,
+          "8": 78
+        },
+        "displayedLevels": {
+          "7": 20,
+          "8": 68,
+          "9": 148
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1783,
+        "evicted": 1328,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.399999976158142,
+          "p95": 24.5,
+          "maximum": 24.5
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "11-Moon-100-oblique",
+        "distanceKm": 100,
+        "tiltRad": 1.45,
+        "samples": 14,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 15,
+          "8": 49,
+          "9": 48
+        },
+        "displayedLevels": {
+          "7": 15,
+          "8": 40,
+          "9": 94
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1811,
+        "evicted": 1356,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 18.80000001192093,
+          "maximum": 19
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "12-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 169128960,
+        "allocatedBytes": 169145344,
+        "requests": 1889,
+        "evicted": 1434,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.700000047683716,
+          "p95": 19.80000001192093,
+          "maximum": 20.399999976158142
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "13-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 148,
+        "waitingGroups": 39,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 161,
+          "11": 2,
+          "12": 29,
+          "13": 76
+        },
+        "residentBytes": 164296704,
+        "allocatedBytes": 169145344,
+        "requests": 2081,
+        "evicted": 1639,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.5,
+          "maximum": 18.80000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "14-Moon-200-nadir",
+        "distanceKm": 200,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 71,
+        "waitingGroups": 25,
+        "wantedLevels": {
+          "6": 71,
+          "7": 95
+        },
+        "displayedLevels": {
+          "6": 136,
+          "7": 20,
+          "8": 23,
+          "9": 4,
+          "10": 61,
+          "11": 2,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 144595968,
+        "allocatedBytes": 169145344,
+        "requests": 2182,
+        "evicted": 1793,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.100000023841858,
+          "p95": 23.299999952316284,
+          "maximum": 26.30000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "15-Moon-200-oblique",
+        "distanceKm": 200,
+        "tiltRad": 1.45,
+        "samples": 12,
+        "gapsOverOneLevel": 4,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 95,
+        "waitingGroups": 53,
+        "wantedLevels": {
+          "5": 22,
+          "6": 124,
+          "7": 118,
+          "8": 20
+        },
+        "displayedLevels": {
+          "3": 2,
+          "5": 38,
+          "6": 106,
+          "7": 20,
+          "8": 23,
+          "9": 4,
+          "10": 61,
+          "11": 2,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 147569664,
+        "allocatedBytes": 169145344,
+        "requests": 2232,
+        "evicted": 1835,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.400000035762787,
+          "maximum": 18.69999998807907
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "16-Moon-60-nadir",
+        "distanceKm": 60,
+        "tiltRad": 0,
+        "samples": 23,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": true,
+        "queued": 24,
+        "waitingGroups": 8,
+        "wantedLevels": {
+          "7": 20,
+          "8": 70,
+          "9": 164
+        },
+        "displayedLevels": {
+          "7": 20,
+          "8": 70,
+          "9": 182,
+          "10": 9,
+          "11": 2,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 160951296,
+        "allocatedBytes": 169161728,
+        "requests": 2446,
+        "evicted": 2013,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.399999976158142,
+          "p95": 23.600000023841858,
+          "maximum": 28.30000001192093
+        },
+        "quietChurn": null
+      },
+      {
+        "view": "17-Moon-60-oblique",
+        "distanceKm": 60,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 45,
+        "wantedLevels": {
+          "7": 8,
+          "8": 45,
+          "9": 122,
+          "10": 122
+        },
+        "displayedLevels": {
+          "3": 4,
+          "7": 8,
+          "8": 43,
+          "9": 176,
+          "10": 6,
+          "11": 2,
+          "12": 23,
+          "13": 62
+        },
+        "residentBytes": 146082816,
+        "allocatedBytes": 169145344,
+        "requests": 2586,
+        "evicted": 2191,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 17.399999976158142,
+          "p95": 20.200000047683716,
+          "maximum": 20.899999976158142
+        },
+        "quietChurn": null
+      }
+    ],
+    "samples": 343,
+    "gapsOverOneLevel": 4,
+    "silentGaps": 0
+  },
+  "final512MiB": {
+    "passed": true,
+    "views": [
+      {
+        "view": "0-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 118947840,
+        "allocatedBytes": 538255360,
+        "requests": 320,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.899999976158142,
+          "p95": 20.600000023841858,
+          "maximum": 21.5
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "1-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 116,
+          "11": 158,
+          "12": 59,
+          "13": 85
+        },
+        "residentBytes": 266889216,
+        "allocatedBytes": 538271744,
+        "requests": 718,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 18.600000023841858,
+          "maximum": 18.69999998807907
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "2-Moon-10-nadir",
+        "distanceKm": 10,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 142,
+          "12": 52
+        },
+        "displayedLevels": {
+          "11": 127,
+          "12": 82
+        },
+        "residentBytes": 293280768,
+        "allocatedBytes": 538255360,
+        "requests": 789,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 17.100000023841858,
+          "p95": 19.69999998807907,
+          "maximum": 20.100000023841858
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "3-Moon-10-oblique",
+        "distanceKm": 10,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 19,
+          "8": 27,
+          "9": 39,
+          "10": 119,
+          "11": 163,
+          "12": 59
+        },
+        "displayedLevels": {
+          "7": 19,
+          "8": 27,
+          "9": 26,
+          "10": 117,
+          "11": 176,
+          "12": 85
+        },
+        "residentBytes": 395501568,
+        "allocatedBytes": 538271744,
+        "requests": 1064,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.100000023841858,
+          "maximum": 18.69999998807907
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "4-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 395501568,
+        "allocatedBytes": 538255360,
+        "requests": 1064,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 20.80000001192093,
+          "maximum": 20.900000035762787
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "5-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 116,
+          "11": 158,
+          "12": 59,
+          "13": 85
+        },
+        "residentBytes": 395501568,
+        "allocatedBytes": 538271744,
+        "requests": 1064,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 17.69999998807907,
+          "maximum": 18.30000001192093
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "6-Moon-40-nadir",
+        "distanceKm": 40,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "8": 20,
+          "9": 132,
+          "10": 54
+        },
+        "displayedLevels": {
+          "8": 20,
+          "9": 44,
+          "10": 256
+        },
+        "residentBytes": 413715456,
+        "allocatedBytes": 538255360,
+        "requests": 1113,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.799999952316284,
+          "p95": 19,
+          "maximum": 19.200000047683716
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "7-Moon-40-oblique",
+        "distanceKm": 40,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 14,
+          "8": 43,
+          "9": 98,
+          "10": 160,
+          "11": 4
+        },
+        "displayedLevels": {
+          "6": 1,
+          "7": 20,
+          "8": 43,
+          "9": 60,
+          "10": 260,
+          "11": 8
+        },
+        "residentBytes": 444567552,
+        "allocatedBytes": 538271744,
+        "requests": 1196,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 18.700000047683716,
+          "maximum": 19.5
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "8-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 444567552,
+        "allocatedBytes": 538255360,
+        "requests": 1196,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 20,
+          "maximum": 21
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "9-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 116,
+          "11": 158,
+          "12": 59,
+          "13": 85
+        },
+        "residentBytes": 444567552,
+        "allocatedBytes": 538271744,
+        "requests": 1196,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.30000001192093,
+          "p95": 18.5,
+          "maximum": 20
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "10-Moon-100-nadir",
+        "distanceKm": 100,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 20,
+          "8": 78
+        },
+        "displayedLevels": {
+          "7": 20,
+          "8": 67,
+          "9": 152
+        },
+        "residentBytes": 453116928,
+        "allocatedBytes": 538255360,
+        "requests": 1219,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 19.30000001192093,
+          "maximum": 19.399999976158142
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "11-Moon-100-oblique",
+        "distanceKm": 100,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 15,
+          "8": 49,
+          "9": 48
+        },
+        "displayedLevels": {
+          "7": 15,
+          "8": 40,
+          "9": 94
+        },
+        "residentBytes": 460179456,
+        "allocatedBytes": 538255360,
+        "requests": 1238,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.900000035762787,
+          "maximum": 19.399999976158142
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "12-Moon-2-nadir",
+        "distanceKm": 2,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "11": 5,
+          "12": 49,
+          "13": 79
+        },
+        "displayedLevels": {
+          "11": 6,
+          "12": 53,
+          "13": 79
+        },
+        "residentBytes": 460179456,
+        "allocatedBytes": 538255360,
+        "requests": 1238,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 17.100000023841858,
+          "p95": 20,
+          "maximum": 20
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "13-Moon-2-oblique",
+        "distanceKm": 2,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 23,
+          "8": 20,
+          "9": 18,
+          "10": 123,
+          "11": 140,
+          "12": 58,
+          "13": 85
+        },
+        "displayedLevels": {
+          "4": 1,
+          "7": 23,
+          "8": 20,
+          "9": 10,
+          "10": 116,
+          "11": 158,
+          "12": 59,
+          "13": 85
+        },
+        "residentBytes": 460179456,
+        "allocatedBytes": 538271744,
+        "requests": 1238,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.19999998807907,
+          "maximum": 18.19999998807907
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "14-Moon-200-nadir",
+        "distanceKm": 200,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "6": 71,
+          "7": 95
+        },
+        "displayedLevels": {
+          "6": 71,
+          "7": 88,
+          "8": 91
+        },
+        "residentBytes": 504413184,
+        "allocatedBytes": 538255360,
+        "requests": 1357,
+        "evicted": 0,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.399999976158142,
+          "p95": 19.600000023841858,
+          "maximum": 19.700000047683716
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "15-Moon-200-oblique",
+        "distanceKm": 200,
+        "tiltRad": 1.45,
+        "samples": 13,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "5": 22,
+          "6": 124,
+          "7": 118,
+          "8": 20
+        },
+        "displayedLevels": {
+          "3": 2,
+          "5": 8,
+          "6": 131,
+          "7": 114,
+          "8": 82
+        },
+        "residentBytes": 538238976,
+        "allocatedBytes": 538255360,
+        "requests": 1524,
+        "evicted": 76,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.19999998807907,
+          "maximum": 18.400000035762787
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "16-Moon-60-nadir",
+        "distanceKm": 60,
+        "tiltRad": 0,
+        "samples": 25,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 20,
+          "8": 70,
+          "9": 164
+        },
+        "displayedLevels": {
+          "7": 20,
+          "8": 70,
+          "9": 156,
+          "10": 32
+        },
+        "residentBytes": 538238976,
+        "allocatedBytes": 538255360,
+        "requests": 1524,
+        "evicted": 76,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 18.100000023841858,
+          "maximum": 19.69999998807907
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      },
+      {
+        "view": "17-Moon-60-oblique",
+        "distanceKm": 60,
+        "tiltRad": 1.45,
+        "samples": 15,
+        "gapsOverOneLevel": 0,
+        "silentGaps": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "waitingGroups": 0,
+        "wantedLevels": {
+          "7": 8,
+          "8": 45,
+          "9": 122,
+          "10": 122
+        },
+        "displayedLevels": {
+          "7": 9,
+          "8": 43,
+          "9": 123,
+          "10": 170
+        },
+        "residentBytes": 538238976,
+        "allocatedBytes": 538255360,
+        "requests": 1579,
+        "evicted": 131,
+        "frameIntervalMs": {
+          "samples": 30,
+          "p50": 16.599999964237213,
+          "p95": 18.19999998807907,
+          "maximum": 18.599999964237213
+        },
+        "quietChurn": {
+          "requests": 0,
+          "evicted": 0,
+          "aborted": 0
+        }
+      }
+    ],
+    "samples": 358,
+    "gapsOverOneLevel": 0,
+    "silentGaps": 0
+  },
+  "gpuCoverComparison": {
+    "samples": 358,
+    "levelDisagreements": 0,
+    "maximumColorDecodeError": 0.10008969278661617,
+    "note": "CPU rays use the actual GL pixel centre; historical diagnostic runs sampled integer NDC boundaries and their GPU mismatch counts are not compared."
+  },
+  "quietFrames": 1080,
+  "finalSamplesAtLeastRequestedLevel": true,
+  "filtering": {
+    "separateDefect": true,
+    "policy": "8x request, clamped by Three to device support, configured before array allocation",
+    "analyticFixture": {
+      "isotropicObliqueError": 127.5,
+      "anisotropicObliqueError": 0,
+      "isotropicNadirError": 0,
+      "anisotropicNadirError": 0,
+      "glError": 0
+    },
+    "actualViews": [
+      {
+        "key": "Moon-2-nadir",
+        "gradientEnergy": {
+          "before": 260.45523695371566,
+          "after": 281.4349266352309
+        },
+        "meanAbsolutePixelDifference": 0.3578125,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 20,
+          "maximum": 20.200000047683716
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.899999976158142,
+          "p95": 19.700000047683716,
+          "maximum": 19.80000001192093
+        }
+      },
+      {
+        "key": "Moon-2-oblique",
+        "gradientEnergy": {
+          "before": 280.03680092726745,
+          "after": 289.78466057269304
+        },
+        "meanAbsolutePixelDifference": 0.12639322916666668,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.19999998807907,
+          "maximum": 19
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 17.900000035762787,
+          "maximum": 18.200000047683716
+        }
+      },
+      {
+        "key": "Moon-20-nadir",
+        "gradientEnergy": {
+          "before": 0.08307868601986249,
+          "after": 0.08396117067516662
+        },
+        "meanAbsolutePixelDifference": 0.0012109375,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.600000023841858,
+          "p95": 19.700000047683716,
+          "maximum": 19.899999976158142
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.700000047683716,
+          "p95": 19.80000001192093,
+          "maximum": 20.099999964237213
+        }
+      },
+      {
+        "key": "Moon-20-oblique",
+        "gradientEnergy": {
+          "before": 496.0362147993994,
+          "after": 507.0159242380338
+        },
+        "meanAbsolutePixelDifference": 0.13169270833333332,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.900000035762787,
+          "p95": 18.69999998807907,
+          "maximum": 20.19999998807907
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.900000035762787,
+          "p95": 19,
+          "maximum": 19.30000001192093
+        }
+      },
+      {
+        "key": "Moon-60-nadir",
+        "gradientEnergy": {
+          "before": 607.7587524037829,
+          "after": 633.9334711941203
+        },
+        "meanAbsolutePixelDifference": 0.22102213541666665,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.5,
+          "p95": 19.30000001192093,
+          "maximum": 19.600000023841858
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 19.399999976158142,
+          "maximum": 19.5
+        }
+      },
+      {
+        "key": "Moon-60-oblique",
+        "gradientEnergy": {
+          "before": 271.73940359843,
+          "after": 400.9367903901372
+        },
+        "meanAbsolutePixelDifference": 1.90669921875,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.599999964237213,
+          "p95": 17.900000035762787,
+          "maximum": 18.69999998807907
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.80000001192093,
+          "p95": 18.5,
+          "maximum": 18.899999976158142
+        }
+      },
+      {
+        "key": "Mars-20-nadir",
+        "gradientEnergy": {
+          "before": 348.5332183029952,
+          "after": 355.8676931587682
+        },
+        "meanAbsolutePixelDifference": 0.14108723958333333,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.69999998807907,
+          "p95": 25.100000023841858,
+          "maximum": 25.799999952316284
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.899999976158142,
+          "p95": 25.30000001192093,
+          "maximum": 25.5
+        }
+      },
+      {
+        "key": "Mars-20-oblique",
+        "gradientEnergy": {
+          "before": 382.133617396802,
+          "after": 572.2129158873581
+        },
+        "meanAbsolutePixelDifference": 2.4267708333333333,
+        "beforeFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.200000047683716,
+          "p95": 25.099999964237213,
+          "maximum": 26.100000023841858
+        },
+        "afterFrameIntervalMs": {
+          "samples": 30,
+          "p50": 16.400000035762787,
+          "p95": 23.600000023841858,
+          "maximum": 25.30000001192093
+        }
+      }
+    ],
+    "note": "Same page IDs and residency before/after; anisotropy does not repair eviction-state blocks."
+  },
+  "regressions": {
+    "rendererTests": 906,
+    "rendererTestFiles": 77,
+    "catalogTests": 54,
+    "build": "passed",
+    "testTypecheck": "passed",
+    "changedFileLint": "passed",
+    "scriptSyntax": "passed",
+    "final-motion": {
+      "passed": true,
+      "inputSha256": "fa9ae31c6d85b14bbdb29f1b4e3dc59f20682da63fa182f1db7918c642880921"
+    },
+    "final-instrument": {
+      "passed": true,
+      "inputSha256": "ac885fafbf1cdfd50f95aaa9dac111c6a968955c5e5d6a638b829dd53e8df128"
+    },
+    "final-pacing": {
+      "passed": true,
+      "inputSha256": "2c9d1320def89c5c6a9784d38e2bd2b9fe05b84bd786d5e13a338ccb4bcffd70"
+    },
+    "final-ingenuity": {
+      "passed": true,
+      "inputSha256": "cddceaf676834be8d53f91d7c6f1310fe0015791b23431c6afec6aa322f01e61"
+    }
+  },
+  "inputSha256": {
+    "history-before-v2": "43857207e6924514e1268ba446d02ecdefe3c886a71c1706967d32f56369be6c",
+    "history-after-v3": "637b553fa3a19b4c50185167e6da7c29f9853e04cfc36f7a1c36e6b67fe8caea",
+    "history-final-v2": "8f9233d1de3f26066cfd8a762013e824c3c54acf45db48182e68ac72492552c6",
+    "filtering-final": "4ef7e5ae32c605eaecb7fbee3387d06f6b85a53d5487c01c7e7e39d3048e5e8f"
+  },
+  "limits": [
+    "Historical and same-budget diagnostic runs could stop at a transient budget-limited boundary; final acceptance requires fully quiescent native recovery.",
+    "Request/eviction totals have different cache targets and quiet-frame protocols; no direct throughput claim is made.",
+    "The final MoonFall target is 512MiB plus reported four-page transition headroom; physical terrain caching remains separate.",
+    "Sampling covers these recorded poses/device; it is not proof for every camera or GPU.",
+    "No scientific product, source resolution, source pixel, terrain height, flight reconstruction or production deployment changes."
+  ],
+  "remainingAcceptance": "The subsequent distant Mons Malapert depth-plane defect is repaired and separately validated in imagery-horizon.json. This report retains the earlier recovery-run source hashes. Refreshed full cross-mission GPU regression is running at publication; exact-head CI remains required. Production upload/deployment requires explicit authorization."
+}

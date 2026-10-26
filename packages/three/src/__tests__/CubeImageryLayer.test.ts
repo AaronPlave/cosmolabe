@@ -99,6 +99,19 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('refines drawn geometry beyond the streaming camera depth slab', async () => {
+    const s = await setup();
+    const cam = camera(5000);
+    // Streaming depth planes are numerical traversal limits, not the actual
+    // render camera's reach. Terrain selected by other coverage views remains
+    // visible outside this slab and still needs native imagery.
+    cam.far = 1000; cam.updateProjectionMatrix();
+    await drain(s, cam);
+    expect(s.layer.stats.maxDisplayedLevel).toBeGreaterThan(1);
+    expect(s.layer.stats.fallbackBlocks).toBe(0);
+    s.layer.dispose();
+  });
+
   it('does not rescan the immutable native inventory during camera movement or tile requests', async () => {
     const s = await setup();
     const scan = vi.spyOn(s.layer.manifest!.tiles, 'filter');

@@ -600,6 +600,15 @@ export class CubeImageryLayer {
     const cameraKm: Vec3 = [_v.x / 1000, _v.y / 1000, _v.z / 1000];
     _frustum.setFromProjectionMatrix(_m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     _bodyFrustum.setFromProjectionMatrix(_m.multiply(tileSetMatrixWorld));
+    // The streaming camera's depth slab limits terrain traversal for numerical
+    // stability. It does not bound the render camera: selected terrain can
+    // remain visible beyond it (notably distant peaks from a surface view).
+    // Refine imagery on that drawn surface using the side planes and the
+    // conservative physical horizon, never the traversal near/far planes.
+    for (const frustum of [_frustum, _bodyFrustum]) {
+      frustum.planes[4].constant = Infinity;
+      frustum.planes[5].constant = Infinity;
+    }
     const scale = tileSetMatrixWorld.getMaxScaleOnAxis(), innerRadiusKm = this.horizonRadiusKm();
     const drawn = [...this.tiles.values()].filter(t => t.scene.parent && t.scene.visible);
     const ranges = drawn.flatMap(t => t.meshes.map(m => m.radiusRangeKm));
@@ -709,6 +718,16 @@ export class CubeImageryLayer {
       }
       for (const c of cover) {
         const key = id(c.image); protectedIds.add(key);
+        // Keep usable coarsening/fallback ancestors of the displayed cover.
+        // Evicting every intermediate parent can strand a zoom-out behind its
+        // own protected fine pages, or require coarse feedback to be fetched
+        // again during a rapid reversal. Culled branches remain evictable.
+        let ancestor = c.image;
+        while (ancestor.level > 0) {
+          ancestor = imageryParent(ancestor);
+          const parentId = id(ancestor);
+          if (this.entries.get(parentId)?.state === 'ready' && pages.has(parentId)) protectedIds.add(parentId);
+        }
         const entry = this.entries.get(key)!; entry.lastUsed = this.frame;
         gpuPages.push({ ...c, source: source.index, slot: pages.slot(key) });
       }
