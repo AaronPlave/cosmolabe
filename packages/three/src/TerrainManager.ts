@@ -293,7 +293,7 @@ export interface TerrainPerformanceMetrics {
   network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
   memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
   /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
-  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number };
+  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number; cube?: CubeImageryStats };
 }
 
 /** Accumulates per-event wall time; `window` > 0 keeps only the most recent samples. */
@@ -2305,6 +2305,7 @@ export class TerrainManager {
       },
       memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
       imagery: {
+        cube: this.cubeImagery?.stats,
         layers: this.layers.length,
         activeOverlays: this.cubeImagery ? this.cubeImagery.imageryLayers.filter(l => l.visible).length : this.activeOverlays.size,
         overlayResolution: this._overlayResolution,

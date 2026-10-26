@@ -162,7 +162,24 @@ CUBE_STYLE_URL=http://localhost:5173 CUBE_STYLE_OUT="$RUN/moonfall" \
   node scripts/test-cube-surface-appearance.mjs
 ```
 
-The mission uses a 256 MiB hard imagery budget. The first command additionally
-checks 49 viewport samplers in both two-layer/full-stack configurations at
-256 MiB and 128 MiB; lower budgets explicitly fit coarser complete covers.
+The mission uses a 960 MiB residency target with protected display references
+and a four-page transition reservation. The first command checks 49 viewport
+samples in two-layer/full-stack configurations before and after a live target
+reduction to 128 MiB. The protected fine cover survives that reduction, and actual
+allocation/overage is reported. A separate cold 48 MiB application verifies bounded
+allocation, complete real base coverage and deferred refinement.
+
+Independent imagery motion and constrained instrument acceptance:
+
+```sh
+node scripts/test-imagery-refinement.mjs http://localhost:5173/ "$RUN/imagery-motion"
+node scripts/test-imagery-instrument.mjs http://localhost:5173/ "$RUN/instrument"
+```
+
+The instrument script adds an explicitly synthetic nadir sensor to the page's
+catalog copy and checks full-screen feed switches; it does not alter the mission.
+The motion script enforces a physical GPU and visible imagery, tests delayed and
+out-of-order tiles, transient errors, absent intermediate parents, accelerated
+playback, reversals, cube seams, allocation failure and context restoration.
+See [architecture and matched baseline reproduction](../imagery-refinement-257/architecture.md).
 Neither these commands nor the publication preflight upload or deploy anything.

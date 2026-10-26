@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CubeImageryLayer, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
+import { CubeImageryLayer, cubeBlockInsideBounds, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
 import { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE } from '../SurfaceAppearance.js';
 import { injectAerialPerspectiveIntoShader } from '../AerialPerspective.js';
 import { injectShadowIntoShader, makeShadowUniforms } from '../EclipseShadow.js';
 import { cubeFaceToDirection, cubeTileId, type CubeFace } from '../surface/CubeSphere.js';
-import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress, type ImageryBlock } from '../surface/CubeImagery.js';
+import { directionToTexel, imageryTileRect, type CubeImageryManifest, type ImageryAddress } from '../surface/CubeImagery.js';
 
 const R = 1737.4e3; // metres, like the tile set
 const faces: CubeFace[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
@@ -89,115 +89,187 @@ async function setup(options: Partial<ConstructorParameters<typeof CubeImageryLa
   return { layer, loader, scene, mesh, address, tick, tileSet };
 }
 
-describe('CubeImageryLayer', () => {
-  it('rejects decoded textures that exceed their manifest reservation', async () => {
-    let disposed = 0;
-    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json', maxConcurrentRequests: 2 }, {
-      fetchManifest: async () => manifest(1),
-      loadTexture: async () => { const texture = new THREE.Texture(); texture.addEventListener('dispose', () => disposed++); return { texture, bytes: 1e9, downloadBytes: 1 }; },
-    });
+async function drain(s: Awaited<ReturnType<typeof setup>>, cam = camera(5000), limit = 40) {
+  for(let i=0;i<limit;i++) { s.tick(cam); await s.loader.settle(); }
+  s.tick(cam);
+}
+function compile(material: THREE.Material) {
+  const shader = { ...THREE.ShaderLib.standard, uniforms: {} as Record<string, {value: unknown}> };
+  material.onBeforeCompile(shader as never, undefined as never); return shader;
+}
+
+describe('CubeImageryLayer paged imagery', () => {
+  it('reports source-specific failures without attributing an overlay outage to the base',async()=>{
+    const layers=['base','overlay'].map(id=>({type:'cube' as const,id,url:`http://${id}/imagery.json`}));
+    const l=new CubeImageryLayer({url:layers[0].url,layers,residentLevel:0,maxLevel:1},{fetchManifest:async()=>manifest(1),loadTexture:async url=>{
+      if(url.includes('//overlay/')&&/\/tiles\/[^/]+\/1\//.test(url))throw Error('overlay detail unavailable');return {texture:new THREE.Texture(),bytes:4,downloadBytes:4};
+    }});
+    await l.ready;const a=directionToTexel(southPole,3,256,4).address,{scene}=geometryTile(a),parent=new THREE.Group();parent.add(scene);l.addTile(scene,scene,a);
+    for(let i=0;i<8;i++){l.update(camera(5000),parent.matrixWorld,.001,null);await new Promise(r=>setTimeout(r,0));}
+    expect(l.imageryLayers[0].view?.degradedTiles).toBe(0);expect(l.imageryLayers[0].view?.missingTiles).toBe(0);
+    expect(l.imageryLayers[1].view?.degradedTiles).toBeGreaterThan(0);expect(l.imageryLayers[1].view?.missingTiles).toBeGreaterThan(0);expect(l.stats.baseUncoveredBlocks).toBe(0);l.dispose();
+  });
+  it('binds a valid integer page table before the first imagery update',async()=>{
+    const s=await setup();const shader=compile(s.mesh.material as THREE.Material);
+    const table=shader.uniforms.cubePageTable.value as THREE.DataTexture;
+    expect(table.isDataTexture).toBe(true);expect(table.format).toBe(THREE.RGBAIntegerFormat);
+    expect(table.type).toBe(THREE.IntType);expect([...(table.image.data as Int32Array)]).toEqual([-1,-1,-1,-1]);s.layer.dispose();
+  });
+  it('bounds persistent tile failures and recovers only after explicit retry',async()=>{
+    const s=await setup({maxLevel:0,residentLevel:0,retryFailedMs:0});
+    for(let i=0;i<12;i++){s.tick(camera(5000));await s.loader.settle(()=>true,true);}
+    expect(s.layer.stats.requests).toBe(24);
+    expect(s.loader.pending.size).toBe(0);
+    expect(s.layer.stats.baseUncoveredBlocks).toBeGreaterThan(0);
+    s.layer.retryFailed();s.tick(camera(5000));await s.loader.settle();s.tick(camera(5000));
+    expect(s.layer.stats.requests).toBe(30);expect(s.layer.stats.baseUncoveredBlocks).toBe(0);s.layer.dispose();
+  });
+  it('loads a product native floor above zero without requesting invented overview files',async()=>{
+    const loader=controlledLoader(),m={...manifest(2),minLevel:2,maxLevel:2,tiles:faces.flatMap(face=>Array.from({length:16},(_,i)=>cubeTileId({face,level:2,x:i%4,y:Math.floor(i/4)})))};
+    const l=new CubeImageryLayer({url:'http://test/imagery.json',residentLevel:0},{fetchManifest:async()=>m,loadTexture:loader.loadTexture});
+    await l.ready;const a=directionToTexel(southPole,3,256,4).address,{scene}=geometryTile(a),parent=new THREE.Group();parent.add(scene);l.addTile(scene,scene,a);
+    const requested:string[]=[];
+    for(let i=0;i<10;i++){l.update(camera(8e6),parent.matrixWorld,.001,null);requested.push(...loader.pending.keys());await loader.settle();}
+    expect(requested.length).toBeGreaterThan(0);expect(requested.every(id=>Number(id.split('/')[1])===2)).toBe(true);
+    expect(l.stats.baseUncoveredBlocks).toBe(0);expect(l.sampleAt(southPole)[0].level).toBe(2);l.dispose();
+  });
+  it('refines on original meshes with no imagery geometry, material clones or physical buffer changes', async () => {
+    const s=await setup({residentLevel:0});
+    const {geometry,material}=s.mesh, physical=['position','normal'].map(n=>geometry.getAttribute(n).array), index=geometry.index!.array;
+    await drain(s);
+    expect(s.layer.stats.maxDisplayedLevel).toBeGreaterThan(3);
+    expect(s.mesh.geometry).toBe(geometry); expect(s.mesh.material).toBe(material);
+    expect(['position','normal'].map(n=>geometry.getAttribute(n).array)).toEqual(physical);
+    expect(geometry.index!.array).toBe(index);
+    expect(s.scene.children).toEqual([s.mesh]); expect(s.mesh.visible).toBe(true);
+    expect(s.layer.stats.extraDraws).toBe(0); expect(s.layer.stats.blockGeometryBytes).toBe(0);
+    expect(s.layer.stats.blockBuildMs).toBe(0); expect(s.layer.stats.splitTiles).toBe(0);
+    expect(isDrawnCubeImagerySource(s.mesh)).toBe(false);
+    const shader=compile(material as THREE.Material);
+    expect(shader.fragmentShader).toContain('sampler2DArray cubePages');
+    expect(shader.fragmentShader).toContain('cubePageFind');
+    expect(shader.fragmentShader).toContain('textureGrad');
+    s.layer.dispose();
+  });
+  it('retains committed imagery through delayed responses, rapid reversal and terrain replacement', async () => {
+    const s=await setup({residentLevel:0}); await drain(s);
+    const before=s.layer.sampleAt(southPole), requests=s.layer.stats.requests;
+    for(let i=0;i<16;i++)s.tick(camera(i%2?6000:5000));
+    expect(s.layer.sampleAt(southPole).map(x=>x.level)).toEqual(before.map(x=>x.level));
+    s.layer.removeTile(s.scene); s.layer.addTile(s.scene,s.scene,s.address); s.tick(camera(5000));
+    expect(s.layer.sampleAt(southPole).map(x=>x.level)).toEqual(before.map(x=>x.level));
+    expect(s.layer.stats.requests-requests).toBeLessThanOrEqual(8);
+    expect(compile(s.mesh.material as THREE.Material).vertexShader.match(/attribute vec3 cubeImageryUvw;/g)).toHaveLength(1);
+    s.layer.dispose();
+  });
+  it('keeps compiled uniform objects live through pool resizing and material reuse',async()=>{
+    const s=await setup({residentLevel:0});await drain(s);
+    const shader=compile(s.mesh.material as THREE.Material),table=shader.uniforms.cubePageTable;
+    s.layer.setOptions({maxTextureBytes:32*2**20});await drain(s);
+    const current=compile(s.mesh.material as THREE.Material);
+    expect(current.uniforms.cubePageTable).toBe(table);
+    s.layer.removeTile(s.scene);s.layer.addTile(s.scene,s.scene,s.address);s.tick(camera(5000));
+    expect(compile(s.mesh.material as THREE.Material).uniforms.cubePageTable).toBe(table);s.layer.dispose();
+  });
+  it('defers refinement under constrained memory without evicting the displayed cover', async () => {
+    const s=await setup({residentLevel:0,maxTextureBytes:6*264*264*4*4/3,maxConcurrentRequests:2});
+    // Four independently owned terrain patches straddle the pole, so the image
+    // cover cannot collapse to a single narrow visible descendant.
+    for (const x of [3,4]) for (const y of [3,4]) {
+      const a={face:'nz' as const,level:3,x,y};if(x===s.address.x&&y===s.address.y)continue;
+      const {scene}=geometryTile(a);s.tileSet.add(scene);s.layer.addTile(scene,scene,a);
+    }
+    await drain(s);const before=s.layer.sampleAt(southPole);
+    const state=s.layer.stats;
+    expect(state.budgetLimited).toBe(true);
+    expect(state.baseUncoveredBlocks).toBe(0);
+    expect(state.textures+state.inFlight).toBeLessThanOrEqual(10);
+    for(let i=0;i<40;i++){s.tick(camera(i%2?5100:5000));await s.loader.settle();}
+    expect(s.layer.sampleAt(southPole).map(x=>x.level)).toEqual(before.map(x=>x.level));
+    expect(s.layer.stats.evicted).toBe(state.evicted);
+    s.layer.dispose();
+  });
+  it('does not falsely establish base coverage with optional transparent images', async () => {
+    const loader=controlledLoader();
+    const layer=new CubeImageryLayer({url:'http://base/imagery.json',residentLevel:0,layers:[{type:'cube',id:'base',url:'http://base/imagery.json'},{type:'cube',id:'overlay',url:'http://overlay/imagery.json'}]}, {
+      fetchManifest:async()=>manifest(1), loadTexture:async(url,signal)=>url.includes('//base/')?loader.loadTexture(url,signal):{texture:new THREE.DataTexture(new Uint8Array([30,40,50,0]),1,1),bytes:4,downloadBytes:4}});
     await layer.ready;
-    await new Promise(r => setTimeout(r, 0));
-    expect(layer.stats.textureBytes).toBe(0);
-    expect(layer.stats.failures).toBe(2);
-    expect(disposed).toBe(2);
+    const a=directionToTexel(southPole,1,256,4).address,{scene}=geometryTile(a),parent=new THREE.Group();parent.add(scene);layer.addTile(scene,scene,a);
+    for(let i=0;i<12;i++){layer.update(camera(5000),parent.matrixWorld,.001,null);await loader.settle(()=>true,true);}
+    expect(layer.sampleAt(southPole)[1].enabled).toBe(1);
+    expect(layer.sampleAt(southPole)[0].enabled).toBe(0);
+    expect(layer.stats.baseUncoveredBlocks).toBeGreaterThan(0);
     layer.dispose();
   });
-
-  it('culls regional coverage conservatively across the antimeridian and poles', () => {
-    const tile = (lat: number, lon: number) => directionToTexel([Math.cos(lat*Math.PI/180)*Math.cos(lon*Math.PI/180), Math.cos(lat*Math.PI/180)*Math.sin(lon*Math.PI/180), Math.sin(lat*Math.PI/180)], 13, 256, 4).address;
-    expect(cubeBlockOverlapsBounds(tile(18.9,77.4), [77.16,18.21,77.7,18.72])).toBe(false);
-    expect(cubeBlockOverlapsBounds(tile(18.45,77.4), [77.16,18.21,77.7,18.72])).toBe(true);
-    expect(cubeBlockOverlapsBounds(tile(0,179.9), [170,-1,-170,1])).toBe(true);
-    expect(cubeBlockOverlapsBounds(tile(90,0), [170,89,-170,90])).toBe(true);
+  it('rejects missing mandatory manifests and incompatible optional references', async () => {
+    const cfg={url:'http://base/a.json',layers:[{type:'cube' as const,url:'http://base/a.json'},{type:'cube' as const,url:'http://overlay/a.json'}]};
+    const bad=new CubeImageryLayer(cfg,{fetchManifest:async url=>{if(url.includes('//base/'))throw Error('base unavailable');return manifest(1);}});
+    await expect(bad.ready).rejects.toThrow('base unavailable');bad.dispose();
+    const l=new CubeImageryLayer(cfg,{fetchManifest:async url=>({...manifest(1),bodyId:url.includes('//base/')?'Moon':'Mars'}),loadTexture:controlledLoader().loadTexture});
+    await l.ready;expect(l.imageryLayers[1].status).toBe('failed');expect(l.manifest?.bodyId).toBe('Moon');l.dispose();
   });
-
-  it('composites a four-source stack on shared geometry, with one request and residency budget', async () => {
-    const tileBytes = 264 * 264 * 4 * 4 / 3;
-    const disposed = new Set<THREE.Texture>();
-    const layers = ['viking', 'ctx-global', 'jezero-ctx', 'hirise'].map(id => ({ type: 'cube' as const, id, name: id, url: `http://${id}/imagery.json` }));
-    // Four sets of six roots cannot fit; optional roots must not pin out detail.
-    const budget = 20 * tileBytes;
-    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 3, maxTextureBytes: budget }, {
-      fetchManifest: async () => manifest(7),
-      loadTexture: async url => { const texture = new THREE.Texture(); texture.name = url; texture.addEventListener('dispose',()=>disposed.add(texture)); return { texture, bytes: tileBytes, downloadBytes: 1000 }; },
+  it.each([0,255])('keeps independent lower imagery available through source alpha %i and layer edits',async alpha=>{
+    const layers=['base','a','b','c'].map(id=>({type:'cube' as const,id,url:`http://${id}/imagery.json`}));
+    const l=new CubeImageryLayer({url:layers[0].url,layers,residentLevel:0},{fetchManifest:async()=>manifest(5),loadTexture:async()=>({texture:new THREE.DataTexture(new Uint8Array([90,80,70,alpha]),1,1),bytes:4,downloadBytes:4})});
+    await l.ready;const a=directionToTexel(southPole,3,256,4).address,{scene,mesh}=geometryTile(a),parent=new THREE.Group();parent.add(scene);l.addTile(scene,scene,a);
+    const tick=()=>l.update(camera(5000),parent.matrixWorld,.001,null);
+    for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
+    expect(l.sampleAt(southPole).at(-1)?.enabled).toBe(1);
+    if(alpha===0)expect(l.sampleAt(southPole).every(x=>x.level>=3)).toBe(true);
+    for(const id of ['a','b','c'])l.setLayerOpacity(id,.5);
+    for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
+    expect(l.sampleAt(southPole).every(x=>x.level>=3)).toBe(true);
+    const geometry=mesh.geometry,material=mesh.material;
+    expect(l.setLayerVisible('b',false)).toBe(true);tick();expect(l.sampleAt(southPole).find(x=>x.id==='b')?.enabled).toBe(0);
+    l.setLayerOpacity('a',.25);l.moveLayer('c',1);tick();
+    expect(l.sampleAt(southPole).map(x=>x.id)).toEqual(['base','c','a','b']);
+    expect(l.sampleAt(southPole).find(x=>x.id==='a')?.opacity).toBe(.25);
+    expect(mesh.geometry).toBe(geometry);expect(mesh.material).toBe(material);
+    const shader=compile(material as THREE.Material);expect(shader.fragmentShader).toContain('sampleValue.a * cubeLayer');
+    expect(shader.uniforms.cubeLayer2_opacity.value).toBe(.25);
+    l.setLayerVisible('b',true);for(let i=0;i<25;i++){tick();await new Promise(r=>setTimeout(r,0));}
+    expect(l.sampleAt(southPole).find(x=>x.id==='b')?.enabled).toBe(1);l.dispose();
+  });
+  it('preserves contour/style fields and dynamic upstream shader hooks without derived geometry',async()=>{
+    const fade={value:1};
+    const s=await setup({residentLevel:0},mesh=>{
+      const material=mesh.material as THREE.MeshStandardMaterial;
+      material.onBeforeCompile=shader=>{shader.uniforms.fixtureFade=fade;injectShadowIntoShader(shader,makeShadowUniforms());injectAerialPerspectiveIntoShader(shader, {});};
+      material.customProgramCacheKey=()=>`fade-${fade.value}`;
     });
-    await layer.ready;
-    const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
-    const { scene, mesh } = geometryTile(address); tileSet.add(scene);
-    const position = mesh.geometry.getAttribute('position'), index = mesh.geometry.index;
-    layer.addTile(scene, scene, address);
-    const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
-    for (let i = 0; i < 60; i++) {
-      await tick();
-      expect(layer.stats.inFlight).toBeLessThanOrEqual(3);
-      expect(layer.stats.textureBytes + layer.stats.inFlight * tileBytes).toBeLessThanOrEqual(budget + 1);
-    }
-    expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(address.level);
-    expect(layer.stats.pinnedTextures).toBe(6);
-    // A settled camera must not repeatedly replace visible detail with requests
-    // for other blocks that cannot all fit in the texture budget.
-    const settledRequests = layer.stats.requests;
-    for (let i = 0; i < 30; i++) await tick();
-    expect(layer.stats.requests).toBe(settledRequests);
-    layer.setOptions({maxLevel:4});
-    for(let i=0;i<20;i++)await tick();
-    expect(layer.stats.maxDisplayedLevel).toBeLessThanOrEqual(4);
-    layer.setOptions({maxLevel:undefined});
-    for(let i=0;i<60;i++)await tick();
-    expect(layer.stats.maxDisplayedLevel).toBeGreaterThan(4);
-    expect(layer.stats.blocks).toBeLessThanOrEqual(64);
-    expect(mesh.geometry.getAttribute('position')).toBe(position);
-    expect(mesh.geometry.index).toBe(index);
-    const activeShader = (layerIndex = 3) => {
-      const shaders = scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible).map(c => {
-        const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
-        ((c as THREE.Mesh).material as THREE.Material).onBeforeCompile(shader as never, undefined as never);
-        for(const [name,uniform] of Object.entries(shader.uniforms)) if (/^cubeLayer\d_map$/.test(name)) {
-          expect(disposed.has(uniform.value as THREE.Texture)).toBe(false);
-        }
-        return shader;
-      });
-      return shaders.find(s => s.uniforms[`cubeLayer${layerIndex}_enabled`].value === 1) ?? shaders[0];
-    };
-    const shader = activeShader();
-    expect(Object.keys(shader.uniforms).filter(k => /^cubeLayer\d_map$/.test(k))).toHaveLength(4);
-    expect(layer.moveLayer('hirise', 1)).toBe(true);
-    expect(layer.setLayerOpacity('hirise', 0.25)).toBe(true);
-    expect(layer.setLayerVisible('ctx-global', false)).toBe(true);
-    expect(layer.setLayerVisible('viking', false)).toBe(false);
-    for (let i=0;i<30;i++) await tick();
-    const current = activeShader(1); // eviction may have rebuilt the original block
-    expect(current.uniforms.cubeLayer1_opacity.value).toBe(0.25);
-    expect(current.uniforms.cubeLayer2_enabled.value).toBe(0);
-    expect(layer.imageryLayers.map(s => s.id)).toEqual(['viking', 'hirise', 'ctx-global', 'jezero-ctx']);
-    expect(layer.stats.textureBytes).toBeLessThanOrEqual(budget + 1);
-    layer.dispose();
+    const style=new SurfaceAppearance({referenceShape:{kind:"sphere",radiusKm:R/1000},verticalDatum:"reference-sphere",heightConvention:"radial"});s.layer.surfaceAppearance=style;
+    style.attach(s.mesh,s.mesh.matrix.clone(),s.scene);style.set({...DEFAULT_SURFACE_APPEARANCE,hillshade:true});style.update(Infinity);
+    const attributes=['position','normal'].map(n=>s.mesh.geometry.getAttribute(n));
+    await drain(s);const mat=s.mesh.material as THREE.Material,first=mat.customProgramCacheKey();fade.value=.5;
+    expect(mat.customProgramCacheKey()).not.toBe(first);
+    const shader=compile(mat);expect(shader.uniforms.fixtureFade).toBe(fade);
+    expect(shader.fragmentShader).toContain('saShade');expect(shader.fragmentShader).toContain('getShadowMask()');
+    expect(shader.fragmentShader.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(shader.fragmentShader.indexOf('AerialPerspectiveResult _ap'));
+    expect(['position','normal'].map(n=>s.mesh.geometry.getAttribute(n))).toEqual(attributes);
+    s.layer.invalidateBlocks();s.tick(camera(5000));expect(s.scene.children).toEqual([s.mesh]);
+    s.layer.dispose();style.forget(s.scene);
   });
-
-  it('does not budget or request imagery behind the globe in a nadir view', async () => {
-    const layers = ['base', 'global'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
-    const requests: string[] = [];
-    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxConcurrentRequests: 30 }, {
-      fetchManifest: async () => manifest(1), horizonRadiusKm: () => R / 1000 - 10,
-      loadTexture: async url => { requests.push(url); return { texture: new THREE.Texture(), bytes: 1, downloadBytes: 1 }; },
-    });
-    await layer.ready;
-    const root = new THREE.Group();
-    for (const face of faces) {
-      const address = { face, level: 0, x: 0, y: 0 }, { scene } = geometryTile(address);
-      root.add(scene); layer.addTile(scene, scene, address);
-    }
-    for (let i = 0; i < 20; i++) {
-      layer.update(camera(50_000), root.matrixWorld, .001, null); await new Promise(r => setTimeout(r, 0));
-    }
-    const optional = requests.filter(url => url.includes('//global/'));
-    expect(optional.length).toBeGreaterThan(0);
-    expect(optional.every(url => !url.includes('/tiles/pz/')), JSON.stringify(optional)).toBe(true); // opposite face is fully occulted
-    expect(layer.stats.baseUncoveredBlocks).toBe(0);
-    layer.dispose();
+  it('rejects decoded images that exceed their manifest reservation',async()=>{
+    let disposed=0;const l=new CubeImageryLayer({url:'http://test/imagery.json',maxConcurrentRequests:2},{fetchManifest:async()=>manifest(1),loadTexture:async()=>{const texture=new THREE.Texture();texture.addEventListener('dispose',()=>disposed++);return {texture,bytes:1e9,downloadBytes:1};}});
+    await l.ready;await new Promise(r=>setTimeout(r,0));expect(l.stats.failures).toBe(2);expect(l.stats.textureBytes).toBe(0);expect(disposed).toBe(2);l.dispose();
   });
+  it('does not hammer failed image decoding or accept wrong tile dimensions',async()=>{
+    const close=vi.fn();vi.stubGlobal('createImageBitmap',vi.fn(async()=>({width:1,height:1,close})));
+    vi.stubGlobal('fetch',vi.fn(async()=>new Response(new Uint8Array([1]),{headers:{'Content-Type':'image/png'}})));
+    const l=new CubeImageryLayer({url:'http://test/imagery.json',residentLevel:0,maxConcurrentRequests:2},{fetchManifest:async()=>manifest(1)});
+    try{await l.ready;await new Promise(r=>setTimeout(r,0));expect(l.stats.failures).toBe(2);expect(l.stats.textureBytes).toBe(0);expect(close).toHaveBeenCalledTimes(2);}
+    finally{l.dispose();vi.unstubAllGlobals();}
+  });
+  it('keeps coverage tests conservative at polar and antimeridian seams',()=>{
+    const a=(lat:number,lon:number)=>directionToTexel([Math.cos(lat*Math.PI/180)*Math.cos(lon*Math.PI/180),Math.cos(lat*Math.PI/180)*Math.sin(lon*Math.PI/180),Math.sin(lat*Math.PI/180)],13,256,4).address;
+    expect(cubeBlockOverlapsBounds(a(18.45,77.4),[77.16,18.21,77.7,18.72])).toBe(true);
+    expect(cubeBlockInsideBounds(a(18.9,77.4),[77.16,18.21,77.7,18.72])).toBe(false);
+    expect(cubeBlockInsideBounds(a(0,179.9),[170,-1,-170,1])).toBe(true);
+    expect(cubeBlockOverlapsBounds(a(90,0),[170,89,-170,90])).toBe(true);
+  });
+});
 
+describe("source ingestion and bounded recovery",()=>{
   it('keeps the lower layer when an optional source manifest fails or is incompatible', async () => {
     const layers = ['base', 'outage', 'wrong-body'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
     const layer = new CubeImageryLayer({ url: layers[0].url, layers }, {
@@ -210,7 +282,7 @@ describe('CubeImageryLayer', () => {
   });
 
   it('rejects HTML 404 image responses before decoding and retains the resident base', async () => {
-    const decode = vi.fn(async () => ({ width: 1, height: 1, close() {} }));
+    const decode = vi.fn(async () => ({ width: 264, height: 264, close() {} }));
     vi.stubGlobal('createImageBitmap', decode);
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => String(url).includes('//optional/')
       ? new Response('<html>Not found</html>', { status: 404, headers: { 'Content-Type': 'text/html' } })
@@ -234,36 +306,6 @@ describe('CubeImageryLayer', () => {
       for (let i = 0; i < 5; i++) await tick();
       expect(layer.stats.requests).toBe(requests);
     } finally { layer.dispose(); vi.unstubAllGlobals(); }
-  });
-
-  it('requires a resident base ancestor even when a transparent optional root is resident', async () => {
-    let baseOffline = true;
-    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
-    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0 }, {
-      fetchManifest: async () => ({ ...manifest(0), maxLevel: 0, tiles: faces.map(face => cubeTileId({ face, level: 0, x: 0, y: 0 })) }),
-      loadTexture: async url => {
-        if (url.includes('//base/') && baseOffline) throw new Error('HTTP 404');
-        const alpha = url.includes('//base/') ? 255 : 0;
-        return { texture: new THREE.DataTexture(new Uint8Array([255, 255, 255, alpha]), 1, 1), bytes: 4, downloadBytes: 4 };
-      },
-    });
-    await layer.ready;
-    const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
-    const { scene } = geometryTile(address); tileSet.add(scene); layer.addTile(scene, scene, address);
-    const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
-    try {
-      for (let i = 0; i < 10; i++) await tick();
-      expect(layer.stats.ready).toBe(true); // manifest is valid
-      expect(layer.stats.textures).toBeGreaterThan(0); // transparent optional roots exist
-      expect(layer.stats.failedTiles).toBeGreaterThan(0);
-      expect(layer.stats.untexturedBlocks).toBe(0); // residency alone is insufficient
-      expect(layer.stats.baseUncoveredBlocks).toBe(layer.stats.blocks);
-      expect(layer.stats.baseUncoveredBlocks).toBeGreaterThan(0);
-      baseOffline = false; layer.retryFailed();
-      for (let i = 0; i < 10; i++) await tick();
-      expect(layer.stats.baseUncoveredBlocks).toBe(0); // real base ancestor restored
-      expect(layer.stats.untexturedBlocks).toBe(0);
-    } finally { layer.dispose(); }
   });
 
   it('rejects a missing mandatory base even when the optional manifest is valid', async () => {
@@ -314,455 +356,5 @@ describe('CubeImageryLayer', () => {
     } finally { layer.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
   });
 
-  it('preserves source contour heights through imagery clipping, toggles and eviction', async () => {
-    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, heightConvention: 'radial', verticalDatum: 'reference-sphere' });
-    const tileSet = new THREE.Group(), loader = controlledLoader();
-    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json' }, {
-      fetchManifest: async () => manifest(), loadTexture: loader.loadTexture,
-    });
-    await layer.ready;
-    const address = directionToTexel(southPole, 3, 256, 4).address;
-    const { scene, mesh } = geometryTile(address, 5);
-    mesh.geometry.userData.surfaceTriangles = mesh.geometry.index!.count / 3;
-    // A coarse reference sphere: its chord interiors are below the datum, but
-    // its interpolated source heights remain ~zero. Recomputing at imagery
-    // clip vertices would invent many metres of false contour relief.
-    tileSet.add(scene); layer.addTile(scene, scene, address);
-    layer.surfaceAppearance = style; style.attach(mesh, mesh.matrix.clone(), scene);
-    const tick = () => { style.update(Infinity); layer.update(camera(3_000), tileSet.matrixWorld, 2 * Math.tan(Math.PI / 6) / 800, null); };
-    style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true });
-    for (let i = 0; i < 10; i++) { tick(); await loader.settle(); }
-    const blocks = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block')) as THREE.Mesh[];
-    expect(blocks().length).toBeGreaterThan(1);
-    for (const block of blocks()) {
-      const heights = block.geometry.getAttribute('surfaceHeightKm');
-      expect(heights).toBeDefined();
-      for (let i = 0; i < heights.count; i++) expect(Math.abs(heights.getX(i))).toBeLessThan(0.00001);
-      const material = block.material as THREE.Material;
-      const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
-      material.onBeforeCompile(shader as never, undefined as never);
-      expect(shader.fragmentShader).toContain('cubeImageryTexel');
-      expect(shader.fragmentShader).toContain('saContourLine');
-      expect(shader.fragmentShader.indexOf('float saDelta')).toBeGreaterThan(shader.fragmentShader.indexOf('diffuseColor.rgb = mix(diffuseColor.rgb, cubeImageryColor'));
-    }
-    style.set({ ...DEFAULT_SURFACE_APPEARANCE }); tick();
-    expect(blocks().length).toBeGreaterThan(0);
-    for (const block of blocks()) expect(block.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
-    style.set({ ...DEFAULT_SURFACE_APPEARANCE, contours: true }); tick();
-    expect(blocks().every(b => b.geometry.hasAttribute('surfaceHeightKm'))).toBe(true);
-    layer.removeTile(scene);
-    style.forget(scene);
-    layer.dispose();
-  });
 
-
-  it('gives a tile the terrain draw cull hid resident imagery for other views, without splitting, requesting or counting it', async () => {
-    const { layer, loader, scene, mesh, address, tick } = await setup();
-    await loader.settle();
-    // Refine while visible, so the tile is split and holds blocks.
-    for (let round = 0; round < 10; round++) { tick(camera(5_000)); await loader.settle(); }
-    expect(layer.stats.splitTiles).toBe(1);
-    const requests = layer.stats.requests;
-    const uniforms = (layer as unknown as { tiles: Map<object, { meshes: { uniforms: { cubeImageryEnabled: { value: number }; cubeImageryLevel: { value: number } } }[] }> })
-      .tiles.get(scene)!.meshes[0].uniforms;
-    uniforms.cubeImageryEnabled.value = 0; // as for a tile loaded while culled
-    // Culled: the instrument view may draw it, so it gets imagery at its own level, whole.
-    scene.visible = false;
-    tick(camera(5_000), 3);
-    expect(mesh.visible).toBe(true);
-    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible)).toHaveLength(0);
-    expect(uniforms.cubeImageryEnabled.value).toBe(1);
-    expect(uniforms.cubeImageryLevel.value).toBeLessThanOrEqual(address.level);
-    expect(layer.stats.tiles).toBe(0);
-    expect(layer.stats.blocks).toBe(0);
-    expect(layer.stats.queued).toBe(0);
-    expect(layer.stats.inFlight).toBe(0);
-    expect(layer.stats.requests).toBe(requests);
-    scene.visible = true;
-    tick(camera(5_000));
-    expect(layer.stats.tiles).toBe(1);
-    layer.dispose();
-  });
-
-  it('refines imagery far below a fixed coarse geometry tile, falling back while finer tiles load', async () => {
-    const { layer, loader, scene, mesh, address, tick } = await setup({ maxConcurrentRequests: 4 });
-    const positions = mesh.geometry.getAttribute('position');
-    // Coarse fallback uses the same bounded request queue as finer imagery.
-    expect(layer.stats.inFlight).toBe(4);
-    tick(camera(5_000));
-    expect(layer.stats.untexturedBlocks).toBeGreaterThan(0); // nothing resident yet: untextured, not wrong
-    await loader.settle();
-    let deepest = -1;
-    for (let round = 0; round < 40; round++) {
-      tick(camera(5_000));
-      expect(layer.stats.inFlight).toBeLessThanOrEqual(4);
-      deepest = Math.max(deepest, layer.stats.maxDisplayedLevel);
-      await loader.settle();
-    }
-    tick(camera(5_000));
-    const s = layer.stats;
-    expect(address.level).toBe(3);
-    expect(s.maxDisplayedLevel).toBeGreaterThanOrEqual(7); // imagery 4+ levels deeper than geometry
-    expect(s.fallbackBlocks).toBe(0);
-    expect(s.splitTiles).toBe(1);
-    expect(mesh.visible).toBe(false);
-    // The geometry tile itself is untouched: same mesh, same buffer, same vertex count.
-    expect(mesh.geometry.getAttribute('position')).toBe(positions);
-    const blocks = scene.children.filter(c => c.name.startsWith('cube-imagery-block'));
-    expect(blocks.length).toBe(s.blocks);
-    // Blocks sit exactly where the original mesh does without waiting for a scene-graph
-    // update: TilesGroup only propagates world matrices when the tile set moves.
-    for (const b of blocks) expect(b.matrixWorld.equals(mesh.matrixWorld)).toBe(true);
-    expect(s.extraDraws).toBe(s.blocks - 1);
-    expect(s.blockGeometryBytes).toBeGreaterThan(0);
-    // Moving away coarsens imagery without touching geometry; the tile draws whole again.
-    tick(camera(2_000_000), 3);
-    expect(layer.stats.splitTiles).toBe(0);
-    expect(mesh.visible).toBe(true);
-    expect(layer.stats.maxDisplayedLevel).toBeLessThan(3);
-    // Blocks unused for 2 s are freed; removing the tile frees the rest.
-    tick(camera(2_000_000), 125);
-    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block'))).toHaveLength(0);
-    layer.removeTile(scene);
-    layer.dispose();
-  });
-
-  it('falls back to the nearest resident ancestor when a tile fails, and does not hammer it', async () => {
-    const { layer, loader, tick } = await setup({ retryFailedMs: 60_000 });
-    await loader.settle();
-    const cam = camera(20_000);
-    for (let i = 0; i < 6; i++) { tick(camera(5_000_000)); await loader.settle(); }
-    tick(cam);
-    // Fail every level-4+ request.
-    for (let i = 0; i < 6; i++) { await loader.settle(id => Number(id.split('/')[1]) >= 4, true); tick(cam); }
-    const s = layer.stats;
-    expect(s.failures).toBeGreaterThan(0);
-    expect(s.failedTiles).toBeGreaterThan(0);
-    expect(s.maxDisplayedLevel).toBeLessThanOrEqual(3);
-    expect(s.untexturedBlocks).toBe(0); // coarse coverage remains usable
-    expect(s.failedBlocks).toBeGreaterThan(0);
-    expect(s.fallbackBlocks).toBe(0); // nothing is reported as still loading
-    // Nothing below a failed tile is requested: one failure per failing branch, not per level.
-    expect(s.failures).toBeLessThanOrEqual(s.blocks);
-    const requests = s.requests;
-    tick(cam, 20);
-    expect(layer.stats.requests).toBe(requests); // failed tiles are not re-requested inside the retry window
-    layer.retryFailed();
-    tick(cam);
-    expect(layer.stats.requests).toBeGreaterThan(requests);
-    layer.dispose();
-  });
-
-  it('keeps textures within budget, evicting least recently used unpinned tiles', async () => {
-    const tile = 264 * 264 * 4 * 4 / 3;
-    const { layer, loader, tick } = await setup({ maxTextureBytes: 40 * tile, maxConcurrentRequests: 16 });
-    await loader.settle();
-    for (const altitude of [5_000, 50_000, 2_000, 400, 9_000, 1_000, 30_000]) {
-      for (let round = 0; round < 10; round++) { tick(camera(altitude)); await loader.settle(); }
-      const s = layer.stats;
-      expect(s.pinnedTextures).toBe(30);
-      expect(s.textureBytes).toBeLessThanOrEqual(40 * tile + 1);
-    }
-    // Fitting the visible set can avoid churn entirely. Force a real trim to
-    // the mandatory footprint after leaving detail, and verify those entries
-    // are evicted while every mandatory texture survives.
-    layer.setOptions({ maxTextureBytes: 30 * tile });
-    tick(camera(2_000_000));
-    expect(layer.stats.pinnedTextures).toBe(30);
-    expect(layer.stats.textureBytes).toBeLessThanOrEqual(30 * tile + 1);
-    expect(layer.stats.evicted).toBeGreaterThan(0);
-    layer.dispose();
-  });
-
-  it('retains drawn detail while a zoom needs a finer tile in a full cache', async () => {
-    const tileBytes = 264 * 264 * 4 * 4 / 3;
-    // Thirty mandatory coarse tiles plus one detail tile, with downloads held
-    // by the controlled loader. A pending replacement cannot provide fallback.
-    const { layer, loader, tick } = await setup({ maxTextureBytes: 31 * tileBytes, maxConcurrentRequests: 30 });
-    await loader.settle();
-    for (let i = 0; i < 12; i++) { tick(camera(100_000)); await loader.settle(); }
-    const before = layer.stats.maxDisplayedLevel;
-    expect(before).toBeGreaterThan(1);
-    expect(before).toBeLessThan(9);
-    tick(camera(1000));
-    // No ready foreground texture may be disposed to make room for an
-    // unresolved request. Budget pressure is exposed explicitly instead.
-    expect(layer.stats.textures).toBe(31);
-    expect(layer.stats.inFlight).toBe(0);
-    expect(layer.stats.budgetLimited).toBe(true);
-    tick(camera(1000));
-    expect(layer.stats.maxDisplayedLevel).toBeGreaterThanOrEqual(before);
-    layer.dispose();
-  });
-
-  it('prioritizes the finest foreground request after mandatory coverage fits', async () => {
-    const tileBytes = 264 * 264 * 4 * 4 / 3;
-    const { layer, loader, tick } = await setup({ maxTextureBytes: 100 * tileBytes, maxConcurrentRequests: 30 });
-    await loader.settle();
-    tick(camera(100_000));
-    expect(loader.pending.size).toBeGreaterThan(0);
-    const requestedLevel = Number([...loader.pending.keys()][0].split('/')[1]);
-    expect(requestedLevel).toBe(Math.max(...Object.keys(layer.stats.wantedLevels).map(Number)));
-    layer.dispose();
-  });
-
-  it('keeps mandatory coarse requests ahead of foreground detail during partial startup', async () => {
-    const { layer, loader, tick } = await setup({ maxConcurrentRequests: 1 });
-    await loader.settle(); // only the first mandatory request has completed
-    tick(camera(1000));
-    expect(loader.pending.size).toBe(1);
-    expect(Number([...loader.pending.keys()][0].split('/')[1])).toBeLessThanOrEqual(1);
-    layer.dispose();
-  });
-
-  it('reuses slots between discrete cover sizes for lower layers', async () => {
-    const tileBytes = 264 * 264 * 4 * 4 / 3;
-    const layers = ['base', 'lower', 'upper'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
-    const loader = controlledLoader();
-    const layer = new CubeImageryLayer({ url: layers[0].url, layers, maxTextureBytes: 15 * tileBytes, maxConcurrentRequests: 3 }, {
-      fetchManifest: async url => { const m = manifest(5); return url.includes('//base/') ? { ...m, maxLevel: 0, tiles: m.tiles.filter(id => Number(id.split('/')[1]) === 0) } : m; }, loadTexture: loader.loadTexture,
-    });
-    await layer.ready;
-    const leaves: ImageryBlock[] = [];
-    for (const x of [0, 1]) for (const y of [0, 1]) for (const child of [0, 1]) {
-      const image: ImageryAddress = { face: 'nz', level: 5, x: 16 + 2 * x + child, y: 16 + 2 * y };
-      leaves.push({ ...image, image, desiredLevel: 5, inView: true });
-    }
-    const fitting = layer as unknown as { fitView: (leaves: ImageryBlock[]) => void; sourceLevelCaps: Map<number, number> };
-    fitting.fitView(leaves);
-    // Eight free cover slots fit two four-tile level-4 covers. Reserving seven
-    // for the upper source wastes three and strands the lower source at L3.
-    expect(fitting.sourceLevelCaps.get(1)).toBe(4);
-    expect(fitting.sourceLevelCaps.get(2)).toBe(4);
-    layer.dispose();
-  });
-
-  it('converges to a complete fitted cover with only two non-base texture slots', async () => {
-    const tileBytes=264*264*4*4/3;
-    const layers=['base','lower','upper'].map(id=>({type:'cube' as const,id,url:`http://${id}/imagery.json`}));
-    const layer=new CubeImageryLayer({url:layers[0].url,layers,maxConcurrentRequests:3,maxTextureBytes:8*tileBytes},{
-      fetchManifest:async()=>manifest(7),
-      loadTexture:async()=>({texture:new THREE.Texture(),bytes:tileBytes,downloadBytes:1}),
-    });
-    await layer.ready;
-    const root=new THREE.Group(),address=directionToTexel(southPole,3,256,4).address,{scene}=geometryTile(address);
-    root.add(scene);layer.addTile(scene,scene,address);
-    for(let i=0;i<60;i++){
-      layer.update(camera(3000),root.matrixWorld,.001,null);await new Promise(r=>setTimeout(r,0));
-      expect(layer.stats.textureBytes+layer.stats.inFlight*tileBytes).toBeLessThanOrEqual(8*tileBytes+1);
-    }
-    expect(layer.stats.pinnedTextures).toBe(6);
-    expect(layer.stats.queued).toBe(0); // a ready root must not strand its fitted replacement
-    expect(layer.stats.maxDisplayedLevel).toBeGreaterThanOrEqual(3);
-    expect(layer.stats.baseUncoveredBlocks).toBe(0);
-    expect(layer.stats.budgetLimited).toBe(true); // lower sources/detail are explicitly constrained
-    layer.dispose();
-  });
-
-  it('reserves budget for in-flight requests when completions are staggered', async () => {
-    const tile = 264 * 264 * 4 * 4 / 3;
-    const { layer, loader, tick } = await setup({ maxTextureBytes: 40 * tile, maxConcurrentRequests: 16 });
-    await loader.settle();
-    // Oblique over the nz/3/4/4 quadrant (nz: u = x/z, v = -y/z): many deep blocks in view at once.
-    const oblique = (h: number) => {
-      const c = new THREE.PerspectiveCamera(60, 1.6, 1, 1e8);
-      c.position.set(-30_000, 30_000, -(R + h));
-      c.lookAt(-30_000 - h, 30_000 + h, -R);
-      c.updateMatrixWorld();
-      return c;
-    };
-    for (let round = 0; round < 60; round++) {
-      tick(oblique(round % 20 < 10 ? 3_000 : 800));
-      // One completion per frame: requests started in earlier frames are still outstanding.
-      const [first] = loader.pending.keys();
-      if (first) await loader.settle(id => id === first);
-      const s = layer.stats;
-      expect(s.textureBytes + s.inFlight * tile).toBeLessThanOrEqual(40 * tile + 1);
-    }
-    layer.dispose();
-  });
-
-  it('aborts requests nobody wants any more and stays bounded under camera motion', async () => {
-    const { layer, loader, tick } = await setup({ maxConcurrentRequests: 6 });
-    await loader.settle();
-    for (let i = 0; i < 6; i++) { tick(camera(5_000_000)); await loader.settle(); }
-    const low = new THREE.PerspectiveCamera(60, 1.6, 1, 1e8);
-    low.position.set(-30_000, 30_000, -(R + 3_000)); // inside the nz/3/4/4 quadrant (nz: u = x/z, v = -y/z), several deep tiles in view
-    low.lookAt(-30_000, 30_000, -R);
-    low.updateMatrixWorld();
-    tick(low);
-    const inFlight = layer.stats.inFlight;
-    expect(inFlight).toBeGreaterThan(1);
-    expect(inFlight).toBeLessThanOrEqual(6);
-    tick(camera(5_000_000), 31); // the wanted set collapses to the pinned levels
-    expect(loader.aborted.length).toBe(inFlight);
-    expect(layer.stats.inFlight).toBe(0);
-    expect(layer.stats.aborted).toBe(inFlight);
-    // Repeated back-and-forth never queues more than the wanted set nor exceeds concurrency.
-    for (let i = 0; i < 30; i++) {
-      tick(camera(i % 2 ? 500 : 50_000));
-      expect(layer.stats.inFlight).toBeLessThanOrEqual(6);
-      await loader.settle(() => Math.random() < 0.5);
-    }
-    layer.dispose();
-    expect(loader.pending.size).toBe(0);
-  });
-
-  it('restores the original mesh while another debug view owns the materials', async () => {
-    const { layer, loader, mesh, tileSet, scene } = await setup();
-    await loader.settle();
-    const pixelAngle = 2 * Math.tan(Math.PI / 6) / 800;
-    for (let i = 0; i < 20; i++) { layer.update(camera(3_000), tileSet.matrixWorld, pixelAngle, null); await loader.settle(); }
-    expect(mesh.visible).toBe(false);
-    layer.update(camera(3_000), tileSet.matrixWorld, pixelAngle, null, false);
-    expect(mesh.visible).toBe(true);
-    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible)).toHaveLength(0);
-    // A tile the renderer has detached is left alone (not counted, not requested for).
-    scene.removeFromParent();
-    layer.update(camera(3_000), tileSet.matrixWorld, pixelAngle, null);
-    expect(layer.stats.tiles).toBe(0);
-    layer.dispose();
-  });
-
-  it('builds blocks from the triangles the tile draws, and rebuilds them when that changes', async () => {
-    const { layer, loader, mesh, scene, tick } = await setup();
-    for (let i = 0; i < 20; i++) { tick(camera(3_000)); await loader.settle(); }
-    const blockTriangles = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block') && c.visible)
-      .reduce((s, c) => s + (c as THREE.Mesh).geometry.index!.count / 3, 0);
-    const all = blockTriangles();
-    expect(all).toBeGreaterThan(0);
-    // Hide the second half of the triangles, as TerrainManager hides skirts.
-    const half = mesh.geometry.index!.count / 2;
-    mesh.geometry.setDrawRange(0, half);
-    layer.invalidateBlocks();
-    expect(scene.children.filter(c => c.name.startsWith('cube-imagery-block'))).toHaveLength(0);
-    tick(camera(3_000));
-    const drawn = blockTriangles();
-    expect(drawn).toBeGreaterThan(0);
-    expect(drawn).toBeLessThan(all);
-    mesh.geometry.setDrawRange(0, Infinity);
-    layer.invalidateBlocks();
-    tick(camera(3_000));
-    expect(blockTriangles()).toBe(all);
-    layer.dispose();
-  });
-});
-
-describe('cube imagery with shared surface appearance', () => {
-  it('clips the displayed fields, follows source visibility, rebuilds on field changes and restores imagery', async () => {
-    const { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE: defaults, surfaceTintHeightAtHit } = await import('../SurfaceAppearance.js');
-    const { layer, loader, scene, mesh, tick } = await setup();
-    const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
-    layer.surfaceAppearance = style;
-    style.attach(mesh, mesh.matrix.clone(), scene);
-    const physical = ['position', 'normal'].map(n => mesh.geometry.getAttribute(n).array.slice());
-    const sourceIndex = mesh.geometry.index!.array.slice();
-    const compile = (m: THREE.Material) => {
-      const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} };
-      m.onBeforeCompile(shader as never, undefined as never); return shader;
-    };
-    style.set({ ...defaults, baseColor: 'elevation', hillshade: true }); style.update(Infinity);
-    // A large, deliberately nonlinear height field makes re-evaluation on the
-    // clipped sphere measurably different from interpolation on source triangles.
-    const height = mesh.geometry.getAttribute('surfaceHeightKm');
-    for (let i = 0; i < height.count; i++) height.setX(i, Math.sin(i) * 2);
-    const cam = camera(5_000);
-    tick(cam); await loader.settle();
-    const blocks = () => scene.children.filter(c => c.name.startsWith('cube-imagery-block ')) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[];
-    expect(blocks().length).toBeGreaterThan(1);
-    const original = blocks()[0];
-    expect(mesh.visible).toBe(false);
-    expect(isDrawnCubeImagerySource(mesh)).toBe(true);
-    const { UniverseRenderer } = await import('../UniverseRenderer.js');
-    const body = Object.assign(new THREE.Group(), { body: { name: 'Moon' }, displayRadius: R,
-      mesh: new THREE.Mesh(), terrainTileGroup: scene.parent, getDskMeshes: () => [], getSurfaceOverlays: () => [] });
-    body.mesh.visible = false; body.add(body.terrainTileGroup!); body.updateMatrixWorld(true);
-    const picker = Object.assign(Object.create(UniverseRenderer.prototype), {
-      camera: cam, scaleFactor: 1, bodyMeshes: new Map([['Moon', body]]),
-      _surfaceRaycaster: new THREE.Raycaster(), _surfaceTileRaycaster: new THREE.Raycaster(),
-      renderer: { domElement: { clientWidth: 1600, clientHeight: 1000 } },
-    }) as InstanceType<typeof UniverseRenderer>;
-    cam.position.copy(mesh.position).normalize().multiplyScalar(R + 5000); cam.lookAt(mesh.position); cam.updateMatrixWorld(true);
-    expect(picker.pickSurfaceTintHeight(800, 500)?.heightKm).toBeDefined();
-    scene.visible = false;
-    expect(picker.pickSurfaceTintHeight(800, 500)).toBeNull();
-    scene.visible = true;
-    cam.copy(camera(5000)); cam.updateMatrixWorld(true);
-    for (const block of blocks()) {
-      const shader = compile(block.material);
-      expect(shader.vertexShader.match(/attribute float surfaceHeightKm;/g)).toHaveLength(1);
-      expect(shader.vertexShader.match(/attribute vec3 surfaceReliefNormal;/g)).toHaveLength(1);
-      expect(shader.fragmentShader).toContain('sampleValue = texture2D');
-      const p = block.geometry.getAttribute('position'), h = block.geometry.getAttribute('surfaceHeightKm');
-      // Locate every clipped vertex on the original geometry and compare the
-      // exact barycentric color field, including vertices newly added by clipping.
-      const sourceP = mesh.geometry.getAttribute('position'), sourceI = mesh.geometry.index!;
-      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), point = new THREE.Vector3();
-      for (let i = 0; i < p.count; i++) {
-        point.fromBufferAttribute(p, i); let expected: number | undefined;
-        for (let k = 0; k < sourceI.count; k += 3) {
-          const ia = sourceI.getX(k), ib = sourceI.getX(k + 1), ic = sourceI.getX(k + 2);
-          a.fromBufferAttribute(sourceP, ia); b.fromBufferAttribute(sourceP, ib); c.fromBufferAttribute(sourceP, ic);
-          const weights = THREE.Triangle.getBarycoord(point, a, b, c, new THREE.Vector3());
-          const plane = new THREE.Plane().setFromCoplanarPoints(a, b, c);
-          if (weights && Math.min(weights.x, weights.y, weights.z) > -1e-5 && Math.abs(plane.distanceToPoint(point)) < 0.05) {
-            expected = surfaceTintHeightAtHit({ object: mesh, point: mesh.localToWorld(point.clone()), distance: 0, face: { a: ia, b: ib, c: ic, normal: new THREE.Vector3(), materialIndex: 0 } }); break;
-          }
-        }
-        expect(expected).toBeDefined(); expect(h.getX(i)).toBeCloseTo(expected!, 3);
-      }
-    }
-    // Hidden source mesh still contributes while its imagery blocks draw.
-    style.update(Infinity); tick(cam); expect(blocks()[0]).toBe(original);
-    // Uniform edits keep clipped meshes and material wrappers stable.
-    style.set({ ...style.current, azimuthDeg: 90, imageryAmount: 0.8 });
-    style.update(Infinity); tick(cam); expect(blocks()[0]).toBe(original);
-    const requests = layer.stats.requests;
-    style.set({ ...defaults }); style.update(Infinity); tick(cam);
-    for (const block of blocks()) {
-      expect(block.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
-      expect(compile(block.material).vertexShader).not.toContain('vSAHeight');
-    }
-    expect(layer.stats.requests).toBe(requests);
-    expect(['position', 'normal'].map(n => mesh.geometry.getAttribute(n).array)).toEqual(physical);
-    expect(mesh.geometry.index!.array).toEqual(sourceIndex);
-    style.set({ ...defaults, hillshade: true }); style.update(Infinity); tick(cam);
-    expect(compile(blocks()[0].material).vertexShader).toContain('surfaceReliefNormal');
-    layer.invalidateBlocks(); tick(cam);
-    expect(compile(blocks()[0].material).vertexShader.match(/attribute vec3 surfaceReliefNormal;/g)).toHaveLength(1);
-    layer.removeTile(scene); expect(isDrawnCubeImagerySource(mesh)).toBe(false); style.forget(scene); layer.dispose();
-  });
-});
-
-it('keeps dynamic upstream fade defines, uniforms and program keys on clipped styled materials', async () => {
-  const { SurfaceAppearance, DEFAULT_SURFACE_APPEARANCE: defaults } = await import('../SurfaceAppearance.js');
-  const fade = { value: 0.5 };
-  let upstreamKey = 'fade-0';
-  const { layer, mesh, scene, tick } = await setup({}, mesh => {
-    const material = mesh.material as THREE.MeshStandardMaterial;
-    material.defines = { FEATURE_FADE: 0 };
-    material.onBeforeCompile = shader => {
-      shader.uniforms.fixtureFade = fade;
-      injectShadowIntoShader(shader, makeShadowUniforms());
-      injectAerialPerspectiveIntoShader(shader, {});
-    };
-    material.customProgramCacheKey = () => upstreamKey;
-  });
-  const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
-  layer.surfaceAppearance = style; style.attach(mesh, mesh.matrix.clone(), scene);
-  style.set({ ...defaults, baseColor: 'neutral', hillshade: true }); style.update(Infinity);
-  tick(camera(5000));
-  const block = scene.children.find(c => c.name.startsWith('cube-imagery-block ')) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-  expect(block).toBeDefined();
-  upstreamKey = 'fade-1'; (mesh.material as THREE.MeshStandardMaterial).defines!.FEATURE_FADE = 1;
-  tick(camera(5000));
-  expect(block.material.defines!.FEATURE_FADE).toBe(1);
-  expect(block.material.customProgramCacheKey()).toContain('fade-1');
-  const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} as Record<string, unknown> };
-  block.material.onBeforeCompile(shader as never, undefined as never);
-  expect(shader.uniforms.fixtureFade).toBe(fade);
-  expect(shader.fragmentShader).toContain('saShade');
-  expect(shader.fragmentShader).toContain('getShadowMask()');
-  expect(shader.fragmentShader.indexOf('outgoingLight = diffuseColor.rgb')).toBeLessThan(shader.fragmentShader.indexOf('AerialPerspectiveResult _ap'));
-  layer.dispose();
 });

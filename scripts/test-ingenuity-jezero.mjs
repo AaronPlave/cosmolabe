@@ -120,27 +120,53 @@ async function imageryCenter(pixels=false,ndc=null){
     const picked=ndc?r.pickSurface(ndc[0],ndc[1])?.bodyFixedHitKm:null;
     const p=ndc?(picked?{xKm:picked[0],yKm:picked[1],zKm:picked[2]}:null):window.ingenuityTestPoint;
     if(!p)return null;
-    const address=directionToTexel([p.xKm,p.yKm,p.zKm],17,1024,2).address;
-    const contains=a=>a.face===address.face&&a.level<=17&&Math.floor(address.x/2**(17-a.level))===a.x&&Math.floor(address.y/2**(17-a.level))===a.y;
-    const records=[...l.tiles.values()].filter(t=>t.scene.parent&&t.scene.visible&&contains(t.address)).sort((a,b)=>b.address.level-a.address.level);
-    const record=records[0];if(!record)return null;
-    const m=record.meshes[0];
-    const uniforms=m.mesh.visible?m.uniforms:[...m.blocks].find(([id,b])=>b.mesh.visible&&contains(parseImageryAddress(id)))?.[1].uniforms;
-    if(!uniforms)return null;
-    const basis=tileProjectiveBasis(record.address),dot=a=>p.xKm*a[0]+p.yKm*a[1]+p.zKm*a[2],st=[dot(basis.a)/dot(basis.n),dot(basis.b)/dot(basis.n)];
-    return l.order.map((source,i)=>{
-      const u=uniforms.layers[i],image=u.map.value?.image;
+    return l.sampleAt([p.xKm,p.yKm,p.zKm]).map(sample=>{
+      const image=sample.texture?.image;
       let pixelRGBA=null;
-      if(pixels&&u.enabled.value&&image){
-        const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);
-        // ImageBitmap is already flipped at decode for t=0 at file bottom.
-        const x=Math.min(image.width-1,Math.max(0,Math.floor((st[0]*u.transform.value.x+u.transform.value.z)*image.width)));
-        const y=Math.min(image.height-1,Math.max(0,Math.floor((st[1]*u.transform.value.y+u.transform.value.w)*image.height)));
-        pixelRGBA=[...ctx.getImageData(x,y,1,1).data];
+      if(pixels&&sample.enabled&&image&&sample.address){
+        const manifest=l.manifest;
+        const texel=directionToTexel([p.xKm,p.yKm,p.zKm],sample.address.level,manifest.tileSize,manifest.gutter);
+        const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+        const ctx=canvas.getContext('2d');if(!image.data)ctx.drawImage(image,0,0);
+        // The retained decoded bitmap has already been flipped for GPU t=0.
+        const x=Math.min(image.width-1,Math.max(0,Math.floor(texel.column)));
+        const y=Math.min(image.height-1,Math.max(0,image.height-1-Math.floor(texel.row)));
+        pixelRGBA=image.data?[...image.data.slice((y*image.width+x)*4,(y*image.width+x)*4+4)]:[...ctx.getImageData(x,y,1,1).data];
       }
-      return {id:source.info.id,enabled:u.enabled.value,level:u.level.value,pixelRGBA};
+      return {id:sample.id,enabled:sample.enabled,level:sample.level,pixelRGBA,coveredByOpaqueUpper:sample.coveredByOpaqueUpper};
     });
   },{root:resolve('.'),pixels,ndc});
+}
+async function replaySurfaceExplorerMotion(){
+  result.surfaceExplorerMotion=[];
+  for(const fullStack of [false,true]){
+    await page.evaluate(full=>{const b=window.renderer.getBodyMesh('Mars');b.setImageryLayerVisible('ctx-global',full);b.setImageryLayerVisible('jezero-ctx',full);},fullStack);
+    await pose(18.44486301,77.45101915,.15);await settle();await groundReady();
+    await page.evaluate(()=>{
+      const r=window.renderer,b=r.getBodyMesh('Mars');
+      const g=b.terrainBodyFixedToGeodetic(window.ingenuityTestPoint);
+      if(!r.cameraController.setMode('surface-explorer',{bodyName:'Mars',latDeg:g.latDeg,lonDeg:g.lonDeg,altKm:.15,headingDeg:0,pitchDeg:-12}))throw new Error('Surface Explorer entry failed');
+    });
+    await settle();await page.waitForTimeout(500);
+    await page.evaluate(()=>{const p=window.renderer.pickSurface(0,0)?.bodyFixedHitKm;if(!p)throw new Error('No native Surface Explorer anchor');window.ingenuityTestPoint={xKm:p[0],yKm:p[1],zKm:p[2]};});
+    const initial=await imageryCenter(true), top=layers=>[...layers].reverse().find(x=>x.enabled&&x.pixelRGBA?.[3]===255);
+    const before=top(initial);assert.ok(before&&before.level>=7,`native foreground starts coarse: ${JSON.stringify(initial)}`);
+    const samples=[];
+    await page.locator('canvas').first().screenshot({path:`${out}/surface-explorer-${fullStack?'stack':'hirise'}-before.png`});
+    for(const dx of [25,25,-25,-25,-25,-25,25,25]){
+      await page.mouse.move(700,450);await page.mouse.down({button:'left'});
+      await page.mouse.move(700+dx,450,{steps:12});await page.mouse.up({button:'left'});
+      await page.waitForTimeout(75);
+      const layers=await imageryCenter(true), shown=top(layers), state=await snapshot();
+      samples.push({dx,layers,textureBytes:state.imagery.textureBytes,budgetLimited:state.imagery.budgetLimited,queued:state.imagery.queued});
+      assert.ok(shown?.id===before.id&&shown.level>=before.level-1,`native look-around discarded resident foreground: ${JSON.stringify({fullStack,before,shown,layers})}`);
+      assert.ok(state.imagery.textureBytes<=state.imagery.maxTextureBytes+state.imagery.transitionTextureBytes+state.imagery.protectedOverBudgetBytes);
+    }
+    await settle();
+    await page.locator('canvas').first().screenshot({path:`${out}/surface-explorer-${fullStack?'stack':'hirise'}-after.png`});
+    result.surfaceExplorerMotion.push({fullStack,initial,samples,gpu:(await snapshot()).gpu});await save();
+    await page.evaluate(()=>window.renderer.cameraController.setMode('free-orbit'));
+  }
 }
 async function replayCorridors(){
   // Fresh application residency, then representative observed corridors. CPU
@@ -195,7 +221,11 @@ try{
   })));
   for (const [i, source] of mars.geometry.imagery.entries()) assert.equal(new URL(result.loadedImageryProducts[i].url).pathname,
     new URL(source.url, new URL('test-catalogs/ingenuity-jezero.json', base)).pathname, 'browser loaded a different imagery product');
-  if(process.argv[4] === '--clearance-frames-only') {
+  if(process.argv[4] === '--imagery-motion-only') {
+    await page.evaluate(() => { sessionStorage.setItem('ingenuity-baseline-done', '1'); });
+    await page.reload({waitUntil:'domcontentloaded'});await ready();await replaySurfaceExplorerMotion();
+    result.passed=true;await save();console.log('Native imagery motion passed');
+  } else if(process.argv[4] === '--clearance-frames-only') {
     await page.evaluate(() => { sessionStorage.setItem('ingenuity-baseline-done', '1'); });
     await replayCorridors();
     result.passed = true; result.clearanceFramesOnly = true; await save();
@@ -220,7 +250,7 @@ try{
   for(const [name,lat,lon] of [['wright',18.44486301,77.45101915],['delta',18.455,77.405],['last-airfield',18.4980,77.3273]]){
     await pose(lat,lon);await settle();await groundReady();const state=await snapshot();
     assert.ok(state.nav?.settled,`${name}: ${JSON.stringify(state.nav)}`);assert.ok(state.clearanceM>=1.9);
-    assert.equal(state.imagery.baseUncoveredBlocks,0);assert.ok(state.imagery.textureBytes<=state.imagery.maxTextureBytes);
+    assert.equal(state.imagery.baseUncoveredBlocks,0);assert.ok(state.imagery.textureBytes<=state.imagery.maxTextureBytes+state.imagery.transitionTextureBytes+state.imagery.protectedOverBudgetBytes);
     const picks=await page.evaluate(()=>{
       const result=[];for(const y of [-.6,-.3,0,.3,.6])for(const x of [-.6,-.3,0,.3,.6]){
         const hit=window.renderer.pickSurface(x,y);
@@ -236,13 +266,10 @@ try{
   result.imageryMotion=[];
   await page.evaluate(()=>{
     const l=window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer;
-    const evict=l.evict.bind(l);window.imageryPrematureEvictions=0;
-    l.evict=function(need,wanted,priority,incoming){
-      const source=incoming?.split(':')[0],incomingLevel=incoming?Number(incoming.split(':')[1].split('/')[1]):-1;
-      const drawn=[...this.entries.values()].filter(e=>e.state==='ready'&&e.lastUsed===this.frame&&source!==undefined&&e.id.startsWith(source+':')&&e.address.level<=incomingLevel);
-      const freed=evict(need,wanted,priority,incoming);
-      window.imageryPrematureEvictions+=drawn.filter(e=>!this.entries.has(e.id)).length;
-      return freed;
+    const release=l.releaseTexture.bind(l);window.imageryPrematureEvictions=0;
+    l.releaseTexture=function(entry){
+      if(entry.lastUsed===this.frame&&entry.source.info.visible)window.imageryPrematureEvictions++;
+      return release(entry);
     };
   });
   for(const fullStack of [false,true]){
@@ -256,7 +283,7 @@ try{
       const samples=[];
       for(let i=0;i<8;i++){await page.waitForTimeout(100);const state=await snapshot();samples.push({imagery:state.imagery,clearanceM:state.clearanceM,nav:state.nav,center:await imageryCenter()});}
       assert.ok(samples.every(s=>s.clearanceM===null||s.clearanceM>=1.9),'camera crossed ground during oblique imagery sweep');
-      assert.ok(samples.every(s=>s.imagery.textureBytes<=s.imagery.maxTextureBytes),'imagery motion exceeded texture budget');
+      assert.ok(samples.every(s=>s.imagery.textureBytes<=s.imagery.maxTextureBytes+s.imagery.transitionTextureBytes+s.imagery.protectedOverBudgetBytes),'imagery motion exceeded texture budget');
       await settle();const center=await imageryCenter();
       if(altitude===.05){
         const hirise=center?.find(x=>x.id==='jezero-hirise');
@@ -265,22 +292,23 @@ try{
         const viewport=[];
         for(const y of [-.8,-.55,-.3,-.05,.2,.45,.7])for(const x of [-.8,-.55,-.3,-.05,.2,.45,.7])viewport.push({x,y,layers:await imageryCenter(false,[x,y])});
         assert.ok(viewport.every(p=>p.layers?.some(s=>s.id==='jezero-hirise'&&s.enabled===1&&s.level>=13)),`incorrect whole-view imagery LOD: ${JSON.stringify(viewport)}`);
-        result.imageryViewport??=[];result.imageryViewport.push({fullStack,budgetBytes:268435456,points:viewport});
+        result.imageryViewport??=[];result.imageryViewport.push({fullStack,budgetBytes:1006632960,points:viewport});
         // A smaller budget may reduce detail, but must produce one coherent
         // foreground level instead of stranded, near-blank coarse rectangles.
         await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.setOptions({maxTextureBytes:128*2**20}));await settle();
         const reduced=[];
         for(const y of [-.8,-.55,-.3,-.05,.2,.45,.7])for(const x of [-.8,-.55,-.3,-.05,.2,.45,.7])reduced.push({x,y,layers:await imageryCenter(false,[x,y])});
-        const cap=await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.sourceLevelCaps.get(3));
+        const cap=13;
         assert.ok(reduced.every(p=>p.layers?.some(s=>s.id==='jezero-hirise'&&s.enabled===1&&s.level>=Math.min(13,cap))),`incoherent constrained-cache foreground: ${JSON.stringify({cap,reduced})}`);
         result.imageryViewport.push({fullStack,budgetBytes:134217728,cap,points:reduced});
         await page.locator('canvas').first().screenshot({path:`${out}/imagery-motion-${fullStack?'stack':'hirise'}-128.png`});
-        await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.setOptions({maxTextureBytes:256*2**20}));await settle();
+        await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.setOptions({maxTextureBytes:960*2**20}));await settle();
       }
       result.imageryMotion.push({fullStack,altitudeKm:altitude,samples,settledCenter:center});await save();
     }
   }
   assert.equal(await page.evaluate(()=>window.imageryPrematureEvictions),0,'disposed a drawn ancestor to reserve pending refinement');
+  await replaySurfaceExplorerMotion();
   await replayCorridors();
   // Straight-down and tilted views must budget the actual visible cover.
   // The superseded beta service had repeated pixels and a corrupt L8 source
@@ -303,15 +331,15 @@ try{
       const state = await snapshot(), center = await imageryCenter(true);
       const ctx = center?.find(s => s.id === 'ctx-global');
       const requiredExposedLevel = altitudeKm === 500 ? 2 : 7;
-      assert.ok(ctx?.enabled === 1, `CTX cover missing: ${JSON.stringify({fullStack, altitudeKm, tilt, center})}`);
+      assert.ok(ctx?.enabled === 1 || ctx?.coveredByOpaqueUpper, `CTX cover missing: ${JSON.stringify({fullStack, altitudeKm, tilt, center})}`);
       if (ctx.level < requiredExposedLevel) {
-        assert.ok(fullStack && state.imagery.budgetLimited && center.some(source => source.id === 'jezero-hirise'
+        assert.ok(fullStack && (state.imagery.budgetLimited || ctx.coveredByOpaqueUpper) && center.some(source => source.id === 'jezero-hirise'
           && source.enabled && source.level >= requiredExposedLevel && source.pixelRGBA?.[3] === 255),
         `exposed CTX detail starved: ${JSON.stringify({fullStack, altitudeKm, tilt, center, imagery:state.imagery})}`);
       }
       assert.equal(state.imagery.baseUncoveredBlocks, 0);
-      assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes);
-      assert.ok(ctx.pixelRGBA?.[3] > 0, 'available original V01 CTX response was lost');
+      assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes + state.imagery.transitionTextureBytes + state.imagery.protectedOverBudgetBytes);
+      assert.ok(ctx.coveredByOpaqueUpper || ctx.pixelRGBA?.[3] > 0, 'available original V01 CTX response was lost');
       result.globalCtxAngles.push({fullStack, altitudeKm, tilt, center, imagery: state.imagery});
       if (fullStack && altitudeKm === 50) await page.locator('canvas').first().screenshot({path: `${out}/ctx-${tilt ? 'tilted' : 'nadir'}.png`});
       await save();
@@ -337,7 +365,7 @@ try{
       samples.push({x, y, layers});
     }
     assert.equal(state.imagery.baseUncoveredBlocks, 0);
-    assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes);
+    assert.ok(state.imagery.textureBytes <= state.imagery.maxTextureBytes + state.imagery.transitionTextureBytes + state.imagery.protectedOverBudgetBytes);
     result.nativeMarsOrbit.push({step, samples, imagery: state.imagery});
     await page.locator('canvas').first().screenshot({path: `${out}/native-mars-orbit-${step}.png`}); await save();
     await page.evaluate(() => window.cosmo.setPlaying(true));
@@ -443,7 +471,21 @@ try{
   assert.equal(result.baseOnly.imagery.baseUncoveredBlocks,0);
   await page.evaluate(()=>{const b=window.renderer.getBodyMesh('Mars');['ctx-global','jezero-ctx','jezero-hirise'].forEach(id=>b.setImageryLayerVisible(id,true));b.terrainManager.cubeImageryLayer.setOptions({maxTextureBytes:48*2**20});});
   for(const [lat,lon] of [[18.455,77.405],[18.498,77.3273],[18.44486301,77.45101915]]){await pose(lat,lon,.5);await settle(true);}
-  result.eviction=await snapshot();assert.ok(result.eviction.imagery.evicted>0);assert.ok(result.eviction.imagery.textureBytes<=48*2**20);
+  result.eviction=await snapshot();assert.ok(result.eviction.imagery.evicted>0);assert.ok(result.eviction.imagery.textureBytes<=result.eviction.imagery.maxTextureBytes+result.eviction.imagery.transitionTextureBytes+result.eviction.imagery.protectedOverBudgetBytes);
+  // A live reduction protects the committed display. A genuinely constrained
+  // cold cache must also stabilize within its allocation, without inheriting it.
+  const constrainedCatalog='**/test-catalogs/ingenuity-jezero.json';
+  await page.route(constrainedCatalog,async route=>{
+    const response=await route.fetch(),catalog=await response.json();
+    catalog.items.find(x=>x.name==='Mars').geometry.terrain.cubeSphere.imagery.maxTextureBytes=48*2**20;
+    await route.fulfill({response,json:catalog});
+  });
+  await page.reload({waitUntil:'domcontentloaded'});await ready();await pose(18.44486301,77.45101915,.5);await settle();
+  result.coldConstrained=await snapshot();
+  assert.equal(result.coldConstrained.imagery.baseUncoveredBlocks,0);
+  assert.equal(result.coldConstrained.imagery.protectedOverBudgetBytes,0);
+  assert.ok(result.coldConstrained.imagery.textureBytes<=48*2**20+result.coldConstrained.imagery.transitionTextureBytes);
+  await page.unroute(constrainedCatalog);
   await page.evaluate(()=>window.renderer.getBodyMesh('Mars').terrainManager.cubeImageryLayer.setOptions({maxTextureBytes:128*2**20}));await settle();
   // A cold optional-source outage must retain mandatory base coverage, stop
   // retrying automatically, and recover through the explicit recovery port.

@@ -1,11 +1,12 @@
 {
   "kind": "ingenuity-mission-hardware-acceptance",
-  "version": 1,
+  "version": 2,
   "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "renderer": "independent imagery hierarchy / GPU array page table / visible-frontier replacement",
   "passed": true,
   "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
   "commands": [
-    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/browser-v12"
+    "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/architecture-257/ingenuity-final-v12"
   ],
   "operationalToleranceM": 0.5,
   "views": [
@@ -14,45 +15,45 @@
       "lat": 18.44486301,
       "lon": 77.45101915,
       "navigation": {
-        "radiusKm": 3391.936496222438,
+        "radiusKm": 3391.9364962224386,
         "physicalRadiusKm": 3391.936496222343,
-        "renderedRadiusKm": 3391.936496222438,
-        "discrepancyM": 9.5042196335271e-08,
+        "renderedRadiusKm": 3391.9364962224386,
+        "discrepancyM": 9.549694368615746e-08,
         "settled": true
       },
-      "clearanceM": 49.9999999051397,
+      "clearanceM": 49.99999990332071,
       "pickRays": 25,
-      "maximumPickOffsetM": 0.055759794091991104
+      "maximumPickOffsetM": 0.055759765336343886
     },
     {
       "name": "delta",
       "lat": 18.455,
       "lon": 77.405,
       "navigation": {
-        "radiusKm": 3391.9667410264283,
-        "physicalRadiusKm": 3391.9667410264283,
+        "radiusKm": 3391.9667410264274,
+        "physicalRadiusKm": 3391.9667410264274,
         "renderedRadiusKm": 3391.9667410262987,
-        "discrepancyM": -1.2960299500264227e-07,
+        "discrepancyM": -1.2869350030086935e-07,
         "settled": true
       },
       "clearanceM": 49.99999999881766,
       "pickRays": 25,
-      "maximumPickOffsetM": 4.1761149547797494e-07
+      "maximumPickOffsetM": 4.1906703260001483e-07
     },
     {
       "name": "last-airfield",
       "lat": 18.498,
       "lon": 77.3273,
       "navigation": {
-        "radiusKm": 3392.0891478944795,
+        "radiusKm": 3392.089147894481,
         "physicalRadiusKm": 3392.0891478940557,
-        "renderedRadiusKm": 3392.0891478944795,
-        "discrepancyM": 4.2382453102618456e-07,
+        "renderedRadiusKm": 3392.089147894481,
+        "discrepancyM": 4.2518877307884395e-07,
         "settled": true
       },
-      "clearanceM": 49.99999957544787,
+      "clearanceM": 49.99999957317414,
       "pickRays": 25,
-      "maximumPickOffsetM": 0.3222401974624466
+      "maximumPickOffsetM": 0.3222401189396281
     }
   ],
   "corridors": [
@@ -63,36 +64,17 @@
       "lon": 77.45101914507781,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 9.595169103704393e-08,
-        "p95": 0.7711390521762951,
-        "maximum": 0.7711390521762951
+        "minimum": 9.549694368615746e-08,
+        "p95": 0.7711390530857898,
+        "maximum": 0.7711390530857898
       },
-      "minimumLoadingClearanceM": 288.9752101305021,
+      "minimumClearanceM": 49.999999902865966,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.936496215709,
-          "physicalRadiusKm": 3391.9364962156133,
-          "renderedRadiusKm": 3391.936496215709,
-          "discrepancyM": 9.595169103704393e-08,
-          "settled": true
-        },
-        "clearanceM": 288.9752101305021,
-        "network": {
-          "requests": 182,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 38,
-          "requests": 164,
-          "bytes": 2771600,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.9364962157097,
+        "physicalRadiusKm": 3391.936496215614,
+        "renderedRadiusKm": 3391.9364962157097,
+        "discrepancyM": 9.549694368615746e-08,
+        "settled": true
       }
     },
     {
@@ -102,36 +84,17 @@
       "lon": 77.45101751913798,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 1.3096723705530167e-07,
-        "p95": 1.3096723705530167e-07,
-        "maximum": 1.3096723705530167e-07
+        "minimum": 1.305124897044152e-07,
+        "p95": 1.305124897044152e-07,
+        "maximum": 1.305124897044152e-07
       },
-      "minimumLoadingClearanceM": 49.99999986648618,
+      "minimumClearanceM": 49.99999986921466,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.936494447749,
-          "physicalRadiusKm": 3391.936494447618,
-          "renderedRadiusKm": 3391.936494447749,
-          "discrepancyM": 1.3096723705530167e-07,
-          "settled": true
-        },
-        "clearanceM": 49.99999986648618,
-        "network": {
-          "requests": 190,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 38,
-          "requests": 164,
-          "bytes": 2771600,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.936494447748,
+        "physicalRadiusKm": 3391.9364944476174,
+        "renderedRadiusKm": 3391.936494447748,
+        "discrepancyM": 1.305124897044152e-07,
+        "settled": true
       }
     },
     {
@@ -141,36 +104,17 @@
       "lon": 77.45101675175322,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 1.6689227777533233e-07,
-        "p95": 1.6689227777533233e-07,
-        "maximum": 1.6689227777533233e-07
+        "minimum": 1.6643753042444587e-07,
+        "p95": 1.6643753042444587e-07,
+        "maximum": 1.6643753042444587e-07
       },
-      "minimumLoadingClearanceM": 49.99999983192538,
+      "minimumClearanceM": 49.99999983147063,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.936492608293,
-          "physicalRadiusKm": 3391.936492608126,
-          "renderedRadiusKm": 3391.936492608293,
-          "discrepancyM": 1.6689227777533233e-07,
-          "settled": true
-        },
-        "clearanceM": 49.99999983192538,
-        "network": {
-          "requests": 190,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 38,
-          "requests": 164,
-          "bytes": 2771600,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.936492608293,
+        "physicalRadiusKm": 3391.9364926081266,
+        "renderedRadiusKm": 3391.936492608293,
+        "discrepancyM": 1.6643753042444587e-07,
+        "settled": true
       }
     },
     {
@@ -180,36 +124,17 @@
       "lon": 77.45101754166724,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 9.868017514236271e-08,
-        "p95": 9.868017514236271e-08,
-        "maximum": 9.868017514236271e-08
+        "minimum": 9.913492249324918e-08,
+        "p95": 9.913492249324918e-08,
+        "maximum": 9.913492249324918e-08
       },
-      "minimumLoadingClearanceM": 49.99999989922799,
+      "minimumClearanceM": 49.99999990013748,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.9364961621663,
-          "physicalRadiusKm": 3391.9364961620677,
-          "renderedRadiusKm": 3391.9364961621663,
-          "discrepancyM": 9.868017514236271e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999989922799,
-        "network": {
-          "requests": 190,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 38,
-          "requests": 164,
-          "bytes": 2771600,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.936496162166,
+        "physicalRadiusKm": 3391.9364961620668,
+        "renderedRadiusKm": 3391.936496162166,
+        "discrepancyM": 9.913492249324918e-08,
+        "settled": true
       }
     },
     {
@@ -223,32 +148,13 @@
         "p95": 9.595169103704393e-08,
         "maximum": 9.595169103704393e-08
       },
-      "minimumLoadingClearanceM": 49.99999990377546,
+      "minimumClearanceM": 49.999999902865966,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.9364961409647,
-          "physicalRadiusKm": 3391.9364961408687,
-          "renderedRadiusKm": 3391.9364961409647,
-          "discrepancyM": 9.595169103704393e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999990377546,
-        "network": {
-          "requests": 190,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 38,
-          "requests": 164,
-          "bytes": 2771600,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.936496140965,
+        "physicalRadiusKm": 3391.936496140869,
+        "renderedRadiusKm": 3391.936496140965,
+        "discrepancyM": 9.595169103704393e-08,
+        "settled": true
       }
     },
     {
@@ -258,36 +164,17 @@
       "lon": 77.43879656231803,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 4.18367562815547e-08,
+        "minimum": 4.092726157978177e-08,
         "p95": 0.0070389246502600145,
         "maximum": 0.0070389246502600145
       },
-      "minimumLoadingClearanceM": 49.9929610732579,
+      "minimumClearanceM": 49.992961074622144,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.938990516038,
-          "physicalRadiusKm": 3391.938990516038,
-          "renderedRadiusKm": 3391.938990515996,
-          "discrepancyM": -4.18367562815547e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999999790816,
-        "network": {
-          "requests": 230,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 44,
-          "requests": 170,
-          "bytes": 2873000,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.938990516038,
+        "physicalRadiusKm": 3391.938990516038,
+        "renderedRadiusKm": 3391.938990515997,
+        "discrepancyM": -4.092726157978177e-08,
+        "settled": true
       }
     },
     {
@@ -301,32 +188,13 @@
         "p95": 9.276845958083868e-08,
         "maximum": 9.276845958083868e-08
       },
-      "minimumLoadingClearanceM": 49.99999999836291,
+      "minimumClearanceM": 49.99999999881766,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.9376397317897,
-          "physicalRadiusKm": 3391.9376397317897,
-          "renderedRadiusKm": 3391.937639731697,
-          "discrepancyM": -9.276845958083868e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999999836291,
-        "network": {
-          "requests": 242,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 44,
-          "requests": 170,
-          "bytes": 2873000,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.937639731789,
+        "physicalRadiusKm": 3391.937639731789,
+        "renderedRadiusKm": 3391.9376397316964,
+        "discrepancyM": -9.276845958083868e-08,
+        "settled": true
       }
     },
     {
@@ -340,32 +208,13 @@
         "p95": 4.9112713895738125e-08,
         "maximum": 4.9112713895738125e-08
       },
-      "minimumLoadingClearanceM": 49.999999949250196,
+      "minimumClearanceM": 49.999999949250196,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.939091591923,
-          "physicalRadiusKm": 3391.939091591874,
-          "renderedRadiusKm": 3391.939091591923,
-          "discrepancyM": 4.9112713895738125e-08,
-          "settled": true
-        },
-        "clearanceM": 49.999999949250196,
-        "network": {
-          "requests": 246,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 46,
-          "requests": 172,
-          "bytes": 2906800,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.9390915919234,
+        "physicalRadiusKm": 3391.9390915918743,
+        "renderedRadiusKm": 3391.9390915919234,
+        "discrepancyM": 4.9112713895738125e-08,
+        "settled": true
       }
     },
     {
@@ -375,36 +224,17 @@
       "lon": 77.4406123543992,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 1.9372237147763371e-07,
-        "p95": 1.9372237147763371e-07,
-        "maximum": 1.9372237147763371e-07
+        "minimum": 1.9417711882852018e-07,
+        "p95": 1.9417711882852018e-07,
+        "maximum": 1.9417711882852018e-07
       },
-      "minimumLoadingClearanceM": 49.999999999272404,
+      "minimumClearanceM": 50.0000000001819,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.9361827933008,
-          "physicalRadiusKm": 3391.9361827933008,
-          "renderedRadiusKm": 3391.936182793107,
-          "discrepancyM": -1.9372237147763371e-07,
-          "settled": true
-        },
-        "clearanceM": 49.999999999272404,
-        "network": {
-          "requests": 250,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 46,
-          "requests": 172,
-          "bytes": 2906800,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.9361827933003,
+        "physicalRadiusKm": 3391.9361827933003,
+        "renderedRadiusKm": 3391.936182793106,
+        "discrepancyM": -1.9417711882852018e-07,
+        "settled": true
       }
     },
     {
@@ -418,32 +248,13 @@
         "p95": 4.547473508864641e-10,
         "maximum": 4.547473508864641e-10
       },
-      "minimumLoadingClearanceM": 49.99999999836291,
+      "minimumClearanceM": 49.99999999881766,
       "settled": {
-        "nav": {
-          "radiusKm": 3391.938507488189,
-          "physicalRadiusKm": 3391.938507488189,
-          "renderedRadiusKm": 3391.9385074881884,
-          "discrepancyM": -4.547473508864641e-10,
-          "settled": true
-        },
-        "clearanceM": 49.99999999836291,
-        "network": {
-          "requests": 250,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 46,
-          "requests": 172,
-          "bytes": 2906800,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3391.9385074881893,
+        "physicalRadiusKm": 3391.9385074881893,
+        "renderedRadiusKm": 3391.938507488189,
+        "discrepancyM": -4.547473508864641e-10,
+        "settled": true
       }
     },
     {
@@ -453,36 +264,17 @@
       "lon": 77.3224956065288,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 4.75210981676355e-07,
-        "p95": 0.8201508217098308,
-        "maximum": 0.8201508217098308
+        "minimum": 4.7566572902724147e-07,
+        "p95": 0.8201508226193255,
+        "maximum": 0.8201508226193255
       },
-      "minimumLoadingClearanceM": 49.179849177107826,
+      "minimumClearanceM": 49.17984917756257,
       "settled": {
-        "nav": {
-          "radiusKm": 3392.1016191949343,
-          "physicalRadiusKm": 3392.101619194459,
-          "renderedRadiusKm": 3392.1016191949343,
-          "discrepancyM": 4.75210981676355e-07,
-          "settled": true
-        },
-        "clearanceM": 49.999999523606675,
-        "network": {
-          "requests": 370,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 52,
-          "requests": 178,
-          "bytes": 3008200,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3392.1016191949348,
+        "physicalRadiusKm": 3392.101619194459,
+        "renderedRadiusKm": 3392.1016191949348,
+        "discrepancyM": 4.7566572902724147e-07,
+        "settled": true
       }
     },
     {
@@ -496,32 +288,13 @@
         "p95": 4.7566572902724147e-07,
         "maximum": 4.7566572902724147e-07
       },
-      "minimumLoadingClearanceM": 49.99999952315193,
+      "minimumClearanceM": 49.99999952315193,
       "settled": {
-        "nav": {
-          "radiusKm": 3392.101619194934,
-          "physicalRadiusKm": 3392.101619194458,
-          "renderedRadiusKm": 3392.101619194934,
-          "discrepancyM": 4.7566572902724147e-07,
-          "settled": true
-        },
-        "clearanceM": 49.99999952315193,
-        "network": {
-          "requests": 370,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 52,
-          "requests": 178,
-          "bytes": 3008200,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3392.1016191949334,
+        "physicalRadiusKm": 3392.1016191944577,
+        "renderedRadiusKm": 3392.1016191949334,
+        "discrepancyM": 4.7566572902724147e-07,
+        "settled": true
       }
     },
     {
@@ -531,36 +304,17 @@
       "lon": 77.32248443291795,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 2.2737367544323206e-07,
-        "p95": 2.2737367544323206e-07,
-        "maximum": 2.2737367544323206e-07
+        "minimum": 2.2646418074145913e-07,
+        "p95": 2.2646418074145913e-07,
+        "maximum": 2.2646418074145913e-07
       },
-      "minimumLoadingClearanceM": 49.999999772353476,
+      "minimumClearanceM": 49.99999977371772,
       "settled": {
-        "nav": {
-          "radiusKm": 3392.1016183562124,
-          "physicalRadiusKm": 3392.101618355985,
-          "renderedRadiusKm": 3392.1016183562124,
-          "discrepancyM": 2.2737367544323206e-07,
-          "settled": true
-        },
-        "clearanceM": 49.999999772353476,
-        "network": {
-          "requests": 370,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 52,
-          "requests": 178,
-          "bytes": 3008200,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3392.1016183562115,
+        "physicalRadiusKm": 3392.101618355985,
+        "renderedRadiusKm": 3392.1016183562115,
+        "discrepancyM": 2.2646418074145913e-07,
+        "settled": true
       }
     },
     {
@@ -570,36 +324,17 @@
       "lon": 77.32253448766173,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 7.867129170335829e-08,
-        "p95": 7.867129170335829e-08,
-        "maximum": 7.867129170335829e-08
+        "minimum": 7.821654435247183e-08,
+        "p95": 7.821654435247183e-08,
+        "maximum": 7.821654435247183e-08
       },
-      "minimumLoadingClearanceM": 49.99999991969162,
+      "minimumClearanceM": 49.99999992105586,
       "settled": {
-        "nav": {
-          "radiusKm": 3392.1015221657854,
-          "physicalRadiusKm": 3392.1015221657067,
-          "renderedRadiusKm": 3392.1015221657854,
-          "discrepancyM": 7.867129170335829e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999991969162,
-        "network": {
-          "requests": 370,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 52,
-          "requests": 178,
-          "bytes": 3008200,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3392.101522165785,
+        "physicalRadiusKm": 3392.1015221657067,
+        "renderedRadiusKm": 3392.101522165785,
+        "discrepancyM": 7.821654435247183e-08,
+        "settled": true
       }
     },
     {
@@ -609,99 +344,111 @@
       "lon": 77.32253448766251,
       "loadingDiscrepancyM": {
         "count": 15,
-        "minimum": 7.821654435247183e-08,
-        "p95": 7.821654435247183e-08,
-        "maximum": 7.821654435247183e-08
+        "minimum": 7.867129170335829e-08,
+        "p95": 7.867129170335829e-08,
+        "maximum": 7.867129170335829e-08
       },
-      "minimumLoadingClearanceM": 49.99999991969162,
+      "minimumClearanceM": 49.99999991923687,
       "settled": {
-        "nav": {
-          "radiusKm": 3392.1015221657985,
-          "physicalRadiusKm": 3392.1015221657203,
-          "renderedRadiusKm": 3392.1015221657985,
-          "discrepancyM": 7.821654435247183e-08,
-          "settled": true
-        },
-        "clearanceM": 49.99999991969162,
-        "network": {
-          "requests": 370,
-          "queued": 0,
-          "downloading": 0,
-          "parsing": 0,
-          "failed": 0
-        },
-        "cpu": {
-          "residentTiles": 126,
-          "detailTiles": 52,
-          "requests": 178,
-          "bytes": 3008200,
-          "failed": 0,
-          "inFlight": 0,
-          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
+        "radiusKm": 3392.101522165799,
+        "physicalRadiusKm": 3392.1015221657203,
+        "renderedRadiusKm": 3392.101522165799,
+        "discrepancyM": 7.867129170335829e-08,
+        "settled": true
       }
     }
   ],
-  "corridorMethod": "Fresh application residency; CPU controls loaded before placing the camera; selected GLBs start cold/coarse and refine; 64 MiB geometry cache, fifteen sites along flights 1/12/72 plus a return visit. 15 loading samples per site.",
+  "corridorMethod": "Fresh application residency, 64 MiB geometry cache, flights 1/12/72 at five observed positions each, timed loading probes plus every-rendered-frame probes and a return visit.",
   "corridorLoadingDiscrepancyM": {
     "count": 225,
     "minimum": 4.547473508864641e-10,
-    "p95": 0.7711390521762951,
-    "maximum": 0.8201508217098308
+    "p95": 0.7711390530857898,
+    "maximum": 0.8201508226193255
   },
-  "corridorMinimumClearanceM": 49.179849177107826,
+  "corridorMinimumClearanceM": 49.17984917756257,
+  "renderedFrameClearance": {
+    "passed": true,
+    "corridors": 15,
+    "frames": 1303,
+    "clearanceM": {
+      "count": 1303,
+      "minimum": 49.17984917756257,
+      "p95": 50.0000000001819,
+      "maximum": 50.0000000001819
+    },
+    "discrepancyM": {
+      "count": 1303,
+      "minimum": 4.547473508864641e-10,
+      "p95": 4.7566572902724147e-07,
+      "maximum": 0.8201508226193255
+    },
+    "requiredMinimumM": 1.9,
+    "settledToleranceM": 0.5
+  },
   "imageryViewport": [
     {
       "fullStack": false,
-      "budgetBytes": 268435456,
+      "residencyTargetBytes": 1006632960,
       "points": 49,
-      "hiriseDisplayedLevels": {
-        "count": 49,
-        "minimum": 14,
-        "p95": 14,
-        "maximum": 14
-      },
-      "fittedCap": null
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": false
     },
     {
       "fullStack": false,
-      "budgetBytes": 134217728,
+      "residencyTargetBytes": 134217728,
       "points": 49,
-      "hiriseDisplayedLevels": {
-        "count": 49,
-        "minimum": 12,
-        "p95": 12,
-        "maximum": 12
-      },
-      "fittedCap": 12
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": true
     },
     {
       "fullStack": true,
-      "budgetBytes": 268435456,
+      "residencyTargetBytes": 1006632960,
       "points": 49,
-      "hiriseDisplayedLevels": {
-        "count": 49,
-        "minimum": 14,
-        "p95": 14,
-        "maximum": 14
-      },
-      "fittedCap": null
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": false
     },
     {
       "fullStack": true,
-      "budgetBytes": 134217728,
+      "residencyTargetBytes": 134217728,
       "points": 49,
-      "hiriseDisplayedLevels": {
-        "count": 49,
-        "minimum": 11,
-        "p95": 11,
-        "maximum": 11
-      },
-      "fittedCap": 11
+      "foregroundSources": [
+        "jezero-hirise"
+      ],
+      "foregroundLevels": [
+        14
+      ],
+      "liveTargetReduction": true
     }
   ],
   "imageryMotionCases": 14,
   "imageryMotionSamples": 112,
+  "surfaceExplorerMotion": [
+    {
+      "fullStack": false,
+      "samples": 8,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "fullStack": true,
+      "samples": 8,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    }
+  ],
   "globalImagery": [
     {
       "name": "jezero-overhead",
@@ -712,46 +459,50 @@
         {
           "id": "viking",
           "enabled": 1,
-          "level": 1,
+          "level": 0,
           "pixelRGBA": [
-            37,
-            30,
             40,
+            32,
+            43,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": true
         },
         {
           "id": "ctx-global",
           "enabled": 1,
-          "level": 4,
+          "level": 5,
           "pixelRGBA": [
-            103,
-            103,
-            103,
+            100,
+            100,
+            100,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-ctx",
           "enabled": 1,
-          "level": 4,
+          "level": 5,
           "pixelRGBA": [
-            132,
-            132,
-            132,
+            135,
+            135,
+            135,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-hirise",
           "enabled": 1,
-          "level": 4,
+          "level": 5,
           "pixelRGBA": [
-            98,
-            98,
-            98,
+            102,
+            102,
+            102,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         }
       ],
       "staticVisible": false
@@ -771,7 +522,8 @@
             56,
             48,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "ctx-global",
@@ -782,19 +534,22 @@
             98,
             98,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-ctx",
           "enabled": 0,
           "level": 0,
-          "pixelRGBA": null
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-hirise",
           "enabled": 0,
           "level": 0,
-          "pixelRGBA": null
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
         }
       ],
       "staticVisible": false
@@ -814,7 +569,8 @@
             87,
             93,
             255
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "ctx-global",
@@ -825,19 +581,22 @@
             0,
             0,
             0
-          ]
+          ],
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-ctx",
           "enabled": 0,
           "level": 0,
-          "pixelRGBA": null
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
         },
         {
           "id": "jezero-hirise",
           "enabled": 0,
           "level": 0,
-          "pixelRGBA": null
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
         }
       ],
       "staticVisible": false
@@ -1250,245 +1009,1324 @@
       "inspectorClearance": "0 m"
     }
   ],
-  "physicalBufferComparison": {
-    "measurement": {
-      "a": {
-        "bodyName": "Mars",
-        "latDeg": 18.648996248259174,
-        "lonDeg": 77.45101914990146,
-        "altKm": -2.2364049481756325,
-        "cameraDistanceKm": 0.22658359011281792,
-        "bodyFixedHitKm": [
-          699.1203861044219,
-          3140.8192878441464,
-          1073.1812900179666
-        ],
-        "point": {
-          "bodyName": "Mars",
-          "bodyFixedPositionKm": [
-            699.1203861044219,
-            3140.8192878441464,
-            1073.1812900179666
-          ],
-          "source": "terrain",
-          "latDeg": 18.648996248259174,
-          "lonDeg": 77.45101914990146,
-          "latitudeKind": "geodetic",
-          "resolution": {
-            "surfaceKm": 0.0002086021127418474,
-            "latDeg": 3.5236569643715705e-06,
-            "lonDeg": 3.718917591659063e-06
-          },
-          "hit": {
-            "heightKm": -2.2364049480797803,
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            }
-          },
-          "terrainSample": {
-            "elevationKm": -2.2364049481756325,
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            },
-            "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
-            "tileId": "py/15/20030/10785",
-            "describesHit": true
-          },
-          "altitude": {
-            "km": -2.2364049481756325,
-            "from": "terrain-sample",
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            }
-          },
-          "surfaceNormal": [
-            0.22058077525397551,
-            0.9190618325545994,
-            0.32660292333311547
-          ]
-        },
-        "physical": {
-          "kind": "hit",
-          "detail": "coarse",
-          "tileId": "py/15/20030/10785",
-          "normal": [
-            0.22058107018840248,
-            0.9190616941434839,
-            0.32660311362975125
-          ],
-          "bodyFixedKm": [
-            699.1203861044021,
-            3140.8192878440577,
-            1073.1812900179364
-          ],
-          "renderedOffsetKm": 9.575590682863247e-11,
-          "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
-      },
-      "b": {
-        "bodyName": "Mars",
-        "latDeg": 18.648996216050126,
-        "lonDeg": 77.45155271426796,
-        "altKm": -2.235886473975029,
-        "cameraDistanceKm": 0.22804250046761804,
-        "bodyFixedHitKm": [
-          699.0912441990108,
-          3140.8262783417435,
-          1073.1814540205237
-        ],
-        "point": {
-          "bodyName": "Mars",
-          "bodyFixedPositionKm": [
-            699.0912441990108,
-            3140.8262783417435,
-            1073.1814540205237
-          ],
-          "source": "terrain",
-          "latDeg": 18.648996216050126,
-          "lonDeg": 77.45155271426796,
-          "latitudeKind": "geodetic",
-          "resolution": {
-            "surfaceKm": 0.00021123901024858665,
-            "latDeg": 3.5681982605551183e-06,
-            "lonDeg": 3.7659271073666365e-06
-          },
-          "hit": {
-            "heightKm": -2.23588647396582,
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            }
-          },
-          "terrainSample": {
-            "elevationKm": -2.235886473975029,
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            },
-            "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
-            "tileId": "py/15/20030/10785",
-            "describesHit": true
-          },
-          "altitude": {
-            "km": -2.235886473975029,
-            "from": "terrain-sample",
-            "datum": {
-              "referenceShape": {
-                "kind": "ellipsoid",
-                "radiiKm": [
-                  3396.19,
-                  3396.19,
-                  3376.2
-                ]
-              },
-              "verticalDatum": "ellipsoid",
-              "heightConvention": "geodetic-normal",
-              "origin": "terrain"
-            }
-          },
-          "surfaceNormal": [
-            0.22642034484295492,
-            0.9249711463880379,
-            0.30522484464865657
-          ]
-        },
-        "physical": {
-          "kind": "hit",
-          "detail": "coarse",
-          "tileId": "py/15/20030/10785",
-          "normal": [
-            0.2264200408559517,
-            0.924971237295841,
-            0.3052247946582822
-          ],
-          "bodyFixedKm": [
-            699.0912441990075,
-            3140.826278341735,
-            1073.1814540205207
-          ],
-          "renderedOffsetKm": 9.708749442633265e-12,
-          "sourceVersion": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
-        }
-      },
-      "beforeKm": 0.029969054238836487,
-      "afterKm": 0.029969054238836487,
-      "count": 1
+  "loadedImageryProducts": [
+    {
+      "id": "viking",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json",
+      "productIdentity": "04513d4681559e949e39e30fcaaaec3f1b74b07a3adec4685c3bd19ef5d34b61"
+    },
+    {
+      "id": "ctx-global",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json",
+      "productIdentity": "11f675fe48a13579126bb3cd85c3cb4249f38db36d7c59523c5ce15567a48a5d"
+    },
+    {
+      "id": "jezero-ctx",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json",
+      "productIdentity": "ab90c8bd749d673d3f7869185cbf504040b76728efbd46be89fac370f6465596"
+    },
+    {
+      "id": "jezero-hirise",
+      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json",
+      "productIdentity": "4992e13935cc9898d65226349f2cf222b009cdbd7d4076bff3500232e2d818a0"
     }
-  },
-  "outages": {
-    "outage": {
-      "baseUncoveredBlocks": 0,
-      "readyToShow": true,
-      "staticVisible": false,
-      "failedTiles": 6
+  ],
+  "globalCtxAngles": [
+    {
+      "fullStack": false,
+      "altitudeKm": 5,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 60,
+        "pinnedTextures": 6,
+        "textureBytes": 338170860,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 125,
+        "bytes": 105912198,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 18,
+        "splitTiles": 0,
+        "blocks": 59,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 2,
+          "2": 8,
+          "3": 10,
+          "4": 8,
+          "6": 3,
+          "7": 3,
+          "8": 2,
+          "9": 2,
+          "10": 6,
+          "11": 6
+        },
+        "wantedLevels": {
+          "2": 4,
+          "4": 2,
+          "7": 1,
+          "10": 6,
+          "11": 4
+        },
+        "fallbackBlocks": 1,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 11,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 200.69999998807907,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
     },
-    "recovery": {
-      "baseUncoveredBlocks": 0,
-      "readyToShow": true,
-      "staticVisible": false,
-      "failedTiles": 0
+    {
+      "fullStack": false,
+      "altitudeKm": 5,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 66,
+        "pinnedTextures": 6,
+        "textureBytes": 371987946,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 131,
+        "bytes": 108265287,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 39,
+        "splitTiles": 0,
+        "blocks": 68,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 2,
+          "2": 6,
+          "3": 10,
+          "4": 8,
+          "6": 6,
+          "7": 4,
+          "8": 5,
+          "9": 3,
+          "10": 6,
+          "11": 5,
+          "12": 4
+        },
+        "wantedLevels": {
+          "2": 4,
+          "4": 6,
+          "6": 5,
+          "7": 4,
+          "8": 1,
+          "9": 3,
+          "10": 8,
+          "11": 10,
+          "12": 1
+        },
+        "fallbackBlocks": 9,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.6000000238418579,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 209.60000002384186,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
     },
-    "baseOutage": {
-      "baseUncoveredBlocks": 26,
-      "readyToShow": false,
-      "staticVisible": true,
-      "failedTiles": 6
+    {
+      "fullStack": false,
+      "altitudeKm": 50,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            93,
+            93,
+            93,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 69,
+        "pinnedTextures": 6,
+        "textureBytes": 388896489,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 134,
+        "bytes": 113471351,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 18,
+        "splitTiles": 0,
+        "blocks": 88,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 8,
+          "2": 10,
+          "3": 10,
+          "4": 8,
+          "5": 1,
+          "6": 9,
+          "7": 4,
+          "8": 5,
+          "9": 6,
+          "10": 7,
+          "11": 5,
+          "12": 6
+        },
+        "wantedLevels": {
+          "1": 2,
+          "2": 8,
+          "4": 2,
+          "6": 3,
+          "7": 8,
+          "8": 1
+        },
+        "fallbackBlocks": 3,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.800000011920929,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 215.29999995231628,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
     },
-    "baseRecovery": {
-      "baseUncoveredBlocks": 0,
-      "readyToShow": true,
-      "staticVisible": false,
-      "failedTiles": 0
+    {
+      "fullStack": false,
+      "altitudeKm": 50,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 71,
+        "pinnedTextures": 6,
+        "textureBytes": 400168851,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 136,
+        "bytes": 115350204,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 25,
+        "splitTiles": 0,
+        "blocks": 54,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 2,
+          "2": 6,
+          "3": 10,
+          "4": 8,
+          "5": 1,
+          "6": 9,
+          "7": 6,
+          "8": 3
+        },
+        "wantedLevels": {
+          "2": 4,
+          "4": 2,
+          "6": 7,
+          "7": 8,
+          "8": 1
+        },
+        "fallbackBlocks": 3,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 219.29999995231628,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 500,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 85,
+        "pinnedTextures": 6,
+        "textureBytes": 479075385,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 150,
+        "bytes": 139254187,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 16,
+        "splitTiles": 0,
+        "blocks": 88,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 20,
+          "2": 18,
+          "3": 12,
+          "4": 8,
+          "5": 1,
+          "6": 9,
+          "7": 6,
+          "8": 3
+        },
+        "wantedLevels": {
+          "1": 18,
+          "2": 24,
+          "3": 10,
+          "4": 12
+        },
+        "fallbackBlocks": 10,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.5999999642372131,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 243.60000002384186,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": false,
+      "altitudeKm": 500,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 5,
+          "pixelRGBA": [
+            100,
+            100,
+            100,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 0,
+          "level": -1,
+          "pixelRGBA": null,
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 85,
+        "pinnedTextures": 6,
+        "textureBytes": 479075385,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 150,
+        "bytes": 139254187,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 17,
+        "splitTiles": 0,
+        "blocks": 54,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "1": 10,
+          "2": 12,
+          "3": 12,
+          "4": 8,
+          "5": 1
+        },
+        "wantedLevels": {
+          "1": 2,
+          "2": 20,
+          "3": 8,
+          "4": 6
+        },
+        "fallbackBlocks": 10,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.7000000476837158,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 243.60000002384186,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 5,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            127,
+            127,
+            127,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            128,
+            128,
+            128,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 125,
+        "pinnedTextures": 6,
+        "textureBytes": 704522625,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 190,
+        "bytes": 157413325,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 18,
+        "splitTiles": 0,
+        "blocks": 106,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 6,
+          "1": 6,
+          "2": 14,
+          "3": 16,
+          "4": 14,
+          "5": 2,
+          "6": 9,
+          "7": 8,
+          "9": 3,
+          "10": 6,
+          "11": 9
+        },
+        "wantedLevels": {
+          "0": 2,
+          "2": 6,
+          "4": 2,
+          "7": 1,
+          "10": 8,
+          "11": 4
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 11,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.9000000357627869,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 311.8999999165535,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 5,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            127,
+            127,
+            127,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            128,
+            128,
+            128,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 137,
+        "pinnedTextures": 6,
+        "textureBytes": 760884435,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 202,
+        "bytes": 163217655,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 39,
+        "splitTiles": 0,
+        "blocks": 141,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 8,
+          "1": 8,
+          "2": 12,
+          "3": 16,
+          "4": 14,
+          "5": 5,
+          "6": 12,
+          "7": 15,
+          "8": 8,
+          "9": 6,
+          "10": 7,
+          "11": 8,
+          "12": 7
+        },
+        "wantedLevels": {
+          "0": 4,
+          "2": 6,
+          "4": 6,
+          "5": 1,
+          "6": 5,
+          "7": 8,
+          "8": 3,
+          "9": 10,
+          "10": 11,
+          "11": 10,
+          "12": 2
+        },
+        "fallbackBlocks": 12,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 331.59999990463257,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 50,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 7,
+          "pixelRGBA": [
+            33,
+            27,
+            39,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            127,
+            127,
+            127,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 9,
+          "pixelRGBA": [
+            128,
+            128,
+            128,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 11,
+          "pixelRGBA": [
+            98,
+            98,
+            98,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 139,
+        "pinnedTextures": 6,
+        "textureBytes": 772156797,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 204,
+        "bytes": 163394362,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 18,
+        "splitTiles": 0,
+        "blocks": 169,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 8,
+          "1": 12,
+          "2": 16,
+          "3": 16,
+          "4": 14,
+          "5": 13,
+          "6": 15,
+          "7": 20,
+          "8": 9,
+          "9": 8,
+          "10": 8,
+          "11": 8,
+          "12": 7
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 2,
+          "2": 10,
+          "4": 2,
+          "5": 2,
+          "6": 5,
+          "7": 19,
+          "8": 3
+        },
+        "fallbackBlocks": 4,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 12,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.199999988079071,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 336.6999998688698,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 50,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            131,
+            131,
+            131,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            100,
+            100,
+            100,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 144,
+        "pinnedTextures": 6,
+        "textureBytes": 800337702,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 209,
+        "bytes": 164176075,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 25,
+        "splitTiles": 0,
+        "blocks": 130,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 8,
+          "1": 8,
+          "2": 12,
+          "3": 16,
+          "4": 14,
+          "5": 13,
+          "6": 15,
+          "7": 18,
+          "8": 11
+        },
+        "wantedLevels": {
+          "0": 4,
+          "2": 6,
+          "4": 2,
+          "5": 2,
+          "6": 8,
+          "7": 15,
+          "8": 5
+        },
+        "fallbackBlocks": 4,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.7999999523162842,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 349.79999977350235,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 500,
+      "tilt": 0,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            91,
+            91,
+            91,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            131,
+            131,
+            131,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 8,
+          "pixelRGBA": [
+            100,
+            100,
+            100,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 146,
+        "pinnedTextures": 6,
+        "textureBytes": 800337702,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 211,
+        "bytes": 164180333,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 16,
+        "splitTiles": 0,
+        "blocks": 166,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 10,
+          "1": 26,
+          "2": 24,
+          "3": 18,
+          "4": 14,
+          "5": 13,
+          "6": 15,
+          "7": 18,
+          "8": 11
+        },
+        "wantedLevels": {
+          "0": 6,
+          "1": 18,
+          "2": 26,
+          "3": 12,
+          "4": 14
+        },
+        "fallbackBlocks": 10,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 8,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.8999999761581421,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 349.79999977350235,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    {
+      "fullStack": true,
+      "altitudeKm": 500,
+      "tilt": 1.1,
+      "center": [
+        {
+          "id": "viking",
+          "enabled": 1,
+          "level": 0,
+          "pixelRGBA": [
+            40,
+            32,
+            43,
+            255
+          ],
+          "coveredByOpaqueUpper": true
+        },
+        {
+          "id": "ctx-global",
+          "enabled": 1,
+          "level": 5,
+          "pixelRGBA": [
+            100,
+            100,
+            100,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-ctx",
+          "enabled": 1,
+          "level": 5,
+          "pixelRGBA": [
+            135,
+            135,
+            135,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        },
+        {
+          "id": "jezero-hirise",
+          "enabled": 1,
+          "level": 5,
+          "pixelRGBA": [
+            102,
+            102,
+            102,
+            255
+          ],
+          "coveredByOpaqueUpper": false
+        }
+      ],
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 146,
+        "pinnedTextures": 6,
+        "textureBytes": 800337702,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 211,
+        "bytes": 164180333,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 17,
+        "splitTiles": 0,
+        "blocks": 96,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 10,
+          "1": 16,
+          "2": 18,
+          "3": 18,
+          "4": 14,
+          "5": 3
+        },
+        "wantedLevels": {
+          "0": 6,
+          "1": 2,
+          "2": 22,
+          "3": 10,
+          "4": 8
+        },
+        "fallbackBlocks": 10,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 5,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 0.800000011920929,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 349.79999977350235,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
     }
-  },
+  ],
   "visibleControls": [
     {
       "id": "viking",
@@ -1517,1180 +2355,117 @@
     "Representation agreement and sampled corridor checks do not certify absolute source accuracy or all far-field mixed LODs.",
     "Hardware measurements apply to this Chrome/Metal device, not untested devices."
   ],
-  "loadedImageryProducts": [
-    {
-      "id": "viking",
-      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json",
-      "productIdentity": "04513d4681559e949e39e30fcaaaec3f1b74b07a3adec4685c3bd19ef5d34b61"
+  "physicalBufferComparison": {
+    "coarse": {
+      "physicalBufferHash": {
+        "bytes": 18064632,
+        "fnv1a32": "27da55d"
+      },
+      "nav": {
+        "radiusKm": 3391.936496222438,
+        "physicalRadiusKm": 3391.9364962223426,
+        "renderedRadiusKm": 3391.936496222438,
+        "discrepancyM": 9.549694368615746e-08,
+        "settled": true
+      },
+      "geometryTiles": 113,
+      "imageryLevels": {
+        "0": 6,
+        "1": 6,
+        "2": 14,
+        "3": 16,
+        "4": 14,
+        "5": 2,
+        "6": 9,
+        "7": 8,
+        "8": 3
+      }
     },
-    {
-      "id": "ctx-global",
-      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json",
-      "productIdentity": "11f675fe48a13579126bb3cd85c3cb4249f38db36d7c59523c5ce15567a48a5d"
-    },
-    {
-      "id": "jezero-ctx",
-      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json",
-      "productIdentity": "ab90c8bd749d673d3f7869185cbf504040b76728efbd46be89fac370f6465596"
-    },
-    {
-      "id": "jezero-hirise",
-      "url": "http://localhost:5173/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json",
-      "productIdentity": "4992e13935cc9898d65226349f2cf222b009cdbd7d4076bff3500232e2d818a0"
+    "fine": {
+      "physicalBufferHash": {
+        "bytes": 18064632,
+        "fnv1a32": "27da55d"
+      },
+      "nav": {
+        "radiusKm": 3391.936496222438,
+        "physicalRadiusKm": 3391.9364962223426,
+        "renderedRadiusKm": 3391.936496222438,
+        "discrepancyM": 9.549694368615746e-08,
+        "settled": true
+      },
+      "geometryTiles": 113,
+      "imageryLevels": {
+        "0": 6,
+        "1": 6,
+        "2": 14,
+        "3": 16,
+        "4": 14,
+        "5": 2,
+        "6": 9,
+        "7": 8,
+        "8": 1,
+        "9": 4,
+        "10": 3,
+        "11": 2,
+        "13": 2,
+        "14": 4
+      }
     }
-  ],
-  "renderedFrameClearance": {
-    "passed": true,
-    "command": "node scripts/test-ingenuity-jezero.mjs http://localhost:5173/ work/ingenuity-246/corridor-rendered-frames-v12 --clearance-frames-only",
-    "corridors": 15,
-    "frames": 1324,
-    "clearanceM": {
-      "count": 1324,
-      "minimum": 1.9999999985884642,
-      "p95": 288.97521013004734,
-      "maximum": 288.9752102255443
-    },
-    "discrepancyM": {
-      "count": 1324,
-      "minimum": 4.547473508864641e-10,
-      "p95": 4.765752237290144e-07,
-      "maximum": 286.9752102269558
-    },
-    "method": "onAfterRender probe armed synchronously with each camera pose; every drawn frame, in addition to 225 timed loading samples; same 1.9m minimum and 0.5m settled limits."
   },
-  "globalCtxAngles": [
-    {
-      "fullStack": false,
-      "altitudeKm": 5,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            93,
-            93,
-            93,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 33,
-        "pinnedTextures": 6,
-        "textureBytes": 185993973,
-        "maxTextureBytes": 268435456,
-        "requests": 87,
-        "bytes": 66068446,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 31,
-        "blockBuildMs": 110.200000166893,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 1065324,
-        "tiles": 18,
-        "splitTiles": 2,
-        "blocks": 24,
-        "displayedLevels": {
-          "0": 7,
-          "2": 2,
-          "4": 1,
-          "10": 10,
-          "11": 4
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 2,
-          "2": 6,
-          "4": 1,
-          "10": 10,
-          "11": 4
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 11,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 6,
-        "updateMs": 0.30000001192092896
-      }
+  "outages": {
+    "outage": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 76
     },
-    {
-      "fullStack": false,
-      "altitudeKm": 5,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            93,
-            93,
-            93,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 103,
-        "bytes": 83500892,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 33,
-        "blockBuildMs": 113.90000015497208,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 2022768,
-        "tiles": 39,
-        "splitTiles": 3,
-        "blocks": 48,
-        "displayedLevels": {
-          "0": 7,
-          "2": 5,
-          "4": 3,
-          "6": 3,
-          "7": 4,
-          "8": 1,
-          "9": 3,
-          "10": 13,
-          "11": 8,
-          "12": 1
-        },
-        "wantedLevels": {
-          "1": 6,
-          "2": 6,
-          "4": 3,
-          "6": 3,
-          "7": 4,
-          "8": 1,
-          "9": 3,
-          "10": 13,
-          "11": 8,
-          "12": 1
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 12,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 9,
-        "updateMs": 0.30000001192092896
-      }
+    "recovery": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 0
     },
-    {
-      "fullStack": false,
-      "altitudeKm": 50,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 8,
-          "pixelRGBA": [
-            91,
-            91,
-            91,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 113,
-        "bytes": 97291292,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 43,
-        "blockBuildMs": 117.00000023841858,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 2559564,
-        "tiles": 18,
-        "splitTiles": 4,
-        "blocks": 36,
-        "displayedLevels": {
-          "0": 17,
-          "1": 2,
-          "2": 4,
-          "4": 1,
-          "6": 3,
-          "7": 8,
-          "8": 1
-        },
-        "wantedLevels": {
-          "0": 3,
-          "1": 9,
-          "2": 11,
-          "4": 1,
-          "6": 3,
-          "7": 8,
-          "8": 1
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 18,
-        "updateMs": 0.40000003576278687
-      }
+    "baseOutage": {
+      "baseUncoveredBlocks": 4,
+      "readyToShow": false,
+      "staticVisible": true,
+      "failedTiles": 20
     },
-    {
-      "fullStack": false,
-      "altitudeKm": 50,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            88,
-            88,
-            88,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 114,
-        "bytes": 98583109,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 44,
-        "blockBuildMs": 117.00000023841858,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 2559564,
-        "tiles": 25,
-        "splitTiles": 2,
-        "blocks": 31,
-        "displayedLevels": {
-          "0": 7,
-          "1": 2,
-          "2": 3,
-          "4": 3,
-          "6": 7,
-          "7": 8,
-          "8": 1
-        },
-        "wantedLevels": {
-          "1": 6,
-          "2": 6,
-          "4": 3,
-          "6": 7,
-          "7": 8,
-          "8": 1
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 6,
-        "updateMs": 0.19999998807907104
-      }
-    },
-    {
-      "fullStack": false,
-      "altitudeKm": 500,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 1,
-          "pixelRGBA": [
-            37,
-            30,
-            40,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            103,
-            103,
-            103,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 137,
-        "bytes": 133956956,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 67,
-        "blockBuildMs": 124.60000032186508,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4183716,
-        "tiles": 16,
-        "splitTiles": 8,
-        "blocks": 49,
-        "displayedLevels": {
-          "0": 9,
-          "1": 17,
-          "2": 12,
-          "3": 5,
-          "4": 6
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 25,
-          "2": 12,
-          "3": 5,
-          "4": 6
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 4,
-        "queued": 0,
-        "budgetLimited": true,
-        "extraDraws": 33,
-        "updateMs": 0.19999998807907104
-      }
-    },
-    {
-      "fullStack": false,
-      "altitudeKm": 500,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            103,
-            103,
-            103,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 0,
-          "level": 0,
-          "pixelRGBA": null
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 149,
-        "bytes": 158514644,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 79,
-        "blockBuildMs": 124.60000032186508,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4183716,
-        "tiles": 17,
-        "splitTiles": 5,
-        "blocks": 41,
-        "displayedLevels": {
-          "0": 6,
-          "1": 18,
-          "2": 10,
-          "3": 4,
-          "4": 3
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 20,
-          "2": 13,
-          "3": 4,
-          "4": 3
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 4,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 24,
-        "updateMs": 0.19999998807907104
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 5,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            93,
-            93,
-            93,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            129,
-            129,
-            129,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            98,
-            98,
-            98,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 184,
-        "bytes": 179093943,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 114,
-        "blockBuildMs": 124.60000032186508,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 3756636,
-        "tiles": 18,
-        "splitTiles": 2,
-        "blocks": 24,
-        "displayedLevels": {
-          "0": 5,
-          "1": 2,
-          "2": 2,
-          "4": 1,
-          "10": 10,
-          "11": 4
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 2,
-          "2": 6,
-          "4": 1,
-          "10": 10,
-          "11": 4
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 11,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 6,
-        "updateMs": 0.5
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 5,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 0,
-          "pixelRGBA": [
-            40,
-            32,
-            43,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 2,
-          "pixelRGBA": [
-            94,
-            94,
-            94,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            129,
-            129,
-            129,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 11,
-          "pixelRGBA": [
-            98,
-            98,
-            98,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 207,
-        "bytes": 190856960,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 137,
-        "blockBuildMs": 126.30000030994415,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 3756420,
-        "tiles": 39,
-        "splitTiles": 4,
-        "blocks": 51,
-        "displayedLevels": {
-          "0": 8,
-          "2": 12,
-          "7": 3,
-          "8": 2,
-          "9": 4,
-          "10": 12,
-          "11": 8,
-          "12": 2
-        },
-        "wantedLevels": {
-          "1": 6,
-          "2": 6,
-          "4": 3,
-          "6": 3,
-          "7": 3,
-          "8": 4,
-          "9": 4,
-          "10": 12,
-          "11": 8,
-          "12": 2
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 12,
-        "queued": 0,
-        "budgetLimited": true,
-        "extraDraws": 12,
-        "updateMs": 0.7999999523162842
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 50,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 8,
-          "pixelRGBA": [
-            91,
-            91,
-            91,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 8,
-          "pixelRGBA": [
-            131,
-            131,
-            131,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 8,
-          "pixelRGBA": [
-            100,
-            100,
-            100,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 237,
-        "bytes": 223818909,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 167,
-        "blockBuildMs": 128.3000003695488,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4075740,
-        "tiles": 18,
-        "splitTiles": 5,
-        "blocks": 39,
-        "displayedLevels": {
-          "0": 17,
-          "1": 2,
-          "2": 4,
-          "4": 1,
-          "6": 3,
-          "7": 11,
-          "8": 1
-        },
-        "wantedLevels": {
-          "0": 3,
-          "1": 9,
-          "2": 11,
-          "4": 1,
-          "6": 3,
-          "7": 11,
-          "8": 1
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 21,
-        "updateMs": 0.40000003576278687
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 50,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            88,
-            88,
-            88,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            131,
-            131,
-            131,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 7,
-          "pixelRGBA": [
-            98,
-            98,
-            98,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 245,
-        "bytes": 229800511,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 175,
-        "blockBuildMs": 128.3000003695488,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4075740,
-        "tiles": 25,
-        "splitTiles": 2,
-        "blocks": 31,
-        "displayedLevels": {
-          "0": 5,
-          "1": 2,
-          "2": 7,
-          "4": 1,
-          "6": 7,
-          "7": 7,
-          "8": 2
-        },
-        "wantedLevels": {
-          "1": 6,
-          "2": 6,
-          "4": 3,
-          "6": 7,
-          "7": 7,
-          "8": 2
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 6,
-        "updateMs": 0.3999999761581421
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 500,
-      "tilt": 0,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 1,
-          "pixelRGBA": [
-            37,
-            30,
-            40,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            103,
-            103,
-            103,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            132,
-            132,
-            132,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            98,
-            98,
-            98,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 276,
-        "bytes": 270098828,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 206,
-        "blockBuildMs": 128.3000003695488,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4075740,
-        "tiles": 16,
-        "splitTiles": 8,
-        "blocks": 49,
-        "displayedLevels": {
-          "0": 9,
-          "1": 17,
-          "2": 12,
-          "3": 5,
-          "4": 6
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 25,
-          "2": 12,
-          "3": 5,
-          "4": 6
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 4,
-        "queued": 0,
-        "budgetLimited": true,
-        "extraDraws": 33,
-        "updateMs": 0.6000000238418579
-      }
-    },
-    {
-      "fullStack": true,
-      "altitudeKm": 500,
-      "tilt": 1.1,
-      "center": [
-        {
-          "id": "viking",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            33,
-            27,
-            39,
-            255
-          ]
-        },
-        {
-          "id": "ctx-global",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            103,
-            103,
-            103,
-            255
-          ]
-        },
-        {
-          "id": "jezero-ctx",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            132,
-            132,
-            132,
-            255
-          ]
-        },
-        {
-          "id": "jezero-hirise",
-          "enabled": 1,
-          "level": 4,
-          "pixelRGBA": [
-            98,
-            98,
-            98,
-            255
-          ]
-        }
-      ],
-      "imagery": {
-        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
-        "ready": true,
-        "textures": 47,
-        "pinnedTextures": 6,
-        "textureBytes": 264900507,
-        "maxTextureBytes": 268435456,
-        "requests": 290,
-        "bytes": 297743140,
-        "failures": 0,
-        "aborted": 0,
-        "evicted": 220,
-        "blockBuildMs": 128.3000003695488,
-        "inFlight": 0,
-        "failedTiles": 0,
-        "blockGeometryBytes": 4075740,
-        "tiles": 17,
-        "splitTiles": 5,
-        "blocks": 41,
-        "displayedLevels": {
-          "0": 10,
-          "1": 14,
-          "2": 10,
-          "3": 4,
-          "4": 3
-        },
-        "wantedLevels": {
-          "0": 1,
-          "1": 20,
-          "2": 13,
-          "3": 4,
-          "4": 3
-        },
-        "fallbackBlocks": 0,
-        "failedBlocks": 0,
-        "untexturedBlocks": 0,
-        "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 4,
-        "queued": 0,
-        "budgetLimited": false,
-        "extraDraws": 24,
-        "updateMs": 0.5
-      }
+    "baseRecovery": {
+      "baseUncoveredBlocks": 0,
+      "readyToShow": true,
+      "staticVisible": false,
+      "failedTiles": 0
     }
-  ],
+  },
   "nativeMarsOrbit": [
     {
       "step": 0,
       "viewportSamples": 9,
       "baseUncoveredBlocks": 0,
-      "textureBytes": 264900507,
-      "maxTextureBytes": 268435456
+      "textureBytes": 800337702,
+      "maxTextureBytes": 1006632960
     },
     {
       "step": 1,
       "viewportSamples": 9,
       "baseUncoveredBlocks": 0,
-      "textureBytes": 264900507,
-      "maxTextureBytes": 268435456
+      "textureBytes": 800337702,
+      "maxTextureBytes": 1006632960
     },
     {
       "step": 2,
       "viewportSamples": 9,
       "baseUncoveredBlocks": 0,
-      "textureBytes": 264900507,
-      "maxTextureBytes": 268435456
+      "textureBytes": 800337702,
+      "maxTextureBytes": 1006632960
     },
     {
       "step": 3,
       "viewportSamples": 9,
       "baseUncoveredBlocks": 0,
-      "textureBytes": 264900507,
-      "maxTextureBytes": 268435456
+      "textureBytes": 800337702,
+      "maxTextureBytes": 1006632960
     }
   ]
 }

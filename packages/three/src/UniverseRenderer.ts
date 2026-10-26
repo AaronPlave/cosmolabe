@@ -479,8 +479,15 @@ export class UniverseRenderer {
 
     // Renderer
     patchLogDepthPrecision();
+    // The viewer's backdrop or a previous scene may have used this canvas's
+    // context. Three creates default 3D textures before resetting unpack state;
+    // flags left by a 2D upload make that initialization invalid in WebGL2.
+    const context = canvas.getContext('webgl2', { alpha: false, antialias: options.antialias ?? true });
+    context?.pixelStorei(context.UNPACK_FLIP_Y_WEBGL, 0);
+    context?.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
+      context: context ?? undefined,
       antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });

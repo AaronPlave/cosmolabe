@@ -122,7 +122,7 @@
               "altitudeM": 5000
             },
             "imagery": {
-              "maxTextureBytes": 268435456,
+              "maxTextureBytes": 1006632960,
               "maxConcurrentRequests": 6,
               "maxBlocksPerTile": 64
             }

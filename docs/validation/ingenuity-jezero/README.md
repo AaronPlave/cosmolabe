@@ -33,36 +33,45 @@ Compare the [old repetition](captures/superseded-ctx-beta-repetition.png) with t
 [current native orbit](captures/mission-native-mars-orbit.png), plus
 [nadir](captures/mission-ctx-nadir.png) and [tilted](captures/mission-ctx-tilted.png)
 views. Twelve angle cases and four native mouse orbit steps pass. Conservative
-patch visibility and discrete budget allocation fix wasted loading demand without
-raising the 256 MiB hard budget. All **4,084 terrain payloads remain byte-identical**
+patch visibility preserves valid nadir and tilted imagery. The independent
+renderer and its revised residency policy are documented below. All **4,084 terrain payloads remain byte-identical**
 to V11 ([comparison](terrain-rebuild-comparison.json)); flight estimates are unchanged.
 
-A separate every-rendered-frame audit caught a first-frame loading defect missed
-by the timed probes: a newly selected coarse GLB initially stood 286.975 m above
-the CPU surface. The camera now clamps again after streaming selection, before
-view transport and labels. All **1,324 rendered frames across fifteen corridors**
-retain at least 2 m clearance, including that initial discrepancy; all corridors
-settle within 0.5 m. The separate 225 timed loading samples have a maximum
-0.820151 m discrepancy. Neither result changes physical terrain or certifies
-sub-metre agreement during every transient frame.
+An earlier every-rendered-frame audit caught a first-frame loading defect missed
+by timed probes: a newly selected coarse GLB initially stood 286.975 m above the
+CPU surface. The camera now clamps again after streaming selection, before view
+transport and labels. The current frozen renderer run checks **1,303 rendered
+frames across fifteen corridors**, with minimum clearance 49.1798 m and maximum
+loading discrepancy 0.820151 m. All settle within the unchanged 0.5 m agreement
+gate; transient agreement is not claimed to be sub-metre everywhere.
 
-The user's recording exposed an imagery defect that settled-site checks missed.
-The [loading regression](imagery-loading.json) now fits complete visible source
-sets into the cache, prioritizes complete upper-source demand, reserves bounded
-transition room, retains a ready ancestor during refinement, and preserves that
-ancestor's source priority. Budget coarsening replaces obsolete fine tiles without
-stranding the new target; evictions immediately rebind ready ancestor samplers.
-View-driven optional ancestors establish fallback without pinning six roots for
-every source. The mission's hard imagery budget is **256 MiB**.
+The [replacement architecture](../imagery-refinement-257/architecture.md)
+removes `fitView()` resolution caps and independently clipped imagery meshes.
+Persistent source/face trees select imagery independently of physical terrain.
+A shared GPU texture array and integer page table select the committed source
+pixels on original meshes. Parent fallback persists until a complete visible
+refinement frontier is usable; faster neighbors cannot run several levels ahead.
+No imagery geometry, material clones, extra draws, or physical LOD changes are
+introduced. Decoded alpha, nodata, bounds, opacity and source order remain explicit.
 
-The GPU replay checks **49 actual viewport samplers** for each combination of
-two-layer/full-stack imagery and 256/128 MiB budgets: **196 points**. Default
-foreground HiRISE is level 14 at every point. At 128 MiB, the two-layer view
-settles uniformly at level 12 and the full stack at level 11, with the reduction
-reported as budget-limited. This verifies complete lower-resolution coverage,
-rather than accepting one detailed tile while other blocks remain near-blank.
-[256 MiB](captures/mission-imagery-motion-256.png) and
-[128 MiB](captures/mission-imagery-motion-128.png) captures show the difference.
+The [loading regression](imagery-loading.json) checks **196 viewport points** in
+two-layer/full-stack configurations and sixteen actual Surface Explorer mouse
+movements. Foreground HiRISE stays level 14 in the viewport cases. The mission's
+residency **target is 960 MiB**, with a four-page transition reservation and
+protected displayed references. A live target reduction to 128 MiB deliberately
+retains that existing detail and reports the overage; it is not a 128 MiB hard-cap
+claim. A separate cold **48 MiB** run defers refinement, reports pressure, and
+retains real coarse mandatory-base coverage without eviction cycling.
+[Default stack](captures/mission-imagery-motion-960.png) and
+[live reduced target](captures/mission-imagery-motion-128.png) are recorded.
+
+[Before/after GPU evidence](../imagery-refinement-257/gpu-comparison.json) uses the
+published PR renderer and the actual Ingenuity and MoonFall products. It includes
+native camera movement, one-day-per-second playback, delayed/out-of-order requests,
+transient failures, missing intermediate parents, rapid reversals, seams, GPU
+allocation failure, and context restoration. The comparison reports the added CPU
+and first-detail latency as well as removing all imagery geometry/draw overhead.
+Hardware measurements and the deliberate coherence/latency tradeoff are disclosed.
 
 Actual [Jezero overhead](captures/mission-jezero-overhead.png),
 [distant Mars](captures/mission-distant-mars.png), and a
@@ -78,7 +87,7 @@ when transparent optional imagery is resident.
 moving ground, flight follow and orbit-to-surface transitions on Mars and
 MoonFall, 360 physical GPU frames each. The pre-optimization Mars navigation p99
 was 7.3–7.6 ms. Final navigation p99, summed across both clamps per rendered
-frame, is 1.0–1.3 ms on Mars and 0.7–1.2 ms on MoonFall, below the 4 ms budget.
+frame, is 1.1–1.5 ms on Mars and 0.6–1.1 ms on MoonFall, below the 4 ms budget.
 Strict interior radial queries intersect the two original lattice triangles;
 cell/tile/face edges retain the general closed-boundary ownership rule. Radial
 coverage requests include all incident footprints without marching repeated
@@ -103,8 +112,11 @@ No production write, catalog pin or deployment has been made. Remote HTTP/CORS
 verification and capture of the exact live rollback baseline occur only after
 authorization, before the catalog switch.
 
-Focused validation: 155 renderer/catalog/Places tests, 20 executor/publication
-tests, full TypeScript/Svelte checks, changed-source lint and script syntax checks.
+Validation: 899 renderer-package tests (including 108 focused imagery/terrain
+checks) and 89 catalog/Places tests, full TypeScript/Svelte checks,
+changed-source lint and script syntax checks. The full-suite local run exposed an
+unchanged GF reporting timing failure; sandbox socket failures passed in an
+unsandboxed targeted rerun. Exact-head CI remains the delivery check.
 The exact pushed-head CI is reported on PR #292. [Reproduction](reproduce-mission.md)
 and [catalog preservation](catalog-contract.json) remain part of the evidence.
 The [390 px inspector](captures/mission-compact.png) qualifies the estimates.
