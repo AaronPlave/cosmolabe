@@ -99,6 +99,15 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('does not rescan the immutable native inventory during camera movement or tile requests', async () => {
+    const s = await setup();
+    const scan = vi.spyOn(s.layer.manifest!.tiles, 'filter');
+    for (const altitude of [5000, 2500, 10000, 500]) {
+      s.tick(camera(altitude)); await s.loader.settle();
+    }
+    expect(scan).not.toHaveBeenCalled();
+    scan.mockRestore(); s.layer.dispose();
+  });
   it('reports source-specific failures without attributing an overlay outage to the base',async()=>{
     const layers=['base','overlay'].map(id=>({type:'cube' as const,id,url:`http://${id}/imagery.json`}));
     const l=new CubeImageryLayer({url:layers[0].url,layers,residentLevel:0,maxLevel:1},{fetchManifest:async()=>manifest(1),loadTexture:async url=>{

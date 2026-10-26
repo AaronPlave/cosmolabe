@@ -57,6 +57,7 @@ apps/viewer/test-catalogs/data/moon-imagery-cube-*
 # Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
 work/surface-build/
 work/ingenuity-246/
+work/moonfall-jank/
 work/cube-terrain/
 work/cube-imagery/
 work/cube-surface-appearance/

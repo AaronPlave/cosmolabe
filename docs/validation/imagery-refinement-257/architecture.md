@@ -173,3 +173,62 @@ Primary Three references for resource-lifetime inspection:
 Exact-head CI is checked on PR #292; local full-suite GF timing limitations are
 recorded separately. Production HTTP/cold hosted catalog acceptance remains at
 the user's explicit R2 upload/deployment authorization boundary.
+
+## MoonFall frame pacing and flight speed follow-up
+
+The supplied October 26 trace and recording are separate sessions. The trace
+attributes approximately 1,625 ms of sampled CPU time to `coarseWanted()` within
+2,410 ms of terrain update work. That method scanned the entire native image
+inventory each frame and again for each new request, to return an unchanged
+small resident set. It now caches that set by the immutable base manifest;
+camera movement, visibility changes and request scheduling do not rescan it.
+This does not change selection, native inventory, residency or replacement rules.
+
+The recording shows Surface Flight. Its keyboard movement already uses elapsed
+seconds, but its previous throttle was recalculated each frame as twice the
+height above sampled terrain. A native-input MoonFall replay reproduced a
+change from about 8 to 18 km/s under one held strafe key as clearance changed.
+Cruise speed now starts at twice entry clearance per second, and remains fixed
+as terrain relief or sampling changes. Wheel/pinch explicitly selects a new
+altitude and speed; Shift retains the existing 5x boost. The wheel previously
+changed only an internal altitude that was overwritten by the next terrain
+sample. It now moves the camera along the geodetic normal, once per input, with
+the existing 10 m terrain floor. Pitch still controls climb/descent.
+
+[The compact pacing report](surface-flight-pacing.json) retains source/input
+hashes, the original speed diagnosis, matched renderer comparison, injected
+long-frame test, native wheel result, and eight Mars/Moon navigation regressions.
+The timing comparison uses the corrected camera in both versions, injecting
+the published `8229a03` imagery module only for the baseline. On physical Apple
+M4 Max / Chrome Metal, normal-flight imagery CPU p95 falls **17.9 to 4.6 ms**;
+frame-interval p95 falls **24.7 to 17.5 ms**. The sampled coarse-inventory work
+falls from **3,642 ms to zero observed samples** in the approximately 16-second
+profile (zero samples does not imply zero execution cost). Held-input travel
+speed stays within the 0.1% gate both normally and with 35 ms of deliberate
+CPU load every fifth frame. Every moving sample retains mandatory base coverage.
+The native wheel test measures a 15% physical-clearance increase.
+
+Five new deterministic regressions bring the renderer package to **904 tests
+in 77 files**: no navigation-time inventory scan; equal-time travel at 30/60/120
+Hz and irregular intervals; stable throttle across terrain changes; physical
+wheel altitude and floor; explicit boost and blur release. Build, test typecheck,
+changed-file lint and script syntax pass. The existing eight-scenario navigation
+GPU check still passes its unchanged 4 ms per-frame navigation-work p99 gate
+(measured 0.7–1.3 ms). Earlier migration/imagery acceptance above is preserved
+at its recorded source hashes; this report describes the subsequent follow-up.
+
+These measurements do not claim all rendering stalls are gone. Geographic-label
+raycasts remain measurable in the supplied trace, and the existing 100 ms
+controller delta cap still avoids catch-up teleports after long pauses.
+
+```sh
+mkdir -p work/moonfall-jank/baseline/controls/modes
+git show 8229a03:packages/three/src/CubeImageryLayer.ts > work/moonfall-jank/baseline/CubeImageryLayer.ts
+git show 8229a03:packages/three/src/controls/modes/SurfaceMode.ts > work/moonfall-jank/baseline/controls/modes/SurfaceMode.ts
+# Historical speed diagnosis (both old modules):
+node scripts/test-surface-flight-pacing.mjs http://localhost:5173/ work/moonfall-jank/diagnosis --baseline work/moonfall-jank/baseline
+# Matched flight path, old imagery with corrected camera:
+node scripts/test-surface-flight-pacing.mjs http://localhost:5173/ work/moonfall-jank/before --baseline work/moonfall-jank/baseline --imagery-only
+node scripts/test-surface-flight-pacing.mjs http://localhost:5173/ work/moonfall-jank/after
+node scripts/test-near-surface-performance.mjs http://localhost:5173/ work/moonfall-jank/navigation
+```

@@ -845,9 +845,19 @@ export class CubeImageryLayer {
     this.entries.clear(); this.tiles.clear(); this.pages?.dispose(); this.emptyPageTable.dispose(); this.emptyPages.dispose();
   }
 
+  private coarseManifest: CubeImageryManifest | null = null;
+  private coarseIds: string[] = [];
   private coarseWanted(): string[] {
-    return this.sources.flatMap(source => source.index === 0 && source.manifest ? source.manifest.tiles.filter(id => Number(id.split('/')[1]) <= this.options.residentLevel).map(id => `${source.index}:${id}`) : [])
-      .sort((a, b) => Number(a.split('/')[1]) - Number(b.split('/')[1]));
+    const manifest = this.sources[0]?.manifest ?? null;
+    // The native inventory and residentLevel do not change during navigation.
+    // Scanning every native tile here (including once per request) dominated
+    // the MoonFall trace despite returning the same small resident set.
+    if (manifest !== this.coarseManifest) {
+      this.coarseManifest = manifest;
+      this.coarseIds = manifest ? manifest.tiles.filter(id => Number(id.split('/')[1]) <= this.options.residentLevel)
+        .map(id => `0:${id}`).sort((a, b) => Number(a.split('/')[1]) - Number(b.split('/')[1])) : [];
+    }
+    return this.coarseIds;
   }
   private availabilityFor(manifest: CubeImageryManifest): CubeImageryAvailability {
     const maxLevel = Math.max(manifest.minLevel, Math.min(manifest.maxLevel, this.options.maxLevel ?? Infinity));
