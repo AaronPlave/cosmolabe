@@ -113,7 +113,7 @@
 </script>
 
 {#each placed as label (label.key)}
-  <div class="geo-label" class:halo={label.halo} style:transform="translate({Math.round(label.x)}px, {Math.round(label.y)}px)" style:font-size="{label.sizePx}px" data-key={label.key} aria-hidden="true">
+  <div class="geo-label" class:halo={label.halo} style:transform="translate({Math.round(label.x)}px, {Math.round(label.y)}px)" style:font-size="{label.sizePx}px" data-key={label.key} data-lat={label.anchor.latDeg} data-lon={label.anchor.lonDeg} aria-hidden="true">
     {label.text}
   </div>
 {/each}

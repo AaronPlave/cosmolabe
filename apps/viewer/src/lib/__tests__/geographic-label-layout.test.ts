@@ -84,9 +84,36 @@ describe('createDrawnSurfaceProjector', () => {
     const raycast = vi.fn((_b: string, ps: BodyFixedPosition[]) => ps.map((p) => (p.lonDeg > 0 ? -0.3 : null)));
     const project = vi.fn((_b: string, ps: BodyFixedPosition[], _d: unknown, opts?: { sampleTerrain?: boolean }) =>
       ps.map((p) => ({ x: p.lonDeg, y: p.heightKm ?? 0, facing: true, inFront: !!opts })));
-    return { renderer: { renderedSurfaceHeightsKm: raycast, projectGeographicPositions: project } as unknown as UniverseRenderer, raycast, project };
+    const surface = { key: 'tiles-a' };
+    return { renderer: { renderedSurfaceHeightsKm: raycast, projectGeographicPositions: project, drawnSurfaceKey: () => surface.key } as unknown as UniverseRenderer,
+      raycast, project, surface };
   }
   const datum = { kind: 'ellipsoid' } as never;
+
+  it('samples again as soon as the drawn surface changes (terrain refined), not a second later', () => {
+    const t = 0;
+    const projector = createDrawnSurfaceProjector(() => t);
+    const { renderer, raycast, surface } = fakeRenderer();
+    const ps = [{ latDeg: 0, lonDeg: 1 }];
+    projector.project(renderer, 'Mars', ps, datum);
+    projector.project(renderer, 'Mars', ps, datum);
+    expect(raycast).toHaveBeenCalledTimes(1);
+    surface.key = 'tiles-b'; // a child tile replaced its parent
+    projector.project(renderer, 'Mars', ps, datum);
+    expect(raycast).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps heights for different datums apart', () => {
+    const projector = createDrawnSurfaceProjector(() => 0);
+    const { renderer, raycast } = fakeRenderer();
+    const ps = [{ latDeg: 0, lonDeg: 1 }];
+    const sphere = { referenceShape: { kind: 'sphere', radiusKm: 3389.5 } } as never;
+    const ellipsoid = { referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 3396.19, 3376.2] } } as never;
+    projector.project(renderer, 'Mars', ps, sphere);
+    projector.project(renderer, 'Mars', ps, ellipsoid);
+    projector.project(renderer, 'Mars', ps, sphere);
+    expect(raycast).toHaveBeenCalledTimes(2);
+  });
 
   it('projects onto the rendered height, raycasting each position once while cached', () => {
     let t = 0;
@@ -98,18 +125,20 @@ describe('createDrawnSurfaceProjector', () => {
     t = 500;
     surface.project(renderer, 'Mars', [...ps, { latDeg: 0, lonDeg: 3 }], datum);
     expect(raycast.mock.calls.map((c) => c[1].length)).toEqual([2, 1]);
-    expect(project.mock.calls[0][3]).toEqual({ sampleTerrain: false });
+    expect(project.mock.calls[0][3]).toEqual({ occlusion: undefined });
     t = 1600; // stale: heights follow a change in the drawn level of detail
     surface.project(renderer, 'Mars', ps, datum);
     expect(raycast).toHaveBeenCalledTimes(3);
   });
 
-  it('falls back to terrain sampling where nothing drawn was hit', () => {
+  it('does not show a position with no drawn surface under it, rather than float it on the datum', () => {
     const surface = createDrawnSurfaceProjector(() => 0);
     const { renderer, project } = fakeRenderer();
-    surface.project(renderer, 'Mars', [{ latDeg: 0, lonDeg: -1 }, { latDeg: 0, lonDeg: 1 }], datum);
+    const [none, drawn] = surface.project(renderer, 'Mars', [{ latDeg: 0, lonDeg: -1 }, { latDeg: 0, lonDeg: 1 }], datum, { occlusion: true })!;
     expect(project.mock.calls[0][1]).toEqual([{ latDeg: 0, lonDeg: -1 }, { latDeg: 0, lonDeg: 1, heightKm: -0.3 }]);
-    expect(project.mock.calls[0][3]).toEqual({ sampleTerrain: true });
+    expect(project.mock.calls[0][3]).toEqual({ occlusion: true });
+    expect(none.facing).toBe(false);
+    expect(drawn.facing).toBe(true);
   });
 });
 

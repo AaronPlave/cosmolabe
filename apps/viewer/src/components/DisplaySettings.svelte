@@ -6,6 +6,7 @@
   import { CameraModeName } from '@cosmolabe/three';
   import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
   import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
+  import GeographicNames from './GeographicNames.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -60,11 +61,9 @@
     <!-- Toggle rows -->
     {#each [
       { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
-      { key: 'labels' as const, label: 'Labels', shortcut: 'L', value: vs.showLabels },
       { key: 'grid' as const, label: 'Grid', shortcut: 'G', value: vs.showGrid },
       { key: 'axes' as const, label: 'Axes', shortcut: 'X', value: vs.showAxes },
       { key: 'sensors' as const, label: 'Sensors', shortcut: '', value: vs.showSensors },
-      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
       { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
       <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
@@ -75,6 +74,20 @@
         {/if}
       </label>
     {/each}
+
+    <Separator class="my-1" />
+    <div class="ui-section-label px-3 py-1">Labels</div>
+    {#each [
+      { key: 'labels' as const, label: 'Body labels', shortcut: 'L', value: vs.showLabels },
+      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
+    ] as opt}
+      <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
+        <Checkbox checked={opt.value} onCheckedChange={() => setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />
+        <span class="flex-1 text-text-primary">{opt.label}</span>
+        {#if opt.shortcut}<span class="ui-meta bg-surface-3 px-1 py-px rounded">{opt.shortcut}</span>{/if}
+      </label>
+    {/each}
+    <GeographicNames />
 
     <Separator class="my-1" />
 

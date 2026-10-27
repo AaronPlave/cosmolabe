@@ -1,0 +1,32 @@
+{
+  "name": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
+  "geographicCoordinates": {
+    "latitude": "planetographic",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    }
+  },
+  "geographicLayers": [
+    {
+      "id": "mission:msl-sites",
+      "name": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
+      "body": "Mars",
+      "source": "msl-sites.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "NASA-AMMOS Dingo Gap sample; existing Cosmolabe overlay anchor",
+        "sourceUrl": "https://github.com/NASA-AMMOS/3DTilesSampleData/tree/master/msl-dingo-gap",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}

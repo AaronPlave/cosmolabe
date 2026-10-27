@@ -502,3 +502,8 @@ describe('fallBackToParentTiles', () => {
     }
   });
 });
+
+ it('describes source latitude independently of terrain', () => {
+   const layers = describeImageryLayers([{type: 'cube', url: 'cube/imagery.json'}, {type: 'xyz', url: VIKING}], MARS_EQ_KM);
+   expect(layers.map(layer => layer.latitudeConvention)).toEqual(['planetocentric', 'geodetic']);
+ });

@@ -14,6 +14,9 @@ import type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
  * so the catalog rules and layer bookkeeping are testable on their own.
  */
 
+/** Latitude semantics of the image source's geographic bounds. */
+export type ImageryLatitudeConvention = 'planetocentric' | 'geodetic';
+
 /** Where a layer sits in the stack. The base is the bottom layer and is always on. */
 export type ImageryLayerRole = 'base' | 'overlay';
 
@@ -40,6 +43,8 @@ export interface ImageryLayerInfo {
   opacity: number;
   /** Coverage `[west, south, east, north]` in degrees; null for global layers. */
   bounds: [number, number, number, number] | null;
+  /** Latitude convention of this source, independent of its supporting terrain. */
+  latitudeConvention: ImageryLatitudeConvention;
   /** First source zoom with data (regional products have none below it). */
   minZoom: number;
   /** Deepest source zoom. */
@@ -171,6 +176,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       visible: base || cfg.visible !== false,
       opacity: clampOpacity(cfg.opacity ?? 1),
       bounds: cfg.bounds ?? null,
+      latitudeConvention: cfg.type === 'cube' ? 'planetocentric' : 'geodetic',
       minZoom: cfg.minZoom ?? 0,
       maxLevel: (cfg.levels ?? 8) - 1,
       metersPerPixel: nativeMetersPerPixel(cfg, equatorialRadiusKm),

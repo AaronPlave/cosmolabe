@@ -5,7 +5,7 @@
   import { ArrowRight, X } from 'lucide-svelte';
 
   const frameLabel = $derived.by(() => {
-    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return 'Free orbit';
+    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return vs.surfaceTarget ? 'Surface orbit' : 'Free orbit';
     const mode = vs.cameraMode.replaceAll('-', ' ');
     return vs.trackedBodyName ? `${vs.trackedBodyName} ${mode}` : mode;
   });
@@ -77,10 +77,11 @@
            Full precision and the entered convention are in the tooltip. -->
       <span
         class="target-value"
-        title={[`${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
+        title={[`${t.place?.name ? t.place.name + ' · ' : ''}${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
       >
-        <span class="target-wide">{t.label.wide.lat}, {t.label.wide.lon}</span>
-        <span class="target-narrow">{t.label.narrow.lat}, {t.label.narrow.lon}</span>
+        {#if t.place}<span class="named-target">{t.place.name}</span>
+        {:else}<span class="target-wide">{t.label.wide.lat}, {t.label.wide.lon}</span>
+        <span class="target-narrow">{t.label.narrow.lat}, {t.label.narrow.lon}</span>{/if}
       </span>
       <!-- Releases the point and aims at the tracked body's centre,
            keeping the camera location, selection and time. -->
@@ -263,4 +264,7 @@
     .target-wide { display: none; }
     .target-narrow { display: inline; }
   }
+
+  .named-target { display: block; max-width: min(240px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 </style>

@@ -1,5 +1,7 @@
 {
   "name": "Ingenuity at Jezero",
+  "defaultGeographicNames": ["Mars"],
+  "require": ["places/mars.json", "places/ingenuity-sites.json"],
   "version": "1.1",
   "defaultTime": "2021-07-05T09:00:08Z",
   "defaultViewpoint": "Jezero Overhead",

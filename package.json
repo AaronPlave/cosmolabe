@@ -47,7 +47,8 @@
     "plan:surface": "tsc --build packages/core && node scripts/plan-surface.mjs",
     "test:dem": "python3 scripts/terrain/dem.py selftest",
     "publish:data": "node scripts/publish-data.mjs",
-    "discover:surface": "tsc --build packages/core && node scripts/discover-surface.mjs"
+    "discover:surface": "tsc --build packages/core && node scripts/discover-surface.mjs",
+    "build:surface": "tsc --build packages/core && node scripts/build-surface.mjs"
   },
   "engines": {
     "node": ">=20"

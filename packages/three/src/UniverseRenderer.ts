@@ -71,6 +71,8 @@ import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
 import { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
+import { PlaceNames } from './geographic/PlaceNames.js';
+import type { PlaceAnchor } from './geographic/PlaceSurface.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -301,8 +303,18 @@ export function eventLeadRequest(
   } : null;
 }
 
-/** Overlay line-of-sight stops this fraction short of its point, which lies on the drawn surface itself. */
-const OVERLAY_OCCLUSION_TOLERANCE = 0.004;
+/**
+ * How far an overlay point may sit off the drawn surface, in km: cached
+ * drawn-surface heights, float32 vertices and interpolation between them
+ * (about 0.35 m of float32 resolution at Mars' radius). The line of sight
+ * stops this far short of the point *along the surface normal*: that is,
+ * `OVERLAY_HEIGHT_TOLERANCE_KM / sin(angle to the surface)` along the ray,
+ * capped at grazing angles. A fraction of the whole distance would skip
+ * real terrain near a distant point (400 m at 100 km for 0.4%).
+ */
+export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
+/** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
+const OVERLAY_MIN_GRAZING_SINE = 0.03;
 
 /** Whether the ray's first `length` units pass through the sphere. */
 function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
@@ -327,6 +339,7 @@ export class UniverseRenderer {
   private readonly spatialScene = new THREE.Scene();
   /** Batched geographic rendering, placement, selection and accuracy status. */
   readonly geographicVectors: GeographicVectorLayer;
+  readonly placeNames: PlaceNames;
   private hoveredGeographicFeature: GeographicFeatureRef | null = null;
   private lastGeographicHoverMs = -Infinity;
   private readonly geographicStatus: HTMLDivElement;
@@ -563,6 +576,7 @@ export class UniverseRenderer {
     );
     this.spatialRelationships.attach(this.spatialScene);
     this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor, (feature) => this.events.emit('geographic:select', feature));
+    this.placeNames = new PlaceNames(universe, this.labelContainer);
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
     this.geographicStatus.style.cssText = 'position:absolute;width:max-content;max-width:min(330px,calc(100% - 32px));padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
@@ -647,6 +661,7 @@ export class UniverseRenderer {
     // Consumer selection handlers should be idempotent.
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
+    this._onDblClick = this._onDblClick.bind(this);
     canvas.addEventListener('dblclick', this._onDblClick);
 
     // Touch: a browser synthesizes a click for a tap, but only when it decides
@@ -1182,6 +1197,18 @@ export class UniverseRenderer {
       ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
       ...(this._screenOccluders?.() ?? []),
     ];
+    this.placeNames.update(this.camera, this.bodyMeshes, this.scaleFactor,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
+      contourLabelObstacles, world => {
+        const direction = world.clone().sub(this.camera.position);
+        const distance = direction.length();
+        this._surfaceRaycaster.set(this.camera.position, direction.divideScalar(distance));
+        this._surfaceRaycaster.far = distance;
+        const hit = this._castSurfaces();
+        this._surfaceRaycaster.far = Infinity;
+        return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
+      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
+    contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
@@ -1677,7 +1704,7 @@ export class UniverseRenderer {
     const inner = 0.99 * (shape.kind === 'sphere' ? shape.radiusKm : Math.min(...shape.radiiKm)) * this.scaleFactor;
     const center = bm.position, eye = this.camera.position;
     const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
-    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), ray = new THREE.Ray();
+    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
     const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
     return positions.map((position) => {
       const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
@@ -1688,8 +1715,12 @@ export class UniverseRenderer {
       ray.set(eye, toPoint.divideScalar(distance || 1));
       let facing = !segmentHitsSphere(ray, distance, center, inner);
       if (facing && surfaces.length) {
-        // Stop just short of the point, which lies on the drawn surface itself.
-        const far = distance * (1 - OVERLAY_OCCLUSION_TOLERANCE);
+        // Stop just short of the point, which lies on the drawn surface itself:
+        // by the height tolerance along the normal, however far away it is.
+        const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
+        normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
+        const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
+        const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
         facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, far));
       }
       const inFront = view.copy(world).applyMatrix4(toView).z < -near;
@@ -1697,6 +1728,27 @@ export class UniverseRenderer {
       return { x: (world.x + 1) / 2 * canvas.clientWidth, y: (1 - world.y) / 2 * canvas.clientHeight, facing, inFront };
     });
   }
+
+  /**
+   * Identifies the surface a body is drawn with now: which globe and terrain
+   * tile meshes are visible. It changes when terrain refines or retires tiles
+   * (or a fade ends), so callers caching drawn-surface heights
+   * (`renderedSurfaceHeightsKm`) know to sample again. Computed at most once
+   * per rendered frame. Null for a body that is not drawn.
+   */
+  drawnSurfaceKey(bodyName: string): string | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const frame = this.renderer.info.render.frame;
+    const cached = this._surfaceKeys.get(bodyName);
+    if (cached && cached.frame === frame) return cached.key;
+    let count = 0, sum = 0, mix = 0;
+    for (const mesh of this.drawnSurfaceMeshes(bm)) { count++; sum += mesh.id; mix = (mix * 31 + mesh.id) >>> 0; }
+    const key = `${count}:${sum}:${mix}`;
+    this._surfaceKeys.set(bodyName, { frame, key });
+    return key;
+  }
+  private readonly _surfaceKeys = new Map<string, { frame: number; key: string }>();
 
   /** The meshes of a body's surface as drawn this frame: globe facets and visible terrain tiles. */
   private drawnSurfaceMeshes(bm: BodyMesh): THREE.Mesh[] {
@@ -2745,6 +2797,28 @@ export class UniverseRenderer {
     return { world, bodyCenter, normal };
   }
 
+  /** Presentation anchor on the currently drawn surface, like probe pin
+   * re-seating. This is a ray hit, not a conversion of an unknown areoid datum.
+   * Keep explicit source heights intact; PlaceNames only calls for heightless points. */
+  private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {
+    if (!body.hasTerrain) return null;
+    const local = anchor.offsetKm.clone();
+    const up = local.clone().normalize().applyQuaternion(body.mesh.quaternion);
+    const world = local.multiplyScalar(this.scaleFactor).applyQuaternion(body.mesh.quaternion).add(body.position);
+    const span = (body.displayRadius * .01 + 30) * this.scaleFactor;
+    const raycaster = this._surfaceRaycaster;
+    raycaster.set(world.clone().addScaledVector(up, span), up.negate());
+    raycaster.far = span * 2;
+    try {
+      const hit = this._castSurfaces();
+      if (!hit || hit.bm !== body) return null;
+      return {
+        offsetKm: hit.worldPoint.clone().sub(body.position).applyQuaternion(body.mesh.quaternion.clone().invert()).divideScalar(this.scaleFactor),
+        source: 'rendered-surface',
+      };
+    } finally { raycaster.far = Infinity; }
+  }
+
   /**
    * Re-seat the pin on the surface as it is rendered now. A pin placed from
    * far off sits on the coarse terrain loaded then; as finer tiles (or an
@@ -2842,6 +2916,8 @@ export class UniverseRenderer {
         return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
       },
       'geographic-feature': () => {
+        const label = this.placeNames.pick(screenX, screenY);
+        if (label) return { kind: 'geographic-feature', ...label };
         if (!this.geographicVectors.featureCount) return null;
         const surface = this._discoverSurface(ndcX, ndcY, !options.renderedOnly);
         const feature = this.geographicVectors.pick(screenX, screenY, rect.width, rect.height, this.camera, this.bodyMeshes, surface);
@@ -3655,6 +3731,7 @@ export class UniverseRenderer {
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
     this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
@@ -4834,10 +4911,10 @@ export class UniverseRenderer {
   };
 
   /**
-   * Double-click handler: picks the body and emits 'body:dblclick'.
+   * Double-click uses scene selection precedence before the body fallback.
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
-  private _onDblClick = (event: MouseEvent): void => {
+  private _onDblClick(event: MouseEvent): void {
     if (this.pointerTool || this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
     }
@@ -4847,8 +4924,15 @@ export class UniverseRenderer {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
-    const bodyName = this.pickBody(screenX, screenY);
-    if (!bodyName) return;
+    if (this.spatialRelationships.pick(screenX, screenY, 11)) return;
+    const hit = this.pickScene(screenX, screenY, 'select');
+    if (hit?.kind === 'geographic-feature') {
+      const { layerId, featureId, bodyName } = hit;
+      this.events.emit('geographic:dblclick', { layerId, featureId, bodyName });
+      return;
+    }
+    if (hit?.kind !== 'entity') return;
+    const bodyName = hit.bodyName;
 
     const bm = this.bodyMeshes.get(bodyName);
     if (!bm) return;

@@ -141,17 +141,25 @@ shown so a resting view does not reshuffle, and labels past the horizon hide.
 Candidates are chosen by where features are (past the horizon, then off
 screen, are dropped first), never by source order, so a large layer labels what
 is in view. Labels sit on the surface as drawn (globe facets or terrain tiles,
-found by a cached ray down the normal, shared with the selection callout), so
-they stay on their features close up on a coarse globe, and hide where that
-drawn surface is in the way (a line of sight against globe facets or terrain
-tiles), not by a horizon guess: a rim higher than a camera down in a crater
-stays labelled. Close to a large area or a long line, whose anchor is then off
+found by a ray down the normal, shared with the selection callout and edit
+handles). Those heights are cached per datum only while the drawn surface stays
+the same (which globe and tile meshes are visible): when terrain refines, the
+next frame samples the new triangles the fill is drawn on. Where nothing is
+drawn under a label's point (tiles culled outside the view) it does not show,
+rather than float on the datum. Labels hide where that drawn surface is in the
+way (a line of sight against globe facets or terrain tiles), not by a horizon
+guess: a rim higher than a camera down in a crater stays labelled. The line of
+sight stops 3 m short of the point along the surface normal (more along the
+ray at shallow angles, capped near grazing), not a fraction of the distance, so
+a ridge just in front of a distant point still hides it. Close to a large area or a long line, whose anchor is then off
 screen or over the horizon, the label goes on a part of it in view: the point it
 used last time while that stays visible, else the surface under the middle of
 the view where it lies inside the area (or on the line), else one of the
 feature's own interior or along-line samples nearest the centre. The selected
 feature is named by its callout instead. `scripts/test-geographic-close-zoom.mjs`
-checks this on streamed Mars terrain from orbit to about 1 km.
+checks this on streamed Mars terrain from orbit to about 1 km while tiles
+refine, including that each label sits on the surface as drawn (a pick at its
+pixel lands within 1% of the range of its point).
 
 A feature's own colour is set from its Feature view, under *Appearance*: *Give
 this feature its own colour* (and opacity) changes only that feature; turning

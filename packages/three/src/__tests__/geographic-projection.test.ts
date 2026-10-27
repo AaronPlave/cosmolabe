@@ -103,6 +103,48 @@ describe('projectGeographicPositions at close range', () => {
   });
 });
 
+describe('projectGeographicPositions at long range and low angles', () => {
+  // The point is (lat 0, lon 0) on a 1000 km sphere, at body-fixed (1000, 0, 0); the camera
+  // is `rangeKm` away to the north, `elevationDeg` above the point's horizon.
+  function view(rangeKm: number, elevationDeg: number, meshes: THREE.Object3D[]) {
+    const e = elevationDeg * Math.PI / 180;
+    const camera = new THREE.PerspectiveCamera(30, 2, 0.01, 1e6);
+    camera.position.set(1000 + rangeKm * Math.sin(e), 0, rangeKm * Math.cos(e));
+    camera.up.set(1, 0, 0); camera.lookAt(1000, 0, 0); camera.updateMatrixWorld(true);
+    const group = new THREE.Group(); for (const m of meshes) group.add(m); group.updateMatrixWorld(true);
+    const body = { visible: true, position: new THREE.Vector3(), terrainDatum: null, mesh: new THREE.Object3D(), terrainTileGroup: group,
+      bodyToWorldQuaternion: (q: THREE.Quaternion) => q.identity() };
+    body.mesh.visible = false;
+    return Object.assign(Object.create(UniverseRenderer.prototype), {
+      bodyMeshes: new Map([['Moon', body]]), camera, scaleFactor: 1, overlayOcclusion: new ContourOcclusion(),
+      renderer: { domElement: { clientWidth: 800, clientHeight: 400 } },
+    }) as UniverseRenderer;
+  }
+  const point = { latDeg: 0, lonDeg: 0, heightKm: 0 };
+  const mesh = (geometry: THREE.BufferGeometry, at: [number, number, number]) => {
+    const m = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    m.position.set(...at); return m;
+  };
+
+  it('counts a ridge 300 m in front of a point seen from 100 km at 5°, which a 0.4%-of-range stop skipped', () => {
+    // A wall across the line of sight, 300 m toward the camera, 200 m tall: the line passes 26 m above the ground there.
+    const wall = mesh(new THREE.PlaneGeometry(0.4, 1), [1000, 0, 0.3]);
+    expect(view(100, 5, [wall]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
+    expect(view(100, 5, []).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(true);
+    // What the old fixed fraction would have checked: only up to 400 m short of the point, so not the wall.
+    expect(100 * 0.004).toBeGreaterThan(0.3);
+  });
+
+  it('does not hide a point under a surface lying a couple of metres above it, even at a grazing 3°', () => {
+    // Ground drawn 2 m above the point's height (cached heights, float32): the line meets it ~38 m short.
+    const ground = mesh(new THREE.PlaneGeometry(2, 2).rotateY(Math.PI / 2), [1000.002, 0, 0]);
+    expect(view(100, 3, [ground]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(true);
+    // A real rise of 30 m does hide it.
+    const rise = mesh(new THREE.PlaneGeometry(2, 2).rotateY(Math.PI / 2), [1000.03, 0, 0]);
+    expect(view(100, 3, [rise]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
+  });
+});
+
 describe('renderedSurfaceHeightsKm', () => {
   function withMesh(radiusKm: number, segments: number) {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(radiusKm, segments, segments / 2), new THREE.MeshBasicMaterial());

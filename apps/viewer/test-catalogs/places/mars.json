@@ -1,0 +1,35 @@
+{
+  "name": "Mars nomenclature (MARS_nomenclature_center_pts)",
+  "geographicCoordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    }
+  },
+  "geographicLayers": [
+    {
+      "id": "mars:usgs:places:001",
+      "name": "Mars places (1/1)",
+      "body": "Mars",
+      "source": "mars-001.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "USGS/IAU Gazetteer of Planetary Nomenclature",
+        "sourceUrl": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MARS_nomenclature_center_pts.kmz",
+        "sourceFile": "MARS_nomenclature_center_pts.kmz",
+        "sourceSha256": "3175bcd14991fe875ab0ca2d04db2e5cb1fc2f15b10271fca91ccc92cf6091b7",
+        "converter": "cosmolabe:191:v2",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}
