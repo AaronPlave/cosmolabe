@@ -2247,5 +2247,5 @@
     "Sampling covers these recorded poses/device; it is not proof for every camera or GPU.",
     "No scientific product, source resolution, source pixel, terrain height, flight reconstruction or production deployment changes."
   ],
-  "remainingAcceptance": "The subsequent distant Mons Malapert depth-plane defect is repaired and separately validated in imagery-horizon.json. This report retains the earlier recovery-run source hashes. Refreshed full cross-mission GPU regression is running at publication; exact-head CI remains required. Production upload/deployment requires explicit authorization."
+  "remainingAcceptance": "The distant Mons Malapert defect is repaired and validated in imagery-horizon.json; recovery-acceptance.json records the refreshed complete cross-mission GPU suite on the final code. Production upload/deployment remains authorization-gated."
 }

@@ -300,7 +300,12 @@ node scripts/test-imagery-horizon.mjs http://localhost:5173/ work/moonfall-jank/
 ```
 
 Historical reports retain their original source hashes. The horizon report
-records the subsequent source set. Refreshed full cross-mission GPU regressions
-are running at publication; their results will be recorded separately.
+records the subsequent source set. [Refreshed full cross-mission GPU acceptance](recovery-acceptance.json) passes
+on that source set: all 18 Retina views / 358 native-demand rays, both missions
+under adversarial loading and context loss, three constrained instrument
+switches, complete Ingenuity operations and native flight pacing. The final
+renderer package has 907 passing tests in 77 files; catalog regressions add 54.
+Build, test typecheck, changed-TypeScript lint and script syntax pass. Exact code
+head `2382a6f` passes all six CI jobs in run `40402800518`.
 Production R2 upload/deployment remains unauthorized; no scientific data,
 mission reconstruction or production pins change in this follow-up.
