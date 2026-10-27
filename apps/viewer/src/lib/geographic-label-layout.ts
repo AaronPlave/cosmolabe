@@ -48,7 +48,7 @@ export interface LabelView {
   height: number;
   /** Unit vector from the body's centre toward the camera, in body-fixed axes, and the horizon's angle from it. Null: no culling. */
   horizon: (layer: GeographicLayer) => { direction: readonly [number, number, number]; angle: number } | null;
-  /** Cheap projection on the datum, for choosing candidates. */
+  /** Cheap projection (the datum, or sampled terrain height), for choosing candidates. */
   project: (layer: GeographicLayer, positions: BodyFixedPosition[]) => DrawnScreenPosition[];
   /** Projection on the drawn surface, for the labels actually placed (with occlusion by it). */
   place: (layer: GeographicLayer, positions: BodyFixedPosition[]) => DrawnScreenPosition[];
@@ -196,6 +196,12 @@ export function layoutGeographicLabels(layers: readonly LabelLayer[], view: Labe
     // Each candidate's label point: last time's if still in view, else its anchor.
     const positions = new Map<number, BodyFixedPosition>(near.map((i) => [i, previousAnchors.get(keyOf(i)) ?? anchors[i]]));
     const projected = near.length ? view.project(layer, near.map((i) => positions.get(i)!)) : [];
+    // Labels shown last time are judged where they are drawn: on low, oblique
+    // views the datum can be kilometres above the drawn floor (Gale), so its
+    // projection leaves the screen while the label is plainly in view, and the
+    // label would hop to a fallback point every layout. Few, so the cost is small.
+    const kept = near.flatMap((i, j) => (previousAnchors.has(keyOf(i)) ? [j] : []));
+    if (kept.length) view.place(layer, kept.map((j) => positions.get(near[j])!)).forEach((p, k) => { projected[kept[k]] = p; });
     const visible = near.filter((_, j) => onScreen(projected[j], view));
     // Extended features whose point is out of view: a visible part instead.
     const missing = near.filter((i, j) => !onScreen(projected[j], view) && reach[i] > 0);

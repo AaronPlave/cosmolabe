@@ -76,7 +76,9 @@
         // A little past the datum horizon: relief can lift an anchor into view.
         return { direction: [camera.x / d, camera.y / d, camera.z / d], angle: Math.acos(radius / d) + 2 * Math.PI / 180 };
       },
-      project: (layer, positions) => r.projectGeographicPositions(layer.body, positions, layer.datum) ?? [],
+      // At decoded terrain height where there is one: over a deep floor (Gale, ~4.5 km
+      // below the datum) a low camera sees datum points far above where they are drawn.
+      project: (layer, positions) => r.projectGeographicPositions(layer.body, positions, layer.datum, { sampleTerrain: true }) ?? [],
       place: (layer, positions) => drawnSurface.project(r, layer.body, positions, layer.datum, { occlusion: true }) ?? [],
       probes: (layer) => probeHits(layer.body).map(([xKm, yKm, zKm]): BodyFixedPosition => {
         const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, layer.datum);
