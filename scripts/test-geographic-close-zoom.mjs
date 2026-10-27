@@ -7,13 +7,16 @@
  * floor's label must be on screen whenever the floor covers the centre of the
  * view (read from the rendered frame: vectors on against off), and must not
  * drop out between consecutive steps while it does. Also checks the Labels
- * menu offers one "Name" choice. Saves a close-zoom screenshot per viewpoint.
+ * menu offers one "Name" choice, and at every step that each label sits on the
+ * surface as drawn now (a pick at its anchor pixel lands on its anchor, within
+ * 1% of the range), while tiles refine. Saves a screenshot per viewpoint.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
  * CL_OUTPUT (default docs/validation/geographic-close-zoom). */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
 const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-close-zoom';
@@ -30,6 +33,7 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}?test=1&catalog=test-catalogs/geographic-vectors-mars-streamed`);
   await page.waitForFunction(() => window.renderer?.geographicVectors.featureCount > 0);
+  await page.evaluate(async (root) => { window.__core = await import('/@fs' + root + '/packages/core/src/index.ts'); }, resolve('.'));
   await page.getByRole('button', { name: 'Surface layers', exact: true }).waitFor();
 
   // Labels on through the Style tab; one Name choice in "Label with".
@@ -47,8 +51,10 @@ try {
   assert.equal(results.labelOptions.filter((o) => /^name$/i.test(o)).length, 1, `one Name choice (${results.labelOptions.join(', ')})`);
   await page.keyboard.press('Escape');
 
-    const step = (label, save) => page.evaluate(({ label, FLOOR, save }) => {
+    const step = (label, save) => page.evaluate(async ({ label, FLOOR, save }) => {
     const r = window.renderer;
+    // Labels follow the scene each frame: measure once they have followed the surface just drawn.
+    await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame);
     // Even–odd containment over every ring (so a hole is outside); its own, not the viewer's.
     const areaContains = (g, p) => {
       let inside = false;
@@ -67,7 +73,23 @@ try {
     const el = document.querySelector(`.geo-label[data-key="${FLOOR}"]`);
     const box = el?.getBoundingClientRect();
     const labelOnScreen = !!box && box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < innerHeight;
-    return { label, floorUnderCentre, centre, labelOnScreen, labels: document.querySelectorAll('.geo-label').length,
+    // Registration while tiles refine: the drawn surface at each label's anchor pixel is its anchor.
+    const datum = r.universe.geographicLayers.get('gale-regions').datum;
+    let worstKm = 0, worstRatio = 0, worst = null;
+    for (const l of document.querySelectorAll('.geo-label')) {
+      const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(l.style.transform);
+      if (!m) continue;
+      const at = r.pickScene(Number(m[1]), Number(m[2]), 'probe', { renderedOnly: true, bodyMeshes: false });
+      if (at?.kind !== 'surface') continue;
+      const [xKm, yKm, zKm] = at.point.bodyFixedPositionKm;
+      const g = window.__core.bodyFixedToGeodetic({ xKm, yKm, zKm }, datum);
+      const lat = Number(l.dataset.lat), lon = Number(l.dataset.lon);
+      const km = Math.hypot((g.lonDeg - lon) * Math.cos(lat * Math.PI / 180), g.latDeg - lat) * Math.PI / 180 * 3390;
+      if (km / Math.max(at.cameraRangeKm, 1e-3) > worstRatio) worst = { key: l.dataset.key, x: +m[1], y: +m[2], lat, lon, hitLat: g.latDeg, hitLon: g.lonDeg, rangeKm: at.cameraRangeKm };
+      worstKm = Math.max(worstKm, km); worstRatio = Math.max(worstRatio, km / Math.max(at.cameraRangeKm, 1e-3));
+    }
+    return { label, floorUnderCentre, centre, labelOnScreen, registration: { worstKm: +worstKm.toFixed(3), worstRatio: +worstRatio.toFixed(4), worst },
+      fadingTiles: (() => { let n = 0; r.getBodyMesh('Mars')?.terrainTileGroup?.traverseVisible((o) => { if (o.isMesh && o.material?.defines?.FEATURE_FADE === 1) n++; }); return n; })(), labels: document.querySelectorAll('.geo-label').length,
       altitudeKm: +(r.camera.position.length() / r.scaleFactor - 3396.19).toFixed(2), image: save };
   }, { label, FLOOR, save });
 
@@ -95,5 +117,9 @@ try {
   await writeFile(`${output}/close-zoom.json`, JSON.stringify(results, null, 2) + '\n');
   assert.ok(relevant.length >= 6, `the floor covered the view centre in enough steps (${relevant.length})`);
   assert.deepEqual(results.missing, [], 'the floor is labelled whenever it fills the view');
+  // Labels sit on the surface as drawn now, through refinement: within 1% of the range (or 50 m).
+  results.misregistered = results.steps.filter((s) => s.registration.worstRatio > 0.01 && s.registration.worstKm > 0.05).map((s) => s.label);
+  await writeFile(`${output}/close-zoom.json`, JSON.stringify(results, null, 2) + '\n');
+  assert.deepEqual(results.misregistered, [], 'labels on the drawn surface while tiles refine');
   assert.deepEqual(errors, []);
 } finally { await browser.close(); }

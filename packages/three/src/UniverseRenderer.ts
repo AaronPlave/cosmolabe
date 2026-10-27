@@ -303,8 +303,18 @@ export function eventLeadRequest(
   } : null;
 }
 
-/** Overlay line-of-sight stops this fraction short of its point, which lies on the drawn surface itself. */
-const OVERLAY_OCCLUSION_TOLERANCE = 0.004;
+/**
+ * How far an overlay point may sit off the drawn surface, in km: cached
+ * drawn-surface heights, float32 vertices and interpolation between them
+ * (about 0.35 m of float32 resolution at Mars' radius). The line of sight
+ * stops this far short of the point *along the surface normal*: that is,
+ * `OVERLAY_HEIGHT_TOLERANCE_KM / sin(angle to the surface)` along the ray,
+ * capped at grazing angles. A fraction of the whole distance would skip
+ * real terrain near a distant point (400 m at 100 km for 0.4%).
+ */
+export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
+/** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
+const OVERLAY_MIN_GRAZING_SINE = 0.03;
 
 /** Whether the ray's first `length` units pass through the sphere. */
 function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
@@ -1694,7 +1704,7 @@ export class UniverseRenderer {
     const inner = 0.99 * (shape.kind === 'sphere' ? shape.radiusKm : Math.min(...shape.radiiKm)) * this.scaleFactor;
     const center = bm.position, eye = this.camera.position;
     const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
-    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), ray = new THREE.Ray();
+    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
     const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
     return positions.map((position) => {
       const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
@@ -1705,8 +1715,12 @@ export class UniverseRenderer {
       ray.set(eye, toPoint.divideScalar(distance || 1));
       let facing = !segmentHitsSphere(ray, distance, center, inner);
       if (facing && surfaces.length) {
-        // Stop just short of the point, which lies on the drawn surface itself.
-        const far = distance * (1 - OVERLAY_OCCLUSION_TOLERANCE);
+        // Stop just short of the point, which lies on the drawn surface itself:
+        // by the height tolerance along the normal, however far away it is.
+        const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
+        normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
+        const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
+        const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
         facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, far));
       }
       const inFront = view.copy(world).applyMatrix4(toView).z < -near;
@@ -1714,6 +1728,27 @@ export class UniverseRenderer {
       return { x: (world.x + 1) / 2 * canvas.clientWidth, y: (1 - world.y) / 2 * canvas.clientHeight, facing, inFront };
     });
   }
+
+  /**
+   * Identifies the surface a body is drawn with now: which globe and terrain
+   * tile meshes are visible. It changes when terrain refines or retires tiles
+   * (or a fade ends), so callers caching drawn-surface heights
+   * (`renderedSurfaceHeightsKm`) know to sample again. Computed at most once
+   * per rendered frame. Null for a body that is not drawn.
+   */
+  drawnSurfaceKey(bodyName: string): string | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const frame = this.renderer.info.render.frame;
+    const cached = this._surfaceKeys.get(bodyName);
+    if (cached && cached.frame === frame) return cached.key;
+    let count = 0, sum = 0, mix = 0;
+    for (const mesh of this.drawnSurfaceMeshes(bm)) { count++; sum += mesh.id; mix = (mix * 31 + mesh.id) >>> 0; }
+    const key = `${count}:${sum}:${mix}`;
+    this._surfaceKeys.set(bodyName, { frame, key });
+    return key;
+  }
+  private readonly _surfaceKeys = new Map<string, { frame: number; key: string }>();
 
   /** The meshes of a body's surface as drawn this frame: globe facets and visible terrain tiles. */
   private drawnSurfaceMeshes(bm: BodyMesh): THREE.Mesh[] {
