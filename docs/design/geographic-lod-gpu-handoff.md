@@ -289,3 +289,27 @@ edge drag and streamed LOD on Metal; close handles, import, hover and border
 joins on SwiftShader; style editor on Metal. The drawing smoke passed every
 check but its final no-console-errors assertion, which caught two Viking
 imagery tiles failing to fetch from trek.nasa.gov.
+
+Those two tiles were not an outage. The run leaves the Jezero catalog while
+they stream; Chrome aborts the requests (`net::ERR_ABORTED`) and
+3d-tiles-renderer logs each as an error. Current `main` (0bf7018) logs the
+same two errors for the same page change. The drawing smoke now records
+failed or aborted requests to other hosts in `serviceErrors` and excuses only
+the loader's errors for those URLs.
+
+The `cspice-wasm` test ("keeps the first pass inside the first half while it
+runs") also fails on this machine on current `main`, three runs of three
+(`expected 0 to be greater than 0`); `main`'s CI on Linux passes it.
+
+After the page compositing fix and the Places click ownership (#273), on the
+final stacked head (M4 Max, Metal): all unit tests but that one; build, lint,
+purity lint, all typechecks and svelte-check; vectors, global (countries,
+holes, dateline, Antarctica), border joins, streamed LOD, grazing highlight,
+close precision, close handles, style editor, hover, import, layers panel,
+drawing (passes), edge drag, Places click ownership, Places targets and
+inspector, and overlap; vectors and overlap also on SwiftShader. Against the
+previous shader, the captures change only where translucent fills overlap
+(both now show) and in stroke fringes (≤ 54 levels).
+
+CI runs only on pull requests into `main`, so #277 and #278 get no
+PR-triggered runs while they are stacked; these local runs stand in for it.
