@@ -168,7 +168,9 @@ try {
   await search.focus();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.ok(await page.getByRole('list',{name:'Named places'}).evaluate(el=>el.clientHeight>30));
   await page.screenshot({path:`${out}/places-filters-focus-compact.png`});
+  // Display must open in the desktop dock, not a compact sheet that remounts it.
   await page.setViewportSize({width:1440,height:900});
+  await page.waitForFunction(()=>window.sh.shell.layout==='desktop');
   checks.push('body/type/origin filters combine, empty matches explain filters, unavailable types reset, focus ring fits scroll clip');
   // Display names each logical source once; one source toggle affects all chunks.
   await page.evaluate(()=>window.sh.openTool('display'));
@@ -184,7 +186,7 @@ try {
   await page.getByText('Name sources',{exact:true}).evaluate(el=>{el.closest('.instrument-body').scrollTop=185;});
   await page.screenshot({path:`${out}/display-compact.png`});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await page.setViewportSize({width:1440,height:900});await page.evaluate(()=>window.sh.closeTool('display'));
+  await page.setViewportSize({width:1440,height:900});await page.waitForFunction(()=>window.sh.shell.layout==='desktop');await page.evaluate(()=>window.sh.closeTool('display'));
   checks.push('logical Gazetteer source toggle groups all four Moon chunks; desktop and compact Display');
   // The master explains disabled datasets while retaining separate body intent.
   await page.evaluate(()=>window.sh.openTool('display'));
