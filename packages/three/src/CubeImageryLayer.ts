@@ -15,7 +15,8 @@ import {
 
 /** Independent imagery trees and GPU pages, composited on authoritative terrain.
  * Neither imagery resolution nor texture arrival changes terrain geometry,
- * materials, picking targets or CPU physical-surface queries. */
+ * picking targets or CPU physical-surface queries. Conflicting shared material
+ * bindings are isolated once per terrain mesh, never per imagery patch. */
 export interface CubeImageryConfig {
   /** `imagery.json` written by `scripts/terrain/cube_imagery.py`. */
   url: string;
@@ -126,6 +127,7 @@ interface Uniforms {
 }
 interface MeshRecord {
   mesh: THREE.Mesh; material: THREE.Material; uniforms: Uniforms;
+  originalMaterial?: THREE.Material;
   baseCompile: THREE.Material['onBeforeCompile']; cacheKey: () => string;
   radiusRangeKm: [number, number];
 }
@@ -338,6 +340,7 @@ export class CubeImageryLayer {
   private readonly visibilityCache = new Map<string, boolean>();
   private readonly errorCache = new Map<string, number>();
   private readonly materialBindings = new WeakMap<THREE.Material, Uniforms>();
+  private readonly materialHooks = new WeakMap<THREE.Material, { baseCompile: THREE.Material['onBeforeCompile']; cacheKey: () => string }>();
   private readonly coverageCache = new Map<string, boolean>();
   private coverageStyleKey = '';
   private readonly coverKeys = new Map<number, string>();
@@ -504,15 +507,27 @@ export class CubeImageryLayer {
         uvw[3 * i + 2] = p[0] * basis.n[0] + p[1] * basis.n[1] + p[2] * basis.n[2];
       }
       mesh.geometry.setAttribute('cubeImageryUvw', new THREE.BufferAttribute(uvw, 3));
-      const material = mesh.material;
-      const baseCompile = material.onBeforeCompile;
+      const originalMaterial = mesh.material;
+      const uniforms = this.makeUniforms(address);
+      const existing = this.materialBindings.get(originalMaterial);
+      // Standard materials upload uniforms per material, not per mesh. A
+      // loader may share one across distinct addresses: isolate only that
+      // conflicting binding, retaining the same shader program and geometry.
+      const conflicting = existing && (!existing.cubeImageryToBody.value.equals(uniforms.cubeImageryToBody.value) ||
+        existing.cubeGeometryAddress.value.some((v, i) => v !== uniforms.cubeGeometryAddress.value[i]));
+      const material = conflicting ? originalMaterial.clone() : originalMaterial;
+      if (conflicting) mesh.material = material;
+      const hooks = this.materialHooks.get(originalMaterial);
+      const baseCompile = hooks?.baseCompile ?? material.onBeforeCompile;
       // Snapshot the default program key before wrapping its compile hook.
       const baseKey = material.customProgramCacheKey.bind(material);
       const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
       const snapshot = baseKey();
-      const cacheKey = () => (defaultKey ? snapshot : baseKey()) + CACHE_KEY + this.sources.length;
-      const uniforms = this.attachImagery(material, baseCompile, cacheKey, this.makeUniforms(address));
-      record.meshes.push({ mesh, material, uniforms, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000], });
+      const cacheKey = hooks?.cacheKey ?? (() => (defaultKey ? snapshot : baseKey()) + CACHE_KEY + this.sources.length);
+      const bound = this.attachImagery(material, baseCompile, cacheKey, uniforms);
+      this.materialHooks.set(material, { baseCompile, cacheKey });
+      record.meshes.push({ mesh, material, uniforms: bound, baseCompile, cacheKey, radiusRangeKm: [rMin / 1000, rMax / 1000],
+        ...(conflicting ? { originalMaterial } : {}) });
     });
     this.tiles.set(key, record);
   }
@@ -520,7 +535,15 @@ export class CubeImageryLayer {
   /** Imagery owns no derived terrain geometry. Kept for the terrain draw-range API. */
   invalidateBlocks(): void {}
 
-  removeTile(key: object): void { this.tiles.delete(key); }
+  removeTile(key: object): void {
+    const tile = this.tiles.get(key);
+    for (const m of tile?.meshes ?? []) if (m.originalMaterial) {
+      if (m.mesh.material === m.material) m.mesh.material = m.originalMaterial;
+      this.materialBindings.delete(m.material); this.materialHooks.delete(m.material);
+      m.material.dispose();
+    }
+    this.tiles.delete(key);
+  }
 
   update(camera: THREE.Camera, tileSetMatrixWorld: THREE.Matrix4, pixelAngleRad: number, renderer: THREE.WebGLRenderer | null, useImagery = true): void {
     if (renderer && this.contextCanvas !== renderer.domElement) {
@@ -694,7 +717,11 @@ export class CubeImageryLayer {
         // delay. This stabilizes slow threshold crossings as well as reversals.
         return error > this.options.maxScreenTexelError * 0.7;
       };
-      const frame = source.refinement.update(exposed, usable, this.frame, sourceVisible,
+      // Sibling admission must use the same proven opacity exclusions as
+      // displayed coverage. Loading hidden siblings and then retiring them as
+      // unused otherwise cycles shallow/deep frontiers under cache pressure.
+      const sourceNeeded = (a: ImageryAddress) => sourceVisible(a) && !this.coveredByUpperSource(a, source);
+      const frame = source.refinement.update(exposed, usable, this.frame, sourceNeeded,
         a => this.entries.get(id(a))?.state === 'failed', retainSplit);
       source.cover = frame.cover.filter(c => !this.coveredByUpperSource(c.patch, source));
       const coverKey = source.cover.map(c => `${cubeTileId(c.patch)}=${cubeTileId(c.image)}`).join(';');
@@ -861,7 +888,9 @@ export class CubeImageryLayer {
     this.disposed = true; this.manifestAbort.abort();
     this.contextCanvas?.removeEventListener('webglcontextlost', this.contextLost);
     for (const e of this.entries.values()) { e.controller?.abort(); this.releaseTexture(e); }
-    this.entries.clear(); this.tiles.clear(); this.pages?.dispose(); this.emptyPageTable.dispose(); this.emptyPages.dispose();
+    this.entries.clear();
+    for (const key of this.tiles.keys()) this.removeTile(key);
+    this.pages?.dispose(); this.emptyPageTable.dispose(); this.emptyPages.dispose();
   }
 
   private coarseManifest: CubeImageryManifest | null = null;

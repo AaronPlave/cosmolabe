@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { CatalogLoader } from '../catalog/CatalogLoader.js';
 
 describe('CatalogLoader', () => {
+  it('preserves explicit plot frame and subsecond sampling without changing the trajectory frame', () => {
+    const result=new CatalogLoader().load({items:[{name:'Surface flight',trajectoryFrame:'BodyFixed',trajectory:{type:'FixedPoint',position:[1,2,3]},trajectoryPlot:{frame:'BodyFixed',duration:'300s',sampleInterval:'0.05s'}}]});
+    expect(result.bodies[0].trajectoryPlot).toEqual({frame:'BodyFixed',duration:300,sampleInterval:.05});
+    expect(result.bodies[0].stateAt(1).position).toEqual([1,2,3]);
+    expect(result.bodies[0].frame).toBe('BODY_FIXED');
+  });
+
   it('loads simple FixedPoint bodies', () => {
     const loader = new CatalogLoader();
     const result = loader.load({

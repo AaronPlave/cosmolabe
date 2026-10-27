@@ -21,6 +21,13 @@ samples retain conservative clearance; settled CPU/selected-GLB agreement is
 required within 0.5 m. [MoonFall](moonfall-regression.json) also passes after the
 shared renderer changes.
 
+The [October 27 review evidence](review-followup.md) adds dense actual-runtime
+Hermite and plotted-cache clearance for all 72 estimated flights, explicit
+body-fixed plot registration, five-minute flight context, and physical
+above/below-surface trajectory occlusion. It also links the continuous four-layer
+imagery recordings and final shared-renderer regressions. Source terrain, image
+pixels, 72 flight files and observational epochs are unchanged by this closeout.
+
 The repeated-crater screenshot was traced to **the original beta CTX service
 responses**: different PNG hashes contained identical decoded pixels at different
 geographic addresses. [The source audit](ctx-source-diagnostic.json) records four
@@ -51,8 +58,9 @@ Persistent source/face trees select imagery independently of physical terrain.
 A shared GPU texture array and integer page table select the committed source
 pixels on original meshes. Parent fallback persists until a complete visible
 refinement frontier is usable; faster neighbors cannot run several levels ahead.
-No imagery geometry, material clones, extra draws, or physical LOD changes are
-introduced. Decoded alpha, nodata, bounds, opacity and source order remain explicit.
+No imagery geometry, per-imagery-patch material clones, extra draws, or physical
+LOD changes are introduced. Conflicting shared terrain materials receive an
+isolated address binding while retaining the same shader program. Decoded alpha, nodata, bounds, opacity and source order remain explicit.
 
 The [loading regression](imagery-loading.json) checks **196 viewport points** in
 two-layer/full-stack configurations and sixteen actual Surface Explorer mouse

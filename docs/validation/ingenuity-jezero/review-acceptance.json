@@ -1,0 +1,1688 @@
+{
+  "kind": "PR-292-complete-review-local-acceptance",
+  "date": "2026-10-27",
+  "passed": true,
+  "production": {
+    "uploaded": false,
+    "deployed": false,
+    "httpColdLoadVerified": false,
+    "authorizationRequired": true
+  },
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "publicationIdentity": "63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1",
+  "device": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "sources": {
+    "packages/three/src/CubeImageryLayer.ts": {
+      "bytes": 63278,
+      "sha256": "937346c49abcacaa15e3e770eefe8dd4ad94e0af309f8d9cea1e18f934947ece"
+    },
+    "packages/three/src/ModelSurfaceDepth.ts": {
+      "bytes": 3445,
+      "sha256": "c1791e2552655ae0fd3cff9387011cf7cc96ac102112e20138f0893f68604b27"
+    },
+    "packages/three/src/TerrainManager.ts": {
+      "bytes": 142944,
+      "sha256": "506a9471b3ccd75c5a42d499d9e7360b86209baaa4d5b9f87f4c5844e3ba21cd"
+    },
+    "packages/three/src/TrajectoryLine.ts": {
+      "bytes": 48352,
+      "sha256": "1f401bb4be1eea11eb10e7833b1a44951d6ce2390964fe56016892c949d208e4"
+    },
+    "packages/three/src/TrajectoryPlotFrame.ts": {
+      "bytes": 2101,
+      "sha256": "d13ddbc95437c83f324bd52a86fa506943378c960428b52abca37e87d70b9632"
+    },
+    "packages/three/src/UniverseRenderer.ts": {
+      "bytes": 240022,
+      "sha256": "011de280f26bea4a7762a53bb04a67d013c7cb3d39b197521f6f9162f979ef5e"
+    },
+    "packages/three/src/EventMarkers.ts": {
+      "bytes": 49040,
+      "sha256": "0156d833304ebc5addd124731ecc28204ca2e5e54a104a35163e306ff513c6d1"
+    },
+    "packages/core/src/Body.ts": {
+      "bytes": 9689,
+      "sha256": "c96c4a0def41ad32ea401e2abeaeb131cf8bcd8f678820f9ae9dfa3492776218"
+    },
+    "packages/core/src/catalog/CatalogLoader.ts": {
+      "bytes": 75005,
+      "sha256": "42c5689150e2c08e05174687a952e4620f69c49303c92977b3481cfeee0a8a7f"
+    },
+    "apps/viewer/src/components/DebugPanel.svelte": {
+      "bytes": 17466,
+      "sha256": "6e87bd8864bac13a16154fa558d91005a4b8dfaf2544a425b117f07abb0c96bc"
+    },
+    "apps/viewer/test-catalogs/ingenuity-jezero.json": {
+      "bytes": 19351,
+      "sha256": "8c760905a503ce0315ec4c235124b6ceaba71dbafecaa9a87f0668eb2f1b235f"
+    },
+    "scripts/capture-imagery-motion.mjs": {
+      "bytes": 5797,
+      "sha256": "3a8bcf217f6983a3a18c5ea7ca96c9291715a35bcef8a14a1135cc7315bce1b3"
+    },
+    "scripts/export-ingenuity-path-audit.mjs": {
+      "bytes": 4080,
+      "sha256": "06e609bd6aa38c760dadf8b5356ee0c684de2e59f63c6537104cad74f4652e01"
+    },
+    "scripts/terrain/audit_ingenuity_rendered_paths.py": {
+      "bytes": 7631,
+      "sha256": "89ac0e3c3641d627601c8a91aea67991fa854b79b2d017f524e190ee4fb6e79e"
+    },
+    "scripts/test-imagery-material-sharing.mjs": {
+      "bytes": 5256,
+      "sha256": "d02bbccd09ddfde825514f8cd2625420b328ef8f4cafe9ab7a9859453c327b12"
+    },
+    "scripts/test-ingenuity-trajectory-visual.mjs": {
+      "bytes": 8767,
+      "sha256": "b3062e8beb2c9f46976fdcd64e6a2d68e98adec7378d7e86cca502bcce21155e"
+    }
+  },
+  "validation": {
+    "unit": {
+      "files": 80,
+      "tests": 925,
+      "passed": true
+    },
+    "build": true,
+    "testTypes": true,
+    "changedSourceLint": true,
+    "scriptSyntax": true,
+    "diffCheck": true
+  },
+  "densePaths": {
+    "report": "rendered-path-clearance.json",
+    "bytes": 272997,
+    "sha256": "fe01f7c757fff84275b083e3f3f87d9d676843f60bb552d78b8b09b1e14cb52c",
+    "sampleCount": 2786880,
+    "sourceAccuracyUnknown": true
+  },
+  "trajectoryVisual": {
+    "phases": [
+      {
+        "flight": 1,
+        "fraction": 0.02,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 0,
+        "visibleArcs": [
+          "Ingenuity__arc0"
+        ],
+        "drawnVertices": [
+          102
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 119,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 1,
+        "fraction": 0.5,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 40,
+        "visibleArcs": [
+          "Ingenuity__arc0"
+        ],
+        "drawnVertices": [
+          2269
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 163,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 1,
+        "fraction": 0.5,
+        "below": true,
+        "clampBypass": true,
+        "changedPixels": 0,
+        "visibleArcs": [
+          "Ingenuity__arc0"
+        ],
+        "drawnVertices": [
+          2269
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 163,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 1,
+        "fraction": 0.98,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 38,
+        "visibleArcs": [
+          "Ingenuity__arc0"
+        ],
+        "drawnVertices": [
+          4484
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 166,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 1,
+        "fraction": 2,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 0,
+        "visibleArcs": [],
+        "drawnVertices": [],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 167,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 12,
+        "fraction": 0.02,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 8,
+        "visibleArcs": [
+          "Ingenuity__arc11"
+        ],
+        "drawnVertices": [
+          304
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 184,
+          "evicted": 0,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 12,
+        "fraction": 0.5,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 1247,
+        "visibleArcs": [
+          "Ingenuity__arc11"
+        ],
+        "drawnVertices": [
+          8283
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 191,
+          "evicted": 3,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 12,
+        "fraction": 0.5,
+        "below": true,
+        "clampBypass": true,
+        "changedPixels": 0,
+        "visibleArcs": [
+          "Ingenuity__arc11"
+        ],
+        "drawnVertices": [
+          8283
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 191,
+          "evicted": 3,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 12,
+        "fraction": 0.98,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 2953,
+        "visibleArcs": [
+          "Ingenuity__arc11"
+        ],
+        "drawnVertices": [
+          16226
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 192,
+          "evicted": 4,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 12,
+        "fraction": 2,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 0,
+        "visibleArcs": [],
+        "drawnVertices": [],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 192,
+          "evicted": 4,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 72,
+        "fraction": 0.02,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 1,
+        "visibleArcs": [
+          "Ingenuity__arc71"
+        ],
+        "drawnVertices": [
+          84
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 243,
+          "evicted": 55,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 72,
+        "fraction": 0.5,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 106,
+        "visibleArcs": [
+          "Ingenuity__arc71"
+        ],
+        "drawnVertices": [
+          1265
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 257,
+          "evicted": 69,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 72,
+        "fraction": 0.5,
+        "below": true,
+        "clampBypass": true,
+        "changedPixels": 0,
+        "visibleArcs": [
+          "Ingenuity__arc71"
+        ],
+        "drawnVertices": [
+          1265
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 257,
+          "evicted": 69,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 72,
+        "fraction": 0.98,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 327,
+        "visibleArcs": [
+          "Ingenuity__arc71"
+        ],
+        "drawnVertices": [
+          2526
+        ],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 260,
+          "evicted": 72,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      },
+      {
+        "flight": 72,
+        "fraction": 2,
+        "below": false,
+        "clampBypass": false,
+        "changedPixels": 0,
+        "visibleArcs": [],
+        "drawnVertices": [],
+        "gpuError": 0,
+        "settledImagery": {
+          "requests": 262,
+          "evicted": 74,
+          "waiting": 0,
+          "queued": 0,
+          "inFlight": 0
+        }
+      }
+    ],
+    "fading": [
+      {
+        "below": false,
+        "changedPixels": 1255,
+        "depthMeshes": 25
+      },
+      {
+        "below": true,
+        "changedPixels": 0,
+        "depthMeshes": 66
+      }
+    ]
+  },
+  "eventFrame": {
+    "passed": true,
+    "phases": [
+      {
+        "below": false,
+        "changedPixels": 1354,
+        "anchorErrorM": [
+          0.0000035688282278852405
+        ]
+      },
+      {
+        "below": true,
+        "changedPixels": 0,
+        "anchorErrorM": [
+          0.0000035688282278852405
+        ]
+      }
+    ]
+  },
+  "materialSharing": {
+    "passed": true,
+    "errors": [],
+    "comparisons": [
+      {
+        "key": "control",
+        "changedPixels": 0,
+        "locations": []
+      },
+      {
+        "key": "shared",
+        "changedPixels": 0,
+        "locations": []
+      },
+      {
+        "key": "replaced",
+        "changedPixels": 0,
+        "locations": []
+      }
+    ],
+    "isolated": true,
+    "sameProgram": true,
+    "restored": true,
+    "first": {
+      "face": "py",
+      "level": 6,
+      "x": 39,
+      "y": 21
+    },
+    "second": {
+      "face": "py",
+      "level": 6,
+      "x": 39,
+      "y": 20
+    },
+    "stats": {
+      "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+      "ready": true,
+      "textures": 87,
+      "pinnedTextures": 6,
+      "textureBytes": 467803023,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "maxTextureBytes": 1006632960,
+      "requests": 87,
+      "bytes": 106641455,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 0,
+      "count": 0,
+      "budgetLimited": false,
+      "queued": 0,
+      "tiles": 21,
+      "splitTiles": 0,
+      "blocks": 110,
+      "extraDraws": 0,
+      "displayedLevels": {
+        "0": 10,
+        "1": 10,
+        "2": 34,
+        "3": 16,
+        "4": 13,
+        "5": 2,
+        "6": 10
+      },
+      "wantedLevels": {
+        "0": 6,
+        "1": 14,
+        "2": 22,
+        "3": 4,
+        "4": 9,
+        "5": 2,
+        "6": 10
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 6,
+      "committedGroups": 0,
+      "waitingGroups": 0,
+      "updateMs": 0.800000011920929,
+      "blockGeometryBytes": 0,
+      "transitionTextureBytes": 22544724,
+      "protectedOverBudgetBytes": 0,
+      "gpuAllocatedBytes": 1025801326,
+      "uploadMs": 164.69999992847443,
+      "gpuError": null,
+      "inheritedGlErrors": []
+    },
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "glError": 0
+  },
+  "budgetUi": {
+    "passed": true,
+    "result": [
+      {
+        "width": 1440,
+        "title": "Resident image payload / target, not a hard ceiling. Displayed pages and transition reservations may exceed the target.",
+        "box": {
+          "x": 1183.25,
+          "y": 628.34375,
+          "width": 229,
+          "height": 36
+        }
+      },
+      {
+        "width": 390,
+        "title": "Resident image payload / target, not a hard ceiling. Displayed pages and transition reservations may exceed the target.",
+        "box": {
+          "x": 19.5,
+          "y": 609.09375,
+          "width": 346,
+          "height": 18
+        }
+      }
+    ]
+  },
+  "history": {
+    "views": 18,
+    "rays": 358,
+    "allRequestedNative": true,
+    "quietFrames": 1080,
+    "churn": [
+      {
+        "key": "0-Moon-2-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "1-Moon-2-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "2-Moon-10-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "3-Moon-10-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "4-Moon-2-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "5-Moon-2-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "6-Moon-40-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "7-Moon-40-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "8-Moon-2-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "9-Moon-2-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "10-Moon-100-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "11-Moon-100-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "12-Moon-2-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "13-Moon-2-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "14-Moon-200-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "15-Moon-200-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "16-Moon-60-nadir",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      },
+      {
+        "key": "17-Moon-60-oblique",
+        "requests": 0,
+        "evicted": 0,
+        "aborted": 0
+      }
+    ]
+  },
+  "adversarial": {
+    "passed": true,
+    "missions": [
+      {
+        "mission": "ingenuity-jezero",
+        "firstPoseToSettledMs": 2147.943541,
+        "faults": {
+          "delayed": 40,
+          "failed": 3,
+          "missingParents": 3
+        },
+        "summary": {
+          "frameIntervalMs": {
+            "n": 801,
+            "p50": 16.600000023841858,
+            "p95": 22.900000035762787,
+            "max": 46.80000001192093
+          },
+          "imageUpdateMs": {
+            "n": 816,
+            "p50": 1.899999976158142,
+            "p95": 4.5,
+            "max": 15
+          },
+          "maxImageBytes": 1025784942,
+          "maxAllocatedBytes": 1025801326,
+          "last": {
+            "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+            "ready": true,
+            "textures": 186,
+            "pinnedTextures": 6,
+            "textureBytes": 1025784942,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 1006632960,
+            "requests": 246,
+            "bytes": 206907066,
+            "failures": 3,
+            "aborted": 1,
+            "evicted": 56,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 47,
+            "splitTiles": 0,
+            "blocks": 147,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "0": 8,
+              "1": 6,
+              "2": 18,
+              "3": 16,
+              "4": 14,
+              "5": 2,
+              "6": 15,
+              "7": 12,
+              "8": 5,
+              "9": 10,
+              "10": 5,
+              "11": 5,
+              "12": 4,
+              "13": 5,
+              "14": 7
+            },
+            "wantedLevels": {
+              "0": 4,
+              "2": 14,
+              "4": 6,
+              "5": 1,
+              "6": 5,
+              "7": 8,
+              "8": 3,
+              "9": 6,
+              "10": 8,
+              "11": 6,
+              "12": 4,
+              "13": 7,
+              "14": 4
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 14,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.5,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 22544724,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 1025801326,
+            "uploadMs": 934.3999997377396,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          }
+        },
+        "phases": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ]
+      },
+      {
+        "mission": "moonfall-shackleton",
+        "firstPoseToSettledMs": 1849.2776669999948,
+        "faults": {
+          "delayed": 225,
+          "failed": 26,
+          "missingParents": 17
+        },
+        "summary": {
+          "frameIntervalMs": {
+            "n": 845,
+            "p50": 16.700000047683716,
+            "p95": 20,
+            "max": 85
+          },
+          "imageUpdateMs": {
+            "n": 864,
+            "p50": 2.5,
+            "p95": 5,
+            "max": 9.300000011920929
+          },
+          "maxImageBytes": 300715008,
+          "maxAllocatedBytes": 538255360,
+          "last": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 809,
+            "pinnedTextures": 30,
+            "textureBytes": 300715008,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 858,
+            "bytes": 16615808,
+            "failures": 17,
+            "aborted": 0,
+            "evicted": 32,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 21,
+            "splitTiles": 0,
+            "blocks": 12,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 3,
+              "6": 3
+            },
+            "wantedLevels": {
+              "6": 3
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.9000000357627869,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 1351.0999994874,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          }
+        },
+        "phases": [
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {},
+          {}
+        ]
+      }
+    ]
+  },
+  "instrument": {
+    "passed": true,
+    "fixture": "Synthetic body-fixed nadir sensor at -89.98 degrees, 120 degrees, 25km reference altitude; original MoonFall products",
+    "targetBytes": 50331648,
+    "switches": [
+      {
+        "active": "Imagery Validation Sensor",
+        "mode": "instrument",
+        "fullScreen": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "imagery": {
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "ready": true,
+          "textures": 134,
+          "pinnedTextures": 30,
+          "textureBytes": 49809408,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 50331648,
+          "requests": 155,
+          "bytes": 3915850,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 21,
+          "blockBuildMs": 0,
+          "count": 34,
+          "budgetLimited": true,
+          "queued": 34,
+          "tiles": 28,
+          "splitTiles": 0,
+          "blocks": 81,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "3": 4,
+            "4": 12,
+            "5": 25,
+            "6": 34
+          },
+          "wantedLevels": {
+            "3": 1,
+            "4": 22,
+            "5": 25,
+            "6": 25,
+            "7": 28,
+            "8": 22,
+            "9": 6
+          },
+          "fallbackBlocks": 56,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 6,
+          "committedGroups": 0,
+          "waitingGroups": 9,
+          "updateMs": 1.0999999642372131,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 1486848,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 51684352,
+          "uploadMs": 119.3999999165535,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "meshes": 156,
+        "withoutBase": 0,
+        "contrast": [
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      },
+      {
+        "active": "Imagery Validation Sensor",
+        "mode": "instrument",
+        "fullScreen": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "imagery": {
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "ready": true,
+          "textures": 134,
+          "pinnedTextures": 30,
+          "textureBytes": 49809408,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 50331648,
+          "requests": 155,
+          "bytes": 3915850,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 21,
+          "blockBuildMs": 0,
+          "count": 34,
+          "budgetLimited": true,
+          "queued": 34,
+          "tiles": 28,
+          "splitTiles": 0,
+          "blocks": 81,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "3": 4,
+            "4": 12,
+            "5": 25,
+            "6": 34
+          },
+          "wantedLevels": {
+            "3": 1,
+            "4": 22,
+            "5": 25,
+            "6": 25,
+            "7": 28,
+            "8": 22,
+            "9": 6
+          },
+          "fallbackBlocks": 56,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 6,
+          "committedGroups": 0,
+          "waitingGroups": 9,
+          "updateMs": 1.199999988079071,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 1486848,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 51684352,
+          "uploadMs": 119.3999999165535,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "meshes": 150,
+        "withoutBase": 0,
+        "contrast": [
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      },
+      {
+        "active": "Imagery Validation Sensor",
+        "mode": "instrument",
+        "fullScreen": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "imagery": {
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "ready": true,
+          "textures": 134,
+          "pinnedTextures": 30,
+          "textureBytes": 49809408,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 50331648,
+          "requests": 155,
+          "bytes": 3915850,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 21,
+          "blockBuildMs": 0,
+          "count": 34,
+          "budgetLimited": true,
+          "queued": 34,
+          "tiles": 28,
+          "splitTiles": 0,
+          "blocks": 81,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "3": 4,
+            "4": 12,
+            "5": 25,
+            "6": 34
+          },
+          "wantedLevels": {
+            "3": 1,
+            "4": 22,
+            "5": 25,
+            "6": 25,
+            "7": 28,
+            "8": 22,
+            "9": 6
+          },
+          "fallbackBlocks": 56,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 6,
+          "committedGroups": 0,
+          "waitingGroups": 9,
+          "updateMs": 1.300000011920929,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 1486848,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 51684352,
+          "uploadMs": 119.3999999165535,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "meshes": 150,
+        "withoutBase": 0,
+        "contrast": [
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 41.7198549382716,
+            "stdev": 50.93422167052169
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      }
+    ],
+    "errors": []
+  },
+  "mission": {
+    "passed": true,
+    "viewportRays": 196,
+    "flightPhases": 15,
+    "corridors": 15,
+    "renderedCorridorFrames": 1351,
+    "minimumLoadingClearanceM": 49.17984917665308,
+    "maximumLoadingDiscrepancyM": 0.8201508221645781,
+    "p95LoadingDiscrepancyM": 4.765752237290144e-7,
+    "maximumSettledDiscrepancyM": 4.765752237290144e-7,
+    "coldConstrained": {
+      "targetBytes": 50331648,
+      "stats": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 16,
+        "pinnedTextures": 6,
+        "textureBytes": 67634172,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 50331648,
+        "requests": 16,
+        "bytes": 17268198,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 10,
+        "budgetLimited": true,
+        "queued": 10,
+        "tiles": 20,
+        "splitTiles": 0,
+        "blocks": 26,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 10,
+          "1": 1
+        },
+        "wantedLevels": {
+          "0": 4,
+          "2": 8,
+          "4": 2,
+          "7": 1,
+          "11": 3,
+          "13": 1,
+          "14": 6
+        },
+        "fallbackBlocks": 21,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 1,
+        "committedGroups": 0,
+        "waitingGroups": 6,
+        "updateMs": 0.40000003576278687,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 67650556,
+        "uploadMs": 21.599999964237213,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      }
+    },
+    "liveBudgetReduction": {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "physicalBufferHash": null,
+      "nav": {
+        "radiusKm": 3391.936496222438,
+        "physicalRadiusKm": 3391.9364962223426,
+        "renderedRadiusKm": 3391.936496222438,
+        "discrepancyM": 9.549694368615746e-8,
+        "settled": true
+      },
+      "clearanceM": 499.99999990359356,
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 20,
+        "pinnedTextures": 6,
+        "textureBytes": 112723620,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 50331648,
+        "requests": 431,
+        "bytes": 373905976,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 157,
+        "blockBuildMs": 0,
+        "count": 13,
+        "budgetLimited": true,
+        "queued": 13,
+        "tiles": 20,
+        "splitTiles": 0,
+        "blocks": 12,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 1,
+          "2": 3,
+          "4": 1,
+          "7": 1
+        },
+        "wantedLevels": {
+          "0": 4,
+          "2": 8,
+          "4": 2,
+          "7": 1,
+          "11": 3,
+          "13": 1,
+          "14": 6
+        },
+        "fallbackBlocks": 20,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 7,
+        "committedGroups": 0,
+        "waitingGroups": 5,
+        "updateMs": 1.199999988079071,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 39847248,
+        "gpuAllocatedBytes": 112740004,
+        "uploadMs": 43.30000001192093,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      },
+      "network": {
+        "requests": 811,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "cpu": {
+        "residentTiles": 126,
+        "detailTiles": 95,
+        "requests": 221,
+        "bytes": 3734900,
+        "failed": 0,
+        "inFlight": 0,
+        "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+      },
+      "geometry": [
+        "px/0/0/0.glb",
+        "py/1/0/0.glb",
+        "py/1/1/1.glb",
+        "py/10/624/336.glb",
+        "py/10/624/337.glb",
+        "py/10/627/336.glb",
+        "py/10/627/337.glb",
+        "py/11/1250/672.glb",
+        "py/11/1250/673.glb",
+        "py/11/1250/674.glb",
+        "py/11/1250/675.glb",
+        "py/11/1251/672.glb",
+        "py/11/1251/675.glb",
+        "py/11/1252/672.glb",
+        "py/11/1252/675.glb",
+        "py/11/1253/672.glb",
+        "py/11/1253/673.glb",
+        "py/11/1253/674.glb",
+        "py/11/1253/675.glb",
+        "py/12/2502/1346.glb",
+        "py/12/2502/1347.glb",
+        "py/12/2502/1348.glb",
+        "py/12/2502/1349.glb",
+        "py/12/2503/1346.glb",
+        "py/12/2503/1349.glb",
+        "py/12/2504/1346.glb",
+        "py/12/2504/1349.glb",
+        "py/12/2505/1346.glb",
+        "py/12/2505/1347.glb",
+        "py/12/2505/1348.glb",
+        "py/12/2505/1349.glb",
+        "py/13/5006/2694.glb",
+        "py/13/5006/2695.glb",
+        "py/13/5006/2696.glb",
+        "py/13/5006/2697.glb",
+        "py/13/5007/2694.glb",
+        "py/13/5007/2697.glb",
+        "py/13/5008/2694.glb",
+        "py/13/5008/2695.glb",
+        "py/13/5008/2697.glb",
+        "py/13/5009/2694.glb",
+        "py/13/5009/2695.glb",
+        "py/13/5009/2696.glb",
+        "py/13/5009/2697.glb",
+        "py/14/10014/5390.glb",
+        "py/14/10014/5391.glb",
+        "py/14/10014/5392.glb",
+        "py/14/10015/5390.glb",
+        "py/14/10015/5391.glb",
+        "py/14/10017/5392.glb",
+        "py/14/10017/5393.glb",
+        "py/15/20028/10786.glb",
+        "py/15/20028/10787.glb",
+        "py/15/20029/10786.glb",
+        "py/15/20029/10787.glb",
+        "py/15/20030/10784.glb",
+        "py/15/20030/10785.glb",
+        "py/15/20030/10786.glb",
+        "py/15/20030/10787.glb",
+        "py/15/20031/10784.glb",
+        "py/15/20031/10785.glb",
+        "py/15/20031/10786.glb",
+        "py/15/20031/10787.glb",
+        "py/15/20032/10784.glb",
+        "py/15/20032/10785.glb",
+        "py/15/20032/10786.glb",
+        "py/15/20032/10787.glb",
+        "py/15/20033/10784.glb",
+        "py/15/20033/10785.glb",
+        "py/15/20033/10786.glb",
+        "py/15/20033/10787.glb",
+        "py/2/2/0.glb",
+        "py/2/3/0.glb",
+        "py/2/3/1.glb",
+        "py/3/4/3.glb",
+        "py/3/5/3.glb",
+        "py/4/10/4.glb",
+        "py/4/10/5.glb",
+        "py/4/11/4.glb",
+        "py/4/11/5.glb",
+        "py/4/8/4.glb",
+        "py/4/8/5.glb",
+        "py/4/9/4.glb",
+        "py/5/18/10.glb",
+        "py/5/18/11.glb",
+        "py/5/19/11.glb",
+        "py/6/38/20.glb",
+        "py/7/76/42.glb",
+        "py/7/76/43.glb",
+        "py/7/77/43.glb",
+        "py/7/78/40.glb",
+        "py/7/78/43.glb",
+        "py/7/79/40.glb",
+        "py/7/79/41.glb",
+        "py/7/79/42.glb",
+        "py/7/79/43.glb",
+        "py/8/154/84.glb",
+        "py/8/154/85.glb",
+        "py/8/155/84.glb",
+        "py/8/155/85.glb",
+        "py/8/156/82.glb",
+        "py/8/156/85.glb",
+        "py/8/157/82.glb",
+        "py/8/157/83.glb",
+        "py/8/157/84.glb",
+        "py/8/157/85.glb",
+        "py/9/312/166.glb",
+        "py/9/312/167.glb",
+        "py/9/312/169.glb",
+        "py/9/313/166.glb",
+        "py/9/313/167.glb",
+        "py/9/313/169.glb",
+        "pz/0/0/0.glb"
+      ],
+      "cpuHit": {
+        "kind": "hit",
+        "position": {
+          "xKm": 699.1203860989523,
+          "yKm": 3140.819287845046,
+          "zKm": 1073.1812900188365
+        },
+        "normal": [
+          0.22058107018840248,
+          0.9190616941434839,
+          0.32660311362975125
+        ],
+        "distanceKm": 108.06350377765766,
+        "triangleIndex": 6393,
+        "metadata": {
+          "bodyId": "body",
+          "frame": "body-fixed",
+          "source": {
+            "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+            "kind": "height-grid",
+            "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+            "fusion": {
+              "sha256": "e7a6cf73d2373f2dfceac62d38ef5ef2c67e93f8c6dfe4419f49716a31c3a409",
+              "created": null,
+              "base": "base.tif",
+              "detail": "detail.tif"
+            },
+            "generator": {
+              "script": "scripts/terrain/dem.py cube-tile",
+              "sha256": "bad9cdaa3778cd2b8f75e7ed60cd971ab1c0a3e69405da36f2e9ae320b6168f9"
+            },
+            "build": {
+              "global_level": 2,
+              "region": [
+                "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+                "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
+              ],
+              "skirt_cells": 0.1,
+              "ellipsoid": [
+                3396190,
+                3376200
+              ],
+              "simplify": 0,
+              "sourceConvention": "areoid-radial",
+              "body": "Mars",
+              "frame": "IAU_MARS",
+              "inputs": {
+                "base": {
+                  "file": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif",
+                  "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+                },
+                "residual": {
+                  "file": "residual.tif",
+                  "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+                },
+                "areoid": {
+                  "file": "MEGA90N000EB.LBL",
+                  "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                },
+                "areoidFiles": [
+                  {
+                    "file": "MEGA90N000EB.IMG",
+                    "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+                  },
+                  {
+                    "file": "MEGA90N000EB.LBL",
+                    "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+                  }
+                ]
+              }
+            }
+          },
+          "shape": {
+            "kind": "globe",
+            "datum": {
+              "referenceShape": {
+                "kind": "ellipsoid",
+                "radiiKm": [
+                  3396.19,
+                  3396.19,
+                  3376.2
+                ]
+              },
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal"
+            }
+          },
+          "coverage": "partial-product"
+        },
+        "accuracy": {
+          "meshDeviationBoundKm": null
+        },
+        "detail": "coarse",
+        "tileId": "py/15/20030/10785"
+      },
+      "staticVisible": false,
+      "readyToShow": true,
+      "surface": "streamed"
+    }
+  },
+  "pacing": {
+    "passed": true,
+    "wheel": {
+      "beforeKm": 6.802635006006872,
+      "afterKm": 7.823030256907819
+    },
+    "scenarios": [
+      {
+        "mode": "surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "stressed": false,
+        "frameMs": {
+          "min": 13.100000023841858,
+          "p50": 16.69999998807907,
+          "p95": 17.600000023841858,
+          "max": 20.5
+        },
+        "imageryMs": {
+          "min": 1.699999988079071,
+          "p50": 2.400000035762787,
+          "p95": 5.699999988079071,
+          "max": 7.300000011920929
+        },
+        "speed": {
+          "min": 15.578081683794757,
+          "p50": 15.578081683795231,
+          "p95": 15.578081683795496,
+          "max": 15.57808168379562
+        },
+        "commandedSpeed": {
+          "min": 15.578081683795226,
+          "p50": 15.578081683795226,
+          "p95": 15.578081683795226,
+          "max": 15.578081683795226
+        },
+        "elapsedSeconds": 4.999800000011916,
+        "distanceKm": 77.88729280282513,
+        "speedRelativeSpread": 5.5418211399325315e-14
+      },
+      {
+        "mode": "surface",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "stressed": true,
+        "frameMs": {
+          "min": 7,
+          "p50": 16.600000023841858,
+          "p95": 43.30000001192093,
+          "max": 45.19999998807907
+        },
+        "imageryMs": {
+          "min": 1.7999999523162842,
+          "p50": 2.5,
+          "p95": 3.300000011920929,
+          "max": 4.300000011920929
+        },
+        "speed": {
+          "min": 15.578081683794684,
+          "p50": 15.578081683795224,
+          "p95": 15.578081683795519,
+          "max": 15.57808168379594
+        },
+        "commandedSpeed": {
+          "min": 15.578081683795226,
+          "p50": 15.578081683795226,
+          "p95": 15.578081683795226,
+          "max": 15.578081683795226
+        },
+        "elapsedSeconds": 4.983499999999995,
+        "distanceKm": 77.63337007119354,
+        "speedRelativeSpread": 8.061867378461525e-14
+      }
+    ]
+  },
+  "movies": [
+    {
+      "mission": "ingenuity-jezero",
+      "debug": false,
+      "frames": 1432,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "allBaseCovered": true,
+      "extraImageryDraws": 0,
+      "geometryBytes": 0,
+      "initialAssetsReadyMs": 1868.699999988079,
+      "frameP95Ms": 34,
+      "frameMaximumMs": 93.19999998807907,
+      "imageCpuP95Ms": 13.600000023841858,
+      "peakPayloadBytes": 1025784942,
+      "peakGpuBytes": 1025801326,
+      "file": "../imagery-refinement-257/motion/ingenuity-jezero-normal.webm"
+    },
+    {
+      "mission": "ingenuity-jezero",
+      "debug": true,
+      "frames": 1484,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "allBaseCovered": true,
+      "extraImageryDraws": 0,
+      "geometryBytes": 0,
+      "initialAssetsReadyMs": 1235.3999999761581,
+      "frameP95Ms": 30.19999998807907,
+      "frameMaximumMs": 97.80000001192093,
+      "imageCpuP95Ms": 11.800000011920929,
+      "peakPayloadBytes": 1025784942,
+      "peakGpuBytes": 1025801326,
+      "file": "../imagery-refinement-257/motion/ingenuity-jezero-levels.webm"
+    },
+    {
+      "mission": "moonfall-shackleton",
+      "debug": false,
+      "frames": 1255,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "allBaseCovered": true,
+      "extraImageryDraws": 0,
+      "geometryBytes": 0,
+      "initialAssetsReadyMs": 4815.300000011921,
+      "frameP95Ms": 19.19999998807907,
+      "frameMaximumMs": 34.5,
+      "imageCpuP95Ms": 10.800000011920929,
+      "peakPayloadBytes": 339001344,
+      "peakGpuBytes": 538271744,
+      "file": "../imagery-refinement-257/motion/moonfall-shackleton-normal.webm"
+    },
+    {
+      "mission": "moonfall-shackleton",
+      "debug": true,
+      "frames": 1255,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "allBaseCovered": true,
+      "extraImageryDraws": 0,
+      "geometryBytes": 0,
+      "initialAssetsReadyMs": 4969.800000011921,
+      "frameP95Ms": 20.5,
+      "frameMaximumMs": 35.60000002384186,
+      "imageCpuP95Ms": 12.599999964237213,
+      "peakPayloadBytes": 340488192,
+      "peakGpuBytes": 538271744,
+      "file": "../imagery-refinement-257/motion/moonfall-shackleton-levels.webm"
+    }
+  ],
+  "rawEvidence": {
+    "work/ingenuity-246/review-followup/motion-v2/metrics.json": {
+      "bytes": 10924085,
+      "sha256": "7dd6e7138e67421d4fb2d77c0ad2465af9ae0a73423e2de43646f871d0bcca09"
+    },
+    "work/ingenuity-246/review-followup/trajectory-final-v6/metrics.json": {
+      "bytes": 76421,
+      "sha256": "c70748c979e5b248d954a2f64cd6ceb16115f2e5c464a999fb23ab7141e9c903"
+    },
+    "work/ingenuity-246/review-followup/fading-depth-v2/metrics.json": {
+      "bytes": 10442,
+      "sha256": "9041103cebfbdbd99e165cb97c0a4ba497d8ca724c3e7fa852ccdf2c0fa2a522"
+    },
+    "work/ingenuity-246/review-followup/material-sharing-final/metrics.json": {
+      "bytes": 1842,
+      "sha256": "ce28a500dff3a061db976943cae469b192dd98025b0429154818810da63433a8"
+    },
+    "work/ingenuity-246/review-followup/history-final/metrics.json": {
+      "bytes": 3786803,
+      "sha256": "1b231cd19fd7d79fffa971f724d504c9281ed2b44e54c204ba606a53f484a84e"
+    },
+    "work/ingenuity-246/review-followup/adversarial-final/metrics.json": {
+      "bytes": 4513503,
+      "sha256": "aa034e7429a666cc04c74f9cb3672b51e32b2b18bde51cdc2a02b89e2baf8d73"
+    },
+    "work/ingenuity-246/review-followup/instrument-final/metrics.json": {
+      "bytes": 6225,
+      "sha256": "714e847b0872a5a613b021356fdcd1f4035ad9e830e4ead54c14b855a5be7951"
+    },
+    "work/ingenuity-246/review-followup/mission-final-v2/metrics.json": {
+      "bytes": 1445613,
+      "sha256": "890cc1464f80613da2c86271a5aaa69a24ec47bfe257378512392fdc6cc6a8fd"
+    },
+    "work/ingenuity-246/review-followup/pacing-final/metrics.json": {
+      "bytes": 204792,
+      "sha256": "e6fc37f13b58db48075eca8af0648ce1fcf91ed06b0b7da68ad77c18f3f1f3cd"
+    },
+    "work/ingenuity-246/review-followup/publication-preflight.json": {
+      "bytes": 1045234,
+      "sha256": "082f1ce9241d5dae80be915167e192221dc4c1dbd709c4b882c1800b5123a569"
+    },
+    "work/ingenuity-246/review-followup/event-frame-final-v3/metrics.json": {
+      "bytes": 10576,
+      "sha256": "3bee318cfbc8e2b8f0d2c6b792eb88486316a15ac2c2c5f5c86a1e71bf72af21"
+    }
+  },
+  "artifacts": {
+    "docs/validation/imagery-refinement-257/motion/ingenuity-jezero-levels.webm": {
+      "bytes": 3786482,
+      "sha256": "d708809738a72d53ed19bd1481cd4f62588615389198c0be06c4404da39f36d1"
+    },
+    "docs/validation/imagery-refinement-257/motion/ingenuity-jezero-normal.webm": {
+      "bytes": 4256175,
+      "sha256": "fb6f0f94cbf0b1d33aa20f161e54d9044fcbf515b69f686a90b0ed30ca235595"
+    },
+    "docs/validation/imagery-refinement-257/motion/moonfall-shackleton-levels.webm": {
+      "bytes": 3451732,
+      "sha256": "3cda7c3a39778a8fb5a2ef28c3ea56958fb565a8b0c107500bf8d5e0bb488fc2"
+    },
+    "docs/validation/imagery-refinement-257/motion/moonfall-shackleton-normal.webm": {
+      "bytes": 2957517,
+      "sha256": "e50e3f417f0fe9b4443bd3b0f322641d5b6584b97a5046f3be32b173093aafdd"
+    }
+  }
+}

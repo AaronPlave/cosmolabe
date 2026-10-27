@@ -48,6 +48,17 @@ const make = (radiusKm = R) => new TerrainManager(
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('TerrainManager with cube-sphere CPU grids', () => {
+  it('keeps cube terrain opaque from either camera side without changing physical buffers', () => {
+    serve();const tm=make(),tiles=(tm as unknown as {tiles:{dispatchEvent(e:unknown):void}}).tiles;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(10,10),new THREE.MeshStandardMaterial()),scene=new THREE.Group();scene.add(mesh);
+    const positions=mesh.geometry.attributes.position.array.slice(),indices=mesh.geometry.index!.array.slice();
+    tiles.dispatchEvent({type:'load-model',scene,tile:{}});
+    expect(mesh.material.side).toBe(THREE.DoubleSide);
+    const cast=new THREE.Raycaster(new THREE.Vector3(0,0,-1),new THREE.Vector3(0,0,1));
+    expect(cast.intersectObject(mesh)).toHaveLength(2);
+    expect(mesh.geometry.attributes.position.array).toEqual(positions);expect(mesh.geometry.index!.array).toEqual(indices);tm.dispose();
+  });
+
   it('keeps navigation above independent coarse rendering, then releases the stale visual radius after refinement', async () => {
     serve();const tm=make();
     await vi.waitFor(()=>expect(tm.cubeStats?.residentTiles).toBe(6));

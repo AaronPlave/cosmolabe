@@ -11,6 +11,11 @@ export type LegacyTrajectoryFrame = 'ecliptic' | 'equatorial' | 'body-fixed';
 
 /** Per-body trajectory plot configuration from Cosmographia's `trajectoryPlot` JSON field */
 export interface TrajectoryPlotConfig {
+  /** Plot reference frame; default is inertial. BodyFixed keeps surface paths
+   * registered to the centre's current orientation, not historical rotation. */
+  frame?: string;
+  /** Maximum initial cache sampling interval in seconds; a rendering policy. */
+  sampleInterval?: number;
   /** Trail duration in seconds */
   duration?: number;
   /** Lead duration in seconds (plot ahead of current time) */

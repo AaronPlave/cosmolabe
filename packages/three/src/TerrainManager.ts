@@ -2518,6 +2518,7 @@ export class TerrainManager {
         const mat = new THREE.MeshStandardMaterial({
           map: basic.map,
           transparent: false,
+          side: this.cubeConfigured ? THREE.DoubleSide : basic.side,
           metalness: 0,
           roughness: 0.85,
         });
@@ -2564,6 +2565,10 @@ export class TerrainManager {
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
+        // Physical terrain remains an occluder from below, too. Otherwise its
+        // culled top faces expose remote skirts as a misleading line forest.
+        // This changes rasterization only; lattice, normals and CPU stay exact.
+        if (this.cubeConfigured) mat.side = THREE.DoubleSide;
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;

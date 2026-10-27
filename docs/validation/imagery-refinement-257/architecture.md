@@ -55,7 +55,9 @@ refinement. They do not justify promising immediate native detail everywhere.
    projective face coordinate selects the committed image and its gutter-aware
    transform. Terrain meshes, triangle/index buffers, CPU grids, picking and
    physical LOD stay authoritative. Imagery generates no clipped geometry,
-   material clones or extra draws.
+   per-imagery-patch material clones or extra draws. Conflicting shared terrain
+   materials receive one isolated binding per terrain mesh; shader programs
+   remain shared.
 4. Frame references protect displayed pages. Loading groups reserve enough room
    to complete their transition. Eviction considers unreferenced pages, never
    sacrifices a displayed page to an unresolved download, and does not recalculate
@@ -309,3 +311,11 @@ Build, test typecheck, changed-TypeScript lint and script syntax pass. Exact cod
 head `2382a6f` passes all six CI jobs in run `40402800518`.
 Production R2 upload/deployment remains unauthorized; no scientific data,
 mission reconstruction or production pins change in this follow-up.
+
+## October 27 review closeout
+
+[Review evidence](review-followup.md) covers deliberate cross-address material
+sharing, continuous normal/debug mission recordings, an additional opaque-sibling
+residency defect found during long camera history, and the explicit soft target
+contract. The original matched performance comparisons above remain historical
+measurements; the new recording workload is reported separately.

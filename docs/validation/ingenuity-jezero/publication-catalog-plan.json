@@ -6,8 +6,8 @@
   "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
   "documentedDataBaseUrl": "https://data.aaronplave.com",
   "catalogFile": "apps/viewer/test-catalogs/ingenuity-jezero.json",
-  "beforeIdentity": "c4412ad70328ce83b68d8bd2c42aefb057c7ec5b9eeddfbc855fd1edf9e1cf85",
-  "afterIdentity": "677d9e6fb37edf568d051a3f0cfd0c2ad38ec4570bf07a309a4f9fcd39e7e1f2",
+  "beforeIdentity": "aff848419d23ddb9a85971f535a51e7d51c4c8e09f2dd8665a22b90f60944ca0",
+  "afterIdentity": "232f5a26308f2375b3468c5cc9408df400ae14fecfe522e2f5f9277203e6f9ed",
   "operations": [
     {
       "op": "replace",

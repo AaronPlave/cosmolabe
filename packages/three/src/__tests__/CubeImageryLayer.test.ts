@@ -99,6 +99,61 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('settles sibling loading beside an opaque upper footprint without hidden-page churn', async () => {
+    const address=directionToTexel(southPole,3,256,4).address,neighbour={...address,x:address.x+1},m=manifest(5);
+    for(let L=2;L<=5;L++){const k=2**Math.max(0,L-3),x0=L<3?neighbour.x>>1:neighbour.x*k,y0=L<3?neighbour.y>>1:neighbour.y*k;for(let x=x0;x<x0+k;x++)for(let y=y0;y<y0+k;y++)m.tiles.push(cubeTileId({...neighbour,level:L,x,y}));}
+    m.tiles=[...new Set(m.tiles)];const loader=controlledLoader(),layer=new CubeImageryLayer({url:'http://test/imagery.json',residentLevel:0,maxLevel:5,maxScreenTexelError:.0001,maxTextureBytes:264*264*4*4/3*30},{fetchManifest:async()=>m,loadTexture:loader.loadTexture});await layer.ready;
+    const tileSet=new THREE.Group(),{scene,mesh}=geometryTile(address);tileSet.add(scene);layer.addTile(scene,scene,address);
+    const tick=(cam:THREE.Camera,frames=1)=>{for(let i=0;i<frames;i++)layer.update(cam,tileSet.matrixWorld,.001,null);};
+    const s={layer,loader,scene,mesh,address,tick,tileSet};
+    const other = geometryTile(neighbour);s.tileSet.add(other.scene);s.layer.addTile(other.scene, other.scene, neighbour);
+    // An opaque upper product covers one sibling region. Partial/unknown
+    // alpha is tested separately; this oracle models only a proven cover.
+    vi.spyOn(s.layer as any, 'coveredByUpperSource').mockImplementation((...args: unknown[]) => {
+      const a=args[0] as ImageryAddress;
+      return a.face===s.address.face && a.level>=3 && Math.floor(a.x/2**(a.level-3))===s.address.x;
+    });
+    const requests=vi.spyOn(s.layer as any,'request');
+    await drain(s,camera(500000),100);
+    const hiddenIds=requests.mock.calls.map(call=>String(call[0]).split(':')[1]).map(id=>id.split('/')).filter(([face,L,x])=>face===s.address.face && Number(L)>=3 && Math.floor(Number(x)/2**(Number(L)-3))===s.address.x);
+    expect(hiddenIds).toEqual([]);
+    const before=s.layer.stats;
+    await drain(s,camera(500000),60);
+    expect(s.layer.stats.requests).toBe(before.requests);
+    expect(s.layer.stats.evicted).toBe(before.evicted);
+    expect(s.loader.pending.size).toBe(0);
+    expect(s.layer.stats.baseUncoveredBlocks).toBe(0);s.layer.dispose();
+  });
+
+  it('isolates addresses when tiles share a material, including tile replacement', async () => {
+    const s = await setup();
+    const original = s.mesh.material as THREE.Material;
+    const first = compile(original);
+    const firstAddress = [...first.uniforms.cubeGeometryAddress.value as Int32Array];
+    const firstBasis = (first.uniforms.cubeImageryToBody.value as THREE.Matrix3).clone();
+    const otherAddress = { ...s.address, x: s.address.x - 1 };
+    const other = geometryTile(otherAddress);
+    other.mesh.material = original;
+    s.tileSet.add(other.scene); s.layer.addTile(other.scene, other.scene, otherAddress);
+    await drain(s);
+    const second = compile(other.mesh.material as THREE.Material);
+    expect([...first.uniforms.cubeGeometryAddress.value as Int32Array]).toEqual(firstAddress);
+    expect((first.uniforms.cubeImageryToBody.value as THREE.Matrix3).equals(firstBasis)).toBe(true);
+    expect([...second.uniforms.cubeGeometryAddress.value as Int32Array]).toEqual([otherAddress.level, otherAddress.x, otherAddress.y]);
+    expect(second.uniforms.cubeGeometryAddress).not.toBe(first.uniforms.cubeGeometryAddress);
+    expect((other.mesh.material as THREE.Material).customProgramCacheKey()).toBe(original.customProgramCacheKey());
+    const isolated = other.mesh.material as THREE.Material, disposed = vi.fn();
+    isolated.addEventListener('dispose', disposed);
+    s.layer.removeTile(other.scene); s.tileSet.remove(other.scene);
+    expect(other.mesh.material).toBe(original); expect(disposed).toHaveBeenCalledOnce();
+    const replacement = geometryTile(otherAddress); replacement.mesh.material = original;
+    s.tileSet.add(replacement.scene); s.layer.addTile(replacement.scene, replacement.scene, otherAddress);
+    await drain(s);
+    expect([...compile(replacement.mesh.material as THREE.Material).uniforms.cubeGeometryAddress.value as Int32Array]).toEqual([otherAddress.level, otherAddress.x, otherAddress.y]);
+    expect([...first.uniforms.cubeGeometryAddress.value as Int32Array]).toEqual(firstAddress);
+    s.layer.dispose();
+  });
+
   it('refines drawn geometry beyond the streaming camera depth slab', async () => {
     const s = await setup();
     const cam = camera(5000);

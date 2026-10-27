@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
+import { TrajectoryPlotFrame } from './TrajectoryPlotFrame.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -323,8 +324,10 @@ export class UniverseRenderer {
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly modelSurfaceDepth = new ModelSurfaceDepth();
+  private readonly overlaySurfaceDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false });
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
+  private readonly trajectoryPlotFrames = new WeakMap<TrajectoryLine, TrajectoryPlotFrame>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkerPlacement>();
@@ -935,6 +938,15 @@ export class UniverseRenderer {
       const parentName = tl.body.parentName;
       const centerName = arcCenter ?? parentName;
 
+      const plotFrame = this.trajectoryPlotFrames.get(tl);
+      if (plotFrame) {
+        tl.update(et, this.scaleFactor, undefined, this.camera);
+        if (!tl.visible) continue;
+        const center = centerName ? this.absolutePositionOf(centerName, et) : [0, 0, 0];
+        plotFrame.place(tl, [center[0] - originAbsPos[0], center[1] - originAbsPos[1], center[2] - originAbsPos[2]], this.scaleFactor, et);
+        continue;
+      }
+
       // Object3D at origin — all offset is baked into vertices via vertexOffset
       tl.position.set(0, 0, 0);
 
@@ -1044,7 +1056,8 @@ export class UniverseRenderer {
         continue;
       }
       markers.visible = this.bodyMeshes.get(markers.body.name)?.visible ?? true;
-      const vertexOffset: [number, number, number] = centerName
+      const framedPlot = this.trajectoryPlotFrames.has(line);
+      const vertexOffset: [number, number, number] = framedPlot ? [0, 0, 0] : centerName
         ? [
             center![0] - originAbsPos[0],
             center![1] - originAbsPos[1],
@@ -1254,6 +1267,20 @@ export class UniverseRenderer {
         this.camera.layers.mask = savedMask;
       }
     }
+
+    // Fading terrain may not write depth; one-sided tiles also leave no depth
+    // from below. Rebuild physical cube depth from both sides for overlays,
+    // borrowing the exact selected geometry without changing color or buffers.
+    const cubeDepthMeshes: THREE.Mesh[] = [];
+    for (const bm of this.bodyMeshes.values()) {
+      const group = bm.terrainCubeStats ? bm.terrainTileGroup : null;
+      if (group?.visible) group.traverseVisible(object => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh && (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(m => !m.depthWrite)) cubeDepthMeshes.push(mesh);
+      });
+    }
+    this.overlaySurfaceDepth.update(cubeDepthMeshes, this.camera.position);
+    if (cubeDepthMeshes.length) this.renderer.render(this.overlaySurfaceDepth.scene, this.camera);
 
     // Preserve body/solar depth: analysis overlays in front remain visible,
     // while trajectories and sensor frustums behind the Sun remain occluded.
@@ -1714,7 +1741,7 @@ export class UniverseRenderer {
     this._selectedEvent = selected;
     this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
-      this._markerScene.remove(markers);
+      markers.removeFromParent();
       markers.dispose();
     }
     this.eventMarkerGroups.clear();
@@ -1750,7 +1777,8 @@ export class UniverseRenderer {
       // Span strokes retrace this line's drawn vertices — trail, live head
       // sample, and future lead — so they reach the body while the event is
       // underway and follow the lead when it is still ahead.
-      const markers = new EventMarkers(body, { path: () => line.drawnPath() });
+      const markers = new EventMarkers(body, { depthTest: this.trajectoryPlotFrames.has(line), path: () => line.drawnPath(),
+        transform: () => this.trajectoryPlotFrames.has(line) ? line.matrixWorld : undefined });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1775,7 +1803,7 @@ export class UniverseRenderer {
       }
       markers.visible = this.bodyMeshes.get(body.name)?.visible ?? true;
       this.eventMarkerGroups.set(lineKey, { markers, line, events: lineEvents });
-      this._markerScene.add(markers);
+      (this.trajectoryPlotFrames.has(line) ? this.scene : this._markerScene).add(markers);
     }
     this.refreshEventLineColors();
   }
@@ -3632,6 +3660,7 @@ export class UniverseRenderer {
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
     this.modelSurfaceDepth.dispose();
+    this.overlaySurfaceDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -3962,7 +3991,12 @@ export class UniverseRenderer {
             trajOpts.staticOrbit = true;
           }
 
+          const plotFrame = plotCfg?.frame ? new TrajectoryPlotFrame(this.universe, body.frame, plotCfg.frame,
+            body.parentName, t => body.stateAt(t).position, body.trajectory.startTime ?? this.timeController.et) : null;
+          if (plotFrame) trajOpts.fixedResolver = plotFrame.resolve;
+          if (plotCfg?.sampleInterval) trajOpts.cacheResampleInterval = plotCfg.sampleInterval;
           const tl = new TrajectoryLine(body, trajOpts);
+          if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
           tl.layers.set(OVERLAY_LAYER);
           tl.traverse(c => c.layers.set(OVERLAY_LAYER));
           this.trajectoryLines.set(body.name, tl);
@@ -3971,7 +4005,7 @@ export class UniverseRenderer {
           // Build trajectory cache for long-duration spacecraft trails.
           // Skip for natural bodies — their smooth orbits work fine with legacy sampling.
           if (this.shouldBuildCache(body, trajOpts)) {
-            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory) {
+            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory && !plotFrame) {
               // Async: hide trail until cache is ready, build in worker
               tl.setUserVisible(false);
               this.dispatchAsyncCacheBuild(body, tl, trajOpts);
@@ -4167,7 +4201,11 @@ export class UniverseRenderer {
       // the parent's rotation since some reference time.
       const arcFrame = body.arcFrame(arc);
       const arcCenterBodyName = arcCenterName ?? body.parentName;
-      const arcResolver = (_name: string, t: number): [number, number, number] => {
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
+      const plotFrame = plotCfg.frame ? new TrajectoryPlotFrame(this.universe, arcFrame, plotCfg.frame,
+        arcCenterBodyName, t => arc.trajectory.stateAt(t).position, Math.max(arc.startTime, arc.trajectory.startTime ?? -Infinity)) : null;
+      const arcResolver = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
         return this.universe.toWorldFrame(
           [state.position[0], state.position[1], state.position[2]],
@@ -4175,12 +4213,10 @@ export class UniverseRenderer {
           arcCenterBodyName,
           t,
         );
-      };
+      });
 
       // An arc's own trajectoryPlot overrides the body's field by field: a
       // cruise arc can keep years of trail while the orbit phase keeps days.
-      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
-      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -4210,8 +4246,10 @@ export class UniverseRenderer {
         trailDuration: trailDur,
         leadDuration: 0,
         minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
-        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
+        maxTime: plotFrame ? Math.min(arc.endTime, arc.trajectory.endTime ?? Infinity, body.existsUntil ?? Infinity)
+          : isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
+        cacheResampleInterval: plotCfg.sampleInterval,
         fadeFraction: plotCfg?.fade ?? 1.0,
         color: plotColor(plotCfg.color),
         opacity: plotCfg.opacity,
@@ -4220,6 +4258,7 @@ export class UniverseRenderer {
         // line doesn't appear as a faceted polygon at high eccentricity.
         numKeySamples: arc.numKeySamples,
       });
+      if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
       // Tag with arc center name so the update loop can position it correctly
       (tl as any)._arcCenterName = arcCenterName;
       tl.layers.set(OVERLAY_LAYER);
@@ -4265,6 +4304,7 @@ export class UniverseRenderer {
           const t0 = performance.now();
           const cache = TrajectoryCache.build(cacheResolver, trajStart, trajEnd, {
             maxPoints: 100_000,
+            ...(plotCfg.sampleInterval ? { coarseInterval: plotCfg.sampleInterval, minInterval: Math.min(30, plotCfg.sampleInterval / 4) } : {}),
             coverageWindows: [{ start: trajStart, end: trajEnd }],
           });
           if (cache.count > 0) {
@@ -4478,7 +4518,7 @@ export class UniverseRenderer {
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
     const resolver = (t: number): [number, number, number] => {
       try {
-        return this.universe.relativePositionInWorld(body.name, t);
+        return trajOpts.fixedResolver?.(body.name, t) ?? this.universe.relativePositionInWorld(body.name, t);
       } catch {
         return [NaN, NaN, NaN];
       }
@@ -4536,6 +4576,7 @@ export class UniverseRenderer {
     const t0 = performance.now();
     const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
       maxPoints: 100_000,
+      ...(body.trajectoryPlot?.sampleInterval ? { coarseInterval: body.trajectoryPlot.sampleInterval, minInterval: Math.min(30, body.trajectoryPlot.sampleInterval / 4) } : {}),
       coverageWindows,
     });
     if (cache.count === 0) return false;
