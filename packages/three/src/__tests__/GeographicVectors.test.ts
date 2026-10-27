@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, resolveGeographicStyle, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
+import { GeographicIndex, coveredCells, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
 import type { GeographicMaterial } from '../geographic/GeographicMaterial.js';
 import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT, VECTOR_SCISSOR_PADDING_PX } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
@@ -166,6 +166,30 @@ describe('geographic surface index', () => {
     }
   });
 
+  it('replaces a polygon\'s triangles by one covered reference in cells wholly inside it', () => {
+    // A 4° square with a 1° hole, on a 1024 × 512 grid (0.35° cells).
+    const square = (c: number, r: number): GeoPosition[] => [[c - r, -r], [c + r, -r], [c + r, r], [c - r, r], [c - r, -r]];
+    const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [square(10, 2), square(10, 0.5).reverse()] }])]);
+    const cov = coveredCells(index.primitives, 1024, 512);
+    const step = 360 / 1024, centre = (cell: number): [number, number] => [-180 + (cell % 1024 + 0.5) * step, -90 + (Math.floor(cell / 1024) + 0.5) * step];
+    const inside = ([x, y]: [number, number]) => Math.max(Math.abs(x - 10), Math.abs(y)) < 2 && Math.max(Math.abs(x - 10), Math.abs(y)) > 0.5;
+    expect(cov.full.length).toBeGreaterThan(50);
+    // Covered cells lie wholly inside the area, never across an edge or in the hole.
+    for (const [cell] of cov.full) {
+      const [x, y] = centre(cell);
+      for (const dx of [-0.5, 0.5]) for (const dy of [-0.5, 0.5]) expect(inside([x + dx * step, y + dy * step])).toBe(true);
+    }
+    // Triangles stay only in cells an edge crosses.
+    const edge = (cell: number) => { const [x, y] = centre(cell); const d = Math.max(Math.abs(x - 10), Math.abs(y)); return Math.abs(d - 2) < step || Math.abs(d - 0.5) < step; };
+    for (const cells of cov.values()) for (const cell of cells) expect(edge(cell)).toBe(true);
+    // Every cell inside the area is covered, or holds triangles.
+    const kept = new Set([...cov.values()].flat()), full = new Set(cov.full.map(([cell]) => cell));
+    for (let y = 0; y < 512; y++) for (let x = 0; x < 1024; x++) {
+      const cell = y * 1024 + x;
+      if (inside(centre(cell))) expect(full.has(cell) || kept.has(cell)).toBe(true);
+    }
+  });
+
   it('retains a seam-aware global grid when localized geometry crosses the longitude seam', () => {
     const ring: GeoPosition[] = Array.from({ length: 160 }, (_, i) => {
       const angle = i / 160 * Math.PI * 2;
@@ -176,7 +200,7 @@ describe('geographic surface index', () => {
     const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [ring] }])]);
     expect(index.diagnostics).toEqual([]);
     expect(index.features).toHaveLength(1);
-    expect(index.pack().detail?.levels[0]).toMatchObject({size: 256, height: 128});
+    expect(index.pack().detail?.levels.map(l => [l.size, l.height])).toEqual([[1024, 512], [256, 128]]);
     expect(pick(index, -179.999, 18.45)).toEqual(ref);
   });
 

@@ -248,6 +248,17 @@ keep that in proportion to the features:
   fetch per fragment rather than another draw of every tile. Close up, where a
   finer grid needs fewer pages, the loop stops at that grid's page count.
 
+- **A fine global level with covered cells.** Global data (with polar
+  charts, such as countries) is indexed on whole-globe grids rather than local
+  ones. Besides the 256 × 128 level (1.4° cells) there is a 1024 × 512 level
+  (0.35°) for close views, over the latitudes clear of polar-chart primitives;
+  outside them the shader falls back to the coarser level. On both, a
+  polygon's fill triangles stay only in cells its outline crosses, and a cell
+  wholly inside it holds one covered reference, drawn without a triangle
+  test; segments go only in the cells they pass near. Countries seen from
+  ~100 km scanned ~114 candidates per pixel on the coarse level; the fine
+  level is left out if it would exceed the reference budget.
+
 `metrics.drawCalls` counts the draws made after culling, and
 `metrics.shadedPixels` the viewport pixels the shader could run on, summed over
 passes. The frame budget still counts every visible mesh.

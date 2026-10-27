@@ -195,13 +195,18 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           bool detailed = false;
           for (int level = 0; level < ${DETAIL_LEVELS}; level++) {
             if (vectorDetailStep[level].x <= 0.0 || any(greaterThan(footprint, vectorDetailStep[level]))) continue;
-            grid = vectorDetailGrid[level];
-            gridCell = floor((ll - vectorDetailBounds[level].xy) / vectorDetailStep[level]);
-            if (vectorDetailBounds[level].z - vectorDetailBounds[level].x == 360.0) {
-              gridCell.x = mod(gridCell.x, grid.x);
-              gridCell.y = clamp(gridCell.y, 0.0, grid.w - 1.0);
+            vec4 bounds = vectorDetailBounds[level], levelGrid = vectorDetailGrid[level];
+            vec2 levelCell = floor((ll - bounds.xy) / vectorDetailStep[level]);
+            if (bounds.z - bounds.x == 360.0) {
+              levelCell.x = mod(levelCell.x, levelGrid.x);
+              // A global level spanning every latitude holds the poles' rounding;
+              // a band (the fine level, clear of polar charts) defers to the next level.
+              bool band = bounds.y > -90.0 || bounds.w < 90.0;
+              if (band && (levelCell.y < 0.0 || levelCell.y >= levelGrid.w)) continue;
+              levelCell.y = clamp(levelCell.y, 0.0, levelGrid.w - 1.0);
             }
-            if (any(lessThan(gridCell, vec2(0.0))) || any(greaterThanEqual(gridCell, vec2(grid.x, grid.w)))) discard;
+            if (any(lessThan(levelCell, vec2(0.0))) || any(greaterThanEqual(levelCell, vec2(levelGrid.x, levelGrid.w)))) discard;
+            grid = levelGrid; gridCell = levelCell;
             detailed = true;
             break;
           }
@@ -221,6 +226,9 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               if (float(j) >= range.y) break;
               vec4 reference = vectorTexel(vectorReferences, vectorReferenceSize, range.x + float(j));
               float id = reference.x * 4.0;
+              // Kind 3: this cell lies wholly inside the fill's polygon, so there is nothing to test.
+              bool covered = reference.y == 3.0;
+              float kind = min(reference.y, 2.0);
               vec4 ab = vectorTexel(vectorRecords, vectorRecordSize, id);
               vec4 ck = reference.y == 2.0 ? vectorTexel(vectorRecords, vectorRecordSize, id + 1.0) : vec4(ab.xy, 0.0, 0.0);
               vec2 jx = reference.z == 0.0 ? dx : (reference.z > 0.0 ? ndx : sdx);
@@ -228,13 +236,13 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               // Most candidates in a padded cell are far outside this fragment's
               // few-pixel mark (or its triangle). Reject them on coarse coordinates,
               // with a margin over their rounding, before the exact arithmetic.
-              vec2 padding = reference.y < 2.0 ? vectorReach * vectorPixelRatio * (abs(jx) + abs(jy)) : vec2(0.0);
+              vec2 padding = kind < 2.0 ? vectorReach * vectorPixelRatio * (abs(jx) + abs(jy)) : vec2(0.0);
               // A grazing footprint outside the index padding is unresolved.
               // Partial MSAA coverage must not stretch a hidden stroke over it.
               if (any(greaterThan(padding, vec2(${VECTOR_PADDING_DEG}.0)))) continue;
               vec2 q = reference.z == 0.0 ? vec2(reference.w + mod(ll.x - reference.w + 180.0, 360.0) - 180.0, ll.y) : (reference.z > 0.0 ? northCoarse : southCoarse);
               vec2 low = min(min(ab.xy, ab.zw), ck.xy) - padding - 1e-4, high = max(max(ab.xy, ab.zw), ck.xy) + padding + 1e-4;
-              if (any(lessThan(q, low)) || any(greaterThan(q, high))) continue;
+              if (!covered && (any(lessThan(q, low)) || any(greaterThan(q, high)))) continue;
               if (abs(vectorCross(jx, jy)) < 1e-18) continue;
               // Index coordinates minus this fragment's, exactly: anchor-relative,
               // so the tiny differences near the camera are not rounded away.
@@ -255,10 +263,10 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
               float alpha = 0.0;
               // Coverage of the mark itself; the rest of alpha is the halo around it.
               float core = 1.0;
-              if (reference.y == 2.0) {
+              if (kind == 2.0) {
                 vec2 rc = vectorRelative(ck.xy - shift, base, delta);
                 vec3 signs = vec3(vectorCross(rb - ra, -ra), vectorCross(rc - rb, -rb), vectorCross(ra - rc, -rc));
-                if (all(greaterThanEqual(signs, vec3(0.0))) || all(lessThanEqual(signs, vec3(0.0)))) {
+                if (covered || all(greaterThanEqual(signs, vec3(0.0))) || all(lessThanEqual(signs, vec3(0.0)))) {
                   alpha = 1.0;
                   // Diagonal screen-space stripes, 8 CSS px apart.
                   if (hatch) alpha = mod((gl_FragCoord.x + gl_FragCoord.y) / vectorPixelRatio, 8.0) < 2.0 ? 4.0 : 0.35;
@@ -288,7 +296,7 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
                 if (dashed && mod(t * length(v) / vectorPixelRatio, 10.0) > 6.0) alpha = 0.0;
                 core = halo ? core / max(alpha, 1e-6) : 1.0;
               }
-              float rank = 2.0 - reference.y;
+              float rank = 2.0 - kind;
               // Union round segments at joints: an earlier segment's faint
               // AA fringe must not mask the next segment's opaque coverage.
               if (alpha > 0.0 && (rank > bestRank || (rank == bestRank && alpha > bestCoverage))) {

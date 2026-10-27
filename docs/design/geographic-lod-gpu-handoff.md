@@ -204,6 +204,28 @@ pixels 120 m above the Gale floor: 86 before, 29 with the silhouette guard, 12
 with both (the rest are distant stretches of the outline breaking up). Offline
 smoke images are unchanged but for one limb pixel; GPU cost is unchanged.
 
+## 5. Broad fills seen close: covered cells
+
+Countries seen close (Rhine, ~110 km up) cost ~14 ms at 4K. Instrumenting
+the shader showed every pixel scanning ~114 candidates (64 fill triangles, 50
+strokes) from the 1.4° global level, of which ~3.6 survived the box test: the
+cost was the scan. Global data now also has a 0.35° level, over the latitudes
+clear of polar charts (Antarctica's triangles would otherwise fill every
+longitude); at both global levels fill triangles stay only in cells their
+polygon's outline crosses, a cell wholly inside a polygon holds one covered
+reference (no triangle test), and segments are binned exactly rather than by
+box. Countries fit in 836k references and one page per level (the 256 level
+was two pages).
+
+`docs/validation/geographic-gpu/m4max-covered-cells`, two interleaved runs:
+Rhine close 13.4–13.8 → 4.0–6.6 ms of vector cost; Earth orbit, Jezero and
+dense Jezero unchanged. Fills are pixel-identical; borders change by at most
+28 levels, because a border stroke now replaces the fill under it (one page,
+as single-page data always drew) instead of blending over a separate fill
+page. Building the index takes ~120 ms more for countries.
+
+Raster-composited fills are not needed for these cases.
+
 ## Checks run here
 
 Unit tests for renderer, footprint and fade (45); the viewer catalog list;
