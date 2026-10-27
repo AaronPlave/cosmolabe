@@ -219,6 +219,13 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
             if (float(page) >= grid.z) break;
             float slot = grid.y + float(page) * grid.x * grid.w + gridCell.y * grid.x + gridCell.x;
             vec4 range = detailed ? vectorTexel(vectorDetailCells, vectorDetailCellSize, slot) : vectorTexel(vectorCells, vectorCellSize, slot);
+            // This page's fills, composited premultiplied: references are in
+            // source order, and an earlier feature draws over a later one, so
+            // each is added under those before it. One triangle per feature
+            // (a feature's are adjacent), so shared edges do not blend twice.
+            vec4 fills = vec4(0.0);
+            float lastFill = -1.0;
+            // The strongest stroke or point, drawn over the fills.
             vec4 result = vec4(0.0);
             float bestRank = -1.0;
             float bestCoverage = 0.0;
@@ -297,20 +304,28 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
                 core = halo ? core / max(alpha, 1e-6) : 1.0;
               }
               float rank = 2.0 - kind;
+              bool fill = kind == 2.0;
+              if (alpha <= 0.0 || (fill && identity.x == lastFill)) continue;
               // Union round segments at joints: an earlier segment's faint
               // AA fringe must not mask the next segment's opaque coverage.
-              if (alpha > 0.0 && (rank > bestRank || (rank == bestRank && alpha > bestCoverage))) {
-                vec4 style = vectorTexel(vectorRecords, vectorRecordSize, id + 2.0);
-                vec3 color = identity.x == vectorSelected ? vec3(1.0, 0.78, 0.28) : (identity.x == vectorHovered ? vec3(1.0) : style.rgb);
-                // A halo is a dark rim that keeps light marks readable on light terrain.
-                color = mix(vec3(0.03, 0.05, 0.08), color, clamp(core, 0.0, 1.0));
-                result = vec4(color, clamp(alpha * style.a, 0.0, 1.0));
+              if (!fill && !(rank > bestRank || (rank == bestRank && alpha > bestCoverage))) continue;
+              vec4 style = vectorTexel(vectorRecords, vectorRecordSize, id + 2.0);
+              vec3 color = identity.x == vectorSelected ? vec3(1.0, 0.78, 0.28) : (identity.x == vectorHovered ? vec3(1.0) : style.rgb);
+              // A halo is a dark rim that keeps light marks readable on light terrain.
+              color = mix(vec3(0.03, 0.05, 0.08), color, clamp(core, 0.0, 1.0));
+              float a = clamp(alpha * style.a, 0.0, 1.0);
+              if (fill) {
+                fills += (1.0 - fills.a) * vec4(color * a, a);
+                lastFill = identity.x;
+              } else {
+                result = vec4(color, a);
                 bestRank = rank;
                 bestCoverage = alpha;
               }
             }
-            if (result.a == 0.0) continue;
-            total = vec4(result.rgb * result.a, result.a) + (1.0 - result.a) * total;
+            vec4 drawn = vec4(result.rgb * result.a, result.a) + (1.0 - result.a) * fills;
+            if (drawn.a == 0.0) continue;
+            total = drawn + (1.0 - drawn.a) * total;
           }
           if (total.a == 0.0 || vectorFadedOut()) discard;
           gl_FragColor = vec4(total.rgb / total.a, total.a);

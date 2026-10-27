@@ -37,9 +37,13 @@ try {
   await page.goto(`${base}?test=1&catalog=test-catalogs/geographic-vectors-mars-streamed`);
   await page.waitForFunction(() => window.renderer?.geographicVectors.featureCount > 0);
   // A fill-only style, so every covered pixel is fill: no outlines or lines.
+  // Aeolis Mons and the Peace Vallis fan lie on the crater floor, and
+  // overlapping fills rightly blend twice, so only regions that do not
+  // overlap are drawn: any double blend is then an LOD one.
   await page.evaluate(({ opacity, fadeMs }) => {
     const r = window.renderer;
-    r.geographicVectors.setStyle('gale-regions', { version: 1, polygon: { fillColor: '#56b4e9', fillOpacity: opacity, outlineOpacity: 0 }, line: { opacity: 0 } });
+    r.geographicVectors.setStyle('gale-regions', { version: 1, polygon: { fillColor: '#56b4e9', fillOpacity: opacity, outlineOpacity: 0 }, line: { opacity: 0 },
+      features: { 'string:region-2': { opacity: 0 }, 'string:region-3': { opacity: 0 } } });
     // Software rendering takes far longer per frame than the 300 ms cross-fade, so the
     // fade is stretched to be observed; the mechanism (both LODs drawn, dithered) is unchanged.
     const fade = r.bodyMeshes.get('Mars')?.terrainManager?.tiles.getPluginByName('FADE_TILES_PLUGIN');

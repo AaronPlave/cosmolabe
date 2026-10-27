@@ -5,6 +5,8 @@ and multipoints use 7 CSS pixel circular marks; linework and every polygon ring
 use 2 CSS pixel strokes. Polygon fills are translucent and preserve holes.
 Selection uses a gold mark/stroke and hover uses white. Emphasis does not grow
 polygon fill silhouettes. Round segments use their strongest coverage at joins.
+Overlapping translucent fills blend, an earlier source feature over a later one,
+each once; the strongest stroke or point draws over them.
 Shared source borders belong to both polygons: hovered and selected strokes draw
 in sparse passes after ordinary borders, so source/page order cannot hide a
 neighbor's highlight. These passes retain the existing draw budget.
@@ -179,8 +181,9 @@ screen-width strokes around cell boundaries; extremely distant/subpixel globe
 and grazing views can clip a mark at the index padding boundary. Dense cells use overflow pages rather than rejecting valid features. Each draw
 still scans at most 256 candidates. Sparse batches keep a single pass; overflow
 batches draw fills, then strokes, then points, with earlier source pages last.
-Translucent overlaps across pages composite with normal alpha blending (rather
-than the single winner within a page). CPU picking searches all admitted
+Translucent overlaps composite with normal alpha blending, within a page as
+across pages: fills in source order, then the page's strongest stroke or point
+over them. CPU picking searches all admitted
 candidates and retains point/stroke/fill and nearest/source tie precedence.
 Rendering admits at most **16 pages per body/datum/placement group**, independently
 of the 100,000-primitive and 1,000,000-reference storage caps. A group requiring

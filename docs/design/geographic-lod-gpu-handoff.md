@@ -234,9 +234,35 @@ was two pages).
 `docs/validation/geographic-gpu/m4max-covered-cells`, two interleaved runs:
 Rhine close 13.4–13.8 → 4.0–6.6 ms of vector cost; Earth orbit, Jezero and
 dense Jezero unchanged. Fills are pixel-identical; borders change by at most
-28 levels, because a border stroke now replaces the fill under it (one page,
-as single-page data always drew) instead of blending over a separate fill
-page. Building the index takes ~120 ms more for countries.
+28 levels. Building the index takes ~120 ms more for countries.
+
+### Compositing within a page
+
+The review's visual acceptance pass (overlapping translucent regions) found
+that a page drew only one mark per pixel: the highest-ranked, and among fills
+the first in the cell. Overlapping fills in one page did not blend (only one
+showed); a stroke replaced the fill under it rather than drawing over it, so a
+transparent or translucent outline crossing another region left a gap in that
+region's fill; and with covered cells, whose references were appended after
+the triangles, which fill won changed from cell to cell, a seam along the
+cell grid. Earlier, separate pages hid this for multi-page layers only.
+
+A page now composites its fills in source order (earlier features over later
+ones, each feature once, so triangles sharing an edge do not blend twice),
+then its strongest stroke or point over them. Covered references are sorted
+into source order with the triangles. `scripts/test-geographic-overlap.mjs`
+covers two overlapping squares at 0.5 opacity, with and without a selection;
+it fails on the previous shader (the overlap showed one square). Gale's
+regions overlap (Aeolis Mons and the Peace Vallis fan lie on the crater
+floor), so the streamed LOD check now draws only the regions that do not, and
+any double blend it finds is an LOD one.
+
+Cost, two interleaved runs each (`m4max-page-compositing`, GPU median ms):
+Rhine close 2.38–4.54 before, 2.42–2.43 after; Earth orbit 6.79–6.98, 6.41–6.73;
+dense Jezero 3.05, 3.09; the Gale scenes vary with streaming by more than the
+difference (Gale close 6.24–8.53 before, 7.04–9.68 after; very close 6.2–7.5,
+6.38–6.78). No measurable change. Captures in `docs/validation/geographic-overlap`
+(`overlap-before.png` is the previous shader).
 
 Raster-composited fills are not needed for these cases.
 

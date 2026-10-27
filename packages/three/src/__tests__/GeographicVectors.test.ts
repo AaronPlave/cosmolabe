@@ -190,6 +190,19 @@ describe('geographic surface index', () => {
     }
   });
 
+  it('keeps every cell\'s references in source order, covered ones included, for the shader\'s fill compositing', () => {
+    const square = (c: number, r: number): GeoPosition[] => [[c - r, -r], [c + r, -r], [c + r, r], [c - r, r], [c - r, -r]];
+    const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [square(10, 2)] }, { type: 'Polygon', coordinates: [square(11, 2)] }])], true);
+    const packed = index.pack(), cells = packed.detail!.cells;
+    let covered = 0;
+    for (let c = 0; c < cells.length; c += 4) {
+      const ids = Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4]);
+      covered += Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4 + 1]).filter(kind => kind === 3).length;
+      expect(ids).toEqual([...ids].sort((a, b) => a - b));
+    }
+    expect(covered).toBeGreaterThan(0);
+  });
+
   it('retains a seam-aware global grid when localized geometry crosses the longitude seam', () => {
     const ring: GeoPosition[] = Array.from({ length: 160 }, (_, i) => {
       const angle = i / 160 * Math.PI * 2;

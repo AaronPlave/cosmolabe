@@ -401,6 +401,8 @@ export class GeographicIndex {
         for (const cell of cells) add(cell, id);
       }
       for (const [cell, id] of covered.full) add(cell, -id - 1);
+      // In source order, as everywhere else: the shader composites fills in it.
+      if (covered.full.length) for (const ids of bins) ids.sort((x, y) => (x < 0 ? -x - 1 : x) - (y < 0 ? -y - 1 : y));
       if (references + added > VECTOR_REFERENCE_LIMIT) { if (fine) continue; return result; }
       const grids = pageCells(bins, this.primitives);
       if (grids.length > this.renderPages) { if (fine) continue; return result; }
