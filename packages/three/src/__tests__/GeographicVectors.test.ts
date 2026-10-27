@@ -618,3 +618,43 @@ describe('geographic styles', () => {
     vectors.dispose(); universe.dispose();
   });
 });
+
+describe('geographic vectors over cross-fading terrain tiles', () => {
+  /** Draw over one terrain tile, running each proxy's onBeforeRender as three would; the fade uniforms each draw used. */
+  function drawOver(material: THREE.Material) {
+    const h = harness(layer([{ type: 'Point', coordinates: [0, 0] }]));
+    const tiles = new THREE.Group();
+    tiles.add(new THREE.Mesh(h.mesh.geometry, material));
+    tiles.updateMatrixWorld(true);
+    h.mesh.visible = false;
+    Object.assign(h.body, { terrainTileGroup: tiles });
+    const used: [number, number][] = [];
+    h.renderer.render = (scene) => {
+      for (const child of scene.children) if (child.visible && child instanceof THREE.Mesh) {
+        child.onBeforeRender(h.renderer, scene as THREE.Scene, h.camera, child.geometry, child.material, new THREE.Group());
+        used.push([child.material.uniforms.vectorFadeIn.value, child.material.uniforms.vectorFadeOut.value]);
+      }
+    };
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    return { used, diagnostics: h.vectors.diagnostics };
+  }
+
+  it('draws over a fading tile with that tile\'s own fade, and over a settled one with none', async () => {
+    // @ts-expect-error -- the library's own fade wrapper, which ships no type declarations
+    const { wrapFadeMaterial } = await import('3d-tiles-renderer/src/three/plugins/fade/wrapFadeMaterial.js');
+    const fading = new THREE.MeshBasicMaterial();
+    const params = wrapFadeMaterial(fading, fading.onBeforeCompile);
+    params.fadeIn.value = 1; params.fadeOut.value = 0.4;
+    fading.defines!.FEATURE_FADE = 1;
+    expect(drawOver(fading).used).toEqual([[1, 0.4]]);
+    expect(drawOver(new THREE.MeshBasicMaterial()).used).toEqual([[1, 0]]);
+  });
+
+  it('reports a fading tile whose fade cannot be read instead of silently drawing over it twice', () => {
+    const unknown = new THREE.MeshBasicMaterial();
+    unknown.defines = { FEATURE_FADE: 1 };
+    const { used, diagnostics } = drawOver(unknown);
+    expect(used).toEqual([[1, 0]]);
+    expect(diagnostics).toMatchObject([{ code: 'tile-fade-unreadable' }]);
+  });
+});

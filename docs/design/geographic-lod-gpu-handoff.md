@@ -1,10 +1,11 @@
 # Geographic vectors: LOD correctness and broad-area GPU cost (handoff)
 
-Status of the work the #278 review asked for (comment 6371187907), on the
-integration branch `claude/geographic-integration`: the #278 stack
-(#273 → #277 → #278) merged with `claude/geographic-vector-gpu`. The
-correctness part is done here, under SwiftShader. The performance part needs
-real GPU timings, so it continues on hardware.
+Status of the work the #278 review asked for (comment 6371187907). It was done
+on the integration branch `claude/geographic-integration` (the #278 stack
+merged with `claude/geographic-vector-gpu`) and is now merged into #278
+itself, so the final PR head carries every fix below, the hardware evidence and
+the benchmark harness. The correctness part was done under SwiftShader; the
+performance part was measured on an M4 Max.
 
 ## 1. Filled shapes patchy during terrain LOD changes: root cause and fix
 
@@ -44,7 +45,20 @@ filled once. A settled tile (1, 0) never discards. No depth offset was added.
 - `scripts/test-geographic-vectors.mjs` (offline): a parent fading out under
   four relief-bearing children fading in, dithered by the library's own
   `wrapFadeMaterial`, under one translucent fill. Fails without the fix.
-- `tile-fade.test.ts`: reading the fade from the real `wrapFadeMaterial`.
+- `tile-fade.test.ts`: reading the fade from the real `wrapFadeMaterial`, and
+  from the bundled `TilesFadePlugin`'s own fade path on the tested library
+  version.
+
+**Fade contract.** The plugin offers no public way to read a tile's fade, so
+`TileFade.ts` reads where it keeps it (a module-private `FADE_PARAMS` symbol and
+`defines.FEATURE_FADE`). It names the version it was tested with
+(`TILE_FADE_TESTED_VERSION`, the exact `3d-tiles-renderer` pin), and
+`tile-fade.test.ts` checks the installed version and drives the bundled
+plugin's material manager through a fade, so an upgrade that changes the
+contract fails there. At run time a tile that is fading but whose fade cannot be
+read is not treated as settled: the vector layer reports a
+`tile-fade-unreadable` diagnostic (the scene readout and *About this layer*
+show it) and warns once in the console.
 
 **Hardware check (M4 Max, Chrome/Metal, 300 ms fade):** `CL_GPU=hardware
 CL_FADE_MS=300` passes, worst step 0.01% doubled

@@ -6,7 +6,9 @@ import type { SurfacePoint } from '../SceneHit.js';
 import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, VECTOR_HALO_PX, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
 import { footprintScreenRect, layerFootprint, meshHeightRange, type GeographicFootprint } from './GeographicFootprint.js';
-import { tileFade } from './TileFade.js';
+import { tileFade, TILE_FADE_TESTED_VERSION } from './TileFade.js';
+
+let warnedFade = false;
 
 export type GeographicPlacement =
   | { mode: 'clamp' }
@@ -433,6 +435,16 @@ export class GeographicVectorLayer {
     return [rect(footprint), ...batch.highlights.map(h => rect(h.footprint))];
   }
 
+  /**
+   * A tile is cross-fading but its fade cannot be read (3d-tiles-renderer
+   * changed the contract TileFade reads): fills over it may blend twice while
+   * it fades. Said once in the console and as a diagnostic, never ignored.
+   */
+  private fadeUnreadable(batch: Batch): void {
+    this.diagnose(batch, 'tile-fade-unreadable', `A terrain tile is cross-fading but its fade cannot be read (3d-tiles-renderer differs from the tested ${TILE_FADE_TESTED_VERSION}); fills may blend twice during level-of-detail changes.`);
+    if (!warnedFade) { warnedFade = true; console.warn('[Cosmolabe] geographic vectors: unreadable terrain tile fade; see TileFade.ts'); }
+  }
+
   private diagnose(batch: Batch, code: string, message: string): void {
     const layerId = batch.layers[0].id;
     if (!this._diagnostics.some(d => d.layerId === layerId && d.code === code)) this._diagnostics.push({ layerId, code, message });
@@ -492,8 +504,9 @@ export class GeographicVectorLayer {
         }
         // Mid LOD cross-fade: keep only the pixels this tile draws.
         const fade = tileFade(source.material);
-        material.uniforms.vectorFadeIn.value = fade?.fadeIn ?? 1;
-        material.uniforms.vectorFadeOut.value = fade?.fadeOut ?? 0;
+        if (fade === 'unreadable') this.fadeUnreadable(batch);
+        material.uniforms.vectorFadeIn.value = fade && fade !== 'unreadable' ? fade.fadeIn : 1;
+        material.uniforms.vectorFadeOut.value = fade && fade !== 'unreadable' ? fade.fadeOut : 0;
         material.uniformsNeedUpdate = true;
       };
       batch.proxies.set(source, proxy); this.proxyCount++;

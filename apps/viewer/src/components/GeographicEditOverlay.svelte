@@ -66,7 +66,9 @@
       return h[i] === null ? g : { ...g, heightKm: h[i]! };
     }), datum, { occlusion }) ?? [];
     const canvas = r.renderer.domElement;
-    return projected.map((p) => ({ x: p.x, y: p.y, visible: p.facing && p.inFront && p.x > -50 && p.y > -50 && p.x < canvas.clientWidth + 50 && p.y < canvas.clientHeight + 50 }));
+    // Placed on the drawn surface but none is drawn there (tiles culled outside the view): no visible ground to put it on.
+    const undrawn = (i: number) => !at && h[i] === null;
+    return projected.map((p, i) => ({ x: p.x, y: p.y, visible: !undrawn(i) && p.facing && p.inFront && p.x > -50 && p.y > -50 && p.x < canvas.clientWidth + 50 && p.y < canvas.clientHeight + 50 }));
   }
 
   /** An edge as the renderer draws it: linear in unwrapped longitude and latitude, heights interpolated. */

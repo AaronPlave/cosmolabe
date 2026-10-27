@@ -61,7 +61,9 @@ with the reason, if it would be refused; releasing then changes nothing.
 Handles sit on the drawn surface (globe facets or terrain tiles) and are
 larger on touch screens. A handle hides only where that drawn surface is in the
 way (a line of sight against it) or behind the camera, not by a horizon guess,
-so the vertices of a shape on a slope stay editable from the floor below it;
+so the vertices of a shape on a slope stay editable from the floor below it,
+and where nothing is drawn under a vertex (its tiles culled outside the view) it
+has no handle rather than one floating on the datum;
 close inside a large area, whose anchor is out of view, the move cross sits at
 the surface in the middle of the view (`scripts/test-geographic-close-handles.mjs`). They are bounded so a large imported
 or copied feature stays usable: vertices closer than 12 px on screen share one
