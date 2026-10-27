@@ -95,14 +95,7 @@ highlights it without opening anything over the scene. One callout names it;
 the callout's ✈ flies there and its name opens the Feature view. Clicking a
 search result or a row opens the feature; arrow keys skim a layer's list,
 highlighting each feature in the scene, and Enter opens one.
-Selecting never moves the camera.
-
-A named Point is a place (#191), and Places owns it in the scene: clicking one
-selects the place and shows it in Navigate, with no Surface layers callout;
-double-click flies there; Escape ends the place and its highlight. There is
-one selection at a time: selecting a place clears a Surface layers selection,
-and opening the same point from a layer's list selects it here and clears the
-place. Fly to flies over the feature's extent through
+Selecting never moves the camera. Fly to flies over the feature's extent through
 the shared navigation (docs/navigation.md); bodies that are not globes disable
 it, with the reason. Back, or Escape, clears the selection and returns to the
 feature's layer, at the feature; Back again returns to the list.

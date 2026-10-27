@@ -1,5 +1,5 @@
 import { geodeticToBodyFixed, type Place, type PlaceIndex } from '@cosmolabe/core';
-import { formatLatitude, formatLongitude, sameGeographicFeature, type GeographicFeatureRef } from '@cosmolabe/three';
+import { formatLatitude, formatLongitude } from '@cosmolabe/three';
 import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget } from './viewer-state.svelte';
 import { navigationView, navigationRange } from './navigation-view.svelte';
 import { openTool } from './shell.svelte';
@@ -41,27 +41,10 @@ export function setPlaceSourceEnabled(layerIds: readonly string[], enabled: bool
 
 export function selectPlace(place: Place | null): void {
   if (place && !isPlaceAvailable(place)) return;
-  const previous = vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : undefined;
   vs.selectedPlaceRef = place?.ref ?? null;
   const renderer = getRenderer();
-  if (renderer) {
-    renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
-    // A place is the scene's one selected feature, highlighted while it stays
-    // selected; Surface layers leaves place features to Places.
-    const vectors = renderer.geographicVectors;
-    if (place) vectors?.setSelected(placeFeature(place));
-    else if (previous && sameGeographicFeature(vectors?.selectedFeature ?? null, placeFeature(previous))) vectors?.setSelected(null);
-  }
+  if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
   if (place) { vs.navigateMode = 'places'; openTool('navigate'); }
-}
-
-export function placeFeature(place: Place): GeographicFeatureRef {
-  return { layerId: place.layer.id, featureId: place.feature.id, bodyName: place.layer.body };
-}
-
-/** The place a geographic feature names, if Places indexes it. */
-export function placeForFeature(ref: GeographicFeatureRef | null): Place | undefined {
-  return ref ? vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId) : undefined;
 }
 
 export function showPlaceBody(body: string, visible: boolean): void {

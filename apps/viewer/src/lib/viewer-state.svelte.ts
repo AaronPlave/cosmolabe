@@ -22,7 +22,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
-import { navigateToPlace, placeForFeature, selectPlace } from './places';
+import { navigateToPlace, selectPlace } from './places';
 
 // ── Exported types ──
 
@@ -487,8 +487,9 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   syncPlaces();
   _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
   _unsubscribers.push(renderer.events.on('geographic:click', ref => {
-    const place = placeForFeature(ref);
-    if (place) selectPlace(place);
+    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
+    if (!place) return;
+    selectPlace(place);
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
     const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
@@ -1347,7 +1348,8 @@ function clearSurfaceTargetPresentation(): void {
 export function dismissGeographicContext(): boolean {
   if (vs.surfaceTarget) return releaseSurfaceTarget();
   if (!vs.selectedPlaceRef) return false;
-  selectPlace(null);
+  vs.selectedPlaceRef = null;
+  if (_renderer) _renderer.placeNames.selectedRef = null;
   return true;
 }
 

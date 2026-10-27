@@ -95,34 +95,18 @@ try {
   // Scenario 2: select a shape in 3D, fly to it from its callout, open it.
   scenario = 'select3dFlyInspect';
   await page.getByRole('button', { name: 'Close Surface layers' }).click();
-  // A named Point is a place (#191) and belongs to Places (below); a click
-  // inside the region polygon, clear of its lines and hole, is a Surface
-  // layers feature. Positions are read once the camera has landed.
-  const screenAt = async (pick) => {
-    await page.waitForFunction(() => !window.renderer.cameraController.flight);
-    return page.evaluate((pick) => {
-      const layer = window.renderer.universe.geographicLayers.get('jezero-science');
-      const feature = layer.features.find(f => f.geometry.type === pick);
-      // The region's outer ring runs SW, SE, NE: 80% east and 20% north of SW.
-      const [sw, se, ne] = feature.geometry.coordinates[0] ?? [];
-      const at = pick === 'Point' ? feature.geometry.coordinates
-        : { lonDeg: sw.lonDeg + 0.8 * (se.lonDeg - sw.lonDeg), latDeg: sw.latDeg + 0.2 * (ne.latDeg - se.latDeg) };
-      const [p] = window.renderer.projectGeographicPositions('Mars', [at], layer.datum);
-      return { id: feature.id, ...p };
-    }, pick);
-  };
-  // Set-up (not counted): back off from the framing scenario 1 left, which is
-  // this region's own, so its Fly to has somewhere to go.
-  await page.mouse.move(640, 400);
-  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 400); await page.waitForTimeout(150); }
-  await page.waitForTimeout(500);
-  const target = await screenAt('Polygon');
+  const target = await page.evaluate(() => {
+    const layer = window.renderer.universe.geographicLayers.get('jezero-science');
+    const feature = layer.features.find(f => f.geometry.type === 'Point');
+    const [p] = window.renderer.projectGeographicPositions('Mars', [feature.geometry.coordinates], layer.datum);
+    return { id: feature.id, ...p };
+  });
   assert.ok(target.facing && target.inFront, 'target is on the visible side after flying there');
   await act(() => page.mouse.click(target.x, target.y));
   await page.waitForTimeout(300);
   state = await scene();
   results.sceneClick = { target, selected: state.selected };
-  assert.match(state.selected?.featureId ?? '', /^string:regions?$/, '3D click selects the drawn feature');
+  assert.equal(state.selected?.featureId, target.id, '3D click selects the drawn feature');
   assert.equal(await page.locator('[aria-label="Mars surface layers"], [aria-label="Selected feature"]').count(), 0, 'a scene click opens nothing');
   const cameraBefore = await page.evaluate(() => window.renderer.camera.position.toArray());
   await act(() => page.getByRole('button', { name: /^Fly to / }).click());
@@ -132,36 +116,6 @@ try {
   await act(() => page.locator('.callout .label').click());
   await details.waitFor();
   assert.match(await details.innerText(), /science/i);
-
-  // A named point is one selection, owned by Places: a click opens its place
-  // in Navigate, with no Surface layers callout, and Escape ends it with its
-  // highlight. Browsing it in Surface layers takes it from Places.
-  await page.getByRole('button', { name: 'Close Surface layers' }).click();
-  const named = await screenAt('Point');
-  assert.ok(named.facing && named.inFront, 'the named point is on the visible side');
-  await page.mouse.click(named.x, named.y);
-  await page.getByRole('button', { name: 'Clear selected place' }).waitFor();
-  state = await scene();
-  // Navigate shows a selected place with its Clear button.
-  const owners = () => page.evaluate(() => ({
-    place: !!document.querySelector('[aria-label="Clear selected place"]'), callouts: document.querySelectorAll('.callout').length }));
-  results.namedPointClick = { ...(await owners()), selected: state.selected };
-  assert.equal(state.selected?.featureId, named.id, 'the place is highlighted');
-  assert.ok(results.namedPointClick.place, 'Places selects the named point');
-  assert.equal(results.namedPointClick.callouts, 0, 'no Surface layers callout beside the place');
-  assert.equal(await page.locator('[aria-label="Selected feature"]').count(), 0, 'one inspector');
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
-  assert.equal((await owners()).place, false, 'Escape ends the place');
-  assert.equal((await scene()).selected, null, 'with its highlight');
-  await page.mouse.click(named.x, named.y);
-  await page.getByRole('button', { name: 'Clear selected place' }).waitFor();
-  await page.getByRole('button', { name: 'Surface layers' }).click();
-  await page.getByRole('option', { name: /Jezero science target/ }).click();
-  await details.waitFor();
-  assert.equal((await owners()).place, false, 'browsing it in Surface layers ends the place selection');
-  assert.equal((await scene()).selected?.featureId, named.id);
-  await page.getByRole('button', { name: 'Close Navigate' }).click();
 
   // Back lands on the layer; hiding it takes its features out of the scene.
   await page.getByRole('button', { name: 'Jezero synthetic science', exact: true }).click();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PlaceIndex, Universe, parseGeographicGeoJson, type GeographicCoordinates, type GeographicLayer } from '@cosmolabe/core';
+import { Universe, parseGeographicGeoJson, type GeographicCoordinates, type GeographicLayer } from '@cosmolabe/core';
 import { GeographicVectorLayer, UniverseRenderer, type GeographicFeatureRef } from '@cosmolabe/three';
 import * as THREE from 'three';
 
@@ -21,16 +21,12 @@ vi.mock('../viewer-state.svelte', async (importOriginal) => ({
 }));
 vi.mock('../loader', () => ({ getUniverse: () => universe }));
 
-// Places first, so its viewer-state import is this mock rather than the original
-// the mock loads (the two modules import each other).
-const { selectPlace, placeForFeature } = await import('../places');
 const {
   geo, selectFeature, setLayerVisible, layerVisible, isolateLayer, isIsolated, showAllLayers, listedFeatures,
   browseLayer, syncSceneFilter, setInViewOnly, goToFeature, navigationUnavailable, clearGeographicSelection, findFeature, showSelectedDetails,
   surfacePanelView, openLayer, openImagery, showLayerList, backToLayer, stepFeature, featureSteps, searchAllFeatures,
 } = await import('../geographic-layers.svelte');
 const { shell, closeAllTools } = await import('../shell.svelte');
-const { vs } = await import('../viewer-state.svelte');
 
 const mars: GeographicCoordinates = {
   latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '0..360',
@@ -57,7 +53,6 @@ function fakeRenderer(scene: Universe) {
   const projected: number[] = [];
   return {
     geographicVectors, spin, camera, projected, scaleFactor: 1, renderer: view.renderer,
-    placeNames: { selectedRef: null as string | null },
     getBodyMesh: (name: string) => bodyMeshes.get(name) as never,
     projectGeographicPositions: (...args: Parameters<UniverseRenderer['projectGeographicPositions']>) => {
       projected.push(args[1].length);
@@ -143,57 +138,6 @@ describe('geographic selection shared by scene and list', () => {
     expect(geo.selected).toBeNull();
     expect(geo.query).toBe('');
     expect(geo.activeLayerId).toBeNull();
-  });
-});
-
-describe('named points belong to Places (#191)', () => {
-  // `regions` stands in for a Gazetteer: Places indexes its named point.
-  beforeEach(() => { vs.places = new PlaceIndex(universe!.geographicLayers.layers.filter(l => l.id === 'regions')); });
-  afterEach(() => { vs.selectedPlaceRef = null; vs.places = null; });
-  const named = ref('regions', 'string:c');
-  /** What a viewport click does: the renderer selects, then the Places listener runs. */
-  const click = (target: GeographicFeatureRef) => {
-    renderer!.geographicVectors.setSelected(target);
-    renderer!.emit('geographic:click', target);
-    const place = placeForFeature(target);
-    if (place) selectPlace(place);
-  };
-
-  it('a scene click selects a named point in Places only, with one highlight', () => {
-    click(named);
-    expect(vs.selectedPlaceRef).toBe(placeForFeature(named)!.ref);
-    expect(shell.openTools).toContain('navigate');
-    expect(geo.selected).toBeNull();
-    expect(shell.openTools).not.toContain('layers');
-    expect(renderer!.geographicVectors.selectedFeature).toEqual(named);
-  });
-
-  it('other features stay with Surface layers and end the place selection', () => {
-    click(named);
-    click(ref('science', 'string:a'));
-    expect(geo.selected).toEqual(ref('science', 'string:a'));
-    selectPlace(null);
-    // Ending the place leaves a highlight that is not its own.
-    expect(renderer!.geographicVectors.selectedFeature).toEqual(ref('science', 'string:a'));
-  });
-
-  it('selecting a place elsewhere replaces the Surface layers selection', () => {
-    selectFeature(ref('science', 'string:a'));
-    selectPlace(placeForFeature(named)!);
-    expect(geo.selected).toBeNull();
-    expect(renderer!.geographicVectors.selectedFeature).toEqual(named);
-    selectPlace(null);
-    expect(renderer!.geographicVectors.selectedFeature).toBeNull();
-  });
-
-  it('browsing a named point in Surface layers takes it from Places', () => {
-    click(named);
-    selectFeature(named);
-    expect(vs.selectedPlaceRef).toBeNull();
-    expect(geo.selected).toEqual(named);
-    expect(renderer!.geographicVectors.selectedFeature).toEqual(named);
-    expect(clearGeographicSelection()).toBe(true);
-    expect(renderer!.geographicVectors.selectedFeature).toBeNull();
   });
 });
 
