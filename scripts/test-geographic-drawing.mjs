@@ -31,6 +31,17 @@ try {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error' || /Shader Error|VALIDATE_STATUS/.test(m.text())) errors.push(m.text()); });
+  // Tiles from third-party hosts (trek.nasa.gov and others) that fail, in an
+  // outage, or are aborted, when this run leaves a page while they stream, are
+  // reported rather than failed, with the loader's console errors for them.
+  const service = new Map();
+  const external = (url) => /^https?:/.test(url) && !url.startsWith(base);
+  page.on('requestfailed', r => { if (external(r.url())) service.set(r.url(), r.failure()?.errorText); });
+  page.on('response', r => { if (r.status() >= 400 && external(r.url())) service.set(r.url(), r.status()); });
+  const productErrors = () => errors.filter(e => {
+    const url = /Failed to load tile at url "([^"]+)"/.exec(e)?.[1];
+    return url ? !service.has(url) : !(service.size && e.startsWith('TypeError: Failed to fetch'));
+  });
 
   const load = async () => {
     await page.goto(`${base}?catalog=test-catalogs/geographic-vectors`);
@@ -447,8 +458,9 @@ try {
   await page.keyboard.press('Escape');
 
   results.errors = errors;
+  results.serviceErrors = Object.fromEntries(service);
   await writeFile(`${output}/drawing.json`, JSON.stringify(results, null, 2) + '\n');
-  assert.deepEqual(errors, []);
+  assert.deepEqual(productErrors(), []);
   console.log(JSON.stringify(results, null, 2));
 } catch (error) {
   await page?.screenshot({ path: `${output}/failure.png` }).catch(() => {});
