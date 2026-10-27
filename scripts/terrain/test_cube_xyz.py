@@ -13,6 +13,23 @@ from cube_xyz import sample, source_pixel, validate, in_bounds, read_tile
 
 
 class CubeXYZTests(unittest.TestCase):
+    def test_locked_bundle_cannot_fetch_or_reuse_changed_bytes(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'response.png'
+            ds = gdal.GetDriverByName('MEM').Create('', 2, 2, 4, gdal.GDT_Byte)
+            for i, value in enumerate([37, 81, 122, 255]):
+                ds.GetRasterBand(i + 1).Fill(value)
+            gdal.GetDriverByName('PNG').CreateCopy(str(path), ds)
+            config = {'dimension': 2, 'lockedTiles': {'0/0/0': {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}}}
+            with patch('cube_xyz.urllib.request.urlopen', side_effect=AssertionError('network forbidden')):
+                self.assertEqual(read_tile(config, folder, 0, 0, 0)[0, 0, 0], 37)
+                with self.assertRaisesRegex(ValueError, 'missing required tile'):
+                    read_tile(config, folder, 0, 1, 0)
+                path.write_bytes(b'changed')
+                with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                    read_tile(config, folder, 0, 0, 0)
+
     def test_corrupt_source_uses_recorded_parent_fallback_only_when_enabled(self):
         with tempfile.TemporaryDirectory() as folder:
             path = str(Path(folder) / 'parent.png')

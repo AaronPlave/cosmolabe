@@ -70,6 +70,7 @@ export class GeographicVectorLayer {
   private dirty = true;
   private readonly unsubscribe: () => void;
   private readonly placements = new Map<string, GeographicPlacement>();
+  private readonly excludedSources = new Set<string>();
   private readonly visibility = new Map<string, boolean>();
   private readonly filters = new Map<string, ReadonlySet<string>>();
   private selected: GeographicFeatureRef | null = null;
@@ -91,6 +92,12 @@ export class GeographicVectorLayer {
   get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number } {
     return { drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
+  }
+  /** Source inclusion is independent of its retained drawing visibility. */
+  setSourceEnabled(layerId: string, enabled: boolean): void {
+    if (this.excludedSources.has(layerId) === !enabled) return;
+    if (enabled) this.excludedSources.delete(layerId); else this.excludedSources.add(layerId);
+    this.dirty = true;
   }
   setVisible(layerId: string, visible: boolean): void {
     if (this.visibility.get(layerId) === visible) return;
@@ -158,6 +165,7 @@ export class GeographicVectorLayer {
     // unloaded) is cleared here rather than left pointing at nothing.
     const shown = new Set<string>();
     for (const layer of this.universe.geographicLayers.layers) {
+      if (this.excludedSources.has(layer.id)) continue;
       if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
       const subsets = new Map<string, { layer: GeographicLayer; placement: GeographicPlacement }>();
       const filter = this.filters.get(layer.id);

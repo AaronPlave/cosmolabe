@@ -1,0 +1,31 @@
+{
+  "checks": [
+    "Fit feature follows new selections, unknown diameter falls back to Auto, Coordinates uses Auto or explicit Custom with equivalent camera pose",
+    "multiple active filters and sort stay within narrow panels, label remains on one line, full summary available in tooltip",
+    "focused inspector, discoverable framing, pinned actions, single scroll owner, retained browse filters and scroll",
+    "browse and inspector scrollbar tracks remain inside ancestor clipping bounds in floating and compact panels",
+    "390x844 inspector and browse remain within sheet, actions visible with expanded details",
+    "source status agrees with search for all-hidden, all-excluded, mixed, re-enabled and body-hidden states",
+    "UI source inclusion affects Cmd-K and Places, hiding labels stays searchable, target/selection reconcile without moving camera, multiple same-body sources independent",
+    "actual geographic catalog unlink/relink rebuilds both search surfaces and reconciles active state"
+  ],
+  "layouts": [
+    {
+      "h": 340,
+      "actionBottom": 361,
+      "panelBottom": 370,
+      "bodyScroll": 0,
+      "outerScroll": 0,
+      "inspectorOverflow": true
+    },
+    {
+      "h": 720,
+      "actionBottom": 741,
+      "panelBottom": 750,
+      "bodyScroll": 0,
+      "outerScroll": 0,
+      "inspectorOverflow": true
+    }
+  ],
+  "errors": []
+}

@@ -161,6 +161,33 @@ describe('CubeImageryLayer', () => {
     layer.dispose();
   });
 
+  it('rejects HTML 404 image responses before decoding and retains the resident base', async () => {
+    const decode = vi.fn(async () => ({ width: 1, height: 1, close() {} }));
+    vi.stubGlobal('createImageBitmap', decode);
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => String(url).includes('//optional/')
+      ? new Response('<html>Not found</html>', { status: 404, headers: { 'Content-Type': 'text/html' } })
+      : new Response(new Uint8Array([1]), { headers: { 'Content-Type': 'image/png' } })));
+    const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));
+    const layer = new CubeImageryLayer({ url: layers[0].url, layers, residentLevel: 0, retryFailedMs: 60_000 }, {
+      fetchManifest: async () => ({ ...manifest(0), maxLevel: 0, tiles: faces.map(face => cubeTileId({ face, level: 0, x: 0, y: 0 })) }),
+    });
+    try {
+      await layer.ready;
+      const tileSet = new THREE.Group(), address = directionToTexel(southPole, 3, 256, 4).address;
+      const { scene } = geometryTile(address); tileSet.add(scene); layer.addTile(scene, scene, address);
+      const tick = async () => { layer.update(camera(3000), tileSet.matrixWorld, 0.001, null); await new Promise(r => setTimeout(r, 0)); };
+      for (let i = 0; i < 10; i++) await tick();
+      expect(layer.stats.failedTiles).toBe(6);
+      expect(layer.stats.baseUncoveredBlocks).toBe(0);
+      expect(layer.stats.untexturedBlocks).toBe(0);
+      expect(layer.stats.textures).toBe(6);
+      expect(decode).toHaveBeenCalledTimes(6); // Only valid base responses reach the decoder.
+      const requests = layer.stats.requests;
+      for (let i = 0; i < 5; i++) await tick();
+      expect(layer.stats.requests).toBe(requests);
+    } finally { layer.dispose(); vi.unstubAllGlobals(); }
+  });
+
   it('requires a resident base ancestor even when a transparent optional root is resident', async () => {
     let baseOffline = true;
     const layers = ['base', 'optional'].map(id => ({ type: 'cube' as const, id, url: `http://${id}/imagery.json` }));

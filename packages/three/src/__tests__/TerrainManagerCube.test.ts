@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TerrainManager } from '../TerrainManager.js';
 import type { CubeGridManifest } from '../surface/CubeSphereGrids.js';
+import { surfaceTintHeightAtHit } from '../SurfaceAppearance.js';
 
 /**
  * The experimental cube-sphere wiring (#149): with `cubeSphere.cpuGrids`, CPU
@@ -167,16 +168,115 @@ describe('known cube-sphere surface appearance capability', () => {
     return tiles;
   }
   function serveKnown(change: (m: CubeGridManifest) => void = () => {}) {
+    const requested: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      requested.push(url);
       const m = manifest();
       m.grid.encoding = 'float32 little-endian, metres above the reference sphere';
       change(m);
-      return url.endsWith('.json') ? new Response(JSON.stringify(m)) : new Response(new Float32Array(W * W).fill(100).buffer);
+      return url.endsWith('.json') ? new Response(JSON.stringify(m)) : new Response(new Float32Array(W * W).fill(m.geometry ? -20390 : 100).buffer);
     }));
+    return requested;
   }
 
-  it('waits for matching metadata, then styles both delayed and already loaded glTF meshes without changing physical buffers', async () => {
-    serveKnown();
+  const radii: [number, number, number] = [3396.19, 3396.19, 3376.2];
+  function marsManifest(m: CubeGridManifest) {
+    m.datum = { referenceShape: { kind: 'ellipsoid', radiiKm: radii }, verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
+    m.geometry = { kind: 'radial-lattice', referenceRadiusKm: radii[0] };
+    m.grid.encoding = 'float32 little-endian, radial offset metres from equatorial reference radius';
+    m.heightRangeKm = [-21, -19];
+    m.maxLevel = 0; m.tiles = m.tiles.filter(t => t[1] === 0);
+    Object.assign(m.source, { generator: { script: 'scripts/terrain/dem.py cube-tile', sha256: 'a'.repeat(64) } });
+  }
+  function mars() {
+    return new TerrainManager({ type: '3dtiles', url: BASE + 'tileset.json',
+      datum: { verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' },
+      cubeSphere: { cpuGrids: BASE + 'cpu-grids.json', residentLevel: 0 } }, radii, NO_RENDERER);
+  }
+  function polarMesh() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([-10, -10, 0, 10, -10, 0, 0, 10, 0], 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    g.setIndex([0, 1, 2]); g.userData.surfaceTriangles = 1;
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial());
+    mesh.position.z = (radii[2] - 0.4) * 1000;
+    return mesh;
+  }
+
+  it('validates oblate Mars radial offsets while tint, contours and picks use normal heights; styles preserve physical data and requests', async () => {
+    const requests = serveKnown(marsManifest), tm = mars();
+    expect(tm.surfaceAppearanceStatus.state).toBe('loading');
+    const tiles = root(tm), scene = new THREE.Group(), mesh = polarMesh();
+    scene.add(mesh); tiles.group.add(scene);
+    tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).toBe('ready'));
+    await vi.waitFor(() => expect(tm.cubeStats?.residentTiles).toBe(6));
+    const g = mesh.geometry, before = ['position', 'normal'].map(n => g.getAttribute(n).array.slice());
+    const indices = g.index!.array.slice(), cpu = tm.sample(90, 0), count = requests.length;
+    expect(cpu?.elevationKm).toBeCloseTo(-0.4, 5);
+    const style = (tm as unknown as { surfaceStyle: { update(n: number): void } }).surfaceStyle;
+    for (let pass = 0; pass < 2; pass++) {
+      tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true, contours: true });
+      style.update(Infinity);
+      for (let i = 0; i < 3; i++) expect(g.getAttribute('surfaceHeightKm').getX(i)).toBeCloseTo(-0.4, 5);
+      expect(g.hasAttribute('surfaceReliefNormal')).toBe(true);
+      expect(g.getAttribute('surfaceGround').array).toEqual(new Float32Array([1, 1, 1]));
+      mesh.updateWorldMatrix(true, false);
+      expect(surfaceTintHeightAtHit({ object: mesh, point: mesh.localToWorld(new THREE.Vector3(0, 0, 0)), distance: 1,
+        face: { a: 0, b: 1, c: 2, normal: new THREE.Vector3(0, 0, 1), materialIndex: 0 } })).toBeCloseTo(-0.4, 5);
+      tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'imagery', hillshade: false, contours: false });
+      expect(g.hasAttribute('surfaceHeightKm')).toBe(false);
+      expect(g.hasAttribute('surfaceReliefNormal')).toBe(false);
+    }
+    expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
+    expect(g.index!.array).toEqual(indices);
+    expect(tm.sample(90, 0)).toEqual(cpu);
+    expect(requests).toHaveLength(count);
+    tm.dispose();
+  });
+
+  it.each([
+    ['encoding', (m: CubeGridManifest) => { m.grid.encoding = 'float32 little-endian, metres above the reference sphere'; }, {}, 'unsupported-reference'],
+    ['normal datum', (m: CubeGridManifest) => { m.datum.heightConvention = 'radial'; }, {}, 'validation-failed'],
+    ['lattice radius', (m: CubeGridManifest) => { m.geometry!.referenceRadiusKm = radii[2]; }, {}, 'unsupported-reference'],
+    ['missing lattice', (m: CubeGridManifest) => { delete m.geometry; }, {}, 'validation-failed'],
+    ['builder provenance', (m: CubeGridManifest) => { Object.assign(m.source, { generator: { script: 'unknown' } }); }, {}, 'validation-failed'],
+    ['builder identity', (_m: CubeGridManifest) => {}, { generator: 'unknown' }, 'unsupported-product'],
+    ['revision', (_m: CubeGridManifest) => {}, { tilesetVersion: 'other' }, 'validation-failed'],
+    ['missing revision', (_m: CubeGridManifest) => {}, { tilesetVersion: undefined }, 'validation-failed'],
+    ['range', (m: CubeGridManifest) => { m.heightRangeKm = [NaN, 1]; }, {}, 'validation-failed'],
+  ])('rejects malformed Mars %s with an explicit capability state', async (_name, change, asset, state) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    serveKnown(m => { marsManifest(m); change(m); });
+    const tm = mars(); root(tm, asset);
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).toBe(state));
+    expect(tm.surfaceAppearanceDatum).toBeNull();
+    tm.dispose();
+  });
+
+  it.each(['height', 'units', 'topology', 'index', 'normal'])('rejects Mars mesh %s without styling or changing its physical buffers', async invalid => {
+    serveKnown(marsManifest); const tm = mars(), tiles = root(tm);
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).toBe('ready'));
+    const scene = new THREE.Group(), mesh = polarMesh(), g = mesh.geometry;
+    if (invalid === 'height') mesh.position.z += 100000;
+    if (invalid === 'units') mesh.scale.setScalar(0.001);
+    if (invalid === 'topology') g.userData = {};
+    if (invalid === 'index') g.setIndex([0, 1, 999]);
+    if (invalid === 'normal') g.deleteAttribute('normal');
+    const before = g.getAttribute('position').array.slice();
+    scene.add(mesh); tiles.group.add(scene); tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    expect(tm.surfaceAppearanceStatus.state).toBe('validation-failed');
+    expect(g.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(g.getAttribute('position').array).toEqual(before);
+    tm.dispose();
+  });
+
+  const sphericalEncodings = [
+    'float32 little-endian, metres above the reference sphere',
+    'float32 little-endian, radial offset metres from equatorial reference radius',
+  ];
+  it.each(sphericalEncodings)('styles delayed and already loaded spherical meshes with %s without changing physical buffers', async encoding => {
+    serveKnown(m => { m.grid.encoding = encoding; });
     const tm = make();
     expect(tm.surfaceAppearance).toBeNull();
     const tiles = (tm as unknown as { tiles: Tiles }).tiles;
@@ -198,6 +298,7 @@ describe('known cube-sphere surface appearance capability', () => {
     expect(tm.surfaceAppearance).toBeNull();
     const cpuSample = tm.sample(0, 0);
     root(tm);
+    expect(tm.surfaceAppearanceStatus.state).toBe('ready');
     expect(tm.surfaceAppearanceDatum).toEqual(manifest().datum);
     expect(['position', 'normal'].map(n => g.getAttribute(n).array)).toEqual(before);
     tm.setSurfaceAppearance({ ...tm.surfaceAppearance!, baseColor: 'elevation', hillshade: true });
@@ -228,16 +329,38 @@ describe('known cube-sphere surface appearance capability', () => {
     tm.dispose();
   });
 
+  it.each(sphericalEncodings)('still validates spherical mesh radial extent with %s', async encoding => {
+    serveKnown(m => { m.grid.encoding = encoding; });
+    const tm = make(), tiles = root(tm);
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).toBe('ready'));
+    const scene = new THREE.Group(), mesh = polarMesh();
+    mesh.position.z = (R + 1) * 1000; // Outside the declared 0.1–0.2 km range.
+    const positions = mesh.geometry.getAttribute('position').array.slice();
+    scene.add(mesh); tiles.group.add(scene);
+    tiles.dispatchEvent({ type: 'load-model', scene, tile: {} });
+    expect(tm.surfaceAppearanceStatus.state).toBe('validation-failed');
+    expect(tm.surfaceAppearanceDatum).toBeNull();
+    expect(mesh.geometry.hasAttribute('surfaceHeightKm')).toBe(false);
+    expect(mesh.geometry.getAttribute('position').array).toEqual(positions);
+    tm.dispose();
+  });
+
   it.each([
     ['generic generator', { generator: 'unknown' }, (_m: CubeGridManifest) => {}],
     ['missing revision', { tilesetVersion: undefined }, (_m: CubeGridManifest) => {}],
     ['wrong revision', { tilesetVersion: 'other' }, (_m: CubeGridManifest) => {}],
     ['unknown encoding', {}, (m: CubeGridManifest) => { m.grid.encoding = 'unknown'; }],
+    ['legacy spherical reference radius', {}, (m: CubeGridManifest) => { m.geometry = { kind: 'radial-lattice', referenceRadiusKm: R + 1 }; }],
+    ['current spherical reference radius', {}, (m: CubeGridManifest) => {
+      m.grid.encoding = 'float32 little-endian, radial offset metres from equatorial reference radius';
+      m.geometry = { kind: 'radial-lattice', referenceRadiusKm: R + 1 };
+    }],
     ['unsupported datum', {}, (m: CubeGridManifest) => { m.datum.verticalDatum = 'unknown'; }],
   ])('excludes %s', async (_name, asset, change) => {
     serveKnown(change); vi.spyOn(console, 'warn').mockImplementation(() => {});
     const tm = make(); root(tm, asset);
-    await new Promise(r => setTimeout(r, 30));
+    await vi.waitFor(() => expect(tm.surfaceAppearanceStatus.state).not.toBe('loading'));
+    if (_name === 'unknown encoding') expect(tm.surfaceAppearanceStatus.state).toBe('unsupported-reference');
     expect(tm.surfaceAppearance).toBeNull(); tm.dispose();
   });
 });

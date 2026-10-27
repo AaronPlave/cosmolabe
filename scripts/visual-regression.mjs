@@ -10,10 +10,9 @@
  * numeric layers can't see — ring-plane tilt, triaxial-ellipsoid (oblateness)
  * scaling, texture/material orientation.
  *
- * NOT run in CI (`.github/workflows/ci.yml`), deliberately: it needs a browser,
- * a full package + viewer build, and the scenes' LFS-backed SPICE kernels. So
- * this gate has exactly the authority of whoever last ran it by hand. If that
- * changes, delete this paragraph.
+ * Nightly CI runs a curated VR_SCENES subset with committed goldens, a
+ * full package + viewer build, and sparse LFS-backed SPICE test kernels.
+ * Broader scenes can still be run manually; CI never rewrites goldens.
  *
  * Usage:
  *   npx playwright install chromium              # once, fetches the browser
@@ -29,6 +28,7 @@
  * Env:
  *   CL_VIEWER_URL             use an already-running server instead of building + spawning `vite preview`
  *   VR_SKIP_BUILD=1           trust the existing build (fast iteration only — see above)
+ *   VR_SCENES                comma-separated catalog names to select a curated subset
  *   UPDATE_VISUAL_GOLDENS=1   rewrite goldens that already exist
  *   CREATE_VISUAL_GOLDENS=1   write goldens that do not exist yet (separate flag on purpose:
  *                             a renamed scene or viewpoint must not self-baseline)
@@ -121,9 +121,16 @@ const SCENES = [
   // Here that shows up as the cyan arc vanishing.
   { catalog: 'oem-ingest', viewpoints: [] },
 ];
-const selectedScenes = process.env.VR_SCENES
-  ? SCENES.filter((scene) => process.env.VR_SCENES.split(',').includes(scene.catalog))
+const requestedScenes = process.env.VR_SCENES?.split(',').map((name) => name.trim());
+const selectedScenes = requestedScenes
+  ? SCENES.filter((scene) => requestedScenes.includes(scene.catalog))
   : SCENES;
+const unknownScenes = requestedScenes?.filter((name) => !SCENES.some((scene) => scene.catalog === name)) ?? [];
+if (unknownScenes.length || selectedScenes.length === 0) {
+  console.error(`[visual-regression] Invalid VR_SCENES: ${unknownScenes.join(', ') || '(empty selection)'}.`);
+  console.error(`[visual-regression] Available scenes: ${SCENES.map((scene) => scene.catalog).join(', ')}`);
+  process.exit(2);
+}
 
 async function loadPlaywright() {
   try {
@@ -354,7 +361,7 @@ async function main() {
         await Promise.race([
           page
             .goto(sceneUrl, { waitUntil: 'load' })
-            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, { timeout: 120000 })),
+            .then(() => page.waitForFunction(() => window.__cosmolabe?.ready === true, null, { timeout: 120000 })),
           fatalHttp,
         ]);
       } catch (err) {
@@ -393,7 +400,7 @@ async function main() {
       // to outlast.
       let assetSummary = null;
       try {
-        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, {
+        await page.waitForFunction(() => window.__cosmolabe?.assetsReady === true, null, {
           timeout: ASSET_TIMEOUT_MS,
         });
         assetSummary = await page.evaluate(() => window.__cosmolabe.assetSummary);
@@ -407,14 +414,24 @@ async function main() {
         );
         continue;
       }
+      // A nightly golden is not valid if the scene rendered without all its
+      // initial models/textures. Preserve the old warning for local exploration,
+      // but fail closed when GitHub Actions uses the harness as a correctness gate.
+      const strictAssets = process.env.CI === 'true';
+      if (strictAssets && !assetSummary) {
+        failures.push(`${scene.catalog}: missing initial asset summary in CI`);
+        continue;
+      }
       if (assetSummary && (assetSummary.failed > 0 || assetSummary.timedOut)) {
-        // Not fatal — a scene missing a texture still captures — but it changes
-        // pixels, so say so rather than let it self-baseline as the new normal.
-        warnings.push(
+        const message =
           `${scene.catalog}: ${assetSummary.failed} initial asset(s) failed` +
-            (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
-            `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`,
-        );
+          (assetSummary.timedOut ? ` and ${assetSummary.stillPending.length} timed out` : '') +
+          `: ${assetSummary.failures.slice(0, 5).map((f) => `${f.owner}/${f.role}`).join(', ')}`;
+        if (strictAssets) {
+          failures.push(message);
+          continue;
+        }
+        warnings.push(message);
       }
       await page.waitForTimeout(STREAM_SETTLE_MS);
 

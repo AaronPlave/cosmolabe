@@ -55,7 +55,7 @@ import numpy as np
 
 sys.dont_write_bytecode = True  # importing dem.py must not litter scripts/terrain with __pycache__
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dem import CUBE_BASES, CUBE_FACES, parse_cube_region  # noqa: E402
+from dem import CUBE_BASES, CUBE_FACES, parse_cube_region, file_sha256  # noqa: E402
 from osgeo import gdal, osr  # noqa: E402
 
 gdal.UseExceptions()
@@ -245,7 +245,7 @@ def raster_open(path):
         geog = srs.CloneGeogCS()
         a, inv_f = geog.GetSemiMajor(), geog.GetInvFlattening()
         if inv_f != 0 or abs(a - R_KM * 1000) > 1e-6:
-            raise SystemExit(f'{path}: CRS is not the 1737.4 km sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
+            raise SystemExit(f'{path}: CRS does not match the declared metric sphere (a={a}, 1/f={inv_f}); planetocentric ≠ geocentric handling needed')
         geog.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         tr = osr.CoordinateTransformation(geog, srs)
@@ -255,7 +255,7 @@ def raster_open(path):
         # A global cylindrical raster wraps in longitude: windows then cross the antimeridian instead of spanning the globe.
         x0, x1 = (tr.TransformPoint(lon, 0.0)[0] for lon in (-180.0, 180.0))
         period = x1 - x0 if abs(abs(x1 - x0) - ds.RasterXSize * gt[1]) < 2 * gt[1] else None
-        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period)
+        _SRC[path] = dict(ds=ds, gt=gt, tr=tr, levels=levels, nodata=band.GetNoDataValue(), period=period, premultiplied=ds.GetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY') == '1')
     return _SRC[path]
 
 
@@ -288,14 +288,14 @@ def raster_tile(path, face, L, x, y, T, g, ss):
         xc = src['tr'].TransformPoint(float(cl[0]), 0.0)[0]
         px = xc + np.mod(px - xc + src['period'] / 2, src['period']) - src['period'] / 2
     u0, v0, size = tile_rect(L, x, y)
-    sample_m = size / T / ss * R_KM * 1000 * 0.4  # conservative: corner texels are ~2.6× smaller than the centre
+    sample_m = size / T / (1 if src['premultiplied'] else ss) * R_KM * 1000 * 0.4  # conservative: corner texels are ~2.6× smaller than the centre
     fine = 0
     for k, (r, _) in enumerate(src['levels']):
         if r <= max(sample_m, src['levels'][0][0]):
             fine = k
     for res, band in src['levels'][fine:]:  # coarser while the window is too large (equirectangular near a pole)
         cols = (px - gt[0]) / res - 0.5
-        rows = (gt[3] - py) / res - 0.5
+        rows = (gt[3] - py) / (abs(gt[5]) * src['ds'].RasterYSize / band.YSize) - 0.5
         lo_c, hi_c = (-1, band.XSize) if not src['period'] else (-band.XSize, 2 * band.XSize)
         ok = np.isfinite(cols) & np.isfinite(rows) & (cols > lo_c) & (rows > -1) & (cols < hi_c) & (rows < band.YSize)
         if not ok.any():
@@ -307,22 +307,37 @@ def raster_tile(path, face, L, x, y, T, g, ss):
         if (c1 - c0 + 1) * (r1 - r0 + 1) <= WINDOW_CAP:
             break
     h = r1 - r0 + 1
-    if c0 >= 0 and c1 < band.XSize:
-        win = read_window(band, c0, r0, c1 - c0 + 1, h)
-    else:  # wrapped: columns modulo the width, read in contiguous runs
-        idx = np.mod(np.arange(c0, c1 + 1), band.XSize)
+    def window(b):
+        if c0 >= 0 and c1 < b.XSize:
+            return read_window(b, c0, r0, c1 - c0 + 1, h)
+        idx = np.mod(np.arange(c0, c1 + 1), b.XSize)
         runs = np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1)
-        win = np.concatenate([read_window(band, int(p[0]), r0, len(p), h) for p in runs], axis=1)
-    win = win.astype(np.float32)
-    valid = (win != src['nodata']).astype(np.float32) if src['nodata'] is not None else np.ones_like(win)
+        return np.concatenate([read_window(b, int(p[0]), r0, len(p), h) for p in runs], axis=1)
+    win = window(band).astype(np.float64)
+    if src['premultiplied']:
+        alpha_band = src['ds'].GetRasterBand(2)
+        if band.XSize != src['ds'].RasterXSize or band.YSize != src['ds'].RasterYSize:
+            # SWIG band wrappers have unstable object identity; select by dimensions.
+            alpha_band = next(alpha_band.GetOverview(i) for i in range(alpha_band.GetOverviewCount())
+                              if alpha_band.GetOverview(i).XSize == band.XSize and alpha_band.GetOverview(i).YSize == band.YSize)
+        valid = window(alpha_band).astype(np.float64)
+        numerator = win
+    else:
+        valid = np.isfinite(win) & (window(band.GetMaskBand()) > 0)
+        nodata = band.GetNoDataValue()
+        if nodata is not None:
+            valid &= win != nodata
+        valid = valid.astype(np.float64)
+        numerator = np.where(valid > 0, win, 0)
     cc = np.clip(cols - c0, 0, win.shape[1] - 1.000001)
     rr = np.clip(rows - r0, 0, win.shape[0] - 1.000001)
     ci, ri = np.floor(cc).astype(int), np.floor(rr).astype(int)
     ci1, ri1 = np.minimum(ci + 1, win.shape[1] - 1), np.minimum(ri + 1, win.shape[0] - 1)
     fc, fr = cc - ci, rr - ri
     wts = [((1 - fc) * (1 - fr), ri, ci), (fc * (1 - fr), ri, ci1), ((1 - fc) * fr, ri1, ci), (fc * fr, ri1, ci1)]
-    num = sum(w * win[a, b] * valid[a, b] for w, a, b in wts)
+    num = sum(w * numerator[a, b] for w, a, b in wts)
     den = sum(w * valid[a, b] for w, a, b in wts)
+    num = np.where(ok, num, 0)
     den = np.where(ok, den, 0)
     num, den = num.reshape(shape), den.reshape(shape)
     alpha = den.mean(axis=-1)
@@ -375,6 +390,8 @@ _JOB = {}
 
 
 def _init_job(job):
+    global R_KM
+    R_KM = job['radius_km']
     _JOB.update(job)
 
 
@@ -398,7 +415,7 @@ def tile_job(key):
         img = nac_tile(J['source'], face, L, x, y, T, g, ss)
     path = os.path.join(J['out'], 'tiles', face, str(L), str(x), f"{y}.{J['ext']}")
     write_image(path, img)
-    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz') else 255)
+    return key, os.path.getsize(path), hashlib.sha256(open(path, 'rb').read()).hexdigest(), (int(img[..., -1].max()) if J['kind'] in ('nac', 'xyz', 'raster') else 255)
 
 
 def marker_table(tiles, T, g):
@@ -437,7 +454,7 @@ def run(args, kind, tiles, source_meta, registration, colour_space, extra=None):
     t0 = time.time()
     os.makedirs(args.out, exist_ok=True)
     ext = 'jpg' if kind == 'composite' else 'png'  # opaque grey: JPEG is a third of the bytes
-    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext,
+    _JOB.update(kind=kind, tile_size=args.tile_size, gutter=args.gutter, ss=args.supersample, out=args.out, ext=ext, radius_km=R_KM,
                 source=getattr(args, 'source', None), base=getattr(args, 'base', None), detail=getattr(args, 'detail', None))
     print(f'{len(tiles):,} tiles, levels {tiles[0][1]}–{max(k[1] for k in tiles)}, on {args.workers} workers', flush=True)
     sizes, hashes, empty = {}, {}, set()
@@ -513,6 +530,27 @@ def cmd_fixture(args):
                   open(os.path.join(args.out, 'markers.json'), 'w'), indent=1)
 
 
+def cmd_raster(args):
+    """Independent native grayscale raster via the existing window sampler."""
+    global R_KM
+    R_KM = args.radius_km
+    assert math.isfinite(R_KM) and R_KM > 0
+    src = raster_open(args.source)
+    ds = src['ds']
+    assert src['premultiplied'] or (ds.RasterCount == 1 and ds.GetRasterBand(1).DataType == gdal.GDT_Byte), 'raster imagery requires native byte grayscale or a prepared validity pyramid'
+    gt = src['gt']
+    assert gt[1] > 0 and gt[2] == gt[4] == 0 and gt[5] == -gt[1], 'raster imagery requires square north-up pixels'
+    assert not ds.GetSpatialRef().IsGeographic(), 'raster imagery requires an explicit metre-based map projection'
+    regions = [parse_cube_region(r) for r in args.region or []]
+    tiles = select_tiles(args.global_level, regions)
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
+                    'registrationErrorKm': None, 'latitude': 'planetocentric',
+                    'resampling': f'area-average premultiplied DN/validity overviews; bilinear reconstruction, {args.supersample}x{args.supersample} cube-footprint quadrature' if src['premultiplied'] else f'native raster bilinear mask-aware alpha; {args.supersample}x{args.supersample} box samples per output pixel',
+                    'footprint': 'finite built pyramid; source raster masks preserved; native-valid subset is separately verified by the caller'}
+    run(args, 'raster', tiles, {'id': os.path.basename(args.source), 'kind': 'imagery'}, registration, 'srgb',
+        extra={'sourceSha256': file_sha256(args.source)})
+
+
 def cmd_xyz(args):
     """Preprocess each service independently; no mandatory baked source composite."""
     from cube_xyz import validate
@@ -531,7 +569,12 @@ def cmd_xyz(args):
                     'registrationErrorKm': None, 'latitude': 'planetocentric',
                     'resampling': f'XYZ EPSG:4326 bilinear premultiplied alpha; {args.supersample}x box samples per output pixel',
                     'footprint': f'finite built pyramid; source bounds {source.get("bounds", "global")}; source levels {source.get("minZoom", 0)}-{source.get("levels", 8)-1}; native detail only in declared built regions'}
-    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': {k: v for k, v in source.items() if k != 'cache'},
+    identity_config = {k: v for k, v in source.items() if k != 'cache'}
+    if 'lockedTiles' in identity_config:
+        # Local response bindings are not source identities. Content pins survive
+        # relocation to a different worker/cache directory.
+        identity_config['lockedTiles'] = {key: {'sha256': entry['sha256']} for key, entry in source['lockedTiles'].items()}
+    run(args, 'xyz', tiles, meta, registration, 'srgb', extra={'sourceConfig': identity_config,
          'adapterSha256': hashlib.sha256(open(os.path.join(os.path.dirname(__file__), 'cube_xyz.py'), 'rb').read()).hexdigest()})
 
 
@@ -620,7 +663,7 @@ def cmd_selftest(args):
     def make(path, fill):
         ds = gdal.GetDriverByName('GTiff').Create(path, W, H, 1, gdal.GDT_Byte, options=['TILED=YES'])
         ds.SetProjection(srs.ExportToWkt())
-        ds.SetGeoTransform((-half, 2 * half / W, 0, half / 2, 0, -half / W))
+        ds.SetGeoTransform((-half, 2 * half / W, 0, half / 2, 0, -2 * half / W))
         b = ds.GetRasterBand(1)
         b.SetNoDataValue(0)
         lon = (np.arange(W) + 0.5) / W * 360 - 180
@@ -668,7 +711,7 @@ def cmd_selftest(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
-    for name in ('fixture', 'nac', 'composite', 'xyz'):
+    for name in ('fixture', 'nac', 'composite', 'xyz', 'raster'):
         s = sub.add_parser(name)
         s.add_argument('--out', required=True)
         s.add_argument('--global-level', type=int, default=3 if name == 'fixture' else 0)
@@ -686,6 +729,9 @@ def main():
     sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
     sub.choices['xyz'].add_argument('--body', required=True)
     sub.choices['xyz'].add_argument('--frame', required=True)
+    for field in ['source', 'body', 'frame']:
+        sub.choices['raster'].add_argument('--' + field, required=True)
+    sub.choices['raster'].add_argument('--radius-km', type=float, required=True)
     sub.choices['composite'].add_argument('--base', required=True, help='global raster (LROC WAC), drawn everywhere')
     sub.choices['composite'].add_argument('--detail', required=True, help='regional raster (LROC NAC South Pole) drawn over it where it has data')
     c = sub.add_parser('coregister')
@@ -698,7 +744,7 @@ def main():
     c.add_argument('--out')
     sub.add_parser('selftest')
     args = p.parse_args()
-    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
+    {'fixture': cmd_fixture, 'xyz': cmd_xyz, 'raster': cmd_raster, 'nac': cmd_nac, 'composite': cmd_composite, 'coregister': cmd_coregister, 'selftest': cmd_selftest}[args.cmd](args)
 
 
 if __name__ == '__main__':

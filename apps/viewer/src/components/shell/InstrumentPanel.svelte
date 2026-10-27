@@ -43,6 +43,8 @@
     title: string;
     /** Desktop width in px while docked. Ignored when floating or compact. */
     width?: number;
+    /** Initial docked height in viewport units; floating rectangles retain user sizing. */
+    initialHeightVh?: number;
     onClose?: () => void;
     /** Rendered to the right of the title — small readouts or per-panel controls. */
     actions?: Snippet;
@@ -53,7 +55,7 @@
     children: Snippet;
   }
 
-  let { key, title, width = 320, onClose, actions, expandable = false, fill = false, children }: Props = $props();
+  let { key, title, width = 320, initialHeightVh, onClose, actions, expandable = false, fill = false, children }: Props = $props();
 
   let root = $state<HTMLElement | null>(null);
 
@@ -165,7 +167,7 @@
       const h = minimized ? '' : ` height: ${rect.h}px;`;
       return `position: fixed; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.w}px;${h} z-index: ${key != null ? panelZIndex(key) : 16}`;
     }
-    return `width: ${width}px`;
+    return `width: ${width}px${initialHeightVh != null && !minimized ? `; height: ${initialHeightVh}dvh` : ''}`;
   });
 </script>
 

@@ -70,6 +70,8 @@ import type { RendererEventMap } from './events/RendererEventMap.js';
 import { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
 import { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
+import { PlaceNames } from './geographic/PlaceNames.js';
+import type { PlaceAnchor } from './geographic/PlaceSurface.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -312,6 +314,7 @@ export class UniverseRenderer {
   private readonly spatialScene = new THREE.Scene();
   /** Batched geographic rendering, placement, selection and accuracy status. */
   readonly geographicVectors: GeographicVectorLayer;
+  readonly placeNames: PlaceNames;
   private hoveredGeographicFeature: GeographicFeatureRef | null = null;
   private lastGeographicHoverMs = -Infinity;
   private readonly geographicStatus: HTMLDivElement;
@@ -546,6 +549,7 @@ export class UniverseRenderer {
     );
     this.spatialRelationships.attach(this.spatialScene);
     this.geographicVectors = new GeographicVectorLayer(universe, this.scaleFactor, (feature) => this.events.emit('geographic:select', feature));
+    this.placeNames = new PlaceNames(universe, this.labelContainer);
     this.geographicStatus = document.createElement('div');
     this.geographicStatus.className = 'cl-geographic-status';
     this.geographicStatus.style.cssText = 'position:absolute;width:max-content;max-width:min(330px,calc(100% - 32px));padding:5px 8px;color:#d5e1e8;background:#111b24cc;border-radius:4px;font:11px sans-serif;pointer-events:none;display:none';
@@ -630,6 +634,7 @@ export class UniverseRenderer {
     // Consumer selection handlers should be idempotent.
     this._dblClickRaycaster = new THREE.Raycaster();
     canvas.addEventListener('click', this._onClick);
+    this._onDblClick = this._onDblClick.bind(this);
     canvas.addEventListener('dblclick', this._onDblClick);
 
     // Touch: a browser synthesizes a click for a tap, but only when it decides
@@ -1165,6 +1170,18 @@ export class UniverseRenderer {
       ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
       ...(this._screenOccluders?.() ?? []),
     ];
+    this.placeNames.update(this.camera, this.bodyMeshes, this.scaleFactor,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
+      contourLabelObstacles, world => {
+        const direction = world.clone().sub(this.camera.position);
+        const distance = direction.length();
+        this._surfaceRaycaster.set(this.camera.position, direction.divideScalar(distance));
+        this._surfaceRaycaster.far = distance;
+        const hit = this._castSurfaces();
+        this._surfaceRaycaster.far = Infinity;
+        return !!hit && hit.distance < distance - 0.01 * this.scaleFactor;
+      }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
+    contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
       if (bm.hasTerrain || bm.hasSurfaceTiles) {
         bm.updateMatrixWorld(true);
@@ -2663,6 +2680,28 @@ export class UniverseRenderer {
     return { world, bodyCenter, normal };
   }
 
+  /** Presentation anchor on the currently drawn surface, like probe pin
+   * re-seating. This is a ray hit, not a conversion of an unknown areoid datum.
+   * Keep explicit source heights intact; PlaceNames only calls for heightless points. */
+  private _renderedPlaceAnchor(body: BodyMesh, anchor: PlaceAnchor): PlaceAnchor | null {
+    if (!body.hasTerrain) return null;
+    const local = anchor.offsetKm.clone();
+    const up = local.clone().normalize().applyQuaternion(body.mesh.quaternion);
+    const world = local.multiplyScalar(this.scaleFactor).applyQuaternion(body.mesh.quaternion).add(body.position);
+    const span = (body.displayRadius * .01 + 30) * this.scaleFactor;
+    const raycaster = this._surfaceRaycaster;
+    raycaster.set(world.clone().addScaledVector(up, span), up.negate());
+    raycaster.far = span * 2;
+    try {
+      const hit = this._castSurfaces();
+      if (!hit || hit.bm !== body) return null;
+      return {
+        offsetKm: hit.worldPoint.clone().sub(body.position).applyQuaternion(body.mesh.quaternion.clone().invert()).divideScalar(this.scaleFactor),
+        source: 'rendered-surface',
+      };
+    } finally { raycaster.far = Infinity; }
+  }
+
   /**
    * Re-seat the pin on the surface as it is rendered now. A pin placed from
    * far off sits on the coarse terrain loaded then; as finer tiles (or an
@@ -2760,6 +2799,8 @@ export class UniverseRenderer {
         return hit ? { kind: 'surface', point: hit.point, cameraRangeKm: hit.cameraRangeKm } : null;
       },
       'geographic-feature': () => {
+        const label = this.placeNames.pick(screenX, screenY);
+        if (label) return { kind: 'geographic-feature', ...label };
         if (!this.geographicVectors.featureCount) return null;
         const surface = this._discoverSurface(ndcX, ndcY, !options.renderedOnly);
         const feature = this.geographicVectors.pick(screenX, screenY, rect.width, rect.height, this.camera, this.bodyMeshes, surface);
@@ -3573,6 +3614,7 @@ export class UniverseRenderer {
     this.setOccultationGeometry(null);
     this.starField?.dispose();
     this.labelManager?.dispose();
+    this.placeNames.dispose();
     this.instrumentView?.dispose();
     this.labelContainer.remove();
     this._dprMediaQuery?.removeEventListener('change', this._onDprChange);
@@ -4752,10 +4794,10 @@ export class UniverseRenderer {
   };
 
   /**
-   * Double-click handler: picks the body and emits 'body:dblclick'.
+   * Double-click uses scene selection precedence before the body fallback.
    * The consumer (viewer app) decides what to do — flyTo, show info, etc.
    */
-  private _onDblClick = (event: MouseEvent): void => {
+  private _onDblClick(event: MouseEvent): void {
     if (this.pointerTool || this.spatialInteraction?.picking() || performance.now() - this.lastSpatialPickMs < 800) {
       event.preventDefault(); event.stopImmediatePropagation(); return;
     }
@@ -4765,8 +4807,15 @@ export class UniverseRenderer {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
-    const bodyName = this.pickBody(screenX, screenY);
-    if (!bodyName) return;
+    if (this.spatialRelationships.pick(screenX, screenY, 11)) return;
+    const hit = this.pickScene(screenX, screenY, 'select');
+    if (hit?.kind === 'geographic-feature') {
+      const { layerId, featureId, bodyName } = hit;
+      this.events.emit('geographic:dblclick', { layerId, featureId, bodyName });
+      return;
+    }
+    if (hit?.kind !== 'entity') return;
+    const bodyName = hit.bodyName;
 
     const bm = this.bodyMeshes.get(bodyName);
     if (!bm) return;

@@ -37,7 +37,7 @@
     "count": "Mars · 1,601 features · From the catalog",
     "renderedRows": 20,
     "lastRow": "target-1599",
-    "searchMs": 17
+    "searchMs": 20
   },
   "denseTerrainMissing": [
     "SyntaxError: Unexpected token 'N', \"Not found\" is not valid JSON"

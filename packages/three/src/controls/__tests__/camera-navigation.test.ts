@@ -148,6 +148,7 @@ describe('focus', () => {
 });
 
 describe('frame', () => {
+
   it('fits the body at three radii in a landscape 60° view, from the side the camera sees it', () => {
     const { camera, cc, moon, moonAbs, absolute } = setup();
     const side = new THREE.Vector3(0, 0, 20000).sub(moonAbs).normalize();

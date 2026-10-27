@@ -100,9 +100,9 @@ export type { FrameOrientationSource } from './controls/frameOrientation.js';
 export { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES } from './SurfaceAppearance.js';
 export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
-export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
-export type { ImageryLayerInfo, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
@@ -188,6 +188,10 @@ export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surfac
 export { CubeImageryLayer } from './CubeImageryLayer.js';
 export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
 export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
+export { placeAnchor } from './geographic/PlaceSurface.js';
 export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
 export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
 export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';

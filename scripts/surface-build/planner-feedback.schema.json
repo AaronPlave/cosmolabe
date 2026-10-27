@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cosmolabe.dev/schemas/surface-planner-feedback-1.json",
+  "title": "Cosmolabe finite surface-build planner feedback v1",
+  "type": "object",
+  "required": ["version", "kind", "lockIdentity", "requested", "products", "sourceTransfers", "sourceAcquisition", "resources", "terrainValidation", "unsupported", "caveats"],
+  "properties": {
+    "version": {"const": 1},
+    "kind": {"const": "surface-planner-feedback"},
+    "lockIdentity": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "requested": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["regionId", "geometry", "imagery", "elevation", "fallback", "channels"],
+        "properties": {
+          "regionId": {"type": "string"},
+          "geometry": {"type": "object"},
+          "imagery": {"type": ["object", "null"]},
+          "elevation": {"type": ["object", "null"]},
+          "fallback": {"type": "string"},
+          "channels": {"type": "array", "items": {"type": "object", "required": ["channel", "sourceIds", "outputGsdM", "nativeGsdM", "accuracyM", "targetMetByNativeSource", "diagnostic"]}}
+        }
+      }
+    },
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["productId", "productIdentity", "sourceProofs", "emitted", "continuousNativeCoverage", "continuousNativeCoverageStatus", "publication", "reusedFromBuild"],
+        "properties": {
+          "productId": {"type": "string"},
+          "productIdentity": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "sourceProofs": {"type": "array"},
+          "emitted": {"type": "object", "required": ["availability", "maximumLevel", "outputSpacingMByLevel", "objects", "bytes", "validPixelCount", "transparentPixelCount"]},
+          "continuousNativeCoverage": {"type": ["array", "null"]},
+          "continuousNativeCoverageStatus": {"enum": ["proved-for-checked-requested-ROI-only", "not-proved-by-tile-availability"]},
+          "publication": {"type": "object", "required": ["status", "objects", "bytes", "receipt"], "properties": {"status": {"enum": ["not-published", "verified-local-http", "verified-hosted-http"]}}},
+          "reusedFromBuild": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "sourceTransfers": {"type": "array"},
+    "sourceAcquisition": {"type": "string"},
+    "resources": {"type": "object", "required": ["planned", "actual"]},
+    "terrainValidation": {"type": "array"},
+    "unsupported": {"type": "array"},
+    "caveats": {"type": "array", "items": {"type": "string"}}
+  }
+}

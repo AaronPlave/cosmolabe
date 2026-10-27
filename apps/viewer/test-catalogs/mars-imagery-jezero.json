@@ -1,5 +1,7 @@
 {
   "name": "Jezero imagery (no terrain)",
+  "defaultGeographicNames": ["Mars"],
+  "require": ["places/mars.json"],
   "version": "1.1",
   "description": "Streamed imagery pilot (#123): global Viking and CTX mosaics with bounded Jezero CTX and HiRISE layers on the Mars ellipsoid, with no physical terrain. ingenuity-jezero.json drapes the same stack over fused terrain.",
   "defaultTime": "2021-07-05T09:00:08Z",

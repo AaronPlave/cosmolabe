@@ -1,10 +1,9 @@
 {
   "name": "MoonFall at Shackleton",
+  "defaultGeographicNames": ["Moon"],
   "defaultTime": "2028-12-15T10:04:00Z",
   "defaultViewpoint": "Shackleton Overview",
-  "require": [
-    "base/naif.json"
-  ],
+  "require": ["base/naif.json", "places/moon.json", "places/moonfall-sites.json"],
   "items": [
     {
       "name": "Shackleton Overview",
