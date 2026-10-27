@@ -1,0 +1,1113 @@
+{
+  "strategy": "single-sample logarithmic depth; minimum 2 raster pixels per CSS pixel; no neighborhood postfilter",
+  "terrain": {
+    "passed": true,
+    "baselineFixture": false,
+    "views": [
+      {
+        "key": "dpr1-supersampled-double",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 0,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr1-supersampled-front",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 0,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr2-supersampled-double",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 0,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr2-supersampled-front",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 0,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      }
+    ],
+    "comparisons": [
+      {
+        "dpr": 1,
+        "changed": 1,
+        "dark": 1,
+        "maximumDifference": 58
+      },
+      {
+        "dpr": 2,
+        "changed": 1,
+        "dark": 1,
+        "maximumDifference": 58
+      }
+    ],
+    "errors": []
+  },
+  "formerMsaaFixture": {
+    "passed": true,
+    "baselineFixture": true,
+    "views": [
+      {
+        "key": "dpr1-msaa-double",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 1,
+        "glError": 0,
+        "samples": 4,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr1-msaa-front",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 1,
+        "glError": 0,
+        "samples": 4,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr2-msaa-double",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 4,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      },
+      {
+        "key": "dpr2-msaa-front",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "fov": 6,
+        "position": [
+          5.826942220009054e-07,
+          1.1501035368554138e-07,
+          -1.1310733308036213e-06
+        ],
+        "target": [
+          5.831745388085879e-08,
+          -3.875025711077211e-08,
+          7.25508607098134e-09
+        ],
+        "rasterDensity": 2,
+        "glError": 0,
+        "samples": 4,
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab"
+        },
+        "selectedMeshes": 66
+      }
+    ],
+    "comparisons": [
+      {
+        "dpr": 1,
+        "changed": 574,
+        "dark": 561,
+        "maximumDifference": 82
+      },
+      {
+        "dpr": 2,
+        "changed": 1269,
+        "dark": 1246,
+        "maximumDifference": 83
+      }
+    ],
+    "errors": []
+  },
+  "rasterDensity": {
+    "passed": true,
+    "views": [
+      {
+        "mission": "moonfall-shackleton",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "glError": 0,
+        "samples": 0,
+        "dpr": 1,
+        "rasterDensity": 2,
+        "width": 2000,
+        "height": 1600,
+        "cssWidth": 1000,
+        "cssHeight": 800,
+        "labels": [
+          {
+            "name": "Sun",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Earth",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Polaris-C",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Polaris-D",
+            "layer": 4,
+            "fontSize": 48
+          }
+        ],
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "maxTextureBytes": 536870912,
+          "gpuAllocatedBytes": 538255360
+        },
+        "timing": {
+          "method": "25 frames per alternating density; gl.finish after each",
+          "rows": [
+            {
+              "density": 1,
+              "cpuMs": {
+                "n": 25,
+                "p50": 4.100000023841858,
+                "p95": 6.399999976158142,
+                "max": 6.899999976158142
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 4.100000023841858,
+                "p95": 6.399999976158142,
+                "max": 6.899999976158142
+              }
+            },
+            {
+              "density": 2,
+              "cpuMs": {
+                "n": 25,
+                "p50": 4.5,
+                "p95": 6.599999964237213,
+                "max": 7
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 4.5,
+                "p95": 6.599999964237213,
+                "max": 7
+              }
+            },
+            {
+              "density": 1,
+              "cpuMs": {
+                "n": 25,
+                "p50": 4.199999988079071,
+                "p95": 5.599999964237213,
+                "max": 5.899999976158142
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 4.199999988079071,
+                "p95": 5.599999964237213,
+                "max": 5.899999976158142
+              }
+            },
+            {
+              "density": 2,
+              "cpuMs": {
+                "n": 25,
+                "p50": 4.5,
+                "p95": 6.800000011920929,
+                "max": 7.400000035762787
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 4.5,
+                "p95": 6.800000011920929,
+                "max": 7.400000035762787
+              }
+            }
+          ],
+          "glError": 0
+        }
+      },
+      {
+        "mission": "moonfall-shackleton",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "glError": 0,
+        "samples": 0,
+        "dpr": 2,
+        "rasterDensity": 2,
+        "width": 2000,
+        "height": 1600,
+        "cssWidth": 1000,
+        "cssHeight": 800,
+        "labels": [
+          {
+            "name": "Sun",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Earth",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Polaris-C",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Polaris-D",
+            "layer": 4,
+            "fontSize": 48
+          }
+        ],
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "maxTextureBytes": 536870912,
+          "gpuAllocatedBytes": 538255360
+        }
+      },
+      {
+        "mission": "ingenuity-jezero",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "glError": 0,
+        "samples": 0,
+        "dpr": 1,
+        "rasterDensity": 2,
+        "width": 2000,
+        "height": 1600,
+        "cssWidth": 1000,
+        "cssHeight": 800,
+        "labels": [
+          {
+            "name": "Sun",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Earth",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Ingenuity",
+            "layer": 4,
+            "fontSize": 48
+          }
+        ],
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "maxTextureBytes": 1006632960,
+          "gpuAllocatedBytes": 1025801326
+        },
+        "timing": {
+          "method": "25 frames per alternating density; gl.finish after each",
+          "rows": [
+            {
+              "density": 1,
+              "cpuMs": {
+                "n": 25,
+                "p50": 2.5,
+                "p95": 5.199999988079071,
+                "max": 9.199999988079071
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 2.599999964237213,
+                "p95": 5.199999988079071,
+                "max": 9.199999988079071
+              }
+            },
+            {
+              "density": 2,
+              "cpuMs": {
+                "n": 25,
+                "p50": 2.300000011920929,
+                "p95": 5.5,
+                "max": 10
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 2.300000011920929,
+                "p95": 5.5,
+                "max": 10
+              }
+            },
+            {
+              "density": 1,
+              "cpuMs": {
+                "n": 25,
+                "p50": 2.400000035762787,
+                "p95": 9.599999964237213,
+                "max": 9.699999988079071
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 2.400000035762787,
+                "p95": 9.599999964237213,
+                "max": 9.699999988079071
+              }
+            },
+            {
+              "density": 2,
+              "cpuMs": {
+                "n": 25,
+                "p50": 2.399999976158142,
+                "p95": 2.899999976158142,
+                "max": 9
+              },
+              "cpuAndGpuSynchronizedMs": {
+                "n": 25,
+                "p50": 2.399999976158142,
+                "p95": 2.899999976158142,
+                "max": 9
+              }
+            }
+          ],
+          "glError": 0
+        }
+      },
+      {
+        "mission": "ingenuity-jezero",
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "glError": 0,
+        "samples": 0,
+        "dpr": 2,
+        "rasterDensity": 2,
+        "width": 2000,
+        "height": 1600,
+        "cssWidth": 1000,
+        "cssHeight": 800,
+        "labels": [
+          {
+            "name": "Sun",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Earth",
+            "layer": 4,
+            "fontSize": 48
+          },
+          {
+            "name": "Ingenuity",
+            "layer": 4,
+            "fontSize": 48
+          }
+        ],
+        "imagery": {
+          "baseUncoveredBlocks": 0,
+          "extraDraws": 0,
+          "blockGeometryBytes": 0,
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "maxTextureBytes": 1006632960,
+          "gpuAllocatedBytes": 1025801326
+        }
+      }
+    ],
+    "densityChanges": [
+      {
+        "mission": "moonfall-shackleton",
+        "event": "Injected MediaQueryList change after CDP DPR override",
+        "deviceDpr": 2,
+        "rasterDensity": 2
+      },
+      {
+        "mission": "moonfall-shackleton",
+        "event": "Injected MediaQueryList change after CDP DPR override",
+        "deviceDpr": 1,
+        "rasterDensity": 2
+      },
+      {
+        "mission": "ingenuity-jezero",
+        "event": "Injected MediaQueryList change after CDP DPR override",
+        "deviceDpr": 2,
+        "rasterDensity": 2
+      },
+      {
+        "mission": "ingenuity-jezero",
+        "event": "Injected MediaQueryList change after CDP DPR override",
+        "deviceDpr": 1,
+        "rasterDensity": 2
+      }
+    ],
+    "errors": [],
+    "optOut": {
+      "density": 1,
+      "samples": 0
+    }
+  },
+  "motion": {
+    "passed": true,
+    "errors": [],
+    "missions": [
+      {
+        "mission": "ingenuity-jezero",
+        "summary": {
+          "frameIntervalMs": {
+            "n": 801,
+            "p50": 16.600000023841858,
+            "p95": 23.69999998807907,
+            "max": 50.19999998807907
+          },
+          "imageUpdateMs": {
+            "n": 816,
+            "p50": 2.300000011920929,
+            "p95": 6.899999976158142,
+            "max": 18.69999998807907
+          },
+          "maxImageBytes": 1025784942,
+          "maxAllocatedBytes": 1025801326,
+          "last": {
+            "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+            "ready": true,
+            "textures": 186,
+            "pinnedTextures": 6,
+            "textureBytes": 1025784942,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 1006632960,
+            "requests": 375,
+            "bytes": 303299620,
+            "failures": 3,
+            "aborted": 1,
+            "evicted": 185,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 47,
+            "splitTiles": 0,
+            "blocks": 167,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "0": 8,
+              "1": 6,
+              "2": 18,
+              "3": 16,
+              "4": 14,
+              "5": 2,
+              "6": 15,
+              "7": 12,
+              "8": 5,
+              "9": 10,
+              "10": 5,
+              "11": 9,
+              "12": 4,
+              "13": 10,
+              "14": 18
+            },
+            "wantedLevels": {
+              "0": 4,
+              "2": 14,
+              "4": 6,
+              "5": 1,
+              "6": 5,
+              "7": 8,
+              "8": 3,
+              "9": 6,
+              "10": 8,
+              "11": 9,
+              "12": 11,
+              "13": 15,
+              "14": 12
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 14,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.699999988079071,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 22544724,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 1025801326,
+            "uploadMs": 1174.6999996900558,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          }
+        },
+        "faults": {
+          "delayed": 61,
+          "failed": 4,
+          "missingParents": 3
+        },
+        "phases": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "allocation-failure",
+            "frames": 30,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-9",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "context-restored",
+            "frames": 60,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          }
+        ]
+      },
+      {
+        "mission": "moonfall-shackleton",
+        "summary": {
+          "frameIntervalMs": {
+            "n": 845,
+            "p50": 16.69999998807907,
+            "p95": 20.899999976158142,
+            "max": 82.79999995231628
+          },
+          "imageUpdateMs": {
+            "n": 864,
+            "p50": 3.600000023841858,
+            "p95": 8.199999988079071,
+            "max": 12.199999988079071
+          },
+          "maxImageBytes": 456462336,
+          "maxAllocatedBytes": 538271744,
+          "last": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 1228,
+            "pinnedTextures": 30,
+            "textureBytes": 456462336,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 1329,
+            "bytes": 23530501,
+            "failures": 31,
+            "aborted": 0,
+            "evicted": 70,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 21,
+            "splitTiles": 0,
+            "blocks": 12,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 3,
+              "6": 3
+            },
+            "wantedLevels": {
+              "6": 3
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.8999999761581421,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 2041.1000008583069,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          }
+        },
+        "faults": {
+          "delayed": 408,
+          "failed": 39,
+          "missingParents": 31
+        },
+        "phases": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "allocation-failure",
+            "frames": 30,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "drag-9",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "edge-a",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "edge-b",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "corner-a",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "corner-b",
+            "frames": 12,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          },
+          {
+            "name": "context-restored",
+            "frames": 60,
+            "maxBaseUncovered": 0,
+            "maxExtraDraws": 0,
+            "maxBlockGeometryBytes": 0
+          }
+        ]
+      }
+    ]
+  },
+  "events": {
+    "passed": true,
+    "errors": [],
+    "phases": [
+      {
+        "flight": 12,
+        "below": false,
+        "changedPixels": 1860,
+        "fadingDepthMeshes": 0,
+        "glError": 0,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+      },
+      {
+        "flight": 12,
+        "below": true,
+        "changedPixels": 0,
+        "fadingDepthMeshes": 0,
+        "glError": 0,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+      }
+    ]
+  },
+  "fading": {
+    "passed": true,
+    "errors": [],
+    "phases": [
+      {
+        "flight": 12,
+        "below": false,
+        "changedPixels": 1482,
+        "fadingDepthMeshes": 25,
+        "glError": 0,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+      },
+      {
+        "flight": 12,
+        "below": true,
+        "changedPixels": 0,
+        "fadingDepthMeshes": 66,
+        "glError": 0,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+      }
+    ]
+  },
+  "instrument": {
+    "passed": true,
+    "errors": [],
+    "switches": [
+      {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "withoutBase": 0,
+        "mode": "instrument",
+        "fullScreen": true,
+        "contrast": [
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      },
+      {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "withoutBase": 0,
+        "mode": "instrument",
+        "fullScreen": true,
+        "contrast": [
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      },
+      {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "withoutBase": 0,
+        "mode": "instrument",
+        "fullScreen": true,
+        "contrast": [
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 41.7855200617284,
+            "stdev": 49.530653322852956
+          },
+          {
+            "mean": 255,
+            "stdev": 0
+          }
+        ]
+      }
+    ]
+  },
+  "integratedBase": "60792837f0841a8a665fa047324b23a35107b447",
+  "static": {
+    "rendererTests": 919,
+    "rendererTestFiles": 79,
+    "packageBuild": "passed",
+    "testTypes": "passed",
+    "viewerTypes": "passed",
+    "changedFileLint": "passed"
+  }
+}

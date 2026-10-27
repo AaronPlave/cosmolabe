@@ -165,7 +165,8 @@ export interface UniverseRendererOptions {
    * boundary ray hits (default true). Disable only to diagnose the raw FOV.
    */
   clipSensorsToSurfaces?: boolean;
-  /** Antialias */
+  /** Supersample at a minimum density of 2 pixels per CSS pixel (default true).
+   * Hardware MSAA is incompatible with fragment-written logarithmic depth. */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
   trajectoryFilter?: (body: Body) => boolean;
@@ -485,16 +486,19 @@ export class UniverseRenderer {
     // The viewer's backdrop or a previous scene may have used this canvas's
     // context. Three creates default 3D textures before resetting unpack state;
     // flags left by a 2D upload make that initialization invalid in WebGL2.
-    const context = canvas.getContext('webgl2', { alpha: false, antialias: options.antialias ?? true });
+    // Fragment-written log depth and MSAA disagree at intersecting/back-facing
+    // terrain edges. Use single-sample depth at increased raster density instead
+    // of filtering the completed image (which softens imagery, lines and text).
+    const context = canvas.getContext('webgl2', { alpha: false, antialias: false });
     context?.pixelStorei(context.UNPACK_FLIP_Y_WEBGL, 0);
     context?.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       context: context ?? undefined,
-      antialias: options.antialias ?? true,
+      antialias: false,
       logarithmicDepthBuffer: true,
     });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(this.renderPixelRatio());
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     // Watch for devicePixelRatio changes — fires when the window is dragged
     // across monitors with different DPI scaling. Without this, the WebGL
@@ -1618,13 +1622,20 @@ export class UniverseRenderer {
   }
 
   private _onDprChange = (): void => {
-    const dpr = window.devicePixelRatio;
-    this.renderer.setPixelRatio(dpr);
+    this.renderer.setPixelRatio(this.renderPixelRatio());
     this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
     this.labelManager?.refreshTextures();
     // Rebind the media query against the new DPR so the next monitor change fires.
     this._watchDevicePixelRatio();
   };
+
+  /** Resolve coverage by raster samples, never by a neighborhood image filter.
+   * DPR 1 uses the same raster density as DPR 2; Retina keeps native density.
+   * Explicit antialias:false keeps native density for deterministic captures.
+   */
+  private renderPixelRatio(): number {
+    return this.options.antialias === false ? window.devicePixelRatio : Math.max(2, window.devicePixelRatio);
+  }
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
