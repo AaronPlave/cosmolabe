@@ -2,56 +2,56 @@
   "steps": [
     {
       "label": "Gale floor edge very close · 0",
-      "rangeKm": 5.524811563172647,
-      "coveredShare": 0.661,
-      "flipShare": 0.0015,
+      "rangeKm": 4.939919317011651,
+      "coveredShare": 0.674,
+      "flipShare": 0.0013,
       "jagPx": 0
     },
     {
       "label": "Gale floor edge very close · 1",
-      "rangeKm": 2.2099246250414453,
-      "coveredShare": 0.867,
+      "rangeKm": 1.975967726821809,
+      "coveredShare": 0.884,
       "flipShare": 0.0006,
       "jagPx": 1
     },
     {
       "label": "Gale floor edge very close · 2",
-      "rangeKm": 0.8839698500923177,
-      "coveredShare": 1,
-      "flipShare": 0,
+      "rangeKm": 1.3752793366160152,
+      "coveredShare": 0.981,
+      "flipShare": 0.0002,
       "jagPx": null
     },
     {
       "label": "Gale floor edge very close · 3",
-      "rangeKm": 0.35358794000976146,
+      "rangeKm": 0.5501117347019397,
       "coveredShare": 1,
       "flipShare": 0,
       "jagPx": null
     },
     {
       "label": "Gale floor edge very close · 4",
-      "rangeKm": 0.14143517599003103,
+      "rangeKm": 0.22004469389629575,
       "coveredShare": 1,
       "flipShare": 0,
       "jagPx": null
     },
     {
       "label": "Gale floor edge very close · 5",
-      "rangeKm": 0.05657407040142427,
+      "rangeKm": 0.08801787755684895,
       "coveredShare": 1,
       "flipShare": 0,
       "jagPx": null
     },
     {
       "label": "Gale floor edge very close · 6",
-      "rangeKm": 0.022629628162480774,
+      "rangeKm": 0.03520715102341055,
       "coveredShare": 1,
       "flipShare": 0,
       "jagPx": null
     },
     {
       "label": "Gale floor edge very close · 7",
-      "rangeKm": 0.009051851263767865,
+      "rangeKm": 0.01408286040884643,
       "coveredShare": 1,
       "flipShare": 0,
       "jagPx": null
@@ -61,7 +61,7 @@
       "rangeKm": 6.203010939792709,
       "coveredShare": 0.474,
       "flipShare": 0.0018,
-      "jagPx": 409
+      "jagPx": 396
     },
     {
       "label": "Gale region vertex very close · 1",
