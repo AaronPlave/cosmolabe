@@ -20,7 +20,7 @@ import {
   type SpatialEndpoint,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
-import { patchLogDepthPrecision } from './LogDepth.js';
+import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -165,8 +165,7 @@ export interface UniverseRendererOptions {
    * boundary ray hits (default true). Disable only to diagnose the raw FOV.
    */
   clipSensorsToSurfaces?: boolean;
-  /** Supersample at a minimum density of 2 pixels per CSS pixel (default true).
-   * Hardware MSAA is incompatible with fragment-written logarithmic depth. */
+  /** Enable hardware antialiasing at the display's native pixel density (default true). */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
   trajectoryFilter?: (body: Body) => boolean;
@@ -483,22 +482,20 @@ export class UniverseRenderer {
 
     // Renderer
     patchLogDepthPrecision();
+    patchLogDepthCoverage();
     // The viewer's backdrop or a previous scene may have used this canvas's
     // context. Three creates default 3D textures before resetting unpack state;
     // flags left by a 2D upload make that initialization invalid in WebGL2.
-    // Fragment-written log depth and MSAA disagree at intersecting/back-facing
-    // terrain edges. Use single-sample depth at increased raster density instead
-    // of filtering the completed image (which softens imagery, lines and text).
-    const context = canvas.getContext('webgl2', { alpha: false, antialias: false });
+    const context = canvas.getContext('webgl2', { alpha: false, antialias: options.antialias ?? true });
     context?.pixelStorei(context.UNPACK_FLIP_Y_WEBGL, 0);
     context?.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       context: context ?? undefined,
-      antialias: false,
+      antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });
-    this.renderer.setPixelRatio(this.renderPixelRatio());
+    this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     // Watch for devicePixelRatio changes — fires when the window is dragged
     // across monitors with different DPI scaling. Without this, the WebGL
@@ -1622,20 +1619,12 @@ export class UniverseRenderer {
   }
 
   private _onDprChange = (): void => {
-    this.renderer.setPixelRatio(this.renderPixelRatio());
+    this.renderer.setPixelRatio(window.devicePixelRatio);
     this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
     this.labelManager?.refreshTextures();
     // Rebind the media query against the new DPR so the next monitor change fires.
     this._watchDevicePixelRatio();
   };
-
-  /** Resolve coverage by raster samples, never by a neighborhood image filter.
-   * DPR 1 uses the same raster density as DPR 2; Retina keeps native density.
-   * Explicit antialias:false keeps native density for deterministic captures.
-   */
-  private renderPixelRatio(): number {
-    return this.options.antialias === false ? window.devicePixelRatio : Math.max(2, window.devicePixelRatio);
-  }
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {

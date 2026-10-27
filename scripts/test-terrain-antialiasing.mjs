@@ -1,5 +1,5 @@
 /** Exact reported pose on the physical GPU, at DPR 1 and 2. The optional
- * --baseline-msaa fixture restores only the former context/MSAA strategy.
+ * --baseline-msaa fixture restores centre interpolation with native MSAA.
  * FrontSide is a diagnostic A/B, never a proposed production terrain change.
  */
 import { chromium } from 'playwright';
@@ -19,22 +19,18 @@ const report = { passed: false, baselineFixture: baseline, views: [], comparison
 try {
   for (const dpr of [1, 2]) {
     const context = await browser.newContext({ viewport: { width: 1592, height: 800 }, deviceScaleFactor: dpr });
-    if (baseline) await context.addInitScript(() => {
-      const original = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
-        if (kind === 'webgl2' || kind === 'webgl') args[0] = { ...args[0], antialias: true };
-        return original.call(this, kind, ...args);
-      };
-    });
     const page = await context.newPage();
+    if (baseline) await page.route('**/UniverseRenderer.ts*', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: (await response.text()).replace('patchLogDepthCoverage();', '') });
+    });
     page.on('pageerror', e => report.errors.push(e.message));
     page.on('console', m => { if (/GL_INVALID|INVALID_OPERATION|Shader Error/.test(m.text())) report.errors.push(m.text()); });
     await page.goto(`${base}?catalog=test-catalogs/ingenuity-jezero&view=${encodeURIComponent(JSON.stringify(view))}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.renderer?.getBodyMesh('Mars')?.terrainManager?.cubeImageryStats?.version, null, { timeout: 120000 });
-    await page.evaluate(async baseline => {
+    await page.evaluate(async () => {
       const r = window.renderer; await r.waitForInitialAssets(); window.cosmo.setPlaying(false);
-      if (baseline) r.getContext().webglRenderer.setPixelRatio(window.devicePixelRatio);
-    }, baseline);
+    });
     await page.waitForFunction(() => {
       const t = window.renderer.getBodyMesh('Mars').terrainManager, n = t.metrics.network, i = t.cubeImageryStats;
       return n.queued+n.downloading+n.parsing+i.queued+i.inFlight === 0 || i.budgetLimited;
@@ -58,7 +54,7 @@ try {
           rasterDensity: wr.getPixelRatio(),glError: gl.getError(), samples: gl.getParameter(gl.SAMPLES), meshes,
           imagery: r.getBodyMesh('Mars').terrainManager.cubeImageryStats };
       });
-      const key = `dpr${dpr}-${baseline?'msaa':'supersampled'}-${side===2?'double':'front'}`;
+      const key = `dpr${dpr}-${baseline?'centre':'centroid'}-${side===2?'double':'front'}`;
       const bytes = Buffer.from(frame.image.split(',')[1], 'base64'); delete frame.image;
       await writeFile(`${out}/${key}.png`, bytes);
       if(side===2)await page.locator('canvas').first().screenshot({path:`${out}/${key}-display.png`});
@@ -66,7 +62,7 @@ try {
       report.views.push({ key, ...frame });
       assert.equal(frame.glError, 0); assert.doesNotMatch(frame.gpu, /SwiftShader|llvmpipe|software/i);
       assert.ok(frame.imagery.baseUncoveredBlocks === 0);
-      assert.equal(frame.samples > 0, baseline);assert.equal(frame.rasterDensity,baseline?dpr:Math.max(2,dpr));
+      assert.ok(frame.samples > 0);assert.equal(frame.rasterDensity,dpr);
     }
     const [a,b] = captures; let changed = 0, dark = 0, maximumDifference = 0;
     for (let j=0; j<a.length; j+=3) {
@@ -77,7 +73,7 @@ try {
     const [first,second] = report.views.slice(-2);
     assert.deepEqual(first.meshes, second.meshes); assert.deepEqual(first.position, second.position); assert.deepEqual(first.target, second.target);
     if (baseline) assert.ok(dark>100, 'The former MSAA strategy must reproduce the reported defect');
-    else assert.ok(dark<20*dpr*dpr, 'Back-facing terrain introduces dark seams');
+    else assert.ok(dark<20*dpr*dpr, 'Back-facing terrain introduces repeated dark seams');
     await context.close();
   }
   assert.deepEqual(report.errors, []); report.passed = true;

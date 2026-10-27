@@ -1,96 +1,108 @@
-# Terrain seam regression and antialiasing scope
+# Terrain seams and native line coverage
 
-The reported dotted black terrain lines were introduced by PR #292's
-`cd47748` change to double-sided cube terrain. That fixed physical underside
-coverage and occlusion, but exposed the interaction between hardware MSAA and
-fragment-written logarithmic depth at intersecting/back-facing triangles.
-[Three.js's upstream report](https://github.com/mrdoob/three.js/issues/22017)
-describes the same class of failure. The local same-camera GPU comparisons,
-rather than that report alone, establish this regression.
+PR #292's `cd47748` change to double-sided cube terrain exposed dotted black
+edges with MSAA and fragment-written logarithmic depth. Double-sided coverage
+is needed for physical underside occlusion. Removing terrain back faces or
+skirts would conceal the symptom by removing physical geometry.
 
-The final fix disables hardware MSAA and uses a minimum raster density of two
-pixels per CSS pixel on each axis when `antialias` is enabled. DPR 1 renders at
-2x width/height and the browser resolves it to the display; DPR 2 retains native
-2x density, and higher densities stay native. `antialias:false` retains native
-density, including deterministic `test=1` captures. Monitor changes use the same
-policy. This is spatial supersampling relative to CSS pixels, not four hardware
-samples per physical pixel on every display.
+The first published fix (`6d71adf`) disabled MSAA and raised low-density canvas
+resolution to two pixels per CSS axis. The Cassini comparison demonstrated a
+regression: native WebGL lines remained one framebuffer pixel wide, becoming
+half as wide on a DPR 1 display. The GPU reports a supported line-width range
+of `[1, 1]`; increasing material linewidth cannot correct that. The controlled
+regression fixture measured approximately half the original line brightness.
+An earlier, unpublished FXAA experiment also softened text and paths.
 
-There is **no FXAA, SMAA, temporal history, fullscreen blur or neighborhood edge
-filter** in the final pipeline. A local FXAA experiment did remove the seams,
-but softened small text and thin paths and could filter fine imagery. It was
-removed before publication. Moving only text after that filter would not have
-addressed its wider effect. The final fix preserves the original rendering
-passes and label layers; body labels, trajectories, models and imagery are
-rasterized at the selected density. Standard sample coverage and browser spatial
-resolve can differ from MSAA; pixel-identical output is not claimed.
+The replacement restores **native display density and hardware MSAA**, as on
+main. It adds matching `centroid` interpolation qualifiers for the logarithmic
+view-depth varying in both shader stages. At a partially covered MSAA pixel,
+the pixel centre can lie outside the primitive. Centroid interpolation keeps
+the interpolated value inside the covered primitive, avoiding extrapolated
+depth across terrain edges. The existing high-precision logarithmic depth
+formula is unchanged. The patch checks both declarations before changing either
+and supports repeated calls and half-patched input.
 
-No authored terrain, physical normals, indices, CPU surface queries, imagery
-source/registration/alpha, trajectory samples or Sun lighting were changed.
-Double-sided physical coverage and fading-terrain depth remain enabled. Higher
-raster density can increase fragment work and imagery demand, which is why the
-mission loading and residency tests were repeated. The additional pixel work is
-not free: DPR 1 rasterizes four times as many pixel positions as native DPR 1;
-DPR 2 does not increase its previous raster dimensions. This replaces the former
-MSAA allocation/resolve rather than adding a separate image/depth pass.
+This is a depth interpolation correction. It adds no fullscreen filter,
+resolution floor, extra geometry, texture copies, draw passes, line-opacity
+compensation, or temporal history. Native line rasterization, label layers,
+compositing order and display-density handling retain their original behavior.
+Terrain positions/normals/indices, CPU queries, imagery registration and source
+alpha, trajectory samples, and lighting are unchanged. The full GPU acceptance
+includes physical trajectory occlusion through opaque and fading terrain.
 
-## Reproduction and acceptance
+Centroid interpolation does **not** create independent fragment-written depth
+for every MSAA sample, and it is not a universal solution for every intersecting
+surface. The reported pose retains a few isolated double/front diagnostic
+pixels; zero differences everywhere are not claimed. Three.js documents the
+[broader fragment-depth/MSAA limitation](https://github.com/mrdoob/three.js/issues/22017).
+Our local measurements, rather than that report alone, support this correction.
 
-The exact shared ET 722439881.1 Ingenuity camera, FOV 6, is embedded in the
-maintained regression. It compares double-sided and front-sided diagnostics
-without removing skirts or changing the selected geometry. FrontSide is not a
-production solution. The baseline fixture restores only hardware MSAA and the
-former native pixel ratio; it must reproduce the dotted seams.
+## Acceptance
+
+The maintained Cassini regression freezes the supplied ET 141922255.9896023,
+camera and viewport, waits for its actual SPICE trajectory cache, and compares
+main, the supersampling regression fixture, and the corrected renderer. It
+captures the complete scene and separately measures native lines using the same
+materials, transforms, draw ranges and camera. Isolated line RGB sums are
+normalized by canvas density squared to measure integrated brightness in CSS
+area. The fixture must reproduce dimming; the correction must match main within
+2%. The comparison includes DPR 1 and 2, both with equal-time assertions.
+On the recorded GPU, corrected isolated line images are pixel-identical to
+main at both densities. The regression retains 49.88% of main's integrated
+brightness at DPR 1 and 99.75% at DPR 2.
+
+The exact Ingenuity shared camera (ET 722439881.1, FOV 6) compares double-sided
+terrain against a front-sided diagnostic using the same selected geometry.
+The baseline removes only the centroid patch and must reproduce the seams.
+FrontSide is never the production configuration. At DPR 1/2, the original
+baseline had 561/1,246 significantly darkened backing pixels; centroid
+interpolation reduces that to 15/17 at the same respective canvas dimensions.
+
+All 925 renderer tests (79 files), package build, test/viewer type checks and
+changed-file lint pass. The adversarial imagery replay samples 816 Ingenuity
+and 864 MoonFall frames with zero base holes, extra imagery draws or clipped
+imagery geometry in checked phases. Frame interval p95 is 22.8/19.9 ms and
+imagery update p95 is 4.4/5.3 ms respectively in this workload. These are
+measurements, not universal timing guarantees. Opaque and forced-fading terrain
+both retain readable above-ground paths and zero below-ground trajectory
+pixels. Three cold constrained-memory MoonFall instrument switches pass.
+
+[Structured measurements](acceptance.json) and selected actual display captures
+retain the results. [Terrain before](terrain-before-dpr1.png) and
+[terrain after](terrain-after-dpr1.png) show the original pose.
+[MoonFall](moonfall-dpr1-display.png) and
+[Ingenuity](ingenuity-dpr1-display.png) include body labels, place labels and
+paths. Cassini captures include [main](cassini-main-dpr1.png), the
+[regression](cassini-regression-dpr1.png), and the
+[correction](cassini-corrected-dpr1.png).
+
+## Reproduction and limits
 
 ```sh
-node scripts/test-terrain-antialiasing.mjs http://127.0.0.1:5174/ work/aa-seams
-node scripts/test-terrain-antialiasing.mjs http://127.0.0.1:5174/ work/aa-baseline --baseline-msaa
-node scripts/test-render-density.mjs http://127.0.0.1:5174/ work/aa-density
-node scripts/test-imagery-refinement.mjs http://127.0.0.1:5174/ work/aa-motion
-node scripts/test-ingenuity-trajectory-visual.mjs http://127.0.0.1:5174/ work/aa-events --events
-node scripts/test-ingenuity-trajectory-visual.mjs http://127.0.0.1:5174/ work/aa-fading --fading
-node scripts/test-imagery-instrument.mjs http://127.0.0.1:5174/ work/aa-instrument
+node scripts/test-trajectory-rasterization.mjs http://127.0.0.1:5175/ http://127.0.0.1:5176/ work/aa-cassini
+node scripts/test-terrain-antialiasing.mjs http://127.0.0.1:5175/ work/aa-seams
+node scripts/test-terrain-antialiasing.mjs http://127.0.0.1:5175/ work/aa-baseline --baseline-msaa
+node scripts/test-render-density.mjs http://127.0.0.1:5175/ work/aa-density
+node scripts/test-imagery-refinement.mjs http://127.0.0.1:5175/ work/aa-motion
+node scripts/test-ingenuity-trajectory-visual.mjs http://127.0.0.1:5175/ work/aa-events --events
+node scripts/test-ingenuity-trajectory-visual.mjs http://127.0.0.1:5175/ work/aa-fading --fading
+node scripts/test-imagery-instrument.mjs http://127.0.0.1:5175/ work/aa-instrument
 ```
 
-Run GPU workloads sequentially. Evidence was recorded with Chrome / physical
-Apple M4 Max / ANGLE Metal, using emulated DPR 1 and 2, not a physical external
-monitor or all browsers. A full page reload is required when moving from the
-previous renderer so WebGL creates a new context without MSAA.
+Serve main separately for the second Cassini URL, with the same ignored kernel,
+model and texture assets. The recorded comparison uses an isolated source
+snapshot of `origin/main`, not the unrelated feature branch served on the user's
+port 5174. Main's pre-existing GL initialization error is recorded separately;
+the measured rendered frames must have zero GL errors.
 
-[Structured acceptance](acceptance.json) retains the measurements, exact source
-camera, selected mesh count and tests. [Before terrain](terrain-before-dpr1.png)
-and [after terrain](terrain-after-dpr1.png) show the reported seams. The
-[MoonFall low-density display](moonfall-dpr1-display.png) and
-[Ingenuity low-density display](ingenuity-dpr1-display.png) include body labels,
-place labels and trajectories at actual CSS display size, rather than presenting
-a large backing-store image as if it were a low-density capture.
+Run GPU workloads sequentially. Evidence uses Chrome / physical Apple M4 Max /
+ANGLE Metal with emulated DPR 1 and 2. Physical external-monitor, Safari and
+Firefox acceptance are not established here. Reload the page fully after the
+renderer update: WebGL context antialiasing attributes cannot change through HMR.
 
-The exact-pose double/front comparison had 561 dark backing pixels at DPR 1
-and 1,246 at DPR 2 with the former MSAA strategy. The fix has one isolated
-backing-pixel difference at either density, with the repeated dotted seams gone.
-The new DPR 1 backing store has four times the pixel count, so these counts
-are explicitly backing pixels, not a claim of equal CSS-area units.
-
-The final stress replay sampled 816 Ingenuity and 864 MoonFall frames, with zero
-base imagery holes, extra imagery draws or clipped imagery geometry in checked
-motion phases. Both missions passed delayed/out-of-order responses, missing
-parents, allocation failure, reversals, seams/corners and context restoration.
-Frame interval p95 was 23.7 / 20.9 ms and imagery CPU p95 6.9 / 8.2 ms respectively
-in this workload; these are measured results, not universal frame-time bounds.
-Paired raster-density timings at the same fixed views are in the structured
-report: 25 frames per alternating density block, with `gl.finish` after each.
-They include synchronization cost and are not isolated GPU timer measurements.
-
-The monitor-change check uses CDP to change DPR and explicitly dispatches a
-`MediaQueryList` change event. In the tested headless Chrome, CDP changed DPR
-and query `matches` without emitting that event. The regression checks the actual
-registered event handler and rebind, rather than silently treating this as a
-physical monitor transition. Physical external-monitor, Safari and Firefox
-acceptance remain untested here.
-
-After integrating the concurrently published `6079283` branch updates (including
-CPU-grid transfer retry), the package build and all 919 renderer tests passed.
-The exact-camera seam and two-mission display-density/monitor-event checks were
-repeated on that integrated source and passed. The stress-motion and physical
-occlusion evidence predates that integration; the intervening renderer change
-only completes CPU-grid response bodies inside their fetch retry boundary.
+The monitor-change regression changes DPR with CDP and explicitly dispatches a
+`MediaQueryList` change event. This headless Chrome updates DPR and query matches
+without emitting that event. The check exercises the registered handler and
+rebind; it does not claim a physical monitor transition. The raster-density
+report's alternating diagnostic density timings include `gl.finish` overhead,
+not isolated GPU time or a proposed production density policy.

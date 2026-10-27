@@ -219,13 +219,14 @@ node scripts/test-ingenuity-trajectory-visual.mjs http://localhost:5173/ work/pa
 
 ## Terrain seam antialiasing regression
 
-The double-sided cube change in this PR exposed dotted black seams from MSAA
-and fragment-written logarithmic depth. The final fix uses single-sample depth
-with a minimum raster density of two pixels per CSS axis. It retains physical
-underside coverage and fading depth without a full-image edge filter. A local
-FXAA experiment softened body labels and thin paths and was removed before
-publication; the original label/compositing passes are preserved.
+The double-sided cube change exposed dotted terrain seams from MSAA and
+fragment-written logarithmic depth. The first published supersampling fix then
+made native one-pixel trajectories thinner and dimmer at low display density.
+The correction restores native density and hardware MSAA, using centroid depth
+interpolation at partially covered triangle edges. Physical underside coverage,
+fading depth and the original label/compositing passes remain enabled.
 
-[Before/after captures, scope, cost and reproducible GPU acceptance](antialiasing/README.md)
-cover the exact user camera, DPR 1/2, both real missions, body labels and paths,
-loading/memory failures, context recovery and physical flight occlusion.
+[Before/after captures, scope and reproducible GPU acceptance](antialiasing/README.md)
+cover the exact terrain camera, Cassini versus main, DPR 1/2, both surface
+missions, body labels and paths, loading/memory failures, context recovery and
+physical flight occlusion.

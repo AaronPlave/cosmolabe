@@ -1,4 +1,4 @@
-/** Real mission acceptance for raster-density AA: no neighborhood postfilter.
+/** Real mission acceptance for native raster density and hardware AA: no neighborhood postfilter.
  * CSS screenshots show the actual low-DPI presentation, not just large PNGs.
  * node scripts/test-render-density.mjs URL OUTPUT
  */
@@ -45,7 +45,7 @@ try{
   await writeFile(`${out}/${key}-raster.png`,bytes);
   await page.locator('canvas').first().screenshot({path:`${out}/${key}-display.png`});
   const stats=await sharp(bytes).stats();assert.ok(stats.channels[0].stdev>3);
-  assert.equal(frame.samples,0);assert.equal(frame.rasterDensity,2);assert.equal(frame.width,frame.cssWidth*2);assert.equal(frame.height,frame.cssHeight*2);
+  assert.ok(frame.samples>0);assert.equal(frame.rasterDensity,dpr);assert.equal(frame.width,frame.cssWidth*dpr);assert.equal(frame.height,frame.cssHeight*dpr);
   assert.equal(frame.glError,0);assert.equal(frame.imagery.baseUncoveredBlocks,0);assert.equal(frame.imagery.extraDraws,0);
   assert.doesNotMatch(frame.gpu,/swiftshader|software|llvmpipe/i);assert.ok(frame.labels.length>0);assert.ok(frame.labels.every(l=>l.layer===1<<2));
   // Paired CPU + synchronized full-frame cost. Includes gl.finish overhead;
@@ -68,7 +68,7 @@ try{
     // This Chrome CDP override changes matches/DPR but does not emit a native
     // MediaQueryList change event. Inject that event, not the renderer handler.
     await page.evaluate(()=>{const q=window.renderer._dprMediaQuery;q.dispatchEvent(new MediaQueryListEvent('change',{media:q.media,matches:q.matches}));});
-    await page.waitForFunction(dpr=>window.devicePixelRatio===dpr&&window.renderer.getContext().webglRenderer.getPixelRatio()===2&&window.renderer._dprMediaQuery.matches,nextDpr);
+    await page.waitForFunction(dpr=>window.devicePixelRatio===dpr&&window.renderer.getContext().webglRenderer.getPixelRatio()===dpr&&window.renderer._dprMediaQuery.matches,nextDpr);
     result.densityChanges.push({mission,event:'Injected MediaQueryList change after CDP DPR override',deviceDpr:nextDpr,rasterDensity:await page.evaluate(()=>window.renderer.getContext().webglRenderer.getPixelRatio())});
    }
   }
