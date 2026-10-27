@@ -159,6 +159,15 @@ pages whose features touch the tile) is the cheaper first step to try.
 
 ## Checks run here
 
-Unit tests for renderer, footprint and fade (45); the viewer catalog list;
-lint; purity lint; test typecheck; the analytic-relief smoke (all checks); and
-the streamed LOD script, before and after the fix.
+On the integration branch: unit tests for renderer, footprint and fade (45);
+the viewer catalog list; lint; purity lint; test typecheck; the analytic-relief
+smoke (all checks); and the streamed LOD script, before and after the fix.
+
+After merging into #278 (software rendering, SwiftShader): all core, three and
+viewer unit tests, including the TileFade compatibility test against the
+pinned 3d-tiles-renderer; build, lint, purity lint, test and viewer typecheck,
+and svelte-check; and ten browser smokes: close precision, streamed LOD, close
+handles, close zoom (label registration within 1% of range), drawing, vectors,
+style, layers panel, viewer, and the global smoke. The Places scripts that CI
+runs in the targeted geographic smoke also pass. GPU timings are the hardware
+results above; they were not rerun here.
