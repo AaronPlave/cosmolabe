@@ -24,6 +24,7 @@ import { sameGeographicFeature, type GeographicFeatureRef } from '@cosmolabe/thr
 import * as THREE from 'three';
 import { flyOverSurface, getRenderer, onViewerEvent, vs } from './viewer-state.svelte';
 import { getUniverse } from './loader';
+import { placeForFeature, selectPlace } from './places';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
 
 export const geo = $state({
@@ -366,6 +367,8 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
     setLayerVisible(ref.layerId, true);
     geo.notice = `Showing ${geographicLayer(ref.layerId)?.name ?? ref.layerId} to select its feature.`;
   }
+  // One selection: browsing a named point here takes it from Places.
+  if (ref && vs.selectedPlaceRef) selectPlace(null);
   renderer.geographicVectors.setSelected(ref);
   geo.selected = ref;
   if (ref) followSelection(ref);
@@ -378,15 +381,6 @@ function followSelection(ref: GeographicFeatureRef): void {
   if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
 }
 
-/**
- * Whether the selected feature is also a named place (#191): Places indexes
- * every named point, and a click on one selects it there too. Escape then
- * leaves it to the Places order (panels first, then the place and this
- * selection together), as before this panel existed.
- */
-export function selectionIsPlace(ref: GeographicFeatureRef | null = geo.selected): boolean {
-  return !!ref && !!vs.places?.places.some((p) => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
-}
 
 export function clearGeographicSelection(): boolean {
   if (!geo.selected) return false;
@@ -474,8 +468,13 @@ onViewerEvent('load', () => {
   geo.activeLayerId = ready.length === 1 ? ready[0].id : null;
   unsubscribers.push(
     // A scene click selects without opening anything over the scene; an open
-    // panel shows the feature. The callout opens a closed panel.
-    renderer.events.on('geographic:select', (ref) => { geo.selected = ref; if (ref) followSelection(ref); }),
+    // panel shows the feature. The callout opens a closed panel. A named
+    // point (#191) belongs to Places, which shows it in Navigate; the list
+    // can still select it here (selectFeature).
+    renderer.events.on('geographic:select', (ref) => {
+      geo.selected = ref && !placeForFeature(ref) ? ref : null;
+      if (geo.selected) followSelection(geo.selected);
+    }),
     renderer.events.on('geographic:click', () => { geo.notice = ''; }),
     renderer.events.on('geographic:hover', (ref) => { geo.hovered = ref; }),
     scene.events.on('geographic:changed', () => { geo.revision++; }),

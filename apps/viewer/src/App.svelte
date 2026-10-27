@@ -5,7 +5,7 @@
   import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import GeographicCallout from './components/GeographicCallout.svelte';
-  import { geo, clearGeographicSelection, selectionIsPlace } from './lib/geographic-layers.svelte';
+  import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
@@ -260,12 +260,12 @@
           else if (vs.probeActive) setProbeActive(false);
           else if (measurements.selectedId) selectMeasurement(null);
           // A selected surface feature is as small as an event selection.
-          else if (geo.selected && !selectionIsPlace()) clearGeographicSelection();
+          else if (geo.selected) clearGeographicSelection();
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
           else if (dismissTopSurface()) return;
-          else if (dismissGeographicContext()) { if (selectionIsPlace()) clearGeographicSelection(); return; }
+          else if (dismissGeographicContext()) return;
           else if (clearGeographicSelection()) return;
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
