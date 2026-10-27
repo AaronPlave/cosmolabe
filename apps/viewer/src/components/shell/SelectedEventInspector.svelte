@@ -104,9 +104,11 @@
     <button class="link" onclick={() => open = !open} aria-expanded={open}>
       {#if open}<ChevronUp size={11} /> Less{:else}<ChevronDown size={11} /> Details{/if}
     </button>
-    <button class="link" onclick={edit} title={search ? `Edit “${search}” in Event Finder` : 'Open in Event Finder'}>
-      Edit search
-    </button>
+    {#if search}
+      <button class="link" onclick={edit} title={`Edit “${search}” in Event Finder`}>
+        Edit search
+      </button>
+    {/if}
     {#if primary}
       <button class="link" onclick={() => flyToBody(primary)} title="Fly the camera to {primary}">
         Fly to {primary}

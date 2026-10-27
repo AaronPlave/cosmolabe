@@ -1,0 +1,2035 @@
+{
+  "version": 2,
+  "kind": "surface-build-report",
+  "buildId": "b331f1728569c447b613df60abf54997374a5624749565730d5d5df9715f6840",
+  "lockIdentity": "sha256:138be31ebea3f9d50350a9daa5f77b46292a8626233f106daa7b1751302b0982",
+  "validation": "passed-supported-gates",
+  "productionReady": false,
+  "limitation": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.",
+  "sources": [
+    {
+      "id": "base",
+      "productId": "USGS-HRSC-MOLA-200m-v2",
+      "asset": {
+        "bytes": 11384463908,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "retrieval": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC, Mars 2020 TRN HiRISE"
+      },
+      "nativeGsdM": 200,
+      "accuracyM": null,
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "mission",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.32,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.425
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 200,
+        "dataType": "Int16",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "geographic on the Mars 2000 map sphere",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "role": "raster",
+            "bytes": 11384463908,
+            "sizeEvidence": "verified original file bytes"
+          }
+        ],
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "A source envelope is not a complete native-valid footprint."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "mission-0-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-0-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "method": "Every native cell and two-cell interpolation halo checked during execution.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    },
+    {
+      "id": "detail",
+      "productId": "JEZ-TRN-soc-006-DTM-1m-DeltaGeoid-blend40",
+      "asset": {
+        "bytes": 1839545409,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8"
+        },
+        "retrieval": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC, Mars 2020 TRN HiRISE"
+      },
+      "nativeGsdM": 1,
+      "accuracyM": null,
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "mission",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.32,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.425
+                  ],
+                  [
+                    77.454,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.503
+                  ],
+                  [
+                    77.32,
+                    18.425
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 1,
+        "dataType": "Float32",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+            "role": "raster",
+            "bytes": 1839545409,
+            "sizeEvidence": "verified original file bytes"
+          }
+        ],
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "A source envelope is not a complete native-valid footprint."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "mission-0-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.32,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-0",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.425
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.425
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-0-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.32,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.503
+                      ],
+                      [
+                        77.32,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-1-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.503
+                      ],
+                      [
+                        77.3535,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-2-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.503
+                      ],
+                      [
+                        77.38699999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              },
+              {
+                "type": "Feature",
+                "id": "mission-3-1",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.464000000000002
+                      ],
+                      [
+                        77.454,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.503
+                      ],
+                      [
+                        77.42049999999999,
+                        18.464000000000002
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "method": "Every native cell and two-cell interpolation halo checked during execution.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    }
+  ],
+  "requested": [
+    {
+      "id": "mission",
+      "feature": {
+        "layerId": "mission",
+        "featureId": "string:mission"
+      },
+      "elevation": {
+        "gsdM": 4
+      },
+      "fallback": "require-target"
+    }
+  ],
+  "selections": [
+    {
+      "regionId": "mission",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 4,
+      "resampling": "cubic",
+      "transformations": [
+        {
+          "kind": "areoid-radial",
+          "outputDatum": {
+            "referenceShape": {
+              "kind": "ellipsoid",
+              "radiiKm": [
+                3396.19,
+                3396.19,
+                3376.2
+              ]
+            },
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "areoid": {
+            "label": {
+              "bytes": 3760,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+              },
+              "retrieval": "Official MOLA MEG016 label"
+            },
+            "image": {
+              "bytes": 33177600,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+              },
+              "retrieval": "Official MOLA MEG016 image"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "id": "terrain-4c5bc4ed7ef62452bb979d09",
+      "productIdentity": "4c5bc4ed7ef62452bb979d09b2d56ff62824fb4121096e692b65ee3df5f30b37",
+      "kind": "cube-terrain",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "tiling": {
+        "base": "base",
+        "detail": "detail",
+        "globalLevel": 2,
+        "regions": [
+          "mission0@18.44,77.447:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+          "mission1@18.455,77.405:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2",
+          "mission2@18.487,77.348:3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=3,12=2.5,13=2.5,14=2.2,15=2"
+        ],
+        "blendM": 1000,
+        "fitStride": 8,
+        "fusionAsset": {
+          "bytes": 1060,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "68eeaacb4b52281db84a061f6c24d1beea7d93826c6a107faa509c5db5d8afe5"
+          },
+          "retrieval": "Clean recomputation from the pinned original DEMs; normalized provenance; complete raster inventory"
+        },
+        "baseOverviewAsset": {
+          "bytes": 3822114651,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "1d0e14aaeb5cfa7c594ab1e7476a45d802a05f9fb1074858e766a97cae26ebcb"
+          },
+          "retrieval": "Pinned global source overview dependency"
+        }
+      },
+      "tileBudget": 2042,
+      "objects": 4089,
+      "bytes": 364965554,
+      "reusedFromBuild": null,
+      "revision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+      "maxLevel": 15,
+      "controls": [
+        {
+          "lat": 18.648996248786357,
+          "lon": 77.45101915,
+          "heightM": -2236.413366544639,
+          "toleranceM": 1,
+          "errorM": 0.008418230649567704
+        },
+        {
+          "lat": 18.648996985697224,
+          "lon": 77.45101959,
+          "heightM": -2236.41334809372,
+          "toleranceM": 1,
+          "errorM": 0.008471993382499932
+        },
+        {
+          "lat": 18.648998207153973,
+          "lon": 77.45102213,
+          "heightM": -2236.4133464793667,
+          "toleranceM": 1,
+          "errorM": 0.010178985803577234
+        },
+        {
+          "lat": 18.64898865819722,
+          "lon": 77.45100917,
+          "heightM": -2236.423469399597,
+          "toleranceM": 1,
+          "errorM": 0.012996829980238545
+        },
+        {
+          "lat": 18.648990527403758,
+          "lon": 77.45111647,
+          "heightM": -2236.2851221259916,
+          "toleranceM": 1,
+          "errorM": -0.007698878263909137
+        },
+        {
+          "lat": 18.646777509787956,
+          "lon": 77.4513883,
+          "heightM": -2235.626004576261,
+          "toleranceM": 1,
+          "errorM": 0.014318677145183756
+        },
+        {
+          "lat": 18.64576313693502,
+          "lon": 77.44994298,
+          "heightM": -2235.497943241171,
+          "toleranceM": 1,
+          "errorM": 0.01489455094360892
+        },
+        {
+          "lat": 18.643964888488735,
+          "lon": 77.45015049,
+          "heightM": -2235.503398120727,
+          "toleranceM": 1,
+          "errorM": 0.06173292214862158
+        },
+        {
+          "lat": 18.641298317232025,
+          "lon": 77.45078614,
+          "heightM": -2236.0756467933243,
+          "toleranceM": 1,
+          "errorM": -0.030232362817514513
+        },
+        {
+          "lat": 18.63206897732543,
+          "lon": 77.44543778,
+          "heightM": -2246.8182034194797,
+          "toleranceM": 1,
+          "errorM": -0.03926532761488488
+        },
+        {
+          "lat": 18.632056213084397,
+          "lon": 77.44371342,
+          "heightM": -2245.0810605109837,
+          "toleranceM": 1,
+          "errorM": 0.02881230361163034
+        },
+        {
+          "lat": 18.63670506671339,
+          "lon": 77.43879656,
+          "heightM": -2236.4722636198167,
+          "toleranceM": 1,
+          "errorM": -0.005790667387373105
+        },
+        {
+          "lat": 18.636706983995097,
+          "lon": 77.43923886,
+          "heightM": -2236.9592722534435,
+          "toleranceM": 1,
+          "errorM": -0.0014247374479054997
+        },
+        {
+          "lat": 18.636897945153393,
+          "lon": 77.43914181,
+          "heightM": -2236.4511381219927,
+          "toleranceM": 1,
+          "errorM": -0.00495370645148796
+        },
+        {
+          "lat": 18.636878081257052,
+          "lon": 77.43917516,
+          "heightM": -2236.4923563814045,
+          "toleranceM": 1,
+          "errorM": -0.02405322747745231
+        },
+        {
+          "lat": 18.63269117343372,
+          "lon": 77.44501701,
+          "heightM": -2245.7800513725488,
+          "toleranceM": 1,
+          "errorM": -0.0026891463562606077
+        },
+        {
+          "lat": 18.63412661154685,
+          "lon": 77.44644658,
+          "heightM": -2249.083469714151,
+          "toleranceM": 1,
+          "errorM": 0.04647439183736424
+        },
+        {
+          "lat": 18.637083359152573,
+          "lon": 77.44773285,
+          "heightM": -2246.332160219481,
+          "toleranceM": 1,
+          "errorM": 0.0293063511235232
+        },
+        {
+          "lat": 18.640295143161676,
+          "lon": 77.45008781,
+          "heightM": -2239.6890816085033,
+          "toleranceM": 1,
+          "errorM": -0.010116427560660668
+        },
+        {
+          "lat": 18.6411167114244,
+          "lon": 77.45075374,
+          "heightM": -2236.0413971778144,
+          "toleranceM": 1,
+          "errorM": 0.006780825316127448
+        },
+        {
+          "lat": 18.6474707364107,
+          "lon": 77.44857228,
+          "heightM": -2236.8569749864946,
+          "toleranceM": 1,
+          "errorM": 0.023370556093141204
+        },
+        {
+          "lat": 18.649280657298238,
+          "lon": 77.44220948,
+          "heightM": -2224.96262162349,
+          "toleranceM": 1,
+          "errorM": -0.009975887152904761
+        },
+        {
+          "lat": 18.650245095196897,
+          "lon": 77.4429247,
+          "heightM": -2227.820683516711,
+          "toleranceM": 1,
+          "errorM": 0.01051255551919894
+        },
+        {
+          "lat": 18.6547682647097,
+          "lon": 77.44328534,
+          "heightM": -2231.7698165147704,
+          "toleranceM": 1,
+          "errorM": 0.007427042788549443
+        },
+        {
+          "lat": 18.654949159508703,
+          "lon": 77.44245658,
+          "heightM": -2229.250299255,
+          "toleranceM": 1,
+          "errorM": 0.0015333173878389061
+        },
+        {
+          "lat": 18.659000100526907,
+          "lon": 77.43059567,
+          "heightM": -2223.4801065515057,
+          "toleranceM": 1,
+          "errorM": 0.021167875232094957
+        },
+        {
+          "lat": 18.65584222460634,
+          "lon": 77.43047047,
+          "heightM": -2225.4275894520106,
+          "toleranceM": 1,
+          "errorM": -0.0034752238775581645
+        },
+        {
+          "lat": 18.656711550003514,
+          "lon": 77.42634265,
+          "heightM": -2222.3214245723284,
+          "toleranceM": 1,
+          "errorM": -0.004227361586345069
+        },
+        {
+          "lat": 18.661379903339228,
+          "lon": 77.42064135,
+          "heightM": -2215.1382937086055,
+          "toleranceM": 1,
+          "errorM": 0.03440398309339798
+        },
+        {
+          "lat": 18.660223949384893,
+          "lon": 77.41767573,
+          "heightM": -2215.7209596894063,
+          "toleranceM": 1,
+          "errorM": 0.018288290334567137
+        },
+        {
+          "lat": 18.66021150753087,
+          "lon": 77.41764295,
+          "heightM": -2215.8008666060596,
+          "toleranceM": 1,
+          "errorM": 0.041861936594614235
+        },
+        {
+          "lat": 18.660060422267758,
+          "lon": 77.41590824,
+          "heightM": -2214.828357951319,
+          "toleranceM": 1,
+          "errorM": 0.00215835252947727
+        },
+        {
+          "lat": 18.660161836145274,
+          "lon": 77.41423146,
+          "heightM": -2212.7180194447646,
+          "toleranceM": 1,
+          "errorM": 0.0012999872892578423
+        },
+        {
+          "lat": 18.65985650282934,
+          "lon": 77.41226441,
+          "heightM": -2210.8871489485864,
+          "toleranceM": 1,
+          "errorM": -0.0028415939823389635
+        },
+        {
+          "lat": 18.65985486749969,
+          "lon": 77.41226576,
+          "heightM": -2210.887227288822,
+          "toleranceM": 1,
+          "errorM": -0.0041748959915821615
+        },
+        {
+          "lat": 18.66004942015354,
+          "lon": 77.41209277,
+          "heightM": -2210.5277104437846,
+          "toleranceM": 1,
+          "errorM": -0.003387168575955002
+        },
+        {
+          "lat": 18.660040203745297,
+          "lon": 77.41208615,
+          "heightM": -2210.5279243187397,
+          "toleranceM": 1,
+          "errorM": -0.002575645609795174
+        },
+        {
+          "lat": 18.66076637473362,
+          "lon": 77.41152403,
+          "heightM": -2209.0637370019977,
+          "toleranceM": 1,
+          "errorM": 0.008669678677961201
+        },
+        {
+          "lat": 18.661531509281513,
+          "lon": 77.4098952,
+          "heightM": -2205.0811354247344,
+          "toleranceM": 1,
+          "errorM": -0.032081276259305014
+        },
+        {
+          "lat": 18.661512490008363,
+          "lon": 77.40988382,
+          "heightM": -2205.2316129179417,
+          "toleranceM": 1,
+          "errorM": -0.03378230135785998
+        },
+        {
+          "lat": 18.662973148470524,
+          "lon": 77.40713322,
+          "heightM": -2188.5069606973957,
+          "toleranceM": 1,
+          "errorM": 0.007027411229046265
+        },
+        {
+          "lat": 18.663296272993875,
+          "lon": 77.40709567,
+          "heightM": -2185.765149987219,
+          "toleranceM": 1,
+          "errorM": -0.016904579737911263
+        },
+        {
+          "lat": 18.665993810367105,
+          "lon": 77.40378107,
+          "heightM": -2162.953442885282,
+          "toleranceM": 1,
+          "errorM": -0.010348671267365717
+        },
+        {
+          "lat": 18.671421166176867,
+          "lon": 77.40038108,
+          "heightM": -2153.7639622952156,
+          "toleranceM": 1,
+          "errorM": -0.0043723435683205025
+        },
+        {
+          "lat": 18.67663832252467,
+          "lon": 77.39842974,
+          "heightM": -2142.718318536936,
+          "toleranceM": 1,
+          "errorM": -0.010255692572627595
+        },
+        {
+          "lat": 18.68162839163875,
+          "lon": 77.39239887,
+          "heightM": -2136.615131607414,
+          "toleranceM": 1,
+          "errorM": 0.01930193791122292
+        },
+        {
+          "lat": 18.67954259641344,
+          "lon": 77.38783313,
+          "heightM": -2127.025036393661,
+          "toleranceM": 1,
+          "errorM": 0.015609684638093313
+        },
+        {
+          "lat": 18.675701070751803,
+          "lon": 77.38140034,
+          "heightM": -2115.3803582433284,
+          "toleranceM": 1,
+          "errorM": -0.001291413554099563
+        },
+        {
+          "lat": 18.678887263501657,
+          "lon": 77.37672291,
+          "heightM": -2093.8161176504764,
+          "toleranceM": 1,
+          "errorM": -0.008241076386639179
+        },
+        {
+          "lat": 18.680443468469353,
+          "lon": 77.37229897,
+          "heightM": -2085.695516514079,
+          "toleranceM": 1,
+          "errorM": -0.0026937753145830357
+        },
+        {
+          "lat": 18.684347145400977,
+          "lon": 77.36885496,
+          "heightM": -2083.130589470784,
+          "toleranceM": 1,
+          "errorM": 0.003224080458494427
+        },
+        {
+          "lat": 18.684531373384296,
+          "lon": 77.36647578,
+          "heightM": -2080.503754705205,
+          "toleranceM": 1,
+          "errorM": 0.0015687708410041523
+        },
+        {
+          "lat": 18.68491189058941,
+          "lon": 77.36014058,
+          "heightM": -2083.184508462182,
+          "toleranceM": 1,
+          "errorM": -0.007503924734919565
+        },
+        {
+          "lat": 18.687339278800415,
+          "lon": 77.36032717,
+          "heightM": -2080.5848919117125,
+          "toleranceM": 1,
+          "errorM": -0.026216972031761543
+        },
+        {
+          "lat": 18.68734002579858,
+          "lon": 77.36032758,
+          "heightM": -2080.584874295255,
+          "toleranceM": 1,
+          "errorM": -0.0243182302169771
+        },
+        {
+          "lat": 18.686202240247678,
+          "lon": 77.35698187,
+          "heightM": -2080.3434841523085,
+          "toleranceM": 1,
+          "errorM": -0.009717407906009612
+        },
+        {
+          "lat": 18.68902824202901,
+          "lon": 77.35095273,
+          "heightM": -2083.3766050609484,
+          "toleranceM": 1,
+          "errorM": -0.03449609710060031
+        },
+        {
+          "lat": 18.692498228137868,
+          "lon": 77.35098453,
+          "heightM": -2072.859745398091,
+          "toleranceM": 1,
+          "errorM": 0.0529402279171336
+        },
+        {
+          "lat": 18.69392958724218,
+          "lon": 77.34832863,
+          "heightM": -2070.366049398217,
+          "toleranceM": 1,
+          "errorM": 0.036206973873959214
+        },
+        {
+          "lat": 18.69393520349129,
+          "lon": 77.34834688,
+          "heightM": -2070.426333490559,
+          "toleranceM": 1,
+          "errorM": 0.04342996518880682
+        },
+        {
+          "lat": 18.69850507930792,
+          "lon": 77.34511243,
+          "heightM": -2072.6981798698034,
+          "toleranceM": 1,
+          "errorM": 0.0017764806161721935
+        },
+        {
+          "lat": 18.698502747476464,
+          "lon": 77.34511629,
+          "heightM": -2072.698361098901,
+          "toleranceM": 1,
+          "errorM": 0.005008048191484704
+        },
+        {
+          "lat": 18.698955836144208,
+          "lon": 77.34484606,
+          "heightM": -2071.945442271044,
+          "toleranceM": 1,
+          "errorM": -0.026241735625262663
+        },
+        {
+          "lat": 18.693377987458746,
+          "lon": 77.33650661,
+          "heightM": -2061.207182422095,
+          "toleranceM": 1,
+          "errorM": -0.015810903789770236
+        },
+        {
+          "lat": 18.699433751107055,
+          "lon": 77.33377949,
+          "heightM": -2068.271280505087,
+          "toleranceM": 1,
+          "errorM": 0.01725672481734364
+        },
+        {
+          "lat": 18.699418643220227,
+          "lon": 77.33365412,
+          "heightM": -2067.999805663021,
+          "toleranceM": 1,
+          "errorM": -0.037715587652201066
+        },
+        {
+          "lat": 18.699409347372615,
+          "lon": 77.33365298,
+          "heightM": -2068.020113399598,
+          "toleranceM": 1,
+          "errorM": -0.04400747636191227
+        },
+        {
+          "lat": 18.7020458213441,
+          "lon": 77.32710942,
+          "heightM": -2072.652886353808,
+          "toleranceM": 1,
+          "errorM": 0.0041270337478636065
+        },
+        {
+          "lat": 18.702130033249045,
+          "lon": 77.32708433,
+          "heightM": -2072.5395294098234,
+          "toleranceM": 1,
+          "errorM": -0.00790409400497083
+        },
+        {
+          "lat": 18.702130205479172,
+          "lon": 77.32709896,
+          "heightM": -2072.5497574017027,
+          "toleranceM": 1,
+          "errorM": 0.0005731016017307411
+        },
+        {
+          "lat": 18.701384203967287,
+          "lon": 77.32374878,
+          "heightM": -2066.8423623028502,
+          "toleranceM": 1,
+          "errorM": 0.055450447916882695
+        },
+        {
+          "lat": 18.70191614581385,
+          "lon": 77.32249561,
+          "heightM": -2060.2036698778647,
+          "toleranceM": 1,
+          "errorM": -0.006515683949601225
+        },
+        {
+          "lat": 18.701887028016195,
+          "lon": 77.32253449,
+          "heightM": -2060.2853136451813,
+          "toleranceM": 1,
+          "errorM": -0.02801408967934549
+        }
+      ],
+      "datum": {
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        },
+        "verticalDatum": "ellipsoid",
+        "heightConvention": "geodetic-normal"
+      },
+      "outputSpacingMByLevel": [
+        106130.9375,
+        53065.46875,
+        26532.734375,
+        13266.3671875,
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742
+      ],
+      "nativeFidelity": [
+        {
+          "sourceId": "base",
+          "nativeGsdM": 200,
+          "accuracyM": null
+        },
+        {
+          "sourceId": "detail",
+          "nativeGsdM": 1,
+          "accuracyM": null
+        }
+      ],
+      "tileCount": 2042
+    }
+  ],
+  "caveats": [
+    "Terrain prerequisite only: four-source imagery and mission browser acceptance remain required.",
+    "Every original path sample is within an L15 cap; ~3.24 m maximum grid spacing is distinct from 1 m native DTM fidelity.",
+    "73 scalar controls share provenance, use conditional radial placement, and do not certify absolute physical accuracy.",
+    "Ground-level rendered loading/LOD acceptance remains open; no production upload or catalog switch.",
+    "Tile availability is emitted separately from upstream footprints; valid pixel counts do not prove a continuous native-resolution footprint.",
+    "Concurrent worker RSS and scratch usage are sampled; summed RSS can count shared pages repeatedly and is not physical peak RAM."
+  ],
+  "resources": {
+    "planned": {
+      "stage": "source-aware-uncalibrated",
+      "rawSourceBytes": 17079306388,
+      "publishedBytes": {
+        "min": 3128508,
+        "max": 32589735
+      },
+      "publishedObjects": {
+        "min": 47,
+        "max": 153
+      },
+      "peakDiskBytes": {
+        "min": 13247140357,
+        "max": null
+      },
+      "peakRamBytes": null,
+      "caveats": [
+        "Planner raster scenarios are not cube packing bounds.",
+        "Decoded raster dimensions and worker concurrency determine peak RAM; unknown before inspection.",
+        "XYZ bundles have additional response bytes recorded at inspection.",
+        "No shared global terrain patch composition is promised."
+      ],
+      "browser": {
+        "decodedTileBytes": {
+          "imagery": 199692,
+          "elevation": 266256
+        },
+        "visibleDecodedBytes": {
+          "min": 4260096,
+          "max": 17040384
+        },
+        "visibleNetworkBytes": {
+          "min": 1065024,
+          "max": 13632308
+        },
+        "visibleRequests": {
+          "min": 16,
+          "max": 64
+        }
+      }
+    },
+    "actual": {
+      "outputBytes": 364965554,
+      "publishedBytes": null,
+      "objects": 4089,
+      "workDiskBytesAtCompletion": 18535522184,
+      "peakDiskBytes": null,
+      "sampledPeakScratchBytes": 18535277630,
+      "peakConcurrentWorkerRssBytes": null,
+      "elapsedSeconds": 218.60550679099998,
+      "sourceAudit": {
+        "baselineSampling": {
+          "invalidUsedKernels": 0,
+          "levels": [
+            {
+              "sourcePyramidLevel": 8,
+              "sourceSize": [
+                417,
+                209
+              ],
+              "tiles": 30,
+              "vertexAndNormalSamples": 633750
+            },
+            {
+              "sourcePyramidLevel": 7,
+              "sourceSize": [
+                834,
+                417
+              ],
+              "tiles": 96,
+              "vertexAndNormalSamples": 2028000
+            },
+            {
+              "sourcePyramidLevel": 6,
+              "sourceSize": [
+                1668,
+                834
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 5,
+              "sourceSize": [
+                3335,
+                1668
+              ],
+              "tiles": 8,
+              "vertexAndNormalSamples": 169000
+            },
+            {
+              "sourcePyramidLevel": 4,
+              "sourceSize": [
+                6669,
+                3335
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 3,
+              "sourceSize": [
+                13337,
+                6669
+              ],
+              "tiles": 4,
+              "vertexAndNormalSamples": 84500
+            },
+            {
+              "sourcePyramidLevel": 2,
+              "sourceSize": [
+                26674,
+                13337
+              ],
+              "tiles": 12,
+              "vertexAndNormalSamples": 253500
+            },
+            {
+              "sourcePyramidLevel": 1,
+              "sourceSize": [
+                53347,
+                26674
+              ],
+              "tiles": 12,
+              "vertexAndNormalSamples": 253500
+            },
+            {
+              "sourcePyramidLevel": 0,
+              "sourceSize": [
+                106694,
+                53347
+              ],
+              "tiles": 1872,
+              "vertexAndNormalSamples": 39546000
+            }
+          ],
+          "method": "all Catmull-Rom support cells at the exact pinned pyramid level for every emitted lattice vertex and four normal probes",
+          "nativeCoverageNote": "Native voids are retained in the source audit; valid coarse overview samples do not establish native-resolution coverage."
+        },
+        "executionWork": {
+          "auditedSources": [
+            "base",
+            "detail"
+          ],
+          "fusion": true,
+          "stagedSources": [
+            "base",
+            "detail"
+          ],
+          "terrainStaging": true
+        },
+        "fusion": {
+          "base": {
+            "areaOrPoint": "Area",
+            "bounds": [
+              -180,
+              -89.99922395220543,
+              179.99844790441085,
+              90
+            ],
+            "crs": "+proj=longlat +R=3396190 +no_defs",
+            "dataType": "Int16",
+            "geographic": true,
+            "geotransform": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "nodata": -32768,
+            "overviews": [
+              [
+                53347,
+                26674
+              ],
+              [
+                26674,
+                13337
+              ],
+              [
+                13337,
+                6669
+              ],
+              [
+                6669,
+                3335
+              ],
+              [
+                3335,
+                1668
+              ],
+              [
+                1668,
+                834
+              ],
+              [
+                834,
+                417
+              ],
+              [
+                417,
+                209
+              ]
+            ],
+            "path": "base.tif",
+            "semiMajorM": 3396190,
+            "semiMinorM": 3396190,
+            "size": [
+              106694,
+              53347
+            ]
+          },
+          "baseScaleOffset": [
+            1,
+            0
+          ],
+          "boundary": {
+            "baseStepM": {
+              "maxAbsM": 0.372314453125,
+              "meanM": -0.014921045204702369,
+              "n": 96680,
+              "p95AbsM": 0.1669921875,
+              "rmsM": 0.07585174386314933
+            },
+            "fusedStepM": {
+              "maxAbsM": 0.3720703125,
+              "meanM": -0.014931064111711962,
+              "n": 96680,
+              "p95AbsM": 0.1669921875,
+              "rmsM": 0.07586397442200908
+            },
+            "hardSwitchStepM": {
+              "maxAbsM": 80.138427734375,
+              "meanM": -4.061592698639762,
+              "n": 96680,
+              "p95AbsM": 37.15882568359376,
+              "rmsM": 18.829964155991533
+            },
+            "note": "pixel pairs across the coverage edge; step = inside \u2212 outside (m)",
+            "pairs": 96680
+          },
+          "coverageFraction": 0.6610752491283985,
+          "detail": {
+            "areaOrPoint": "Area",
+            "bounds": [
+              4577366,
+              1085130,
+              4598766,
+              1106618
+            ],
+            "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs",
+            "dataType": "Float32",
+            "geographic": false,
+            "geotransform": [
+              4577366,
+              1,
+              0,
+              1106618,
+              0,
+              -1
+            ],
+            "nodata": -3.4028226550889045e+38,
+            "overviews": [],
+            "path": "detail.tif",
+            "semiMajorM": 3396190,
+            "semiMinorM": 3396190,
+            "size": [
+              21400,
+              21488
+            ]
+          },
+          "generator": "scripts/terrain/dem.py fuse",
+          "grid": {
+            "crs": "+proj=longlat +R=3396190 +no_defs",
+            "geoBounds": [
+              77.22293307697143,
+              18.30679944968657,
+              77.5839640209351,
+              18.66931500687775
+            ],
+            "geotransform": [
+              77.22293307697143,
+              1.687060485811522e-05,
+              0,
+              18.66931500687775,
+              0,
+              -1.687060485811522e-05
+            ],
+            "kind": "geo",
+            "size": [
+              21400,
+              21488
+            ]
+          },
+          "kernel": "base: Catmull-Rom, pixel-is-area, longitude wraps",
+          "products": {
+            "coverage": "coverage.tif",
+            "fused": "fused.tif",
+            "residual": "residual.tif",
+            "weight": "weight.tif"
+          },
+          "registration": {
+            "afterPlane": {
+              "maxAbsM": 96.78352399830243,
+              "meanM": 8.499790859098853e-14,
+              "n": 4749862,
+              "p95AbsM": 33.68761187276017,
+              "rmsM": 15.880520798838809
+            },
+            "axes": "local east/north (km)",
+            "centroid": {
+              "latDeg": 18.48804879297973,
+              "lonDeg": 77.4034569842557
+            },
+            "fitStridePx": 8,
+            "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+            "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base",
+            "offsetM": -8.645969777066195,
+            "raw": {
+              "maxAbsM": 89.161376953125,
+              "meanM": -7.893571008697858,
+              "n": 4749862,
+              "p95AbsM": 39.94189453125,
+              "rmsM": 18.93642389993706
+            },
+            "removed": false,
+            "slopeEastMPerKm": 1.0121736526817324,
+            "slopeNorthMPerKm": -0.6852599991318675,
+            "tiltDeg": 0.07003399047059078
+          },
+          "residual": {
+            "all": {
+              "maxAbsM": 87.53271484375,
+              "meanM": -7.26290945372306,
+              "n": 4749862,
+              "p95AbsM": 36.7574401855469,
+              "rmsM": 17.078623449622114
+            },
+            "fullWeight": {
+              "maxAbsM": 87.53271484375,
+              "meanM": -8.650158062055366,
+              "n": 3483465,
+              "p95AbsM": 38.97800292968748,
+              "rmsM": 18.43168956585401
+            }
+          },
+          "taper": {
+            "bandFraction": 0.17625186585340394,
+            "blendM": 1000,
+            "fullWeightFraction": 0.4848233832749946,
+            "function": "smoothstep(distance to coverage edge / blendM)"
+          },
+          "verticalDatum": "MOLA areoid topography; planetocentric coordinates; radial height above areoid"
+        },
+        "imagery": {},
+        "largestChildPeakRssBytes": 8409006080,
+        "peakConcurrentRssBytes": null,
+        "rasters": {
+          "base": {
+            "crsWkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST]]",
+            "decodedBytes": 11383609636,
+            "grid": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "height": 53347,
+            "invalidPixels": 39957,
+            "nativeGrid": [
+              -180,
+              0.003374120830641,
+              0,
+              90,
+              0,
+              -0.003374120830641
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "mission-0-0",
+                  "kernelSupportCells": 240,
+                  "maskSha256": "16eee20aa6af9fbf07907ad249eea41004ce8d42ef3f5e47d6cf70bbff6e09eb",
+                  "nativeCells": 132,
+                  "window": [
+                    76260,
+                    21199,
+                    15,
+                    16
+                  ]
+                },
+                {
+                  "featureId": "mission-1-0",
+                  "kernelSupportCells": 240,
+                  "maskSha256": "16eee20aa6af9fbf07907ad249eea41004ce8d42ef3f5e47d6cf70bbff6e09eb",
+                  "nativeCells": 132,
+                  "window": [
+                    76270,
+                    21199,
+                    15,
+                    16
+                  ]
+                },
+                {
+                  "featureId": "mission-2-0",
+                  "kernelSupportCells": 240,
+                  "maskSha256": "16eee20aa6af9fbf07907ad249eea41004ce8d42ef3f5e47d6cf70bbff6e09eb",
+                  "nativeCells": 132,
+                  "window": [
+                    76280,
+                    21199,
+                    15,
+                    16
+                  ]
+                },
+                {
+                  "featureId": "mission-3-0",
+                  "kernelSupportCells": 240,
+                  "maskSha256": "16eee20aa6af9fbf07907ad249eea41004ce8d42ef3f5e47d6cf70bbff6e09eb",
+                  "nativeCells": 132,
+                  "window": [
+                    76290,
+                    21199,
+                    15,
+                    16
+                  ]
+                },
+                {
+                  "featureId": "mission-0-1",
+                  "kernelSupportCells": 255,
+                  "maskSha256": "19ddd4ffd8f6f696660fb945e25703e8ba4947949bd4b825a6b3a7d7e3a20984",
+                  "nativeCells": 143,
+                  "window": [
+                    76260,
+                    21187,
+                    15,
+                    17
+                  ]
+                },
+                {
+                  "featureId": "mission-1-1",
+                  "kernelSupportCells": 255,
+                  "maskSha256": "19ddd4ffd8f6f696660fb945e25703e8ba4947949bd4b825a6b3a7d7e3a20984",
+                  "nativeCells": 143,
+                  "window": [
+                    76270,
+                    21187,
+                    15,
+                    17
+                  ]
+                },
+                {
+                  "featureId": "mission-2-1",
+                  "kernelSupportCells": 255,
+                  "maskSha256": "19ddd4ffd8f6f696660fb945e25703e8ba4947949bd4b825a6b3a7d7e3a20984",
+                  "nativeCells": 143,
+                  "window": [
+                    76280,
+                    21187,
+                    15,
+                    17
+                  ]
+                },
+                {
+                  "featureId": "mission-3-1",
+                  "kernelSupportCells": 255,
+                  "maskSha256": "19ddd4ffd8f6f696660fb945e25703e8ba4947949bd4b825a6b3a7d7e3a20984",
+                  "nativeCells": 143,
+                  "window": [
+                    76290,
+                    21187,
+                    15,
+                    17
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 199.999991643332,
+            "sourceSha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419",
+            "validPixels": 5691764861,
+            "width": 106694
+          },
+          "detail": {
+            "crsWkt": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+            "decodedBytes": 1839372800,
+            "grid": [
+              77.22293307697143,
+              1.687060485811522e-05,
+              0,
+              18.66931500687775,
+              0,
+              -1.687060485811522e-05
+            ],
+            "height": 21488,
+            "invalidPixels": 155852242,
+            "nativeGrid": [
+              4577366,
+              1,
+              0,
+              1106618,
+              0,
+              -1
+            ],
+            "nativeValidSubset": {
+              "declaredExtent": "known-valid-subset",
+              "extent": "known-valid-subset",
+              "features": [
+                {
+                  "featureId": "mission-0-0",
+                  "kernelSupportCells": 4613147,
+                  "maskSha256": "03852e09c4135f2998205364311eca35178427f46a3f879c448f89709bf43588",
+                  "nativeCells": 4595931,
+                  "window": [
+                    5751,
+                    12167,
+                    1991,
+                    2317
+                  ]
+                },
+                {
+                  "featureId": "mission-1-0",
+                  "kernelSupportCells": 4613147,
+                  "maskSha256": "03852e09c4135f2998205364311eca35178427f46a3f879c448f89709bf43588",
+                  "nativeCells": 4595931,
+                  "window": [
+                    7737,
+                    12167,
+                    1991,
+                    2317
+                  ]
+                },
+                {
+                  "featureId": "mission-2-0",
+                  "kernelSupportCells": 4610830,
+                  "maskSha256": "34efdb23bcc279ce23497c44c9ad8556e4b992869a24a79bddbdfd9fdb5cc343",
+                  "nativeCells": 4593618,
+                  "window": [
+                    9723,
+                    12167,
+                    1990,
+                    2317
+                  ]
+                },
+                {
+                  "featureId": "mission-3-0",
+                  "kernelSupportCells": 4613147,
+                  "maskSha256": "03852e09c4135f2998205364311eca35178427f46a3f879c448f89709bf43588",
+                  "nativeCells": 4595931,
+                  "window": [
+                    11708,
+                    12167,
+                    1991,
+                    2317
+                  ]
+                },
+                {
+                  "featureId": "mission-0-1",
+                  "kernelSupportCells": 4611156,
+                  "maskSha256": "8062954337b6be73a539320970aa26c6dca32c12f82294dd99e7bdc26e65d52d",
+                  "nativeCells": 4593944,
+                  "window": [
+                    5751,
+                    9856,
+                    1991,
+                    2316
+                  ]
+                },
+                {
+                  "featureId": "mission-1-1",
+                  "kernelSupportCells": 4611156,
+                  "maskSha256": "8062954337b6be73a539320970aa26c6dca32c12f82294dd99e7bdc26e65d52d",
+                  "nativeCells": 4593944,
+                  "window": [
+                    7737,
+                    9856,
+                    1991,
+                    2316
+                  ]
+                },
+                {
+                  "featureId": "mission-2-1",
+                  "kernelSupportCells": 4608840,
+                  "maskSha256": "568fadcd62c5e2258beab4f985c74f1b5206b102648bddf0060868d8045a7e38",
+                  "nativeCells": 4591632,
+                  "window": [
+                    9723,
+                    9856,
+                    1990,
+                    2316
+                  ]
+                },
+                {
+                  "featureId": "mission-3-1",
+                  "kernelSupportCells": 4611156,
+                  "maskSha256": "8062954337b6be73a539320970aa26c6dca32c12f82294dd99e7bdc26e65d52d",
+                  "nativeCells": 4593944,
+                  "window": [
+                    11708,
+                    9856,
+                    1991,
+                    2316
+                  ]
+                }
+              ],
+              "method": "all touched native cells plus two-cell interpolation halo"
+            },
+            "rasterGsdM": 1,
+            "sourceSha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8",
+            "validPixels": 303990958,
+            "width": 21400
+          }
+        },
+        "sampledResources": {
+          "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
+          "peakConcurrentRssBytes": null,
+          "peakScratchBytes": 18535277630,
+          "physicalPeakRamBytes": null,
+          "rssUnavailableReason": "PermissionError",
+          "sampleIntervalSeconds": 1,
+          "samples": 185
+        },
+        "toolchain": {
+          "gdal": "3.13.0",
+          "numpy": "2.4.6",
+          "python": "3.14.5"
+        },
+        "workerPeakRssBytes": 2947497984
+      }
+    }
+  },
+  "reused": false
+}

@@ -82,6 +82,9 @@ export interface TrajectoryLineOptions {
   /** Pre-computed trajectory cache. When provided, samples are extracted from cache
    *  via binary search instead of live SPICE calls. */
   cache?: TrajectoryCache;
+  /** Cache-window refresh interval in trajectory seconds. Default 300;
+   * short surface flights can request their declared plot sampling interval. */
+  cacheResampleInterval?: number;
   /**
    * Treat the trajectory as a closed periodic orbit whose spatial extent doesn't change.
    * Sample once at first update; never resample. Skip per-frame tail too — the body's
@@ -179,6 +182,7 @@ export class TrajectoryLine extends THREE.Object3D {
 
   // Pre-computed trajectory cache (null = live sampling)
   private cache: TrajectoryCache | null = null;
+  private readonly cacheResampleInterval: number;
   // Window indices into cache (set by recomputeSamples when cache is used)
   private cacheWindowLo = 0;
   private cacheWindowHi = 0;
@@ -206,6 +210,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this.body = body;
     this.name = `${body.name}_trajectory`;
     this.cache = options.cache ?? null;
+    this.cacheResampleInterval = Math.max(0, options.cacheResampleInterval ?? 300);
     // When a cache is provided, default buffer size to cache count (ensures the
     // full pre-computed dataset can be displayed). Explicit maxPoints still overrides.
     this.maxPoints =
@@ -541,11 +546,10 @@ export class TrajectoryLine extends THREE.Object3D {
 
     if (this.cache) {
       // ── Cache path: throttled resample (binary search) + bridge + tail ──
-      const CACHE_RESAMPLE = 300; // 5 min — just a binary search, no SPICE calls
       const needsResample =
         this._needsResample ||
         this.lastComputedEt === -Infinity ||
-        Math.abs(et - this.lastComputedEt) >= CACHE_RESAMPLE;
+        Math.abs(et - this.lastComputedEt) >= this.cacheResampleInterval;
       if (needsResample) {
         this._needsResample = false;
         this.lastComputedEt = et;

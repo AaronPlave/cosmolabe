@@ -1,0 +1,1548 @@
+{
+  "kind": "independent-imagery-gpu-comparison",
+  "version": 1,
+  "passed": true,
+  "baselineCommit": "d9619bb473c262346a8f6453ad6a5c22162f1f7b",
+  "inputSha256": {
+    "before": "2fd88abf610273e74a41b2caf899f8bdaed7442985573f3c0d414501e44f5e21",
+    "after": "8aff5b7cb8c73d1ed9803f38fe3da5852473083d09b5448b7d030c99fe9fed8d"
+  },
+  "method": "Same actual mission catalogs, physical GPU, viewport, poses and native mouse movements. Common phases only: warm, eight drags, delayed/failing territory, accelerated follow and revisit. Captures at 500ms and 1200ms during adverse loading run in both versions; timing includes those captures. Allocation-failure, seams and context restoration are additional after-only gates.",
+  "limits": [
+    "First-pose time includes physical terrain coverage and a fixed 600ms settle delay; it is not isolated network latency.",
+    "Old allocation bytes use its resident-texture estimate; new allocation includes the reserved array and integer page table.",
+    "Both versions use the current catalog residency target to isolate architecture. This is not a comparison against the old 256MiB mission configuration.",
+    "Requests and evictions include camera-history and after-only allocation fault effects; frame distributions exclude after-only phases.",
+    "Measurements apply to the recorded Chrome/Metal device; no weaker-device claim."
+  ],
+  "missions": [
+    {
+      "mission": "ingenuity-jezero",
+      "before": {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "firstPoseToSettledMs": 1433.857416,
+        "frameIntervalMs": {
+          "n": 713,
+          "p50": 16.600000023841858,
+          "p95": 22.900000035762787,
+          "max": 67.80000001192093
+        },
+        "imageUpdateMs": {
+          "n": 726,
+          "p50": 1,
+          "p95": 1.4000000357627869,
+          "max": 5.300000011920929
+        },
+        "maximumResidentBytes": 1003240218,
+        "maximumAllocatedBytes": 1003240218,
+        "maximumExtraDraws": 54,
+        "maximumDerivedGeometryBytes": 6288828,
+        "finalCounters": {
+          "requests": 210,
+          "aborted": 0,
+          "evicted": 30,
+          "failures": 2,
+          "blockBuildMs": 140.00000023841858,
+          "textureBytes": 1003240218,
+          "maxTextureBytes": 1006632960,
+          "budgetLimited": false,
+          "queued": 0,
+          "inFlight": 0
+        },
+        "revisitAnchor": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 7
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 11
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 1,
+            "level": 11
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 1,
+            "level": 14
+          }
+        ],
+        "faults": {
+          "delayed": 29,
+          "failed": 4,
+          "missingParents": 2
+        },
+        "visibleImage": {
+          "mean": 91.01206095679012,
+          "stdev": 27.450354654845864
+        },
+        "perPhase": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.599999964237213,
+              "p95": 23,
+              "max": 24.400000035762787
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.399999976158142
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-1",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.5,
+              "p95": 20.80000001192093,
+              "max": 20.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 0.8999999761581421,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.69999998807907,
+              "p95": 22.69999998807907,
+              "max": 22.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.400000035762787,
+              "p95": 21.69999998807907,
+              "max": 21.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.80000001192093,
+              "p95": 23.5,
+              "max": 23.5
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1,
+              "max": 1
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.80000001192093,
+              "p95": 20.80000001192093,
+              "max": 20.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.5,
+              "p95": 21,
+              "max": 21
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 0.8999999761581421,
+              "p95": 1,
+              "max": 1
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.5,
+              "p95": 21.900000035762787,
+              "max": 21.900000035762787
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.400000035762787,
+              "p95": 24.19999998807907,
+              "max": 24.19999998807907
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1,
+              "p95": 1.100000023841858,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.69999998807907,
+              "p95": 22.899999976158142,
+              "max": 67.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 1.2999999523162842,
+              "p95": 1.5,
+              "max": 3.5
+            },
+            "churn": {
+              "requests": 29,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "frameIntervalMs": {
+              "n": 29,
+              "p50": 16.80000001192093,
+              "p95": 22.900000035762787,
+              "max": 23
+            },
+            "imageUpdateMs": {
+              "n": 30,
+              "p50": 1.199999988079071,
+              "p95": 1.300000011920929,
+              "max": 1.300000011920929
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.600000023841858,
+              "p95": 23.19999998807907,
+              "max": 31.400000035762787
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 0.699999988079071,
+              "p95": 2.300000011920929,
+              "max": 5.300000011920929
+            },
+            "churn": {
+              "requests": 57,
+              "evicted": 29,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.69999998807907,
+              "p95": 23.399999976158142,
+              "max": 24.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 0.9000000357627869,
+              "p95": 1,
+              "max": 1.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          }
+        ]
+      },
+      "after": {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "firstPoseToSettledMs": 2013.5038750000003,
+        "frameIntervalMs": {
+          "n": 713,
+          "p50": 16.600000023841858,
+          "p95": 23.599999964237213,
+          "max": 37.299999952316284
+        },
+        "imageUpdateMs": {
+          "n": 726,
+          "p50": 1.699999988079071,
+          "p95": 3.899999976158142,
+          "max": 11.399999976158142
+        },
+        "maximumResidentBytes": 946878408,
+        "maximumAllocatedBytes": 1025801326,
+        "maximumExtraDraws": 0,
+        "maximumDerivedGeometryBytes": 0,
+        "finalCounters": {
+          "requests": 203,
+          "aborted": 0,
+          "evicted": 29,
+          "failures": 2,
+          "blockBuildMs": 0,
+          "textureBytes": 946878408,
+          "maxTextureBytes": 1006632960,
+          "budgetLimited": false,
+          "queued": 0,
+          "inFlight": 0
+        },
+        "revisitAnchor": [
+          {
+            "id": "viking",
+            "enabled": 1,
+            "level": 7
+          },
+          {
+            "id": "ctx-global",
+            "enabled": 1,
+            "level": 10
+          },
+          {
+            "id": "jezero-ctx",
+            "enabled": 1,
+            "level": 11
+          },
+          {
+            "id": "jezero-hirise",
+            "enabled": 1,
+            "level": 14
+          }
+        ],
+        "faults": {
+          "delayed": 40,
+          "failed": 2,
+          "missingParents": 2
+        },
+        "visibleImage": {
+          "mean": 91.05110956790124,
+          "stdev": 26.79083571595038
+        },
+        "perPhase": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.700000047683716,
+              "p95": 22.899999976158142,
+              "max": 24.400000035762787
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 1,
+              "p95": 1.199999988079071,
+              "max": 1.2000000476837158
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.30000001192093,
+              "p95": 21.30000001192093,
+              "max": 21.30000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.600000023841858,
+              "p95": 1.699999988079071,
+              "max": 1.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.30000001192093,
+              "p95": 23.69999998807907,
+              "max": 23.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.600000023841858,
+              "p95": 1.7000000476837158,
+              "max": 1.7000000476837158
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 15.5,
+              "p95": 23.200000047683716,
+              "max": 23.200000047683716
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.600000023841858,
+              "p95": 1.7000000476837158,
+              "max": 1.7000000476837158
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.30000001192093,
+              "p95": 21,
+              "max": 21
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.5999999642372131,
+              "p95": 1.7000000476837158,
+              "max": 1.7000000476837158
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.100000023841858,
+              "p95": 23,
+              "max": 23
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.5999999642372131,
+              "p95": 1.7000000476837158,
+              "max": 1.7000000476837158
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 15.300000011920929,
+              "p95": 24.19999998807907,
+              "max": 24.19999998807907
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.5999999642372131,
+              "p95": 1.699999988079071,
+              "max": 1.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.69999998807907,
+              "p95": 23.100000023841858,
+              "max": 23.100000023841858
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.5,
+              "p95": 1.699999988079071,
+              "max": 1.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-9",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.19999998807907,
+              "p95": 21.5,
+              "max": 21.5
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 1.5,
+              "p95": 1.699999988079071,
+              "max": 1.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.69999998807907,
+              "p95": 23.5,
+              "max": 32.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 1.899999976158142,
+              "p95": 4.699999988079071,
+              "max": 8.199999988079071
+            },
+            "churn": {
+              "requests": 27,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 13,
+            "maximumWaitingGroups": 9
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "frameIntervalMs": {
+              "n": 29,
+              "p50": 16.5,
+              "p95": 23.599999964237213,
+              "max": 24.899999976158142
+            },
+            "imageUpdateMs": {
+              "n": 30,
+              "p50": 1.300000011920929,
+              "p95": 1.5,
+              "max": 1.600000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.599999964237213,
+              "p95": 27.900000035762787,
+              "max": 37.299999952316284
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 2.399999976158142,
+              "p95": 6.800000011920929,
+              "max": 11.399999976158142
+            },
+            "churn": {
+              "requests": 39,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 21,
+            "maximumWaitingGroups": 7
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.600000023841858,
+              "p95": 24.30000001192093,
+              "max": 25
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 1.199999988079071,
+              "p95": 1.399999976158142,
+              "max": 1.4000000357627869
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          }
+        ]
+      },
+      "additionalGates": [
+        {
+          "name": "allocation-failure",
+          "frames": 30,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "context-restored",
+          "frames": 60,
+          "baseUncoveredMaximum": 0
+        }
+      ]
+    },
+    {
+      "mission": "moonfall-shackleton",
+      "before": {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "firstPoseToSettledMs": 1401.5384589999994,
+        "frameIntervalMs": {
+          "n": 713,
+          "p50": 16.799999952316284,
+          "p95": 20.600000023841858,
+          "max": 66.5
+        },
+        "imageUpdateMs": {
+          "n": 726,
+          "p50": 3.700000047683716,
+          "p95": 6.699999988079071,
+          "max": 65.39999997615814
+        },
+        "maximumResidentBytes": 167642112,
+        "maximumAllocatedBytes": 167642112,
+        "maximumExtraDraws": 204,
+        "maximumDerivedGeometryBytes": 29684640,
+        "finalCounters": {
+          "requests": 464,
+          "aborted": 0,
+          "evicted": 5,
+          "failures": 8,
+          "blockBuildMs": 493.9999998807907,
+          "textureBytes": 167642112,
+          "maxTextureBytes": 167772160,
+          "budgetLimited": false,
+          "queued": 0,
+          "inFlight": 0
+        },
+        "revisitAnchor": [
+          {
+            "id": "layer-0",
+            "enabled": 1,
+            "level": 13
+          }
+        ],
+        "faults": {
+          "delayed": 119,
+          "failed": 12,
+          "missingParents": 8
+        },
+        "visibleImage": {
+          "mean": 126.38430324074073,
+          "stdev": 56.46759258957769
+        },
+        "perPhase": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 17.099999964237213,
+              "p95": 19.399999976158142,
+              "max": 22.19999998807907
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 3.700000047683716,
+              "p95": 3.900000035762787,
+              "max": 4.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-1",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.80000001192093,
+              "p95": 20.30000001192093,
+              "max": 20.30000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.5,
+              "p95": 8.800000011920929,
+              "max": 8.800000011920929
+            },
+            "churn": {
+              "requests": 3,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.799999952316284,
+              "p95": 18.099999964237213,
+              "max": 18.099999964237213
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.599999964237213,
+              "p95": 3.699999988079071,
+              "max": 3.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.400000035762787,
+              "p95": 19.80000001192093,
+              "max": 19.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.600000023841858,
+              "p95": 6.400000035762787,
+              "max": 6.400000035762787
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.5,
+              "p95": 18.600000023841858,
+              "max": 18.600000023841858
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.600000023841858,
+              "p95": 3.699999988079071,
+              "max": 3.699999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.299999952316284,
+              "p95": 19,
+              "max": 19
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.600000023841858,
+              "p95": 7.5,
+              "max": 7.5
+            },
+            "churn": {
+              "requests": 1,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.69999998807907,
+              "p95": 22.80000001192093,
+              "max": 22.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.5,
+              "p95": 8.300000011920929,
+              "max": 8.300000011920929
+            },
+            "churn": {
+              "requests": 3,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 17.19999998807907,
+              "p95": 19.600000023841858,
+              "max": 19.600000023841858
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.5,
+              "p95": 6.5,
+              "max": 6.5
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.799999952316284,
+              "p95": 21.30000001192093,
+              "max": 21.30000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 3.600000023841858,
+              "p95": 6.300000011920929,
+              "max": 6.300000011920929
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.900000035762787,
+              "p95": 20.80000001192093,
+              "max": 66.5
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 3.800000011920929,
+              "p95": 8.300000011920929,
+              "max": 65.39999997615814
+            },
+            "churn": {
+              "requests": 59,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "frameIntervalMs": {
+              "n": 29,
+              "p50": 16.799999952316284,
+              "p95": 18,
+              "max": 19.600000023841858
+            },
+            "imageUpdateMs": {
+              "n": 30,
+              "p50": 3.800000011920929,
+              "p95": 4,
+              "max": 4.099999964237213
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.600000023841858,
+              "p95": 21.599999964237213,
+              "max": 38.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 3.600000023841858,
+              "p95": 7.800000011920929,
+              "max": 37.799999952316284
+            },
+            "churn": {
+              "requests": 119,
+              "evicted": 4,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.400000035762787,
+              "p95": 19.400000035762787,
+              "max": 20.69999998807907
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 3.699999988079071,
+              "p95": 3.899999976158142,
+              "max": 3.900000035762787
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          }
+        ]
+      },
+      "after": {
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "firstPoseToSettledMs": 2614.6954160000023,
+        "frameIntervalMs": {
+          "n": 713,
+          "p50": 16.5,
+          "p95": 22.899999976158142,
+          "max": 90.80000001192093
+        },
+        "imageUpdateMs": {
+          "n": 726,
+          "p50": 4.699999988079071,
+          "p95": 10.300000011920929,
+          "max": 35.5
+        },
+        "maximumResidentBytes": 167642112,
+        "maximumAllocatedBytes": 169145344,
+        "maximumExtraDraws": 0,
+        "maximumDerivedGeometryBytes": 0,
+        "finalCounters": {
+          "requests": 571,
+          "aborted": 0,
+          "evicted": 110,
+          "failures": 10,
+          "blockBuildMs": 0,
+          "textureBytes": 167642112,
+          "maxTextureBytes": 167772160,
+          "budgetLimited": false,
+          "queued": 0,
+          "inFlight": 0
+        },
+        "revisitAnchor": [
+          {
+            "id": "layer-0",
+            "enabled": 1,
+            "level": 13
+          }
+        ],
+        "faults": {
+          "delayed": 144,
+          "failed": 13,
+          "missingParents": 10
+        },
+        "visibleImage": {
+          "mean": 126.39777391975309,
+          "stdev": 56.285626952421254
+        },
+        "perPhase": [
+          {
+            "name": "warm",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.69999998807907,
+              "p95": 20.69999998807907,
+              "max": 21.399999976158142
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 4.300000011920929,
+              "p95": 4.5,
+              "max": 4.700000047683716
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-2",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.80000001192093,
+              "p95": 19.599999964237213,
+              "max": 19.599999964237213
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 4.800000011920929,
+              "p95": 5,
+              "max": 5
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-3",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.600000023841858,
+              "p95": 18.900000035762787,
+              "max": 18.900000035762787
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 4.699999988079071,
+              "p95": 8,
+              "max": 8
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 1,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-4",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.5,
+              "p95": 21,
+              "max": 21
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 4.799999952316284,
+              "p95": 5.399999976158142,
+              "max": 5.399999976158142
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-5",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.19999998807907,
+              "p95": 20.5,
+              "max": 20.5
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 4.800000011920929,
+              "p95": 5.100000023841858,
+              "max": 5.100000023841858
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-6",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.30000001192093,
+              "p95": 22.099999964237213,
+              "max": 22.099999964237213
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 5,
+              "p95": 9,
+              "max": 9
+            },
+            "churn": {
+              "requests": 1,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 2,
+            "maximumWaitingGroups": 1
+          },
+          {
+            "name": "drag-7",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 13.700000047683716,
+              "p95": 30.80000001192093,
+              "max": 30.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 5.100000023841858,
+              "p95": 23.099999964237213,
+              "max": 23.099999964237213
+            },
+            "churn": {
+              "requests": 4,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 5,
+            "maximumWaitingGroups": 3
+          },
+          {
+            "name": "drag-8",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16,
+              "p95": 19.600000023841858,
+              "max": 19.600000023841858
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 5,
+              "p95": 5.199999988079071,
+              "max": 5.199999988079071
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "drag-9",
+            "frames": 12,
+            "frameIntervalMs": {
+              "n": 11,
+              "p50": 16.600000023841858,
+              "p95": 18.400000035762787,
+              "max": 18.400000035762787
+            },
+            "imageUpdateMs": {
+              "n": 12,
+              "p50": 5,
+              "p95": 5.5,
+              "max": 5.5
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "faulty-loading",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16.600000023841858,
+              "p95": 25.600000023841858,
+              "max": 90.80000001192093
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 5.5,
+              "p95": 13,
+              "max": 31.80000001192093
+            },
+            "churn": {
+              "requests": 38,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 11,
+            "maximumWaitingGroups": 32
+          },
+          {
+            "name": "faulty-settled",
+            "frames": 30,
+            "frameIntervalMs": {
+              "n": 29,
+              "p50": 16.900000035762787,
+              "p95": 19.599999964237213,
+              "max": 20.19999998807907
+            },
+            "imageUpdateMs": {
+              "n": 30,
+              "p50": 4.700000047683716,
+              "p95": 5.099999964237213,
+              "max": 5.300000011920929
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          },
+          {
+            "name": "accelerated-follow",
+            "frames": 180,
+            "frameIntervalMs": {
+              "n": 179,
+              "p50": 16,
+              "p95": 41.80000001192093,
+              "max": 48.30000001192093
+            },
+            "imageUpdateMs": {
+              "n": 180,
+              "p50": 4.599999964237213,
+              "p95": 30.900000035762787,
+              "max": 35.5
+            },
+            "churn": {
+              "requests": 125,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 42,
+            "maximumWaitingGroups": 17
+          },
+          {
+            "name": "revisit",
+            "frames": 120,
+            "frameIntervalMs": {
+              "n": 119,
+              "p50": 16.80000001192093,
+              "p95": 19.80000001192093,
+              "max": 22.899999976158142
+            },
+            "imageUpdateMs": {
+              "n": 120,
+              "p50": 4.5,
+              "p95": 4.600000023841858,
+              "max": 4.800000011920929
+            },
+            "churn": {
+              "requests": 0,
+              "evicted": 0,
+              "aborted": 0
+            },
+            "baseUncoveredMaximum": 0,
+            "committedGroups": 0,
+            "maximumWaitingGroups": 0
+          }
+        ]
+      },
+      "additionalGates": [
+        {
+          "name": "allocation-failure",
+          "frames": 30,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "edge-a",
+          "frames": 12,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "edge-b",
+          "frames": 12,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "corner-a",
+          "frames": 12,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "corner-b",
+          "frames": 12,
+          "baseUncoveredMaximum": 0
+        },
+        {
+          "name": "context-restored",
+          "frames": 60,
+          "baseUncoveredMaximum": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1885 @@
+{
+  "kind": "estimated-flight-representation-validation",
+  "flights": 72,
+  "landingSites": 73,
+  "sampling": "All serialized knots plus quarter points of every Hermite interval; not a formal continuous bound.",
+  "totalHermiteSamples": 266200,
+  "maximumHorizontalLandingChangeM": 0.00038768272175839077,
+  "minimumEstimatedClearanceM": -5.568081178353168e-07,
+  "sourceAccuracyM": null,
+  "rows": [
+    {
+      "flight": 1,
+      "input": {
+        "file": "flight_01.xyzv",
+        "bytes": 136044,
+        "sha256": "c0799b240f44521cb6983b02de7192e35eea9a6821e8b243583ad4b712cec470"
+      },
+      "serializedKnots": 1183,
+      "hermiteSamples": 4729,
+      "legacyInput": {
+        "file": "flight_01.xyzv",
+        "bytes": 104671,
+        "sha256": "f08764c48ed80c89fa0b75c5ec9440c8b3108a21ddcff992de57e16dc7ab10be"
+      },
+      "sameEpochDisplacementM": {
+        "n": 1183,
+        "meanM": 11975.340144392336,
+        "rmsM": 11975.340144767202,
+        "p95AbsM": 11975.530278601094,
+        "maxAbsM": 11975.576282511805
+      },
+      "comparisonSamples": 1183,
+      "minimumEstimatedClearanceM": 9.196992323268205e-08,
+      "maximumEstimatedClearanceM": 3.001961883020158,
+      "minimumEpochIntervalS": 0.0002816319465637207
+    },
+    {
+      "flight": 2,
+      "input": {
+        "file": "flight_02.xyzv",
+        "bytes": 180090,
+        "sha256": "e60302eacb598d9419f246f527eb9034940d458b3e93f5c7d733d205a9d70918"
+      },
+      "serializedKnots": 1568,
+      "hermiteSamples": 6269,
+      "legacyInput": {
+        "file": "flight_02.xyzv",
+        "bytes": 138610,
+        "sha256": "2b0cc40154525ebd5f619864529c1908d02c5d0c254bffeada451ac45c036621"
+      },
+      "sameEpochDisplacementM": {
+        "n": 1567,
+        "meanM": 11975.319417062638,
+        "rmsM": 11975.319417240886,
+        "p95AbsM": 11975.430632001886,
+        "maxAbsM": 11975.581863668718
+      },
+      "comparisonSamples": 1567,
+      "minimumEstimatedClearanceM": -2.456745278323069e-07,
+      "maximumEstimatedClearanceM": 5.008075802413259,
+      "minimumEpochIntervalS": 0.0001609325408935547
+    },
+    {
+      "flight": 3,
+      "input": {
+        "file": "flight_03.xyzv",
+        "bytes": 276116,
+        "sha256": "ba45b85e0c8dd69cce7f2ee94b27e57b7fb90f05bdaf86e6b145eb99090334ef"
+      },
+      "serializedKnots": 2406,
+      "hermiteSamples": 9621,
+      "legacyInput": {
+        "file": "flight_03.xyzv",
+        "bytes": 214484,
+        "sha256": "ca0beac50138bb2138a315d8d71523ad5fa75427647710b0584710fb104c9985"
+      },
+      "sameEpochDisplacementM": {
+        "n": 2405,
+        "meanM": 11975.159536676405,
+        "rmsM": 11975.159837603755,
+        "p95AbsM": 11980.477210528079,
+        "maxAbsM": 11981.442306236968
+      },
+      "comparisonSamples": 2405,
+      "minimumEstimatedClearanceM": -2.456745278323069e-07,
+      "maximumEstimatedClearanceM": 5.001514168619451,
+      "minimumEpochIntervalS": 0.0002816319465637207
+    },
+    {
+      "flight": 4,
+      "input": {
+        "file": "flight_04.xyzv",
+        "bytes": 403747,
+        "sha256": "6a9edc29bba5e16066c87422bede45a5b12c4f8277a1b559d17bc5db5f53a946"
+      },
+      "serializedKnots": 3519,
+      "hermiteSamples": 14073,
+      "legacyInput": {
+        "file": "flight_04.xyzv",
+        "bytes": 315295,
+        "sha256": "5763039375e9a50fa1d588abe936ab402dc46ac97973a205f55aaae95c3a7479"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3519,
+        "meanM": 11975.855769194079,
+        "rmsM": 11975.857937779567,
+        "p95AbsM": 11990.458886940669,
+        "maxAbsM": 11992.811172792532
+      },
+      "comparisonSamples": 3519,
+      "minimumEstimatedClearanceM": -3.6984920370741747e-07,
+      "maximumEstimatedClearanceM": 5.000638817811705,
+      "minimumEpochIntervalS": 0.0001609325408935547
+    },
+    {
+      "flight": 5,
+      "input": {
+        "file": "flight_05.xyzv",
+        "bytes": 376747,
+        "sha256": "87751676bcd09d882f2cee557f70acdbc645b11a4f3f11edbc43fff36320da1d"
+      },
+      "serializedKnots": 3279,
+      "hermiteSamples": 13113,
+      "legacyInput": {
+        "file": "flight_05.xyzv",
+        "bytes": 290533,
+        "sha256": "5746df62ca9a7684b78384009e26511f5bb38dd3e379aacfcf0a6d2f6e9bc6b7"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3278,
+        "meanM": 11984.10665614102,
+        "rmsM": 11984.110366087192,
+        "p95AbsM": 12000.452119167292,
+        "maxAbsM": 12001.626329263403
+      },
+      "comparisonSamples": 3278,
+      "minimumEstimatedClearanceM": -5.217202669882681e-07,
+      "maximumEstimatedClearanceM": 10.000407938635817,
+      "minimumEpochIntervalS": 0.00012069940567016602
+    },
+    {
+      "flight": 6,
+      "input": {
+        "file": "flight_06.xyzv",
+        "bytes": 481882,
+        "sha256": "f68de74973b03acd3413edda4de80a8c898c0e309469aa55ecf2036e8c7ce900"
+      },
+      "serializedKnots": 4199,
+      "hermiteSamples": 16793,
+      "legacyInput": {
+        "file": "flight_06.xyzv",
+        "bytes": 377214,
+        "sha256": "6afa0844ad9387b8edf4aff5b8531c1025a2576508859e6136d360eeba0999c1"
+      },
+      "sameEpochDisplacementM": {
+        "n": 4199,
+        "meanM": 11968.393541774081,
+        "rmsM": 11968.400715635222,
+        "p95AbsM": 11988.667872342821,
+        "maxAbsM": 11991.421734439758
+      },
+      "comparisonSamples": 4199,
+      "minimumEstimatedClearanceM": -5.217202669882681e-07,
+      "maximumEstimatedClearanceM": 10.017508510009066,
+      "minimumEpochIntervalS": 4.023313522338867e-05
+    },
+    {
+      "flight": 7,
+      "input": {
+        "file": "flight_07.xyzv",
+        "bytes": 224493,
+        "sha256": "1d418f50881caf192383ff44853b209f0075506076edaf6f7c8e90b62b43e8c4"
+      },
+      "serializedKnots": 1954,
+      "hermiteSamples": 7813,
+      "legacyInput": {
+        "file": "flight_07.xyzv",
+        "bytes": 170228,
+        "sha256": "e92b1609a50dbc418a6df59d6cb5740f544556d1473bc548ad7afbf635495e66"
+      },
+      "sameEpochDisplacementM": {
+        "n": 1954,
+        "meanM": 11969.733904587378,
+        "rmsM": 11969.735687620208,
+        "p95AbsM": 11975.62899190669,
+        "maxAbsM": 11976.89200577806
+      },
+      "comparisonSamples": 1954,
+      "minimumEstimatedClearanceM": -3.0559112929040566e-07,
+      "maximumEstimatedClearanceM": 10.000545680264167,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 8,
+      "input": {
+        "file": "flight_08.xyzv",
+        "bytes": 274937,
+        "sha256": "8311810bff5aa8da303e60822533c5bce3fd9d801e8df0745a15c51f81947465"
+      },
+      "serializedKnots": 2391,
+      "hermiteSamples": 9561,
+      "legacyInput": {
+        "file": "flight_08.xyzv",
+        "bytes": 210215,
+        "sha256": "8f5176a43d46ea9b42a9f246915c6557751f4b8c2b14230d12240ac4b26070ab"
+      },
+      "sameEpochDisplacementM": {
+        "n": 2390,
+        "meanM": 11971.312612279267,
+        "rmsM": 11971.314196076297,
+        "p95AbsM": 11982.724400562818,
+        "maxAbsM": 11984.422044527852
+      },
+      "comparisonSamples": 2390,
+      "minimumEstimatedClearanceM": -3.310819920443464e-07,
+      "maximumEstimatedClearanceM": 10.000612862383605,
+      "minimumEpochIntervalS": 0.00012069940567016602
+    },
+    {
+      "flight": 9,
+      "input": {
+        "file": "flight_09.xyzv",
+        "bytes": 578209,
+        "sha256": "1d5769ba0c6d9eb7fe14d8711ef56380029c36f12f441c772d00cb9c954285a8"
+      },
+      "serializedKnots": 5056,
+      "hermiteSamples": 20221,
+      "legacyInput": {
+        "file": "flight_09.xyzv",
+        "bytes": 449168,
+        "sha256": "9d2d3bfcbecd5e4a831dceeb9c25771b79dda6190771bc88df220a65072896b6"
+      },
+      "sameEpochDisplacementM": {
+        "n": 5056,
+        "meanM": 11947.697692331369,
+        "rmsM": 11947.7063720833,
+        "p95AbsM": 11971.104360082278,
+        "maxAbsM": 11971.691322002478
+      },
+      "comparisonSamples": 5056,
+      "minimumEstimatedClearanceM": -3.310819920443464e-07,
+      "maximumEstimatedClearanceM": 10.00355966022289,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 10,
+      "input": {
+        "file": "flight_10.xyzv",
+        "bytes": 575254,
+        "sha256": "f62b06907db3751a8debe8d7cd8111498405d928b6bd2e7156b6352f6244ea31"
+      },
+      "serializedKnots": 5026,
+      "hermiteSamples": 20101,
+      "legacyInput": {
+        "file": "flight_10.xyzv",
+        "bytes": 445497,
+        "sha256": "452803afd1d1ec1ccddeefe15903c0cfe1c65d67287b18429eb446353a98d792"
+      },
+      "sameEpochDisplacementM": {
+        "n": 5026,
+        "meanM": 11967.858523078745,
+        "rmsM": 11967.859201205963,
+        "p95AbsM": 11976.097969068194,
+        "maxAbsM": 11988.642388215034
+      },
+      "comparisonSamples": 5026,
+      "minimumEstimatedClearanceM": 1.978655745915603e-07,
+      "maximumEstimatedClearanceM": 12.000990474876744,
+      "minimumEpochIntervalS": 4.023313522338867e-05
+    },
+    {
+      "flight": 11,
+      "input": {
+        "file": "flight_11.xyzv",
+        "bytes": 456836,
+        "sha256": "5340b8c2892eb43fb93fe59e119f3d21ae281585463b684a1eb999cb62781a4e"
+      },
+      "serializedKnots": 3994,
+      "hermiteSamples": 15973,
+      "legacyInput": {
+        "file": "flight_11.xyzv",
+        "bytes": 351460,
+        "sha256": "7831c829828e505c9f1a7c4f51d7a5514dbf21471609c32c41fa922ae2244ba8"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3993,
+        "meanM": 11972.966127725815,
+        "rmsM": 11972.969867722424,
+        "p95AbsM": 11991.574735454753,
+        "maxAbsM": 11993.760119952422
+      },
+      "comparisonSamples": 3993,
+      "minimumEstimatedClearanceM": 2.7040368877351284e-07,
+      "maximumEstimatedClearanceM": 12.00214020095973,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 12,
+      "input": {
+        "file": "flight_12.xyzv",
+        "bytes": 589966,
+        "sha256": "9c75415321d5d1a66e0cff7e3d260d5cb9d955addabcdc5cc06b9498c228d160"
+      },
+      "serializedKnots": 5148,
+      "hermiteSamples": 20589,
+      "legacyInput": {
+        "file": "flight_12.xyzv",
+        "bytes": 459004,
+        "sha256": "3aaa33ae5c5092c32ecf6ac9bfed1ae30b34765933d8a5787f6c2dc0babab09c"
+      },
+      "sameEpochDisplacementM": {
+        "n": 5148,
+        "meanM": 11967.20634710545,
+        "rmsM": 11967.206679589002,
+        "p95AbsM": 11971.243650811843,
+        "maxAbsM": 11972.434202419865
+      },
+      "comparisonSamples": 5148,
+      "minimumEstimatedClearanceM": 3.569130058167502e-08,
+      "maximumEstimatedClearanceM": 10.001207388400417,
+      "minimumEpochIntervalS": 4.023313522338867e-05
+    },
+    {
+      "flight": 13,
+      "input": {
+        "file": "flight_13.xyzv",
+        "bytes": 558560,
+        "sha256": "a6febb665980abba48d4303aab0a6980164ca5cef5dd52a1b50fe64301392164"
+      },
+      "serializedKnots": 4877,
+      "hermiteSamples": 19505,
+      "legacyInput": {
+        "file": "flight_13.xyzv",
+        "bytes": 435340,
+        "sha256": "643bb186f13f204a86da725cd68b955c329fcd172f394ea9db47ac94ec9bb43e"
+      },
+      "sameEpochDisplacementM": {
+        "n": 4875,
+        "meanM": 11963.42186585159,
+        "rmsM": 11963.424877534466,
+        "p95AbsM": 11973.715240422342,
+        "maxAbsM": 11974.624537103713
+      },
+      "comparisonSamples": 4875,
+      "minimumEstimatedClearanceM": 3.569130058167502e-08,
+      "maximumEstimatedClearanceM": 8.000927279889765,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 14,
+      "input": {
+        "file": "flight_14.xyzv",
+        "bytes": 82787,
+        "sha256": "b7e7fa631ad40256c1ef54f53ffcd945842d66b53179220d141382a3225501ad"
+      },
+      "serializedKnots": 717,
+      "hermiteSamples": 2865,
+      "legacyInput": {
+        "file": "flight_14.xyzv",
+        "bytes": 61738,
+        "sha256": "a52db6bed073eea6671f0167fc2790ef82a0cfa82de881af8b4e1dfe94314214"
+      },
+      "sameEpochDisplacementM": {
+        "n": 717,
+        "meanM": 11968.664281666533,
+        "rmsM": 11968.664282583366,
+        "p95AbsM": 11968.872959325014,
+        "maxAbsM": 11968.883243473638
+      },
+      "comparisonSamples": 717,
+      "minimumEstimatedClearanceM": -2.856063474609982e-07,
+      "maximumEstimatedClearanceM": 5.002933340234449,
+      "minimumEpochIntervalS": 0.0006034970283508301
+    },
+    {
+      "flight": 15,
+      "input": {
+        "file": "flight_15.xyzv",
+        "bytes": 451361,
+        "sha256": "42260441d7be1725df6d4162c324fa9e514cf4839c72883b165b128e59f50276"
+      },
+      "serializedKnots": 3928,
+      "hermiteSamples": 15709,
+      "legacyInput": {
+        "file": "flight_15.xyzv",
+        "bytes": 348904,
+        "sha256": "265874cec5e23493defaa5bea188a684d66fedc9a17009e11c35a37033a7f447"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3928,
+        "meanM": 11960.895206335786,
+        "rmsM": 11960.897635516241,
+        "p95AbsM": 11968.923316890583,
+        "maxAbsM": 11969.355074467045
+      },
+      "comparisonSamples": 3928,
+      "minimumEstimatedClearanceM": -5.223032530921046e-07,
+      "maximumEstimatedClearanceM": 12.00128958044752,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 16,
+      "input": {
+        "file": "flight_16.xyzv",
+        "bytes": 374109,
+        "sha256": "8e0e7cfb84b28745fbd8007c4be0d2e770574fcbea267e9fbb4fd9e1be2540c6"
+      },
+      "serializedKnots": 3255,
+      "hermiteSamples": 13017,
+      "legacyInput": {
+        "file": "flight_16.xyzv",
+        "bytes": 288964,
+        "sha256": "34172ff9b9a2886426c875627bc5eb2bae3a409fc13a093ce1142619ec0a7390"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3254,
+        "meanM": 11969.72449502562,
+        "rmsM": 11969.724670745303,
+        "p95AbsM": 11971.727450445585,
+        "maxAbsM": 11971.844497420376
+      },
+      "comparisonSamples": 3254,
+      "minimumEstimatedClearanceM": -5.223032530921046e-07,
+      "maximumEstimatedClearanceM": 10.002294830815117,
+      "minimumEpochIntervalS": 0.00012069940567016602
+    },
+    {
+      "flight": 17,
+      "input": {
+        "file": "flight_17.xyzv",
+        "bytes": 395728,
+        "sha256": "299a070f97776737005dc17b97a3eb2375d9ff04ee615a29f776d2b86d274012"
+      },
+      "serializedKnots": 3443,
+      "hermiteSamples": 13769,
+      "legacyInput": {
+        "file": "flight_17.xyzv",
+        "bytes": 305606,
+        "sha256": "18eae256f0a83981e23fdaf81348e4038d3fb837a44965caa8c472b4f3d6ad29"
+      },
+      "sameEpochDisplacementM": {
+        "n": 3442,
+        "meanM": 11971.35940052249,
+        "rmsM": 11971.360005042467,
+        "p95AbsM": 11976.756748455222,
+        "maxAbsM": 11977.589245196832
+      },
+      "comparisonSamples": 3442,
+      "minimumEstimatedClearanceM": -4.2788587961695157e-07,
+      "maximumEstimatedClearanceM": 10.000338119060416,
+      "minimumEpochIntervalS": 0.00024139881134033203
+    },
+    {
+      "flight": 18,
+      "input": {
+        "file": "flight_18.xyzv",
+        "bytes": 24336,
+        "sha256": "f47ddcb04bd03bcd599568119791545aa4c43cac5ec7d4061429fe4cde95d981"
+      },
+      "serializedKnots": 207,
+      "hermiteSamples": 825,
+      "legacyInput": {
+        "file": "flight_18.xyzv",
+        "bytes": 11864,
+        "sha256": "54451a1f026b877f1c349cce5368cf3be47b1494dc887e36d7cc79070ef26ec2"
+      },
+      "sameEpochDisplacementM": {
+        "n": 207,
+        "meanM": 11971.865533226024,
+        "rmsM": 11971.86591787582,
+        "p95AbsM": 11977.161292639023,
+        "maxAbsM": 11977.82074422908
+      },
+      "comparisonSamples": 207,
+      "minimumEstimatedClearanceM": -2.5149938664981164e-07,
+      "maximumEstimatedClearanceM": 10.013785809509955,
+      "minimumEpochIntervalS": 0.001971423625946045
+    },
+    {
+      "flight": 19,
+      "input": {
+        "file": "flight_19.xyzv",
+        "bytes": 21227,
+        "sha256": "2bca2e705dd9187f9e116bc349af056f97b7b412bf29499cffd817607d379f77"
+      },
+      "serializedKnots": 180,
+      "hermiteSamples": 717,
+      "legacyInput": {
+        "file": "flight_19.xyzv",
+        "bytes": 9414,
+        "sha256": "295ec844946438093300e7e240f5face326dcf530aa849033fd3e0c353c42f29"
+      },
+      "sameEpochDisplacementM": {
+        "n": 180,
+        "meanM": 11970.158975201155,
+        "rmsM": 11970.158999796813,
+        "p95AbsM": 11971.22130313536,
+        "maxAbsM": 11971.342855160161
+      },
+      "comparisonSamples": 180,
+      "minimumEstimatedClearanceM": -2.5149938664981164e-07,
+      "maximumEstimatedClearanceM": 10.02471730995103,
+      "minimumEpochIntervalS": 0.005471706390380859
+    },
+    {
+      "flight": 20,
+      "input": {
+        "file": "flight_20.xyzv",
+        "bytes": 24590,
+        "sha256": "cd260ea7402f5de4c6266f3b7268cd1c5d676e406782c6179f87af2d670148ff"
+      },
+      "serializedKnots": 210,
+      "hermiteSamples": 837,
+      "legacyInput": {
+        "file": "flight_20.xyzv",
+        "bytes": 12060,
+        "sha256": "601884f3f6cd4a5ab51edc66c1cce3374b9c9c2b11fa348ba56457ced1ccfeb1"
+      },
+      "sameEpochDisplacementM": {
+        "n": 210,
+        "meanM": 11971.683672780715,
+        "rmsM": 11971.685275133792,
+        "p95AbsM": 11981.3629076696,
+        "maxAbsM": 11984.790971827491
+      },
+      "comparisonSamples": 210,
+      "minimumEstimatedClearanceM": -4.0126587919075973e-07,
+      "maximumEstimatedClearanceM": 10.064465761650354,
+      "minimumEpochIntervalS": 0.003902614116668701
+    },
+    {
+      "flight": 21,
+      "input": {
+        "file": "flight_21.xyzv",
+        "bytes": 25947,
+        "sha256": "deb6a92c67204537c222bb06d826e2f2e208579fa4d13a3d1afc61245c5b48f2"
+      },
+      "serializedKnots": 222,
+      "hermiteSamples": 885,
+      "legacyInput": {
+        "file": "flight_21.xyzv",
+        "bytes": 13112,
+        "sha256": "b71ee67883a194b6a3b6baf1ca9ba9ebd39d3fdf8ac4a42d4c2139d28f8758ef"
+      },
+      "sameEpochDisplacementM": {
+        "n": 222,
+        "meanM": 11973.60298062817,
+        "rmsM": 11973.603321552626,
+        "p95AbsM": 11976.981947154956,
+        "maxAbsM": 11977.294656495684
+      },
+      "comparisonSamples": 222,
+      "minimumEstimatedClearanceM": -4.0126587919075973e-07,
+      "maximumEstimatedClearanceM": 10.15865480596085,
+      "minimumEpochIntervalS": 0.00788569450378418
+    },
+    {
+      "flight": 22,
+      "input": {
+        "file": "flight_22.xyzv",
+        "bytes": 21574,
+        "sha256": "11892955ed616cfd3a084c2e173f06cb2873242f1cd9639af8fc2e16dbb1ab28"
+      },
+      "serializedKnots": 183,
+      "hermiteSamples": 729,
+      "legacyInput": {
+        "file": "flight_22.xyzv",
+        "bytes": 9705,
+        "sha256": "2d23aef0c8eb434f91b29b8fadd597b7fd26d8cd3c54fee89cae766637e14472"
+      },
+      "sameEpochDisplacementM": {
+        "n": 182,
+        "meanM": 11976.182148883734,
+        "rmsM": 11976.182181180231,
+        "p95AbsM": 11978.119930813922,
+        "maxAbsM": 11978.582150812304
+      },
+      "comparisonSamples": 182,
+      "minimumEstimatedClearanceM": -4.1016801333171315e-07,
+      "maximumEstimatedClearanceM": 10.019926759946884,
+      "minimumEpochIntervalS": 0.0035002827644348145
+    },
+    {
+      "flight": 23,
+      "input": {
+        "file": "flight_23.xyzv",
+        "bytes": 24767,
+        "sha256": "01c0595b2ab369c71b25055723f233f621730b4275a56572895a0ad25601c76f"
+      },
+      "serializedKnots": 211,
+      "hermiteSamples": 841,
+      "legacyInput": {
+        "file": "flight_23.xyzv",
+        "bytes": 12217,
+        "sha256": "c261374a17e61ee8f641283a0d3874cbf2485d4ec516c1e93371d60ae4a5f94c"
+      },
+      "sameEpochDisplacementM": {
+        "n": 210,
+        "meanM": 11977.630919847883,
+        "rmsM": 11977.631314568629,
+        "p95AbsM": 11983.196590111647,
+        "maxAbsM": 11984.997255685552
+      },
+      "comparisonSamples": 210,
+      "minimumEstimatedClearanceM": -4.1016801333171315e-07,
+      "maximumEstimatedClearanceM": 10.033766052038118,
+      "minimumEpochIntervalS": 0.03761798143386841
+    },
+    {
+      "flight": 24,
+      "input": {
+        "file": "flight_24.xyzv",
+        "bytes": 19576,
+        "sha256": "1346395b536ebdf2b7ecfd1dbd0576b1f39403a5a24259fb3745bfc0802adcb9"
+      },
+      "serializedKnots": 166,
+      "hermiteSamples": 661,
+      "legacyInput": {
+        "file": "flight_24.xyzv",
+        "bytes": 8091,
+        "sha256": "7e4219fd30c0101a2f0ebab4b6848f1fa9d9f0da2fd3dbecbfd834f84a2a664f"
+      },
+      "sameEpochDisplacementM": {
+        "n": 166,
+        "meanM": 11978.692901700628,
+        "rmsM": 11978.692932964406,
+        "p95AbsM": 11980.241264941666,
+        "maxAbsM": 11980.437628010599
+      },
+      "comparisonSamples": 166,
+      "minimumEstimatedClearanceM": -4.5455180952558294e-08,
+      "maximumEstimatedClearanceM": 10.016189878050227,
+      "minimumEpochIntervalS": 0.0025346875190734863
+    },
+    {
+      "flight": 25,
+      "input": {
+        "file": "flight_25.xyzv",
+        "bytes": 27773,
+        "sha256": "7f62258d709b6b1fd9c2a00ab6416ecf28b51c00c975701e90299ab3156125c1"
+      },
+      "serializedKnots": 238,
+      "hermiteSamples": 949,
+      "legacyInput": {
+        "file": "flight_25.xyzv",
+        "bytes": 14562,
+        "sha256": "8c7f6fff1793e78277598e04346d6884b155f6e7f2c9b9680299edc8c7f18c3d"
+      },
+      "sameEpochDisplacementM": {
+        "n": 238,
+        "meanM": 11981.551126346094,
+        "rmsM": 11981.55151828054,
+        "p95AbsM": 11988.851644469421,
+        "maxAbsM": 11989.272223919155
+      },
+      "comparisonSamples": 238,
+      "minimumEstimatedClearanceM": -3.6920800994266756e-07,
+      "maximumEstimatedClearanceM": 10.126688198264674,
+      "minimumEpochIntervalS": 0.016213953495025635
+    },
+    {
+      "flight": 26,
+      "input": {
+        "file": "flight_26.xyzv",
+        "bytes": 26240,
+        "sha256": "fe34c2d0a04a9a2c3b5dbd03fcb88100f508b6648135e2d730b6f8fda38b3338"
+      },
+      "serializedKnots": 224,
+      "hermiteSamples": 893,
+      "legacyInput": {
+        "file": "flight_26.xyzv",
+        "bytes": 14819,
+        "sha256": "dd5c638b749a344f4e0e47a9e797bc06e4d599badeea1a1011e4ff3834df245a"
+      },
+      "sameEpochDisplacementM": {
+        "n": 222,
+        "meanM": 11984.574479402576,
+        "rmsM": 11984.578165586012,
+        "p95AbsM": 12004.817447389903,
+        "maxAbsM": 12012.319317106023
+      },
+      "comparisonSamples": 222,
+      "minimumEstimatedClearanceM": -3.6920800994266756e-07,
+      "maximumEstimatedClearanceM": 8.131014427743139,
+      "minimumEpochIntervalS": 0.002212822437286377
+    },
+    {
+      "flight": 27,
+      "input": {
+        "file": "flight_27.xyzv",
+        "bytes": 27257,
+        "sha256": "3bcecd12760c16e365b465742a7920fff181ff63801a68e2d3d52318debcc0dc"
+      },
+      "serializedKnots": 233,
+      "hermiteSamples": 929,
+      "legacyInput": {
+        "file": "flight_27.xyzv",
+        "bytes": 14170,
+        "sha256": "68195ae05f24d3abdafd09f60980125251948eebf74704da681339ef80b22d3a"
+      },
+      "sameEpochDisplacementM": {
+        "n": 233,
+        "meanM": 11981.20360647536,
+        "rmsM": 11981.206497227739,
+        "p95AbsM": 11998.451069878885,
+        "maxAbsM": 12001.089729767633
+      },
+      "comparisonSamples": 233,
+      "minimumEstimatedClearanceM": -5.4453721531899646e-08,
+      "maximumEstimatedClearanceM": 10.058808923758534,
+      "minimumEpochIntervalS": 0.0032186508178710938
+    },
+    {
+      "flight": 28,
+      "input": {
+        "file": "flight_28.xyzv",
+        "bytes": 26408,
+        "sha256": "48593b32a85d00acdc3d38a97e8a4c4365e4bf7b956f8fc304998a66fec4aaf8"
+      },
+      "serializedKnots": 226,
+      "hermiteSamples": 901,
+      "legacyInput": {
+        "file": "flight_28.xyzv",
+        "bytes": 13482,
+        "sha256": "b7676a7c4575c00e51a7b6ef583ed73fe80a1d3f67e912467269196fdd093df2"
+      },
+      "sameEpochDisplacementM": {
+        "n": 225,
+        "meanM": 11978.966253981847,
+        "rmsM": 11978.96659478557,
+        "p95AbsM": 11982.946959643932,
+        "maxAbsM": 11983.508928449472
+      },
+      "comparisonSamples": 225,
+      "minimumEstimatedClearanceM": -5.4453721531899646e-08,
+      "maximumEstimatedClearanceM": 10.039595856648248,
+      "minimumEpochIntervalS": 0.0019311904907226562
+    },
+    {
+      "flight": 29,
+      "input": {
+        "file": "flight_29.xyzv",
+        "bytes": 16977,
+        "sha256": "d811869fdec1ce38f74ab02cfc35bfcd2285966e3b1898cbdcffdc6cdfb77e80"
+      },
+      "serializedKnots": 143,
+      "hermiteSamples": 569,
+      "legacyInput": {
+        "file": "flight_29.xyzv",
+        "bytes": 6061,
+        "sha256": "770f6bcd08fad3787b017fb75266d18b201f8cc6dcb897fb521dd63dcdc57d66"
+      },
+      "sameEpochDisplacementM": {
+        "n": 143,
+        "meanM": 11980.837284605592,
+        "rmsM": 11980.837649343232,
+        "p95AbsM": 11982.649311328683,
+        "maxAbsM": 11983.91270471378
+      },
+      "comparisonSamples": 143,
+      "minimumEstimatedClearanceM": -1.4394845493370667e-07,
+      "maximumEstimatedClearanceM": 10.134192584270295,
+      "minimumEpochIntervalS": 0.0036209821701049805
+    },
+    {
+      "flight": 30,
+      "input": {
+        "file": "flight_30.xyzv",
+        "bytes": 8951,
+        "sha256": "2953a5e12eabd2e5267151b630a225d6aadbd11bd30654bf6d039475fcee6c7a"
+      },
+      "serializedKnots": 73,
+      "hermiteSamples": 289,
+      "legacyInput": {
+        "file": "flight_30.xyzv",
+        "bytes": 3333,
+        "sha256": "d494659b12bd94514f09ca1ac41333eba1962bc5a777c11f438c3c4896d746cc"
+      },
+      "sameEpochDisplacementM": {
+        "n": 71,
+        "meanM": 11981.587494437506,
+        "rmsM": 11981.58749509558,
+        "p95AbsM": 11981.787990868626,
+        "maxAbsM": 11982.084173816
+      },
+      "comparisonSamples": 71,
+      "minimumEstimatedClearanceM": -1.4394845493370667e-07,
+      "maximumEstimatedClearanceM": 5.032922090019838,
+      "minimumEpochIntervalS": 0.008288025856018066
+    },
+    {
+      "flight": 31,
+      "input": {
+        "file": "flight_31.xyzv",
+        "bytes": 16061,
+        "sha256": "89c67b5255dec32ee0ebff2b3f7cff4e047424259c736e6eb7c1d6e7cb1fcd97"
+      },
+      "serializedKnots": 135,
+      "hermiteSamples": 537,
+      "legacyInput": {
+        "file": "flight_31.xyzv",
+        "bytes": 5323,
+        "sha256": "f23bd64c42fe1dfb479e53cccf530d146159f10f212a7717fb0f243ea5a639ea"
+      },
+      "sameEpochDisplacementM": {
+        "n": 135,
+        "meanM": 11981.462784787744,
+        "rmsM": 11981.462788678611,
+        "p95AbsM": 11981.9464966664,
+        "maxAbsM": 11982.366809082338
+      },
+      "comparisonSamples": 135,
+      "minimumEstimatedClearanceM": -1.5389650798169896e-07,
+      "maximumEstimatedClearanceM": 10.056080872845541,
+      "minimumEpochIntervalS": 0.0060752034187316895
+    },
+    {
+      "flight": 32,
+      "input": {
+        "file": "flight_32.xyzv",
+        "bytes": 16034,
+        "sha256": "37bfd22eded00bc57cc79d7c3a963d23587641a69323001a0ec8170b9e51f620"
+      },
+      "serializedKnots": 135,
+      "hermiteSamples": 537,
+      "legacyInput": {
+        "file": "flight_32.xyzv",
+        "bytes": 5290,
+        "sha256": "14546a39f161dca0f4e9c48f16f9a59b093696ba667ca6679329312c2b91d239"
+      },
+      "sameEpochDisplacementM": {
+        "n": 134,
+        "meanM": 11981.419288283427,
+        "rmsM": 11981.419292409477,
+        "p95AbsM": 11981.96811132451,
+        "maxAbsM": 11982.03458470553
+      },
+      "comparisonSamples": 134,
+      "minimumEstimatedClearanceM": -2.2316771719488315e-07,
+      "maximumEstimatedClearanceM": 10.08936205041573,
+      "minimumEpochIntervalS": 0.0020518898963928223
+    },
+    {
+      "flight": 33,
+      "input": {
+        "file": "flight_33.xyzv",
+        "bytes": 16065,
+        "sha256": "3e0f71d9b9bd35ad4d2b21936cfe92d60fcb16a467a9b90b83d7aedf86b7d40f"
+      },
+      "serializedKnots": 135,
+      "hermiteSamples": 537,
+      "legacyInput": {
+        "file": "flight_33.xyzv",
+        "bytes": 5329,
+        "sha256": "58e46deb0c5899bbc2001c8301eaf902cd11ad2bb3d28c42c6c84b4df576d0c6"
+      },
+      "sameEpochDisplacementM": {
+        "n": 135,
+        "meanM": 11981.337207645223,
+        "rmsM": 11981.337224567516,
+        "p95AbsM": 11982.96440224002,
+        "maxAbsM": 11983.650869242829
+      },
+      "comparisonSamples": 135,
+      "minimumEstimatedClearanceM": -2.2316771719488315e-07,
+      "maximumEstimatedClearanceM": 10.111665747173447,
+      "minimumEpochIntervalS": 0.023134052753448486
+    },
+    {
+      "flight": 34,
+      "input": {
+        "file": "flight_34.xyzv",
+        "bytes": 6545,
+        "sha256": "e98c37d34cde76281ca988295fa2ff57cbd482dfce55e11e0d693e1eda0963eb"
+      },
+      "serializedKnots": 52,
+      "hermiteSamples": 205,
+      "legacyInput": {
+        "file": "flight_34.xyzv",
+        "bytes": 1968,
+        "sha256": "c4744953821cbe40e3d8a50fb369b2378d887ce7a1008b925c2eb71cd08a174a"
+      },
+      "sameEpochDisplacementM": {
+        "n": 51,
+        "meanM": 11981.23515991606,
+        "rmsM": 11981.235161745522,
+        "p95AbsM": 11981.6175344711,
+        "maxAbsM": 11981.660562680365
+      },
+      "comparisonSamples": 51,
+      "minimumEstimatedClearanceM": 1.1559359336388297e-07,
+      "maximumEstimatedClearanceM": 5.033481946457869,
+      "minimumEpochIntervalS": 0.05029141902923584
+    },
+    {
+      "flight": 35,
+      "input": {
+        "file": "flight_35.xyzv",
+        "bytes": 17185,
+        "sha256": "fe168cd92b47b46ce0e76c3dfa3e537191214f273a19aa12ad5f79bd430c71c7"
+      },
+      "serializedKnots": 145,
+      "hermiteSamples": 577,
+      "legacyInput": {
+        "file": "flight_35.xyzv",
+        "bytes": 5113,
+        "sha256": "227bebfc6e107ec6ee35845588493434bf7b7ed42da5f93e41d42f02a5470b47"
+      },
+      "sameEpochDisplacementM": {
+        "n": 144,
+        "meanM": 11981.420913254984,
+        "rmsM": 11981.420933868036,
+        "p95AbsM": 11981.931096668735,
+        "maxAbsM": 11982.601019358157
+      },
+      "comparisonSamples": 144,
+      "minimumEstimatedClearanceM": 1.1559359336388297e-07,
+      "maximumEstimatedClearanceM": 14.01465912871754,
+      "minimumEpochIntervalS": 0.009334087371826172
+    },
+    {
+      "flight": 36,
+      "input": {
+        "file": "flight_36.xyzv",
+        "bytes": 16617,
+        "sha256": "90007205e9f0dd78abfbfdebf7b7066eada61d27e3d12e09406928f9d31c3d6b"
+      },
+      "serializedKnots": 140,
+      "hermiteSamples": 557,
+      "legacyInput": {
+        "file": "flight_36.xyzv",
+        "bytes": 5769,
+        "sha256": "110d1750102d1ec53e83dbfd66bd80e02acb4021fefe6bd006f67c066cf260da"
+      },
+      "sameEpochDisplacementM": {
+        "n": 140,
+        "meanM": 11981.229720281322,
+        "rmsM": 11981.2298469392,
+        "p95AbsM": 11984.539321434831,
+        "maxAbsM": 11987.36896377651
+      },
+      "comparisonSamples": 140,
+      "minimumEstimatedClearanceM": -1.0929989002761431e-07,
+      "maximumEstimatedClearanceM": 10.050780375948762,
+      "minimumEpochIntervalS": 0.01786351203918457
+    },
+    {
+      "flight": 37,
+      "input": {
+        "file": "flight_37.xyzv",
+        "bytes": 15919,
+        "sha256": "9ea3cfa30551a7ba1aa6ffa4ce2bdd0b0371fa0ec8e0ed7492624c8b4f043751"
+      },
+      "serializedKnots": 134,
+      "hermiteSamples": 533,
+      "legacyInput": {
+        "file": "flight_37.xyzv",
+        "bytes": 5205,
+        "sha256": "0b6cb9f32c537559fdddd97d02559a2c4917460f4d12353bd5d71a6bb7e2f818"
+      },
+      "sameEpochDisplacementM": {
+        "n": 134,
+        "meanM": 11981.409817557622,
+        "rmsM": 11981.409891763089,
+        "p95AbsM": 11982.509140723207,
+        "maxAbsM": 11985.678034333538
+      },
+      "comparisonSamples": 134,
+      "minimumEstimatedClearanceM": -4.2873580241575837e-07,
+      "maximumEstimatedClearanceM": 10.018210874090073,
+      "minimumEpochIntervalS": 0.006276369094848633
+    },
+    {
+      "flight": 38,
+      "input": {
+        "file": "flight_38.xyzv",
+        "bytes": 19802,
+        "sha256": "477534c67df41040a8baed5babdb70ce7f42a0c79867b2ff4f922b97ca2eac9f"
+      },
+      "serializedKnots": 168,
+      "hermiteSamples": 669,
+      "legacyInput": {
+        "file": "flight_38.xyzv",
+        "bytes": 8266,
+        "sha256": "ac8009f18abe87e510c7da7c5740d09543658d9063830a3c5456567641582b09"
+      },
+      "sameEpochDisplacementM": {
+        "n": 167,
+        "meanM": 11981.238047418683,
+        "rmsM": 11981.238506386719,
+        "p95AbsM": 11983.917898498155,
+        "maxAbsM": 11984.05747655516
+      },
+      "comparisonSamples": 167,
+      "minimumEstimatedClearanceM": -4.2873580241575837e-07,
+      "maximumEstimatedClearanceM": 10.101117469647306,
+      "minimumEpochIntervalS": 0.004184246063232422
+    },
+    {
+      "flight": 39,
+      "input": {
+        "file": "flight_39.xyzv",
+        "bytes": 19826,
+        "sha256": "68a1c647a342514bc299020b7c0f1c5cf04f57bf914821a584daa37e1e08bbca"
+      },
+      "serializedKnots": 168,
+      "hermiteSamples": 669,
+      "legacyInput": {
+        "file": "flight_39.xyzv",
+        "bytes": 8303,
+        "sha256": "da1719678433d5ade08fd5007422cd897c7d174ebff1e6971cc44ce9dd0c496e"
+      },
+      "sameEpochDisplacementM": {
+        "n": 167,
+        "meanM": 11983.509417910118,
+        "rmsM": 11983.512001458905,
+        "p95AbsM": 12003.037890806238,
+        "maxAbsM": 12012.745368282494
+      },
+      "comparisonSamples": 167,
+      "minimumEstimatedClearanceM": -4.042763066536281e-07,
+      "maximumEstimatedClearanceM": 10.184269007614148,
+      "minimumEpochIntervalS": 0.010098516941070557
+    },
+    {
+      "flight": 40,
+      "input": {
+        "file": "flight_40.xyzv",
+        "bytes": 19457,
+        "sha256": "4fe20fa699e98973c5027cbfd2b63f51d3573b7f6013dca7764cb39940ca4160"
+      },
+      "serializedKnots": 165,
+      "hermiteSamples": 657,
+      "legacyInput": {
+        "file": "flight_40.xyzv",
+        "bytes": 7982,
+        "sha256": "cc7c62e912eeb8ae1bba2310ddeea7f0314196ac2a2054d15b6cadd3ba192a34"
+      },
+      "sameEpochDisplacementM": {
+        "n": 165,
+        "meanM": 11982.71795754492,
+        "rmsM": 11982.718106562668,
+        "p95AbsM": 11986.140754637083,
+        "maxAbsM": 11987.679336502271
+      },
+      "comparisonSamples": 165,
+      "minimumEstimatedClearanceM": 9.429004421690479e-08,
+      "maximumEstimatedClearanceM": 10.163060433731061,
+      "minimumEpochIntervalS": 0.014162063598632812
+    },
+    {
+      "flight": 41,
+      "input": {
+        "file": "flight_41.xyzv",
+        "bytes": 21877,
+        "sha256": "28f618994be4e37905abd5c4f387d565ce791f12284e21d3dc38e6a66352ccdb"
+      },
+      "serializedKnots": 186,
+      "hermiteSamples": 741,
+      "legacyInput": {
+        "file": "flight_41.xyzv",
+        "bytes": 9922,
+        "sha256": "e2ec1caefbad8d6469b4625717a6f14f8a18afee27dffa3e1a1a74d5c9dfe354"
+      },
+      "sameEpochDisplacementM": {
+        "n": 186,
+        "meanM": 11983.147808593973,
+        "rmsM": 11983.14801941471,
+        "p95AbsM": 11986.823507325216,
+        "maxAbsM": 11989.3231884708
+      },
+      "comparisonSamples": 186,
+      "minimumEstimatedClearanceM": -5.527112989511807e-07,
+      "maximumEstimatedClearanceM": 10.11036072323941,
+      "minimumEpochIntervalS": 0.004988908767700195
+    },
+    {
+      "flight": 42,
+      "input": {
+        "file": "flight_42.xyzv",
+        "bytes": 25278,
+        "sha256": "d195c5959818828a198f8c6b108bc49ca085d2d2aa8c14816acffea8af082e3c"
+      },
+      "serializedKnots": 216,
+      "hermiteSamples": 861,
+      "legacyInput": {
+        "file": "flight_42.xyzv",
+        "bytes": 12573,
+        "sha256": "01131ddd66460439990c8b636cf56c092afffe3cef837fa736be3af146f3eb40"
+      },
+      "sameEpochDisplacementM": {
+        "n": 216,
+        "meanM": 11979.76322890187,
+        "rmsM": 11979.764705123853,
+        "p95AbsM": 11984.725008013975,
+        "maxAbsM": 11985.00383385891
+      },
+      "comparisonSamples": 216,
+      "minimumEstimatedClearanceM": -5.527112989511807e-07,
+      "maximumEstimatedClearanceM": 10.047320675522315,
+      "minimumEpochIntervalS": 0.006839632987976074
+    },
+    {
+      "flight": 43,
+      "input": {
+        "file": "flight_43.xyzv",
+        "bytes": 28253,
+        "sha256": "4f936491d383895120dcfdbf2593e259ff4819ef74daf6a8b4d9274600b01515"
+      },
+      "serializedKnots": 242,
+      "hermiteSamples": 965,
+      "legacyInput": {
+        "file": "flight_43.xyzv",
+        "bytes": 13486,
+        "sha256": "6c6297791cb347f2955ac18f46afe194ee1ec53d0751f663d20ef2303b10d44d"
+      },
+      "sameEpochDisplacementM": {
+        "n": 242,
+        "meanM": 11983.480518918792,
+        "rmsM": 11983.482713609234,
+        "p95AbsM": 11991.07277115714,
+        "maxAbsM": 11995.536073005984
+      },
+      "comparisonSamples": 242,
+      "minimumEstimatedClearanceM": -1.1515112419147044e-08,
+      "maximumEstimatedClearanceM": 12.237913619248502,
+      "minimumEpochIntervalS": 0.00575333833694458
+    },
+    {
+      "flight": 44,
+      "input": {
+        "file": "flight_44.xyzv",
+        "bytes": 27563,
+        "sha256": "898351829374cf0f9c4c7025a8458da6ef34a4debd9e6090eaebab63a80320a6"
+      },
+      "serializedKnots": 236,
+      "hermiteSamples": 941,
+      "legacyInput": {
+        "file": "flight_44.xyzv",
+        "bytes": 12941,
+        "sha256": "7348aa9f81a2e964e37a6cf5a60437f13a74a36ffdd2309607a1ba6c03dcd6fa"
+      },
+      "sameEpochDisplacementM": {
+        "n": 236,
+        "meanM": 11986.30630460227,
+        "rmsM": 11986.30783824775,
+        "p95AbsM": 11990.918557646455,
+        "maxAbsM": 11992.535749977365
+      },
+      "comparisonSamples": 236,
+      "minimumEstimatedClearanceM": -5.028641680837609e-07,
+      "maximumEstimatedClearanceM": 12.06658735674091,
+      "minimumEpochIntervalS": 0.00969618558883667
+    },
+    {
+      "flight": 45,
+      "input": {
+        "file": "flight_45.xyzv",
+        "bytes": 28274,
+        "sha256": "69e885cb5cea98120c4ef500560f6e1a1984117053427b14813b8c4d1908cdd8"
+      },
+      "serializedKnots": 242,
+      "hermiteSamples": 965,
+      "legacyInput": {
+        "file": "flight_45.xyzv",
+        "bytes": 13522,
+        "sha256": "0dee940efd2e8834bd1b7f3acb115e6336b87b69286ab69d35eee262fff882f1"
+      },
+      "sameEpochDisplacementM": {
+        "n": 241,
+        "meanM": 11991.575230275315,
+        "rmsM": 11991.576703375402,
+        "p95AbsM": 12002.855108217309,
+        "maxAbsM": 12008.555002788635
+      },
+      "comparisonSamples": 241,
+      "minimumEstimatedClearanceM": -5.028641680837609e-07,
+      "maximumEstimatedClearanceM": 12.161433670054066,
+      "minimumEpochIntervalS": 0.009253621101379395
+    },
+    {
+      "flight": 46,
+      "input": {
+        "file": "flight_46.xyzv",
+        "bytes": 24856,
+        "sha256": "137b057405d6cc3c703167047773754815860de2aec7ef256e2860c79db1d251"
+      },
+      "serializedKnots": 212,
+      "hermiteSamples": 845,
+      "legacyInput": {
+        "file": "flight_46.xyzv",
+        "bytes": 10797,
+        "sha256": "3bdbe626c3ba444c991bb5acb9b2cf94899e73c2a2ab3a186ed18b8593adfb9c"
+      },
+      "sameEpochDisplacementM": {
+        "n": 212,
+        "meanM": 11996.524505021693,
+        "rmsM": 11996.542762853469,
+        "p95AbsM": 12040.900655870668,
+        "maxAbsM": 12060.270895155372
+      },
+      "comparisonSamples": 212,
+      "minimumEstimatedClearanceM": -3.445743459451478e-07,
+      "maximumEstimatedClearanceM": 12.155421973645389,
+      "minimumEpochIntervalS": 0.0041037797927856445
+    },
+    {
+      "flight": 47,
+      "input": {
+        "file": "flight_47.xyzv",
+        "bytes": 26800,
+        "sha256": "0754c0b78f336f84963da5ff4cbc01d193906628b8ec8abbf62cbfa993aa3484"
+      },
+      "serializedKnots": 229,
+      "hermiteSamples": 913,
+      "legacyInput": {
+        "file": "flight_47.xyzv",
+        "bytes": 12336,
+        "sha256": "7bc3a9961a1b4dd799bf2ffb2793015bf8f878c0498b1756166cda5c9038f6c6"
+      },
+      "sameEpochDisplacementM": {
+        "n": 229,
+        "meanM": 11992.155193352677,
+        "rmsM": 11992.15702204982,
+        "p95AbsM": 12007.480300432113,
+        "maxAbsM": 12020.217506957575
+      },
+      "comparisonSamples": 229,
+      "minimumEstimatedClearanceM": -1.1012843970092945e-07,
+      "maximumEstimatedClearanceM": 12.16361304105385,
+      "minimumEpochIntervalS": 0.008529424667358398
+    },
+    {
+      "flight": 48,
+      "input": {
+        "file": "flight_48.xyzv",
+        "bytes": 28705,
+        "sha256": "7fa65108419247798dca51de0372dceee0b211ed5e5adb600b473bfb8e644de9"
+      },
+      "serializedKnots": 246,
+      "hermiteSamples": 981,
+      "legacyInput": {
+        "file": "flight_48.xyzv",
+        "bytes": 13839,
+        "sha256": "e07300997703787d874308c5afa379071a88bb83a87c6d47cfd9b9710a1c4947"
+      },
+      "sameEpochDisplacementM": {
+        "n": 246,
+        "meanM": 11987.020650511013,
+        "rmsM": 11987.022607054707,
+        "p95AbsM": 11992.245948345106,
+        "maxAbsM": 11992.792517723125
+      },
+      "comparisonSamples": 246,
+      "minimumEstimatedClearanceM": -4.7537014324916527e-08,
+      "maximumEstimatedClearanceM": 12.187175865406061,
+      "minimumEpochIntervalS": 0.004023313522338867
+    },
+    {
+      "flight": 49,
+      "input": {
+        "file": "flight_49.xyzv",
+        "bytes": 31126,
+        "sha256": "6b1cc0627db1fc2c5216ecb6b28790de2860648c3259577146ad5cdb5bce6d33"
+      },
+      "serializedKnots": 267,
+      "hermiteSamples": 1065,
+      "legacyInput": {
+        "file": "flight_49.xyzv",
+        "bytes": 12843,
+        "sha256": "1763145541a236af1f2aae159ab690a71a310c3d0d4393b00dfed3429b8f75ac"
+      },
+      "sameEpochDisplacementM": {
+        "n": 266,
+        "meanM": 11991.200210483852,
+        "rmsM": 11991.201083378819,
+        "p95AbsM": 11994.606392128404,
+        "maxAbsM": 11996.944936374308
+      },
+      "comparisonSamples": 266,
+      "minimumEstimatedClearanceM": -4.7537014324916527e-08,
+      "maximumEstimatedClearanceM": 16.07964494421094,
+      "minimumEpochIntervalS": 0.002333521842956543
+    },
+    {
+      "flight": 50,
+      "input": {
+        "file": "flight_50.xyzv",
+        "bytes": 33759,
+        "sha256": "2e51b5f4093125af8646d7cfa0d580318b0d1b0c159ba71374f14b0255a23dae"
+      },
+      "serializedKnots": 290,
+      "hermiteSamples": 1157,
+      "legacyInput": {
+        "file": "flight_50.xyzv",
+        "bytes": 13503,
+        "sha256": "209419f91f3ad14804166a77ca648da66a0cefd7919b04ceae48568c33fee329"
+      },
+      "sameEpochDisplacementM": {
+        "n": 289,
+        "meanM": 11983.354349043993,
+        "rmsM": 11983.370405546231,
+        "p95AbsM": 11995.003790487819,
+        "maxAbsM": 11995.806286353862
+      },
+      "comparisonSamples": 289,
+      "minimumEstimatedClearanceM": 2.558886080805678e-07,
+      "maximumEstimatedClearanceM": 18.054949144695,
+      "minimumEpochIntervalS": 0.0010058283805847168
+    },
+    {
+      "flight": 51,
+      "input": {
+        "file": "flight_51.xyzv",
+        "bytes": 27389,
+        "sha256": "64771c42eb5806debde46738d7e12b88f1bbf9d63e7453ff6a10d10d4c12b915"
+      },
+      "serializedKnots": 234,
+      "hermiteSamples": 933,
+      "legacyInput": {
+        "file": "flight_51.xyzv",
+        "bytes": 12825,
+        "sha256": "7f17131ffa8ff2e75759bd125cd3e6d9c843f120a2e10c5ecc6ae56ec9d765fc"
+      },
+      "sameEpochDisplacementM": {
+        "n": 233,
+        "meanM": 11995.327673990234,
+        "rmsM": 11995.327810956396,
+        "p95AbsM": 11998.536306161868,
+        "maxAbsM": 12005.834828985053
+      },
+      "comparisonSamples": 233,
+      "minimumEstimatedClearanceM": -3.17637841362739e-07,
+      "maximumEstimatedClearanceM": 12.019973195604507,
+      "minimumEpochIntervalS": 0.034117698669433594
+    },
+    {
+      "flight": 52,
+      "input": {
+        "file": "flight_52.xyzv",
+        "bytes": 28150,
+        "sha256": "020889a785f86836086f7701a1b2fcf9bff541eabf7cce62a00cc92f187a1e77"
+      },
+      "serializedKnots": 241,
+      "hermiteSamples": 961,
+      "legacyInput": {
+        "file": "flight_52.xyzv",
+        "bytes": 13434,
+        "sha256": "309007088a89e6cbb7c698590f5c345cb26dcc3d6b6b816104483f7f119f9509"
+      },
+      "sameEpochDisplacementM": {
+        "n": 241,
+        "meanM": 11994.743290344542,
+        "rmsM": 11994.743317099319,
+        "p95AbsM": 11995.524068188794,
+        "maxAbsM": 11996.658774047295
+      },
+      "comparisonSamples": 241,
+      "minimumEstimatedClearanceM": -3.17637841362739e-07,
+      "maximumEstimatedClearanceM": 12.202082373777557,
+      "minimumEpochIntervalS": 8.046627044677734e-05
+    },
+    {
+      "flight": 53,
+      "input": {
+        "file": "flight_53.xyzv",
+        "bytes": 13672,
+        "sha256": "cd5f0611e4bd3a78251142f921e4b6e1bc86352fc38367519764dabc6f09281e"
+      },
+      "serializedKnots": 114,
+      "hermiteSamples": 453,
+      "legacyInput": {
+        "file": "flight_53.xyzv",
+        "bytes": 7053,
+        "sha256": "471c6b30088d759a11edd24908552b706fd4bccee2e4b6c675930386a95e06bd"
+      },
+      "sameEpochDisplacementM": {
+        "n": 112,
+        "meanM": 12002.432868739153,
+        "rmsM": 12002.434418725583,
+        "p95AbsM": 12009.141181194056,
+        "maxAbsM": 12009.230646103659
+      },
+      "comparisonSamples": 112,
+      "minimumEstimatedClearanceM": -2.2591711967834271e-07,
+      "maximumEstimatedClearanceM": 5.023174038106845,
+      "minimumEpochIntervalS": 0.012150406837463379
+    },
+    {
+      "flight": 54,
+      "input": {
+        "file": "flight_54.xyzv",
+        "bytes": 7801,
+        "sha256": "0cf5c1b2f658359be4b1aa27c2a4c8e2d0ca461f7e25664856b653e151552b3b"
+      },
+      "serializedKnots": 63,
+      "hermiteSamples": 249,
+      "legacyInput": {
+        "file": "flight_54.xyzv",
+        "bytes": 2417,
+        "sha256": "0ae61983de7af681a544e66a68e1c40c608447fa349e018ca9637d1968b35c61"
+      },
+      "sameEpochDisplacementM": {
+        "n": 63,
+        "meanM": 11996.585774196648,
+        "rmsM": 11996.585774279962,
+        "p95AbsM": 11996.676393510088,
+        "maxAbsM": 11996.740736151587
+      },
+      "comparisonSamples": 63,
+      "minimumEstimatedClearanceM": -2.8450676836655475e-07,
+      "maximumEstimatedClearanceM": 5.0317095359373525,
+      "minimumEpochIntervalS": 0.15727132558822632
+    },
+    {
+      "flight": 55,
+      "input": {
+        "file": "flight_55.xyzv",
+        "bytes": 26041,
+        "sha256": "2adcd7444f528b1ad2174c026973adf794e0e4179770fd172f17618312e7414b"
+      },
+      "serializedKnots": 222,
+      "hermiteSamples": 885,
+      "legacyInput": {
+        "file": "flight_55.xyzv",
+        "bytes": 13209,
+        "sha256": "480ffc323fb0d0be6c0c6290b00fd220acf2a559df0578cade7c9dd5e2579723"
+      },
+      "sameEpochDisplacementM": {
+        "n": 222,
+        "meanM": 11999.490620295763,
+        "rmsM": 11999.49309242822,
+        "p95AbsM": 12020.331923316568,
+        "maxAbsM": 12027.226500798284
+      },
+      "comparisonSamples": 222,
+      "minimumEstimatedClearanceM": -4.131220521230716e-07,
+      "maximumEstimatedClearanceM": 10.077363971183331,
+      "minimumEpochIntervalS": 0.0012874603271484375
+    },
+    {
+      "flight": 56,
+      "input": {
+        "file": "flight_56.xyzv",
+        "bytes": 27677,
+        "sha256": "7694ecbbae6babd5dfeca7000418f4b371dee9d32435fcbc627478448740f44d"
+      },
+      "serializedKnots": 237,
+      "hermiteSamples": 945,
+      "legacyInput": {
+        "file": "flight_56.xyzv",
+        "bytes": 13066,
+        "sha256": "5186852431115db2873965e8582c34a77ffc31b7f3250140f5db2be3c154af19"
+      },
+      "sameEpochDisplacementM": {
+        "n": 237,
+        "meanM": 11994.692992872722,
+        "rmsM": 11994.693614231606,
+        "p95AbsM": 11997.694067259037,
+        "maxAbsM": 11998.271327456108
+      },
+      "comparisonSamples": 237,
+      "minimumEstimatedClearanceM": -4.131220521230716e-07,
+      "maximumEstimatedClearanceM": 12.487583619481939,
+      "minimumEpochIntervalS": 0.003178417682647705
+    },
+    {
+      "flight": 57,
+      "input": {
+        "file": "flight_57.xyzv",
+        "bytes": 23841,
+        "sha256": "2c7061fa12aa9b9677844cde2f24d73f16e292d15069f2e5240e350b15d02933"
+      },
+      "serializedKnots": 203,
+      "hermiteSamples": 809,
+      "legacyInput": {
+        "file": "flight_57.xyzv",
+        "bytes": 11448,
+        "sha256": "a3d30f3028f59f6e3c6c6b6510cb39577e40dbeb05e053a708bdce90591ffdc4"
+      },
+      "sameEpochDisplacementM": {
+        "n": 203,
+        "meanM": 11995.56605280804,
+        "rmsM": 11995.568928354518,
+        "p95AbsM": 12001.594210620782,
+        "maxAbsM": 12009.47272579808
+      },
+      "comparisonSamples": 203,
+      "minimumEstimatedClearanceM": -2.9582588467746973e-07,
+      "maximumEstimatedClearanceM": 10.103453199828891,
+      "minimumEpochIntervalS": 0.007081031799316406
+    },
+    {
+      "flight": 58,
+      "input": {
+        "file": "flight_58.xyzv",
+        "bytes": 21972,
+        "sha256": "a99c99b0714fc1108a68c950de0cf175ab2296e5ddb94def0c1c568a0fd8d386"
+      },
+      "serializedKnots": 187,
+      "hermiteSamples": 745,
+      "legacyInput": {
+        "file": "flight_58.xyzv",
+        "bytes": 9983,
+        "sha256": "5f8175f8daa804017a44501159f8d123e834077f103693ee8d4f48c80babc955"
+      },
+      "sameEpochDisplacementM": {
+        "n": 187,
+        "meanM": 11999.889832467941,
+        "rmsM": 11999.890292443615,
+        "p95AbsM": 12006.796400573949,
+        "maxAbsM": 12010.380502626798
+      },
+      "comparisonSamples": 187,
+      "minimumEstimatedClearanceM": -4.5713113649981096e-07,
+      "maximumEstimatedClearanceM": 10.050689942564077,
+      "minimumEpochIntervalS": 0.005874037742614746
+    },
+    {
+      "flight": 59,
+      "input": {
+        "file": "flight_59.xyzv",
+        "bytes": 30480,
+        "sha256": "94e4f9d88563f136b8a7c8b9b03710b611fa5dcdb2b66c280892df74b8b1db3f"
+      },
+      "serializedKnots": 261,
+      "hermiteSamples": 1041,
+      "legacyInput": {
+        "file": "flight_59.xyzv",
+        "bytes": 9487,
+        "sha256": "c289dfb5c1845dd0b1e299b08778fd865df4b845b1c8fec565fa41bb6e564a8e"
+      },
+      "sameEpochDisplacementM": {
+        "n": 261,
+        "meanM": 12000.172947453051,
+        "rmsM": 12000.172949579808,
+        "p95AbsM": 12000.399329142712,
+        "maxAbsM": 12001.071545046128
+      },
+      "comparisonSamples": 261,
+      "minimumEstimatedClearanceM": -4.5713113649981096e-07,
+      "maximumEstimatedClearanceM": 20.02556930102628,
+      "minimumEpochIntervalS": 0.059786438941955566
+    },
+    {
+      "flight": 60,
+      "input": {
+        "file": "flight_60.xyzv",
+        "bytes": 29751,
+        "sha256": "d6bb564355070b6328bf710681ed6fe71ac384614e14e29558aaac42ae7a0b3a"
+      },
+      "serializedKnots": 255,
+      "hermiteSamples": 1017,
+      "legacyInput": {
+        "file": "flight_60.xyzv",
+        "bytes": 11804,
+        "sha256": "20c25cf757b6410708c7cc0a392f070ff11b5724cf549802562cc51e7ba90e9d"
+      },
+      "sameEpochDisplacementM": {
+        "n": 255,
+        "meanM": 11995.783638050596,
+        "rmsM": 11995.792024148528,
+        "p95AbsM": 12002.838579434287,
+        "maxAbsM": 12003.50731313985
+      },
+      "comparisonSamples": 255,
+      "minimumEstimatedClearanceM": 4.8447873268742114e-08,
+      "maximumEstimatedClearanceM": 16.25560196706965,
+      "minimumEpochIntervalS": 0.004586577415466309
+    },
+    {
+      "flight": 61,
+      "input": {
+        "file": "flight_61.xyzv",
+        "bytes": 37225,
+        "sha256": "8f43fa10d8ac5f86381856e73a1a79668bac63ea5f673fb66a48a716f0706fc9"
+      },
+      "serializedKnots": 320,
+      "hermiteSamples": 1277,
+      "legacyInput": {
+        "file": "flight_61.xyzv",
+        "bytes": 11922,
+        "sha256": "be4739bc0f5a11ba39d682aec381580b531c86e119ad252aeb553569e327a353"
+      },
+      "sameEpochDisplacementM": {
+        "n": 320,
+        "meanM": 12002.690541689268,
+        "rmsM": 12002.690542920367,
+        "p95AbsM": 12002.892643792817,
+        "maxAbsM": 12003.019002425175
+      },
+      "comparisonSamples": 320,
+      "minimumEstimatedClearanceM": -5.568081178353168e-07,
+      "maximumEstimatedClearanceM": 24.02013351642654,
+      "minimumEpochIntervalS": 0.014363229274749756
+    },
+    {
+      "flight": 62,
+      "input": {
+        "file": "flight_62.xyzv",
+        "bytes": 30944,
+        "sha256": "e022776196eeb248c1bf4ed5cd787f7acd3e458f6fbbc77c36ba73b6e25059cc"
+      },
+      "serializedKnots": 265,
+      "hermiteSamples": 1057,
+      "legacyInput": {
+        "file": "flight_62.xyzv",
+        "bytes": 11298,
+        "sha256": "a3f11723fe3719074dd766693a0d375fea1617b17e0a9f7937b42912f84cce07"
+      },
+      "sameEpochDisplacementM": {
+        "n": 264,
+        "meanM": 12002.043428377028,
+        "rmsM": 12002.047649752425,
+        "p95AbsM": 12010.601888409992,
+        "maxAbsM": 12035.380329675227
+      },
+      "comparisonSamples": 264,
+      "minimumEstimatedClearanceM": -5.568081178353168e-07,
+      "maximumEstimatedClearanceM": 18.240683813201485,
+      "minimumEpochIntervalS": 0.006879866123199463
+    },
+    {
+      "flight": 63,
+      "input": {
+        "file": "flight_63.xyzv",
+        "bytes": 27949,
+        "sha256": "2167b36eb7ee7358545615ac7ff5dd2d80fbdb98463f279a6afe6a29ebf04697"
+      },
+      "serializedKnots": 239,
+      "hermiteSamples": 953,
+      "legacyInput": {
+        "file": "flight_63.xyzv",
+        "bytes": 13254,
+        "sha256": "934cd3664d943840ccc9492ebbb778d677fd3523460703f01fef25f09ccd9411"
+      },
+      "sameEpochDisplacementM": {
+        "n": 239,
+        "meanM": 11999.838203340652,
+        "rmsM": 11999.840207533356,
+        "p95AbsM": 12009.014278367471,
+        "maxAbsM": 12015.604776765857
+      },
+      "comparisonSamples": 239,
+      "minimumEstimatedClearanceM": -1.7414595276932232e-07,
+      "maximumEstimatedClearanceM": 12.60854172961217,
+      "minimumEpochIntervalS": 0.012955069541931152
+    },
+    {
+      "flight": 64,
+      "input": {
+        "file": "flight_64.xyzv",
+        "bytes": 28163,
+        "sha256": "2d8ab8f13d2ff42814a2481ae55760292495163f9255d507b76412f16b545aa3"
+      },
+      "serializedKnots": 241,
+      "hermiteSamples": 961,
+      "legacyInput": {
+        "file": "flight_64.xyzv",
+        "bytes": 13444,
+        "sha256": "b651812bb43b8de4bb983b05767d40aaf67266e374d1daef19cc6e90ff1df65d"
+      },
+      "sameEpochDisplacementM": {
+        "n": 240,
+        "meanM": 11993.908418916235,
+        "rmsM": 11993.916382757307,
+        "p95AbsM": 12006.01944832532,
+        "maxAbsM": 12008.939565037477
+      },
+      "comparisonSamples": 240,
+      "minimumEstimatedClearanceM": -1.7414595276932232e-07,
+      "maximumEstimatedClearanceM": 12.462536198850557,
+      "minimumEpochIntervalS": 0.006115436553955078
+    },
+    {
+      "flight": 65,
+      "input": {
+        "file": "flight_65.xyzv",
+        "bytes": 15132,
+        "sha256": "8d0eef86b05ff32cff6b335e4d5495d436018ab622e066f861934b8cc82c5c14"
+      },
+      "serializedKnots": 127,
+      "hermiteSamples": 505,
+      "legacyInput": {
+        "file": "flight_65.xyzv",
+        "bytes": 4590,
+        "sha256": "70ad691e925a7599f112b1de169eec1156c2827c8e8824c2141dff23e1cefb21"
+      },
+      "sameEpochDisplacementM": {
+        "n": 126,
+        "meanM": 12003.316662608684,
+        "rmsM": 12003.316664373644,
+        "p95AbsM": 12003.590960842128,
+        "maxAbsM": 12004.303050404995
+      },
+      "comparisonSamples": 126,
+      "minimumEstimatedClearanceM": -1.5189516489044763e-07,
+      "maximumEstimatedClearanceM": 10.013406826111805,
+      "minimumEpochIntervalS": 0.007966160774230957
+    },
+    {
+      "flight": 66,
+      "input": {
+        "file": "flight_66.xyzv",
+        "bytes": 6773,
+        "sha256": "2309e5d3347ecdb4771c64124c47b0aec11fa8a6b3c24c8d2e579123bbec4aa2"
+      },
+      "serializedKnots": 54,
+      "hermiteSamples": 213,
+      "legacyInput": {
+        "file": "flight_66.xyzv",
+        "bytes": 2510,
+        "sha256": "1b5ca9f588d9b4d386906bf8a6592d01b67d75063929248d77406d9b3380ec92"
+      },
+      "sameEpochDisplacementM": {
+        "n": 54,
+        "meanM": 12003.399736086338,
+        "rmsM": 12003.39973742113,
+        "p95AbsM": 12003.678151048465,
+        "maxAbsM": 12003.711959748653
+      },
+      "comparisonSamples": 54,
+      "minimumEstimatedClearanceM": 3.2762727641966194e-07,
+      "maximumEstimatedClearanceM": 3.095997986767543,
+      "minimumEpochIntervalS": 0.021685659885406494
+    },
+    {
+      "flight": 67,
+      "input": {
+        "file": "flight_67.xyzv",
+        "bytes": 26873,
+        "sha256": "2e66b5abfa429ed579769ea63d8d2bf4ed2d9cc876116bde83f8672990c371d3"
+      },
+      "serializedKnots": 230,
+      "hermiteSamples": 917,
+      "legacyInput": {
+        "file": "flight_67.xyzv",
+        "bytes": 12419,
+        "sha256": "752ec182fe954e2e557e71343d7fb38672346cf413f8238b27d95450f7d75566"
+      },
+      "sameEpochDisplacementM": {
+        "n": 230,
+        "meanM": 12005.375206712331,
+        "rmsM": 12005.375496714098,
+        "p95AbsM": 12010.218679734544,
+        "maxAbsM": 12014.651632133427
+      },
+      "comparisonSamples": 230,
+      "minimumEstimatedClearanceM": -2.562369445513468e-07,
+      "maximumEstimatedClearanceM": 12.442023407253146,
+      "minimumEpochIntervalS": 0.004144012928009033
+    },
+    {
+      "flight": 68,
+      "input": {
+        "file": "flight_68.xyzv",
+        "bytes": 30475,
+        "sha256": "ee69fc5ce3ef52aec7d0cc4da07316010f7fcf86dd19c7f2d10f9cccd065af84"
+      },
+      "serializedKnots": 261,
+      "hermiteSamples": 1041,
+      "legacyInput": {
+        "file": "flight_68.xyzv",
+        "bytes": 12373,
+        "sha256": "2e01d808873a66f8c43e0b100a54b0411c905a7511a43832d199c3875c6a6c82"
+      },
+      "sameEpochDisplacementM": {
+        "n": 261,
+        "meanM": 12003.8942571887,
+        "rmsM": 12003.901034514347,
+        "p95AbsM": 12026.724157104874,
+        "maxAbsM": 12039.728026590781
+      },
+      "comparisonSamples": 261,
+      "minimumEstimatedClearanceM": -4.507273843046278e-07,
+      "maximumEstimatedClearanceM": 16.169901536795805,
+      "minimumEpochIntervalS": 0.0026151537895202637
+    },
+    {
+      "flight": 69,
+      "input": {
+        "file": "flight_69.xyzv",
+        "bytes": 30364,
+        "sha256": "daac5ce6ab7c8293e918d446589bc9848c31169152e049b4a02cfeddd40b2dba"
+      },
+      "serializedKnots": 260,
+      "hermiteSamples": 1037,
+      "legacyInput": {
+        "file": "flight_69.xyzv",
+        "bytes": 12279,
+        "sha256": "4d388687e27bff3f278f76a81077b49d76e5fa2e5d0ba605bfd05e8c115e0939"
+      },
+      "sameEpochDisplacementM": {
+        "n": 259,
+        "meanM": 12003.279962226517,
+        "rmsM": 12003.29114658706,
+        "p95AbsM": 12031.914417622549,
+        "maxAbsM": 12043.28107254989
+      },
+      "comparisonSamples": 259,
+      "minimumEstimatedClearanceM": -4.507273843046278e-07,
+      "maximumEstimatedClearanceM": 16.15164912448563,
+      "minimumEpochIntervalS": 0.0012069940567016602
+    },
+    {
+      "flight": 70,
+      "input": {
+        "file": "flight_70.xyzv",
+        "bytes": 23607,
+        "sha256": "edbb6bcf5155e718a94b47928fdf773beef80458e726fab20f90d157a88f74ba"
+      },
+      "serializedKnots": 201,
+      "hermiteSamples": 801,
+      "legacyInput": {
+        "file": "flight_70.xyzv",
+        "bytes": 9838,
+        "sha256": "a6a0a2bdc0172630041141325dd2027e83d2e2826a62391fde6f52c757e4d996"
+      },
+      "sameEpochDisplacementM": {
+        "n": 201,
+        "meanM": 11999.925942244556,
+        "rmsM": 11999.929036343065,
+        "p95AbsM": 12012.481161170257,
+        "maxAbsM": 12014.25134276779
+      },
+      "comparisonSamples": 201,
+      "minimumEstimatedClearanceM": 1.1569454727577977e-07,
+      "maximumEstimatedClearanceM": 12.661835825884282,
+      "minimumEpochIntervalS": 0.016535818576812744
+    },
+    {
+      "flight": 71,
+      "input": {
+        "file": "flight_71.xyzv",
+        "bytes": 11805,
+        "sha256": "d36920ba595d9c3c8d2d8705f15b58a355fd3caf891caafbd036452428bf841e"
+      },
+      "serializedKnots": 98,
+      "hermiteSamples": 389,
+      "legacyInput": {
+        "file": "flight_71.xyzv",
+        "bytes": 3574,
+        "sha256": "ff14d343e4929832f40e7c409c4cbe31ea0cefb218e6e166a6e88d610ec2a6cf"
+      },
+      "sameEpochDisplacementM": {
+        "n": 98,
+        "meanM": 12006.447839298107,
+        "rmsM": 12006.449279063925,
+        "p95AbsM": 12022.040098309877,
+        "maxAbsM": 12031.375278599984
+      },
+      "comparisonSamples": 98,
+      "minimumEstimatedClearanceM": 3.317272785352543e-07,
+      "maximumEstimatedClearanceM": 12.562015235216222,
+      "minimumEpochIntervalS": 0.0006034970283508301
+    },
+    {
+      "flight": 72,
+      "input": {
+        "file": "flight_72.xyzv",
+        "bytes": 10776,
+        "sha256": "dcb308a7bc807cece2dc8a00f702f367d1aede2068164b64d158adccf22725d3"
+      },
+      "serializedKnots": 89,
+      "hermiteSamples": 353,
+      "legacyInput": {
+        "file": "flight_72.xyzv",
+        "bytes": 3141,
+        "sha256": "975b6f41235d8b82c534dc6456a464fe4775dc3343648115cc06d61f37691cd9"
+      },
+      "sameEpochDisplacementM": {
+        "n": 89,
+        "meanM": 12004.19618008075,
+        "rmsM": 12004.196206436945,
+        "p95AbsM": 12005.087968438958,
+        "maxAbsM": 12005.248699226995
+      },
+      "comparisonSamples": 89,
+      "minimumEstimatedClearanceM": -1.741332198434975e-07,
+      "maximumEstimatedClearanceM": 12.085558356501679,
+      "minimumEpochIntervalS": 0.0030979514122009277
+    }
+  ],
+  "legacyComparison": "New serialized knots within the common time range versus linearly interpolated legacy Cartesian positions at the same epochs; coordinate and estimated profile changes combined, not an accuracy claim."
+}

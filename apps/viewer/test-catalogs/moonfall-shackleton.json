@@ -113,7 +113,8 @@
           "cubeSphere": {
             "cpuGrids": "data/moon-terrain-cube/cpu-grids.json",
             "imagery": {
-              "url": "data/moon-imagery-cube-wac-nac/imagery.json"
+              "url": "data/moon-imagery-cube-wac-nac/imagery.json",
+              "maxTextureBytes": 536870912
             }
           }
         }

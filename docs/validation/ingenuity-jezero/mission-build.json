@@ -1,0 +1,467 @@
+{
+  "kind": "ingenuity-completed-mission-build",
+  "version": 1,
+  "buildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "lockIdentity": "sha256:f48448a081c2b8b1c6bd6ff28b1db2c5389d2412a20a8a22862e2370d2e42f47",
+  "validation": "passed-supported-gates",
+  "executorProductionReady": false,
+  "limitation": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.",
+  "completionReceiptSha256": "4fe9697fa018eee21676b1b97064ed8259104091233692c9f26fc63a7253a1b4",
+  "products": [
+    {
+      "id": "terrain-3846907d293e9e5d0b0243ce",
+      "productIdentity": "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395",
+      "kind": "cube-terrain",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "objects": 4089,
+      "bytes": 364965715,
+      "revision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+      "maxLevel": 15,
+      "nativeFidelity": [
+        {
+          "sourceId": "base",
+          "nativeGsdM": 200,
+          "accuracyM": null
+        },
+        {
+          "sourceId": "detail",
+          "nativeGsdM": 1,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        106130.9375,
+        53065.46875,
+        26532.734375,
+        13266.3671875,
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742
+      ],
+      "availabilityEntries": 2042,
+      "controls": {
+        "count": 73,
+        "maximumErrorM": 0.06173292214862158,
+        "toleranceM": 1
+      }
+    },
+    {
+      "id": "imagery-04513d4681559e949e39e30f",
+      "productIdentity": "04513d4681559e949e39e30fcaaaec3f1b74b07a3adec4685c3bd19ef5d34b61",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "viking"
+      ],
+      "objects": 140,
+      "bytes": 279133060,
+      "revision": "cube-imagery-xyz-f88b78acaf5f93ab",
+      "maxLevel": 7,
+      "validPixels": 145752064,
+      "transparentPixels": 0,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "viking",
+          "nativeGsdM": 325.60563825058347,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875
+      ],
+      "availabilityEntries": 139
+    },
+    {
+      "id": "imagery-11f675fe48a13579126bb3cd",
+      "productIdentity": "11f675fe48a13579126bb3cd85c3cb4249f38db36d7c59523c5ce15567a48a5d",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "ctx-global"
+      ],
+      "objects": 221,
+      "bytes": 210322550,
+      "revision": "cube-imagery-xyz-755bacf237148dc1",
+      "maxLevel": 13,
+      "validPixels": 230003369,
+      "transparentPixels": 683351,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "ctx-global",
+          "nativeGsdM": 5.087588097665367,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742,
+        1.619429588317871,
+        0.8097147941589355
+      ],
+      "availabilityEntries": 220
+    },
+    {
+      "id": "imagery-ab90c8bd749d673d3f786918",
+      "productIdentity": "ab90c8bd749d673d3f7869185cbf504040b76728efbd46be89fac370f6465596",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "jezero-ctx"
+      ],
+      "objects": 58,
+      "bytes": 16823792,
+      "revision": "cube-imagery-raster-423514ff094ce3a4",
+      "maxLevel": 11,
+      "validPixels": 36372584,
+      "transparentPixels": 23396248,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "jezero-ctx",
+          "nativeGsdM": 6,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742
+      ],
+      "availabilityEntries": 57
+    },
+    {
+      "id": "imagery-4992e13935cc9898d6522634",
+      "productIdentity": "4992e13935cc9898d65226349f2cf222b009cdbd7d4076bff3500232e2d818a0",
+      "kind": "cube-imagery",
+      "sourceIds": [
+        "jezero-hirise"
+      ],
+      "objects": 595,
+      "bytes": 372064271,
+      "revision": "cube-imagery-raster-1f9a24652d0a0db4",
+      "maxLevel": 14,
+      "validPixels": 598343375,
+      "transparentPixels": 24510769,
+      "sourceFallbacks": [],
+      "nativeFidelity": [
+        {
+          "sourceId": "jezero-hirise",
+          "nativeGsdM": 0.25,
+          "accuracyM": null
+        }
+      ],
+      "outputSpacingMByLevel": [
+        6633.18359375,
+        3316.591796875,
+        1658.2958984375,
+        829.14794921875,
+        414.573974609375,
+        207.2869873046875,
+        103.64349365234375,
+        51.821746826171875,
+        25.910873413085938,
+        12.955436706542969,
+        6.477718353271484,
+        3.238859176635742,
+        1.619429588317871,
+        0.8097147941589355,
+        0.4048573970794678
+      ],
+      "availabilityEntries": 594
+    }
+  ],
+  "sourceImagery": {
+    "ctx-global": {
+      "responses": 3609,
+      "unavailableResponses": [
+        {
+          "httpStatus": 200,
+          "key": "5/32/16",
+          "reason": "decode-failure",
+          "sha256": "9de49222a179c1f2a745365cdbb3992c8b65f37b426367bf78020fe6fabad45c",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/5/16/32"
+        },
+        {
+          "httpStatus": 200,
+          "key": "5/38/20",
+          "reason": "decode-failure",
+          "sha256": "3dd00e2c848008b95e72cf03f1c44941e3ba75be995dde88c1d38c9267438e9f",
+          "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer/tile/5/20/38"
+        }
+      ],
+      "responseBytes": 441850136,
+      "fallback": "Transparent missing pixels; independent runtime layers only. No source-parent substitution.",
+      "nativeValidSubset": {
+        "extent": "known-valid-subset",
+        "method": "Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling",
+        "nativeSourceLevel": 12,
+        "responses": [
+          "12/5858/1628"
+        ]
+      },
+      "decodedIdentity": {
+        "duplicateGroups": [],
+        "method": "SHA-256 of full decoded RGBA, grouped within source level; uniform/transparent tiles excluded",
+        "requiredDistinct": true,
+        "texturedResponses": 3607
+      }
+    },
+    "jezero-ctx": {
+      "sourceSha256": "842b457afee7c2672022b66e3f60be836c6d52e99474015bfd9ced60099b8615",
+      "nativeGrid": [
+        4573663.250853,
+        6,
+        0,
+        1109693.140188,
+        0,
+        -6
+      ],
+      "rasterGsdM": 6.000000000000001,
+      "validPixels": 26822880,
+      "invalidPixels": 0,
+      "dtmGridAlignment": {
+        "absoluteGeolocationErrorM": null,
+        "coincident": false,
+        "finestSpacingM": 1,
+        "maximumGridPhaseErrorM": 0.25085300020873547,
+        "nativePixelRatio": 0.16666666666666666,
+        "note": "Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.",
+        "originOffsetsInFinestPixels": [
+          -3702.7491469997913,
+          3075.140187999932
+        ],
+        "policy": "independent-original-grids"
+      },
+      "filtering": {
+        "bytes": 41351444,
+        "gdal": "3.13.0",
+        "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+        "overviewFactors": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096
+        ],
+        "sha256": "665408b7a6e0fcf580771ade8b4a0c5f35b268dc0e677be8fec98412c586f7c5",
+        "supersample": 4
+      },
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "method": "all touched native cells plus two-cell interpolation halo",
+        "featuresChecked": 48
+      },
+      "sourceToOutputRegistration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 304,
+        "checkedPixels": 475,
+        "maximumAlphaErrorDn": 0,
+        "maximumErrorDn": 0.499923648941234,
+        "maximumGutterErrorDn": 0.499923648941234,
+        "maximumOutputSpacingM": 3.238859176635742,
+        "method": "stratified finest-output and gutter samples; independent affine inversion and native 2x2 masked windows; no staged overview reads",
+        "nativeValueStdDevDn": 22.79000656043986,
+        "note": "Sampled preservation of source registration/texture plus continuous requested output-tile coverage; not exhaustive native validity or absolute geolocation certification.",
+        "rmsErrorDn": 0.2814456846683545,
+        "sourcePixelSizeM": 6,
+        "sampledTiles": 19,
+        "continuousRequestedRegions": 118
+      }
+    },
+    "jezero-hirise": {
+      "sourceSha256": "83f3faeabc87ba54db9af278611bd070494a0b0d43757108c871c763943e80d9",
+      "nativeGrid": [
+        4577366,
+        0.25,
+        0,
+        1106618,
+        0,
+        -0.25
+      ],
+      "rasterGsdM": 0.25,
+      "validPixels": 4863409846,
+      "invalidPixels": 2494081354,
+      "dtmGridAlignment": {
+        "absoluteGeolocationErrorM": null,
+        "coincident": true,
+        "finestSpacingM": 0.25,
+        "maximumGridPhaseErrorM": 0,
+        "nativePixelRatio": 4,
+        "note": "Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.",
+        "originOffsetsInFinestPixels": [
+          0,
+          0
+        ],
+        "policy": "require-coincident-grids"
+      },
+      "filtering": {
+        "bytes": 6667852672,
+        "gdal": "3.13.0",
+        "method": "GDAL area-average power-of-two overviews of premultiplied native DN and binary validity; 4x4 cube-footprint quadrature",
+        "overviewFactors": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          16384,
+          32768,
+          65536
+        ],
+        "sha256": "4f1833f16b66483ca652ff9ef7411d277eebfe337079da6d5591153f71dbfce5",
+        "supersample": 4
+      },
+      "nativeValidSubset": {
+        "declaredExtent": "known-valid-subset",
+        "extent": "known-valid-subset",
+        "method": "all touched native cells plus two-cell interpolation halo",
+        "featuresChecked": 48
+      },
+      "sourceToOutputRegistration": {
+        "absoluteGeolocationErrorM": null,
+        "checkedGutterPixels": 1568,
+        "checkedPixels": 2450,
+        "maximumAlphaErrorDn": 0,
+        "maximumErrorDn": 0.4999750111031318,
+        "maximumGutterErrorDn": 0.49981995189747863,
+        "maximumOutputSpacingM": 0.4048573970794678,
+        "method": "stratified finest-output and gutter samples; independent affine inversion and native 2x2 masked windows; no staged overview reads",
+        "nativeValueStdDevDn": 29.71453936674329,
+        "note": "Sampled preservation of source registration/texture plus continuous requested output-tile coverage; not exhaustive native validity or absolute geolocation certification.",
+        "rmsErrorDn": 0.29501737363048364,
+        "sourcePixelSizeM": 0.25,
+        "sampledTiles": 98,
+        "continuousRequestedRegions": 118
+      }
+    },
+    "viking": {
+      "responses": 11028,
+      "unavailableResponses": [],
+      "responseBytes": 512935344,
+      "fallback": "Transparent missing pixels; independent runtime layers only. No source-parent substitution.",
+      "nativeValidSubset": {
+        "extent": "known-valid-subset",
+        "method": "Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling",
+        "nativeSourceLevel": 7,
+        "responses": [
+          "7/183/50"
+        ]
+      },
+      "decodedIdentity": {
+        "duplicateGroups": [],
+        "method": "SHA-256 of full decoded RGBA, grouped within source level; uniform/transparent tiles excluded",
+        "requiredDistinct": true,
+        "texturedResponses": 11028
+      }
+    }
+  },
+  "baselineInvalidUsedKernels": 0,
+  "fusionPlaneRetained": {
+    "afterPlane": {
+      "maxAbsM": 96.78352399830243,
+      "meanM": 8.499790859098853e-14,
+      "n": 4749862,
+      "p95AbsM": 33.68761187276017,
+      "rmsM": 15.880520798838809
+    },
+    "axes": "local east/north (km)",
+    "centroid": {
+      "latDeg": 18.48804879297973,
+      "lonDeg": 77.4034569842557
+    },
+    "fitStridePx": 8,
+    "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+    "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base",
+    "offsetM": -8.645969777066195,
+    "raw": {
+      "maxAbsM": 89.161376953125,
+      "meanM": -7.893571008697858,
+      "n": 4749862,
+      "p95AbsM": 39.94189453125,
+      "rmsM": 18.93642389993706
+    },
+    "removed": false,
+    "slopeEastMPerKm": 1.0121736526817324,
+    "slopeNorthMPerKm": -0.6852599991318675,
+    "tiltDeg": 0.07003399047059078
+  },
+  "toolchain": {
+    "gdal": "3.13.0",
+    "numpy": "2.4.6",
+    "python": "3.14.5"
+  },
+  "resources": {
+    "outputBytes": 1243309388,
+    "publishedBytes": null,
+    "objects": 5103,
+    "workDiskBytesAtCompletion": 34481104320,
+    "peakDiskBytes": null,
+    "sampledPeakScratchBytes": 34480606494,
+    "peakConcurrentWorkerRssBytes": 40422473728,
+    "elapsedSeconds": 2239.7697386669997,
+    "memoryMeasurement": {
+      "method": "sampled sum of worker and concurrent descendant RSS; shared pages may be counted more than once; scratch uses logical file sizes",
+      "peakConcurrentRssBytes": 40422473728,
+      "peakScratchBytes": 34480606494,
+      "physicalPeakRamBytes": null,
+      "rssUnavailableReason": null,
+      "sampleIntervalSeconds": 1,
+      "samples": 1840
+    }
+  },
+  "absoluteAccuracyCertified": false,
+  "productionUpload": false
+}
