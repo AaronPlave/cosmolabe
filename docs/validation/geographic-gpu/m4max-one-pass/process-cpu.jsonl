@@ -1,0 +1,8 @@
+[{"label":"base","view":"Gale close","vectors":false,"fps":60.125,"gpuProcess":0.179,"renderer":0.223},{"label":"base","view":"Gale close","vectors":true,"fps":60.125,"gpuProcess":0.261,"renderer":0.454}]
+[{"label":"base","view":"Gale floor edge very close","vectors":false,"fps":60.125,"gpuProcess":0.155,"renderer":0.16},{"label":"base","view":"Gale floor edge very close","vectors":true,"fps":60.125,"gpuProcess":0.166,"renderer":0.26}]
+[{"label":"new","view":"Gale close","vectors":false,"fps":60.125,"gpuProcess":0.176,"renderer":0.221},{"label":"new","view":"Gale close","vectors":true,"fps":60.125,"gpuProcess":0.2,"renderer":0.336}]
+[{"label":"new","view":"Gale floor edge very close","vectors":false,"fps":60.125,"gpuProcess":0.185,"renderer":0.193},{"label":"new","view":"Gale floor edge very close","vectors":true,"fps":60.125,"gpuProcess":0.161,"renderer":0.238}]
+[{"label":"base","view":"Gale close","vectors":false,"fps":60.125,"gpuProcess":0.182,"renderer":0.231},{"label":"base","view":"Gale close","vectors":true,"fps":60.125,"gpuProcess":0.24,"renderer":0.441}]
+[{"label":"base","view":"Gale floor edge very close","vectors":false,"fps":60.125,"gpuProcess":0.167,"renderer":0.175},{"label":"base","view":"Gale floor edge very close","vectors":true,"fps":60.125,"gpuProcess":0.164,"renderer":0.251}]
+[{"label":"new","view":"Gale close","vectors":false,"fps":60.125,"gpuProcess":0.172,"renderer":0.228},{"label":"new","view":"Gale close","vectors":true,"fps":60.125,"gpuProcess":0.198,"renderer":0.319}]
+[{"label":"new","view":"Gale floor edge very close","vectors":false,"fps":60.125,"gpuProcess":0.126,"renderer":0.126},{"label":"new","view":"Gale floor edge very close","vectors":true,"fps":60.125,"gpuProcess":0.146,"renderer":0.194}]

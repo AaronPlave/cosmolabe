@@ -191,14 +191,15 @@ The nine-page localized Jezero fixture is retained in full.
 
 All main, overlay and camera-relative passes share a **2,048 surface-draw budget
 per frame**. Before allocating proxies, each group is checked against its
-visible mesh count times page count. If it would exceed the remaining budget,
+visible mesh count times its passes (the batch and each highlight; the shader
+loops over a pass's pages in one draw). If it would exceed the remaining budget,
 its remaining passes and picking are suppressed for that frame, its proxies
 are released and `vector-draw-budget` explains the limit. Earlier passes may
 already have drawn part of that group; it cannot acquire invisible pick targets.
 The next frame retries with a fresh budget, so reduced visible detail recovers
 automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs
 (see GPU cost below for what culling changes).
-One surface proxy is reused across pages, without allocating an object per
+One surface proxy draws all pages, without allocating an object per
 feature. The limits diagnose overload rather than silently dropping
 individual polygon rings.
 
@@ -241,9 +242,15 @@ keep that in proportion to the features:
   1e-9° from the exact value on Mars and Earth, far below float32's 5e-6°)
   instead of a five-step iteration.
 
+- **One draw for all pages.** The fragment shader converts its position once
+  and loops over the pages of its cell, compositing them in order (page 0
+  lowest) as separate draws would blend them, so extra pages cost an index
+  fetch per fragment rather than another draw of every tile. Close up, where a
+  finer grid needs fewer pages, the loop stops at that grid's page count.
+
 `metrics.drawCalls` counts the draws made after culling, and
 `metrics.shadedPixels` the viewport pixels the shader could run on, summed over
-passes and pages. The frame budget still counts every visible mesh.
+passes. The frame budget still counts every visible mesh.
 
 `scripts/benchmark-geographic-gpu.mjs` measures whole-frame GPU time with timer
 queries over reproducible scenes (`test-catalogs/geographic-vectors-gpu-bench`

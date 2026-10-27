@@ -11,7 +11,8 @@
  * the pass scales with surface coverage, but it is not a hardware number).
  * CL_GPU=hardware runs Chrome with Metal at 1920×1080 CSS × 2 = 3840×2160.
  * Writes JSON and a Markdown table to CL_OUTPUT (default
- * docs/validation/geographic-gpu/<CL_LABEL or "swiftshader">). */
+ * docs/validation/geographic-gpu/<CL_LABEL or "swiftshader">). CL_SCENES, a regular
+ * expression, runs only the scenes it matches. */
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -50,6 +51,11 @@ const scenes = [
   { name: 'Gale regional · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale regional', show: 'all', settleMs: 3000 },
   { name: 'Gale close · vectors off', catalog: 'geographic-vectors-mars-streamed', view: 'Gale close', show: [], settleMs: 20000 },
   { name: 'Gale close · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale close', show: 'all', settleMs: 3000 },
+  // Tens of metres above the floor, as in the review's trace, with and without terrain contours.
+  { name: 'Gale very close · vectors off', catalog: 'geographic-vectors-mars-streamed', view: 'Gale floor edge very close', show: [], settleMs: 20000 },
+  { name: 'Gale very close · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale floor edge very close', show: 'all', settleMs: 3000 },
+  { name: 'Gale very close + contours · vectors off', catalog: 'geographic-vectors-mars-streamed', view: 'Gale floor edge very close', show: [], contours: true, settleMs: 5000 },
+  { name: 'Gale very close + contours · wide regions', catalog: 'geographic-vectors-mars-streamed', view: 'Gale floor edge very close', show: 'all', contours: true, settleMs: 3000 },
 ];
 // Measured terrain is local data, not in Git.
 if (existsSync('apps/viewer/test-catalogs/data/mars-terrain-fused')) {
@@ -65,7 +71,7 @@ try {
   const page = await browser.newPage({ viewport: hardware ? { width: 1920, height: 1080 } : { width: 1280, height: 720 }, deviceScaleFactor: hardware ? 2 : 1 });
   page.setDefaultTimeout(120_000);
   let loaded = null;
-  for (const scene of scenes) {
+  for (const scene of scenes.filter((s) => !process.env.CL_SCENES || new RegExp(process.env.CL_SCENES).test(s.name))) {
     if (loaded !== scene.catalog) {
       await page.goto(`${base}?catalog=test-catalogs/${scene.catalog}`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => !!window.renderer);
@@ -74,12 +80,13 @@ try {
       loaded = scene.catalog;
     }
     if (scene.view) await page.evaluate((name) => window.renderer.applyNamedViewpoint(name), scene.view);
-    await page.evaluate(({ show, select }) => {
+    await page.evaluate(({ show, select, contours }) => {
       const r = window.renderer;
+      for (const bm of r.bodyMeshes.values()) if (bm.surfaceAppearance && bm.surfaceAppearance.contours !== contours) bm.setSurfaceAppearance({ ...bm.surfaceAppearance, contours });
       for (const layer of r.universe.geographicLayers.layers) r.geographicVectors.setVisible(layer.id, show === 'all' || show.includes(layer.id));
       r.geographicVectors.setSelected(select ?? null);
       r.geographicVectors.setHovered(null);
-    }, { show: scene.show, select: scene.select ?? null });
+    }, { show: scene.show, select: scene.select ?? null, contours: !!scene.contours });
     await page.mouse.move(2, 2);
     await page.waitForTimeout(scene.settleMs ?? 1500);
     const result = await page.evaluate(async (frames) => {

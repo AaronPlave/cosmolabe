@@ -177,7 +177,6 @@ export class GeographicVectorLayer {
   setHovered(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.hovered, feature)) return; this.hovered = feature; this.updateHighlights(); }
 
   private drawMaterials(batch: Batch): GeographicMaterial[] { return [batch.material, ...batch.highlights.map(h => h.material)]; }
-  private drawPages(batch: Batch): number { return this.drawMaterials(batch).reduce((n, m) => n + m.pages, 0); }
 
   private updateHighlights(): void {
     for (const batch of this.batches) {
@@ -335,13 +334,13 @@ export class GeographicVectorLayer {
         if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BufferGeometry) sources.add(object);
       });
       // The budget counts every mesh; the ones culled below only make it cheaper.
-      if (this.budgeted + sources.size * this.drawPages(batch) > VECTOR_FRAME_DRAW_LIMIT) {
+      if (this.budgeted + sources.size * this.drawMaterials(batch).length > VECTOR_FRAME_DRAW_LIMIT) {
         this.diagnose(batch, 'vector-draw-budget', `Frame would exceed ${VECTOR_FRAME_DRAW_LIMIT} vector surface draws. Remaining drawing and picking for this group are suppressed this frame; reduce visible layers or terrain detail.`);
         batch.suppressed = true;
         for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
         continue;
       }
-      this.budgeted += sources.size * this.drawPages(batch);
+      this.budgeted += sources.size * this.drawMaterials(batch).length;
       for (const object of sources) {
         const localToBody = toBody.clone().multiply(object.matrixWorld);
         this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
@@ -351,8 +350,8 @@ export class GeographicVectorLayer {
       drawing.push({ batch, rects });
     }
     if (!drawing.length) return;
-    // One render per batch, pass and page, each scissored to where its features are:
-    // fragments elsewhere never run the vector shader.
+    // One render per batch and pass (the shader loops over pages), each scissored
+    // to where its features are: fragments elsewhere never run the vector shader.
     const scissorTest = renderer.getScissorTest(), scissor = renderer.getScissor(new THREE.Vector4());
     for (const { batch, rects } of drawing) {
       const materials = this.drawMaterials(batch);
@@ -368,11 +367,8 @@ export class GeographicVectorLayer {
         if (!meshes) continue;
         if (rect) { renderer.setScissorTest(true); renderer.setScissor(rect); } else { renderer.setScissorTest(scissorTest); renderer.setScissor(scissor); }
         material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
-        for (let page = 0; page < material.pages; page++) {
-          material.uniforms.vectorPage.value = page;
-          renderer.render(this.scene, camera);
-          this.drawCalls += meshes;
-        }
+        renderer.render(this.scene, camera);
+        this.drawCalls += meshes;
         this.shaded += rect ? rect.z * rect.w : this.viewportArea(renderer);
       }
     }

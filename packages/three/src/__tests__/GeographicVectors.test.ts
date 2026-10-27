@@ -308,31 +308,32 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.dispose(); h.universe.dispose();
   });
 
-  it('draws shared-border highlights after all ordinary pages and counts their draws', () => {
+  it('draws every page in one pass, shared-border highlights after it, and counts their draws', () => {
     const h = harness(layer(Array.from({length: VECTOR_CELL_LIMIT + 1}, () => ({type: 'LineString', coordinates: [[-1,0],[1,0]]}))));
     h.vectors.setSelected({...ref, featureId: `number:${VECTOR_CELL_LIMIT}`});
     h.vectors.setHovered(ref);
-    const draws: {page: number; highlight: number}[] = [];
+    const draws: {pages: number; highlight: number}[] = [];
     h.renderer.render = scene => {
       for (const child of scene.children) if (child.visible) {
         const material = (child as THREE.Mesh).material as THREE.ShaderMaterial;
-        draws.push({page: material.uniforms.vectorPage.value, highlight: material.uniforms.vectorHighlight.value});
+        draws.push({pages: material.uniforms.vectorPages.value, highlight: material.uniforms.vectorHighlight.value});
       }
     };
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(draws).toEqual([
-      {page:0,highlight:0},{page:1,highlight:0},
-      {page:0,highlight:1},
-      {page:0,highlight:VECTOR_CELL_LIMIT+1},
+      {pages:2,highlight:0},
+      {pages:1,highlight:1},
+      {pages:1,highlight:VECTOR_CELL_LIMIT+1},
     ]);
     expect(h.vectors.metrics.drawCalls).toBe(draws.length);
     h.vectors.dispose(); h.universe.dispose();
   });
 
   it('caps total surface draws across main/local/overlay passes and recovers next frame', () => {
+    // Pages loop in the shader: every visible mesh is one draw per pass, however many pages.
     const h = harness(layer(Array.from({ length: VECTOR_RENDER_PAGE_LIMIT * VECTOR_CELL_LIMIT }, () => ({ type: 'Point', coordinates: [0, 0] }))));
     const tiles = new THREE.Group();
-    const sources = VECTOR_FRAME_DRAW_LIMIT / VECTOR_RENDER_PAGE_LIMIT;
+    const sources = VECTOR_FRAME_DRAW_LIMIT;
     for (let i = 1; i < sources; i++) tiles.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
     const overlay = new THREE.Group(); overlay.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
     Object.assign(h.body, { terrainTileGroup: tiles, getSurfaceOverlays: () => [{ group: overlay }] });

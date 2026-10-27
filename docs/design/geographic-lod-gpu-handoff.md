@@ -143,6 +143,48 @@ frame budget is global countries seen close (Rhine: full-screen coverage across
 composited fills of broad static regions; reducing pages drawn per pixel (only
 pages whose features touch the tile) is the cheaper first step to try.
 
+## 3. One draw per pass instead of one per page
+
+A review trace (Gale floor, tens of metres up, contours on) showed the GPU
+process busy most of the time at a steady frame rate: each page of features
+re-drew every visible terrain tile, so 4 pages × 100–250 tiles made 400–830
+vector draws a frame, and each re-ran the per-fragment set-up (Bowring
+latitude, derivatives, grid choice). The shader now loops over a pass's pages
+itself and composites them in order, so a pass is one draw per tile. Close up,
+where a finer grid holds fewer pages, the loop stops at that grid's count,
+which covers "skip pages close up" too.
+
+Pages are composited in linear colour and converted to output once. Converting
+inside the loop, which would match framebuffer blending exactly, made Rhine
+close about twice as slow on Metal. The difference shows only where
+anti-aliased fringes of two pages overlap: 16 pixels of 921,600 in Earth orbit,
+none elsewhere; the offline smoke images are unchanged.
+
+`docs/validation/geographic-gpu/m4max-one-pass`: two interleaved runs each,
+whole-frame GPU ms (vector cost in brackets).
+
+| Scene | Draws before → after | Before | After |
+| --- | --- | --- | --- |
+| Dense Jezero | 99 → 11 | 1.85–4.87 (1.1–3.2) | 0.73–0.99 (0.2–0.3) |
+| Gale regional | 552 → 138 | 2.5–4.7 | 1.8–2.3 |
+| Gale close | 828 → 207 | 7.0–7.2 (4.0–4.4) | 5.9–6.2 (4.4–5.0) |
+| Gale very close | 396 → 99 | 5.0–6.5 | 4.2–4.3 |
+| Earth orbit (one mesh) | 6 → 1 | 6.3–6.4 | 5.5–7.2 |
+| Rhine close (one mesh) | 6 → 1 | 15.4–16.3 | 15.5–17.3 |
+
+CPU time of the browser's processes while rendering Gale close at 60 fps
+(`process-cpu.mjs`), vectors on minus off, in cores: GPU process 0.06–0.08 →
+0.02–0.03, renderer 0.21–0.23 → 0.09–0.12. At tens of metres the vector share
+is small either way. Terrain contours add little GPU time (~0.3 ms at 4K).
+
+**Is raster-composited fill (the review's suggestion) needed?** Not for Gale:
+after this change its vectors cost 3–5 ms at 4K, inside a 60 fps budget.
+Broad fills seen close remain the expensive case: Rhine countries are 15 ms at
+4K, every covered pixel testing its cell's fill triangles across 6 pages, and
+one draw instead of six does not change that work. That is the case for
+raster fills of broad static regions, or a cheaper first step: mark index cells
+a polygon's interior covers entirely, so those pixels skip the triangle tests.
+
 ## Checks run here
 
 Unit tests for renderer, footprint and fade (45); the viewer catalog list;
