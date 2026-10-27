@@ -39,12 +39,24 @@ export function setPlaceSourceEnabled(layerIds: readonly string[], enabled: bool
   if (selected && !isPlaceAvailable(selected)) selectPlace(null);
 }
 
+/**
+ * The Gazetteer name (#191) a geographic feature is, when Places can show it.
+ * A viewport click or double-click on one is Places' (Navigate shows it, Fly
+ * goes through it); on any other feature, mission and user sites included,
+ * it is Surface layers'. One click never selects in both.
+ */
+export function viewportPlace(ref: { layerId: string; featureId: string; bodyName: string }): Place | undefined {
+  const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+  return place?.origin === 'nomenclature' && isPlaceAvailable(place) ? place : undefined;
+}
+
 export function selectPlace(place: Place | null): void {
   if (place && !isPlaceAvailable(place)) return;
   vs.selectedPlaceRef = place?.ref ?? null;
   const renderer = getRenderer();
   if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
-  if (place) { vs.navigateMode = 'places'; openTool('navigate'); }
+  // The place is the one selection: Surface layers lets go of its own.
+  if (place) { renderer?.geographicVectors?.setSelected(null); vs.navigateMode = 'places'; openTool('navigate'); }
 }
 
 export function showPlaceBody(body: string, visible: boolean): void {

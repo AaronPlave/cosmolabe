@@ -25,6 +25,7 @@ import * as THREE from 'three';
 import { flyOverSurface, getRenderer, onViewerEvent, vs } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
+import { selectPlace, viewportPlace } from './places';
 
 export const geo = $state({
   /** Bumped by anything that changes what the panel shows: loads, visibility, filters. */
@@ -369,6 +370,8 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
   renderer.geographicVectors.setSelected(ref);
   geo.selected = ref;
   if (ref) followSelection(ref);
+  // One selection at a time: browsing to a Gazetteer name selects it here.
+  if (ref && vs.selectedPlaceRef) selectPlace(null);
   if (ref && options.reveal) geo.reveal++;
 }
 
@@ -376,16 +379,6 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
 function followSelection(ref: GeographicFeatureRef): void {
   geo.imageryBody = null;
   if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
-}
-
-/**
- * Whether the selected feature is also a named place (#191): Places indexes
- * every named point, and a click on one selects it there too. Escape then
- * leaves it to the Places order (panels first, then the place and this
- * selection together), as before this panel existed.
- */
-export function selectionIsPlace(ref: GeographicFeatureRef | null = geo.selected): boolean {
-  return !!ref && !!vs.places?.places.some((p) => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
 }
 
 export function clearGeographicSelection(): boolean {
@@ -475,8 +468,18 @@ onViewerEvent('load', () => {
   unsubscribers.push(
     // A scene click selects without opening anything over the scene; an open
     // panel shows the feature. The callout opens a closed panel.
-    renderer.events.on('geographic:select', (ref) => { geo.selected = ref; if (ref) followSelection(ref); }),
+    // One selection at a time: a Gazetteer name is Places' (`viewportPlace`),
+    // and selecting anything else here lets go of a selected place.
+    renderer.events.on('geographic:select', (ref) => {
+      if (ref && viewportPlace(ref)) { geo.selected = null; return; }
+      geo.selected = ref;
+      if (!ref) return;
+      followSelection(ref);
+      if (vs.selectedPlaceRef) selectPlace(null);
+    }),
     renderer.events.on('geographic:click', () => { geo.notice = ''; }),
+    // Double-click flies, as the callout's ✈ does; a Gazetteer name flies through Places.
+    renderer.events.on('geographic:dblclick', (ref) => { if (!viewportPlace(ref)) goToFeature(ref); }),
     renderer.events.on('geographic:hover', (ref) => { geo.hovered = ref; }),
     scene.events.on('geographic:changed', () => { geo.revision++; }),
   );

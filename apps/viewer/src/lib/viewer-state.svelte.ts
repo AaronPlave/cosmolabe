@@ -22,7 +22,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
-import { navigateToPlace, selectPlace } from './places';
+import { navigateToPlace, selectPlace, viewportPlace } from './places';
 
 // ── Exported types ──
 
@@ -486,13 +486,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   };
   syncPlaces();
   _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  // Other features are Surface layers' (geographic-layers.svelte.ts).
   _unsubscribers.push(renderer.events.on('geographic:click', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
-    if (!place) return;
-    selectPlace(place);
+    const place = viewportPlace(ref);
+    if (place) selectPlace(place);
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+    const place = viewportPlace(ref);
     if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
   }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
