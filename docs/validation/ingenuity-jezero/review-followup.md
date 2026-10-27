@@ -42,6 +42,43 @@ CI also identified the missing schema entries for the already parsed `frame`
 and `sampleInterval` plot fields. The schema now recognizes those and the new
 timeline label; a shipped-catalog regression protects this contract.
 
+### Shared timeline participation and gestures
+
+The first navigator displayed intervals only in its own expanded row. It did
+not publish activities to the transport's marker source, and its row was outside
+the shared gesture area with `data-tl-no-axis` applied to the whole row. The
+earlier picker/browser regression did not exercise those missing interactions.
+
+Catalog activities now have a separate scene-owned timeline source, using the
+shared interval-event vocabulary and per-vehicle identities. `syncBodies` publishes
+them after scene-reset listeners complete; a regression catches publication
+before the load event erases the new source. Activities participate in transport
+markers, hover/snap targets, active counts, profile ticks, selection detail and
+fit actions. They do not create configured event searches or implicitly enable
+historical 3D explanatory overlays. Catalog changes clear their source and selection.
+
+Expanded activity rows live inside the shared axis region. Labels and controls
+opt out of gestures; the plot opts in and its marks use `data-tl-event-mark`.
+Clicking selects/seeks without changing zoom. Dragging a mark pans, dragging the
+playhead scrubs, background clicks seek, and the wheel zooms. Picker/previous/next
+remain explicit pause-and-frame navigation. Shared colors identify the same
+activity on the transport, expanded lane, inspector and hover callout. The
+inspector offers search editing only for records backed by an actual search.
+
+All **557 viewer tests** pass, along with test/viewer/Svelte typechecks and changed
+source lint. The real Chrome / M4 Max Metal regression passes **13 native
+interaction checks**, including collapsed 72-flight marks, clicks, marker drags,
+playhead scrubbing, hover callouts, wheel zoom, keyboard selection, computed-query
+coexistence and 390px interactions. The existing picker/concurrent-drive/MoonFall
+mission-switch GPU regression also passes. Reproduce with
+`node scripts/test-timeline-activity-interactions.mjs http://127.0.0.1:5174/`;
+[metrics](timeline-interaction-acceptance.json),
+[desktop](timeline-captures/desktop-shared-interactions.png), and
+[compact](timeline-captures/compact-main-interactions.png) retain acceptance.
+The browser scripts resolve the app's loaded Vite module URLs when inspecting
+state; importing a second URL after hot reload creates an unrelated state instance
+and is rejected as a harness failure.
+
 ### Reuse boundary
 
 The UI honors the catalog label (Flight, Drive, etc.) and maintains separate

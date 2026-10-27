@@ -43,7 +43,7 @@
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
-  import { analysisContext, visibleTimelineEvents } from '../../lib/analysis.svelte';
+  import { allTimelineEvents, visibleTimelineEvents } from '../../lib/analysis.svelte';
   import {
     activeEventsAtTime, eventCalloutLines, eventContainsTime, eventTimelineFractions,
   } from '../../lib/event-query';
@@ -145,7 +145,7 @@
       const span = eventTimelineFractions(event, range);
       return span ? [{ event, span }] : [];
     });
-    const families = eventLanes.map((q) => q.id).filter((id) => drawn.some((d) => d.event.queryId === id));
+    const families = [...new Set(drawn.map(d => d.event.queryId))];
     return drawn.map(({ event, span }) => ({
       id: eventKey(event),
       queryId: event.queryId,
@@ -364,7 +364,7 @@
   // selection is global, and `visible` is about timeline presentation only.
   // Hiding a lane keeps its selected event (and its inspector); disabling
   // the search clears it (`setConfiguredQueryEnabled`).
-  const selectedEvent = $derived(selectedEventOf(analysisContext().eventResults));
+  const selectedEvent = $derived(selectedEventOf(allTimelineEvents()));
 
   // ── Selected-event inspector ──
   //
@@ -766,9 +766,11 @@
     {/if}
   </div>
 
-  {#each trajectoryActivities as series (series.body)}
-    <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
-  {/each}
+  {#if !expanded}
+    {#each trajectoryActivities as series (series.body)}
+      <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+    {/each}
+  {/if}
 
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all
@@ -779,6 +781,9 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
+      {#each trajectoryActivities as series (series.body)}
+        <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+      {/each}
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}

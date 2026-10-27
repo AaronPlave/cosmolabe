@@ -1,4 +1,4 @@
-import { CompositeTrajectory, InterpolatedStatesTrajectory, type Body } from '@cosmolabe/core';
+import { CompositeTrajectory, InterpolatedStatesTrajectory, type Body, type IntervalEvent } from '@cosmolabe/core';
 
 export interface TrajectoryInterval {
   id: string;
@@ -12,6 +12,15 @@ export interface TrajectoryIntervalSeries {
   body: string;
   label: string;
   items: TrajectoryInterval[];
+}
+
+/** Shared timeline vocabulary, without manufacturing an event-search query.
+ * Activities navigate the existing vehicle/path; they do not enable additional
+ * historical 3D trajectory overlays as a side effect of showing the timeline. */
+export function trajectoryIntervalEvent(item: TrajectoryInterval): IntervalEvent {
+  return { id: item.id, queryId: `activity:${item.body}`, kind: 'mission-activity',
+    temporality: 'interval', label: `${item.body} ${item.label}`,
+    bodies: { observer: item.body }, primaryRole: 'observer', start: item.start, end: item.end };
 }
 
 /** Keep each vehicle's navigation independent, even when activities overlap. */

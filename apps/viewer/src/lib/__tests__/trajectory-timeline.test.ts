@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Body, CompositeTrajectory, FixedPointTrajectory, InterpolatedStatesTrajectory } from '@cosmolabe/core';
-import { adjacentTrajectoryInterval, trajectoryIntervals, trajectoryIntervalSeries, trajectoryIntervalWindow } from '../trajectory-timeline';
+import { adjacentTrajectoryInterval, trajectoryIntervals, trajectoryIntervalSeries, trajectoryIntervalWindow, trajectoryIntervalEvent } from '../trajectory-timeline';
 
 function body(optIn = true) {
   const sampled = (start: number, end: number) => new InterpolatedStatesTrajectory([
@@ -15,6 +15,14 @@ function body(optIn = true) {
 }
 
 describe('sampled trajectory timeline', () => {
+  it('publishes bounded activities in the shared event vocabulary with vehicle-specific identities', () => {
+    const intervals = trajectoryIntervals([body()]);
+    expect(trajectoryIntervalEvent(intervals[0])).toMatchObject({
+      id: 'Ingenuity:0', queryId: 'activity:Ingenuity', kind: 'mission-activity',
+      temporality: 'interval', label: 'Ingenuity Flight 1', start: 10, end: 50,
+      bodies: { observer: 'Ingenuity' }, primaryRole: 'observer',
+    });
+  });
   it('keeps concurrent rover drives and aircraft flights in separate named series', () => {
     const flight = body();
     const rover = new Body({ name: 'Rover', trajectory: flight.trajectory, trajectoryPlot: { timelineLabel: 'Drive' } });
