@@ -8,7 +8,7 @@
 import {
   etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
-  type TerrainDatum, type Universe, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
@@ -22,6 +22,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
+import { navigateToPlace, selectPlace } from './places';
 
 // ── Exported types ──
 
@@ -131,6 +132,13 @@ export const vs = $state({
 
   // Selected body (set on dblclick, cleared on dismiss)
   selectedBodyName: null as string | null,
+  navigateMode: 'places' as 'places' | 'coordinates',
+  places: null as PlaceIndex | null,
+  selectedPlaceRef: null as string | null,
+  placeBodies: [] as string[],
+  hiddenPlaceLayers: [] as string[],
+  excludedPlaceLayers: [] as string[],
+  placeFailures: [] as string[],
 
   /** Point Probe mode (#127): the pointer previews the surface, a click pins it. */
   probeActive: false,
@@ -162,6 +170,7 @@ export const vs = $state({
 
 /** What the view context shows about a surface navigation target. */
 export interface SurfaceTargetInfo {
+  place?: { ref: string; name: string };
   bodyName: string;
   /** "18.4447° N, 77.4508° E", in the convention and precision it was named in. */
   coordinates: string;
@@ -403,9 +412,19 @@ function syncTimeState() {
   vs.timeText = etToUtcString(tc.et);
 }
 
+function syncPlaceSelection(tracked: string | null | undefined) {
+  const selected = vs.selectedPlaceRef ? vs.places?.byRef.get(vs.selectedPlaceRef) : null;
+  if (selected && tracked && selected.layer.body !== tracked) {
+    vs.selectedPlaceRef = null;
+    if (_renderer) _renderer.placeNames.selectedRef = null;
+  }
+}
+
 function syncCameraState() {
+  syncPlaceSelection(_renderer?.cameraController.focusBody?.body.name);
   if (!_renderer) return;
   const cc = _renderer.cameraController;
+  if (vs.surfaceTarget && (!cc.surfaceNavigating || (cc.focusBody && cc.focusBody.body.name !== vs.surfaceTarget.bodyName))) clearSurfaceTargetPresentation();
   vs.cameraMode = cc.mode;
   vs.trackedBodyName = cc.focusBody?.body.name ?? null;
   vs.lookAtBodyName = cc.lookAtBody?.body.name ?? null;
@@ -415,7 +434,7 @@ function syncCameraState() {
 /** Mirror the controller's flight into `vs.flight`, writing only on a change. */
 function syncFlightState() {
   const flight = _renderer?.cameraController.flight ?? null;
-  const target = flight ? flight.destination?.body.name ?? null : undefined;
+  const target = flight ? vs.surfaceTarget?.place?.name ?? flight.destination?.body.name ?? null : undefined;
   const current = vs.flight;
   if (!flight) {
     if (current !== null) vs.flight = null;
@@ -458,6 +477,24 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _renderer = renderer;
   _universe = universe;
   vs.catalogName = vs.loadingCatalog || null;
+  const syncPlaces = () => {
+    vs.places = renderer.placeNames?.index ?? null;
+    vs.placeBodies = [...(renderer.placeNames?.bodies ?? [])];
+    if (vs.selectedPlaceRef && !vs.places?.byRef.has(vs.selectedPlaceRef)) selectPlace(null);
+    if (vs.surfaceTarget?.place && !vs.places?.byRef.has(vs.surfaceTarget.place.ref)) releaseSurfaceTarget();
+    vs.placeFailures = universe.geographicLayers?.loads.flatMap(load => load.status === 'error' ? load.diagnostics.map(d => `${load.id}: ${d.message}`) : []) ?? [];
+  };
+  syncPlaces();
+  _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  _unsubscribers.push(renderer.events.on('geographic:click', ref => {
+    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
+    if (!place) return;
+    selectPlace(place);
+  }));
+  _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
+    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+    if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
+  }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
 
   // A pinned point belongs to the scene it was probed in; the mode carries over.
@@ -557,8 +594,11 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // for the length of the flight.
     const cc = renderer.cameraController;
     const focus = cc.focusBody?.body.name ?? null;
-    if (vs.trackedBodyName !== focus) vs.trackedBodyName = focus;
-    if (vs.surfaceTarget && !cc.surfaceNavigating) vs.surfaceTarget = null;
+    if (vs.trackedBodyName !== focus) {
+      vs.trackedBodyName = focus;
+      syncPlaceSelection(focus);
+    }
+    if (vs.surfaceTarget && !cc.surfaceNavigating) clearSurfaceTargetPresentation();
     if (_terrainAnchor && vs.frameTick % 15 === 0) refineAnchoredTerrain();
     if (vs.frameTick % 30 === 0 && surfaceNavDebugEnabled()) logSurfaceNavTick();
     // A right-drag free look ends a look-at from inside the controller.
@@ -580,6 +620,14 @@ export function unbindRenderer() {
   _unsubscribers = [];
   _renderer = null;
   _universe = null;
+  vs.surfaceTarget = null;
+  _terrainAnchor = null;
+  vs.places = null;
+  vs.selectedPlaceRef = null;
+  vs.placeBodies = [];
+  vs.hiddenPlaceLayers = [];
+  vs.excludedPlaceLayers = [];
+  vs.placeFailures = [];
   // The pins went with the renderer; keeping the names would unpin bodies in
   // the *next* scene that this one never highlighted.
   _highlightedBodies = [];
@@ -962,10 +1010,23 @@ export function gotoObject(
  * Fly over a lat/lon box `[west, south, east, north]` (degrees) on `bodyName`,
  * looking straight down with north up, close enough that the box fills the view.
  */
-export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number]): boolean {
-  const [w, s, e0, n] = bounds;
-  const e = e0 < w ? e0 + 360 : e0;
-  return flyOverSurface(bodyName, { latDeg: (s + n) / 2, lonDeg: (w + e) / 2, northSpanDeg: n - s, eastSpanDeg: e - w });
+export function flyToRegion(bodyName: string, bounds: readonly [number, number, number, number], latitudeConvention: 'planetocentric' | 'geodetic'): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const view = bm.imageryRegionView(bounds, _renderer.camera.aspect, _renderer.camera.fov, latitudeConvention);
+  if (!view) return false;
+  // Preserve the imagery coordinate convention and rendered surface height;
+  // land with the regional image as the orbit pivot, rather than the body centre.
+  _renderer.cameraController.flyToSurface(bm, {
+    position: view.position.multiplyScalar(_renderer.scaleFactor),
+    target: view.target.multiplyScalar(_renderer.scaleFactor),
+    up: view.up,
+  }, { path: 'arc', duration: 1.5 });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
 }
 
 /**
@@ -1073,12 +1134,13 @@ export function coordinateBodies(): string[] {
   return out;
 }
 
-function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint): SurfaceTargetInfo {
+function describeTarget(target: SurfaceNavigationTarget, viewpoint?: ViewpointDefinition, picked?: SurfacePoint, place?: SurfaceTargetInfo['place']): SurfaceTargetInfo {
   const { origin } = target;
   const input = origin.kind === 'coordinates' ? origin.input : null;
   const shape = target.datum?.origin === 'terrain' ? 'terrain datum' : 'reference shape';
   return {
     bodyName: target.bodyName,
+    ...(place ? { place } : {}),
     // Entered coordinates keep the precision typed; a pick, its pointer's.
     coordinates: describeNavigationTarget(target, input
       ? Math.max(4, decimalsOf(input.latDeg), decimalsOf(input.lonDeg))
@@ -1113,7 +1175,7 @@ function decimalsOf(v: number): number {
  */
 export function navigateToSurfaceTarget(
   target: SurfaceNavigationTarget,
-  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
 ): SurfaceNavigationResult {
   if (!_renderer) return { ok: false, error: 'No scene' };
   if (opts.seconds !== undefined && !(Number.isFinite(opts.seconds) && opts.seconds >= 0)) {
@@ -1146,7 +1208,9 @@ export function navigateToSurfaceTarget(
     });
   }
   _surfaceNavDebugUntil = performance.now() + 8000;
-  vs.surfaceTarget = describeTarget(target, placement.viewpoint);
+  clearSurfaceTargetPresentation();
+  vs.surfaceTarget = describeTarget(target, placement.viewpoint, undefined, opts.place);
+  syncFlightState();
   // A coordinate target on a terrain body stays anchored while tiles refine.
   _terrainAnchor = target.origin.kind === 'coordinates' && target.datum?.origin === 'terrain'
     ? { anchor: new SurfaceTerrainAnchor(target, bm), viewpoint: placement.viewpoint }
@@ -1187,7 +1251,7 @@ function refineAnchoredTerrain() {
   });
   const shift = (v: readonly number[] | undefined) => v && [v[0] + shiftKm[0], v[1] + shiftKm[1], v[2] + shiftKm[2]] as [number, number, number];
   held.viewpoint = { ...held.viewpoint, eye: shift(held.viewpoint.eye), target: shift(held.viewpoint.target) };
-  vs.surfaceTarget = describeTarget(result, held.viewpoint);
+  vs.surfaceTarget = describeTarget(result, held.viewpoint, undefined, vs.surfaceTarget?.place);
 }
 
 /** Until when (performance.now ms) the diagnostics keep logging after a navigation. */
@@ -1209,7 +1273,7 @@ function logSurfaceNavTick() {
 /** Resolve coordinates and fly (or jump) there. */
 export function goToCoordinates(
   input: GeographicCoordinateInput,
-  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number } = {},
+  opts: { preset?: SurfaceViewPreset; animate?: boolean; rangeKm?: number; seconds?: number; place?: SurfaceTargetInfo['place'] } = {},
 ): SurfaceNavigationResult {
   const resolved = resolveCoordinateTarget(input);
   return resolved.ok ? navigateToSurfaceTarget(resolved.target, opts) : resolved;
@@ -1265,7 +1329,27 @@ export function navigateToSurfacePoint(
   if (opts.animate) cc.flyToSurface(bm, pose, { path: 'line' });
   else cc.jumpToSurface(bm, pose);
   syncCameraState();
+  clearSurfaceTargetPresentation();
   vs.surfaceTarget = describeTarget(target, undefined, point);
+  return true;
+}
+
+/** Clear the presentation of an active target, preserving independent inspection. */
+function clearSurfaceTargetPresentation(): void {
+  const ref = vs.surfaceTarget?.place?.ref;
+  vs.surfaceTarget = null;
+  if (ref && vs.selectedPlaceRef === ref) vs.selectedPlaceRef = null;
+  if (_renderer && ref && _renderer.placeNames.selectedRef === ref) {
+    _renderer.placeNames.selectedRef = vs.selectedPlaceRef;
+  }
+}
+
+/** Next geographic Escape layer, after flight/tool and panel dismissal. */
+export function dismissGeographicContext(): boolean {
+  if (vs.surfaceTarget) return releaseSurfaceTarget();
+  if (!vs.selectedPlaceRef) return false;
+  vs.selectedPlaceRef = null;
+  if (_renderer) _renderer.placeNames.selectedRef = null;
   return true;
 }
 
@@ -1273,14 +1357,14 @@ export function navigateToSurfacePoint(
  * Clear the surface target (#190): no pivot on the ground, no terrain
  * following, no Target readout. The camera keeps its position and resumes
  * tracking the body's centre; a flight still on its way stops
- * where it is. Selection, time and panels are untouched. False when there
+ * where it is. Its active place highlight clears; independent inspection, time and panels are untouched. False when there
  * was no target.
  */
 export function releaseSurfaceTarget(): boolean {
   const cc = _renderer?.cameraController;
   _terrainAnchor = null;
   const had = vs.surfaceTarget !== null || !!cc?.surfaceNavigating;
-  vs.surfaceTarget = null;
+  clearSurfaceTargetPresentation();
   if (cc?.releaseSurface()) syncCameraState();
   return had;
 }

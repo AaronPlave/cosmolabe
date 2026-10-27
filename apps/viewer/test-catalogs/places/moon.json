@@ -1,0 +1,82 @@
+{
+  "name": "Moon nomenclature (MOON_nomenclature_center_pts)",
+  "geographicCoordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "sphere",
+      "radiusKm": 1737.4
+    }
+  },
+  "geographicLayers": [
+    {
+      "id": "moon:usgs:places:001",
+      "name": "Moon places (1/4)",
+      "body": "Moon",
+      "source": "moon-001.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "USGS/IAU Gazetteer of Planetary Nomenclature",
+        "sourceUrl": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz",
+        "sourceFile": "MOON_nomenclature_center_pts.kmz",
+        "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
+        "converter": "cosmolabe:191:v2",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    },
+    {
+      "id": "moon:usgs:places:002",
+      "name": "Moon places (2/4)",
+      "body": "Moon",
+      "source": "moon-002.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "USGS/IAU Gazetteer of Planetary Nomenclature",
+        "sourceUrl": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz",
+        "sourceFile": "MOON_nomenclature_center_pts.kmz",
+        "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
+        "converter": "cosmolabe:191:v2",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    },
+    {
+      "id": "moon:usgs:places:003",
+      "name": "Moon places (3/4)",
+      "body": "Moon",
+      "source": "moon-003.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "USGS/IAU Gazetteer of Planetary Nomenclature",
+        "sourceUrl": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz",
+        "sourceFile": "MOON_nomenclature_center_pts.kmz",
+        "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
+        "converter": "cosmolabe:191:v2",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    },
+    {
+      "id": "moon:usgs:places:004",
+      "name": "Moon places (4/4)",
+      "body": "Moon",
+      "source": "moon-004.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "USGS/IAU Gazetteer of Planetary Nomenclature",
+        "sourceUrl": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MOON_nomenclature_center_pts.kmz",
+        "sourceFile": "MOON_nomenclature_center_pts.kmz",
+        "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
+        "converter": "cosmolabe:191:v2",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}

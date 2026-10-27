@@ -70,6 +70,7 @@ export class GeographicVectorLayer {
   private dirty = true;
   private readonly unsubscribe: () => void;
   private readonly placements = new Map<string, GeographicPlacement>();
+  private readonly excludedSources = new Set<string>();
   private readonly visibility = new Map<string, boolean>();
   private readonly filters = new Map<string, ReadonlySet<string>>();
   private readonly styles = new Map<string, GeographicLayerStyle>();
@@ -95,6 +96,12 @@ export class GeographicVectorLayer {
   get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number; restyles: number } {
     return { restyles: this.restyles, drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
+  }
+  /** Source inclusion is independent of its retained drawing visibility. */
+  setSourceEnabled(layerId: string, enabled: boolean): void {
+    if (this.excludedSources.has(layerId) === !enabled) return;
+    if (enabled) this.excludedSources.delete(layerId); else this.excludedSources.add(layerId);
+    this.dirty = true;
   }
   setVisible(layerId: string, visible: boolean): void {
     if (this.visibility.get(layerId) === visible) return;
@@ -194,6 +201,7 @@ export class GeographicVectorLayer {
     const rank = (id: string) => { const i = this.order.indexOf(id); return i < 0 ? this.order.length : i; };
     const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id));
     for (const layer of ordered) {
+      if (this.excludedSources.has(layer.id)) continue;
       if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
       const subsets = new Map<string, { layer: GeographicLayer; placement: GeographicPlacement }>();
       const filter = this.filters.get(layer.id);

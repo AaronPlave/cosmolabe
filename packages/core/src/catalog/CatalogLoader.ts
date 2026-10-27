@@ -75,6 +75,8 @@ export interface CatalogJson {
   /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
   geographicCoordinates?: GeographicCoordinates;
   geographicLayers?: GeographicLayerDefinition[];
+  /** Viewer: geographic names initially enabled on these bodies (otherwise opt-in). */
+  defaultGeographicNames?: string[];
   name?: string;
   version?: string;
   require?: string[];

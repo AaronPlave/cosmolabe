@@ -631,6 +631,16 @@ function initScene(
   // DPR is pinned to 1 for capture via the browser context (Playwright
   // deviceScaleFactor: 1) — the renderer already follows window.devicePixelRatio.
 
+  // Entry catalogs load after their requirements, so the last declaration
+  // owns the initial setting; reusable data catalogs need not opt users in.
+  let defaultNames: unknown;
+  for (const json of catalogs) {
+    if (Array.isArray(json.defaultGeographicNames)) defaultNames = json.defaultGeographicNames;
+  }
+  if (Array.isArray(defaultNames)) {
+    for (const body of defaultNames) if (typeof body === 'string' && renderer.getBodyMesh(body)) renderer.placeNames.setBodyVisible(body, true);
+  }
+
   renderer.camera.position.set(0, 300, 500);
   renderer.camera.lookAt(0, 0, 0);
 

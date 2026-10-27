@@ -55,6 +55,7 @@ apps/viewer/test-catalogs/data/moon-terrain-cube
 apps/viewer/test-catalogs/data/moon-terrain-cube-*/
 apps/viewer/test-catalogs/data/moon-imagery-cube-*/
 # Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
+work/surface-build/
 work/cube-terrain/
 work/cube-imagery/
 work/cube-surface-appearance/
@@ -69,3 +70,16 @@ scripts/build-globe-textures/.venv/
 # Original Rosetta texture maps (~42 MB), fetched by fetch-rosetta-models.sh
 apps/viewer/test-catalogs/models/rosetta/*.png
 apps/viewer/test-catalogs/models/rosetta/*.part
+
+# Places acceptance output (#191): keep raw runs outside reviewed documentation.
+/work/issue-191-places/
+/docs/validation/issue-191-places/raw/
+/docs/validation/issue-191-places/**/*.webm
+/docs/validation/issue-191-places/**/*.mp4
+/docs/validation/issue-191-places/**/*-metrics.json
+/docs/validation/issue-191-places/**/metrics.json
+/docs/validation/issue-191-places/**/metal-motion.json
+/docs/validation/issue-191-places/**/swiftshader-motion.json
+/docs/validation/issue-191-places/**/mars-moon-motion.json
+/docs/validation/issue-191-places/**/diagnosis.json
+/docs/validation/issue-191-places/**/original-reference-diagnostics.json
