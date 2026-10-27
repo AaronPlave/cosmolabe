@@ -185,6 +185,20 @@ one draw instead of six does not change that work. That is the case for
 raster fills of broad static regions, or a cheaper first step: mark index cells
 a polygon's interior covers entirely, so those pixels skip the triangle tests.
 
+## 4. Highlight specks at grazing views
+
+Selecting an outline at a low angle lit scattered pixels on distant terrain.
+Strokes convert distances to pixels with screen derivatives, and a 2×2 quad
+that straddles a silhouette (a ridge and the ground far behind it) differences
+two surfaces, so its derivatives are far larger than a pixel's footprint. The
+shader now bounds them by the footprint of the view ray's step on the
+ellipsoid's tangent plane (the anchor is the camera, so the offset is the ray,
+whose step is continuous), allowing twice that for real slopes.
+`scripts/test-geographic-grazing-highlight.mjs` counts isolated highlight
+pixels 120 m above the Gale floor: 86 before, 29 after (the rest are distant
+stretches of the outline breaking up). Offline smoke images are unchanged but
+for one limb pixel; GPU cost is unchanged.
+
 ## Checks run here
 
 Unit tests for renderer, footprint and fade (45); the viewer catalog list;

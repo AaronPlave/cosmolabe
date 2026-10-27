@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_GRID, VECTOR_DETAIL_GRIDS, VECTOR_PADDING_DEG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from './GeographicIndex.js';
 
 const DETAIL_LEVELS = VECTOR_DETAIL_GRIDS.length + 1;
+/** How many times a pixel's footprint on the ellipsoid's tangent plane a derivative may be before it is taken for a silhouette. */
+const SILHOUETTE = 2;
 const detailSlots = Array.from({ length: DETAIL_LEVELS });
 
 function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.length / 4))): THREE.DataTexture {
@@ -167,6 +169,20 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
           float lon0 = radians(vectorAnchorLL.x + vectorAnchorLL.z), lat0 = vectorAnchorLL.y + vectorAnchorLL.w;
           vec2 north = vectorPolarDelta(lon0, dLon, -dll.y, 90.0 - lat0), south = vectorPolarDelta(lon0, dLon, dll.y, 90.0 + lat0);
           vec2 ndx = dFdx(north), ndy = dFdy(north), sdx = dFdx(south), sdy = dFdy(south);
+          // A 2×2 quad straddling a silhouette (a ridge and the ground far
+          // behind it, at low angles) differences two surfaces: its
+          // derivatives are far larger than a pixel's footprint, and strokes
+          // would cover fragments nowhere near them. The anchor is the camera,
+          // so the offset is the view ray, whose step to the next pixel is
+          // continuous. Its footprint on the ellipsoid's tangent plane bounds a
+          // real slope's (one inclined more than SILHOUETTE times as much from
+          // the view is barely visible); larger derivatives are scaled down to it.
+          vec3 ray = normalize(offset), up = normalize(vec3(body.xy / (equatorial * equatorial), body.z / (polar * polar)));
+          vec3 rayX = ray + dFdx(ray), rayY = ray + dFdy(ray);
+          float height = dot(up, offset);
+          float planeX = length(height / dot(up, rayX) * rayX - offset), planeY = length(height / dot(up, rayY) * rayY - offset);
+          float kx = min(1.0, ${SILHOUETTE}.0 * planeX / max(length(bx), 1e-30)), ky = min(1.0, ${SILHOUETTE}.0 * planeY / max(length(by), 1e-30));
+          dx *= kx; ndx *= kx; sdx *= kx; dy *= ky; ndy *= ky; sdy *= ky;
           vec2 northCoarse = vectorAnchorNorth.xy + vectorAnchorNorth.zw + north, southCoarse = vectorAnchorSouth.xy + vectorAnchorSouth.zw + south;
           vec2 cell = clamp(floor((ll + vec2(180.0, 90.0)) / vec2(360.0, 180.0) * vec2(${VECTOR_GRID})), vec2(0.0), vec2(${VECTOR_GRID[0] - 1}.0, ${VECTOR_GRID[1] - 1}.0));
           // The finest grid whose padding covers this fragment's marks, else the coarse one.
