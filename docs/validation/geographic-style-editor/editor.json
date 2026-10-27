@@ -3,6 +3,7 @@
     "metrics": {
       "restyles": 5,
       "drawCalls": 3,
+      "shadedPixels": 3076162,
       "drawPages": 2,
       "batches": 2,
       "surfaceMeshes": 2,
@@ -31,8 +32,8 @@
         "hatch": true
       }
     },
-    "recordsId": "f70afa34-9347-45ce-83b8-aebb2e8e8d62",
-    "program": "b4695ba4-548e-4409-b02a-74f5ef01610b"
+    "recordsId": "82a4fe65-c268-44fa-a432-6ccd99f04e7a",
+    "program": "8c5169b2-32a2-4dc2-89c5-3494a2a3da87"
   },
   "legend": "Jezero science target\n1\nregion\n1\nregions\n1\nsites\n1\ntraverse\n1\ntraverses\n1",
   "labels": [
