@@ -22,7 +22,7 @@ import {
 } from '@cosmolabe/core';
 import { sameGeographicFeature, type GeographicFeatureRef } from '@cosmolabe/three';
 import * as THREE from 'three';
-import { flyOverSurface, getRenderer, onViewerEvent } from './viewer-state.svelte';
+import { flyOverSurface, getRenderer, onViewerEvent, vs } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
 
@@ -376,6 +376,16 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
 function followSelection(ref: GeographicFeatureRef): void {
   geo.imageryBody = null;
   if (geo.activeLayerId !== ref.layerId) browseLayer(ref.layerId);
+}
+
+/**
+ * Whether the selected feature is also a named place (#191): Places indexes
+ * every named point, and a click on one selects it there too. Escape then
+ * leaves it to the Places order (panels first, then the place and this
+ * selection together), as before this panel existed.
+ */
+export function selectionIsPlace(ref: GeographicFeatureRef | null = geo.selected): boolean {
+  return !!ref && !!vs.places?.places.some((p) => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
 }
 
 export function clearGeographicSelection(): boolean {
