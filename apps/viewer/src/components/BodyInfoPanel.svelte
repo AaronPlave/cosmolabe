@@ -7,6 +7,7 @@
   import ImageryLayersSection from './ImageryLayersSection.svelte';
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
+  let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
@@ -39,14 +40,16 @@
     // This latitude is intentionally planetocentric: surfaceRadiusAtLat()
     // intersects the ellipsoid along the camera's radial direction.
     const radialLatDeg = Math.asin(Math.max(-1, Math.min(1, bf.y / len))) * (180 / Math.PI);
-    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
     const terrainSample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
     const referenceAltitude = distance - bm.surfaceRadiusAtLat(radialLatDeg);
+    const sampled = terrainSample != null && terrainPosition?.heightKm != null;
     return {
-      value: terrainSample
-        ? distance - (bm.terrainReferenceRadiusAt(terrainLatDeg) + terrainSample.elevationKm)
+      // Both public heights use the terrain datum's normal coordinate. Adding
+      // that height to a directional radius mixes geodetic and radial values.
+      value: sampled
+        ? terrainPosition!.heightKm! - terrainSample!.elevationKm
         : referenceAltitude,
-      sampled: terrainSample != null,
+      sampled,
     };
   });
 
@@ -81,15 +84,14 @@
       : 0;
     const bodyFixedPoint = { xKm: ecefX, yKm: ecefY, zKm: ecefZ };
     const terrainPosition = parentBm.terrainBodyFixedToGeodetic(bodyFixedPoint);
-    const terrainLatDeg = terrainPosition?.latDeg ?? radialLatDeg;
     const refRadius = parentBm.surfaceRadiusAtLat(radialLatDeg);
     const aboveRef = dist - refRadius;
 
     let aboveTerrain: number | null = null;
     if (parentBm.hasTerrain && rr > 1e-10) {
       const sample = parentBm.sampleTerrainBodyFixed(bodyFixedPoint);
-      if (sample) {
-        aboveTerrain = dist - (parentBm.terrainReferenceRadiusAt(terrainLatDeg) + sample.elevationKm);
+      if (sample && terrainPosition?.heightKm != null) {
+        aboveTerrain = terrainPosition.heightKm - sample.elevationKm;
       }
     }
     return { aboveTerrain, aboveRef, parentBmName: bm.body.parentName };
@@ -206,6 +208,9 @@
 
     {#if bodyEntry?.classification}
       <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
+    {/if}
+    {#if description}
+      <p class="text-xs text-text-muted mb-3">{description}</p>
     {/if}
 
     <!-- CAMERA: camera-relative -->

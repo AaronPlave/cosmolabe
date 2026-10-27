@@ -63,6 +63,7 @@ const CATALOG_KEYS = keys(
 );
 
 const ITEM_KEYS = keys(
+  'description',
   'name', 'type', 'class', 'center', 'trajectoryFrame', 'trajectory', 'trajectoryPlot',
   'rotationModel', 'bodyFrame', 'geometry', 'label', 'naifId', 'mass', 'radii',
   'startTime', 'endTime', 'items', 'arcs', 'spiceKernels',
@@ -82,6 +83,7 @@ const ARC_KEYS = keys(
 
 const TRAJECTORY_PLOT_KEYS = keys(
   'duration', 'lead', 'fade', 'color', 'opacity', 'visible', 'sampleCount',
+  'frame', 'sampleInterval', 'timelineLabel',
 );
 
 const LABEL_KEYS = keys('color', 'visible');
@@ -240,11 +242,12 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         imagery: IMAGERY,
         cubeSphere: {
           keys: keys(
-            'cpuGrids', 'residentLevel', 'maxDetailTiles', 'imagery', 'skirts',
+            'cpuGrids', 'residentLevel', 'maxDetailTiles', 'imagery', 'skirts', 'nearSurface',
             // Spread into the CPU grid source's options (CubeSphereGrids.ts).
             'maxConcurrentRequests', 'retryFailedMs', 'retryBaseMs',
           ),
           children: {
+            nearSurface: { keys: keys('radiusM', 'maxErrorM', 'altitudeM') },
             // A cube-face imagery config (CubeImageryLayer), not a layer like the others.
             imagery: {
               keys: keys(

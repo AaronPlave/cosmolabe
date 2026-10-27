@@ -1,0 +1,12 @@
+{
+  "kind": "ingenuity-terrain-rebuild-byte-comparison",
+  "baselineBuildId": "3087674ad3a306d96681e80a0437b0f61663cabecae1029b83fc5580201dc0ee",
+  "replacementBuildId": "56588b0ff3d445016722c38497d5b59e0d4e9f15e2a9e1dcb4dd72ba2905e10e",
+  "files": 4084,
+  "extensions": [
+    ".glb",
+    ".f32"
+  ],
+  "differentFiles": [],
+  "claim": "Only emitted physical GLB and CPU-grid payload bytes compared; provenance/manifests legitimately use a new immutable product identity."
+}

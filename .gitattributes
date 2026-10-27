@@ -44,3 +44,8 @@ apps/viewer/test-catalogs/textures/moon-normal-16k.jpg filter=lfs diff=lfs merge
 # the ~1 MB threshold above, and small enough that a plain blob is cheaper for
 # every clone and CI run than an LFS round-trip. `-filter` overrides *.bsp.
 kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp -filter -diff -merge -text
+
+# Small reproducibility inventories must survive a plain clone and offline CI.
+docs/validation/ingenuity-jezero/evidence/*-responses.json.gz -filter -diff -merge -text
+# Preserve byte-exact public PDS evidence, including its original whitespace.
+docs/validation/ingenuity-jezero/evidence/flight-12-pds-label.xml -text -whitespace

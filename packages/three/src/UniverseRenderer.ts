@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
+import { TrajectoryPlotFrame } from './TrajectoryPlotFrame.js';
 import {
   CompositeTrajectory,
   SpiceTrajectory,
@@ -22,7 +23,7 @@ import {
   geodeticToBodyFixed,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
-import { patchLogDepthPrecision } from './LogDepth.js';
+import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
 import { RingMesh } from './RingMesh.js';
@@ -167,7 +168,7 @@ export interface UniverseRendererOptions {
    * boundary ray hits (default true). Disable only to diagnose the raw FOV.
    */
   clipSensorsToSurfaces?: boolean;
-  /** Antialias */
+  /** Enable hardware antialiasing at the display's native pixel density (default true). */
   antialias?: boolean;
   /** Bodies to show trajectories for (if not set, shows for spacecraft/comet/asteroid) */
   trajectoryFilter?: (body: Body) => boolean;
@@ -326,8 +327,10 @@ export class UniverseRenderer {
   readonly scaleFactor: number;
   private readonly minBodyPixels: number;
   private readonly modelSurfaceDepth = new ModelSurfaceDepth();
+  private readonly overlaySurfaceDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false });
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
+  private readonly trajectoryPlotFrames = new WeakMap<TrajectoryLine, TrajectoryPlotFrame>();
   private readonly sensorFrustums = new Map<string, SensorFrustum>();
   private readonly ringMeshes = new Map<string, { ring: RingMesh; parentName: string }>();
   private readonly eventMarkerGroups = new Map<string, EventMarkerPlacement>();
@@ -482,8 +485,16 @@ export class UniverseRenderer {
 
     // Renderer
     patchLogDepthPrecision();
+    patchLogDepthCoverage();
+    // The viewer's backdrop or a previous scene may have used this canvas's
+    // context. Three creates default 3D textures before resetting unpack state;
+    // flags left by a 2D upload make that initialization invalid in WebGL2.
+    const context = canvas.getContext('webgl2', { alpha: false, antialias: options.antialias ?? true });
+    context?.pixelStorei(context.UNPACK_FLIP_Y_WEBGL, 0);
+    context?.pixelStorei(context.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
+      context: context ?? undefined,
       antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });
@@ -931,6 +942,15 @@ export class UniverseRenderer {
       const parentName = tl.body.parentName;
       const centerName = arcCenter ?? parentName;
 
+      const plotFrame = this.trajectoryPlotFrames.get(tl);
+      if (plotFrame) {
+        tl.update(et, this.scaleFactor, undefined, this.camera);
+        if (!tl.visible) continue;
+        const center = centerName ? this.absolutePositionOf(centerName, et) : [0, 0, 0];
+        plotFrame.place(tl, [center[0] - originAbsPos[0], center[1] - originAbsPos[1], center[2] - originAbsPos[2]], this.scaleFactor, et);
+        continue;
+      }
+
       // Object3D at origin — all offset is baked into vertices via vertexOffset
       tl.position.set(0, 0, 0);
 
@@ -1040,7 +1060,8 @@ export class UniverseRenderer {
         continue;
       }
       markers.visible = this.bodyMeshes.get(markers.body.name)?.visible ?? true;
-      const vertexOffset: [number, number, number] = centerName
+      const framedPlot = this.trajectoryPlotFrames.has(line);
+      const vertexOffset: [number, number, number] = framedPlot ? [0, 0, 0] : centerName
         ? [
             center![0] - originAbsPos[0],
             center![1] - originAbsPos[1],
@@ -1115,6 +1136,26 @@ export class UniverseRenderer {
     // all three are current-frame values (camera is not in the scene graph, so
     // we must explicitly update its world matrix).
     this.camera.updateMatrixWorld();
+    // Streaming can expose a coarse triangle above the previous selection.
+    // Account for that newly selected surface before this frame is drawn, and
+    // before view-dependent transport/labels consume the final camera.
+    for (const bm of this.bodyMeshes.values()) {
+      if (bm.hasTerrain || bm.hasSurfaceTiles) {
+        bm.updateMatrixWorld(true);
+        const dist = bm.position.distanceTo(this.camera.position);
+        const realSceneRadius = bm.displayRadius * this.scaleFactor;
+        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
+        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
+      }
+    }
+    if (this.clampCameraAboveSurfaces({ cubeOnly: true, resetCorrection: false })) {
+      const distance = this.camera.position.distanceTo(this.cameraController.controls.target);
+      this.camera.near = Math.max(1e-12, distance * 1e-8);
+      this.camera.far = Math.max(1e6, distance * 1e6);
+      this.camera.updateProjectionMatrix();
+      this.camera.updateMatrixWorld();
+    }
     // View transport must use the final current-frame camera, after tracking,
     // surface clamping, and refreshed eclipse occluders.
     const maxSkyBrightness = this.updateAtmospheres(this.camera);
@@ -1183,14 +1224,7 @@ export class UniverseRenderer {
       }, (_place, body, anchor) => this._renderedPlaceAnchor(body, anchor));
     contourLabelObstacles.push(...this.placeNames.getScreenRects());
     for (const bm of this.bodyMeshes.values()) {
-      if (bm.hasTerrain || bm.hasSurfaceTiles) {
-        bm.updateMatrixWorld(true);
-        const dist = bm.position.distanceTo(this.camera.position);
-        const realSceneRadius = bm.displayRadius * this.scaleFactor;
-        const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, contourLabelObstacles);
-        if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
-      }
+      if (bm.hasTerrain) bm.updateTerrainLabels(this.camera, this.renderer, contourLabelObstacles);
     }
 
     // Count every pass in this frame, including the early instrument feed.
@@ -1237,6 +1271,20 @@ export class UniverseRenderer {
         this.camera.layers.mask = savedMask;
       }
     }
+
+    // Fading terrain may not write depth; one-sided tiles also leave no depth
+    // from below. Rebuild physical cube depth from both sides for overlays,
+    // borrowing the exact selected geometry without changing color or buffers.
+    const cubeDepthMeshes: THREE.Mesh[] = [];
+    for (const bm of this.bodyMeshes.values()) {
+      const group = bm.terrainCubeStats ? bm.terrainTileGroup : null;
+      if (group?.visible) group.traverseVisible(object => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.isMesh && (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).some(m => !m.depthWrite)) cubeDepthMeshes.push(mesh);
+      });
+    }
+    this.overlaySurfaceDepth.update(cubeDepthMeshes, this.camera.position);
+    if (cubeDepthMeshes.length) this.renderer.render(this.overlaySurfaceDepth.scene, this.camera);
 
     // Preserve body/solar depth: analysis overlays in front remain visible,
     // while trajectories and sensor frustums behind the Sun remain occluded.
@@ -1574,8 +1622,7 @@ export class UniverseRenderer {
   }
 
   private _onDprChange = (): void => {
-    const dpr = window.devicePixelRatio;
-    this.renderer.setPixelRatio(dpr);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
     this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
     this.labelManager?.refreshTextures();
     // Rebind the media query against the new DPR so the next monitor change fires.
@@ -1730,7 +1777,7 @@ export class UniverseRenderer {
     this._selectedEvent = selected;
     this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
-      this._markerScene.remove(markers);
+      markers.removeFromParent();
       markers.dispose();
     }
     this.eventMarkerGroups.clear();
@@ -1766,7 +1813,8 @@ export class UniverseRenderer {
       // Span strokes retrace this line's drawn vertices — trail, live head
       // sample, and future lead — so they reach the body while the event is
       // underway and follow the lead when it is still ahead.
-      const markers = new EventMarkers(body, { path: () => line.drawnPath() });
+      const markers = new EventMarkers(body, { depthTest: this.trajectoryPlotFrames.has(line), path: () => line.drawnPath(),
+        transform: () => this.trajectoryPlotFrames.has(line) ? line.matrixWorld : undefined });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
         queryId: event.queryId,
@@ -1791,7 +1839,7 @@ export class UniverseRenderer {
       }
       markers.visible = this.bodyMeshes.get(body.name)?.visible ?? true;
       this.eventMarkerGroups.set(lineKey, { markers, line, events: lineEvents });
-      this._markerScene.add(markers);
+      (this.trajectoryPlotFrames.has(line) ? this.scene : this._markerScene).add(markers);
     }
     this.refreshEventLineColors();
   }
@@ -3444,9 +3492,10 @@ export class UniverseRenderer {
   get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
   private _cameraClampCorrectionKm = 0;
 
-  private clampCameraAboveSurfaces(): void {
+  private clampCameraAboveSurfaces({ cubeOnly = false, resetCorrection = true }: { cubeOnly?: boolean; resetCorrection?: boolean } = {}): boolean {
     const cam = this.camera.position;
-    this._cameraClampCorrectionKm = 0;
+    if (resetCorrection) this._cameraClampCorrectionKm = 0;
+    let pushed = false;
     const MARGIN_KM = 0.002; // 2m above terrain surface (eye-height for ground-level viewing)
 
     // When the camera is tracking OR flying to a surface-locked body
@@ -3469,7 +3518,8 @@ export class UniverseRenderer {
 
     for (const bm of this.bodyMeshes.values()) {
       if (bm.body.geometryType !== 'Globe' && bm.body.geometryType !== 'Ellipsoid') continue;
-      if (skipParentName && bm.body.name === skipParentName) continue;
+      if (cubeOnly && !bm.terrainCubeStats) continue;
+      if (skipParentName && bm.body.name === skipParentName && !bm.terrainCubeStats) continue;
 
       const toBody = _clampTmpVec.copy(cam).sub(bm.position);
       const dist = toBody.length();
@@ -3497,6 +3547,7 @@ export class UniverseRenderer {
           const terrainPosition = bm.terrainBodyFixedToGeodetic(bodyFixedPoint);
           if (!terrainPosition) continue;
           const latDeg = terrainPosition.latDeg;
+          const cubeNavigation = bm.terrainNavigationSurface(bodyFixedPoint);
 
           // Sample terrain every 5 frames, use cached value between samples.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
@@ -3505,7 +3556,13 @@ export class UniverseRenderer {
           const bodyName = bm.body.name;
           const cached = this._terrainClampCache.get(bodyName);
           const frame = this._renderDebugFrame;
-          if (!cached || frame - cached.frame >= 5) {
+          if (cubeNavigation?.radiusKm != null) {
+            // A finer independent CPU grid may be below a still-drawn coarse
+            // triangle. Keep the eye above both; never mutate the CPU field to
+            // match transient visual LOD. No five-frame cache across LOD swaps.
+            clampRadiusKm = cubeNavigation.radiusKm;
+            hasTerrainSample = true;
+          } else if (!cached || frame - cached.frame >= 5) {
             const sample = bm.sampleTerrainBodyFixed(bodyFixedPoint);
             if (sample) {
               const elev = sample.elevationKm;
@@ -3534,8 +3591,10 @@ export class UniverseRenderer {
         this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
         toBody.normalize().multiplyScalar(surfaceR);
         cam.copy(bm.position).add(toBody);
+        pushed = true;
       }
     }
+    return pushed;
   }
 
   /** Position attached visuals relative to their parent body each frame. */
@@ -3637,6 +3696,7 @@ export class UniverseRenderer {
     this.bloomEffect?.dispose();
     this.bloomEffect = null;
     this.modelSurfaceDepth.dispose();
+    this.overlaySurfaceDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -3967,7 +4027,12 @@ export class UniverseRenderer {
             trajOpts.staticOrbit = true;
           }
 
+          const plotFrame = plotCfg?.frame ? new TrajectoryPlotFrame(this.universe, body.frame, plotCfg.frame,
+            body.parentName, t => body.stateAt(t).position, body.trajectory.startTime ?? this.timeController.et) : null;
+          if (plotFrame) trajOpts.fixedResolver = plotFrame.resolve;
+          if (plotCfg?.sampleInterval) trajOpts.cacheResampleInterval = plotCfg.sampleInterval;
           const tl = new TrajectoryLine(body, trajOpts);
+          if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
           tl.layers.set(OVERLAY_LAYER);
           tl.traverse(c => c.layers.set(OVERLAY_LAYER));
           this.trajectoryLines.set(body.name, tl);
@@ -3976,7 +4041,7 @@ export class UniverseRenderer {
           // Build trajectory cache for long-duration spacecraft trails.
           // Skip for natural bodies — their smooth orbits work fine with legacy sampling.
           if (this.shouldBuildCache(body, trajOpts)) {
-            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory) {
+            if (this.cacheWorker && body.trajectory instanceof SpiceTrajectory && !plotFrame) {
               // Async: hide trail until cache is ready, build in worker
               tl.setUserVisible(false);
               this.dispatchAsyncCacheBuild(body, tl, trajOpts);
@@ -4172,7 +4237,11 @@ export class UniverseRenderer {
       // the parent's rotation since some reference time.
       const arcFrame = body.arcFrame(arc);
       const arcCenterBodyName = arcCenterName ?? body.parentName;
-      const arcResolver = (_name: string, t: number): [number, number, number] => {
+      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
+      if (plotCfg.visible === false) continue;
+      const plotFrame = plotCfg.frame ? new TrajectoryPlotFrame(this.universe, arcFrame, plotCfg.frame,
+        arcCenterBodyName, t => arc.trajectory.stateAt(t).position, Math.max(arc.startTime, arc.trajectory.startTime ?? -Infinity)) : null;
+      const arcResolver = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
         return this.universe.toWorldFrame(
           [state.position[0], state.position[1], state.position[2]],
@@ -4180,12 +4249,10 @@ export class UniverseRenderer {
           arcCenterBodyName,
           t,
         );
-      };
+      });
 
       // An arc's own trajectoryPlot overrides the body's field by field: a
       // cruise arc can keep years of trail while the orbit phase keeps days.
-      const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
-      if (plotCfg.visible === false) continue;
 
       // Determine trail duration: use catalog value if specified, otherwise estimate from
       // orbit period or cap at 1 year. Showing the entire multi-year arc wastes vertex budget
@@ -4215,8 +4282,10 @@ export class UniverseRenderer {
         trailDuration: trailDur,
         leadDuration: 0,
         minTime: Math.max(arc.startTime, body.existsFrom ?? -Infinity),
-        maxTime: isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
+        maxTime: plotFrame ? Math.min(arc.endTime, arc.trajectory.endTime ?? Infinity, body.existsUntil ?? Infinity)
+          : isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
+        cacheResampleInterval: plotCfg.sampleInterval,
         fadeFraction: plotCfg?.fade ?? 1.0,
         color: plotColor(plotCfg.color),
         opacity: plotCfg.opacity,
@@ -4225,6 +4294,7 @@ export class UniverseRenderer {
         // line doesn't appear as a faceted polygon at high eccentricity.
         numKeySamples: arc.numKeySamples,
       });
+      if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
       // Tag with arc center name so the update loop can position it correctly
       (tl as any)._arcCenterName = arcCenterName;
       tl.layers.set(OVERLAY_LAYER);
@@ -4270,6 +4340,7 @@ export class UniverseRenderer {
           const t0 = performance.now();
           const cache = TrajectoryCache.build(cacheResolver, trajStart, trajEnd, {
             maxPoints: 100_000,
+            ...(plotCfg.sampleInterval ? { coarseInterval: plotCfg.sampleInterval, minInterval: Math.min(30, plotCfg.sampleInterval / 4) } : {}),
             coverageWindows: [{ start: trajStart, end: trajEnd }],
           });
           if (cache.count > 0) {
@@ -4483,7 +4554,7 @@ export class UniverseRenderer {
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
     const resolver = (t: number): [number, number, number] => {
       try {
-        return this.universe.relativePositionInWorld(body.name, t);
+        return trajOpts.fixedResolver?.(body.name, t) ?? this.universe.relativePositionInWorld(body.name, t);
       } catch {
         return [NaN, NaN, NaN];
       }
@@ -4541,6 +4612,7 @@ export class UniverseRenderer {
     const t0 = performance.now();
     const cache = TrajectoryCache.build(resolver, searchStart, searchEnd, {
       maxPoints: 100_000,
+      ...(body.trajectoryPlot?.sampleInterval ? { coarseInterval: body.trajectoryPlot.sampleInterval, minInterval: Math.min(30, body.trajectoryPlot.sampleInterval / 4) } : {}),
       coverageWindows,
     });
     if (cache.count === 0) return false;

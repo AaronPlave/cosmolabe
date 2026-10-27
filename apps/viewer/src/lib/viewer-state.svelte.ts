@@ -23,6 +23,8 @@ import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { navigateToPlace, selectPlace, viewportPlace } from './places';
+import { setCatalogActivities } from './analysis.svelte';
+import { trajectoryIntervalEvent, trajectoryIntervals } from './trajectory-timeline';
 
 // ── Exported types ──
 
@@ -1745,4 +1747,7 @@ export function syncBodies(universe: Universe) {
     parentName: b.parentName,
   }));
   emit('load', vs.bodies.map(b => b.name));
+  // Scene listeners first invalidate the old catalog's searches/selection.
+  // Publish this catalog's activities afterwards so that reset cannot erase them.
+  setCatalogActivities(trajectoryIntervals(allBodies).map(trajectoryIntervalEvent));
 }
