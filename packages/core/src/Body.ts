@@ -16,6 +16,8 @@ export interface TrajectoryPlotConfig {
   frame?: string;
   /** Maximum initial cache sampling interval in seconds; a rendering policy. */
   sampleInterval?: number;
+  /** Opt into timeline navigation of sampled composite arcs, using this label. */
+  timelineLabel?: string;
   /** Trail duration in seconds */
   duration?: number;
   /** Lead duration in seconds (plot ahead of current time) */

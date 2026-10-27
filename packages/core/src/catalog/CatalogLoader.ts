@@ -107,6 +107,7 @@ export interface CatalogJson {
 export interface TrajectoryPlotSpec {
   frame?: string;
   sampleInterval?: string;
+  timelineLabel?: string;
   duration?: string;
   lead?: string;
   fade?: number;
@@ -1669,6 +1670,7 @@ export class CatalogLoader {
     if (!spec) return undefined;
     const config: TrajectoryPlotConfig = {};
     if (spec.frame != null) config.frame = spec.frame;
+    if (spec.timelineLabel != null) config.timelineLabel = spec.timelineLabel;
     if (spec.sampleInterval != null) {
       const interval = parseValueWithUnit(spec.sampleInterval, 0);
       if (!(interval > 0) || !Number.isFinite(interval)) throw new Error('trajectoryPlot.sampleInterval must be finite and positive');

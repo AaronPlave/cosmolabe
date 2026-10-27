@@ -83,6 +83,7 @@ const ARC_KEYS = keys(
 
 const TRAJECTORY_PLOT_KEYS = keys(
   'duration', 'lead', 'fade', 'color', 'opacity', 'visible', 'sampleCount',
+  'frame', 'sampleInterval', 'timelineLabel',
 );
 
 const LABEL_KEYS = keys('color', 'visible');

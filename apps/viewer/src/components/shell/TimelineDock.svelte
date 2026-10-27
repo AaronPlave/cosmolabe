@@ -31,6 +31,9 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import TrajectoryTimeline from './TrajectoryTimeline.svelte';
+  import { trajectoryIntervals } from '../../lib/trajectory-timeline';
+  import { getUniverse } from '../../lib/loader';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -121,6 +124,10 @@
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
+  const trajectoryActivities = $derived.by(() => {
+    void vs.bodies;
+    return trajectoryIntervals(getUniverse()?.getAllBodies() ?? []);
+  });
 
   // ── Transport overview ──
   //
@@ -758,6 +765,8 @@
       </div>
     {/if}
   </div>
+
+  <TrajectoryTimeline items={trajectoryActivities} {expanded} wide={wideLanes} {axis} />
 
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all

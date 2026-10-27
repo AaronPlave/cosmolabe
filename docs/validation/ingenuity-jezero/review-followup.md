@@ -4,6 +4,50 @@ All work stays in PR #292. The five V12 scientific products and all 72 flight
 files are unchanged. Production R2 upload, public HTTP verification and deployment
 remain unperformed and require explicit authorization.
 
+## Flight navigation and reconstruction detail
+
+The timeline now has an opt-in sampled-arc navigator (`trajectoryPlot.timelineLabel`).
+Ingenuity enables it as **Flight**. All 72 flights appear in a picker with date
+and duration; previous/next buttons navigate from flights or parked gaps without
+wrapping. Selecting pauses and frames the sampled interval with 10% time padding.
+Expanding the timeline shows flight intervals on the transport's time axis.
+Arc routing bounds include parked days; the navigator intersects them with the
+actual sample bounds and excludes hidden landed arcs. It changes neither flight
+samples nor epochs and is absent in MoonFall.
+
+The user-reported fine wiggles are not evidence of measured flight movements.
+The current estimated height is the terrain sampled at each preserved mapped
+horizontal vertex plus a modeled AGL profile. This can imprint small terrain
+variations on the estimated vertical path. Dense bends in the mapped horizontal
+source are also preserved. Flight 12's epoch-matched MMGIS polyline (the known
+source label 13 anomaly) contains 5,068 horizontal vertices, with median segment
+length about 0.089 m and frequent local direction reversals. Those small source
+bends exist before adding any estimated height. Neither the model nor a screenshot establishes which
+wiggles were actual helicopter motion; no smoothing or terrain modification was
+applied in this navigation change. A revised vertical estimate must be explicitly
+modeled and checked for physical plausibility and clearance, rather than simply
+smoothing the drawn line or interpreting those variations as telemetry.
+
+`node scripts/test-trajectory-timeline.mjs http://127.0.0.1:5174/` verifies the
+real mission picker, previous/next, boundary buttons, all 72 overview marks,
+desktop and 390px controls, and removal on switching to MoonFall. The October 27
+run passed on Chrome / Apple M4 Max Metal with zero page or GL errors;
+[metrics](timeline-acceptance.json), [desktop flight](timeline-captures/desktop-flight12.png),
+[overview](timeline-captures/desktop-overview.png), and
+[compact flight](timeline-captures/compact-flight12.png) retain the UI evidence.
+These captures validate navigation, not imagery settling after a time jump.
+
+CI also identified the missing schema entries for the already parsed `frame`
+and `sampleInterval` plot fields. The schema now recognizes those and the new
+timeline label; a shipped-catalog regression protects this contract.
+Focused catalog/timeline tests pass (96 tests), as do the shell/panel checks
+(78 tests), package build, test/viewer/Svelte typechecks and changed-file lint.
+The broader local package/viewer run passed 2,641 tests, skipped seven, and failed
+only the unchanged `gf-reporting.test.ts:183` wall-clock reporting assertion;
+that same assertion also failed in an isolated local run. No GF assertions were
+changed. An initial unrestricted local test command was stopped after script
+HTTP-host tests hit sandbox listener timeouts; it is not an acceptance result.
+
 ## What the below-surface reproduction showed
 
 The original default four-layer mission at its default epoch drew nine Ingenuity

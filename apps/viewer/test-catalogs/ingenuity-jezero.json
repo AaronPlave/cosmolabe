@@ -190,7 +190,7 @@
       "items": [
         {
           "name": "Ingenuity",
-          "trajectoryPlot": { "duration": "300s", "frame": "BodyFixed", "sampleInterval": "0.05s" },
+          "trajectoryPlot": { "duration": "300s", "frame": "BodyFixed", "sampleInterval": "0.05s", "timelineLabel": "Flight" },
           "description": "Estimated flight reconstruction, not 3D telemetry. Horizontal paths and landings come from NASA/MMGIS observations; altitude and interior timing are modeled using NASA flight summaries and unchanged terrain. Absolute frame, height and clock accuracy remain uncertain.",
           "class": "spacecraft",
           "naifId": -266,
