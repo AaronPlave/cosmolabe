@@ -4,6 +4,8 @@ import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_GR
 const DETAIL_LEVELS = VECTOR_DETAIL_GRIDS.length + 1;
 /** How many times a pixel's footprint on the ellipsoid's tangent plane a derivative may be before it is taken for a silhouette. */
 const SILHOUETTE = 2;
+/** How much farther a mark may reach along a pixel's long ground footprint than across it (grazing views). */
+const ANISOTROPY = 12;
 const detailSlots = Array.from({ length: DETAIL_LEVELS });
 
 function texture(data: Float32Array, width = Math.min(1024, Math.max(1, data.length / 4))): THREE.DataTexture {
@@ -269,6 +271,14 @@ export class GeographicMaterial extends THREE.ShaderMaterial {
                 // Squares and diamonds use their own distance; equal radius keeps them the same size.
                 float distancePx = reference.y != 0.0 || shape == 0.0 ? length(offset)
                   : shape == 1.0 ? max(abs(offset.x), abs(offset.y)) : (abs(offset.x) + abs(offset.y)) * 0.7071;
+                // Seen nearly edge-on, a pixel spans far more ground in depth than
+                // across, so a mark a few pixels wide would reach kilometres past
+                // its line, onto ground behind a ridge it is drawn in front of.
+                // Its reach is held to ANISOTROPY times the narrow footprint.
+                vec2 metric = reference.z == 0.0 ? vec2(cos(radians(ll.y)), 1.0) : vec2(1.0);
+                vec2 mx = jx * metric, my = jy * metric;
+                float narrow = abs(vectorCross(mx, my)) / max(max(length(mx), length(my)), 1e-30);
+                distancePx = max(distancePx, length((ra + t * (rb - ra)) * metric) / max(narrow, 1e-30) / vectorPixelRatio / ${ANISOTROPY}.0);
                 bool emphasized = identity.x == vectorSelected || identity.x == vectorHovered;
                 float radius = identity.z + (reference.y == 1.0 && emphasized ? 0.75 : 0.0);
                 core = 1.0 - smoothstep(radius - 0.5, radius + 0.5, distancePx);

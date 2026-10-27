@@ -194,10 +194,15 @@ two surfaces, so its derivatives are far larger than a pixel's footprint. The
 shader now bounds them by the footprint of the view ray's step on the
 ellipsoid's tangent plane (the anchor is the camera, so the offset is the ray,
 whose step is continuous), allowing twice that for real slopes.
+A second cause remained on ground seen nearly edge-on (the far side of a
+ridge): a pixel there spans far more ground in depth than across, so a stroke
+a few pixels wide reached kilometres past its line. A mark's reach is now held
+to 12 times the pixel's narrow ground footprint; strokes at extreme grazing
+angles draw thinner, and a little of the outline along a ridge crest drops out.
 `scripts/test-geographic-grazing-highlight.mjs` counts isolated highlight
-pixels 120 m above the Gale floor: 86 before, 29 after (the rest are distant
-stretches of the outline breaking up). Offline smoke images are unchanged but
-for one limb pixel; GPU cost is unchanged.
+pixels 120 m above the Gale floor: 86 before, 29 with the silhouette guard, 12
+with both (the rest are distant stretches of the outline breaking up). Offline
+smoke images are unchanged but for one limb pixel; GPU cost is unchanged.
 
 ## Checks run here
 

@@ -4,7 +4,9 @@
  *
  * Screen derivatives over a 2×2 quad that straddles a silhouette (a ridge and
  * the ground far behind it) are far larger than a pixel's footprint, and a
- * stroke tested with them lit scattered pixels nowhere near it. The frame is
+ * stroke tested with them lit scattered pixels nowhere near it. On ground seen
+ * nearly edge-on, a stroke a few pixels wide also reached kilometres in depth,
+ * onto ground behind a ridge it is drawn in front of. The frame is
  * rendered with the region selected and not; changed pixels with almost no
  * changed neighbours (isolated specks, not the outline) are counted.
  *
@@ -72,7 +74,7 @@ try {
   await writeFile(`${output}/grazing-highlight.json`, JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result));
   assert.ok(result.outline > 1000, 'the selected outline is in view (otherwise this run tested nothing)');
-  // Distant stretches of the outline break up legitimately at this angle; specks
-  // from derivatives across silhouettes were 86 here before the guard.
-  assert.ok(result.isolated < 40, `${result.isolated} isolated highlight pixels`);
+  // Distant stretches of the outline break up legitimately at this angle. 86
+  // before both guards, 29 with the silhouette guard alone, 12 with both.
+  assert.ok(result.isolated < 20, `${result.isolated} isolated highlight pixels`);
 } finally { await browser.close(); }
