@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Universe, parseGeographicGeoJson, type GeographicCoordinates, type GeographicLayer } from '@cosmolabe/core';
+import { Universe, parseGeographicGeoJson, type GeographicCoordinates, type GeographicLayer, type Place } from '@cosmolabe/core';
 import { GeographicVectorLayer, UniverseRenderer, type GeographicFeatureRef } from '@cosmolabe/three';
 import * as THREE from 'three';
 
@@ -52,7 +52,7 @@ function fakeRenderer(scene: Universe) {
   const view = { bodyMeshes, camera, scaleFactor: 1, renderer: { domElement: { clientWidth: 800, clientHeight: 400 } } };
   const projected: number[] = [];
   return {
-    geographicVectors, spin, camera, projected, scaleFactor: 1, renderer: view.renderer,
+    geographicVectors, spin, camera, projected, scaleFactor: 1, renderer: view.renderer, placeNames: { selectedRef: null as string | null },
     getBodyMesh: (name: string) => bodyMeshes.get(name) as never,
     projectGeographicPositions: (...args: Parameters<UniverseRenderer['projectGeographicPositions']>) => {
       projected.push(args[1].length);
@@ -104,6 +104,50 @@ describe('geographic selection shared by scene and list', () => {
     renderer!.emit('geographic:click', ref('science', 'string:a'));
     expect(geo.activeLayerId).toBe('science');
     expect(surfacePanelView()).toMatchObject({ kind: 'feature', feature: { id: 'string:a' } });
+  });
+
+  it('leaves a scene click on a Gazetteer name to Places, and keeps one selection across both', async () => {
+    const { vs } = await import('../viewer-state.svelte');
+    const { selectPlace } = await import('../places');
+    const found = findFeature(ref('science', 'string:a'))!;
+    const place = { ref: 'place:a', name: 'a', origin: 'nomenclature', layer: found.layer, feature: found.feature } as unknown as Place;
+    vs.places = { places: [place], byRef: new Map([[place.ref, place]]) } as never;
+    try {
+      selectFeature(ref('regions', 'string:c'));
+      // A scene click: the renderer selects the point, then the viewer gives it to
+      // Places (which lets go of it here: viewer-control.test).
+      renderer!.geographicVectors.setSelected(ref('science', 'string:a'));
+      expect(geo.selected).toBeNull();
+      expect(geo.activeLayerId).toBe('regions');
+      selectPlace(place);
+      expect(vs.selectedPlaceRef).toBe('place:a');
+      expect(shell.openTools).toContain('navigate');
+      expect(shell.openTools).not.toContain('layers');
+      // Selecting another feature lets go of the place.
+      renderer!.geographicVectors.setSelected(ref('regions', 'string:c'));
+      expect(geo.selected).toEqual(ref('regions', 'string:c'));
+      expect(vs.selectedPlaceRef).toBeNull();
+      // Browsing to the place in this panel selects it here and lets go of it in Places.
+      selectPlace(place);
+      selectFeature(ref('science', 'string:a'));
+      expect(geo.selected).toEqual(ref('science', 'string:a'));
+      expect(vs.selectedPlaceRef).toBeNull();
+      // A mission or user site, and a name source left out of Places, are this panel's to select from the scene.
+      for (const change of [() => { (place as { origin: string }).origin = 'mission/user'; }, () => { vs.excludedPlaceLayers = ['science']; }]) {
+        clearGeographicSelection();
+        change();
+        renderer!.geographicVectors.setSelected(ref('science', 'string:a'));
+        expect(geo.selected).toEqual(ref('science', 'string:a'));
+        (place as { origin: string }).origin = 'nomenclature';
+      }
+    } finally {
+      vs.places = null; vs.excludedPlaceLayers = []; vs.selectedPlaceRef = null;
+    }
+  });
+
+  it('flies to a feature double-clicked in the scene', () => {
+    renderer!.emit('geographic:dblclick', ref('science', 'string:route'));
+    expect(flyOverSurface).toHaveBeenCalledTimes(1);
   });
 
   it('selecting from the list highlights it in the scene without moving the camera', () => {
