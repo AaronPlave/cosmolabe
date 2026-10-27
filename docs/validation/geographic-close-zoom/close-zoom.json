@@ -178,7 +178,7 @@
           "rangeKm": 446.5384864129792
         }
       },
-      "fadingTiles": 0,
+      "fadingTiles": 5,
       "labels": 6,
       "altitudeKm": 420
     },
@@ -186,22 +186,22 @@
       "label": "Gale regional · 1",
       "floorUnderCentre": false,
       "centre": {
-        "latDeg": -5.0591172744942865,
-        "lonDeg": 137.5999999940941
+        "latDeg": -5.059118658803722,
+        "lonDeg": 137.59999999409268
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.308,
+        "worstKm": 0.279,
         "worstRatio": 0.0008,
         "worst": {
-          "key": "gale-regions/string:region-5",
-          "x": 665,
-          "y": 181,
-          "lat": -3.743797252262327,
-          "lon": 135.98916499999996,
-          "hitLat": -3.7485080672461124,
-          "hitLon": 135.9869542660733,
-          "rangeKm": 382.6443059684332
+          "key": "gale-regions/string:region-1",
+          "x": 509,
+          "y": 333,
+          "lat": -5.463710460544412,
+          "lon": 137.39999999999998,
+          "hitLat": -5.461738847085245,
+          "hitLon": 137.3957004554184,
+          "rangeKm": 362.34070039990445
         }
       },
       "fadingTiles": 0,
@@ -212,22 +212,22 @@
       "label": "Gale regional · 2",
       "floorUnderCentre": false,
       "centre": {
-        "latDeg": -5.059117276091537,
-        "lonDeg": 137.5999999938439
+        "latDeg": -5.059118660401323,
+        "lonDeg": 137.59999999384218
       },
       "labelOnScreen": true,
       "registration": {
         "worstKm": 0.345,
         "worstRatio": 0.001,
         "worst": {
-          "key": "gale-regions/string:region-6",
-          "x": 280,
-          "y": 340,
-          "lat": -7.3857050837940585,
-          "lon": 137.32452,
-          "hitLat": -7.390147399128668,
-          "hitLon": 137.32833535975746,
-          "rangeKm": 337.5218270231218
+          "key": "gale-regions/string:line-2",
+          "x": 772,
+          "y": 356,
+          "lat": -3.136726447239339,
+          "lon": 137.79999999999995,
+          "hitLat": -3.1322707465888016,
+          "hitLon": 137.80373182585046,
+          "rangeKm": 329.57614109207566
         }
       },
       "fadingTiles": 0,
@@ -238,22 +238,22 @@
       "label": "Gale regional · 3",
       "floorUnderCentre": false,
       "centre": {
-        "latDeg": -5.059117275017976,
-        "lonDeg": 137.60000000264205
+        "latDeg": -5.059118659327302,
+        "lonDeg": 137.6000000026429
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.247,
+        "worstKm": 0.235,
         "worstRatio": 0.0009,
         "worst": {
           "key": "gale-regions/string:region-3",
-          "x": 609,
+          "x": 608,
           "y": 312,
           "lat": -4.603804684730612,
           "lon": 137.35375,
-          "hitLat": -4.600321681462107,
-          "hitLon": 137.3557325731638,
-          "rangeKm": 264.9117039642067
+          "hitLat": -4.607544417856083,
+          "hitLon": 137.35505102614323,
+          "rangeKm": 264.9656428510937
         }
       },
       "fadingTiles": 0,
@@ -264,22 +264,22 @@
       "label": "Gale regional · 4",
       "floorUnderCentre": false,
       "centre": {
-        "latDeg": -5.0591172747788535,
-        "lonDeg": 137.6000000070377
+        "latDeg": -5.0591186590879795,
+        "lonDeg": 137.60000000704036
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.208,
+        "worstKm": 0.204,
         "worstRatio": 0.0009,
         "worst": {
           "key": "gale-regions/string:region-1",
-          "x": 484,
+          "x": 483,
           "y": 323,
           "lat": -5.463710460544412,
           "lon": 137.39999999999998,
-          "hitLat": -5.460443973037703,
-          "hitLon": 137.39873477360138,
-          "rangeKm": 225.20349178608834
+          "hitLat": -5.466684012228315,
+          "hitLon": 137.39825818096014,
+          "rangeKm": 225.22070886916066
         }
       },
       "fadingTiles": 0,
@@ -290,22 +290,22 @@
       "label": "Gale regional · 5",
       "floorUnderCentre": false,
       "centre": {
-        "latDeg": -5.0591172754860985,
-        "lonDeg": 137.59999999594444
+        "latDeg": -5.059118659795751,
+        "lonDeg": 137.59999999594268
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.193,
+        "worstKm": 0.186,
         "worstRatio": 0.001,
         "worst": {
           "key": "gale-regions/string:region-3",
           "x": 630,
-          "y": 297,
+          "y": 298,
           "lat": -4.603804684730612,
           "lon": 137.35375,
-          "hitLat": -4.605573449827404,
-          "hitLon": 137.35099028930392,
-          "rangeKm": 193.97180313034644
+          "hitLat": -4.605782178019317,
+          "hitLon": 137.35620991206446,
+          "rangeKm": 194.03515635633443
         }
       },
       "fadingTiles": 0,
@@ -316,22 +316,22 @@
       "label": "Gale floor close · 0",
       "floorUnderCentre": true,
       "centre": {
-        "latDeg": -5.969623390242921,
-        "lonDeg": 136.70000000024152
+        "latDeg": -5.969623569593656,
+        "lonDeg": 136.70000000024157
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.034,
-        "worstRatio": 0.0011,
+        "worstKm": 0.014,
+        "worstRatio": 0.0005,
         "worst": {
-          "key": "gale-regions/string:line-3",
-          "x": 258,
-          "y": 168,
-          "lat": -6.174338572598617,
-          "lon": 136.54428871722706,
-          "hitLat": -6.174605220976251,
-          "hitLon": 136.54377980783102,
-          "rangeKm": 30.64912482813205
+          "key": "gale-regions/string:line-1",
+          "x": 537,
+          "y": 200,
+          "lat": -5.968215047702563,
+          "lon": 136.5877731142613,
+          "hitLat": -5.968445349272842,
+          "hitLon": 136.5877519668589,
+          "rangeKm": 27.445177214087504
         }
       },
       "fadingTiles": 0,
@@ -342,22 +342,22 @@
       "label": "Gale floor close · 1",
       "floorUnderCentre": true,
       "centre": {
-        "latDeg": -5.9696233902119875,
-        "lonDeg": 136.7000000000491
+        "latDeg": -5.969623569562705,
+        "lonDeg": 136.70000000004913
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.014,
-        "worstRatio": 0.0005,
+        "worstKm": 0.018,
+        "worstRatio": 0.0008,
         "worst": {
-          "key": "gale-regions/string:line-3",
-          "x": 211,
-          "y": 139,
-          "lat": -6.174338572598617,
-          "lon": 136.54428871722706,
-          "hitLat": -6.174118683786239,
-          "hitLon": 136.54435271424768,
-          "rangeKm": 27.424821988788192
+          "key": "gale-regions/string:line-1",
+          "x": 535,
+          "y": 175,
+          "lat": -5.968215047702563,
+          "lon": 136.5877731142613,
+          "hitLat": -5.968335597832552,
+          "hitLon": 136.5874906664026,
+          "rangeKm": 23.82730360740557
         }
       },
       "fadingTiles": 0,
@@ -368,22 +368,22 @@
       "label": "Gale floor close · 2",
       "floorUnderCentre": true,
       "centre": {
-        "latDeg": -5.969623390245211,
+        "latDeg": -5.969623569595938,
         "lonDeg": 136.70000000001107
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.015,
+        "worstKm": 0.016,
         "worstRatio": 0.0007,
         "worst": {
-          "key": "gale-regions/string:line-1",
-          "x": 533,
-          "y": 146,
-          "lat": -5.9682088099885515,
-          "lon": 136.58694747782607,
-          "hitLat": -5.968063160948859,
-          "hitLon": 136.5871463191158,
-          "rangeKm": 20.789969267015078
+          "key": "gale-regions/string:line-3",
+          "x": 153,
+          "y": 103,
+          "lat": -6.176106414666944,
+          "lon": 136.54294725442182,
+          "hitLat": -6.175866199536084,
+          "hitLon": 136.5430814842699,
+          "rangeKm": 24.908465225286854
         }
       },
       "fadingTiles": 0,
@@ -399,20 +399,20 @@
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.009,
-        "worstRatio": 0.0004,
+        "worstKm": 0.017,
+        "worstRatio": 0.0007,
         "worst": {
           "key": "gale-regions/string:line-3",
-          "x": 93,
-          "y": 66,
-          "lat": -6.174338572598617,
-          "lon": 136.54428871722706,
-          "hitLat": -6.17430814462134,
-          "hitLon": 136.5444351974441,
-          "rangeKm": 22.734695145352347
+          "x": 89,
+          "y": 63,
+          "lat": -6.176106414666944,
+          "lon": 136.54294725442182,
+          "hitLat": -6.17625013467515,
+          "hitLon": 136.54269689995826,
+          "rangeKm": 22.846817172005544
         }
       },
-      "fadingTiles": 10,
+      "fadingTiles": 0,
       "labels": 3,
       "altitudeKm": 15.35
     },
@@ -425,17 +425,17 @@
       },
       "labelOnScreen": true,
       "registration": {
-        "worstKm": 0.005,
-        "worstRatio": 0.0003,
+        "worstKm": 0.002,
+        "worstRatio": 0.0001,
         "worst": {
           "key": "gale-regions/string:line-1",
           "x": 527,
-          "y": 76,
-          "lat": -5.9682088099885515,
-          "lon": 136.58694747782607,
-          "hitLat": -5.968129560767802,
-          "hitLon": 136.58697540496377,
-          "rangeKm": 16.126562638690586
+          "y": 78,
+          "lat": -5.968215047702563,
+          "lon": 136.5877731142613,
+          "hitLat": -5.968209569621777,
+          "hitLon": 136.58780123056212,
+          "rangeKm": 16.105606918988915
         }
       },
       "fadingTiles": 0,
@@ -457,8 +457,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623569524902,
           "hitLon": 136.70000000009327,
           "rangeKm": 13.894239953773333
@@ -483,8 +483,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.96962368265183,
           "hitLon": 136.70000000016307,
           "rangeKm": 5.80705548663112
@@ -509,8 +509,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623682666449,
           "hitLon": 136.69999999992206,
           "rangeKm": 5.357055485095562
@@ -535,8 +535,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623682652997,
           "hitLon": 136.69999999987587,
           "rangeKm": 4.974555484936514
@@ -561,8 +561,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623682646643,
           "hitLon": 136.6999999999805,
           "rangeKm": 4.649430485603074
@@ -587,8 +587,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623682661151,
           "hitLon": 136.7000000000308,
           "rangeKm": 4.373074235777584
@@ -613,8 +613,8 @@
           "key": "gale-regions/string:region-1",
           "x": 550,
           "y": 350,
-          "lat": -5.969623569519166,
-          "lon": 136.69999999993425,
+          "lat": -5.969621911826516,
+          "lon": 136.70000000024086,
           "hitLat": -5.969623682676533,
           "hitLon": 136.7000000000053,
           "rangeKm": 4.138171422999822
