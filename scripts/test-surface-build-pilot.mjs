@@ -42,12 +42,24 @@ if(!hosted)await page.route('**/__surface-pilot/**',async route=>{
   try { await route.fulfill({body:await readFile(file),contentType:({'.json':'application/json','.glb':'model/gltf-binary','.png':'image/png','.f32':'application/octet-stream'})[extname(file)]??'application/octet-stream'}); }
   catch(e){errors.push(e.message);await route.fulfill({status:404,body:'Missing pinned product file'});}
 });
-// A settled software-rendered supersampled frame need not compete with the
-// continuous render loop while Chromium captures it. Keep full raster density.
+// Read the rendered WebGL frame synchronously, avoiding Chromium's compositor
+// screenshot stall with supersampled SwiftShader. Preserve full render density
+// and copy to CSS display size so the existing pixel thresholds retain scale.
+// These captures cover scene pixels; DOM controls are exercised separately.
 async function captureFrame(path) {
-  await page.evaluate(()=>{const r=window.renderer;r.stop();r.renderFrame();});
-  try { return await page.screenshot({path}); }
-  finally { await page.evaluate(()=>{const r=window.renderer;r.start();window.cosmo.setPlaying(false);}); }
+  const image=await page.evaluate(()=>{
+    const r=window.renderer;r.stop();
+    try {
+      r.renderFrame();
+      const source=r.getContext().webglRenderer.domElement;
+      const display=document.createElement('canvas');
+      display.width=source.clientWidth;display.height=source.clientHeight;
+      display.getContext('2d').drawImage(source,0,0,display.width,display.height);
+      return display.toDataURL('image/png');
+    } finally {r.start();window.cosmo.setPlaying(false);}
+  });
+  const bytes=Buffer.from(image.split(',')[1],'base64');
+  await writeFile(path,bytes);return bytes;
 }
 try {
   await page.goto(new URL(hosted?'?catalog=test-catalogs/experiments/mars-surface-build-pilot':'?catalog=test-catalogs/experiments/mars-terrain-cube-jezero',process.env.CL_VIEWER_URL??'http://127.0.0.1:5174/').href,{waitUntil:'domcontentloaded',timeout:180000});
