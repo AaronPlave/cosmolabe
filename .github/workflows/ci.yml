@@ -216,7 +216,8 @@ jobs:
     if: needs.changes.outputs.surface == 'true'
     name: Surface build executor
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Full-density SwiftShader acceptance plus rebuilds takes about 15 minutes.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
