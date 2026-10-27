@@ -157,6 +157,89 @@ frame budget is global countries seen close (Rhine: full-screen coverage across
 composited fills of broad static regions; reducing pages drawn per pixel (only
 pages whose features touch the tile) is the cheaper first step to try.
 
+## 3. One draw per pass instead of one per page
+
+A review trace (Gale floor, tens of metres up, contours on) showed the GPU
+process busy most of the time at a steady frame rate: each page of features
+re-drew every visible terrain tile, so 4 pages × 100–250 tiles made 400–830
+vector draws a frame, and each re-ran the per-fragment set-up (Bowring
+latitude, derivatives, grid choice). The shader now loops over a pass's pages
+itself and composites them in order, so a pass is one draw per tile. Close up,
+where a finer grid holds fewer pages, the loop stops at that grid's count,
+which covers "skip pages close up" too.
+
+Pages are composited in linear colour and converted to output once. Converting
+inside the loop, which would match framebuffer blending exactly, made Rhine
+close about twice as slow on Metal. The difference shows only where
+anti-aliased fringes of two pages overlap: 16 pixels of 921,600 in Earth orbit,
+none elsewhere; the offline smoke images are unchanged.
+
+`docs/validation/geographic-gpu/m4max-one-pass`: two interleaved runs each,
+whole-frame GPU ms (vector cost in brackets).
+
+| Scene | Draws before → after | Before | After |
+| --- | --- | --- | --- |
+| Dense Jezero | 99 → 11 | 1.85–4.87 (1.1–3.2) | 0.73–0.99 (0.2–0.3) |
+| Gale regional | 552 → 138 | 2.5–4.7 | 1.8–2.3 |
+| Gale close | 828 → 207 | 7.0–7.2 (4.0–4.4) | 5.9–6.2 (4.4–5.0) |
+| Gale very close | 396 → 99 | 5.0–6.5 | 4.2–4.3 |
+| Earth orbit (one mesh) | 6 → 1 | 6.3–6.4 | 5.5–7.2 |
+| Rhine close (one mesh) | 6 → 1 | 15.4–16.3 | 15.5–17.3 |
+
+CPU time of the browser's processes while rendering Gale close at 60 fps
+(`process-cpu.mjs`), vectors on minus off, in cores: GPU process 0.06–0.08 →
+0.02–0.03, renderer 0.21–0.23 → 0.09–0.12. At tens of metres the vector share
+is small either way. Terrain contours add little GPU time (~0.3 ms at 4K).
+
+**Is raster-composited fill (the review's suggestion) needed?** Not for Gale:
+after this change its vectors cost 3–5 ms at 4K, inside a 60 fps budget.
+Broad fills seen close remain the expensive case: Rhine countries are 15 ms at
+4K, every covered pixel testing its cell's fill triangles across 6 pages, and
+one draw instead of six does not change that work. That is the case for
+raster fills of broad static regions, or a cheaper first step: mark index cells
+a polygon's interior covers entirely, so those pixels skip the triangle tests.
+
+## 4. Highlight specks at grazing views
+
+Selecting an outline at a low angle lit scattered pixels on distant terrain.
+Strokes convert distances to pixels with screen derivatives, and a 2×2 quad
+that straddles a silhouette (a ridge and the ground far behind it) differences
+two surfaces, so its derivatives are far larger than a pixel's footprint. The
+shader now bounds them by the footprint of the view ray's step on the
+ellipsoid's tangent plane (the anchor is the camera, so the offset is the ray,
+whose step is continuous), allowing twice that for real slopes.
+A second cause remained on ground seen nearly edge-on (the far side of a
+ridge): a pixel there spans far more ground in depth than across, so a stroke
+a few pixels wide reached kilometres past its line. A mark's reach is now held
+to 12 times the pixel's narrow ground footprint; strokes at extreme grazing
+angles draw thinner, and a little of the outline along a ridge crest drops out.
+`scripts/test-geographic-grazing-highlight.mjs` counts isolated highlight
+pixels 120 m above the Gale floor: 86 before, 29 with the silhouette guard, 12
+with both (the rest are distant stretches of the outline breaking up). Offline
+smoke images are unchanged but for one limb pixel; GPU cost is unchanged.
+
+## 5. Broad fills seen close: covered cells
+
+Countries seen close (Rhine, ~110 km up) cost ~14 ms at 4K. Instrumenting
+the shader showed every pixel scanning ~114 candidates (64 fill triangles, 50
+strokes) from the 1.4° global level, of which ~3.6 survived the box test: the
+cost was the scan. Global data now also has a 0.35° level, over the latitudes
+clear of polar charts (Antarctica's triangles would otherwise fill every
+longitude); at both global levels fill triangles stay only in cells their
+polygon's outline crosses, a cell wholly inside a polygon holds one covered
+reference (no triangle test), and segments are binned exactly rather than by
+box. Countries fit in 836k references and one page per level (the 256 level
+was two pages).
+
+`docs/validation/geographic-gpu/m4max-covered-cells`, two interleaved runs:
+Rhine close 13.4–13.8 → 4.0–6.6 ms of vector cost; Earth orbit, Jezero and
+dense Jezero unchanged. Fills are pixel-identical; borders change by at most
+28 levels, because a border stroke now replaces the fill under it (one page,
+as single-page data always drew) instead of blending over a separate fill
+page. Building the index takes ~120 ms more for countries.
+
+Raster-composited fills are not needed for these cases.
+
 ## Checks run here
 
 On the integration branch: unit tests for renderer, footprint and fade (45);
