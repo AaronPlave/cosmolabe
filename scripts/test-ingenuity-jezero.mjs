@@ -32,6 +32,9 @@ await page.addInitScript(()=>{
   }});
 });
 const errors=[],requests=[],result={catalog:'ingenuity-jezero',views:[],loading:[],errors};
+result.transportFailures=[];result.warnings=[];
+page.on('requestfailed',r=>result.transportFailures.push({url:r.url(),error:r.failure()?.errorText}));
+page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')result.warnings.push(m.text());});
 let sourceFault=false,baseFault=false;
 page.on('pageerror',e=>errors.push(e.message));
 page.on('request',r=>{if(/\.(glb|f32|png)(\?|$)/.test(r.url()))requests.push(r.url());});
@@ -53,12 +56,21 @@ async function ready(){
   });
 }
 async function settle(budget=true){
-  await page.waitForFunction(budget=>{
+  // A camera change may look idle until the next render schedules its requests.
+  // Require the same idle condition again after a stable interval before sampling.
+  const idle=budget=>{
     const t=window.renderer.getBodyMesh('Mars').terrainManager,n=t.metrics.network,i=t.cubeImageryStats;
     return t.tiles.visibleTiles.size>0&&n.queued+n.downloading+n.parsing===0&&t.cubeStats.inFlight===0&&i.inFlight===0&&(i.queued===0||(budget&&i.budgetLimited));
-  },budget,{timeout:180000});
-  await page.waitForTimeout(250);
+  };
+  const deadline=Date.now()+180000;
+  do {
+    await page.waitForFunction(idle,budget,{timeout:Math.max(1,deadline-Date.now())});
+    await page.waitForTimeout(500);
+    if(await page.evaluate(idle,budget))return;
+  }while(Date.now()<deadline);
+  throw new Error('Mission requests did not remain idle before sampling');
 }
+
 async function groundReady(){
   await page.waitForFunction(()=>{
     const r=window.renderer,b=r.getBodyMesh('Mars'),V=r.camera.position.constructor,centre=new V();b.getWorldPosition(centre);

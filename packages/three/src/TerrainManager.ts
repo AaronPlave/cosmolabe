@@ -15,7 +15,7 @@ import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlaps
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
-import { fetchWithRetry } from './fetchWithRetry.js';
+import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
 import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
@@ -1576,7 +1576,7 @@ export class TerrainManager {
   }
 
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
-    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, signal: this.cubeGridsAbort.signal }).then((source) => {
+    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, fetch: fetchCompleteResponse, signal: this.cubeGridsAbort.signal }).then((source) => {
       if (this.disposed) return;
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;

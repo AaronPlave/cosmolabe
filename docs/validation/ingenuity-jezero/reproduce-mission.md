@@ -1,5 +1,10 @@
 # Reproduce the validated full mission without publishing
 
+The [production release record](production-release/README.md) contains the real
+publication receipt, verified dataset pins, hosted acceptance and captured
+production rollback baseline. The original pre-publication review steps below
+remain useful for reproducing the scientific build.
+
 The historical audit commands in [README](README.md) create a clean fusion,
 original DEM overview dependency, and numerical audit. Their legacy-flight
 snapshot is deliberate: the old coordinate interpretation must be audited using

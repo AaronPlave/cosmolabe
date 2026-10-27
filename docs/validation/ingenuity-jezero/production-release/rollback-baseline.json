@@ -1,0 +1,20 @@
+{
+  "productionUrl": "https://aaronplave.com/cosmolabe/",
+  "deploymentId": 7299234925,
+  "deploymentCommit": "0bf7018bb03ab6aa6a53c424692f9d44f75c36cf",
+  "pagesRunId": 40098058428,
+  "prHead": "29738a785c4bd113c6cb7c7e9d171513d89c5a40",
+  "exactHeadCiRunId": 40521104829,
+  "dataBaseUrl": "https://data.aaronplave.com",
+  "publicationIdentity": "63894ab8a6241fc78b254a3972cf386231fd75642998539f06c0946931d1e4d1",
+  "published": false,
+  "promoted": false,
+  "merged": false,
+  "deployed": false,
+  "pagesDeploymentAllowedBranch": "main",
+  "DATA_BASE_URL": "https://data.aaronplave.com",
+  "r2Bucket": "cosmolabe",
+  "controlPlaneCorsReadable": false,
+  "corsValidatedOverPublicHttp": true,
+  "rollbackStrategy": "Revert the release merge through a PR into main; deploy-main environment restriction prevents dispatching a rollback branch directly."
+}

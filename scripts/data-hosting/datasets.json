@@ -273,7 +273,8 @@
       "build": null,
       "localOnly": true,
       "catalogs": [
-        "experiments/mars-terrain-cube-jezero.json"
+        "experiments/mars-terrain-cube-jezero.json",
+        "mars-cube-imagery-experiment.json"
       ]
     },
     "cube-terrain/terrain-3846907d293e9e5d0b0243ce": {
@@ -281,35 +282,35 @@
       "name": "terrain-3846907d293e9e5d0b0243ce",
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce",
       "catalogPrefix": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/",
-      "build": null
+      "build": "3846907d293e9e5d0b0243cefc2ed446"
     },
     "cube-imagery/imagery-04513d4681559e949e39e30f": {
       "kind": "cube-imagery",
       "name": "imagery-04513d4681559e949e39e30f",
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f",
       "catalogPrefix": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/",
-      "build": null
+      "build": "04513d4681559e949e39e30fcaaaec3f"
     },
     "cube-imagery/imagery-11f675fe48a13579126bb3cd": {
       "kind": "cube-imagery",
       "name": "imagery-11f675fe48a13579126bb3cd",
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd",
       "catalogPrefix": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/",
-      "build": null
+      "build": "11f675fe48a13579126bb3cd85c3cb42"
     },
     "cube-imagery/imagery-ab90c8bd749d673d3f786918": {
       "kind": "cube-imagery",
       "name": "imagery-ab90c8bd749d673d3f786918",
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918",
       "catalogPrefix": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/",
-      "build": null
+      "build": "ab90c8bd749d673d3f7869185cbf5040"
     },
     "cube-imagery/imagery-4992e13935cc9898d6522634": {
       "kind": "cube-imagery",
       "name": "imagery-4992e13935cc9898d6522634",
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634",
       "catalogPrefix": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/",
-      "build": null
+      "build": "4992e13935cc9898d65226349f2cf222"
     }
   }
 }

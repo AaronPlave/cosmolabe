@@ -400,25 +400,26 @@ describe('hosted catalog rewriting', () => {
     expect(ds.build).toBeNull();
     const dist = tmp('local-experiment');
     const pub = join(dist, 'test-catalogs');
-    const cat = ds.catalogs[0];
+    const cats = ds.catalogs;
+    expect(cats).toContain('mars-cube-imagery-experiment.json');
     mkdirSync(join(pub, 'experiments'), { recursive: true });
     mkdirSync(join(pub, ds.catalogPrefix), { recursive: true });
-    const original = readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8');
-    writeFileSync(join(pub, cat), original);
+    const originals = new Map(cats.map(cat => [cat, readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')]));
+    for (const [cat, original] of originals) writeFileSync(join(pub, cat), original);
     writeFileSync(join(pub, ds.catalogPrefix, 'cpu-grids.json'), '{}');
     // Both local-data and hosted-data deployment copy modes omit this experiment.
     for (const sets of [{ [id]: ds }, all]) {
       const keep = publicDirCopyFilter(sets, pub);
-      expect(keep(join(pub, cat))).toBe(false);
+      for (const cat of cats) expect(keep(join(pub, cat))).toBe(false);
       expect(keep(join(pub, ds.catalogPrefix))).toBe(false);
       expect(keep(join(pub, ds.catalogPrefix, 'cpu-grids.json'))).toBe(false);
       expect(keep(join(pub, 'experiments/other.json'))).toBe(true);
     }
     const rec = await buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet });
     expect(rec.datasets).toEqual({});
-    expect(existsSync(join(pub, cat))).toBe(false);
+    for (const cat of cats) expect(existsSync(join(pub, cat))).toBe(false);
     expect(existsSync(join(pub, ds.catalogPrefix))).toBe(false);
-    expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(original);
+    for (const [cat, original] of originals) expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(original);
     // A production catalog accidentally using the unpublished local product must still fail.
     writeFileSync(join(pub, 'production.json'), JSON.stringify({ url: `${ds.catalogPrefix}cpu-grids.json` }));
     await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet })).rejects.toThrow(id);

@@ -27,3 +27,16 @@ export async function fetchWithRetry(
     });
   }
 }
+
+/** Complete a successful response body within the caller's fetch retry boundary.
+ * The viewer uses this adapter for small CPU grids and their manifest. It keeps
+ * body-transfer failures retryable without changing grid decoding or sampling.
+ */
+export async function fetchCompleteResponse(
+  input: RequestInfo | URL, init?: RequestInit, fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  const response = await fetchImpl(input, init);
+  if (!response.ok || !response.body) return response;
+  const body = await response.arrayBuffer();
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
