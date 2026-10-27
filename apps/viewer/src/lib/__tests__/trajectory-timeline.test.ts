@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Body, CompositeTrajectory, FixedPointTrajectory, InterpolatedStatesTrajectory } from '@cosmolabe/core';
-import { adjacentTrajectoryInterval, trajectoryIntervals, trajectoryIntervalWindow } from '../trajectory-timeline';
+import { adjacentTrajectoryInterval, trajectoryIntervals, trajectoryIntervalSeries, trajectoryIntervalWindow } from '../trajectory-timeline';
 
 function body(optIn = true) {
   const sampled = (start: number, end: number) => new InterpolatedStatesTrajectory([
@@ -15,6 +15,24 @@ function body(optIn = true) {
 }
 
 describe('sampled trajectory timeline', () => {
+  it('keeps concurrent rover drives and aircraft flights in separate named series', () => {
+    const flight = body();
+    const rover = new Body({ name: 'Rover', trajectory: flight.trajectory, trajectoryPlot: { timelineLabel: 'Drive' } });
+    const series = trajectoryIntervalSeries([flight, rover]);
+    expect(series.map(s => [s.body, s.label, s.items[0].label])).toEqual([
+      ['Ingenuity', 'Flight', 'Flight 1'], ['Rover', 'Drive', 'Drive 1'],
+    ]);
+    expect(series[0].items[0].id).not.toBe(series[1].items[0].id);
+    expect(adjacentTrajectoryInterval(series[1].items, 20, 1)?.body).toBe('Rover');
+  });
+  it('does not hide an activity when its trajectory line is hidden', () => {
+    const source = body();
+    const trajectory = source.trajectory as CompositeTrajectory;
+    const hidden = new Body({ name: 'Rover', trajectoryPlot: { timelineLabel: 'Drive' },
+      trajectory: new CompositeTrajectory(trajectory.arcs.map(arc => ({ ...arc, showLine: false }))),
+    });
+    expect(trajectoryIntervals([hidden]).map(item => item.label)).toEqual(['Drive 1', 'Drive 2']);
+  });
   it('uses sampled bounds, excluding parked arc routing and hidden landed arcs', () => {
     expect(trajectoryIntervals([body()])).toEqual([
       { id: 'Ingenuity:0', body: 'Ingenuity', label: 'Flight 1', start: 10, end: 50 },

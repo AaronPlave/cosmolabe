@@ -8,6 +8,20 @@ export interface TrajectoryInterval {
   end: number;
 }
 
+export interface TrajectoryIntervalSeries {
+  body: string;
+  label: string;
+  items: TrajectoryInterval[];
+}
+
+/** Keep each vehicle's navigation independent, even when activities overlap. */
+export function trajectoryIntervalSeries(bodies: readonly Body[]): TrajectoryIntervalSeries[] {
+  return bodies.flatMap(body => {
+    const items = trajectoryIntervals([body]);
+    return items.length ? [{ body: body.name, label: body.trajectoryPlot!.timelineLabel!, items }] : [];
+  });
+}
+
 /** Explicit opt-in only. Arc routing can include days parked after the last
  * sample, so its end is never a proxy for the end of an activity. */
 export function trajectoryIntervals(bodies: readonly Body[]): TrajectoryInterval[] {
@@ -15,7 +29,7 @@ export function trajectoryIntervals(bodies: readonly Body[]): TrajectoryInterval
     const label = body.trajectoryPlot?.timelineLabel;
     if (!label || !(body.trajectory instanceof CompositeTrajectory)) return [];
     return body.trajectory.arcs.flatMap((arc, index) => {
-      if (arc.showLine === false || !(arc.trajectory instanceof InterpolatedStatesTrajectory)) return [];
+      if (!(arc.trajectory instanceof InterpolatedStatesTrajectory)) return [];
       const start = Math.max(arc.startTime, arc.trajectory.startTime);
       const end = Math.min(arc.endTime, arc.trajectory.endTime);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
@@ -24,7 +38,7 @@ export function trajectoryIntervals(bodies: readonly Body[]): TrajectoryInterval
   });
 }
 
-/** During a parked gap there is no active flight. Navigation is directional. */
+/** During a parked gap there is no active interval. Navigation is directional. */
 export function adjacentTrajectoryInterval(intervals: readonly TrajectoryInterval[], et: number, direction: -1 | 1): TrajectoryInterval | undefined {
   const active = intervals.find(item => et >= item.start && et <= item.end);
   const anchor = active?.start ?? et;

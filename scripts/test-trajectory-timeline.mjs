@@ -23,5 +23,12 @@ try{
  await select.selectOption('Ingenuity:11');await page.setViewportSize({width:390,height:844});await page.waitForTimeout(700);await page.screenshot({path:`${out}/compact-flight12.png`});
  assert.equal(await select.inputValue(),'Ingenuity:11');const geometry=await select.boundingBox();assert.ok(geometry.x>=0&&geometry.x+geometry.width<=390);
  assert.deepEqual(errors,[]);assert.equal(f12.glError,0);assert.doesNotMatch(f12.gpu,/SwiftShader|llvmpipe/i);
- await page.goto(`${base}?catalog=test-catalogs/moonfall-shackleton`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.renderer?.getBodyMesh('Moon')?.terrainManager?.cubeImageryStats?.version,null,{timeout:120000});assert.equal(await page.getByRole('combobox',{name:'Choose flight'}).count(),0);assert.deepEqual(errors,[]);await writeFile(`${out}/metrics.json`,JSON.stringify({passed:true,moonFallNavigatorAbsent:true,errors,f12,options:72,overviewMarks:72,compactSelect:geometry},null,2));console.log('PASS',f12,geometry);
+ // Synthetic UI fixture: reuse sampled bounds, not a claim about a real rover.
+ await page.evaluate(async()=>{const u=window.renderer.universe,b=u.getBody('Ingenuity');u.addBody(new b.constructor({name:'Test rover',trajectory:b.trajectory,trajectoryPlot:{timelineLabel:'Drive'}}));const {syncBodies}=await import('/src/lib/viewer-state.svelte.ts');syncBodies(u);});
+ const drives=page.getByRole('group',{name:'Test rover Drive navigation'}),flights=page.getByRole('group',{name:'Ingenuity Flight navigation'});
+ await drives.getByRole('combobox',{name:'Choose drive'}).selectOption('Test rover:11');assert.equal(await flights.getByRole('combobox',{name:'Choose flight'}).inputValue(),'Ingenuity:11');
+ await drives.getByRole('button',{name:'Next drive',exact:true}).click();assert.equal(await drives.getByRole('combobox',{name:'Choose drive'}).inputValue(),'Test rover:12');
+ assert.equal(await drives.getByRole('button',{name:'Next flight',exact:true}).count(),0);
+ await page.screenshot({path:`${out}/compact-concurrent-drive-flight.png`});
+ await page.goto(`${base}?catalog=test-catalogs/moonfall-shackleton`,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.renderer?.getBodyMesh('Moon')?.terrainManager?.cubeImageryStats?.version,null,{timeout:120000});assert.equal(await page.getByRole('combobox',{name:/Choose (flight|drive)/}).count(),0);assert.deepEqual(errors,[]);await writeFile(`${out}/metrics.json`,JSON.stringify({passed:true,concurrentDriveFlightFixture:true,moonFallNavigatorAbsent:true,errors,f12,options:72,overviewMarks:72,compactSelect:geometry},null,2));console.log('PASS',f12,geometry);
 }finally{await browser.close();}

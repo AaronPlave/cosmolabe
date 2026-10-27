@@ -32,7 +32,7 @@
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
   import TrajectoryTimeline from './TrajectoryTimeline.svelte';
-  import { trajectoryIntervals } from '../../lib/trajectory-timeline';
+  import { trajectoryIntervalSeries } from '../../lib/trajectory-timeline';
   import { getUniverse } from '../../lib/loader';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
@@ -126,7 +126,7 @@
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
   const trajectoryActivities = $derived.by(() => {
     void vs.bodies;
-    return trajectoryIntervals(getUniverse()?.getAllBodies() ?? []);
+    return trajectoryIntervalSeries(getUniverse()?.getAllBodies() ?? []);
   });
 
   // ── Transport overview ──
@@ -766,7 +766,9 @@
     {/if}
   </div>
 
-  <TrajectoryTimeline items={trajectoryActivities} {expanded} wide={wideLanes} {axis} />
+  {#each trajectoryActivities as series (series.body)}
+    <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+  {/each}
 
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all

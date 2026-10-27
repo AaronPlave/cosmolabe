@@ -12,7 +12,8 @@ and duration; previous/next buttons navigate from flights or parked gaps without
 wrapping. Selecting pauses and frames the sampled interval with 10% time padding.
 Expanding the timeline shows flight intervals on the transport's time axis.
 Arc routing bounds include parked days; the navigator intersects them with the
-actual sample bounds and excludes hidden landed arcs. It changes neither flight
+actual sample bounds and excludes unsampled fixed-point landed arcs. Hiding a
+trajectory line does not remove its interval. It changes neither flight
 samples nor epochs and is absent in MoonFall.
 
 The user-reported fine wiggles are not evidence of measured flight movements.
@@ -40,6 +41,25 @@ These captures validate navigation, not imagery settling after a time jump.
 CI also identified the missing schema entries for the already parsed `frame`
 and `sampleInterval` plot fields. The schema now recognizes those and the new
 timeline label; a shipped-catalog regression protects this contract.
+
+### Reuse boundary
+
+The UI honors the catalog label (Flight, Drive, etc.) and maintains separate
+series per vehicle. The automated GPU check includes concurrent flight and
+synthetic rover-drive controls; the drive fixture reuses existing sample bounds
+and is not a claim about real rover data. Four helper regressions cover sampled
+bounds, navigation, concurrent vehicle series and independence from line visibility.
+
+This remains a **sampled composite-arc adapter**, not a general mission activity
+model. It does not yet represent named operations with independent bounds,
+overlapping activities, SPICE-defined phases or analytic surface-hop trajectories.
+The `trajectoryPlot.timelineLabel` opt-in is a temporary placement, not a proposed
+long-term catalog API. General mission activity records should belong to the
+shared timeline/catalog model, separate from rendering and trajectory sampling.
+Mission data importers (including plugins where appropriate) can supply those
+records. Shared navigation and display should remain built into the viewer.
+Do not infer or publish new MoonFall, Skyfall, Dragonfly or rover activities from
+arbitrary cache or trajectory segmentation.
 Focused catalog/timeline tests pass (96 tests), as do the shell/panel checks
 (78 tests), package build, test/viewer/Svelte typechecks and changed-file lint.
 The broader local package/viewer run passed 2,641 tests, skipped seven, and failed
