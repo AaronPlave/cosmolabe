@@ -254,3 +254,12 @@ handles, close zoom (label registration within 1% of range), drawing, vectors,
 style, layers panel, viewer, and the global smoke. The Places scripts that CI
 runs in the targeted geographic smoke also pass. GPU timings are the hardware
 results above; they were not rerun here.
+
+After merging sections 3–5 and the editing fixes into #278 (M4 Max): all unit
+tests (one unrelated `cspice-wasm` GF timing test fails before and after);
+build, lint, purity lint, all typechecks and svelte-check; vectors on Metal
+and SwiftShader (16/16, images unchanged); close precision, grazing highlight,
+edge drag and streamed LOD on Metal; close handles, import, hover and border
+joins on SwiftShader; style editor on Metal. The drawing smoke passed every
+check but its final no-console-errors assertion, which caught two Viking
+imagery tiles failing to fetch from trek.nasa.gov.
