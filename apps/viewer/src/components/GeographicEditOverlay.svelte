@@ -225,20 +225,31 @@
   // The bar says how many points are waiting for a closer view.
   $effect(() => { edits.hiddenPoints = view?.hidden ?? 0; });
 
+  /** The pointer on the canvas, held to its edges: past them (over a panel) a drag stays at the edge. */
   function canvasPoint(e: PointerEvent): { x: number; y: number } | null {
     const canvas = getRenderer()?.renderer.domElement;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: Math.min(Math.max(e.clientX - rect.left, 0), rect.width - 1), y: Math.min(Math.max(e.clientY - rect.top, 0), rect.height - 1) };
   }
+
+  // A drag listens on the window, not its handle: the handle list is rebuilt as
+  // the preview changes, and a handle dragged out of view leaves the DOM with its
+  // pointer capture, which stranded the drag (its preview stuck and the release
+  // reaching the scene). Captured first, so the scene never sees the drag either.
+  const listeners = [['pointermove', move], ['pointerup', up], ['pointercancel', cancel]] as const;
+  const listen = (on: boolean) => listeners.forEach(([type, f]) => (on ? window.addEventListener(type, f, true) : window.removeEventListener(type, f, true)));
+  $effect(() => () => listen(false));
 
   function down(h: Handle, e: PointerEvent) {
     e.preventDefault(); e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     drag = { handle: h, pointerId: e.pointerId, current: null, moved: false };
+    listen(true);
   }
   function move(e: PointerEvent) {
     if (!drag || e.pointerId !== drag.pointerId || !layer) return;
+    e.stopPropagation();
     const r = getRenderer(), p = canvasPoint(e);
     if (!r || !p) return;
     const position = surfacePosition(r, layer, p.x, p.y);
@@ -247,7 +258,8 @@
   function up(e: PointerEvent) {
     const d = drag;
     if (!d || e.pointerId !== d.pointerId) return;
-    drag = null;
+    e.stopPropagation();
+    drag = null; listen(false);
     const f = feature, l = layer;
     if (!f || !l) return;
     if (!d.moved) {
@@ -263,7 +275,7 @@
     if (op) applyEdit(l.id, op);
   }
   function cancel(e: PointerEvent) {
-    if (drag && e.pointerId === drag.pointerId) drag = null;
+    if (drag && e.pointerId === drag.pointerId) { drag = null; listen(false); }
   }
 
   const isSelectedVertex = (h: Handle) => h.kind === 'vertex' && selectedVertex()?.index === h.index && selectedVertex()!.part.join() === h.part.join();
@@ -289,9 +301,6 @@
         tabindex="-1"
         aria-label={h.kind === 'vertex' ? `Vertex ${h.index + 1}` : h.kind === 'mid' ? 'Insert a vertex here' : h.kind === 'radius' ? 'Resize' : 'Move feature'}
         onpointerdown={(e) => down(h, e)}
-        onpointermove={move}
-        onpointerup={up}
-        onpointercancel={cancel}
       >
         <!-- A larger transparent target than the visible mark, for fingers. -->
         <circle r={R + 4} class="hit" />
