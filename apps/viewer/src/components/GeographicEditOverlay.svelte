@@ -52,7 +52,9 @@
 
   /**
    * Project declared-convention positions to the canvas at the given heights
-   * (else on the drawn surface). With `occlusion`, a position the drawn surface
+   * (else on the drawn surface; a null height is decoded terrain, not the
+   * datum, which over a deep floor such as Gale's is kilometres above it and
+   * off screen from a low camera). With `occlusion`, a position the drawn surface
    * hides from the camera is not visible; without it only the body's bulk is
    * tested, which is cheap enough for choosing among many vertices.
    */
@@ -64,7 +66,7 @@
     const projected = r.projectGeographicPositions(l.body, positions.map((p, i) => {
       const g = normalizeGeographicPosition([p[0], p[1]], l.coordinates);
       return h[i] === null ? g : { ...g, heightKm: h[i]! };
-    }), datum, { occlusion }) ?? [];
+    }), datum, { occlusion, sampleTerrain: true }) ?? [];
     const canvas = r.renderer.domElement;
     return projected.map((p) => ({ x: p.x, y: p.y, visible: p.facing && p.inFront && p.x > -50 && p.y > -50 && p.x < canvas.clientWidth + 50 && p.y < canvas.clientHeight + 50 }));
   }
