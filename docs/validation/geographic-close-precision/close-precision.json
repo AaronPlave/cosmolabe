@@ -1,0 +1,117 @@
+{
+  "steps": [
+    {
+      "label": "Gale floor edge very close · 0",
+      "rangeKm": 5.524811563172647,
+      "coveredShare": 0.661,
+      "flipShare": 0.0015,
+      "jagPx": 0
+    },
+    {
+      "label": "Gale floor edge very close · 1",
+      "rangeKm": 2.2099246250414453,
+      "coveredShare": 0.867,
+      "flipShare": 0.0006,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale floor edge very close · 2",
+      "rangeKm": 0.8839698500923177,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale floor edge very close · 3",
+      "rangeKm": 0.35358794000976146,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale floor edge very close · 4",
+      "rangeKm": 0.14143517599003103,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale floor edge very close · 5",
+      "rangeKm": 0.05657407040142427,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale floor edge very close · 6",
+      "rangeKm": 0.022629628162480774,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale floor edge very close · 7",
+      "rangeKm": 0.009051851263767865,
+      "coveredShare": 1,
+      "flipShare": 0,
+      "jagPx": null
+    },
+    {
+      "label": "Gale region vertex very close · 0",
+      "rangeKm": 6.203010939792709,
+      "coveredShare": 0.474,
+      "flipShare": 0.0018,
+      "jagPx": 409
+    },
+    {
+      "label": "Gale region vertex very close · 1",
+      "rangeKm": 2.481204375407155,
+      "coveredShare": 0.473,
+      "flipShare": 0.0014,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 2",
+      "rangeKm": 0.9924817496347121,
+      "coveredShare": 0.473,
+      "flipShare": 0.0014,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 3",
+      "rangeKm": 0.39699270002969195,
+      "coveredShare": 0.471,
+      "flipShare": 0.0014,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 4",
+      "rangeKm": 0.15879708004004126,
+      "coveredShare": 0.465,
+      "flipShare": 0.0014,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 5",
+      "rangeKm": 0.06351883199059653,
+      "coveredShare": 0.452,
+      "flipShare": 0.0015,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 6",
+      "rangeKm": 0.025407532807056144,
+      "coveredShare": 0.419,
+      "flipShare": 0.0017,
+      "jagPx": 1
+    },
+    {
+      "label": "Gale region vertex very close · 7",
+      "rangeKm": 0.010163013124263511,
+      "coveredShare": 0.338,
+      "flipShare": 0.0021,
+      "jagPx": 1
+    }
+  ],
+  "errors": []
+}

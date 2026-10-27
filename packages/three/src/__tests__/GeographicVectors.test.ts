@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, resolveGeographicStyle, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
 import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
 import type { GeographicMaterial } from '../geographic/GeographicMaterial.js';
-import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT } from '../geographic/GeographicVectorLayer.js';
+import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT, VECTOR_SCISSOR_PADDING_PX } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
 import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
 import southpole from '../../../core/src/__tests__/__fixtures__/geographic-southpole.json';
@@ -216,9 +216,74 @@ function harness(data: GeographicLayer) {
   const body = { visible: true, body: { name: 'Moon', geometryType: 'Globe', radii: [1737.4, 1737.4, 1737.4] }, mesh,
     position: new THREE.Vector3(), terrainTileGroup: null, terrainDatum: null, getSurfaceOverlays: () => [],
     bodyToWorldQuaternion: (q: THREE.Quaternion) => q.identity(), surfaceTransitionState: 'static', isImageryOnlySurface: false } as unknown as BodyMesh;
-  const renderer = { getPixelRatio: () => 1, render: () => {} } as unknown as THREE.WebGLRenderer;
-  return { universe, vectors, mesh, body, renderer, camera: new THREE.PerspectiveCamera(45, 1, 1, 10000) };
+  // A default framebuffer with an 800×600 viewport; the scissor each render used is recorded.
+  const scissor = { test: false, rect: new THREE.Vector4(0, 0, 800, 600) };
+  const renderer = {
+    getPixelRatio: () => 1, render: () => { scissors.push(scissor.test ? scissor.rect.clone() : null); },
+    getRenderTarget: () => null, getViewport: (v: THREE.Vector4) => v.set(0, 0, 800, 600),
+    getScissor: (v: THREE.Vector4) => v.copy(scissor.rect), getScissorTest: () => scissor.test,
+    setScissor: (v: THREE.Vector4) => { scissor.rect.copy(v); }, setScissorTest: (on: boolean) => { scissor.test = on; },
+  } as unknown as THREE.WebGLRenderer;
+  const scissors: (THREE.Vector4 | null)[] = [];
+  // Looking at (0°, 0°) from 2,500 km, where the fixtures' features are.
+  const camera = new THREE.PerspectiveCamera(45, 1, 1, 10000);
+  camera.position.set(2500, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
+  return { universe, vectors, mesh, body, renderer, scissors, camera };
 }
+
+describe('geographic vector pass cost', () => {
+  it('pads scissor rectangles enough for the largest styled mark', () => {
+    // A 24 px diamond reaches √2 × (12 + emphasis + halo) px along an axis, plus antialiasing.
+    expect(VECTOR_SCISSOR_PADDING_PX).toBeGreaterThanOrEqual(Math.SQRT2 * (12 + 0.75 + 1.5) + 0.5);
+  });
+
+  const look = (h: ReturnType<typeof harness>, at: [number, number, number]) => {
+    h.camera.position.set(2500, 0, 0); h.camera.up.set(0, 0, 1); h.camera.lookAt(...at); h.camera.updateMatrixWorld(true);
+  };
+  const frame = (h: ReturnType<typeof harness>) => {
+    h.scissors.length = 0;
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    return [...h.scissors];
+  };
+
+  it('scissors the pass to where the features are, not the whole visible body', () => {
+    const h = harness(layer([{ type: 'Point', coordinates: [1, 1] }]));
+    look(h, [0, 0, 0]);
+    const [rect, ...rest] = frame(h);
+    expect(rest).toEqual([]);
+    expect(rect).toBeInstanceOf(THREE.Vector4);
+    expect(rect!.z * rect!.w).toBeLessThan(0.02 * 800 * 600);
+    // It contains the point as drawn.
+    const q = new THREE.Vector3(...[1737.4 * Math.cos(Math.PI / 180) ** 2, 1737.4 * Math.cos(Math.PI / 180) * Math.sin(Math.PI / 180), 1737.4 * Math.sin(Math.PI / 180)]).project(h.camera);
+    const [x, y] = [(q.x + 1) / 2 * 800, (q.y + 1) / 2 * 600];
+    expect(x).toBeGreaterThan(rect!.x); expect(x).toBeLessThan(rect!.x + rect!.z);
+    expect(y).toBeGreaterThan(rect!.y); expect(y).toBeLessThan(rect!.y + rect!.w);
+    expect(h.vectors.metrics.shadedPixels).toBe(rect!.z * rect!.w);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('gives a selection highlight its own small rectangle, and draws nothing out of view', () => {
+    const h = harness(layer([{ type: 'LineString', coordinates: [[1, 1], [1.5, 1.2]] }, { type: 'LineString', coordinates: [[20, 5], [21, 6]] }]));
+    look(h, [0, 0, 0]);
+    h.vectors.setSelected({ layerId: 'science', featureId: 'number:0', bodyName: 'Moon' });
+    const [layerRect, highlight] = frame(h);
+    expect(highlight).toBeInstanceOf(THREE.Vector4);
+    expect(highlight!.z * highlight!.w).toBeLessThan(layerRect!.z * layerRect!.w);
+    // Looking out to the side, past the limb: no vector draws at all.
+    look(h, [2500, 5000, 0]);
+    expect(frame(h)).toEqual([]);
+    expect(h.vectors.metrics.drawCalls).toBe(0);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('keeps the full viewport for features spread across the globe', () => {
+    const h = harness(layer([{ type: 'Point', coordinates: [-100, 0] }, { type: 'Point', coordinates: [100, 0] }]));
+    look(h, [0, 0, 0]);
+    expect(frame(h)).toEqual([null]);
+    expect(h.vectors.metrics.shadedPixels).toBe(800 * 600);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+});
 
 describe('geographic renderer lifecycle and placement', () => {
   it('omits a pathological 100k-point group before allocating GPU resources or pick targets', () => {
@@ -237,7 +302,7 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(calls).toBe(0);
     expect(h.vectors.featureCount).toBe(0);
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, shadedPixels: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-render-budget', message: expect.stringContaining('391 render pages; limit is 16') }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
     h.vectors.dispose(); h.universe.dispose();
@@ -341,7 +406,7 @@ describe('geographic renderer lifecycle and placement', () => {
     Object.assign(h.body, { terrainDatum: data.datum, surfaceTransitionState: 'streamed' });
     const draw = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
     draw();
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, shadedPixels: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'unsupported-height' }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Mars', h.body]]), null)).toBeNull();
     // Explicit absolute placement is constrained too.
