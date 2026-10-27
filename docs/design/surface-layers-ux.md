@@ -51,6 +51,14 @@ the combined experience was too complex:
   search, the scene or the callout, shows that feature. Clearing the selection
   (back or Escape) shows its layer. Every surface shares one selection, so
   there is no second place that claims to edit the same thing.
+- **Gazetteer names belong to Places.** A click on a Gazetteer name in the
+  scene selects it in Places (#191), which shows it in Navigate; a
+  double-click flies there through Places. Surface layers keeps no selection
+  for it, so one click never opens two inspectors. Mission and user sites, and
+  names from a source left out of Places, are Surface layers' like any other
+  feature, and a double-click on one flies there as the callout's ✈ does.
+  Browsing to a name in Surface layers selects it there and lets go of it in
+  Places. Escape follows whichever panel holds the selection.
 - **The scene stays dominant.** Nothing opens over the scene on a 3D click. The
   callout names the selection and offers Fly to; its name opens the Feature
   view.
