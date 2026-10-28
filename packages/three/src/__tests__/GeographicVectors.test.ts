@@ -196,6 +196,7 @@ describe('geographic surface index', () => {
     const packed = index.pack(), cells = packed.detail!.cells;
     let covered = 0;
     for (let c = 0; c < cells.length; c += 4) {
+      if (!cells[c + 1]) continue; // most of the global grid is empty
       const ids = Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4]);
       covered += Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4 + 1]).filter(kind => kind === 3).length;
       expect(ids).toEqual([...ids].sort((a, b) => a - b));
