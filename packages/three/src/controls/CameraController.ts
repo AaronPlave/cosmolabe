@@ -1936,7 +1936,8 @@ export class CameraController {
         }
       }
 
-      const t = Math.min(this._anim.elapsed / this._anim.duration, 1);
+      // A zero-length flight is a cut: it lands on its first frame.
+      const t = this._anim.duration > 0 ? Math.min(this._anim.elapsed / this._anim.duration, 1) : 1;
       const s = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
       if (this._anim.surface) {

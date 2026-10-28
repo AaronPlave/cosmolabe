@@ -60,6 +60,56 @@ Standalone GeoJSON requires a companion catalog: the viewer reports this rather
 than guessing a body or adopting Earth coordinates. This descriptor is also the
 explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
 
+## Surface layers panel
+
+The viewer's **Surface layers** tool (rail, or "Surface layers" in the command
+palette) is the one place for a scene's surface data. It has three views, and
+the selection decides which one shows (docs/design/surface-layers-ux.md):
+
+- **Layers**: each body's vector layers and its imagery, with a search across
+  every layer's features. A layer row has an eye (show or hide), its name
+  (opens the layer) and a **…** menu: *Show only this layer* and *About this
+  layer*. *Imagery* opens the body's imagery stack (the same controls as the
+  info panel's Imagery section, not a second manager). Layers that failed to
+  load are listed, folded, under the bodies. Physical terrain appearance stays
+  in the info panel.
+- **Layer**: the layer's features. Search matches names and every scalar
+  property value. *Filter* holds the property filter (categories for string
+  fields with at most 24 values, numeric ranges, yes/no, or text), *Only
+  features in view* and *Hide non-matching features in 3D*. *About this layer*
+  holds its source, catalog, coordinate convention, provenance and import
+  notes. The list is virtualized and searches an in-memory index built once per
+  layer, bounded by the import limits; there is no GIS backend.
+- **Feature**: the selected feature's name, kind, position, **Fly to** and its
+  properties, with previous and next to step through the layer's list. The
+  **…** menu frames it without a flight and copies its coordinates (a Point's
+  exact source numbers, with their convention), its stable reference
+  `layerId / featureId`, or its unmodified source geometry. *Location and
+  source* shows the position and extent in the **layer's declared
+  convention**, the convention, the reference and the source. A property is a
+  link only when it is an `http(s)` URL, and opens without access to the
+  viewer.
+
+Selection is shared with the scene. Clicking a feature in 3D selects and
+highlights it without opening anything over the scene. One callout names it;
+the callout's ✈ flies there and its name opens the Feature view. Clicking a
+search result or a row opens the feature; arrow keys skim a layer's list,
+highlighting each feature in the scene, and Enter opens one.
+Selecting never moves the camera. Fly to flies over the feature's extent through
+the shared navigation (docs/navigation.md); bodies that are not globes disable
+it, with the reason. Back, or Escape, clears the selection and returns to the
+feature's layer, at the feature; Back again returns to the list.
+
+The rules that keep the views and the scene consistent:
+
+- Hiding a layer, or hiding non-matching features in 3D, clears a selection it
+  hides and says why. Selecting a feature of a hidden layer shows that layer
+  first.
+- The search and filters change only the list unless *Hide non-matching
+  features in 3D* is on.
+- Visibility, filters and selection reset when a scene loads. Closing the
+  panel turns off hiding in 3D.
+
 ## Coordinate interpretation
 
 RFC 7946 GeoJSON itself means Earth WGS84. Planetary GeoJSON is an explicit

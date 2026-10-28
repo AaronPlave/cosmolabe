@@ -6,9 +6,9 @@
  * whose properties are mutated. We use the latter.
  */
 import {
-  etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
+  etToDate, geodeticToBodyFixed, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
-  type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
+  type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
@@ -22,7 +22,7 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
-import { navigateToPlace, selectPlace } from './places';
+import { navigateToPlace, selectPlace, viewportPlace } from './places';
 import { setCatalogActivities } from './analysis.svelte';
 import { trajectoryIntervalEvent, trajectoryIntervals } from './trajectory-timeline';
 
@@ -488,13 +488,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   };
   syncPlaces();
   _unsubscribers.push(universe.events.on('geographic:changed', syncPlaces));
+  // Other features are Surface layers' (geographic-layers.svelte.ts).
   _unsubscribers.push(renderer.events.on('geographic:click', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId);
-    if (!place) return;
-    selectPlace(place);
+    const place = viewportPlace(ref);
+    if (place) selectPlace(place);
   }));
   _unsubscribers.push(renderer.events.on('geographic:dblclick', ref => {
-    const place = vs.places?.places.find(p => p.layer.id === ref.layerId && p.feature.id === ref.featureId && p.layer.body === ref.bodyName);
+    const place = viewportPlace(ref);
     if (place) navigateToPlace(place, 'fly', { source: 'viewport-dblclick' });
   }));
   renderer.setScreenOccluders?.(sceneOccluderRects(() => renderer.renderer.domElement));
@@ -1025,6 +1025,62 @@ export function flyToRegion(bodyName: string, bounds: readonly [number, number, 
     target: view.target.multiplyScalar(_renderer.scaleFactor),
     up: view.up,
   }, { path: 'arc', duration: 1.5 });
+  syncCameraState();
+  // flyTo tracks on landing; the HUD should read the new body for the flight.
+  vs.trackedBodyName = bodyName;
+  return true;
+}
+
+/**
+ * Look straight down at a surface area: `northSpanDeg` of latitude by
+ * `eastSpanDeg` of longitude around a centre, fitted to the view with north up.
+ * Over a pole there is no north; the 0° meridian runs down the screen over the
+ * north pole and up it over the south, as polar stereographic maps draw them.
+ *
+ * `datum` places the camera for bodies without streamed terrain (a reference
+ * globe); `minSpanKm` keeps a point from putting the camera on the ground.
+ * `seconds: 0` cuts rather than flies.
+ */
+export function flyOverSurface(
+  bodyName: string,
+  area: { latDeg: number; lonDeg: number; northSpanDeg: number; eastSpanDeg: number },
+  opts: { datum?: TerrainDatum; minSpanKm?: number; seconds?: number } = {},
+): boolean {
+  if (!_renderer) return false;
+  const bm = _renderer.getBodyMesh(bodyName);
+  if (!bm) return false;
+  const rad = Math.PI / 180;
+  const cam = _renderer.camera;
+  const pole = Math.abs(area.latDeg) >= 90 - 1e-9;
+  const minSpan = opts.minSpanKm ?? 0;
+  const heightKm = Math.max(minSpan, area.northSpanDeg * rad * bm.displayRadius);
+  const widthKm = Math.max(minSpan, pole ? heightKm : area.eastSpanDeg * rad * bm.displayRadius * Math.cos(area.latDeg * rad));
+  // Measured from the ground where it is resident, so a high plateau does not swallow the camera.
+  const groundKm = bm.sampleTerrain(area.latDeg, area.lonDeg)?.elevationKm ?? 0;
+  const altitudeKm = groundKm + 1.2 * Math.max(heightKm, widthKm / cam.aspect) / 2 / Math.tan(cam.fov * rad / 2);
+  let position = bm.geodeticOffsetKm(area.latDeg, area.lonDeg, altitudeKm, new THREE.Vector3());
+  if (!position && opts.datum) {
+    const p = geodeticToBodyFixed({ latDeg: area.latDeg, lonDeg: area.lonDeg, heightKm: altitudeKm }, opts.datum);
+    // Body-fixed is Z-up; the mesh frame is Y-up with -Z toward +90° lon.
+    position = new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+  }
+  if (!position) return false;
+  const cc = _renderer.cameraController;
+  // Modes that frame something else (a spacecraft's LVLH, a surface camera)
+  // would take the camera back on landing; orbit the body freely instead,
+  // keeping the current up so the flight starts without a roll.
+  const up = cc.camera.up.clone();
+  cc.resetToFreeOrbit();
+  cc.camera.up.copy(up);
+  // One flight from wherever the camera is, switching origin on landing —
+  // tracking first would cut to a default framing of the body.
+  cc.flyTo(bm, {
+    duration: opts.seconds ?? 1.5,
+    offset: position.multiplyScalar(_renderer.scaleFactor),
+    // North in the mesh frame; over a pole, toward the 180° meridian (north)
+    // or the 0° meridian (south).
+    up: pole ? new THREE.Vector3(area.latDeg > 0 ? -1 : 1, 0, 0) : new THREE.Vector3(0, 1, 0),
+  });
   syncCameraState();
   // flyTo tracks on landing; the HUD should read the new body for the flight.
   vs.trackedBodyName = bodyName;

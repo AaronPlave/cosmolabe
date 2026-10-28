@@ -91,7 +91,21 @@ renderer.geographicVectors.setSelected({
   layerId: 'science', featureId: 'string:target', bodyName: 'Mars',
 });
 renderer.geographicVectors.setSelected(null);
+renderer.geographicVectors.isVisible('science');            // override, else catalog default
+renderer.geographicVectors.setFeatureFilter('science', new Set(['string:target']));
+renderer.geographicVectors.setFeatureFilter('science', null); // draw every feature again
+renderer.events.on('geographic:select', ref => { /* scene, host, or invalidation */ });
+renderer.projectGeographicPositions('Mars', [{ latDeg: 18.4, lonDeg: 77.5 }], layer.datum);
 ```
+
+Hiding a layer or filtering its features out removes their primitives, GPU
+pages and pick targets on the next frame, exactly as for a hidden layer. If the
+selected or hovered feature is no longer shown (hidden, filtered or unloaded),
+that rebuild clears it, and `geographic:select` announces every selection
+change, including that one, so a host never shows details for a feature the
+scene cannot draw. `projectGeographicPositions` gives canvas CSS-pixel
+positions for host overlays: on the datum (or resident terrain on request),
+with `facing` false past the datum horizon. It does not test terrain occlusion.
 
 Default imported Z is an absolute datum height, **never** a terrain offset.
 All imported Z values, including zero and small positive heights, are diagnosed

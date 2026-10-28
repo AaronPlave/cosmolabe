@@ -376,3 +376,76 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.dispose(); h.universe.dispose();
   });
 });
+
+describe('geographic visibility, feature filters and selection invalidation', () => {
+  const data = () => layer([
+    { type: 'Point', coordinates: [1, 1] },
+    { type: 'LineString', coordinates: [[2, 2], [3, 3]] },
+    { type: 'Polygon', coordinates: [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]] },
+  ]);
+  function filtered() {
+    const h = harness(data());
+    const changes: unknown[] = [];
+    const vectors = new GeographicVectorLayer(h.universe, 1, feature => changes.push(feature));
+    const frame = () => { vectors.begin(); vectors.render(h.renderer, h.camera, [h.body]); vectors.end(); };
+    return { ...h, vectors, changes, frame };
+  }
+
+  it('draws and indexes only the filtered features, and restores all of them when the filter clears', () => {
+    const h = filtered();
+    h.frame();
+    expect(h.vectors.featureCount).toBe(3);
+    h.vectors.setFeatureFilter('science', new Set(['number:1']));
+    h.frame();
+    expect(h.vectors.featureCount).toBe(1);
+    expect(h.vectors.featureFilter('science')).toEqual(new Set(['number:1']));
+    h.vectors.setFeatureFilter('science', new Set());
+    h.frame();
+    expect(h.vectors.featureCount).toBe(0);
+    expect(h.vectors.metrics.batches).toBe(0);
+    h.vectors.setFeatureFilter('science', null);
+    h.frame();
+    expect(h.vectors.featureCount).toBe(3);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('reports visibility from the session override, else the catalog default', () => {
+    const h = filtered();
+    expect(h.vectors.isVisible('science')).toBe(true);
+    h.vectors.setVisible('science', false);
+    expect(h.vectors.isVisible('science')).toBe(false);
+    h.universe.geographicLayers.get('science')!.definition.display = { visible: false };
+    const fresh = new GeographicVectorLayer(h.universe, 1);
+    expect(fresh.isVisible('science')).toBe(false);
+    fresh.dispose(); h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it.each([
+    ['filtered out', (h: ReturnType<typeof filtered>) => h.vectors.setFeatureFilter('science', new Set(['number:1']))],
+    ['hidden', (h: ReturnType<typeof filtered>) => h.vectors.setVisible('science', false)],
+    ['unloaded', (h: ReturnType<typeof filtered>) => { h.universe.geographicLayers.removeCatalog('test'); h.universe.events.emit('geographic:changed', {}); }],
+  ] as const)('clears and announces a selection whose feature is %s', (_, remove) => {
+    const h = filtered();
+    h.frame();
+    h.vectors.setSelected(ref);
+    h.vectors.setHovered(ref);
+    expect(h.changes).toEqual([ref]);
+    remove(h);
+    h.frame();
+    expect(h.vectors.selectedFeature).toBeNull();
+    expect(h.changes).toEqual([ref, null]);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('keeps a selection that remains shown and does not announce unchanged selections', () => {
+    const h = filtered();
+    h.frame();
+    h.vectors.setSelected(ref);
+    h.vectors.setSelected({ ...ref });
+    h.vectors.setFeatureFilter('science', new Set(['number:0', 'number:2']));
+    h.frame();
+    expect(h.vectors.selectedFeature).toEqual(ref);
+    expect(h.changes).toEqual([ref]);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+});

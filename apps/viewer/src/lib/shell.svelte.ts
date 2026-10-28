@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, MapPin, Aperture } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 
 /**
@@ -41,7 +41,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -94,6 +94,9 @@ export const TOOLS: readonly ToolDef[] = [
   { id: 'navigate', label: 'Navigate', icon: MapPin,  presentation: 'panel',  dock: 'left',  width: 288 },
   // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
   // renderer controls while the canvas has focus.
+  // Imagery and vector layers per body, in one place (#198). No shortcut: the
+  // free letters are reserved for #15's keymap.
+  { id: 'layers',  label: 'Surface layers', icon: Layers, presentation: 'panel', dock: 'left', width: 340 },
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // The view from a physical instrument (#192): a second camera, not a
@@ -244,8 +247,21 @@ function closeToolSilently(id: ToolId) {
   if (i >= 0) shell.openTools.splice(i, 1);
 }
 
+/** Work that ends with a tool, registered by the module that owns it. */
+const closeHandlers: { id: ToolId; end: () => void }[] = [];
+
+/**
+ * Run `end` whenever `id` closes, by any path — its button, Escape, the rail
+ * or `closeAllTools`. Minimizing is not closing.
+ */
+export function onToolClose(id: ToolId, end: () => void) {
+  closeHandlers.push({ id, end });
+}
+
 export function closeTool(id: ToolId) {
+  const wasOpen = isToolOpen(id);
   closeToolSilently(id);
+  if (wasOpen) for (const handler of closeHandlers) if (handler.id === id) handler.end();
   // Minimizing is a view state and closing resets it, so reopening a panel does
   // not hand it back collapsed. Its float rect survives: where the user put an
   // instrument is a preference, not a transient.

@@ -12,6 +12,8 @@ import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
 import { shell, openTool } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
+import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
+import { geographicFeatureName } from '@cosmolabe/core';
 
 export interface Command {
   id: string;
@@ -59,10 +61,27 @@ function getBuiltinCommands(): Command[] {
       ...(surfaceNavigable(vs.probePin) ? [{ id: 'probe:fly', label: 'Fly to probed point', category: 'Camera', execute: () => { if (vs.probePin) navigateToSurfacePoint(vs.probePin, { animate: true, from: 'pin', verb: 'frame' }); } }] : []),
     ] : []),
 
+    // Surface layers
+    { id: 'layers:open', label: 'Surface layers', category: 'Inspect', execute: () => openTool('layers') },
+    ...geographicSelectionCommands(),
+
     // Instrument
     { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },
     // Sensor cycling is an explicit palette action, separate from open/focus.
     { id: 'instr:cycle', label: 'Next instrument sensor', category: 'Display', execute: () => showNextInstrument() },
+  ];
+}
+
+/** Actions on the selected geographic feature, named after it. */
+function geographicSelectionCommands(): Command[] {
+  const found = findFeature(geo.selected);
+  if (!found || !geo.selected) return [];
+  const ref = geo.selected;
+  const name = geographicFeatureName(found.feature);
+  return [
+    { id: 'layers:fly', label: `Fly to ${name}`, category: 'Inspect', execute: () => { goToFeature(ref); } },
+    { id: 'layers:frame', label: `Frame ${name}`, category: 'Inspect', execute: () => { goToFeature(ref, { cut: true }); } },
+    { id: 'layers:deselect', label: 'Clear surface feature selection', shortcut: 'Esc', category: 'Inspect', execute: () => { clearGeographicSelection(); } },
   ];
 }
 
