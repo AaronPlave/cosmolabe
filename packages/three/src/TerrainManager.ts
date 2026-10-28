@@ -1,3 +1,4 @@
+import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { TerrainContourLabels } from './TerrainContourLabels.js';
@@ -148,6 +149,9 @@ export interface TerrainConfig {
   datum?: Partial<Omit<TerrainDatum, 'referenceShape'>>;
   /** Provenance and stated vertical uncertainty for terrain samples. */
   sourceMetadata?: Partial<TerrainSourceMetadata>;
+  /** Physical frame shared by rendering and CPU queries. */
+  frame?: string;
+  bodyId?: string;
   /** Maximum number of decoded CPU terrain tiles retained for sampling. */
   samplerMaxTiles?: number;
   /** Quantized-mesh tile skirt length (m). Each tile edge gets a vertical
@@ -693,6 +697,15 @@ export class TerrainManager {
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
+  private cubeFrameReady = false;
+  private cubeFrameError: string | undefined;
+  get frameAvailability(): { kind: 'available' | 'unavailable'; frame?: string; reason?: string } {
+    if (this.config.cubeSphere && this.config.frame && !this.cubeFrameReady) return {
+      kind: 'unavailable', frame: this.config.frame, reason: this.cubeFrameError ?? 'Awaiting declared cube frame metadata',
+    };
+    return { kind: 'available', frame: this.config.frame };
+  }
+
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
   private nearSurfaceDetail: NearSurfaceDetail | null = null;
   private nearSurfacePolicy = { radiusM: 500, maxErrorM: 0.5, altitudeM: 5000 };
@@ -757,7 +770,7 @@ export class TerrainManager {
   readonly showAtPixels: number;
 
   constructor(
-    config: TerrainConfig,
+    private readonly config: TerrainConfig,
     bodyRadii: number | [number, number, number],
     renderer: THREE.WebGLRenderer,
   ) {
@@ -811,7 +824,7 @@ export class TerrainManager {
     if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
     if (config.cubeSphere?.imagery?.url || cubeSources) {
       const cubeConfig = config.cubeSphere?.imagery ?? {};
-      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { radiusKm: rxKm, horizonRadiusKm: () => {
+      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
         const manifest = this.cube?.source.manifest;
         // The new ellipsoidal imagery cull needs an emitted-mesh rounding
         // bound as well as the explicit radial payload. Unknown means no cull.
@@ -1219,6 +1232,7 @@ export class TerrainManager {
    */
   update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] | null = []): void {
     if (this.disposed) return;
+    if (this.frameAvailability.kind === 'unavailable') { this.group.visible = false; return; }
 
     // Compute terrain-appropriate near/far from camera position.
     // The scene camera can have extreme near/far ratios (e.g. 1e-12 / 1e6)
@@ -1577,7 +1591,8 @@ export class TerrainManager {
 
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
     CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, fetch: fetchCompleteResponse, signal: this.cubeGridsAbort.signal }).then((source) => {
-      if (this.disposed) return;
+      void source.ready.catch(() => {}); // Disposal during metadata rejection must not leave a detached rejection.
+      if (this.disposed) { source.dispose(); return; }
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
       const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
@@ -1585,7 +1600,14 @@ export class TerrainManager {
         a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
         throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
       }
-      const surface = new CubeGridSurface(source, 'body', 'body-fixed');
+      const frame = lunarProductFrame(source.manifest.coordinates?.frame, source.manifest.source.version);
+      if (this.config.frame && frame && frame !== this.config.frame) {
+        source.dispose();
+        throw new Error(`cube grid frame ${frame} does not match rendered frame ${this.config.frame}`);
+      }
+      if (this.config.frame && (!frame || frame === 'unspecified')) { source.dispose(); throw new Error('Cube grid frame is unknown'); }
+      this.cubeFrameReady = true;
+      const surface = new CubeGridSurface(source, this.config.bodyId ?? 'body', frame ?? this.config.frame ?? 'body-fixed');
       source.onChange = (id) => { this.cubeRevision++; surface.invalidate(id); };
       this.cube = { source, surface };
       this.cubeRevision++;
@@ -1630,6 +1652,8 @@ export class TerrainManager {
         }
         if (version === undefined || version === source.manifest.source.version) return;
         this.cube = null;
+        this.cubeFrameReady = false;
+        this.cubeFrameError = 'Terrain geometry and CPU grid revisions disagree';
         this.cubeRevision++;
         source.dispose();
         this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
@@ -1637,6 +1661,7 @@ export class TerrainManager {
       });
       return source.ready;
     }).catch((err) => {
+      if (!this.cube) { this.cubeFrameReady = false; this.cubeFrameError = String(err); }
       if (!this.disposed) this.rejectCubeSurfaceStyle('Terrain elevation metadata failed validation or could not be loaded. Relief styles are unavailable.');
       this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err);
     });

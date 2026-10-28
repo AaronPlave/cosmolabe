@@ -1,3 +1,4 @@
+import type { SurfaceTrajectoryProvenance } from './geometry/surface-trajectory.js';
 import type { Vec3 } from './spice-injection.js';
 import type { CartesianState, Trajectory } from './trajectories/Trajectory.js';
 import { CompositeTrajectory, type TrajectoryArc } from './trajectories/CompositeTrajectory.js';
@@ -40,6 +41,7 @@ export interface BodyProperties {
   description?: string;
   naifId?: number;
   trajectory: Trajectory;
+  surfaceTrajectory?: SurfaceTrajectoryProvenance;
   rotation?: RotationModel;
   parentName?: string;
   radii?: Vec3;            // [equatorial, equatorial, polar] in km
@@ -87,6 +89,7 @@ export type BodyChangeCallback = (body: Body, field: BodyChangeField) => void;
 
 export class Body {
   readonly name: string;
+  readonly surfaceTrajectory?: SurfaceTrajectoryProvenance;
   readonly description?: string;
   readonly naifId?: number;
   private _trajectory: Trajectory;
@@ -133,6 +136,7 @@ export class Body {
       : undefined;
     this.existsFrom = props.existsFrom;
     this.existsUntil = props.existsUntil;
+    this.surfaceTrajectory = props.surfaceTrajectory;
   }
 
   /** Whether `et` falls inside the body's own existence window (bounds

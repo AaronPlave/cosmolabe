@@ -53,6 +53,8 @@ export interface PointerResolution {
  */
 export interface SurfacePoint {
   bodyName: string;
+  /** Explicit physical frame. Omitted only by legacy snapshots. */
+  frame?: string;
   /** Rendered hit, body-fixed right-handed Z-up (ECEF-style) km. */
   bodyFixedPositionKm: readonly [number, number, number];
   source: SurfaceHitSource;
@@ -115,7 +117,7 @@ export function surfacePointEndpoint(point: SurfacePointAnchor, label?: string):
   const datum = (d: SurfaceDatum): SurfaceDatum => ({ ...d, referenceShape: d.referenceShape.kind === 'sphere'
     ? { ...d.referenceShape } : { ...d.referenceShape, radiiKm: [...d.referenceShape.radiiKm] } });
   return { kind: 'surface-point', version: 1, ...(label === undefined ? {} : { label }), point: {
-    bodyName: point.bodyName, bodyFixedPositionKm: [...point.bodyFixedPositionKm], source: point.source,
+    bodyName: point.bodyName, ...(point.frame ? { frame: point.frame } : {}), bodyFixedPositionKm: [...point.bodyFixedPositionKm], source: point.source,
     latDeg: point.latDeg, lonDeg: point.lonDeg, latitudeKind: point.latitudeKind,
     hit: { heightKm: point.hit.heightKm, datum: point.hit.datum && datum(point.hit.datum) },
     ...(point.terrainSample ? { terrainSample: { ...point.terrainSample, datum: datum(point.terrainSample.datum) } } : {}),

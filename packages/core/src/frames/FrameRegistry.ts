@@ -371,6 +371,20 @@ export class FrameRegistry {
     return m ? mat3Vec(m, v) : v;
   }
 
+  /** Exact frame of the catalog attitude, retaining the historical IAU default
+   * for analytical/custom rotations that do not declare a target frame. */
+  bodyFixedFrameFor(bodyName: string): string {
+    return this.bodyRotation?.(normalizeFrameKey(bodyName))?.bodyFixedFrame ?? bodyFixedFrameName(bodyName);
+  }
+
+  /** Placement must opt into failure rather than interpreting missing rotations
+   * as identity. This leaves the legacy transform API compatible. */
+  transformRequired(v: Vec3, from: string, to: string, et: number): Vec3 {
+    const m = this.rotation(from, to, et);
+    if (!m) throw new Error(`Frame transform unavailable: ${from} -> ${to} at ET ${et}`);
+    return mat3Vec(m, v);
+  }
+
   /** True when two names denote the same frame (aliases included). */
   sameFrame(a: string, b: string): boolean {
     if (a === b) return true;
@@ -409,7 +423,7 @@ export class FrameRegistry {
       spiceName: key,
       toICRF: (et, registry) => {
         const rotation = this.bodyRotation?.(bodyKey);
-        if (rotation) {
+        if (rotation && (!rotation.bodyFixedFrame || normalizeFrameKey(rotation.bodyFixedFrame) === key)) {
           // rotationAt is source → body-fixed; its transpose is body-fixed → source.
           const srcToIcrf = registry.toICRF(rotation.sourceFrame, et);
           if (srcToIcrf) {

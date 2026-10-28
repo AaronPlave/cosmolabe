@@ -1,3 +1,4 @@
+import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
@@ -353,7 +354,7 @@ export class CubeImageryLayer {
     fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
     committedGroups: 0, waitingGroups: 0,
   };
-  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number } = {}) {
+  constructor(config: CubeImageryConfig, deps: { frame?: string; fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number } = {}) {
     this.horizonRadiusKm = deps.horizonRadiusKm ?? (() => 0);
     this.options = {
       maxScreenTexelError: config.maxScreenTexelError ?? 1.5,
@@ -386,6 +387,9 @@ export class CubeImageryLayer {
       try {
         const manifest = await (source.index === 0 ? baseManifest : fetchManifest(source.baseUrl).then(validateCubeImageryManifest));
         const reference = await baseManifest;
+        const declaredFrame = manifest.registration.crsId.split('/').at(-1);
+        const frame = lunarProductFrame(declaredFrame, manifest.source.version);
+        if (deps.frame && frame !== deps.frame) throw new Error(`Cube imagery frame ${frame} does not match terrain frame ${deps.frame}`);
         if (this.disposed) return;
         if (reference.bodyId !== manifest.bodyId || reference.registration.crsId !== manifest.registration.crsId ||
           reference.tileSize !== manifest.tileSize || reference.gutter !== manifest.gutter) {

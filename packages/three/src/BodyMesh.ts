@@ -1,3 +1,4 @@
+import { bodyFixedFrameName } from '@cosmolabe/core';
 import * as THREE from 'three';
 import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import type { ScreenRect } from './EventCallout.js';
@@ -181,6 +182,10 @@ export class BodyMesh extends THREE.Object3D {
   bodyToWorldQuaternion(out: THREE.Quaternion): THREE.Quaternion {
     const rendered = (this.modelContainer ?? this.mesh).quaternion;
     return out.copy(this.meshRotationQ).invert().premultiply(rendered);
+  }
+
+  get bodyFixedFrame(): string {
+    return this.body.rotation?.bodyFixedFrame ?? this.frames?.bodyFixedFrameFor(this.body.name) ?? bodyFixedFrameName(this.body.name);
   }
 
   get hasModel(): boolean { return this.modelContainer !== null; }
@@ -1077,7 +1082,11 @@ export class BodyMesh extends THREE.Object3D {
           this.gridLines.quaternion.copy(target.quaternion);
         }
       }
+      if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = this._userVisible && this._present;
+      this._rotationFailed = false;
     } catch (err) {
+      // Explicit lunar orientation cannot use a stale or identity attitude.
+      if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = false;
       if (!this._rotationFailed) {
         console.warn(`[Cosmolabe] Rotation failed for "${this.body.name}":`, (err as Error)?.message ?? err);
         this._rotationFailed = true;
@@ -1339,6 +1348,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.sampler.datum ?? null;
   }
 
+  get terrainFrameAvailability(): TerrainManager['frameAvailability'] | null { return this.terrainManager?.frameAvailability ?? null; }
+
+  /** Immutable revision of the active physical terrain, when declared. */
+  get terrainSourceRevision(): string | undefined { return this.terrainManager?.cpuSource.version; }
+
   /** Configured terrain source identifier for diagnostics and UI. */
   get terrainSourceId(): string | null {
     return this.terrainManager?.cpuSource.id ?? null;
@@ -1405,7 +1419,11 @@ export class BodyMesh extends THREE.Object3D {
     const bodyRadii: [number, number, number] | number = this.body.radii
       ? [this.body.radii[0], this.body.radii[1], this.body.radii[2]]
       : this.displayRadius;
-    this.terrainManager = new TerrainManager(config, bodyRadii, renderer);
+    const frame = this.bodyFixedFrame;
+    if (config.frame && frame && config.frame !== frame) {
+      throw new Error(`Terrain frame ${config.frame} does not match ${this.body.name} attitude ${frame}`);
+    }
+    this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
     if (this.shadowEnabled) this.terrainManager.enableShadowReceiving(this.shadowUniforms);
     this.add(this.terrainManager.group);
     // Terrain starts hidden; updateTerrain will show it based on camera distance

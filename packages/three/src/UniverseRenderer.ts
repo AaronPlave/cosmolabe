@@ -3269,6 +3269,7 @@ export class UniverseRenderer {
 
     const point: SurfacePoint = {
       bodyName: bm.body.name,
+      frame: bm.bodyFixedFrame,
       bodyFixedPositionKm: [ecefX, ecefY, ecefZ],
       source: ray.source,
       latDeg,
@@ -3446,7 +3447,7 @@ export class UniverseRenderer {
       // must NOT be clamped; for them surfaceLock only governs visibility.
       const traj = bm.body.trajectory;
       if (!(traj instanceof WaypointTrajectory)) continue;
-      if (traj.useAbsoluteAlt) continue;
+      if (traj.useAbsoluteAlt || bm.body.surfaceTrajectory) continue;
       const lockSpec = bm.body.geometryData.surfaceLock;
       // "aboveTerrain" mode: trajectory altitude is height above local terrain.
       // Renderer samples terrain at the body's lat/lon and offsets the body

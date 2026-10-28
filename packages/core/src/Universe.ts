@@ -1,3 +1,5 @@
+import { surfaceTrajectoryAvailability, type SurfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
+import type { TerrainDatum } from './geographic/coordinates.js';
 import type { SpiceInstance } from './spice-injection.js';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
@@ -10,7 +12,6 @@ import {
   BODY_FIXED,
   FrameRegistry,
   WORLD_FRAME,
-  bodyFixedFrameName,
   normalizeFrameKey,
 } from './frames/FrameRegistry.js';
 import { EventBus } from './events/EventBus.js';
@@ -252,7 +253,34 @@ export class Universe {
   resolveFrame(frame: string, centerName: string | undefined): string {
     const canonical = this.frames.canonicalName(frame);
     if (canonical !== BODY_FIXED) return canonical;
-    return centerName ? bodyFixedFrameName(centerName) : BODY_FIXED;
+    return centerName ? this.frames.bodyFixedFrameFor(centerName) : BODY_FIXED;
+  }
+
+  /** Placement diagnostics for absolute surface inputs; never modifies samples. */
+  surfaceTrajectoryStatus(bodyName: string, et: number, surface: { frame: string; datum: TerrainDatum; terrainRevision?: string }): SurfaceTrajectoryAvailability | undefined {
+    const body = this.getBody(bodyName);
+    const provenance = body?.surfaceTrajectory;
+    if (!body || !provenance) return undefined;
+    const result = surfaceTrajectoryAvailability(provenance, surface, this.frames, et);
+    if (!this.surfaceTrajectoryFrameAgrees(body, et)) {
+      result.kind = 'unavailable';
+      result.diagnostics.push({ code: 'frame-disagreement', message: `Trajectory frame declarations (${this.frameOf(body, et)}, ${body.declaredFrame ?? 'intrinsic'}) disagree with provenance ${provenance.frame}. Placement withheld.` });
+    }
+    return result;
+  }
+
+  private surfaceTrajectoryFrameAgrees(body: Body, et: number): boolean {
+    const provenance = body.surfaceTrajectory;
+    return !provenance || (this.frames.sameFrame(this.frameOf(body, et), provenance.frame) &&
+      (!body.declaredFrame || this.frames.sameFrame(this.resolveFrame(body.declaredFrame, body.activeParentAt(et)), provenance.frame)));
+  }
+
+  private transformPosition(position: Vec3, from: string, to: string, et: number): Vec3 {
+    // Explicit lunar realizations need an FK and binary PCK. Missing coverage
+    // cannot turn a rotating surface location into an inertial position.
+    return /^(MOON_ME|MOON_PA)(_|$)/i.test(from) || /^(MOON_ME|MOON_PA)(_|$)/i.test(to)
+      ? this.frames.transformRequired(position, from, to, et)
+      : this.frames.transform(position, from, to, et);
   }
 
   /** Re-express a center-relative position given in `frame` in the scene frame
@@ -260,7 +288,7 @@ export class Universe {
    *  sum left out — what a trail sampler needs to draw a body's offset from
    *  its center in the same frame the marker is placed in. */
   toWorldFrame(position: Vec3, frame: string, centerName: string | undefined, et: number): Vec3 {
-    return this.frames.transform(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
+    return this.transformPosition(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
   }
 
   /** A body's body → world (ECLIPJ2000) orientation quaternion `[w, x, y, z]`
@@ -281,7 +309,7 @@ export class Universe {
     const body = this.getBody(bodyName);
     if (!body) return [NaN, NaN, NaN];
     const p = body.stateAt(et).position;
-    return this.frames.transform([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
+    return this.transformPosition([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
   }
 
   /**
@@ -324,6 +352,8 @@ export class Universe {
       const body = this.getBody(bodyName);
       if (!body) return [NaN, NaN, NaN];
 
+      if (body.surfaceTrajectory && (!this.surfaceTrajectoryFrameAgrees(body, et) ||
+          !this.frames.isResolvable(body.surfaceTrajectory.frame, et))) return [NaN, NaN, NaN];
       const state = body.stateAt(et);
       let pos: Vec3 = [state.position[0], state.position[1], state.position[2]];
       if (isNaN(pos[0])) return [NaN, NaN, NaN];
@@ -350,13 +380,13 @@ export class Universe {
         const nextParent = parent.activeParentAt(et);
         const parentFrame = this.resolveFrame(parent.frameAt(et), nextParent);
 
-        pos = this.frames.transform(pos, frame, parentFrame, et);
+        pos = this.transformPosition(pos, frame, parentFrame, et);
         pos = [pos[0] + ps.position[0], pos[1] + ps.position[1], pos[2] + ps.position[2]];
         frame = parentFrame;
         currentParent = nextParent;
       }
 
-      pos = this.frames.transform(pos, frame, WORLD_FRAME, et);
+      pos = this.transformPosition(pos, frame, WORLD_FRAME, et);
       return [pos[0], pos[1], pos[2]];
     } catch {
       // SPICE throws "insufficient ephemeris" when a body's position can't be

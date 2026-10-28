@@ -10,6 +10,7 @@ export type GeographicGeometry<P> =
 
 /** Planetary extension to GeoJSON: angles are degrees; tuple order is longitude, latitude, Z. */
 export interface GeographicCoordinates {
+  frame?: string;
   latitude: 'planetocentric' | 'planetographic';
   longitudeDirection: 'east' | 'west';
   longitudeDomain: '-180..180' | '0..360';

@@ -47,6 +47,7 @@ export function validateGeographicCoordinates(value: unknown): GeographicCoordin
     || !['-180..180', '0..360'].includes(String(v.longitudeDomain))) {
     fail('Unsupported latitude/longitude convention (degrees, east/west, and longitude domain must be explicit)');
   }
+  if (v.frame !== undefined && (typeof v.frame !== 'string' || !v.frame.trim())) fail('Coordinate frame must be a nonempty name');
   const shape = v.referenceShape;
   if (!geographicObject(shape)) fail('A physical horizontal referenceShape in km is required');
   if (shape.kind === 'sphere') {
@@ -273,7 +274,7 @@ export function parseGeographicGeoJson(
     }
   }
   return {
-    id: spec.id, name: spec.name, body: spec.body, frame: bodyFixedFrameName(spec.body),
+    id: spec.id, name: spec.name, body: spec.body, frame: c.frame ?? bodyFixedFrameName(spec.body),
     ownership: source.kind === 'catalog' ? 'catalog' : 'transient', definition: spec, source,
     coordinates: c, datum: geographicDatum(c), features, skippedFeatures: data.features.length - features.length, diagnostics,
   };

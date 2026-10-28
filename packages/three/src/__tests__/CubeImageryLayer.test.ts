@@ -99,6 +99,17 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('accepts only audited legacy lunar imagery in the declared DE421 terrain frame', async () => {
+    const m = manifest(1), loader = controlledLoader();
+    const unknown = new CubeImageryLayer({ url: 'http://test/imagery.json' }, { frame: 'MOON_ME_DE421', fetchManifest: async () => m, loadTexture: loader.loadTexture });
+    await expect(unknown.ready).rejects.toThrow(/does not match terrain frame/); unknown.dispose();
+    m.source.version = 'cube-imagery-composite-3f34a19541af7710';
+    const audited = new CubeImageryLayer({ url: 'http://test/imagery.json' }, { frame: 'MOON_ME_DE421', fetchManifest: async () => m, loadTexture: loader.loadTexture });
+    await audited.ready;
+    expect(m.registration.crsId).toBe('cosmolabe:cube-gnomonic-1/IAU_MOON');
+    audited.dispose();
+  });
+
   it('settles sibling loading beside an opaque upper footprint without hidden-page churn', async () => {
     const address=directionToTexel(southPole,3,256,4).address,neighbour={...address,x:address.x+1},m=manifest(5);
     for(let L=2;L<=5;L++){const k=2**Math.max(0,L-3),x0=L<3?neighbour.x>>1:neighbour.x*k,y0=L<3?neighbour.y>>1:neighbour.y*k;for(let x=x0;x<x0+k;x++)for(let y=y0;y<y0+k;y++)m.tiles.push(cubeTileId({...neighbour,level:L,x,y}));}

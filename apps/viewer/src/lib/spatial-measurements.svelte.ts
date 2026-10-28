@@ -1,5 +1,5 @@
 import {
-  surfacePointEndpoint, type SurfacePoint, bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
+  surfacePointEndpoint, type SurfacePoint, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
   resolveSpatialRelationship, type ReferenceRequest, type ReferenceVector, type SpatialEndpoint, type SpatialRelationship,
 } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
@@ -104,7 +104,7 @@ function defaultDraftFrame(): void {
   if (measurements.draftKind !== 'axes' || !origin || origin.kind === 'coordinate') return;
   if (measurements.draftFrame && measurements.draftFrame !== autoFrame) return;
   const bodyName = origin.kind === 'surface-point' ? origin.point.bodyName : origin.bodyName;
-  const frame = getUniverse()?.getBody(bodyName)?.rotation ? bodyFixedFrameName(bodyName) : 'ECLIPJ2000';
+  const frame = getUniverse()?.getBody(bodyName)?.rotation ? getUniverse()!.frames.bodyFixedFrameFor(bodyName) : 'ECLIPJ2000';
   if (measurements.draftFrame !== frame) measurements.draftFrame = frame;
   autoFrame = frame;
 }
@@ -206,7 +206,8 @@ export function addMeasurement(item: SpatialRelationship): void {
  */
 export function showReference(request: ReferenceRequest): string {
   applyMeasurementFields();
-  const item = definition(referenceRelationship(request, crypto.randomUUID()));
+  const resolvedRequest = request.kind === 'bodyAxes' ? { kind: 'frameAxes' as const, frame: getUniverse()?.frames.bodyFixedFrameFor(request.object) ?? `IAU_${request.object.toUpperCase()}`, origin: request.object } : request;
+  const item = definition(referenceRelationship(resolvedRequest, crypto.randomUUID()));
   const colored = item.kind !== 'axes';
   if (colored) item.color = colors[measurements.nextColor % colors.length];
   measurements.items.push(item); if (colored) measurements.nextColor++;
