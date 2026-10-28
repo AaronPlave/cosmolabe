@@ -1043,6 +1043,7 @@ export class UniverseRenderer {
         tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, undefined, vertOff);
       }
       } catch (err) {
+        tl.visible = false; // Missing transforms must not leave a previously oriented surface trail visible.
         console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
       }
     }

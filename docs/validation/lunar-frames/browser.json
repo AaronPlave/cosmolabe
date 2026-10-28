@@ -57,21 +57,21 @@
         "bodyName": "Moon",
         "frame": "MOON_ME_DE421",
         "bodyFixedPositionKm": [
-          -6.39241370471359,
-          7.677861321025944,
-          -1734.5881416781442
+          -6.402930415254559,
+          7.6904928333285625,
+          -1737.4418622703608
         ],
         "source": "terrain",
-        "latDeg": -89.66999999992599,
-        "lonDeg": 129.78000003997914,
+        "latDeg": -89.6699999999337,
+        "lonDeg": 129.78000003581414,
         "latitudeKind": "geodetic",
         "resolution": {
-          "surfaceKm": 0.04011497928521781,
-          "latDeg": 0.0013250297466232562,
-          "lonDeg": 0.23005767252936432
+          "surfaceKm": 0.03599493819979205,
+          "latDeg": 0.0011869886874651204,
+          "lonDeg": 0.20609035794041958
         },
         "hit": {
-          "heightKm": -2.783087319313836,
+          "heightKm": 0.07068060655956288,
           "datum": {
             "referenceShape": {
               "kind": "sphere",
@@ -83,7 +83,7 @@
           }
         },
         "terrainSample": {
-          "elevationKm": -2.7890408413447942,
+          "elevationKm": -2.7890408414023673,
           "datum": {
             "referenceShape": {
               "kind": "sphere",
@@ -98,7 +98,7 @@
           "describesHit": true
         },
         "altitude": {
-          "km": -2.7890408413447942,
+          "km": -2.7890408414023673,
           "from": "terrain-sample",
           "datum": {
             "referenceShape": {
@@ -111,9 +111,9 @@
           }
         },
         "surfaceNormal": [
-          0.010935869531916336,
-          -0.01705847261784533,
-          -0.999794686557959
+          0.01323213726282602,
+          0.02471955654535652,
+          -0.9996068497502699
         ]
       },
       "camera": [
@@ -139,45 +139,47 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 46,
+        "textures": 67,
         "pinnedTextures": 30,
-        "textureBytes": 17098752,
-        "inFlight": 4,
+        "textureBytes": 24904704,
+        "inFlight": 8,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 50,
-        "bytes": 1243707,
+        "requests": 75,
+        "bytes": 1690345,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
-        "count": 0,
+        "count": 4,
         "budgetLimited": false,
-        "queued": 0,
-        "tiles": 6,
+        "queued": 4,
+        "tiles": 4,
         "splitTiles": 0,
-        "blocks": 10,
+        "blocks": 13,
         "extraDraws": 0,
         "displayedLevels": {
-          "4": 4
+          "3": 1,
+          "6": 6
         },
         "wantedLevels": {
-          "8": 35,
-          "9": 16
+          "7": 11,
+          "8": 40,
+          "9": 26
         },
-        "fallbackBlocks": 51,
+        "fallbackBlocks": 77,
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 4,
+        "maxDisplayedLevel": 6,
         "committedGroups": 0,
-        "waitingGroups": 4,
-        "updateMs": 0.40000003576278687,
+        "waitingGroups": 6,
+        "updateMs": 0.6000000238418579,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 52.29999989271164,
+        "uploadMs": 70.10000026226044,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -326,24 +328,24 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 147,
+        "textures": 126,
         "pinnedTextures": 30,
-        "textureBytes": 54641664,
-        "inFlight": 0,
+        "textureBytes": 46835712,
+        "inFlight": 8,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 147,
-        "bytes": 3375494,
+        "requests": 134,
+        "bytes": 3171462,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
-        "count": 0,
+        "count": 28,
         "budgetLimited": false,
-        "queued": 0,
+        "queued": 28,
         "tiles": 22,
         "splitTiles": 0,
-        "blocks": 81,
+        "blocks": 54,
         "extraDraws": 0,
         "displayedLevels": {
           "2": 1,
@@ -351,8 +353,7 @@
           "4": 7,
           "5": 8,
           "6": 8,
-          "7": 9,
-          "8": 36
+          "7": 18
         },
         "wantedLevels": {
           "3": 8,
@@ -362,19 +363,19 @@
           "7": 16,
           "8": 37
         },
-        "fallbackBlocks": 0,
+        "fallbackBlocks": 37,
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
+        "maxDisplayedLevel": 7,
         "committedGroups": 0,
-        "waitingGroups": 0,
-        "updateMs": 1.4000000357627869,
+        "waitingGroups": 9,
+        "updateMs": 0.8999999761581421,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 150.09999972581863,
+        "uploadMs": 125.60000044107437,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -523,14 +524,14 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 167,
+        "textures": 161,
         "pinnedTextures": 30,
-        "textureBytes": 62075904,
+        "textureBytes": 59845632,
         "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 167,
-        "bytes": 3743150,
+        "requests": 161,
+        "bytes": 3762833,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
@@ -557,12 +558,12 @@
         "maxDisplayedLevel": 2,
         "committedGroups": 0,
         "waitingGroups": 0,
-        "updateMs": 0.3999999761581421,
+        "updateMs": 0.40000003576278687,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 168.1999997496605,
+        "uploadMs": 159.4000005722046,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -574,7 +575,7 @@
       "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
     }
   ],
-  "hostedRequests": 526,
+  "hostedRequests": 516,
   "hostedManifests": [
     {
       "url": "https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/cpu-grids.json",
@@ -655,7 +656,8 @@
   "revisionDisagreementPreservesPosition": true,
   "orientationRecovery": {
     "hiddenDuringGap": true,
-    "visibleAfterRecovery": true
+    "visibleAfterRecovery": true,
+    "visibleSurfaceTrailsDuringGap": 0
   },
   "placeMismatchNavigationUnavailable": true,
   "passed": true

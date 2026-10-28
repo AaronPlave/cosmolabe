@@ -114,12 +114,20 @@ try {
   await page.evaluate(() => { window.renderer.universe.getBody('Polaris-A').surfaceTrajectory.terrainRevision = window.originalLunarRevision; });
   report.orientationRecovery = await page.evaluate(() => {
     const r = window.renderer, bm = r.getBodyMesh('Moon'), rotation = bm.body.rotation;
-    const original = rotation.rotationAt;
-    try { rotation.rotationAt = () => { throw Error('Simulated orientation coverage gap'); };r.renderFrame(); }
-    finally { rotation.rotationAt = original; }
-    const hidden = !bm.visible; r.renderFrame();return { hiddenDuringGap: hidden, visibleAfterRecovery: bm.visible };
+    const original = rotation.rotationAt, frameRotation = r.universe.frames.rotation;
+    try {
+      rotation.rotationAt = () => { throw Error('Simulated orientation coverage gap'); };
+      r.universe.frames.rotation = function(from,to,et) {
+        if (/^MOON_(ME|PA)/i.test(from) || /^MOON_(ME|PA)/i.test(to)) throw Error('Simulated missing lunar transform');
+        return frameRotation.call(this,from,to,et);
+      };
+      r.renderFrame();
+    } finally { rotation.rotationAt = original; r.universe.frames.rotation = frameRotation; }
+    const hidden = !bm.visible;
+    const visibleSurfaceTrailsDuringGap = [...r.trajectoryLines.values()].filter(t => t.body.parentName === 'Moon' && t.body.surfaceTrajectory && t.visible).length;
+    r.renderFrame();return { hiddenDuringGap: hidden, visibleAfterRecovery: bm.visible, visibleSurfaceTrailsDuringGap };
   });
-  assert.deepEqual(report.orientationRecovery, { hiddenDuringGap: true, visibleAfterRecovery: true });
+  assert.deepEqual(report.orientationRecovery, { hiddenDuringGap: true, visibleAfterRecovery: true, visibleSurfaceTrailsDuringGap: 0 });
   await page.getByRole('button', { name: 'Navigate', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Navigate mode' }).getByText('places', { exact: true }).click();
   await page.getByPlaceholder('Name or alias…').fill('Shackleton');
