@@ -121,15 +121,34 @@ function primitiveCells(p: VectorPrimitive, grid: readonly [number, number] = VE
   return [...cells];
 }
 
+/** How many pages `pageCells` would make, without building them: a grid that
+ * cannot fit its page budget is skipped before half a million cells are sliced. */
+function pageCount(cells: number[][], primitives: readonly VectorPrimitive[]): number {
+  if (cells.every(ids => ids.length <= VECTOR_CELL_LIMIT)) return 1;
+  let pages = 0;
+  for (const kind of [2, 1, 0]) {
+    let most = 0;
+    for (const ids of cells) {
+      let n = 0;
+      for (const id of ids) if ((id < 0 ? 2 : primitives[id].kind) === kind) n++;
+      most = Math.max(most, n);
+    }
+    pages += Math.ceil(most / VECTOR_CELL_LIMIT);
+  }
+  return pages;
+}
+
 /** Same rank/source paging at every spatial scale. A covered-cell reference (see `coveredCells`) pages with fills. */
 function pageCells(cells: number[][], primitives: readonly VectorPrimitive[]): number[][][] {
   if (cells.every(ids => ids.length <= VECTOR_CELL_LIMIT)) return [cells];
   const grids: number[][][] = [];
+  // Global grids are mostly empty cells: they share one empty list.
+  const none: number[] = [];
   for (const kind of [2, 1, 0]) {
-    const bins = cells.map(ids => ids.filter(id => (id < 0 ? 2 : primitives[id].kind) === kind));
+    const bins = cells.map(ids => ids.length ? ids.filter(id => (id < 0 ? 2 : primitives[id].kind) === kind) : none);
     const pages = Math.ceil(bins.reduce((n, ids) => Math.max(n, ids.length), 0) / VECTOR_CELL_LIMIT);
     for (let page = pages - 1; page >= 0; page--) {
-      grids.push(bins.map(ids => ids.slice(page * VECTOR_CELL_LIMIT, (page + 1) * VECTOR_CELL_LIMIT)));
+      grids.push(bins.map(ids => ids.length > page * VECTOR_CELL_LIMIT ? ids.slice(page * VECTOR_CELL_LIMIT, (page + 1) * VECTOR_CELL_LIMIT) : none));
     }
   }
   return grids;
@@ -404,8 +423,8 @@ export class GeographicIndex {
       // In source order, as everywhere else: the shader composites fills in it.
       if (covered.full.length) for (const ids of bins) ids.sort((x, y) => (x < 0 ? -x - 1 : x) - (y < 0 ? -y - 1 : y));
       if (references + added > VECTOR_REFERENCE_LIMIT) { if (fine) continue; return result; }
+      if (pageCount(bins, this.primitives) > this.renderPages) { if (fine) continue; return result; }
       const grids = pageCells(bins, this.primitives);
-      if (grids.length > this.renderPages) { if (fine) continue; return result; }
       result.push({ grids, level: { size, height: rows, offset, pages: grids.length, bounds: [-180, -90 + first * step[1], 180, -90 + (first + rows) * step[1]], step } });
       references += added; offset += grids.length * size * rows;
     }
@@ -444,8 +463,8 @@ export class GeographicIndex {
           bins[y * size + x].push(id);
         }
       }
+      if (pageCount(bins, this.primitives) > coarsePages) continue;
       const grids = pageCells(bins, this.primitives);
-      if (grids.length > coarsePages) continue;
       result.push({ grids, level: { size, offset, pages: grids.length,
         bounds: [xOrigin, yOrigin, xOrigin + dx * size, yOrigin + dy * size], step: [dx, dy] } });
       offset += grids.length * size ** 2; references += added;
@@ -468,7 +487,8 @@ export class GeographicIndex {
     const references = new Float32Array((this.references + extraReferences) * 4);
     let offset = 0;
     grids.forEach((grid, page) => grid.forEach((ids, cell) => {
-      cells.set([offset, ids.length, 0, 0], (page * this.cells.length + cell) * 4);
+      const at = (page * this.cells.length + cell) * 4;
+      cells[at] = offset; cells[at + 1] = ids.length;
       for (const id of ids) {
         const p = this.primitives[id];
         references.set([id, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1, primitiveAnchor(p)], 4 * offset++);
@@ -478,7 +498,8 @@ export class GeographicIndex {
     if (details.length) {
       const cells = new Float32Array(details.reduce((n, d) => n + d.grids.length * d.level.size * (d.level.height ?? d.level.size), 0) * 4);
       for (const { grids, level } of details) grids.forEach((grid, page) => grid.forEach((ids, cell) => {
-        cells.set([offset, ids.length, 0, 0], (level.offset + page * level.size * (level.height ?? level.size) + cell) * 4);
+        const at = (level.offset + page * level.size * (level.height ?? level.size) + cell) * 4;
+        cells[at] = offset; cells[at + 1] = ids.length;
         for (const id of ids) {
           // Kind 3: the cell lies wholly inside this fill triangle's polygon.
           if (id < 0) { references.set([-id - 1, 3, 0, 0], 4 * offset++); continue; }
