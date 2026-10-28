@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-drawing';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/drawing';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/opt/pw-browsers/chromium',
   args: process.env.CL_GPU === 'hardware'

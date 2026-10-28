@@ -12,14 +12,14 @@
  * saved as PNGs.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM, CL_GPU=hardware (Chrome with Metal),
- * CL_OUTPUT (default docs/validation/geographic-streamed-lod), CL_STEPS,
+ * CL_OUTPUT (default work/geographic/streamed-lod), CL_STEPS,
  * CL_FADE_MS (the cross-fade, stretched for software rendering; default 6000). */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-streamed-lod';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/streamed-lod';
 const steps = Number(process.env.CL_STEPS ?? 40);
 const FILL = [0x56, 0xb4, 0xe9], OPACITY = 0.4;
 

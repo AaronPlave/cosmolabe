@@ -13,13 +13,13 @@
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
  * CL_GPU=hardware (Chrome with Metal), CL_OUTPUT (default
- * docs/validation/geographic-close-precision). */
+ * work/geographic/close-precision). */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-close-precision';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/close-precision';
 const hardware = process.env.CL_GPU === 'hardware';
 const FILL = [0x56, 0xb4, 0xe9], OPACITY = 0.4;
 const browser = await chromium.launch({

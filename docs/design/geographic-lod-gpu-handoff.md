@@ -25,7 +25,7 @@ copies it to `vectorFadeIn` / `vectorFadeOut`, and the vector shader discards
 exactly the pixels the tile discarded (same Bayer pattern), so every pixel is
 filled once. A settled tile (1, 0) never discards. No depth offset was added.
 
-**Evidence** (`docs/validation/geographic-streamed-lod/{before,after}`):
+**Evidence** (worst mid-zoom frames before and after in `docs/validation/geographic-streamed-lod/{before,after}`):
 
 | | Before | After |
 | --- | --- | --- |
@@ -61,8 +61,7 @@ read is not treated as settled: the vector layer reports a
 show it) and warns once in the console.
 
 **Hardware check (M4 Max, Chrome/Metal, 300 ms fade):** `CL_GPU=hardware
-CL_FADE_MS=300` passes, worst step 0.01% doubled
-(`docs/validation/geographic-streamed-lod/m4max-300ms`). Only 2 of 40 steps
+CL_FADE_MS=300` passes, worst step 0.01% doubled. Only 2 of 40 steps
 caught a fade in progress, so the stretched software run remains the stronger
 regression.
 
@@ -92,7 +91,7 @@ the exact arithmetic, which keeps the cost at its previous level (Rhine close
 network) dollies to ~10 m over the Gale floor and over a region vertex and
 asserts no speckle (coverage flips < 1%) and a straight edge (row-to-row jump
 ≤ 6 px). Before: up to 85% flips; the reorderable float version: 91 px jumps;
-now: ≤ 0.25% and 1 px (`docs/validation/geographic-close-precision`).
+now: ≤ 0.25% and 1 px (before and after frames in `docs/validation/geographic-close-precision`).
 
 ## 2. Broad-area GPU cost: to measure on hardware
 
@@ -133,8 +132,9 @@ editability.
 
 ## Hardware results (M4 Max, 3840×2160)
 
-`docs/validation/geographic-gpu/m4max-stack` (existing shader, #278) and
-`m4max-integration` (scissor + closed-form latitude). Vector cost = GPU median
+Runs labelled `m4max-stack` (existing shader, #278) and `m4max-integration`
+(scissor + closed-form latitude). Raw runs are not kept; see *Reproducing the
+measurements* below. Vector cost = GPU median
 minus the same view with vectors off; ranges are two runs of the integration
 branch, so streamed scenes vary with what is resident.
 
@@ -174,7 +174,7 @@ close about twice as slow on Metal. The difference shows only where
 anti-aliased fringes of two pages overlap: 16 pixels of 921,600 in Earth orbit,
 none elsewhere; the offline smoke images are unchanged.
 
-`docs/validation/geographic-gpu/m4max-one-pass`: two interleaved runs each,
+Runs labelled `m4max-one-pass`: two interleaved runs each,
 whole-frame GPU ms (vector cost in brackets).
 
 | Scene | Draws before → after | Before | After |
@@ -187,7 +187,7 @@ whole-frame GPU ms (vector cost in brackets).
 | Rhine close (one mesh) | 6 → 1 | 15.4–16.3 | 15.5–17.3 |
 
 CPU time of the browser's processes while rendering Gale close at 60 fps
-(`process-cpu.mjs`), vectors on minus off, in cores: GPU process 0.06–0.08 →
+(`scripts/benchmark-geographic-process-cpu.mjs`), vectors on minus off, in cores: GPU process 0.06–0.08 →
 0.02–0.03, renderer 0.21–0.23 → 0.09–0.12. At tens of metres the vector share
 is small either way. Terrain contours add little GPU time (~0.3 ms at 4K).
 
@@ -231,7 +231,7 @@ reference (no triangle test), and segments are binned exactly rather than by
 box. Countries fit in 836k references and one page per level (the 256 level
 was two pages).
 
-`docs/validation/geographic-gpu/m4max-covered-cells`, two interleaved runs:
+Runs labelled `m4max-covered-cells`, two interleaved runs:
 Rhine close 13.4–13.8 → 4.0–6.6 ms of vector cost; Earth orbit, Jezero and
 dense Jezero unchanged. Fills are pixel-identical; borders change by at most
 28 levels. Building the index takes ~120 ms more for countries.
@@ -265,6 +265,23 @@ difference (Gale close 6.24–8.53 before, 7.04–9.68 after; very close 6.2–7
 (`overlap-before.png` is the previous shader).
 
 Raster-composited fills are not needed for these cases.
+
+## Reproducing the measurements
+
+The tables above are the record; the per-run JSON and Markdown the benchmark
+writes are not kept in Git. Each run writes to `work/geographic/gpu/<label>`
+(ignored), with the viewer on port 5188:
+
+```sh
+CL_GPU=hardware CL_LABEL=m4max-after node scripts/benchmark-geographic-gpu.mjs
+node scripts/benchmark-geographic-process-cpu.mjs "Gale close" after
+```
+
+Compare two builds by running each twice, interleaved (A, B, A, B): streamed
+scenes vary with what is resident by more than some of the differences above.
+The smokes likewise write their captures to `work/geographic/<name>` unless
+`CL_OUTPUT` says otherwise; the few kept in `docs/validation/geographic-*` are
+curated before/after and UI captures.
 
 ## Checks run here
 

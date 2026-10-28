@@ -11,13 +11,13 @@
  * still shows under it in the overlap.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
- * CL_GPU=hardware, CL_OUTPUT (default docs/validation/geographic-overlap). */
+ * CL_GPU=hardware, CL_OUTPUT (default work/geographic/overlap). */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-overlap';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/overlap';
 const hardware = process.env.CL_GPU === 'hardware';
 const browser = await chromium.launch({
   executablePath: process.env.CL_CHROMIUM ?? (hardware ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : '/opt/pw-browsers/chromium'),

@@ -11,7 +11,7 @@
  * the pass scales with surface coverage, but it is not a hardware number).
  * CL_GPU=hardware runs Chrome with Metal at 1920×1080 CSS × 2 = 3840×2160.
  * Writes JSON and a Markdown table to CL_OUTPUT (default
- * docs/validation/geographic-gpu/<CL_LABEL or "swiftshader">). CL_SCENES, a regular
+ * work/geographic/gpu/<CL_LABEL or "swiftshader">). CL_SCENES, a regular
  * expression, runs only the scenes it matches. */
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs';
 
 const hardware = process.env.CL_GPU === 'hardware';
 const label = process.env.CL_LABEL ?? (hardware ? 'hardware' : 'swiftshader');
-const output = process.env.CL_OUTPUT ?? `docs/validation/geographic-gpu/${label}`;
+const output = process.env.CL_OUTPUT ?? `work/geographic/gpu/${label}`;
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
 const frames = Number(process.env.CL_FRAMES ?? 30);
 const browser = await chromium.launch({

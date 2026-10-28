@@ -73,6 +73,10 @@ scripts/build-globe-textures/.venv/
 apps/viewer/test-catalogs/models/rosetta/*.png
 apps/viewer/test-catalogs/models/rosetta/*.part
 
+# Geographic smoke and benchmark output (#198–#200): curated captures live in
+# docs/validation/geographic-*, raw runs here.
+/work/geographic/
+
 # Places acceptance output (#191): keep raw runs outside reviewed documentation.
 /work/issue-191-places/
 /docs/validation/issue-191-places/raw/

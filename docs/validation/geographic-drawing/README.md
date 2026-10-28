@@ -30,9 +30,9 @@ On the Moon it creates a layer in the Moon layer's planetographic −180..180°
 sphere convention and places a point near the south pole. No page or console
 errors are allowed.
 
-The captures (`path-preview.png`, `edit-handles.png`, `moon.png`,
-`compact.png`) come from Chromium with SwiftShader at 1280×800 and 390×844.
-[`drawing.json`](drawing.json) holds the recorded results. On a coarse
+The captures kept here (`edit-handles.png`, `feature-inspector.png`) come from
+Chromium with SwiftShader at 1280×800. A run writes all its captures and
+`drawing.json` to `work/geographic/drawing`. On a coarse
 reference globe a click lands on the drawn facets, a few hundred metres from
 the ideal ellipsoid point; drawing, picking and handles all use that same
 drawn surface, so what is clicked is what is drawn.

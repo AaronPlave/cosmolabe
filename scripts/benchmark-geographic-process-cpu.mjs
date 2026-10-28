@@ -1,4 +1,4 @@
-// Usage: node process-cpu.mjs "<viewpoint>" <label>, with the viewer on port 5188.
+// Usage: node scripts/benchmark-geographic-process-cpu.mjs "<viewpoint>" <label>, with the viewer on port 5188.
 // CPU time of the browser GPU and renderer processes, vectors off then on, over 8 s of live rendering.
 import { chromium } from 'playwright';
 const [view, label] = process.argv.slice(2);

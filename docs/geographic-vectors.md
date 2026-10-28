@@ -271,8 +271,8 @@ queries over reproducible scenes (`test-catalogs/geographic-vectors-gpu-bench`
 and the dense Jezero and Earth countries catalogs): vectors off and on, one
 point, one small polygon, a selected polygon, 200 annotations, dense Jezero,
 Earth countries, and Jezero on measured terrain when its local data is present.
-`CL_GPU=hardware` runs it on Chrome with Metal at 3840×2160. Results under
-SwiftShader at 1280×720 are in `docs/validation/geographic-gpu/`. That is a
+`CL_GPU=hardware` runs it on Chrome with Metal at 3840×2160, writing to
+`work/geographic/gpu/<label>`. Results under SwiftShader at 1280×720 follow. That is a
 software renderer, so the absolute numbers are not hardware numbers. Its time
 is dominated by fragment work, though, so it shows how the pass scales with
 covered pixels. Extra GPU time over the same view with vectors off:
