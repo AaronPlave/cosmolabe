@@ -172,3 +172,57 @@ registry additions with the code; retain all immutable objects and publication
 receipts for audit and other consumers. Never overwrite/delete the published
 prefixes to implement rollback. No application release has been performed as
 part of the data publication.
+
+
+## PR #299 review acceptance
+
+The original demo preserves telemetry SPK precedence. The separately labeled
+`msl-dingo-gap-localized` catalog reorders the existing localized SPK last;
+[pose-chain.json](pose-chain.json) and the [source report](source-registration.md)
+explain matched-epoch radial residuals and the remaining model-origin uncertainty.
+Catalog-level `displayNote` uses the existing viewport caption, reset on scene
+load, so source-solution limits remain visible in close-ups and compact layouts.
+
+The 827.272 m worst boundary diagnostic is `nx/4/6/15` against `py/1/0/1`
+(L4/L1, cross-face; about 135–139°E, 5–11°S for the fine tile). It is not a
+Curiosity near-ground acceptance sample. Under-clearance samples also occur at
+`nx/10/455/982` against `nx/7/57/122` (L10/L7; about 137.388–137.449°E,
+4.602–4.688°S). That mixed edge is outside the native 400 m DEM crop and the
+accepted ±300 m local navigation views. The diagnostic's minimum rendered
+clearance is **34.866 m**, with 16 rays lacking a rendered-clearance result.
+These are explicitly unaccepted LOD regimes, not 50 m clearance certification.
+Users can navigate beyond the accepted region; the local passes do not certify
+those other locations. Runtime camera clearance continues to use the maximum
+CPU/drawn surface rather than silently treating the fine CPU grid as the only
+visible ground. This change does not rebuild or certify global terrain edges.
+
+The live Dingo Gap hierarchy still depends on **raw.githubusercontent.com**,
+pinned to the exact immutable Git commit above. R2 contains the cube products,
+not those reconstruction payloads. A GitHub/network outage removes local visual
+context; physical cube queries and imagery continue, and explicit retry restores
+the same fixed mesh. Lifecycle tests cover 503, eviction, recovery and stable
+placement. Mirroring/checksum-and-HTTP-verifying the complete pinned hierarchy
+in immutable R2 is deferred and remains an external-dependency concern before
+production deployment and #295 reuse. No fallback host or availability claim is
+implied by a source Git pin.
+
+Reproduce the additional read-only source comparison and affected GPU tests:
+
+```sh
+node scripts/audit-msl-pose-chain.mjs "$RUN/pose-chain.json"
+python3 scripts/terrain/audit_curiosity_pose.py --chain "$RUN/pose-chain.json" \
+  --areoid "$AREOID_DIR/MEGA90N000EB.LBL" \
+  --dem docs/validation/curiosity-gale/evidence/gale-dingo-dem-window.tif \
+  --out "$RUN/pose-chain-ground.json"
+node scripts/test-sun-viewer-gpu.mjs
+node scripts/test-sun-terrain-gpu.mjs
+node scripts/test-site-mesh-depth-gpu.mjs "$RUN/occlusion"
+SITE_MESH_LOCALIZED=1 node scripts/test-curiosity-site-mesh.mjs "$VIEWER_URL" "$RUN/localized"
+```
+
+[Review GPU metrics](browser/review/acceptance.json) retain the oblique/near-horizon
+foreground-relief results and both source-solution checks. Unmodified
+[localized close-up](browser/review/localized-close-up.png),
+[compact caption](browser/review/localized-compact.png), and
+[foreground ridge](browser/review/foreground-relief.png) captures accompany them.
+Both solar scripts and the new site-depth test now run in targeted renderer CI.

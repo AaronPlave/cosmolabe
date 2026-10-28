@@ -346,5 +346,6 @@
       "description": "Dingo Gap is a fixed, approximate visual reconstruction. Absolute registration accuracy is unknown. Globe terrain owns picking, clearance and measurements. The SPICE rover differs from orbital localization; its pose is preserved."
     }
   ],
-  "description": "Dingo Gap is an approximate visual reconstruction, placed once using the sample site/drive frame, PLACES localization and the MOLA areoid. Absolute registration accuracy is unknown. Globe terrain owns picking, measurements and camera clearance; mesh pixels composite over it. Curiosity keeps its authoritative SPICE pose, which differs from orbital localization; no terrain snap is applied. See docs/validation/curiosity-gale/source-registration.md."
+  "description": "Dingo Gap is an approximate visual reconstruction, placed once using the sample site/drive frame, PLACES localization and the MOLA areoid. Absolute registration accuracy is unknown. Globe terrain owns picking, measurements and camera clearance; mesh pixels composite over it. Curiosity keeps its authoritative SPICE pose, which differs from orbital localization; no terrain snap is applied. See docs/validation/curiosity-gale/source-registration.md.",
+  "displayNote": "Telemetry rover pose: apparent height is not measured ground clearance. Compare the orbital-localized Curiosity demo in the catalog browser."
 }

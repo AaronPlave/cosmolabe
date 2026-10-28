@@ -80,12 +80,75 @@ then publishes ellipsoid/geodetic-normal query metadata. No unexplained
 
 ## SPICE discrepancy and physical ownership
 
-Curiosity's trajectory, kernels and attitude inputs are unchanged. Four epochs
-are exported in [spice-states.json](spice-states.json). Operational SPICE states
-and PLACES/orbital localization disagree: near these dates the rendered rover
-is about 100 m horizontally displaced and 16–18 m above local ground. This is
-visible source disagreement, not calibrated rover clearance. Never snap the
-rover or refit the mesh/DEM to hide it.
+Curiosity's original trajectory, kernel order and attitude inputs remain unchanged.
+The complete read-only [pose-chain audit](pose-chain.json) resolves SPK segments
+from their DAF descriptors and evaluates two source solutions at the **same five
+epochs**, including the PLACES anchor's exact SCLK. This identifies a source
+selection difference, rather than accepting the screenshot as unexplained error.
+
+The catalog's last overlapping position SPK is
+`msl_surf_rover_tlm_0449_0583_v1.bsp`. It resolves NAIF **−76** through site 25
+or 26 (`−76525`/`−76526`), then landing site `−76900`, to Mars center **499**.
+The rover/site segments use `MSL_LOCAL_LEVEL` (frame `−76910`); the landing
+position uses `IAU_MARS` (10014). The local frame is north/east/down relative
+to the fixed landing tangent frame. `msl_tp_ops120808_iau2000_v1.tf` declares
+the landing orientation at Gaussian latitude −4.643851°, longitude 137.441700°,
+referencing the IAU2000/PCK00008 solution. The catalog uses PCK00011 for
+inertial Mars orientation. Both alternatives are evaluated in the **same
+IAU_MARS frame**, with `abcorr=NONE`; this comparison does not mix inertial
+states or confuse Gaussian/planetodetic latitude with planetocentric latitude.
+Changing the inertial Mars pole model is not an explanation for their different
+body-fixed radial coordinates.
+
+The already supplied `msl_surf_rover_loc_0000_2003_v1.bsp` is overridden by that
+telemetry file. Its embedded NAIF pedigree explicitly identifies the PLACES
+`localized_interp` data view, produced July 2018. Loading that **unchanged** SPK
+last instead resolves −76 directly relative to 499 in IAU_MARS. This is a
+defensible alternative orbital-localized **position product**, not a newly
+fitted position or an independent geolocation control. The downloaded PLACES
+anchor is site 26/drive 184, sol 528, SCLK **444369371**, corresponding to
+**2014-01-30T16:05:36.470 UTC** with the supplied clock kernel. Its exact original
+localization revision is still unknown. Nearby UTC samples must not be labeled
+as identical site/drive states merely because their mesh-origin distance is similar.
+
+For each source, convert its own Cartesian position to planetocentric longitude
+and latitude. Sample MEG016 areoid radius and the original Gale DEM at **that
+same horizontal location**, then subtract their sum from the rover-origin
+radius. The signed radial residuals are:
+
+| UTC | Telemetry origin − DEM (m) | Localized origin − DEM (m) |
+| --- | ---: | ---: |
+| 2014-01-29 12:00 | +17.911 | −0.185 |
+| 2014-01-30 16:05:36.470 (anchor) | +16.506 | −0.208 |
+| 2014-02-01 12:00 | +16.506 | −0.208 |
+| 2014-02-05 12:00 | +16.525 | −0.151 |
+| 2014-02-08 12:00 | +15.859 | −0.342 |
+
+These are **origin-to-ground radial residuals, not measured wheel clearance**.
+The DEM/MEG016 comparison uses planetocentric rays; ellipsoid-normal altitude is
+a separate convention in physical cube query metadata. It does not substitute
+planetodetic latitude or add a second areoid/ellipsoid correction. The earlier
+113–127 m mesh-origin distances combine horizontal motion and source differences;
+they are not same-epoch geolocation error estimates.
+
+Attitude remains the identical `MSL_ROVER` CK → local-level → IAU_MARS chain:
+all five attitude matrices are unchanged when only the position SPK priority
+changes. The FK defines the NAV origin midway between the middle-wheel rotation
+axes, +X forward and +Z down. The art model keeps its existing 3 m overall-size
+normalization, authored root, and `[0.7071,-0.7071,0,0]` mesh rotation, without
+`meshOffset`. Its wheel-to-NAV-origin registration has not been independently
+established, so even the localized visualization cannot measure wheel clearance.
+The rendered telemetry states/attitudes are checked against independent NAIF
+exports; the complete viewer frame chain introduces no fitted offsets.
+
+The original **Curiosity at Mars** demo preserves telemetry position priority.
+The separate **Curiosity — orbital-localized position** demo explicitly loads
+that existing localized SPK last and retains the same attitude, art model,
+mesh and terrain. Both show a persistent plain-text caption identifying the
+solution and its limits. The close-up is useful source comparison, not an
+acceptance claim of calibrated rover-on-ground alignment. Absolute accuracy
+and model-origin uncertainty remain unknown; neither demo snaps the rover or
+refits the mesh/DEM.
 
 The catalog declares `physicalQueryPolicy: visual-only` and
 `overlapPolicy: composite`. On the near hemisphere, loaded reconstruction
@@ -93,7 +156,11 @@ pixels composite over the globe, avoiding coincident globe/local depth
 fighting. Selected local triangles also occlude models in the existing model
 depth pass. Holes, absent tiles, failures and outside-footprint views reveal
 the continuously available cube. The near-hemisphere gate prevents painting
-through Mars. Priority orders coincident site groups; ordinary selected-tile
+through Mars. In the site pass, selected planetary surfaces strictly closer
+than the nearest site bounding envelope are redrawn in matching logarithmic
+CRR depth, so foreground relief occludes distant site pixels. Within that
+envelope, compositing remains an explicit visual policy, not a physical
+ordering claim or trusted ground mask. Priority orders coincident site groups; ordinary selected-tile
 depth applies within the mesh pass. The source-local coverage box is a display
 envelope, **not** a trusted physical-coverage mask.
 

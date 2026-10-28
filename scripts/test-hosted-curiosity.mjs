@@ -18,7 +18,7 @@ const source = JSON.parse(await readFile('apps/viewer/test-catalogs/msl-dingo-ga
 const expected = rewriteCatalog(source, 'test-catalogs/msl-dingo-gap.json', loadDatasets().datasets, receipt.baseUrl).json;
 const browser = await chromium.launch({ headless: true,
   ...(process.platform === 'darwin' ? { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
-  args: ['--enable-gpu', '--ignore-gpu-blocklist', process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader'] });
+  args: [...(process.env.CHROMIUM_HOST_RESOLVER_RULES ? [`--host-resolver-rules=${process.env.CHROMIUM_HOST_RESOLVER_RULES}`] : []), '--enable-gpu', '--ignore-gpu-blocklist', process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
 const page = await context.newPage(); page.setDefaultTimeout(180000);
 page.on('console', message => { if (message.type() === 'error') console.log('browser: ' + message.text().slice(0, 400)); });
@@ -62,7 +62,7 @@ const snapshot = () => page.evaluate(() => {
     cameraToRoverKm: r.camera.position.distanceTo(r.getBodyMesh('Curiosity').position) / r.scaleFactor };
 });
 try {
-  const response = await context.request.get(new URL('test-catalogs/msl-dingo-gap.json', base).href);
+  const response = await page.goto(new URL('test-catalogs/msl-dingo-gap.json', base).href, { waitUntil: 'domcontentloaded' });
   assert.equal(response.status(), 200); assert.deepEqual(await response.json(), expected);
   console.log('hosted catalog matches normal rewrite');
   await page.goto(`${base}?catalog=test-catalogs/msl-dingo-gap`, { waitUntil: 'domcontentloaded' });

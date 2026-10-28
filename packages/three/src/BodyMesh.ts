@@ -1785,9 +1785,9 @@ export class BodyMesh extends THREE.Object3D {
    */
   addSurfaceTiles(config: SurfaceTileConfig): SurfaceTileOverlay {
     const rotation = this.body.rotation;
-    if (!(rotation instanceof SpiceRotation)
+    if (!rotation?.bodyFixedFrame
         || rotation.bodyFixedFrame.toUpperCase() !== config.registration.bodyFixedFrame.toUpperCase()) {
-      throw new Error(`Site mesh ${config.name}: requires matching explicit SPICE body-fixed rotation ${config.registration.bodyFixedFrame}`);
+      throw new Error(`Site mesh ${config.name}: requires matching explicit body-fixed rotation ${config.registration.bodyFixedFrame}`);
     }
     const overlay = new SurfaceTileOverlay(config);
     this.surfaceOverlays.push(overlay);

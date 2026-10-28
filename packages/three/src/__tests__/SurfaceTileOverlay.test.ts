@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { Universe } from '@cosmolabe/core';
+import { BodyMesh } from '../BodyMesh.js';
 import { SurfaceTileOverlay } from '../SurfaceTileOverlay.js';
 import { siteMeshPlacement, type SiteMeshConfig } from '../SiteMeshPlacement.js';
 
@@ -16,9 +18,28 @@ const fixture = (): SiteMeshConfig => ({
 });
 
 describe('fixed mission-site reconstruction placement', () => {
+  it('accepts declared non-SPICE body axes and rejects absent or incompatible frames', () => {
+    for (const frame of [undefined, 'WRONG_FRAME', 'TEST_BODY_FIXED']) {
+      const u = new Universe();
+      u.loadCatalog({ items: [{ name: 'Synthetic', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+        rotationModel: { type: 'Fixed', quaternion: [1, 0, 0, 0], inertialFrame: 'ECLIPJ2000', bodyFixedFrame: frame },
+        geometry: { type: 'Globe', radius: 100 } }] });
+      const bm = new BodyMesh(u.getBody('Synthetic')!);
+      if (frame === 'TEST_BODY_FIXED') {
+        const overlay = bm.addSurfaceTiles(fixture());
+        expect(overlay.registration.bodyFixedFrame).toBe(frame);
+        overlay.dispose();
+      } else expect(() => bm.addSurfaceTiles(fixture())).toThrow(/matching explicit body-fixed rotation/);
+      bm.dispose();
+    }
+  });
   it('preserves the original mission inputs and publishes the audited fixed transform', () => {
     const json = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
     const current = json('../../../../apps/viewer/test-catalogs/msl-dingo-gap.json');
+    const localized = json('../../../../apps/viewer/test-catalogs/msl-dingo-gap-localized.json');
+    expect(localized.spiceKernels.at(-1)).toContain('msl_surf_rover_loc_');
+    expect(localized.items.find((i: any) => i.name === 'Mars').geometry).toEqual(current.items.find((i: any) => i.name === 'Mars').geometry);
+    expect(localized.displayNote).toContain('Orbital-localized');
     const previous = json('../../../../docs/validation/curiosity-gale/previous-catalog.json');
     const audit = json('../../../../docs/validation/curiosity-gale/source-registration.json');
     expect(current.spiceKernels).toEqual(previous.spiceKernels);

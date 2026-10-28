@@ -37,6 +37,7 @@ export class SurfaceTileOverlay {
   readonly registration: SiteMeshConfig['registration'];
   readonly coverage: SiteMeshConfig['coverage'];
   readonly priority: number;
+  private readonly envelope: THREE.Sphere;
   private disposed = false;
 
   constructor(config: SurfaceTileConfig) {
@@ -44,6 +45,8 @@ export class SurfaceTileOverlay {
     this.name = config.name;
     this.registration = structuredClone(config.registration);
     this.coverage = structuredClone(config.coverage);
+    this.envelope = new THREE.Box3(new THREE.Vector3().fromArray(config.coverage.min),
+      new THREE.Vector3().fromArray(config.coverage.max)).applyMatrix4(mat).getBoundingSphere(new THREE.Sphere());
     this.priority = config.priority ?? 0;
     this.tiles = new TilesRenderer(config.url);
 
@@ -214,6 +217,14 @@ export class SurfaceTileOverlay {
     const dy = ty - cameraWorldPos.y;
     const dz = tz - cameraWorldPos.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
+  /** Proven foreground depth can be retained without depth-fighting the cube
+   * under this display envelope. Inside it, composite remains a visual policy,
+   * not evidence that local triangles are physically in front of the cube. */
+  foregroundDistanceTo(camera: THREE.Vector3, body: THREE.Vector3, rotation: THREE.Quaternion, scale: number): number {
+    const center = this.envelope.center.clone().applyQuaternion(rotation).multiplyScalar(scale).add(body);
+    return Math.max(0, camera.distanceTo(center) - this.envelope.radius * scale);
   }
 
   /** Explicit recovery after a source outage; retain the same placement. */

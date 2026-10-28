@@ -239,7 +239,11 @@ unknown), and `bodyFixedKmFromLocalMeters`: a column-major affine 4×4 matrix
 mapping original local metres to declared body-fixed kilometres. Its basis must
 be rigid, right-handed and scaled by 0.001. Source axes must be established
 offline; glTF's up-axis alone does not establish planetary orientation. The
-body needs explicit matching `Spice` rotation. The matrix remains fixed across
+body needs a rotation with an explicit matching destination frame. `Spice`
+rotation uses `bodyFrame`; synthetic/non-SPICE bodies may use `Fixed` rotation
+with `bodyFixedFrame` and an explicit `inertialFrame`. A frame label declares
+the axes represented by that orientation; it does not certify registration.
+An absent or mismatched destination frame is rejected. The matrix remains fixed across
 camera changes, time, terrain LOD, eviction, retries and reloads. Legacy
 `lat`/`lon`/`altitudeOffset` placement is replaced by this explicit contract.
 
@@ -662,3 +666,5 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 Catalogs **do not** embed kernel paths. SPICE kernels are loaded separately, either via drag-drop in the demo viewer or by calling `Spice.loadKernel(...)` before invoking `CatalogLoader.load(...)`. A catalog that uses `"trajectory": { "type": "Spice", … }` will fail to evaluate at render time if the required kernel hasn't been loaded — but the catalog itself parses fine.
 
 This separation lets the same catalog be reused with different kernel sets (e.g. development predicts vs. reconstructed ephemerides).
+
+The optional catalog-level `displayNote` supplies a visible plain-text scene caption. A scene load resets it; scripts can replace or clear it with `displayNote`. Use it to explain source-solution limits that affect interpretation of the displayed geometry.

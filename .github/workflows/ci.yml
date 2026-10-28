@@ -190,6 +190,9 @@ jobs:
             stars:
               - 'scripts/test-starfield-webgl.mjs'
               - 'scripts/capture-starfield-calibration.mjs'
+              - 'scripts/test-sun-viewer-gpu.mjs'
+              - 'scripts/test-sun-terrain-gpu.mjs'
+              - 'scripts/test-site-mesh-depth-gpu.mjs'
             geographic:
               - 'scripts/test-geographic*.mjs'
               - 'scripts/test-place*.mjs'
@@ -277,6 +280,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: StarField readback and normal-viewer calibration
         run: bash scripts/ci/run-viewer-smoke.sh stars pr
+      - name: Site mesh and solar depth GPU regressions
+        run: |
+          node scripts/test-sun-viewer-gpu.mjs
+          node scripts/test-sun-terrain-gpu.mjs
+          node scripts/test-site-mesh-depth-gpu.mjs /tmp/site-mesh-depth
       - name: Upload StarField evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -286,6 +294,8 @@ jobs:
             /tmp/starfield-webgl/
             /tmp/starfield-viewer/
             /tmp/viewer-smoke-vite.log
+            /tmp/site-mesh-depth/
+            work/sun-rendering/
           if-no-files-found: ignore
           retention-days: 7
 

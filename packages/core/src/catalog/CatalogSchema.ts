@@ -56,7 +56,7 @@ const keys = (...k: string[]): KeySet => new Set(k);
 // ── Catalog and item level ──────────────────────────────────────────────────
 
 const CATALOG_KEYS = keys(
-  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport',
+  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport', 'displayNote',
   'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates',
   // Free text for whoever reads the file; no code interprets it.
   'description',
@@ -139,7 +139,7 @@ const ROTATION_KEYS: Record<string, KeySet> = {
     'type', 'period', 'epoch', 'meridianAngle', 'inclination', 'ascendingNode',
     'ascension', 'declination', 'inertialFrame',
   ),
-  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame'),
+  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame', 'bodyFixedFrame'),
   FixedEuler: keys('type', 'sequence', 'angles', 'inertialFrame'),
   Interpolated: keys('type', 'source', 'records', 'inertialFrame'),
   Spice: keys('type', 'bodyFrame', 'inertialFrame', 'fallbackFrame'),
