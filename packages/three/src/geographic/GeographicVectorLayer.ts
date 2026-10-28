@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, wrapLon,
-  type GeographicLayer, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
+import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, resolveGeographicStyle, wrapLon,
+  type GeographicLayer, type GeographicLayerStyle, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { SurfacePoint } from '../SceneHit.js';
-import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
 
 export type GeographicPlacement =
@@ -72,6 +72,11 @@ export class GeographicVectorLayer {
   private readonly placements = new Map<string, GeographicPlacement>();
   private readonly excludedSources = new Set<string>();
   private readonly visibility = new Map<string, boolean>();
+  private readonly filters = new Map<string, ReadonlySet<string>>();
+  private readonly styles = new Map<string, GeographicLayerStyle>();
+  private order: string[] = [];
+  private restyles = 0;
+  private readonly styleOf: GeographicStyleResolver = (layer, feature) => resolveGeographicStyle(layer, this.styles.get(layer.id), feature);
   private selected: GeographicFeatureRef | null = null;
   private hovered: GeographicFeatureRef | null = null;
   private _diagnostics: GeographicRenderDiagnostic[] = [];
@@ -80,14 +85,16 @@ export class GeographicVectorLayer {
   private proxyCount = 0;
   private drawCalls = 0;
 
-  constructor(private readonly universe: Universe, private readonly scaleFactor: number) {
+  /** `onSelectionChange` hears every change of the selected feature, including one a rebuild forces. */
+  constructor(private readonly universe: Universe, private readonly scaleFactor: number,
+    private readonly onSelectionChange: (feature: GeographicFeatureRef | null) => void = () => {}) {
     this.unsubscribe = universe.events.on('geographic:changed', () => { this.dirty = true; });
   }
   get diagnostics(): readonly GeographicRenderDiagnostic[] { return this._diagnostics; }
   get status(): readonly GeographicVectorStatus[] { return this._status; }
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
-  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number } {
-    return { drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
+  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number; restyles: number } {
+    return { restyles: this.restyles, drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   /** Source inclusion is independent of its retained drawing visibility. */
@@ -100,13 +107,63 @@ export class GeographicVectorLayer {
     if (this.visibility.get(layerId) === visible) return;
     this.visibility.set(layerId, visible); this.dirty = true;
   }
+  /** The session override, else the layer's catalog default. */
+  isVisible(layerId: string): boolean {
+    return this.visibility.get(layerId) ?? this.universe.geographicLayers.get(layerId)?.definition.display?.visible ?? true;
+  }
+  /**
+   * Draw and pick only these features of a layer; null draws them all. Features
+   * filtered out lose their GPU primitives and pick targets on the next frame,
+   * exactly as a hidden layer does, and a selection among them is cleared.
+   */
+  setFeatureFilter(layerId: string, featureIds: ReadonlySet<string> | null): void {
+    const current = this.filters.get(layerId);
+    if (!featureIds ? !current : current && current.size === featureIds.size && [...featureIds].every(id => current.has(id))) return;
+    if (featureIds) this.filters.set(layerId, new Set(featureIds)); else this.filters.delete(layerId);
+    this.dirty = true;
+  }
+  featureFilter(layerId: string): ReadonlySet<string> | null { return this.filters.get(layerId) ?? null; }
+  /**
+   * Presentation for one layer; null returns it to the catalog's display
+   * defaults. A layer already drawing is restyled in place: its record texture
+   * is repacked and re-uploaded, with no re-triangulation, new GPU resources
+   * or shader recompile. Source data is never touched.
+   */
+  setStyle(layerId: string, style: GeographicLayerStyle | null): void {
+    if (style) this.styles.set(layerId, style); else this.styles.delete(layerId);
+    if (this.dirty) return;
+    for (const batch of this.batches) {
+      if (!batch.layers.some(l => l.id === layerId)) continue;
+      batch.index.restyle(this.styleOf);
+      batch.material.restyle(batch.index);
+      // Highlight views share the restyled primitives but have their own records.
+      for (const h of batch.highlights) h.material.dispose();
+      batch.highlights = [];
+      this.restyles++;
+    }
+    this.updateHighlights();
+  }
+  getStyle(layerId: string): GeographicLayerStyle | null { return this.styles.get(layerId) ?? null; }
+  /**
+   * Draw order among layers sharing a body: earlier IDs win where fills or
+   * equal-coverage strokes overlap. Unlisted layers follow, in load order.
+   */
+  setLayerOrder(layerIds: readonly string[]): void {
+    if (layerIds.length === this.order.length && layerIds.every((id, i) => id === this.order[i])) return;
+    this.order = [...layerIds]; this.dirty = true;
+  }
+  get layerOrder(): readonly string[] { return this.order; }
+  get selectedFeature(): GeographicFeatureRef | null { return this.selected; }
   setPlacement(layerId: string, placement: GeographicPlacement): void {
     const height = placement.mode === 'clamp' ? 0 : placement.mode === 'terrain-relative' ? placement.offsetKm : placement.heightKm;
     if (!Number.isFinite(height)) throw new Error('Geographic placement height must be finite kilometres');
     if (JSON.stringify(this.placements.get(layerId)) === JSON.stringify(placement)) return;
     this.placements.set(layerId, { ...placement }); this.dirty = true;
   }
-  setSelected(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.selected, feature)) return; this.selected = feature; this.updateHighlights(); }
+  setSelected(feature: GeographicFeatureRef | null): void {
+    if (sameGeographicFeature(this.selected, feature)) return;
+    this.selected = feature; this.updateHighlights(); this.onSelectionChange(feature);
+  }
   setHovered(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.hovered, feature)) return; this.hovered = feature; this.updateHighlights(); }
 
   private drawMaterials(batch: Batch): GeographicMaterial[] { return [batch.material, ...batch.highlights.map(h => h.material)]; }
@@ -138,11 +195,19 @@ export class GeographicVectorLayer {
   private rebuild(): void {
     this.clear(); this._diagnostics = []; this._status = [];
     const groups = new Map<string, { layers: GeographicLayer[]; placement: GeographicPlacement }>();
-    for (const layer of this.universe.geographicLayers.layers) {
+    // Every feature still shown. A selection or hover outside it (hidden, filtered,
+    // unloaded) is cleared here rather than left pointing at nothing.
+    const shown = new Set<string>();
+    const rank = (id: string) => { const i = this.order.indexOf(id); return i < 0 ? this.order.length : i; };
+    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id));
+    for (const layer of ordered) {
       if (this.excludedSources.has(layer.id)) continue;
-      if (!(this.visibility.get(layer.id) ?? layer.definition.display?.visible ?? true) || layer.definition.display?.opacity === 0) continue;
+      if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
       const subsets = new Map<string, { layer: GeographicLayer; placement: GeographicPlacement }>();
+      const filter = this.filters.get(layer.id);
       for (const feature of layer.features) {
+        if (filter && !filter.has(feature.id)) continue;
+        shown.add(JSON.stringify([layer.id, feature.id, layer.body]));
         const points = positions(feature.geometry);
         let placement = this.placements.get(layer.id);
         if (!placement) {
@@ -186,7 +251,7 @@ export class GeographicVectorLayer {
       if (!isSupportedGeodeticDatum(datum)) continue;
       const a = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
       const c = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[2];
-      const index = new GeographicIndex(layers);
+      const index = new GeographicIndex(layers, false, this.styleOf);
       this._diagnostics.push(...index.diagnostics);
       if (!index.primitives.length) continue;
       const pages = index.renderPages;
@@ -199,6 +264,9 @@ export class GeographicVectorLayer {
       const batch: Batch = { layers, index, material, highlights: [], placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false };
       this.batches.push(batch);
     }
+    const kept = (f: GeographicFeatureRef | null) => !f || shown.has(JSON.stringify([f.layerId, f.featureId, f.bodyName]));
+    if (!kept(this.hovered)) this.hovered = null;
+    if (!kept(this.selected)) { this.selected = null; this.onSelectionChange(null); }
     this.updateHighlights(); this.dirty = false;
   }
 

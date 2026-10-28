@@ -91,7 +91,48 @@ renderer.geographicVectors.setSelected({
   layerId: 'science', featureId: 'string:target', bodyName: 'Mars',
 });
 renderer.geographicVectors.setSelected(null);
+renderer.geographicVectors.isVisible('science');            // override, else catalog default
+renderer.geographicVectors.setFeatureFilter('science', new Set(['string:target']));
+renderer.geographicVectors.setFeatureFilter('science', null); // draw every feature again
+renderer.events.on('geographic:select', ref => { /* scene, host, or invalidation */ });
+renderer.projectGeographicPositions('Mars', [{ latDeg: 18.4, lonDeg: 77.5 }], layer.datum);
 ```
+
+Styles (`GeographicLayerStyle` from `@cosmolabe/core`) and draw order:
+
+```ts
+renderer.geographicVectors.setStyle('science', {
+  version: 1,
+  point: { sizePx: 12, shape: 'diamond', halo: true },
+  line: { widthPx: 4, dashed: true },
+  polygon: { fillOpacity: 0.3, hatch: true, outlineWidthPx: 3 },
+  rule: geographicCategoricalRule(layer, 'kind'),   // or geographicSequentialRule
+  features: { 'string:target': { color: '#ff0000' } },
+});
+renderer.geographicVectors.setStyle('science', null);    // catalog display defaults
+renderer.geographicVectors.setLayerOrder(['science', 'traverse']);
+```
+
+A style change on a drawing layer does not rebuild it: geometry, cells and
+pages do not depend on style, so the batch's primitives are restyled and only
+its record texture is repacked and re-uploaded. There is no re-triangulation,
+no new texture or material, and no shader recompile (`metrics.restyles` counts
+these). Each primitive's four record texels carry its colour, opacity, CSS-pixel
+radius or half-width, and flags (dashed, halo/outline, hatch, point shape).
+The fragment shader's candidate rejection and detail-grid choice use the
+batch's largest styled reach instead of a fixed 4.5 px, so large marks are not
+clipped at cell edges. CPU picking skips fully transparent parts and widens
+its tolerance for larger marks and wider strokes. Highlight views of a
+restyled batch are rebuilt; at most two exist.
+
+Hiding a layer or filtering its features out removes their primitives, GPU
+pages and pick targets on the next frame, exactly as for a hidden layer. If the
+selected or hovered feature is no longer shown (hidden, filtered or unloaded),
+that rebuild clears it, and `geographic:select` announces every selection
+change, including that one, so a host never shows details for a feature the
+scene cannot draw. `projectGeographicPositions` gives canvas CSS-pixel
+positions for host overlays: on the datum (or resident terrain on request),
+with `facing` false past the datum horizon. It does not test terrain occlusion.
 
 Default imported Z is an absolute datum height, **never** a terrain offset.
 All imported Z values, including zero and small positive heights, are diagnosed

@@ -1,6 +1,7 @@
 import { Color, ShapeUtils, Vector2 } from 'three';
-import { geographicProjection, projectGeographic, projectGeographicRings, wrapLon,
-  type BodyFixedPosition, type GeographicFeature, type GeographicLayer, type GeographicProjection, type GeographicXY } from '@cosmolabe/core';
+import { geographicProjection, projectGeographic, projectGeographicRings, resolveGeographicStyle, wrapLon,
+  type BodyFixedPosition, type GeographicFeature, type GeographicLayer, type GeographicProjection, type GeographicXY,
+  type ResolvedGeographicStyle } from '@cosmolabe/core';
 
 export interface GeographicFeatureRef { layerId: string; featureId: string; bodyName: string; }
 export interface GeographicRenderDiagnostic { layerId: string; featureId?: string; code: string; message: string; }
@@ -17,11 +18,38 @@ export const VECTOR_REFERENCE_LIMIT = 1_000_000;
 export const VECTOR_PADDING_DEG = 6;
 export type VectorPrimitive = {
   kind: 0 | 1 | 2; // point, segment, filled triangle
+  /** Which part of the feature's style applies; a polygon's ring segments are its outline. */
+  role: 'point' | 'line' | 'fill' | 'outline';
   a: GeographicXY; b: GeographicXY; c: GeographicXY;
   chart: GeographicProjection;
   feature: number;
   color: readonly [number, number, number]; opacity: number;
+  /** Mark radius or stroke half-width in CSS pixels; 0 for fills. */
+  size: number;
+  /** VECTOR_FLAG bits plus the point shape times VECTOR_SHAPE_STEP. */
+  flags: number;
 };
+/** Small integers, exact in float32 textures. */
+export const VECTOR_FLAG = { dashed: 1, halo: 2, hatch: 4 } as const;
+export const VECTOR_SHAPE_STEP = 8;
+/** Extra CSS pixels a halo or outline adds around a mark or stroke. */
+export const VECTOR_HALO_PX = 1.5;
+/** How a feature's style is decided; the default reads only the catalog display defaults. */
+export type GeographicStyleResolver = (layer: GeographicLayer, feature: GeographicFeature) => ResolvedGeographicStyle;
+const defaultStyle: GeographicStyleResolver = (layer, feature) => resolveGeographicStyle(layer, null, feature);
+
+/** A resolved part's colour, opacity, size and flags, as a primitive stores them. */
+function primitiveStyle(style: ResolvedGeographicStyle, role: VectorPrimitive['role']): Pick<VectorPrimitive, 'color' | 'opacity' | 'size' | 'flags'> {
+  const rgb = (hex: string) => new Color(hex).toArray() as [number, number, number];
+  switch (role) {
+    case 'point': return { color: rgb(style.point.color), opacity: style.point.opacity, size: style.point.sizePx / 2,
+      flags: (style.point.halo ? VECTOR_FLAG.halo : 0) + VECTOR_SHAPE_STEP * ['circle', 'square', 'diamond'].indexOf(style.point.shape) };
+    case 'line': return { color: rgb(style.line.color), opacity: style.line.opacity, size: style.line.widthPx / 2,
+      flags: (style.line.dashed ? VECTOR_FLAG.dashed : 0) + (style.line.outline ? VECTOR_FLAG.halo : 0) };
+    case 'fill': return { color: rgb(style.fill.color), opacity: style.fill.opacity, size: 0, flags: style.fill.hatch ? VECTOR_FLAG.hatch : 0 };
+    case 'outline': return { color: rgb(style.outline.color), opacity: style.outline.opacity, size: style.outline.widthPx / 2, flags: 0 };
+  }
+}
 interface DetailLevel {
   size: number;
   height?: number;
@@ -115,8 +143,10 @@ export class GeographicIndex {
   readonly cells: number[][] = Array.from({ length: VECTOR_GRID[0] * VECTOR_GRID[1] }, () => []);
   readonly diagnostics: GeographicRenderDiagnostic[] = [];
   private references = 0;
+  /** Source of each admitted feature, by `feature - 1`, for restyling without re-triangulating. */
+  private readonly sources: { layer: GeographicLayer; feature: GeographicFeature }[] = [];
 
-  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false) {
+  constructor(layers: readonly GeographicLayer[], private readonly fineSinglePage = false, private styleOf: GeographicStyleResolver = defaultStyle) {
     for (const layer of layers) {
       if (layer.definition.display?.visible === false || layer.definition.display?.opacity === 0) continue;
       for (const feature of layer.features) this.addFeature(layer, feature);
@@ -125,21 +155,23 @@ export class GeographicIndex {
 
   private addFeature(layer: GeographicLayer, feature: GeographicFeature): void {
     const staged: VectorPrimitive[] = [];
-    const color = new Color(layer.definition.display?.color ?? '#59c5dd').toArray() as [number, number, number];
-    const opacity = layer.definition.display?.opacity ?? 1;
+    const style = this.styleOf(layer, feature);
+    const styles = new Map<VectorPrimitive['role'], ReturnType<typeof primitiveStyle>>();
     const featureIndex = this.features.length + 1;
-    const emit = (kind: VectorPrimitive['kind'], a: GeographicXY, b = a, c = a, chart: GeographicProjection = 'longitude-latitude') => {
+    const emit = (kind: VectorPrimitive['kind'], role: VectorPrimitive['role'], a: GeographicXY, b = a, c = a, chart: GeographicProjection = 'longitude-latitude') => {
       if (staged.length + this.primitives.length >= VECTOR_PRIMITIVE_LIMIT) throw new Error('primitive budget exceeded');
-      staged.push({ kind, a, b, c, chart, feature: featureIndex, color, opacity });
+      let part = styles.get(role);
+      if (!part) { part = primitiveStyle(style, role); styles.set(role, part); }
+      staged.push({ kind, role, a, b, c, chart, feature: featureIndex, ...part });
     };
     const point = (p: BodyFixedPosition) => {
       const chart: GeographicProjection = Math.abs(p.latDeg) > 80 ? p.latDeg > 0 ? 'north-polar' : 'south-polar' : 'longitude-latitude';
       const xy = projectGeographic(p, chart);
-      emit(0, xy, xy, xy, chart);
+      emit(0, 'point', xy, xy, xy, chart);
     };
-    const line = (points: BodyFixedPosition[], chart: GeographicProjection = 'longitude-latitude') => {
+    const line = (points: BodyFixedPosition[], chart: GeographicProjection = 'longitude-latitude', role: 'line' | 'outline' = 'line') => {
       const xy = projectGeographicRings([points], chart)[0];
-      for (let i = 1; i < xy.length; i++) emit(1, xy[i - 1], xy[i], xy[i], chart);
+      for (let i = 1; i < xy.length; i++) emit(1, role, xy[i - 1], xy[i], xy[i], chart);
     };
     const polygon = (rings: BodyFixedPosition[][]) => {
       const chart = geographicProjection(rings[0]);
@@ -148,8 +180,8 @@ export class GeographicIndex {
       // ShapeUtils delegates to earcut and respects independent hole rings.
       const triangles = ShapeUtils.triangulateShape(xy[0].map(p => new Vector2(...p)), xy.slice(1).map(r => r.map(p => new Vector2(...p))));
       if (!triangles.length) throw new Error('polygon could not be triangulated');
-      for (const [a, b, c] of triangles) emit(2, vertices[a], vertices[b], vertices[c], chart);
-      for (const ring of rings) line(ring, chart);
+      for (const [a, b, c] of triangles) emit(2, 'fill', vertices[a], vertices[b], vertices[c], chart);
+      for (const ring of rings) line(ring, chart, 'outline');
     };
     try {
       const g = feature.geometry;
@@ -174,9 +206,49 @@ export class GeographicIndex {
       bins.forEach((bin, i) => bin.forEach(cell => this.cells[cell].push(first + i)));
       this.references += references;
       this.features.push({ layerId: layer.id, featureId: feature.id, bodyName: layer.body });
+      this.sources.push({ layer, feature });
     } catch (error) {
       this.diagnostics.push({ layerId: layer.id, featureId: feature.id, code: 'vector-budget', message: String(error) });
     }
+  }
+
+  /**
+   * Apply new styles to the admitted primitives in place. Geometry, cells and
+   * pages do not depend on style, so only the record texture needs repacking:
+   * no re-triangulation, no new GPU resources, no shader recompile.
+   */
+  restyle(styleOf: GeographicStyleResolver): void {
+    this.styleOf = styleOf;
+    let feature = 0;
+    let parts = new Map<VectorPrimitive['role'], ReturnType<typeof primitiveStyle>>();
+    let style: ResolvedGeographicStyle | null = null;
+    for (const p of this.primitives) {
+      if (p.feature !== feature) {
+        feature = p.feature; parts = new Map();
+        const source = this.sources[feature - 1];
+        style = source ? styleOf(source.layer, source.feature) : null;
+      }
+      if (!style) continue;
+      let part = parts.get(p.role);
+      if (!part) { part = primitiveStyle(style, p.role); parts.set(p.role, part); }
+      Object.assign(p, part);
+    }
+  }
+
+  /** The largest CSS-pixel reach of any mark or stroke, halo included, for candidate rejection and grid choice. */
+  get reachPx(): number {
+    let reach = 4.5;
+    for (const p of this.primitives) if (p.kind !== 2) reach = Math.max(reach, p.size + 1 + ((p.flags & VECTOR_FLAG.halo) ? VECTOR_HALO_PX : 0));
+    return reach;
+  }
+
+  /** Four RGBA texels per primitive: endpoints; third vertex, kind, chart; colour, opacity; feature, anchor, size, flags. */
+  packRecords(records: Float32Array<ArrayBufferLike> = new Float32Array(this.primitives.length * 16)): Float32Array<ArrayBufferLike> {
+    this.primitives.forEach((p, i) => records.set([
+      ...p.a, ...p.b, ...p.c, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1,
+      ...p.color, p.opacity, p.feature, primitiveAnchor(p), p.size, p.flags,
+    ], i * 16));
+    return records;
   }
 
   /** Bounded strokes-only view of this immutable index for at most two active
@@ -280,11 +352,7 @@ export class GeographicIndex {
    * Each page is a complete grid; no fragment scans more than 256 references.
    * Total pages/references remain bounded by the batch admission budgets. */
   pack(): PackedGeographicIndex {
-    const records = new Float32Array(this.primitives.length * 16);
-    this.primitives.forEach((p, i) => records.set([
-      ...p.a, ...p.b, ...p.c, p.kind, p.chart === 'longitude-latitude' ? 0 : p.chart === 'north-polar' ? 1 : -1,
-      ...p.color, p.opacity, p.feature, primitiveAnchor(p), 0, 0,
-    ], i * 16));
+    const records = this.packRecords();
     const grids = pageCells(this.cells, this.primitives);
     const cells = new Float32Array(grids.length * this.cells.length * 4);
     const details = this.detailGrids();
@@ -314,10 +382,13 @@ export class GeographicIndex {
   }
 
   /** Jacobian columns are the change in degrees for a one-CSS-pixel step. */
-  pick(position: BodyFixedPosition, dx: GeographicXY, dy: GeographicXY, radiusPx = 4): GeographicFeatureRef | null {
+  pick(position: BodyFixedPosition, dx: GeographicXY, dy: GeographicXY, minRadiusPx = 4): GeographicFeatureRef | null {
     let best: { feature: number; rank: number; distance: number } | undefined;
     for (const id of this.cells[geographicCell(position.lonDeg, position.latDeg)]) {
       const p = this.primitives[id];
+      // Invisible parts are not pick targets; a larger mark or wider stroke is easier to hit.
+      if (p.opacity <= 0) continue;
+      const radiusPx = Math.max(minRadiusPx, p.size + 0.5);
       const q = projectGeographic(position, p.chart, primitiveAnchor(p));
       const x = projectGeographic({ lonDeg: position.lonDeg + dx[0], latDeg: position.latDeg + dx[1] }, p.chart, q[0]);
       const y = projectGeographic({ lonDeg: position.lonDeg + dy[0], latDeg: position.latDeg + dy[1] }, p.chart, q[0]);

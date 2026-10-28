@@ -4,6 +4,10 @@
   import LoadingScreen from './components/LoadingScreen.svelte';
   import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
+  import GeographicCallout from './components/GeographicCallout.svelte';
+  import GeographicLabels from './components/GeographicLabels.svelte';
+  import './lib/geographic-styles.svelte';
+  import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
@@ -257,6 +261,8 @@
           // panel's close) clears it.
           else if (vs.probeActive) setProbeActive(false);
           else if (measurements.selectedId) selectMeasurement(null);
+          // A selected surface feature is as small as an event selection.
+          else if (geo.selected) clearGeographicSelection();
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
@@ -600,6 +606,8 @@
 
   {#if !loading && !uiHidden}
     <ViewportHud />
+    <GeographicLabels />
+    <GeographicCallout />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time

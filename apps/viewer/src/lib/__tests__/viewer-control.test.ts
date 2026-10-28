@@ -261,6 +261,7 @@ function makeFakeRenderer(objects: string[]) {
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
     // Point Probe: bound on every scene, not a script verb.
     placeNames: { selectedRef: null as string | null },
+    geographicVectors: { setSelected: vi.fn(), setSourceEnabled: () => {} },
     setPointProbeActive: () => {},
     setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
@@ -520,7 +521,7 @@ describe('navigation verbs', () => {
   });
 
   it('routes geographic double-click to shared Fly and clears place selection on another body', () => {
-    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site',placeKind:'nomenclature'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
       {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
     vs.places=new PlaceIndex([layer]);const place=vs.places.places[0];
     const fly=vi.spyOn(placeActions,'navigateToPlace').mockReturnValue(true);
@@ -528,6 +529,10 @@ describe('navigation verbs', () => {
     doubleClick({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
     expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly',{source:'viewport-dblclick'});
     doubleClick({layerId:place.layer.id,featureId:'stale',bodyName:place.layer.body});
+    // A click on a named place is Places' selection alone: Surface layers lets go of the point.
+    const click=renderer.events.on.mock.calls.find(([event])=>event==='geographic:click')![1];
+    click({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
+    expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.geographicVectors.setSelected).toHaveBeenLastCalledWith(null);
     expect(fly).toHaveBeenCalledTimes(1);fly.mockRestore();
     selectPlace(place);const control=createViewerControl();control.track('Titan');
     expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);

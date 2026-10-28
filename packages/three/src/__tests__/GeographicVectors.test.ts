@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { Universe, parseGeographicGeoJson, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT } from '../geographic/GeographicIndex.js';
+import { Universe, parseGeographicGeoJson, resolveGeographicStyle, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
+import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
+import type { GeographicMaterial } from '../geographic/GeographicMaterial.js';
 import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
 import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
@@ -236,7 +237,7 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(calls).toBe(0);
     expect(h.vectors.featureCount).toBe(0);
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-render-budget', message: expect.stringContaining('391 render pages; limit is 16') }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
     h.vectors.dispose(); h.universe.dispose();
@@ -340,7 +341,7 @@ describe('geographic renderer lifecycle and placement', () => {
     Object.assign(h.body, { terrainDatum: data.datum, surfaceTransitionState: 'streamed' });
     const draw = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
     draw();
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'unsupported-height' }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Mars', h.body]]), null)).toBeNull();
     // Explicit absolute placement is constrained too.
@@ -374,5 +375,168 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(h.vectors.diagnostics[0].code).toBe('unsupported-surface');
     h.vectors.dispose(); h.universe.dispose();
+  });
+});
+
+describe('geographic visibility, feature filters and selection invalidation', () => {
+  const data = () => layer([
+    { type: 'Point', coordinates: [1, 1] },
+    { type: 'LineString', coordinates: [[2, 2], [3, 3]] },
+    { type: 'Polygon', coordinates: [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]] },
+  ]);
+  function filtered() {
+    const h = harness(data());
+    const changes: unknown[] = [];
+    const vectors = new GeographicVectorLayer(h.universe, 1, feature => changes.push(feature));
+    const frame = () => { vectors.begin(); vectors.render(h.renderer, h.camera, [h.body]); vectors.end(); };
+    return { ...h, vectors, changes, frame };
+  }
+
+  it('draws and indexes only the filtered features, and restores all of them when the filter clears', () => {
+    const h = filtered();
+    h.frame();
+    expect(h.vectors.featureCount).toBe(3);
+    h.vectors.setFeatureFilter('science', new Set(['number:1']));
+    h.frame();
+    expect(h.vectors.featureCount).toBe(1);
+    expect(h.vectors.featureFilter('science')).toEqual(new Set(['number:1']));
+    h.vectors.setFeatureFilter('science', new Set());
+    h.frame();
+    expect(h.vectors.featureCount).toBe(0);
+    expect(h.vectors.metrics.batches).toBe(0);
+    h.vectors.setFeatureFilter('science', null);
+    h.frame();
+    expect(h.vectors.featureCount).toBe(3);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('reports visibility from the session override, else the catalog default', () => {
+    const h = filtered();
+    expect(h.vectors.isVisible('science')).toBe(true);
+    h.vectors.setVisible('science', false);
+    expect(h.vectors.isVisible('science')).toBe(false);
+    h.universe.geographicLayers.get('science')!.definition.display = { visible: false };
+    const fresh = new GeographicVectorLayer(h.universe, 1);
+    expect(fresh.isVisible('science')).toBe(false);
+    fresh.dispose(); h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it.each([
+    ['filtered out', (h: ReturnType<typeof filtered>) => h.vectors.setFeatureFilter('science', new Set(['number:1']))],
+    ['hidden', (h: ReturnType<typeof filtered>) => h.vectors.setVisible('science', false)],
+    ['unloaded', (h: ReturnType<typeof filtered>) => { h.universe.geographicLayers.removeCatalog('test'); h.universe.events.emit('geographic:changed', {}); }],
+  ] as const)('clears and announces a selection whose feature is %s', (_, remove) => {
+    const h = filtered();
+    h.frame();
+    h.vectors.setSelected(ref);
+    h.vectors.setHovered(ref);
+    expect(h.changes).toEqual([ref]);
+    remove(h);
+    h.frame();
+    expect(h.vectors.selectedFeature).toBeNull();
+    expect(h.changes).toEqual([ref, null]);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('keeps a selection that remains shown and does not announce unchanged selections', () => {
+    const h = filtered();
+    h.frame();
+    h.vectors.setSelected(ref);
+    h.vectors.setSelected({ ...ref });
+    h.vectors.setFeatureFilter('science', new Set(['number:0', 'number:2']));
+    h.frame();
+    expect(h.vectors.selectedFeature).toEqual(ref);
+    expect(h.changes).toEqual([ref]);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+});
+
+describe('geographic styles', () => {
+  const mixed = () => layer([
+    { type: 'Point', coordinates: [1, 1] },
+    { type: 'LineString', coordinates: [[2, 2], [3, 3]] },
+    { type: 'Polygon', coordinates: [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]] },
+  ]);
+  const roles = (index: GeographicIndex, role: string) => index.primitives.filter(p => p.role === role);
+
+  it('draws the catalog defaults exactly as before styles existed', () => {
+    const index = new GeographicIndex([mixed()]);
+    expect(roles(index, 'point')[0]).toMatchObject({ size: 3.5, flags: 0, opacity: 1 });
+    expect(roles(index, 'line')[0]).toMatchObject({ size: 1, flags: 0, opacity: 1 });
+    expect(roles(index, 'outline')[0]).toMatchObject({ kind: 1, size: 1, opacity: 1 });
+    expect(roles(index, 'fill')[0]).toMatchObject({ kind: 2, size: 0, opacity: 0.14 });
+    expect(index.reachPx).toBe(4.5);
+    const records = index.packRecords();
+    expect([...records.slice(14, 16)]).toEqual([3.5, 0]);
+  });
+
+  it('encodes sizes, shapes and flags per geometry type', () => {
+    const data = mixed();
+    const index = new GeographicIndex([data], false, (l, f) => resolveGeographicStyle(l, {
+      version: 1, point: { sizePx: 12, shape: 'diamond', halo: true }, line: { widthPx: 5, dashed: true, outline: true },
+      polygon: { hatch: true, outlineWidthPx: 3, fillOpacity: 0.5 },
+    }, f));
+    expect(roles(index, 'point')[0]).toMatchObject({ size: 6, flags: VECTOR_FLAG.halo + 2 * VECTOR_SHAPE_STEP });
+    expect(roles(index, 'line')[0]).toMatchObject({ size: 2.5, flags: VECTOR_FLAG.dashed + VECTOR_FLAG.halo });
+    expect(roles(index, 'fill')[0]).toMatchObject({ flags: VECTOR_FLAG.hatch, opacity: 0.5 });
+    expect(roles(index, 'outline')[0]).toMatchObject({ size: 1.5, flags: 0 });
+    expect(index.reachPx).toBe(6 + 1 + VECTOR_HALO_PX);
+  });
+
+  it('restyles a drawing layer in place: same textures and program, new records, no rebuild', () => {
+    const h = harness(mixed());
+    const frame = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
+    frame();
+    const internal = h.vectors as unknown as { batches: { material: GeographicMaterial; index: GeographicIndex }[] };
+    const [batch] = internal.batches;
+    const records = batch.material.textures[0];
+    const version = records.version;
+    h.vectors.setStyle('science', { version: 1, point: { color: '#ff0000', sizePx: 16 } });
+    frame();
+    expect(internal.batches[0]).toBe(batch);
+    expect(batch.material.textures[0]).toBe(records);
+    expect(records.version).toBeGreaterThan(version);
+    expect(h.vectors.metrics.restyles).toBe(1);
+    const data = records.image.data as Float32Array;
+    expect([data[8], data[9], data[10]]).toEqual([1, 0, 0]);
+    expect(data[14]).toBe(8);
+    expect(batch.material.uniforms.vectorReach.value).toBe(9);
+    // Back to the catalog defaults.
+    h.vectors.setStyle('science', null);
+    expect(roles(batch.index, 'point')[0]).toMatchObject({ size: 3.5 });
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('overrides one feature only, and leaves source data untouched', () => {
+    const data = mixed();
+    const before = JSON.stringify(data.features);
+    const index = new GeographicIndex([data], false, (l, f) => resolveGeographicStyle(l, { version: 1, features: { 'number:1': { color: '#000000', opacity: 0.5 } } }, f));
+    expect(roles(index, 'line')[0]).toMatchObject({ color: [0, 0, 0], opacity: 0.5 });
+    expect(roles(index, 'point')[0].opacity).toBe(1);
+    expect(JSON.stringify(data.features)).toBe(before);
+  });
+
+  it('does not pick invisible parts, and picks wider marks from further away', () => {
+    const data = layer([{ type: 'Point', coordinates: [0, 0] }]);
+    const at = (index: GeographicIndex, px: number) => index.pick({ lonDeg: px * 0.0001, latDeg: 0 }, [0.0001, 0], [0, 0.0001]);
+    const plain = new GeographicIndex([data]);
+    expect(at(plain, 6)).toBeNull();
+    const big = new GeographicIndex([data], false, (l, f) => resolveGeographicStyle(l, { version: 1, point: { sizePx: 16 } }, f));
+    expect(at(big, 6)).toEqual(ref);
+    const hidden = new GeographicIndex([data], false, (l, f) => resolveGeographicStyle(l, { version: 1, point: { opacity: 0 } }, f));
+    expect(at(hidden, 0)).toBeNull();
+  });
+
+  it('orders layers sharing a body by the requested order', () => {
+    const first = mixed();
+    const second = { ...layer([{ type: 'Point', coordinates: [1, 1] }]), id: 'other' };
+    const universe = new Universe();
+    universe.geographicLayers.replaceCatalog('test', [first, second].map(l => ({ id: l.id, status: 'ready' as const, layer: l, source: l.source, diagnostics: [] })));
+    const vectors = new GeographicVectorLayer(universe, 1);
+    const order = () => { vectors.begin(); vectors.end(); return (vectors as unknown as { batches: { layers: GeographicLayer[] }[] }).batches[0].layers.map(l => l.id); };
+    expect(order()).toEqual(['science', 'other']);
+    vectors.setLayerOrder(['other']);
+    expect(order()).toEqual(['other', 'science']);
+    vectors.dispose(); universe.dispose();
   });
 });

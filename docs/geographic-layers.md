@@ -60,6 +60,122 @@ Standalone GeoJSON requires a companion catalog: the viewer reports this rather
 than guessing a body or adopting Earth coordinates. This descriptor is also the
 explicit opt-in to the planetary GeoJSON extension. No new import UI is needed.
 
+## Surface layers panel
+
+The viewer's **Surface layers** tool (rail, or "Surface layers" in the command
+palette) is the one place for a scene's surface data. It has three views, and
+the selection decides which one shows (docs/design/surface-layers-ux.md):
+
+- **Layers**: each body's vector layers and its imagery, with a search across
+  every layer's features. A layer row has an eye (show or hide), its name
+  (opens the layer) and a **…** menu: *Show only this layer* and *About this
+  layer*. *Imagery* opens the body's imagery stack (the same controls as the
+  info panel's Imagery section, not a second manager). Layers that failed to
+  load are listed, folded, under the bodies. Physical terrain appearance stays
+  in the info panel.
+- **Layer**: the layer's features. Search matches names and every scalar
+  property value. *Filter* holds the property filter (categories for string
+  fields with at most 24 values, numeric ranges, yes/no, or text), *Only
+  features in view* and *Hide non-matching features in 3D*. *About this layer*
+  holds its source, catalog, coordinate convention, provenance and import
+  notes. The list is virtualized and searches an in-memory index built once per
+  layer, bounded by the import limits; there is no GIS backend.
+- **Feature**: the selected feature's name, kind, position, **Fly to** and its
+  properties, with previous and next to step through the layer's list. The
+  **…** menu frames it without a flight and copies its coordinates (a Point's
+  exact source numbers, with their convention), its stable reference
+  `layerId / featureId`, or its unmodified source geometry. *Location and
+  source* shows the position and extent in the **layer's declared
+  convention**, the convention, the reference and the source. A property is a
+  link only when it is an `http(s)` URL, and opens without access to the
+  viewer.
+
+Selection is shared with the scene. Clicking a feature in 3D selects and
+highlights it without opening anything over the scene. One callout names it;
+the callout's ✈ flies there and its name opens the Feature view. Clicking a
+search result or a row opens the feature; arrow keys skim a layer's list,
+highlighting each feature in the scene, and Enter opens one.
+Selecting never moves the camera. Fly to flies over the feature's extent through
+the shared navigation (docs/navigation.md); bodies that are not globes disable
+it, with the reason. Back, or Escape, clears the selection and returns to the
+feature's layer, at the feature; Back again returns to the list.
+
+The rules that keep the views and the scene consistent:
+
+- Hiding a layer, or hiding non-matching features in 3D, clears a selection it
+  hides and says why. Selecting a feature of a hidden layer shows that layer
+  first.
+- The search and filters change only the list unless *Hide non-matching
+  features in 3D* is on.
+- Visibility, filters and selection reset when a scene loads. Closing the
+  panel turns off hiding in 3D.
+
+## Layer styles
+
+A layer's **Style** tab (in its Layer view, or *Style* in a layer row's
+**…** menu) starts with what most annotations need:
+
+- **Colour**: six restrained presets (Okabe–Ito hues, readable for common
+  colour-vision deficiencies) or a custom colour. One colour styles points,
+  lines, area outlines and fill together, and stops any colouring by property.
+- **Opacity**, and only the sizes the layer has: **Point size** (screen pixels
+  at every distance), **Line width** (lines and area outlines), **Fill** (area
+  fill opacity; holes stay open).
+- **Labels**: on or off, labelled with the name or a property (the property
+  names are read from appears once, as *Name*).
+
+**More options** holds the rest: *Colour by* a **category** palette or a
+**number** ramp over a property, with a legend built from the layer's actual
+values and counts that warns about missing values, non-numbers and fields with
+too many values (each category's colour is editable; values beyond the palette
+share *Other*); point shape and halo; dashed lines and a dark outline; separate
+area fill and outline colours and hatching; and label text size, how many show
+at most, a camera range beyond which they hide, and a contrast halo.
+
+Labels are decluttered: overlapping labels are dropped, keeping those already
+shown so a resting view does not reshuffle, and labels past the horizon hide.
+Candidates are chosen by where features are (past the horizon, then off
+screen, are dropped first), never by source order, so a large layer labels what
+is in view. Labels sit on the surface as drawn (globe facets or terrain tiles,
+found by a ray down the normal, shared with the selection callout and edit
+handles). Those heights are cached per datum only while the drawn surface stays
+the same (which globe and tile meshes are visible): when terrain refines, the
+next frame samples the new triangles the fill is drawn on. Where nothing is
+drawn under a label's point (tiles culled outside the view) it does not show,
+rather than float on the datum. Labels hide where that drawn surface is in the
+way (a line of sight against globe facets or terrain tiles), not by a horizon
+guess: a rim higher than a camera down in a crater stays labelled. The line of
+sight stops 3 m short of the point along the surface normal (more along the
+ray at shallow angles, capped near grazing), not a fraction of the distance, so
+a ridge just in front of a distant point still hides it. Close to a large area or a long line, whose anchor is then off
+screen or over the horizon, the label goes on a part of it in view: the point it
+used last time while that stays visible, else the surface under the middle of
+the view where it lies inside the area (or on the line), else one of the
+feature's own interior or along-line samples nearest the centre. The selected
+feature is named by its callout instead. `scripts/test-geographic-close-zoom.mjs`
+checks this on streamed Mars terrain from orbit to about 1 km while tiles
+refine, including that each label sits on the surface as drawn (a pick at its
+pixel lands within 1% of the range of its point).
+
+A feature's own colour is set from its Feature view, under *Appearance*: *Give
+this feature its own colour* (and opacity) changes only that feature; turning
+it off returns it to the layer's style.
+
+Changes preview live by restyling in place, without rebuilding the layer.
+**Reset to catalog style** returns to the catalog's defaults, single features'
+colours included. The style is a small declarative object
+(`GeographicLayerStyle`, versioned, in `@cosmolabe/core`): layer defaults per
+geometry type, one optional property rule, labels, and per-feature colours keyed
+by stable feature ID. Opacities multiply: catalog display × layer × part ×
+feature. It is kept in this browser's localStorage, keyed by the layer's catalog
+and ID (at most 64 layers and 256 KiB; the least recently edited go first), and
+restored when the same catalog loads or the layer is installed later in the
+session (drawn and imported layers); a stored style is validated and any
+invalid part is ignored with a reason. It is never written into the catalog or
+the data. Draw order among a body's vector layers (*Draw above/below other
+layers* in the **…** menus; earlier draws over later where fills overlap) is for
+the session.
+
 ## Coordinate interpretation
 
 RFC 7946 GeoJSON itself means Earth WGS84. Planetary GeoJSON is an explicit
