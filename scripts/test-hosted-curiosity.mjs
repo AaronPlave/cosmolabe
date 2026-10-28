@@ -24,10 +24,13 @@ const page = await context.newPage(); page.setDefaultTimeout(180000);
 page.on('console', message => { if (message.type() === 'error') console.log('browser: ' + message.text().slice(0, 400)); });
 const cdp = await context.newCDPSession(page);
 await cdp.send('Network.enable'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
-const report = { passed: false, coldBrowserCache: true, catalogInterception: false, publicationIdentity: receipt.publicationIdentity,
-  products: {}, errors: [], views: [], controls: [], navigation: [], regressions: [] }, pending = [];
+const vikingPrefix = expected.items.find(i => i.name === 'Mars').geometry.imagery[0].url.replace(/imagery.json$/, '');
+const report = { passed: false, coldBrowserCache: true, catalogInterception: false, publicationIdentity: receipt.publicationIdentity, vikingRequests: 0,
+  products: {}, errors: [], transportFailures: [], views: [], controls: [], navigation: [], regressions: [] }, pending = [];
 page.on('pageerror', e => report.errors.push(e.message));
+page.on('requestfailed', request => report.transportFailures.push({ url: request.url(), reason: request.failure()?.errorText }));
 page.on('response', response => {
+  if (response.status() === 200 && response.url().startsWith(vikingPrefix)) report.vikingRequests++;
   if (response.status() >= 400 && !response.url().endsWith('favicon.ico')) report.errors.push(`${response.status()} ${response.url()}`);
   const product = receipt.products.find(p => response.url().startsWith(receipt.baseUrl + '/' + p.prefix));
   if (product && response.status() === 200) {
@@ -53,6 +56,7 @@ const settle = async body => {
 const snapshot = () => page.evaluate(() => {
   const r = window.renderer, b = r.getBodyMesh('Mars');
   return { fixed: b.getSurfaceOverlays().map(o => o.tiles.group.matrix.toArray()),
+    assets: r.initialAssetsSummary,
     models: b.getSurfaceOverlays().map(o => o.tiles.visibleTiles.size), imagery: b.imageryLayers,
     cube: b.terrainManager.cubeStats, images: b.terrainManager.cubeImageryStats,
     cameraToRoverKm: r.camera.position.distanceTo(r.getBodyMesh('Curiosity').position) / r.scaleFactor };
@@ -72,7 +76,9 @@ try {
   report.gpu = await page.evaluate(() => { const gl = window.renderer.getContext().webglRenderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
     return gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER); });
   assert.doesNotMatch(report.gpu, /swiftshader|llvmpipe|software/i);
-  const fixed = (await snapshot()).fixed;
+  const initial = await snapshot(), fixed = initial.fixed;
+  assert.equal(initial.assets.failed, 0); assert.equal(initial.assets.timedOut, false);
+  report.initialAssets = initial.assets;
   for (const view of ['Mars Orbit', 'Dingo Gap Approach', 'Curiosity Close-up', 'Dingo Gap Daylight']) {
     assert.equal(await page.evaluate(view => window.cosmo.viewpoint(view), view), true);
     await settle('Mars');
@@ -84,7 +90,21 @@ try {
     await page.screenshot({ path: `${out}/${view.toLowerCase().replaceAll(' ', '-')}.png` });
     console.log('hosted view: ' + view);
   }
-  // Exercise the same independent stack API used by the existing imagery UI.
+  // Use the real existing UI once before exercising all stack combinations.
+  await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
+  await page.getByRole('button', { name: 'Mars imagery', exact: true }).click();
+  const ctxCheckbox = page.getByRole('checkbox', { name: 'Show Gale · CTX', exact: true });
+  await ctxCheckbox.uncheck();
+  await page.waitForFunction(() => !window.renderer.getBodyMesh('Mars').imageryLayers.find(l => l.id === 'gale-ctx').visible);
+  await ctxCheckbox.check();
+  await page.getByRole('button', { name: 'Gale · CTX details', exact: true }).click();
+  const opacity = page.getByRole('slider', { name: 'Gale · CTX opacity', exact: true });
+  await opacity.focus(); await opacity.press('Home');
+  for (let i = 0; i < 12; i++) await opacity.press('ArrowRight');
+  await page.waitForFunction(() => window.renderer.getBodyMesh('Mars').imageryLayers.find(l => l.id === 'gale-ctx').opacity === .6);
+  await page.screenshot({ path: `${out}/imagery-controls.png` }); report.imageryUiPassed = true;
+  await page.getByRole('button', { name: 'Close Surface layers', exact: true }).click();
+  // Exercise the same independent stack API over all combinations.
   for (const id of ['viking', 'gale-ctx', 'curiosity-hirise']) {
     await page.evaluate(id => { const b = window.renderer.getBodyMesh('Mars');
       for (const l of b.imageryLayers) b.setImageryLayerVisible(l.id, l.id === id || l.id === 'viking');
@@ -95,6 +115,7 @@ try {
     assert.equal(id === 'viking' ? state.imagery[0].id : state.imagery.at(-1).id, id);
     assert.deepEqual(state.fixed, fixed);
     assert.equal(state.images.baseUncoveredBlocks, 0); report.controls.push({ id, imagery: state.imagery });
+    console.log('hosted controls: ' + id);
   }
   await page.evaluate(() => { const b = window.renderer.getBodyMesh('Mars');
     for (const [i, id] of ['viking', 'gale-ctx', 'curiosity-hirise'].entries()) {
@@ -130,6 +151,7 @@ try {
     assert.ok(clearance != null && clearance >= .09, 'Camera must clear both physical and drawn ground');
     report.navigation.at(-1).clearanceM = clearance;
     assert.deepEqual((await snapshot()).fixed, fixed);
+    console.log('hosted navigation: ' + northM);
   }
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.renderer?.getBodyMesh('Mars')?.hasSurfaceTiles);
@@ -137,6 +159,7 @@ try {
   await settle('Mars'); assert.deepEqual((await snapshot()).fixed, fixed); report.reloadTransformStable = true;
   await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: `${out}/compact.png` });
   await Promise.all(pending);
+  assert.ok(report.vikingRequests > 0, 'Existing immutable Viking base must be fetched');
   for (const p of receipt.products) {
     const observed = report.products[p.productId]; assert.ok(observed?.requests > 0, p.productId);
     assert.match(observed.sample.headers.server, /cloudflare/i);
@@ -151,10 +174,11 @@ try {
     await page.evaluate(async view => { await window.renderer.waitForInitialAssets(); window.cosmo.setPlaying(false); if (view && !window.cosmo.viewpoint(view)) throw new Error('Missing regression viewpoint'); }, view);
     await settle(body);
     const state = await page.evaluate(body => { const r = window.renderer, b = r.getBodyMesh(body), c = r.camera.position;
-      return { cube: b.terrainManager.cubeStats, imagery: b.terrainManager.cubeImageryStats, finiteCamera: c.toArray().every(Number.isFinite), surface: b.surfaceTransitionState };
+      return { assets: r.initialAssetsSummary, cube: b.terrainManager.cubeStats, imagery: b.terrainManager.cubeImageryStats, finiteCamera: c.toArray().every(Number.isFinite), surface: b.surfaceTransitionState };
     }, body);
     assert.equal(state.finiteCamera, true); if (state.imagery) assert.equal(state.imagery.baseUncoveredBlocks, 0);
     report.regressions.push({ catalog, view, ...state }); await page.screenshot({ path: `${out}/${catalog}.png` });
+    console.log('hosted regression: ' + catalog);
   }
   assert.deepEqual(report.errors, []); report.passed = true;
 } catch (error) {

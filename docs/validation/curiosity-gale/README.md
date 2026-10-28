@@ -69,6 +69,27 @@ retains its requested pose and recovers only above both drawn and physical
 ground as refinement arrives. Any camera/target/focus input cancels recovery.
 Neither rover nor mesh moves to follow terrain.
 
+The retained [browser acceptance](browser/acceptance.json) records the actual
+Apple M4 Max / Metal GPU, numerical SPICE checks, cache release from 40,122,508
+bytes to zero, forced failure/recovery, independent source responses, five
+50 m ground-navigation checks and both mission smoke checks. All tracked
+models/textures loaded, with no page exceptions or missing mandatory base
+blocks. The hosted run exercised the real CTX checkbox and keyboard-operated
+opacity slider. A cancelled CTX request and a reset background `mar099s.bsp`
+transfer occurred during catalog changes and remain disclosed in the report.
+The final nested-group priority propagation was separately rechecked with both
+meshes through the complete development-browser lifecycle; the recorded hosted
+bundle preceded that small fix.
+
+Selected unmodified captures: [daylight](browser/dingo-gap-daylight.png),
+[rover close-up](browser/curiosity-close-up.png),
+[imagery controls](browser/imagery-controls.png),
+[compact](browser/compact.png). The rover close-up preserves the legitimate
+SPICE/orbital-ground discrepancy; screenshots do not establish absolute accuracy.
+Validation also passed 111 focused renderer tests after merging current main,
+14 Python fixture tests, the 12 shared executor tests, package build, test/viewer/
+Svelte type checks and changed-file lint. No new device testing gate was added.
+
 ## Reproduce without publication
 
 Use the exact source hashes and toolchain versions in the lock. GDAL Python
@@ -77,6 +98,10 @@ label/image are external inputs; the original Gale crop, NASA scene/tileset,
 root tile and exact PLACES control rows are checked in. Mutable upstream
 services may change: original-response replay fails on changed hashes rather
 than substituting new bytes into an existing identity.
+
+External originals: [USGS HRSC/MOLA 200 m v2](https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif),
+[MEG016 label](https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.lbl)
+and [image](https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg016/mega90n000eb.img).
 
 ```sh
 npm run build
@@ -94,12 +119,12 @@ python3 scripts/terrain/audit_curiosity_registration.py \
   --areoid "$AREOID_DIR/MEGA90N000EB.LBL" --spice "$RUN/spice-states.json" \
   --control-snapshot docs/validation/curiosity-gale/evidence/places-control-snapshot.json \
   --out "$RUN/source-registration.json"
+# If BASE has no overview, first reproduce its original overview dependency:
+# gdaladdo -ro -r average "$BASE" 2 4 8 16 32 64 128 256
 python3 scripts/terrain/dem.py fuse --base "$BASE" \
   --detail "$RUN/inputs/gale-dingo-dem-window.tif" --out "$RUN/fusion" \
   --blend-m 50 --fit-stride 8 --bias none \
   --vertical-datum 'MOLA areoid topography; unchanged source elevations'
-# If BASE has no overview, first reproduce its original overview dependency:
-# gdaladdo -ro -r average "$BASE" 2 4 8 16 32 64 128 256
 python3 scripts/terrain/acquire_cube_xyz.py \
   --replay-bundle docs/validation/curiosity-gale/evidence/gale-ctx-bounded.json.gz \
   --out "$RUN/ctx" --workers 8

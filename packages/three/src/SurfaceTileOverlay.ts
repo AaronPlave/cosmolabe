@@ -54,6 +54,10 @@ export class SurfaceTileOverlay {
         // Force DoubleSide so tiles are visible regardless of face orientation.
         scene.traverse((child: any) => {
           child.frustumCulled = false;
+          // Three's nested groups replace inherited groupOrder. Propagate the
+          // site's order through the loaded hierarchy so inner glTF groups do
+          // not silently erase the catalog's coincident-site priority.
+          child.renderOrder = this.priority;
           if (child.isMesh && child.material) {
             child.material.side = THREE.DoubleSide;
           }
@@ -120,6 +124,7 @@ export class SurfaceTileOverlay {
     this.ecefPositionKm = new THREE.Vector3().setFromMatrixPosition(mat);
 
     this.tiles.group.matrixAutoUpdate = false;
+    this.tiles.group.renderOrder = this.priority;
     this.tiles.group.matrix.copy(mat);
     this.tiles.group.matrixWorldNeedsUpdate = true;
 
