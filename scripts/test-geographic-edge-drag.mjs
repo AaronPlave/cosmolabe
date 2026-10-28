@@ -9,7 +9,10 @@
  * release reached the scene. The drag here crosses a neighbouring vertex on
  * its way out, as a quick drag across a shape does. Now the drag
  * must end on release, with no preview left, the shape still being edited,
- * and the vertex where it was let go (held to the edge of the view).
+ * one edit committed, the camera unmoved, and the vertex saved where it was
+ * let go: the surface under the edge of the view at release (held there).
+ * Its handle is then drawn near that edge; how near depends on the terrain
+ * refining under it after release, so that is checked loosely and logged.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
  * CL_GPU=hardware (Chrome with Metal). */
@@ -26,6 +29,7 @@ try {
   page.setDefaultTimeout(180_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => { window.__module = (path) => import(performance.getEntriesByType('resource').map((e) => e.name).filter((url) => new URL(url).pathname === path).at(-1) ?? path); });
   await page.goto(`${base}?test=1&catalog=test-catalogs/geographic-vectors-mars-streamed`);
   await page.waitForFunction(() => window.renderer?.geographicVectors.featureCount > 0);
   await page.evaluate(() => window.renderer.applyNamedViewpoint('Gale regional'));
@@ -58,7 +62,21 @@ try {
   // Quickly: onto the neighbouring vertex, then out past the edge (off the window, as a fast drag goes).
   for (const [x, y] of [[neighbour.x, neighbour.y], [canvasLeft + 30, handle.y], [canvasLeft - 120, handle.y]]) await page.mouse.move(x, y, { steps: 1 });
   const during = await page.locator('.edit-overlay .preview').count();
+  /** The edited feature's vertices, the edit revision and the camera. */
+  const snapshot = () => page.evaluate(async () => {
+    const e = await window.__module('/src/lib/geographic-editing.svelte.ts');
+    const at = e.editingFeature(), f = at && e.editFeature(at.layerId, at.featureId);
+    return { revision: e.edits.revision, canUndo: e.canUndo(at?.layerId), coordinates: f?.geometry.coordinates.flat(3), camera: window.renderer.camera.position.toArray() };
+  });
+  const before = await snapshot();
   await page.mouse.up();
+  // At release: the surface under the pointer, held to the canvas edge, and the size of a pixel there.
+  const release = await page.evaluate(async (y) => {
+    const e = await window.__module('/src/lib/geographic-editing.svelte.ts'), r = window.renderer;
+    const layer = e.editLayer(e.editingFeature().layerId), top = r.renderer.domElement.getBoundingClientRect().top;
+    return { at: e.surfacePosition(r, layer, 0, y - top), next: e.surfacePosition(r, layer, 10, y - top) };
+  }, handle.y);
+  const committed = await snapshot();
   await page.waitForTimeout(800);
   // Then wander, as the pointer does after a release.
   await page.mouse.move(handle.x + 150, handle.y + 120, { steps: 5 });
@@ -69,10 +87,24 @@ try {
     return { previews: document.querySelectorAll('.edit-overlay .preview').length, vertexX: b ? b.left + b.width / 2 : null };
   }, handle.label);
   const editing = await toolbar.isVisible();
-  console.log(JSON.stringify({ handle, neighbour, canvasLeft, during, ...after, editing, errors }));
+  // The one vertex that changed, and how far (in pixels at the edge) it is from where it was let go.
+  const moved = [];
+  for (let i = 0; i + 1 < committed.coordinates.length; i += 2) {
+    if (committed.coordinates[i] !== before.coordinates[i] || committed.coordinates[i + 1] !== before.coordinates[i + 1]) moved.push([committed.coordinates[i], committed.coordinates[i + 1]]);
+  }
+  const deg = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const savedPx = moved.length && release.at && release.next ? 10 * deg(moved[0], release.at) / deg(release.next, release.at) : null;
+  console.log(JSON.stringify({ handle, neighbour, canvasLeft, during, ...after, editing, revisions: committed.revision - before.revision, moved, release, savedPx, errors }));
   assert.ok(during > 0, 'the drag previewed the change');
   assert.equal(after.previews, 0, 'the drag ended on release: no preview left behind');
   assert.ok(editing, 'the shape is still being edited');
-  assert.ok(after.vertexX !== null && after.vertexX >= canvasLeft - 1 && after.vertexX < canvasLeft + 60, `the vertex went where it was let go, held to the edge (x ${after.vertexX})`);
+  assert.equal(committed.revision - before.revision, 1, 'the release committed one edit');
+  assert.ok(committed.canUndo, 'and it can be undone');
+  assert.deepEqual(committed.camera, before.camera, 'the release did not reach the camera');
+  // Ends of the closing ring repeat the vertex; both move together.
+  assert.ok(moved.length >= 1 && moved.every((p) => p[0] === moved[0][0] && p[1] === moved[0][1]), `one vertex moved (${JSON.stringify(moved)})`);
+  assert.ok(savedPx !== null && savedPx < 2, `the vertex was saved where it was let go, held to the edge (${savedPx?.toFixed(2)} px off)`);
+  // Drawn later on the surface as it refines: near the edge, not where the pointer went.
+  assert.ok(after.vertexX !== null && after.vertexX >= canvasLeft - 8 && after.vertexX < canvasLeft + 60, `its handle is drawn at the edge (x ${after.vertexX})`);
   assert.deepEqual(errors, []);
 } finally { await browser.close(); }
