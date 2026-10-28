@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { InstantEvent } from '@cosmolabe/core';
+import { Body, Universe, CompositeTrajectory, InterpolatedStatesTrajectory } from '@cosmolabe/core';
 import {
   analysis,
   analysisContext,
@@ -17,8 +18,10 @@ import {
   updateConfiguredEventQuery,
   updateConfiguredProfile,
   visibleTimelineEvents,
+  allTimelineEvents,
+  setCatalogActivities,
 } from '../analysis.svelte';
-import { vs } from '../viewer-state.svelte';
+import { vs, syncBodies, onViewerEvent } from '../viewer-state.svelte';
 
 const event: InstantEvent = {
   id: 'result-1',
@@ -36,6 +39,47 @@ describe('viewer analysis state', () => {
     vs.et = 150;
     vs.scrubBaseMin = 100;
     vs.scrubBaseMax = 200;
+  });
+
+  it('shares catalog activities with timeline selection without inventing searches or enabling 3D result overlays', () => {
+    const activity = { ...event, id: 'drive-1', queryId: 'activity:Rover', kind: 'mission-activity' };
+    setCatalogActivities([activity]);
+    expect(analysis.items).toEqual([]);
+    expect(visibleTimelineEvents()).toEqual([activity]);
+    expect(allTimelineEvents()).toEqual([activity]);
+    expect(analysisContext().eventResults).toEqual([]);
+    const query = createConfiguredEventQuery({ kind: 'closest-approach' }, 'Approaches');
+    const result = { ...event, queryId: query.id };
+    setEventResults(query.id, [result]);
+    expect(visibleTimelineEvents()).toEqual([activity, result]);
+    setConfiguredItemVisible(query.id, false);
+    expect(visibleTimelineEvents()).toEqual([activity]);
+    expect(allTimelineEvents()).toEqual([activity, result]);
+    setCatalogActivities([]);
+    expect(visibleTimelineEvents()).toEqual([]);
+    setCatalogActivities([activity]);
+    resetAnalysis();
+    expect(allTimelineEvents()).toEqual([]);
+  });
+
+  it('registers the new catalog activities after scene-reset listeners, and clears them on the next catalog', () => {
+    const universe = new Universe();
+    universe.addBody(new Body({ name: 'Rover', trajectoryPlot: { timelineLabel: 'Drive' },
+      trajectory: new CompositeTrajectory([{ startTime: 100, endTime: 1000,
+        trajectory: new InterpolatedStatesTrajectory([
+          { et: 100, position: [1, 0, 0], velocity: [0, 0, 0] },
+          { et: 120, position: [1, 1, 0], velocity: [0, 0, 0] },
+        ]),
+      }]),
+    }));
+    const unsubscribe = onViewerEvent('load', () => resetAnalysis());
+    try {
+      syncBodies(universe);
+      expect(visibleTimelineEvents()).toMatchObject([{ label: 'Rover Drive 1', start: 100, end: 120 }]);
+      expect(analysis.items).toEqual([]);
+      syncBodies(new Universe());
+      expect(allTimelineEvents()).toEqual([]);
+    } finally { unsubscribe(); }
   });
 
   it('keeps configured items stable while their configuration changes', () => {

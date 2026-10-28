@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { LOG_DEPTH_PATCH, patchLogDepthPrecision } from './LogDepth.js';
+import { LOG_DEPTH_COVERAGE_PATCH, LOG_DEPTH_PATCH, patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
 
 // The depth a fragment writes, in float32 and quantised to a 24-bit buffer, at view
 // depth w (scene units) with the far plane at `far`: three's formula and the patched one.
@@ -14,6 +14,51 @@ const patchedDepth = (w: number, far: number) => quantise(f(f(Math.log2(f(1 + f(
 const unpatched = () => ({
   logdepthbuf_vertex: THREE.ShaderChunk.logdepthbuf_vertex.replace(LOG_DEPTH_PATCH.vertex, 'vFragDepth = 1.0 + gl_Position.w;'),
   logdepthbuf_fragment: THREE.ShaderChunk.logdepthbuf_fragment.replace(LOG_DEPTH_PATCH.fragment, 'log2( vFragDepth ) * logDepthBufFC * 0.5'),
+});
+
+describe('patchLogDepthCoverage', () => {
+  const original = () => ({
+    logdepthbuf_pars_vertex: THREE.ShaderChunk.logdepthbuf_pars_vertex.replace(LOG_DEPTH_COVERAGE_PATCH, 'varying float vFragDepth;'),
+    logdepthbuf_pars_fragment: THREE.ShaderChunk.logdepthbuf_pars_fragment.replace(LOG_DEPTH_COVERAGE_PATCH, 'varying float vFragDepth;'),
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('uses matching centroid interpolation in both shader stages, idempotently', () => {
+    const chunks = original();
+    expect(patchLogDepthCoverage(chunks)).toBe(true);
+    for (const source of Object.values(chunks)) expect(source).toContain(LOG_DEPTH_COVERAGE_PATCH);
+    const once = { ...chunks };
+    expect(patchLogDepthCoverage(chunks)).toBe(true);
+    expect(chunks).toEqual(once);
+  });
+
+  it.each(['logdepthbuf_pars_vertex', 'logdepthbuf_pars_fragment'] as const)('completes a half-patched %s without mismatched interpolation', key => {
+    const chunks = original();
+    chunks[key] = chunks[key].replace('varying float vFragDepth;', LOG_DEPTH_COVERAGE_PATCH);
+    expect(patchLogDepthCoverage(chunks)).toBe(true);
+    for (const source of Object.values(chunks)) expect(source).toContain(LOG_DEPTH_COVERAGE_PATCH);
+  });
+
+  it.each([undefined, 'varying float renamedDepth;'])('leaves both declarations untouched if a stage is unsupported (%s)', declaration => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const chunks = { ...original(), logdepthbuf_pars_fragment: declaration };
+    const before = { ...chunks };
+    expect(patchLogDepthCoverage(chunks)).toBe(false);
+    expect(chunks).toEqual(before);
+  });
+
+  it('preserves the physical depth formula and other interpolants', () => {
+    const chunks = { ...original(), ...unpatched() };
+    patchLogDepthPrecision(chunks);
+    const formula = { vertex: chunks.logdepthbuf_vertex, fragment: chunks.logdepthbuf_fragment };
+    patchLogDepthCoverage(chunks);
+    expect(chunks.logdepthbuf_vertex).toBe(formula.vertex);
+    expect(chunks.logdepthbuf_fragment).toBe(formula.fragment);
+    for (const key of ['logdepthbuf_pars_vertex', 'logdepthbuf_pars_fragment'] as const) {
+      expect(chunks[key].replace(LOG_DEPTH_COVERAGE_PATCH, 'varying float vFragDepth;')).toBe(original()[key]);
+    }
+  });
 });
 
 describe('patchLogDepthPrecision', () => {

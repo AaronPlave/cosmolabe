@@ -10,6 +10,77 @@ from osgeo import gdal, ogr
 sys.dont_write_bytecode = True
 gdal.UseExceptions()
 
+BASES={'px':((1,0,0),(0,0,-1),(0,1,0)),'nx':((-1,0,0),(0,0,1),(0,1,0)),
+       'py':((0,1,0),(1,0,0),(0,0,-1)),'ny':((0,-1,0),(1,0,0),(0,0,1)),
+       'pz':((0,0,1),(1,0,0),(0,1,0)),'nz':((0,0,-1),(-1,0,0),(0,1,0))}
+
+
+def validate_large_native(ds, meta, manifest_path, requested):
+    """Bounded original-native windows for full mission orthomosaics.
+
+    Continuous requested output coverage is proved geometrically. Pixel checks
+    are stratified samples of finest output tiles, read from the original source
+    with native 2x2 windows. Never allocate the multi-gigapixel source in RAM.
+    This branch requires finest outputs to use native pixels (no overview).
+    Coarse filtering is covered separately by the small exhaustive fixture.
+    """
+    gt=ds.GetGeoTransform(); radius=ds.GetSpatialRef().GetSemiMajor()
+    T,g=meta['tileSize'],meta['gutter']; level=meta['maxLevel']; available=set(meta['tiles'])
+    spacing=2*radius/(T*2**level)
+    assert spacing*.4 < gt[1], 'large native reference requires native-resolution finest output'
+    continuous=[]
+    for request in requested or []:
+        assert spacing <= request['outputGsdM'], 'emitted spacing exceeds request'
+        for feature in request['geometry']['features']:
+            geometry=ogr.CreateGeometryFromJson(json.dumps(feature['geometry']))
+            parts=[geometry.GetGeometryRef(i) for i in range(geometry.GetGeometryCount())] if geometry.GetGeometryName()=='MULTIPOLYGON' else [geometry]
+            for part in parts:
+                continuous.append(continuous_coverage(part.GetEnvelope(),level,available,BASES))
+    band=ds.GetRasterBand(1); mask=band.GetMaskBand(); nodata=band.GetNoDataValue()
+    def native(lon,lat):
+        px=(lon*radius-gt[0])/gt[1]-.5;py=(lat*radius-gt[3])/gt[5]-.5
+        if px<0 or py<0 or px>=ds.RasterXSize-1 or py>=ds.RasterYSize-1:return 0.,0.
+        c,r=math.floor(px),math.floor(py);fx,fy=px-c,py-r
+        values=band.ReadAsArray(c,r,2,2).astype(float)
+        valid=(mask.ReadAsArray(c,r,2,2)>0)&np.isfinite(values)
+        if nodata is not None:valid &= values!=nodata
+        weights=np.array([[(1-fx)*(1-fy),fx*(1-fy)],[(1-fx)*fy,fx*fy]])*valid
+        return float((np.where(valid,values,0)*weights).sum()),float(weights.sum())
+    finest=sorted(tile for tile in meta['tiles'] if int(tile.split('/')[1])==level)
+    selected=finest[::max(1,len(finest)//96)]
+    errors=[];alpha_errors=[];values=[];gutter=[];rows=[]
+    ss=meta.get('generator',{}).get('supersample',1)
+    for tile in selected:
+        face,L,x,y=tile.split('/'); L,x,y=map(int,(L,x,y));size=2/2**L
+        image=gdal.Open(str(Path(manifest_path).parent/'tiles'/f'{tile}.png'))
+        grey=image.GetRasterBand(1).ReadAsArray();alpha=image.GetRasterBand(image.RasterCount).ReadAsArray()
+        N,U,V=(np.array(v,float) for v in BASES[face]);checked=0
+        for row in [0,g,T//2+g,T+g-1,T+2*g-1]:
+            for col in [0,g,T//2+g,T+g-1,T+2*g-1]:
+                total=weight=0.
+                for sy in range(ss):
+                    for sx in range(ss):
+                        u=-1+x*size+(col+(sx+.5)/ss-g)*size/T
+                        v=-1+(y+1)*size-(row+(sy+.5)/ss-g)*size/T
+                        p=N+u*U+v*V
+                        value,valid=native(math.atan2(p[1],p[0]),math.atan2(p[2],math.hypot(p[0],p[1])))
+                        total+=value;weight+=valid
+                if weight<=0:continue
+                expected=total/weight;error=float(grey[row,col])-expected
+                errors.append(error);alpha_errors.append(abs(float(alpha[row,col])-255*weight/(ss*ss)));values.append(expected);checked+=1
+                if row<g or col<g or row>=g+T or col>=g+T:gutter.append(error)
+        if checked:rows.append({'tile':tile,'checkedPixels':checked})
+    assert len(errors)>=64 and np.std(values)>1,'insufficient native texture samples'
+    assert max(abs(e) for e in errors)<=.501,'native-window registration exceeds byte quantization'
+    assert max(alpha_errors)<=.501,'native-window mask exceeds byte quantization'
+    return {'method':'stratified finest-output and gutter samples; independent affine inversion and native 2x2 masked windows; no staged overview reads',
+            'continuousRequestedCoverage':continuous,'maximumOutputSpacingM':spacing,'checkedPixels':len(errors),
+            'maximumErrorDn':max(abs(e) for e in errors),'maximumAlphaErrorDn':max(alpha_errors),
+            'rmsErrorDn':float(np.sqrt(np.mean(np.square(errors)))),'checkedGutterPixels':len(gutter),
+            'maximumGutterErrorDn':max((abs(e) for e in gutter),default=None),'nativeValueStdDevDn':float(np.std(values)),
+            'sourcePixelSizeM':gt[1],'tiles':rows,'absoluteGeolocationErrorM':None,
+            'note':'Sampled preservation of source registration/texture plus continuous requested output-tile coverage; not exhaustive native validity or absolute geolocation certification.'}
+
 
 def continuous_coverage(bounds, level, available, bases):
     """Conservative interval enclosure of an entire bounded lon/lat rectangle.
@@ -52,6 +123,8 @@ def validate(source_path, source, manifest_path, requested=None):
     gt = ds.GetGeoTransform(); radius = ds.GetSpatialRef().GetSemiMajor()
     assert abs(gt[1]+gt[5]) < 1e-12 and gt[2] == gt[4] == 0
     meta = json.loads(Path(manifest_path).read_text()); T,g = meta['tileSize'],meta['gutter']
+    if ds.RasterXSize*ds.RasterYSize > 16000000:
+        return validate_large_native(ds,meta,manifest_path,requested)
     # Independently specified face bases and explicit affine source inversion.
     # Do not call the builder's coordinate or sampling functions here.
     bases={'px':((1,0,0),(0,0,-1),(0,1,0)),'nx':((-1,0,0),(0,0,1),(0,1,0)),

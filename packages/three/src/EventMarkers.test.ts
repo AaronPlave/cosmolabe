@@ -21,6 +21,24 @@ function marker(overrides: Partial<EventMarker> = {}): EventMarker {
 afterEach(() => vi.restoreAllMocks());
 
 describe('EventMarkers', () => {
+  it('keeps cached glyphs and span anchors registered as a local plot rotates and translates', () => {
+    const transform = new THREE.Matrix4().makeRotationZ(Math.PI/2).setPosition(10,20,30);
+    const positions = new Float32Array([1,0,0,2,0,0,3,0,0]);
+    const group = new EventMarkers(body,{depthTest:true,path:()=>[{positions,times:new Float64Array([10,15,20]),count:3}],transform:()=>transform});
+    group.setMarkers([marker({temporality:'interval',startEt:10,endEt:20,selected:true})]);
+    const resolve=vi.fn((_name:string,t:number):[number,number,number]=>[1+(t-10)/5,0,0]);
+    group.update(1,[0,0,0],resolve,[10,20]);
+    expect(group.anchorAt('e1','q1',15)?.toArray()).toEqual([10,22,30]);
+    const sprites=group.children.filter(c=>c instanceof THREE.Sprite);
+    expect(sprites.some(s=>s.position.distanceTo(new THREE.Vector3(10,22,30))<1e-10)).toBe(true);
+    expect((sprites[0] as THREE.Sprite).material.depthTest).toBe(true);
+    const calls=resolve.mock.calls.length;transform.makeRotationZ(Math.PI).setPosition(40,50,60);
+    group.update(1,[0,0,0],resolve,[10,20]);
+    expect(resolve.mock.calls.length).toBe(calls); // cached native positions remain valid
+    expect(group.anchorAt('e1','q1',15)?.distanceTo(new THREE.Vector3(38,50,60))).toBeLessThan(1e-10);
+    expect(sprites.some(s=>s.position.distanceTo(new THREE.Vector3(38,50,60))<1e-10)).toBe(true);group.dispose();
+  });
+
   it('fades a whole glyph across a planet limb and hides it well behind the body', () => {
     const camera = new THREE.Vector3(0, 0, 10);
     const center = new THREE.Vector3();
@@ -760,7 +778,7 @@ describe('events on the future lead (#105)', () => {
     Object.assign(renderer, {
       universe, scene: new THREE.Scene(), _markerScene: new THREE.Scene(),
       trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
-      eventMarkerGroups: new Map(), bodyMeshes: new Map(), _eventPreview: null,
+      eventMarkerGroups: new Map(), trajectoryPlotFrames: new WeakMap(), bodyMeshes: new Map(), _eventPreview: null,
     });
     const event: GeometryEvent = {
       id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',

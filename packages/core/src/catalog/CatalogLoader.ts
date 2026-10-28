@@ -105,6 +105,9 @@ export interface CatalogJson {
 }
 
 export interface TrajectoryPlotSpec {
+  frame?: string;
+  sampleInterval?: string;
+  timelineLabel?: string;
   duration?: string;
   lead?: string;
   fade?: number;
@@ -131,6 +134,7 @@ export interface CatalogItem {
   label?: LabelSpec;
   naifId?: number;
   mass?: number | string;
+  description?: string;
   radii?: number[];
   startTime?: string;
   endTime?: string | number;
@@ -903,6 +907,7 @@ export class CatalogLoader {
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
+      description: typeof item.description === 'string' ? item.description : undefined,
       trajectory,
       rotation,
       parentName: parentName ?? item.center,
@@ -1664,6 +1669,13 @@ export class CatalogLoader {
   private parseTrajectoryPlot(spec: TrajectoryPlotSpec | undefined): TrajectoryPlotConfig | undefined {
     if (!spec) return undefined;
     const config: TrajectoryPlotConfig = {};
+    if (spec.frame != null) config.frame = spec.frame;
+    if (spec.timelineLabel != null) config.timelineLabel = spec.timelineLabel;
+    if (spec.sampleInterval != null) {
+      const interval = parseValueWithUnit(spec.sampleInterval, 0);
+      if (!(interval > 0) || !Number.isFinite(interval)) throw new Error('trajectoryPlot.sampleInterval must be finite and positive');
+      config.sampleInterval = interval;
+    }
     if (spec.duration != null) config.duration = parseValueWithUnit(spec.duration, 0);
     if (spec.lead != null) config.lead = parseValueWithUnit(spec.lead, 0);
     if (spec.fade != null) config.fade = Math.max(0, Math.min(1, spec.fade));

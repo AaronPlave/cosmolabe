@@ -1,0 +1,73 @@
+{
+  "id": "30c4acfe36284b1784bf07d5d73f9e4d",
+  "owner": "esri_astro",
+  "ownerId": "14f04343d0a542bba63d64c9aa36844f",
+  "orgId": "P3ePLMYs2RVChkJx",
+  "created": 1680619931000,
+  "modified": 1772471850000,
+  "guid": null,
+  "name": null,
+  "title": "Global CTX Mosaic of Mars (V01)",
+  "type": "Map Service",
+  "typeKeywords": [
+    "ArcGIS Server",
+    "Data",
+    "Map Service",
+    "Service",
+    "Singlelayer",
+    "Tiled"
+  ],
+  "description": "<div><div><span style='color:#b22222;'><strong>Beta Notice:<\/strong><\/span><strong> This item is currently in <\/strong><a target='_blank' href='https://goto.arcgis.com/termsofuse/beta' rel='nofollow ugc noopener noreferrer'><strong>beta<\/strong><\/a><strong> and is intended for early access, testing, and feedback.<\/strong> It is not recommended for production use, as functionality and content are subject to change without notice.<br />&nbsp;<\/div><div>The Bruce Murray Laboratory for Planetary Visualization produced this 5.7 terapixel mosaic of the surface of Mars rendered at 5.0 m/px. Each pixel in the mosaic is about the size of a typical parking space, providing unprecedented resolution of the Martian surface at a global scale. The mosaic consists of 86,571 separate images which have been aligned (semi-controlled) and blended with one another.<\/div><div>&nbsp;<\/div><div>The mosaic covers 99.5% of Mars from 88°S to 88°N.&nbsp;The pixels that make up the mosaic can all be mapped back to their source data using the seam maps provided at the&nbsp;<a target='_blank' href='https://murray-lab.caltech.edu/CTX/' rel='nofollow ugc noopener noreferrer'>main project site<\/a>, where an uncompressed version of the mosaic can also be found.<\/div><div>&nbsp;<\/div><div>All data in the mosaic come from the Context Camera (CTX) onboard the Mars Reconnaissance Orbiter (MRO).<\/div><\/div><div>&nbsp;<\/div>",
+  "tags": [
+    "Mars",
+    "Global",
+    "CTX",
+    "MRO",
+    "MSSS",
+    "Context Camera",
+    "Murray Lab"
+  ],
+  "snippet": "Mars CTX Global Semi-Controlled Mosaic from Caltech Murray Lab. (Beta)",
+  "thumbnail": "thumbnail/thumbnail1680622147544.png",
+  "documentation": null,
+  "extent": [
+    [
+      -180,
+      -90
+    ],
+    [
+      180,
+      90
+    ]
+  ],
+  "categories": ["/Categories/Status/Beta"],
+  "spatialReference": "104971",
+  "accessInformation": "Esri, Caltech Murray Lab, NASA, JPL, MSSS",
+  "classification": null,
+  "licenseInfo": "<div><div style='display:inherit; max-width:100%;'>Esri services are&nbsp;licensed under the Esri Master License Agreement.&nbsp;&nbsp;<\/div><div style='display:inherit; max-width:100%;'><a target='_blank' href='https://goto.arcgis.com/termsofuse/viewsummary' rel='nofollow ugc noopener noreferrer'>View Summary<\/a>&nbsp;|&nbsp;<a target='_blank' href='https://goto.arcgis.com/termsofuse/viewtermsofuse' rel='nofollow ugc noopener noreferrer'>View Esri Terms of Use<\/a><\/div><\/div><div style='display:inherit; max-width:100%;'>&nbsp;<\/div><div>The content provided through this service is sourced from the&nbsp;<a target='_blank' href='https://pds.nasa.gov/' rel='nofollow ugc noopener noreferrer'>NASA PDS&nbsp;<\/a>and&nbsp;<a target='_blank' href='https://murray-lab.caltech.edu/CTX' rel='nofollow ugc noopener noreferrer'>The Murray Lab/Caltech<\/a>.&nbsp; All data used in the construction of the CTX global mosaic have been publicly released and are freely available via the NASA Planetary Data System.&nbsp; The Murray Lab/Caltech grants free use of the V01 version of the mosaic for all purposes. Data credit should be to: NASA/JPL/MSSS/The Murray Lab.<\/div>",
+  "culture": "en-us",
+  "properties": null,
+  "advancedSettings": null,
+  "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX1/MapServer",
+  "proxyFilter": null,
+  "access": "public",
+  "size": 67,
+  "subInfo": 0,
+  "appCategories": [],
+  "industries": [],
+  "languages": [],
+  "largeThumbnail": null,
+  "banner": null,
+  "screenshots": [],
+  "listed": false,
+  "commentsEnabled": true,
+  "numComments": 0,
+  "numRatings": 0,
+  "avgRating": 0,
+  "numViews": 22452,
+  "scoreCompleteness": 100,
+  "groupDesignations": null,
+  "apiToken1ExpirationDate": -1,
+  "apiToken2ExpirationDate": -1,
+  "lastViewed": 1792954800000
+}

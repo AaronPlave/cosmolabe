@@ -26,6 +26,9 @@ export const analysis = $state({
   items: [] as ConfiguredAnalysisItem[],
   quantities: [] as AnalysisQuantity[],
   eventResults: {} as Record<string, GeometryEvent[]>,
+  /** Catalog activity intervals, independent of computed event searches and
+   * their optional 3D explanatory overlays. */
+  catalogActivities: [] as GeometryEvent[],
 });
 
 let itemSequence = 0;
@@ -196,11 +199,20 @@ export function setEventResults(id: string, events: readonly GeometryEvent[]) {
 
 /** Events the timeline should draw; disabled and hidden items remain configured. */
 export function visibleTimelineEvents(): GeometryEvent[] {
-  return analysis.items.flatMap((item) =>
+  return [...analysis.catalogActivities, ...analysis.items.flatMap((item) =>
     item.type === 'event-query' && item.enabled && item.visible
       ? (analysis.eventResults[item.id] ?? [])
       : [],
-  );
+  )];
+}
+
+/** Selection includes hidden search results as well as catalog activities. */
+export function allTimelineEvents(): GeometryEvent[] {
+  return [...analysis.catalogActivities, ...analysisContext().eventResults];
+}
+
+export function setCatalogActivities(events: readonly GeometryEvent[]) {
+  analysis.catalogActivities = [...events];
 }
 
 /** Scene-owned analysis state must never leak into the next catalog. */
@@ -209,5 +221,6 @@ export function resetAnalysis() {
   analysis.items.length = 0;
   analysis.quantities.length = 0;
   analysis.eventResults = {};
+  analysis.catalogActivities = [];
   resetTimeline();
 }
