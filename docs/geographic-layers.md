@@ -110,6 +110,10 @@ The rules that keep the views and the scene consistent:
 - Visibility, filters and selection reset when a scene loads. Closing the
   panel turns off hiding in 3D.
 
+Authored layers and editable copies of read-only layers are drawn and edited
+with the Draw tool; see [geographic-editing.md](geographic-editing.md). They
+list as *Authored here · editable* or *Editable copy of …*.
+
 ## Layer styles
 
 A layer's **Style** tab (in its Layer view, or *Style* in a layer row's

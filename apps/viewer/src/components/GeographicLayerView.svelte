@@ -11,9 +11,15 @@
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import GeographicFeatureBrowser from './GeographicFeatureBrowser.svelte';
   import GeographicStyleEditor from './GeographicStyleEditor.svelte';
-  import { geoStyles, openStyleEditor, layerRank, moveLayer } from '../lib/geographic-styles.svelte';
-  import { geo, layerVisible, setLayerVisible, isolateLayer, isIsolated, showAllLayers, showLayerList } from '../lib/geographic-layers.svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { PenLine } from 'lucide-svelte';
+  import GeographicLayerMenuItems from './GeographicLayerMenuItems.svelte';
+  import { geoStyles, openStyleEditor } from '../lib/geographic-styles.svelte';
+  import { geo, layerVisible, setLayerVisible, showLayerList } from '../lib/geographic-layers.svelte';
+  import { edits, isEditable, renameLayer, deleteLayer, startDrawing, annotationLayerName } from '../lib/geographic-editing.svelte';
   import { layerIssue, layerOrigin, layerSwatch } from '../lib/geographic-layer-labels';
+  import { geographicSurfaceNote } from '@cosmolabe/three';
+  import { vs, getRenderer } from '../lib/viewer-state.svelte';
 
   interface Props { layer: GeographicLayer }
   let { layer }: Props = $props();
@@ -24,10 +30,27 @@
   let about = $state(false);
   /** Features or Style; Style is the layer the style editor has open. */
   let tab = $derived(geoStyles.editing === layer.id ? 'style' : 'features');
-  let rank = $derived((void geoStyles.order, layerRank(layer.id)));
+  let editable = $derived((void edits.revision, isEditable(layer.id)));
+  /** Rename or delete, asked for from this layer's menu. */
+  let action = $derived(edits.layerAction?.id === layer.id ? edits.layerAction.kind : null);
+  let titleInput = $state<HTMLInputElement | null>(null);
+  $effect(() => { if (action === 'rename' && titleInput) { titleInput.focus(); titleInput.select(); } });
+  function finishRename(text: string) {
+    if (text.trim() && text.trim() !== layer.name) renameLayer(layer.id, text);
+    edits.layerAction = null;
+  }
   // "About this layer" from a row's menu opens it once.
   $effect(() => {
     if (geo.showAbout) { about = true; geo.showAbout = false; }
+  });
+
+  // What the layer is drawn on, and drawing problems, read while About is open (they change with the view).
+  let surface = $derived.by(() => {
+    if (!about) return null;
+    void vs.frameTick;
+    const vectors = getRenderer()?.geographicVectors;
+    if (!vectors) return null;
+    return { note: geographicSurfaceNote(vectors.status, layer.body), problems: vectors.diagnostics.filter((d) => d.layerId === layer.id) };
   });
 
   const plural = (n: number, noun: string) => `${n.toLocaleString()} ${noun}${n === 1 ? '' : 's'}`;
@@ -37,7 +60,13 @@
   <nav><button class="surface-crumb-back" onclick={showLayerList}><ChevronLeft size={13} /> Layers</button></nav>
   <div class="title-row">
     <span class="swatch" style:background={layerSwatch(layer)} aria-hidden="true"></span>
-    <h3 class="title">{layer.name}</h3>
+    {#if editable}
+      <input bind:this={titleInput} class="title title-input" value={layer.name} aria-label="Layer name"
+        onkeydown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+        onblur={(e) => finishRename((e.currentTarget as HTMLInputElement).value)} />
+    {:else}
+      <h3 class="title">{layer.name}</h3>
+    {/if}
     <button class="icon-action" onclick={() => setLayerVisible(layer.id, !visible)} aria-pressed={visible}
       aria-label="{visible ? 'Hide' : 'Show'} {layer.name}" title={visible ? 'Hide layer' : 'Show layer'}>
       {#if visible}<Eye size={14} />{:else}<EyeOff size={14} />{/if}
@@ -45,15 +74,7 @@
     <DropdownMenu.Root>
       <DropdownMenu.Trigger class="icon-action" aria-label="More for {layer.name}" title="More"><Ellipsis size={14} /></DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
-        {#if isIsolated(layer.id)}
-          <DropdownMenu.Item onSelect={() => showAllLayers(layer.body)}>Show all {layer.body} layers</DropdownMenu.Item>
-        {:else}
-          <DropdownMenu.Item onSelect={() => isolateLayer(layer.id)}>Show only this layer</DropdownMenu.Item>
-        {/if}
-        {#if rank.count > 1}
-          <DropdownMenu.Item disabled={rank.index <= 0} onSelect={() => moveLayer(layer.id, true)}>Draw above other layers</DropdownMenu.Item>
-          <DropdownMenu.Item disabled={rank.index >= rank.count - 1} onSelect={() => moveLayer(layer.id, false)}>Draw below other layers</DropdownMenu.Item>
-        {/if}
+        <GeographicLayerMenuItems {layer} inView />
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   </div>
@@ -61,6 +82,17 @@
     {layer.body} · {plural(layer.features.length, 'feature')} · <span title={origin.title}>{origin.label}</span>
     {#if issue}· <button class="issue" data-tone={issue.tone} onclick={() => (about = true)} title={issue.title}>{layer.skippedFeatures ? `${layer.skippedFeatures} not shown` : 'import notes'}</button>{/if}
   </p>
+
+  {#if action === 'delete'}
+    <div class="confirm" role="alertdialog" aria-label="Delete this layer?">
+      <span class="ui-meta">Delete {layer.name} and its {plural(layer.features.length, 'feature')} from this browser? Export it first to keep a copy.</span>
+      <Button variant="destructive" size="sm" class="ui-control" onclick={() => { edits.layerAction = null; deleteLayer(layer.id); showLayerList(); }}>Delete</Button>
+      <Button variant="secondary" size="sm" class="ui-control" onclick={() => (edits.layerAction = null)}>Keep</Button>
+    </div>
+  {/if}
+  <Button size="sm" class="ui-control" onclick={() => startDrawing()} title={editable ? 'New shapes go into this layer' : `New shapes go into ${annotationLayerName(layer.body)}; ${layer.name} stays unchanged`}>
+    <PenLine size={13} /> {editable ? 'Draw in this layer' : 'Draw'}
+  </Button>
 
   <SegmentedControl value={tab} options={['features', 'style']} label="Layer section" onValueChange={(v) => openStyleEditor(v === 'style' ? layer.id : null)} />
   {#if tab === 'style'}
@@ -74,6 +106,7 @@
     <dl class="facts ui-meta">
       <dt>Data</dt><dd>{origin.label}. {origin.title}</dd>
       <dt>Coordinates</dt><dd>{describeGeographicCoordinates(layer.coordinates)} · {layer.frame}</dd>
+      {#if surface?.note}<dt>Drawn on</dt><dd>{surface.note}</dd>{/if}
       <dt>Source</dt><dd class="mono break">{layer.source.identity}</dd>
       {#if layer.source.catalog}<dt>Catalog</dt><dd class="mono break">{layer.source.catalog}</dd>{/if}
       <dt>Layer ID</dt><dd class="mono break">{layer.id}</dd>
@@ -81,6 +114,12 @@
         <dt>{key}</dt><dd class="break">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd>
       {/each}
     </dl>
+    {#if surface?.problems.length}
+      <div class="ui-section-label sub">Drawing problems</div>
+      <ul class="diagnostics ui-meta" aria-label="{layer.name} drawing problems">
+        {#each surface.problems as d, i (i)}<li data-tone="warning">{#if d.featureId !== undefined}{d.featureId}: {/if}{d.message}</li>{/each}
+      </ul>
+    {/if}
     {#if layer.diagnostics.length}
       <div class="ui-section-label sub">Import notes</div>
       <ul class="diagnostics ui-meta" aria-label="{layer.name} import notes">
@@ -122,6 +161,15 @@
     white-space: nowrap;
   }
   .meta { margin: 0; }
+  .title-input {
+    padding: 1px 4px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: none;
+  }
+  .title-input:hover { border-color: var(--color-border); }
+  .title-input:focus { border-color: var(--color-border-strong); background: var(--color-surface-3); outline: none; }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .issue {
     border: none;
     background: none;

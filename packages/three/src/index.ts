@@ -190,6 +190,7 @@ export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './Cu
 export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
 export { placeAnchor } from './geographic/PlaceSurface.js';
 export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
+export { geographicSurfaceNote } from './geographic/GeographicStatus.js';
 export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
 export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
 

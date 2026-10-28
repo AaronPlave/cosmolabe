@@ -27,6 +27,7 @@ milliseconds. That catalog drapes on the local measured Mars pyramid, which is
 not in Git; without it the terrain requests fail and the script tolerates only
 that error.
 
-Captures here come from Chromium with SwiftShader (software GL) at 1280×800 and
-390×844: they show layout and behaviour, not hardware performance.
-[`panel.json`](panel.json) holds the recorded results.
+The captures kept here (`layer-view.png`, `feature-view.png`) come from
+Chromium with SwiftShader (software GL) at 1280×800: they show layout and
+behaviour, not hardware performance. A run writes all its captures and
+`panel.json` to `work/geographic/layers-panel`.

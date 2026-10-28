@@ -1,10 +1,14 @@
 import * as THREE from 'three';
-import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, resolveGeographicStyle, wrapLon,
+import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, resolveGeographicStyle, wrapLon, GEOGRAPHIC_STYLE_LIMITS,
   type GeographicLayer, type GeographicLayerStyle, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { SurfacePoint } from '../SceneHit.js';
-import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, VECTOR_HALO_PX, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
+import { footprintScreenRect, layerFootprint, meshHeightRange, type GeographicFootprint } from './GeographicFootprint.js';
+import { tileFade, TILE_FADE_TESTED_VERSION } from './TileFade.js';
+
+let warnedFade = false;
 
 export type GeographicPlacement =
   | { mode: 'clamp' }
@@ -16,7 +20,9 @@ interface Batch {
   layers: GeographicLayer[];
   index: GeographicIndex;
   material: GeographicMaterial;
-  highlights: {id: number; selected: boolean; material: GeographicMaterial}[];
+  highlights: {id: number; selected: boolean; material: GeographicMaterial; footprint: GeographicFootprint | null}[];
+  /** Where the batch's features are; the pass is scissored to it on screen. */
+  footprint: GeographicFootprint | null;
   placement: GeographicPlacement;
   datum: GeographicLayer['datum'];
   bodyName: string;
@@ -30,6 +36,8 @@ interface Proxy {
   worldMatrix: THREE.Matrix4;
   owned: boolean;
   seen: boolean;
+  /** This frame: the mesh can draw a feature of its batch (false: it is not drawn at all). */
+  touches: boolean;
 }
 export interface GeographicVectorStatus {
   bodyName: string;
@@ -47,6 +55,12 @@ const MAX_OFFSET_VERTICES = 250_000;
 const MAX_SURFACE_MESHES = 2048;
 /** Shared by main, overlay and camera-relative passes between begin/end. */
 export const VECTOR_FRAME_DRAW_LIMIT = 2048;
+/**
+ * Screen padding, in CSS pixels, for marks drawn beyond their geometry: the
+ * largest styled point (a diamond reaches √2 × its radius along an axis), with
+ * selection emphasis, halo and antialiasing. Lines are at most half as wide.
+ */
+export const VECTOR_SCISSOR_PADDING_PX = Math.ceil(Math.SQRT2 * (GEOGRAPHIC_STYLE_LIMITS.sizePx[1] / 2 + 0.75 + VECTOR_HALO_PX) + 1);
 
 function positions(g: GeographicLayer['features'][number]['geometry']): BodyFixedPosition[] {
   switch (g.type) {
@@ -83,7 +97,12 @@ export class GeographicVectorLayer {
   private _status: GeographicVectorStatus[] = [];
   private offsetVertices = 0;
   private proxyCount = 0;
+  /** Surface draws made this frame, after culling. */
   private drawCalls = 0;
+  /** Surface draws the frame budget counts this frame: every visible mesh, culled or not. */
+  private budgeted = 0;
+  /** Viewport pixels the vector shader could run on this frame, summed over passes and pages' scissor rectangles. */
+  private shaded = 0;
 
   /** `onSelectionChange` hears every change of the selected feature, including one a rebuild forces. */
   constructor(private readonly universe: Universe, private readonly scaleFactor: number,
@@ -93,8 +112,8 @@ export class GeographicVectorLayer {
   get diagnostics(): readonly GeographicRenderDiagnostic[] { return this._diagnostics; }
   get status(): readonly GeographicVectorStatus[] { return this._status; }
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
-  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number; restyles: number } {
-    return { restyles: this.restyles, drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
+  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number; shadedPixels: number; restyles: number } {
+    return { restyles: this.restyles, drawCalls: this.drawCalls, shadedPixels: this.shaded, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   /** Source inclusion is independent of its retained drawing visibility. */
@@ -167,7 +186,6 @@ export class GeographicVectorLayer {
   setHovered(feature: GeographicFeatureRef | null): void { if (sameGeographicFeature(this.hovered, feature)) return; this.hovered = feature; this.updateHighlights(); }
 
   private drawMaterials(batch: Batch): GeographicMaterial[] { return [batch.material, ...batch.highlights.map(h => h.material)]; }
-  private drawPages(batch: Batch): number { return this.drawMaterials(batch).reduce((n, m) => n + m.pages, 0); }
 
   private updateHighlights(): void {
     for (const batch of this.batches) {
@@ -186,7 +204,8 @@ export class GeographicVectorLayer {
         material.uniforms.vectorHighlight.value = h.id;
         material.uniforms.vectorSelected.value = h.selected ? h.id : -1;
         material.uniforms.vectorHovered.value = h.selected ? -1 : h.id;
-        return {...h, material};
+        const ref = batch.index.features[h.id - 1];
+        return {...h, material, footprint: ref ? layerFootprint(batch.layers, ref) : null};
       });
       for (const h of old) if (!batch.highlights.includes(h)) h.material.dispose();
     }
@@ -199,7 +218,9 @@ export class GeographicVectorLayer {
     // unloaded) is cleared here rather than left pointing at nothing.
     const shown = new Set<string>();
     const rank = (id: string) => { const i = this.order.indexOf(id); return i < 0 ? this.order.length : i; };
-    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id));
+    // Unless ordered explicitly, the user's own layers draw (and pick) over published data.
+    const mine = (l: GeographicLayer) => (l.ownership === 'user' ? 0 : 1);
+    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id) || mine(a) - mine(b));
     for (const layer of ordered) {
       if (this.excludedSources.has(layer.id)) continue;
       if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
@@ -261,7 +282,8 @@ export class GeographicVectorLayer {
         continue;
       }
       const material = new GeographicMaterial(index, a, c);
-      const batch: Batch = { layers, index, material, highlights: [], placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false };
+      const batch: Batch = { layers, index, material, highlights: [], placement, datum, bodyName: layers[0].body, proxies: new Map(), suppressed: false,
+        footprint: layerFootprint(layers) };
       this.batches.push(batch);
     }
     const kept = (f: GeographicFeatureRef | null) => !f || shown.has(JSON.stringify([f.layerId, f.featureId, f.bodyName]));
@@ -273,7 +295,7 @@ export class GeographicVectorLayer {
   /** Start after terrain traversal has selected this frame's visible triangles. */
   begin(): void {
     if (this.dirty) this.rebuild();
-    this._status = []; this.drawCalls = 0;
+    this._status = []; this.drawCalls = 0; this.budgeted = 0; this.shaded = 0;
     this._diagnostics = this._diagnostics.filter(d => d.code !== 'vector-draw-budget');
     for (const b of this.batches) {
       b.suppressed = false;
@@ -286,6 +308,7 @@ export class GeographicVectorLayer {
   render(renderer: THREE.WebGLRenderer, camera: THREE.Camera, bodies: Iterable<BodyMesh>, overlays = false, origin = new THREE.Vector3()): void {
     if (!this.batches.length) return;
     this.scene.clear();
+    const drawing: { batch: Batch; rects: (THREE.Vector4 | 'empty' | null)[] }[] = [];
     const byName = new Map(Array.from(bodies, b => [b.body.name, b]));
     for (const batch of this.batches) {
       const bm = byName.get(batch.bodyName);
@@ -307,6 +330,8 @@ export class GeographicVectorLayer {
       const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
       const bodyMatrix = new THREE.Matrix4().compose(bm.position.clone().sub(origin), rotation, new THREE.Vector3().setScalar(this.scaleFactor));
       const toBody = bodyMatrix.clone().invert();
+      const anchor = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).applyMatrix4(toBody);
+      for (const material of this.drawMaterials(batch)) material.setAnchor(anchor);
       batch.material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
       if (!overlays) this._status.push({ bodyName: batch.bodyName, layerIds: batch.layers.map(l => l.id),
         features: batch.index.features.length, primitives: batch.index.primitives.length,
@@ -318,40 +343,102 @@ export class GeographicVectorLayer {
       for (const root of roots) root.traverseVisible(object => {
         if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BufferGeometry) sources.add(object);
       });
-      if (this.drawCalls + sources.size * this.drawPages(batch) > VECTOR_FRAME_DRAW_LIMIT) {
+      // The budget counts every mesh; the ones culled below only make it cheaper.
+      if (this.budgeted + sources.size * this.drawMaterials(batch).length > VECTOR_FRAME_DRAW_LIMIT) {
         this.diagnose(batch, 'vector-draw-budget', `Frame would exceed ${VECTOR_FRAME_DRAW_LIMIT} vector surface draws. Remaining drawing and picking for this group are suppressed this frame; reduce visible layers or terrain detail.`);
         batch.suppressed = true;
         for (const [source, proxy] of batch.proxies) this.dropProxy(batch, source, proxy);
         continue;
       }
-      const before = this.scene.children.length;
+      this.budgeted += sources.size * this.drawMaterials(batch).length;
       for (const object of sources) {
         const localToBody = toBody.clone().multiply(object.matrixWorld);
         this.addProxy(batch, object, object.geometry, object.matrixWorld, localToBody, origin, batch.placement.mode === 'terrain-relative');
       }
-      this.drawCalls += (this.scene.children.length - before) * this.drawPages(batch);
+      // Where on screen this batch (and each highlight) can draw, and which meshes can draw it at all.
+      const rects = this.screenRects(renderer, camera, batch, bodyMatrix, sources);
+      drawing.push({ batch, rects });
     }
-    if (this.scene.children.length) {
-      const passes = Math.max(...this.batches.map(b => this.drawMaterials(b).length));
-      for (let pass = 0; pass < passes; pass++) {
-        const pages = Math.max(...this.batches.map(b => this.drawMaterials(b)[pass]?.pages ?? 0));
-        for (let page = 0; page < pages; page++) {
-          for (const batch of this.batches) {
-            const material = this.drawMaterials(batch)[pass];
-            if (material) {
-              material.uniforms.vectorPage.value = page;
-              material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
-            }
-            for (const proxy of batch.proxies.values()) {
-              proxy.mesh.visible = !!material && page < material.pages;
-              if (material) proxy.mesh.material = material;
-            }
-          }
-          renderer.render(this.scene, camera);
+    if (!drawing.length) return;
+    // One render per batch and pass (the shader loops over pages), each scissored
+    // to where its features are: fragments elsewhere never run the vector shader.
+    const scissorTest = renderer.getScissorTest(), scissor = renderer.getScissor(new THREE.Vector4());
+    for (const { batch, rects } of drawing) {
+      const materials = this.drawMaterials(batch);
+      for (let pass = 0; pass < materials.length; pass++) {
+        const rect = rects[pass];
+        if (rect === 'empty') continue;
+        const material = materials[pass];
+        let meshes = 0;
+        for (const other of drawing) for (const proxy of other.batch.proxies.values()) {
+          proxy.mesh.visible = other.batch === batch && proxy.seen && proxy.touches;
+          if (proxy.mesh.visible) { proxy.mesh.material = material; meshes++; }
         }
+        if (!meshes) continue;
+        if (rect) { renderer.setScissorTest(true); renderer.setScissor(rect); } else { renderer.setScissorTest(scissorTest); renderer.setScissor(scissor); }
+        material.uniforms.vectorPixelRatio.value = renderer.getPixelRatio();
+        renderer.render(this.scene, camera);
+        this.drawCalls += meshes;
+        this.shaded += rect ? rect.z * rect.w : this.viewportArea(renderer);
       }
-      for (const batch of this.batches) for (const proxy of batch.proxies.values()) proxy.mesh.visible = true;
     }
+    renderer.setScissor(scissor); renderer.setScissorTest(scissorTest);
+    for (const { batch } of drawing) for (const proxy of batch.proxies.values()) proxy.mesh.visible = true;
+  }
+
+  private viewportArea(renderer: THREE.WebGLRenderer): number {
+    const v = renderer.getViewport(new THREE.Vector4());
+    return v.z * v.w;
+  }
+
+  /**
+   * The screen rectangle each of a batch's passes can draw in (the batch, then
+   * each highlight): 'empty' when off screen, null when unbounded (full
+   * viewport). Marks meshes that cannot draw the batch's footprint so they are
+   * skipped. Only on the default framebuffer, where the viewport is known.
+   */
+  private screenRects(renderer: THREE.WebGLRenderer, camera: THREE.Camera, batch: Batch, bodyMatrix: THREE.Matrix4,
+    sources: Set<THREE.Mesh<THREE.BufferGeometry>>): (THREE.Vector4 | 'empty' | null)[] {
+    const passes = this.drawMaterials(batch).length;
+    const footprint = batch.footprint;
+    for (const proxy of batch.proxies.values()) proxy.touches = true;
+    if (!footprint || footprint.kind === 'global' || renderer.getRenderTarget() !== null) return Array(passes).fill(null);
+    // The lowest and highest heights the meshes that can draw the footprint are drawn at.
+    let low = Infinity, high = -Infinity, bounded = true;
+    const shape = batch.datum.referenceShape;
+    const radius = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
+    for (const [source, proxy] of batch.proxies) {
+      if (!proxy.seen || !sources.has(source as THREE.Mesh<THREE.BufferGeometry>)) continue;
+      const range = meshHeightRange(proxy.sourceGeometry, proxy.localToBody, batch.datum, footprint);
+      if (range) {
+        proxy.touches = range.touches;
+        if (range.touches) { low = Math.min(low, range.low); high = Math.max(high, range.high); }
+        continue;
+      }
+      // A whole-globe mesh: chords sag below the datum between vertices; a displacement map is not bounded here.
+      const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
+      if (sourceMaterial.displacementMap || batch.placement.mode !== 'clamp') { bounded = false; continue; }
+      const segments = (proxy.sourceGeometry as THREE.BufferGeometry & { parameters?: { widthSegments?: number } }).parameters?.widthSegments
+        ?? Math.sqrt(proxy.sourceGeometry.getAttribute('position').count / 2);
+      const sag = radius * (1 - Math.cos(Math.PI / Math.max(3, segments)));
+      low = Math.min(low, -2 * sag - 0.001 * radius); high = Math.max(high, 0.001 * radius);
+    }
+    if (!bounded) return Array(passes).fill(null);
+    if (!(low <= high)) return Array(passes).fill('empty');
+    const offset = batch.placement.mode === 'terrain-relative' ? batch.placement.offsetKm : 0;
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const rect = (f: GeographicFootprint | null) => f ? footprintScreenRect(f, low + offset, high + offset, batch.datum, bodyMatrix, camera, viewport, VECTOR_SCISSOR_PADDING_PX) : null;
+    return [rect(footprint), ...batch.highlights.map(h => rect(h.footprint))];
+  }
+
+  /**
+   * A tile is cross-fading but its fade cannot be read (3d-tiles-renderer
+   * changed the contract TileFade reads): fills over it may blend twice while
+   * it fades. Said once in the console and as a diagnostic, never ignored.
+   */
+  private fadeUnreadable(batch: Batch): void {
+    this.diagnose(batch, 'tile-fade-unreadable', `A terrain tile is cross-fading but its fade cannot be read (3d-tiles-renderer differs from the tested ${TILE_FADE_TESTED_VERSION}); fills may blend twice during level-of-detail changes.`);
+    if (!warnedFade) { warnedFade = true; console.warn('[Cosmolabe] geographic vectors: unreadable terrain tile fade; see TileFade.ts'); }
   }
 
   private diagnose(batch: Batch, code: string, message: string): void {
@@ -398,10 +485,11 @@ export class GeographicVectorLayer {
       if (ground) { mesh.geometry.clearGroups(); mesh.geometry.setDrawRange(ground.start, ground.count); }
       // A shallow view is sufficient for clamp; its attributes/index stay shared.
       const owned = offset || !!ground;
-      proxy = { mesh, sourceGeometry: geometry, localToBody: localToBody.clone(), worldMatrix: new THREE.Matrix4(), owned, seen: false };
+      proxy = { mesh, sourceGeometry: geometry, localToBody: localToBody.clone(), worldMatrix: new THREE.Matrix4(), owned, seen: false, touches: true };
       mesh.onBeforeRender = () => {
         const material = mesh.material as GeographicMaterial;
-        material.uniforms.vectorLocalToBody.value.copy(proxy!.localToBody);
+        const toAnchor = material.uniforms.vectorLocalToAnchor.value.copy(proxy!.localToBody), anchor = material.uniforms.vectorAnchor.value;
+        toAnchor.elements[12] -= anchor.x; toAnchor.elements[13] -= anchor.y; toAnchor.elements[14] -= anchor.z;
         const sourceMaterial = (Array.isArray(source.material) ? source.material[0] : source.material) as THREE.MeshStandardMaterial;
         const map = sourceMaterial.displacementMap;
         material.uniforms.vectorDisplacement.value.set(map ? 1 : 0, sourceMaterial.displacementScale ?? 0, sourceMaterial.displacementBias ?? 0);
@@ -410,6 +498,11 @@ export class GeographicVectorLayer {
           if (map.matrixAutoUpdate) map.updateMatrix();
           material.uniforms.vectorDisplacementTransform.value.copy(map.matrix);
         }
+        // Mid LOD cross-fade: keep only the pixels this tile draws.
+        const fade = tileFade(source.material);
+        if (fade === 'unreadable') this.fadeUnreadable(batch);
+        material.uniforms.vectorFadeIn.value = fade && fade !== 'unreadable' ? fade.fadeIn : 1;
+        material.uniforms.vectorFadeOut.value = fade && fade !== 'unreadable' ? fade.fadeOut : 0;
         material.uniformsNeedUpdate = true;
       };
       batch.proxies.set(source, proxy); this.proxyCount++;

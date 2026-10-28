@@ -12,14 +12,14 @@
  * 1% of the range), while tiles refine. Saves a screenshot per viewpoint.
  *
  * Env: CL_VIEWER_URL (default http://127.0.0.1:5188/), CL_CHROMIUM,
- * CL_OUTPUT (default docs/validation/geographic-close-zoom). */
+ * CL_OUTPUT (default work/geographic/close-zoom). */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-close-zoom';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/close-zoom';
 const FLOOR = 'gale-regions/string:region-1';
 
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/opt/pw-browsers/chromium',

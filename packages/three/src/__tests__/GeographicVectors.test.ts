@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { Universe, parseGeographicGeoJson, resolveGeographicStyle, type GeographicLayer, type GeographicGeometry, type GeoPosition } from '@cosmolabe/core';
-import { GeographicIndex, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
+import { GeographicIndex, coveredCells, VECTOR_CELL_LIMIT, VECTOR_PRIMITIVE_LIMIT, VECTOR_RENDER_PAGE_LIMIT, VECTOR_DETAIL_GRIDS, VECTOR_REFERENCE_LIMIT, VECTOR_FLAG, VECTOR_SHAPE_STEP, VECTOR_HALO_PX } from '../geographic/GeographicIndex.js';
 import type { GeographicMaterial } from '../geographic/GeographicMaterial.js';
-import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT } from '../geographic/GeographicVectorLayer.js';
+import { GeographicVectorLayer, VECTOR_FRAME_DRAW_LIMIT, VECTOR_SCISSOR_PADDING_PX } from '../geographic/GeographicVectorLayer.js';
 import jezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero.json';
 import denseJezero from '../../../core/src/__tests__/__fixtures__/geographic-jezero-dense.json';
 import southpole from '../../../core/src/__tests__/__fixtures__/geographic-southpole.json';
@@ -166,6 +166,44 @@ describe('geographic surface index', () => {
     }
   });
 
+  it('replaces a polygon\'s triangles by one covered reference in cells wholly inside it', () => {
+    // A 4° square with a 1° hole, on a 1024 × 512 grid (0.35° cells).
+    const square = (c: number, r: number): GeoPosition[] => [[c - r, -r], [c + r, -r], [c + r, r], [c - r, r], [c - r, -r]];
+    const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [square(10, 2), square(10, 0.5).reverse()] }])]);
+    const cov = coveredCells(index.primitives, 1024, 512);
+    const step = 360 / 1024, centre = (cell: number): [number, number] => [-180 + (cell % 1024 + 0.5) * step, -90 + (Math.floor(cell / 1024) + 0.5) * step];
+    const inside = ([x, y]: [number, number]) => Math.max(Math.abs(x - 10), Math.abs(y)) < 2 && Math.max(Math.abs(x - 10), Math.abs(y)) > 0.5;
+    expect(cov.full.length).toBeGreaterThan(50);
+    // Covered cells lie wholly inside the area, never across an edge or in the hole.
+    for (const [cell] of cov.full) {
+      const [x, y] = centre(cell);
+      for (const dx of [-0.5, 0.5]) for (const dy of [-0.5, 0.5]) expect(inside([x + dx * step, y + dy * step])).toBe(true);
+    }
+    // Triangles stay only in cells an edge crosses.
+    const edge = (cell: number) => { const [x, y] = centre(cell); const d = Math.max(Math.abs(x - 10), Math.abs(y)); return Math.abs(d - 2) < step || Math.abs(d - 0.5) < step; };
+    for (const cells of cov.values()) for (const cell of cells) expect(edge(cell)).toBe(true);
+    // Every cell inside the area is covered, or holds triangles.
+    const kept = new Set([...cov.values()].flat()), full = new Set(cov.full.map(([cell]) => cell));
+    for (let y = 0; y < 512; y++) for (let x = 0; x < 1024; x++) {
+      const cell = y * 1024 + x;
+      if (inside(centre(cell))) expect(full.has(cell) || kept.has(cell)).toBe(true);
+    }
+  });
+
+  it('keeps every cell\'s references in source order, covered ones included, for the shader\'s fill compositing', () => {
+    const square = (c: number, r: number): GeoPosition[] => [[c - r, -r], [c + r, -r], [c + r, r], [c - r, r], [c - r, -r]];
+    const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [square(10, 2)] }, { type: 'Polygon', coordinates: [square(11, 2)] }])], true);
+    const packed = index.pack(), cells = packed.detail!.cells;
+    let covered = 0;
+    for (let c = 0; c < cells.length; c += 4) {
+      if (!cells[c + 1]) continue; // most of the global grid is empty
+      const ids = Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4]);
+      covered += Array.from({ length: cells[c + 1] }, (_, j) => packed.references[(cells[c] + j) * 4 + 1]).filter(kind => kind === 3).length;
+      expect(ids).toEqual([...ids].sort((a, b) => a - b));
+    }
+    expect(covered).toBeGreaterThan(0);
+  });
+
   it('retains a seam-aware global grid when localized geometry crosses the longitude seam', () => {
     const ring: GeoPosition[] = Array.from({ length: 160 }, (_, i) => {
       const angle = i / 160 * Math.PI * 2;
@@ -176,7 +214,7 @@ describe('geographic surface index', () => {
     const index = new GeographicIndex([layer([{ type: 'Polygon', coordinates: [ring] }])]);
     expect(index.diagnostics).toEqual([]);
     expect(index.features).toHaveLength(1);
-    expect(index.pack().detail?.levels[0]).toMatchObject({size: 256, height: 128});
+    expect(index.pack().detail?.levels.map(l => [l.size, l.height])).toEqual([[1024, 512], [256, 128]]);
     expect(pick(index, -179.999, 18.45)).toEqual(ref);
   });
 
@@ -216,9 +254,74 @@ function harness(data: GeographicLayer) {
   const body = { visible: true, body: { name: 'Moon', geometryType: 'Globe', radii: [1737.4, 1737.4, 1737.4] }, mesh,
     position: new THREE.Vector3(), terrainTileGroup: null, terrainDatum: null, getSurfaceOverlays: () => [],
     bodyToWorldQuaternion: (q: THREE.Quaternion) => q.identity(), surfaceTransitionState: 'static', isImageryOnlySurface: false } as unknown as BodyMesh;
-  const renderer = { getPixelRatio: () => 1, render: () => {} } as unknown as THREE.WebGLRenderer;
-  return { universe, vectors, mesh, body, renderer, camera: new THREE.PerspectiveCamera(45, 1, 1, 10000) };
+  // A default framebuffer with an 800×600 viewport; the scissor each render used is recorded.
+  const scissor = { test: false, rect: new THREE.Vector4(0, 0, 800, 600) };
+  const renderer = {
+    getPixelRatio: () => 1, render: () => { scissors.push(scissor.test ? scissor.rect.clone() : null); },
+    getRenderTarget: () => null, getViewport: (v: THREE.Vector4) => v.set(0, 0, 800, 600),
+    getScissor: (v: THREE.Vector4) => v.copy(scissor.rect), getScissorTest: () => scissor.test,
+    setScissor: (v: THREE.Vector4) => { scissor.rect.copy(v); }, setScissorTest: (on: boolean) => { scissor.test = on; },
+  } as unknown as THREE.WebGLRenderer;
+  const scissors: (THREE.Vector4 | null)[] = [];
+  // Looking at (0°, 0°) from 2,500 km, where the fixtures' features are.
+  const camera = new THREE.PerspectiveCamera(45, 1, 1, 10000);
+  camera.position.set(2500, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
+  return { universe, vectors, mesh, body, renderer, scissors, camera };
 }
+
+describe('geographic vector pass cost', () => {
+  it('pads scissor rectangles enough for the largest styled mark', () => {
+    // A 24 px diamond reaches √2 × (12 + emphasis + halo) px along an axis, plus antialiasing.
+    expect(VECTOR_SCISSOR_PADDING_PX).toBeGreaterThanOrEqual(Math.SQRT2 * (12 + 0.75 + 1.5) + 0.5);
+  });
+
+  const look = (h: ReturnType<typeof harness>, at: [number, number, number]) => {
+    h.camera.position.set(2500, 0, 0); h.camera.up.set(0, 0, 1); h.camera.lookAt(...at); h.camera.updateMatrixWorld(true);
+  };
+  const frame = (h: ReturnType<typeof harness>) => {
+    h.scissors.length = 0;
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    return [...h.scissors];
+  };
+
+  it('scissors the pass to where the features are, not the whole visible body', () => {
+    const h = harness(layer([{ type: 'Point', coordinates: [1, 1] }]));
+    look(h, [0, 0, 0]);
+    const [rect, ...rest] = frame(h);
+    expect(rest).toEqual([]);
+    expect(rect).toBeInstanceOf(THREE.Vector4);
+    expect(rect!.z * rect!.w).toBeLessThan(0.02 * 800 * 600);
+    // It contains the point as drawn.
+    const q = new THREE.Vector3(...[1737.4 * Math.cos(Math.PI / 180) ** 2, 1737.4 * Math.cos(Math.PI / 180) * Math.sin(Math.PI / 180), 1737.4 * Math.sin(Math.PI / 180)]).project(h.camera);
+    const [x, y] = [(q.x + 1) / 2 * 800, (q.y + 1) / 2 * 600];
+    expect(x).toBeGreaterThan(rect!.x); expect(x).toBeLessThan(rect!.x + rect!.z);
+    expect(y).toBeGreaterThan(rect!.y); expect(y).toBeLessThan(rect!.y + rect!.w);
+    expect(h.vectors.metrics.shadedPixels).toBe(rect!.z * rect!.w);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('gives a selection highlight its own small rectangle, and draws nothing out of view', () => {
+    const h = harness(layer([{ type: 'LineString', coordinates: [[1, 1], [1.5, 1.2]] }, { type: 'LineString', coordinates: [[20, 5], [21, 6]] }]));
+    look(h, [0, 0, 0]);
+    h.vectors.setSelected({ layerId: 'science', featureId: 'number:0', bodyName: 'Moon' });
+    const [layerRect, highlight] = frame(h);
+    expect(highlight).toBeInstanceOf(THREE.Vector4);
+    expect(highlight!.z * highlight!.w).toBeLessThan(layerRect!.z * layerRect!.w);
+    // Looking out to the side, past the limb: no vector draws at all.
+    look(h, [2500, 5000, 0]);
+    expect(frame(h)).toEqual([]);
+    expect(h.vectors.metrics.drawCalls).toBe(0);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+
+  it('keeps the full viewport for features spread across the globe', () => {
+    const h = harness(layer([{ type: 'Point', coordinates: [-100, 0] }, { type: 'Point', coordinates: [100, 0] }]));
+    look(h, [0, 0, 0]);
+    expect(frame(h)).toEqual([null]);
+    expect(h.vectors.metrics.shadedPixels).toBe(800 * 600);
+    h.vectors.dispose(); h.universe.dispose();
+  });
+});
 
 describe('geographic renderer lifecycle and placement', () => {
   it('omits a pathological 100k-point group before allocating GPU resources or pick targets', () => {
@@ -237,37 +340,38 @@ describe('geographic renderer lifecycle and placement', () => {
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(calls).toBe(0);
     expect(h.vectors.featureCount).toBe(0);
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, shadedPixels: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ code: 'vector-render-budget', message: expect.stringContaining('391 render pages; limit is 16') }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Moon', h.body]]), null)).toBeNull();
     h.vectors.dispose(); h.universe.dispose();
   });
 
-  it('draws shared-border highlights after all ordinary pages and counts their draws', () => {
+  it('draws every page in one pass, shared-border highlights after it, and counts their draws', () => {
     const h = harness(layer(Array.from({length: VECTOR_CELL_LIMIT + 1}, () => ({type: 'LineString', coordinates: [[-1,0],[1,0]]}))));
     h.vectors.setSelected({...ref, featureId: `number:${VECTOR_CELL_LIMIT}`});
     h.vectors.setHovered(ref);
-    const draws: {page: number; highlight: number}[] = [];
+    const draws: {pages: number; highlight: number}[] = [];
     h.renderer.render = scene => {
       for (const child of scene.children) if (child.visible) {
         const material = (child as THREE.Mesh).material as THREE.ShaderMaterial;
-        draws.push({page: material.uniforms.vectorPage.value, highlight: material.uniforms.vectorHighlight.value});
+        draws.push({pages: material.uniforms.vectorPages.value, highlight: material.uniforms.vectorHighlight.value});
       }
     };
     h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
     expect(draws).toEqual([
-      {page:0,highlight:0},{page:1,highlight:0},
-      {page:0,highlight:1},
-      {page:0,highlight:VECTOR_CELL_LIMIT+1},
+      {pages:2,highlight:0},
+      {pages:1,highlight:1},
+      {pages:1,highlight:VECTOR_CELL_LIMIT+1},
     ]);
     expect(h.vectors.metrics.drawCalls).toBe(draws.length);
     h.vectors.dispose(); h.universe.dispose();
   });
 
   it('caps total surface draws across main/local/overlay passes and recovers next frame', () => {
+    // Pages loop in the shader: every visible mesh is one draw per pass, however many pages.
     const h = harness(layer(Array.from({ length: VECTOR_RENDER_PAGE_LIMIT * VECTOR_CELL_LIMIT }, () => ({ type: 'Point', coordinates: [0, 0] }))));
     const tiles = new THREE.Group();
-    const sources = VECTOR_FRAME_DRAW_LIMIT / VECTOR_RENDER_PAGE_LIMIT;
+    const sources = VECTOR_FRAME_DRAW_LIMIT;
     for (let i = 1; i < sources; i++) tiles.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
     const overlay = new THREE.Group(); overlay.add(new THREE.Mesh(h.mesh.geometry, h.mesh.material));
     Object.assign(h.body, { terrainTileGroup: tiles, getSurfaceOverlays: () => [{ group: overlay }] });
@@ -341,7 +445,7 @@ describe('geographic renderer lifecycle and placement', () => {
     Object.assign(h.body, { terrainDatum: data.datum, surfaceTransitionState: 'streamed' });
     const draw = () => { h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end(); };
     draw();
-    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, restyles: 0 });
+    expect(h.vectors.metrics).toEqual({ batches: 0, surfaceMeshes: 0, offsetVertices: 0, textureBytes: 0, drawPages: 0, drawCalls: 0, shadedPixels: 0, restyles: 0 });
     expect(h.vectors.diagnostics).toMatchObject([{ featureId: 'number:0', code: 'unsupported-height' }]);
     expect(h.vectors.pick(50, 50, 100, 100, h.camera, new Map([['Mars', h.body]]), null)).toBeNull();
     // Explicit absolute placement is constrained too.
@@ -538,5 +642,58 @@ describe('geographic styles', () => {
     vectors.setLayerOrder(['other']);
     expect(order()).toEqual(['other', 'science']);
     vectors.dispose(); universe.dispose();
+  });
+
+  it('draws and picks the user\'s own layers over published data unless ordered otherwise', () => {
+    const catalog = mixed();
+    const mine = { ...layer([{ type: 'Point', coordinates: [1, 1] }]), id: 'mine', ownership: 'user' as const };
+    const universe = new Universe();
+    universe.geographicLayers.replaceCatalog('test', [catalog, mine].map(l => ({ id: l.id, status: 'ready' as const, layer: l, source: l.source, diagnostics: [] })));
+    const vectors = new GeographicVectorLayer(universe, 1);
+    const order = () => { vectors.begin(); vectors.end(); return (vectors as unknown as { batches: { layers: GeographicLayer[] }[] }).batches[0].layers.map(l => l.id); };
+    expect(order()).toEqual(['mine', 'science']);
+    vectors.setLayerOrder(['science']);
+    expect(order()).toEqual(['science', 'mine']);
+    vectors.dispose(); universe.dispose();
+  });
+});
+
+describe('geographic vectors over cross-fading terrain tiles', () => {
+  /** Draw over one terrain tile, running each proxy's onBeforeRender as three would; the fade uniforms each draw used. */
+  function drawOver(material: THREE.Material) {
+    const h = harness(layer([{ type: 'Point', coordinates: [0, 0] }]));
+    const tiles = new THREE.Group();
+    tiles.add(new THREE.Mesh(h.mesh.geometry, material));
+    tiles.updateMatrixWorld(true);
+    h.mesh.visible = false;
+    Object.assign(h.body, { terrainTileGroup: tiles });
+    const used: [number, number][] = [];
+    h.renderer.render = (scene) => {
+      for (const child of scene.children) if (child.visible && child instanceof THREE.Mesh) {
+        child.onBeforeRender(h.renderer, scene as THREE.Scene, h.camera, child.geometry, child.material, new THREE.Group());
+        used.push([child.material.uniforms.vectorFadeIn.value, child.material.uniforms.vectorFadeOut.value]);
+      }
+    };
+    h.vectors.begin(); h.vectors.render(h.renderer, h.camera, [h.body]); h.vectors.end();
+    return { used, diagnostics: h.vectors.diagnostics };
+  }
+
+  it('draws over a fading tile with that tile\'s own fade, and over a settled one with none', async () => {
+    // @ts-expect-error -- the library's own fade wrapper, which ships no type declarations
+    const { wrapFadeMaterial } = await import('3d-tiles-renderer/src/three/plugins/fade/wrapFadeMaterial.js');
+    const fading = new THREE.MeshBasicMaterial();
+    const params = wrapFadeMaterial(fading, fading.onBeforeCompile);
+    params.fadeIn.value = 1; params.fadeOut.value = 0.4;
+    fading.defines!.FEATURE_FADE = 1;
+    expect(drawOver(fading).used).toEqual([[1, 0.4]]);
+    expect(drawOver(new THREE.MeshBasicMaterial()).used).toEqual([[1, 0]]);
+  });
+
+  it('reports a fading tile whose fade cannot be read instead of silently drawing over it twice', () => {
+    const unknown = new THREE.MeshBasicMaterial();
+    unknown.defines = { FEATURE_FADE: 1 };
+    const { used, diagnostics } = drawOver(unknown);
+    expect(used).toEqual([[1, 0]]);
+    expect(diagnostics).toMatchObject([{ code: 'tile-fade-unreadable' }]);
   });
 });

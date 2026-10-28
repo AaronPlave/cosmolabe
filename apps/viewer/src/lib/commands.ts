@@ -13,6 +13,7 @@ import { shell, openTool } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
 import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
+import { drawBody, startDrawing } from './geographic-editing.svelte';
 import { geographicFeatureName } from '@cosmolabe/core';
 
 export interface Command {
@@ -63,6 +64,11 @@ function getBuiltinCommands(): Command[] {
 
     // Surface layers
     { id: 'layers:open', label: 'Surface layers', category: 'Inspect', execute: () => openTool('layers') },
+    ...(drawBody() ? [
+      { id: 'draw:polygon', label: `Draw a polygon on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('polygon') },
+      { id: 'draw:path', label: `Draw a path on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('line') },
+      { id: 'draw:point', label: `Place a point on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('point') },
+    ] : []),
     ...geographicSelectionCommands(),
 
     // Instrument

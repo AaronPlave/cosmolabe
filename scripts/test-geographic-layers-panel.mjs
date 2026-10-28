@@ -9,7 +9,7 @@ import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
-const output = process.env.CL_OUTPUT ?? 'docs/validation/geographic-layers-panel';
+const output = process.env.CL_OUTPUT ?? 'work/geographic/layers-panel';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5188/';
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/opt/pw-browsers/chromium',
   args: process.env.CL_GPU === 'hardware'

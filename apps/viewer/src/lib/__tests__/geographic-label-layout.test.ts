@@ -201,6 +201,15 @@ describe('labels on a visible part of large features', () => {
     expect(label.anchor).toEqual(last);
   });
 
+  it('keeps last time\'s point where it is drawn in view though its datum projection is off screen (low view over a deep floor)', () => {
+    const layer = area(10, 0, 2);
+    const last = { lonDeg: 11.3, latDeg: 0.2 };
+    // The datum lies kilometres above the drawn floor: projected there, everything is above the top of the view.
+    const v = closeView(11.6, 0.3, { project: (_l, ps) => ps.map(() => ({ x: 500, y: -2000, facing: true, inFront: true })), probes: () => [{ lonDeg: 11.6, latDeg: 0.3 }] });
+    const [label] = layoutGeographicLabels([{ layer, labels: style(), filter: null }], v, new Set(['areas/string:a']), new Map([['areas/string:a', last]]));
+    expect(label.anchor).toEqual(last);
+  });
+
   it('does not drop an area whose anchor is past the horizon while its edge is in view', () => {
     const layer = area(10, 0, 2);
     // Horizon 1.5° from lon 12: the anchor (lon 10) is past it, the eastern edge (lon 12) is not.
