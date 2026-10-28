@@ -1,0 +1,3563 @@
+{
+  "schemaVersion": 1,
+  "productionReady": false,
+  "trajectoriesRegenerated": false,
+  "inputs": {
+    "base": {
+      "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+      "bytes": 11384463908,
+      "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+    },
+    "detail": {
+      "file": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+      "bytes": 1839545409,
+      "sha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8"
+    },
+    "waypoints": {
+      "file": "m20_heli_waypoints.json",
+      "bytes": 65499,
+      "sha256": "457b536b6851259d2dfd1ee75c076ca95f4ad7f5f1cbd49c880564c3cf5d787b"
+    },
+    "paths": {
+      "file": "m20_heli_flight_path.json",
+      "bytes": 2303889,
+      "sha256": "f0b19df6290a4d26c6618188d8986774b01c509e3d98841e410e8168f868240a"
+    },
+    "areoidLabel": {
+      "file": "MEGA90N000EB.LBL",
+      "bytes": 3760,
+      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+    },
+    "areoidImage": {
+      "file": "MEGA90N000EB.IMG",
+      "bytes": 33177600,
+      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+    }
+  },
+  "cleanFusion": {
+    "metadata": {
+      "file": "fusion.json",
+      "bytes": 4820,
+      "sha256": "cfe73e9c8e42ca6f81c3ade7500d8d6853190b9bb230edafe7880f8cd446fb0f"
+    },
+    "registration": {
+      "model": "detail \u2212 base = offset + slopeEast\u00b7east + slopeNorth\u00b7north (least squares)",
+      "axes": "local east/north (km)",
+      "centroid": {
+        "lonDeg": 77.4034569842557,
+        "latDeg": 18.48804879297973
+      },
+      "fitStridePx": 8,
+      "offsetM": -8.645969777066195,
+      "slopeEastMPerKm": 1.0121736526817324,
+      "slopeNorthMPerKm": -0.6852599991318675,
+      "tiltDeg": 0.07003399047059078,
+      "raw": {
+        "n": 4749862,
+        "meanM": -7.893571008697858,
+        "rmsM": 18.93642389993706,
+        "p95AbsM": 39.94189453125,
+        "maxAbsM": 89.161376953125
+      },
+      "afterPlane": {
+        "n": 4749862,
+        "meanM": 8.499790859098853e-14,
+        "rmsM": 15.880520798838809,
+        "p95AbsM": 33.68761187276017,
+        "maxAbsM": 96.78352399830243
+      },
+      "removed": false,
+      "note": "the fitted plane is disclosed but kept: the detail keeps its absolute heights and the taper band carries the bias back to the base"
+    },
+    "comparisonToHistorical": {
+      "residual.tif": {
+        "cells": 459843200,
+        "changedCells": 0,
+        "maximumDifference": 0.0,
+        "old": {
+          "file": "residual.tif",
+          "bytes": 551502178,
+          "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+        },
+        "clean": {
+          "file": "residual.tif",
+          "bytes": 551502178,
+          "sha256": "249b00ef487d4eaa2459cfc99d3136130e884e16fd7a0a5d92d736e996165df7"
+        }
+      },
+      "weight.tif": {
+        "cells": 459843200,
+        "changedCells": 0,
+        "maximumDifference": 0.0,
+        "old": {
+          "file": "weight.tif",
+          "bytes": 57823651,
+          "sha256": "198f3cee71971fa2ed1770dc5b817a1ced0a6accea82c9a82cca4ce0dad9ed64"
+        },
+        "clean": {
+          "file": "weight.tif",
+          "bytes": 57823651,
+          "sha256": "198f3cee71971fa2ed1770dc5b817a1ced0a6accea82c9a82cca4ce0dad9ed64"
+        }
+      },
+      "coverage.tif": {
+        "cells": 459843200,
+        "changedCells": 0,
+        "maximumDifference": 0.0,
+        "old": {
+          "file": "coverage.tif",
+          "bytes": 1703015,
+          "sha256": "8b3ed0dc55cea8761b92e660bffaf1e1c9d0cd78d7d7111e61ca8bcfa861c010"
+        },
+        "clean": {
+          "file": "coverage.tif",
+          "bytes": 1703015,
+          "sha256": "8b3ed0dc55cea8761b92e660bffaf1e1c9d0cd78d7d7111e61ca8bcfa861c010"
+        }
+      },
+      "fused.tif": {
+        "cells": 459843200,
+        "changedCells": 0,
+        "maximumDifference": 0.0,
+        "old": {
+          "file": "fused.tif",
+          "bytes": 480068839,
+          "sha256": "37b3fccc8e89854ba8cbd186bc21b1b2717c39ec1d9dc1918ee4b93ba86236c6"
+        },
+        "clean": {
+          "file": "fused.tif",
+          "bytes": 480068839,
+          "sha256": "37b3fccc8e89854ba8cbd186bc21b1b2717c39ec1d9dc1918ee4b93ba86236c6"
+        }
+      }
+    }
+  },
+  "mmgisMapEvidence": {
+    "configuration": {
+      "file": "mmgis-api-config.json",
+      "bytes": 7640,
+      "sha256": "5d06da50f101d3b5d381744347ed3f879fe0daa8ee8843510d5ceac86ec344f0"
+    },
+    "referenceSphereRadiusM": 3396190,
+    "inferredStandardParallelDeg": 18.466299997863047,
+    "projectedEastingResidualM": {
+      "n": 73,
+      "meanM": 4.975558960274474e-09,
+      "rmsM": 0.0001721660699887235,
+      "p95AbsM": 0.00030413884669542305,
+      "maxAbsM": 0.0003325296565890312
+    },
+    "projectedNorthingResidualM": {
+      "n": 73,
+      "meanM": 3.9687418468194465e-07,
+      "rmsM": 0.00017401776136719848,
+      "p95AbsM": 0.000277425767853856,
+      "maxAbsM": 0.0002903980202972889
+    },
+    "interpretation": "The original map uses a sphere; the 73 projected coordinates reproduce spherical EQC at standard parallel 18.4663 degrees. This corroborates source-map coordinates, not an independent SF3-to-IAU_MARS transform."
+  },
+  "controls": {
+    "count": 73,
+    "fieldMinusObservationM": {
+      "n": 73,
+      "meanM": -0.00036434149042677695,
+      "rmsM": 0.0041802819551759515,
+      "p95AbsM": 0.008264282260461183,
+      "maxAbsM": 0.01816227872541276
+    },
+    "dtmMinusObservationM": {
+      "n": 73,
+      "meanM": -0.00036141118797699265,
+      "rmsM": 0.004184941862229869,
+      "p95AbsM": 0.008316107151495085,
+      "maxAbsM": 0.018155945630951464
+    },
+    "areoidMinusEllipsoidRayRadiusM": {
+      "n": 73,
+      "meanM": 335.3344613473467,
+      "rmsM": 335.33968454898087,
+      "p95AbsM": 338.40712493341414,
+      "maxAbsM": 338.473200222943
+    },
+    "legacyPhysicalCentricMinusSourceLatitudeDeg": {
+      "min": -0.20271996330163589,
+      "max": -0.2020755304827091
+    },
+    "conditionalMinusLegacyAlongSourceRadialM": {
+      "n": 73,
+      "meanM": 313.9875047944012,
+      "rmsM": 313.99282901175826,
+      "p95AbsM": 316.9912309900433,
+      "maxAbsM": 317.0577251925797
+    },
+    "conditionalMinusLegacyTangentialM": {
+      "n": 73,
+      "meanM": 11981.208578315009,
+      "rmsM": 11981.214881617258,
+      "p95AbsM": 12000.456700823594,
+      "maxAbsM": 12000.583982968621
+    },
+    "legacyToConditionalDisplacementM": {
+      "n": 73,
+      "meanM": 11985.322249875617,
+      "rmsM": 11985.328595251684,
+      "p95AbsM": 12004.644352317453,
+      "maxAbsM": 12004.769856806439
+    },
+    "rows": [
+      {
+        "flight": 0,
+        "lon": 77.45101915,
+        "lat": 18.44486301,
+        "observedAreoidM": -2570.0,
+        "fieldMinusObservationM": -0.003658215148789168,
+        "dtmMinusObservationM": -0.003603514860060386,
+        "areoidRadiusM": 3394506.48780384,
+        "conditionalRadialBodyFixedM": [
+          699120.384363794,
+          3140819.2800497953,
+          1073181.2873552905
+        ],
+        "legacyToConditionalDisplacementM": 11975.32573104793
+      },
+      {
+        "flight": 1,
+        "lon": 77.45101959,
+        "lat": 18.44486374,
+        "observedAreoidM": -2570.0,
+        "fieldMinusObservationM": -0.0031052869030645525,
+        "dtmMinusObservationM": -0.003053313675991376,
+        "areoidRadiusM": 3394506.48766832,
+        "conditionalRadialBodyFixedM": [
+          699120.3572452461,
+          3140819.271946514,
+          1073181.3283086636
+        ],
+        "legacyToConditionalDisplacementM": 11975.326138330069
+      },
+      {
+        "flight": 2,
+        "lon": 77.45102213,
+        "lat": 18.44486495,
+        "observedAreoidM": -2570.0,
+        "fieldMinusObservationM": 0.000517787414992199,
+        "dtmMinusObservationM": 0.0005575804907493875,
+        "areoidRadiusM": 3394506.48741472,
+        "conditionalRadialBodyFixedM": [
+          699120.2130318845,
+          3140819.280582109,
+          1073181.3961811152
+        ],
+        "legacyToConditionalDisplacementM": 11975.326812658468
+      },
+      {
+        "flight": 3,
+        "lon": 77.45100917,
+        "lat": 18.44485549,
+        "observedAreoidM": -2570.01,
+        "fieldMinusObservationM": -0.002876757118428941,
+        "dtmMinusObservationM": -0.002853996400062897,
+        "areoidRadiusM": 3394506.4892870397,
+        "conditionalRadialBodyFixedM": [
+          699120.9602922746,
+          3140819.287876763,
+          1073180.8623430969
+        ],
+        "legacyToConditionalDisplacementM": 11975.321537756467
+      },
+      {
+        "flight": 4,
+        "lon": 77.45111647,
+        "lat": 18.44485735,
+        "observedAreoidM": -2569.87,
+        "fieldMinusObservationM": -0.0036499287048172846,
+        "dtmMinusObservationM": -0.003752102672933688,
+        "areoidRadiusM": 3394506.4872428803,
+        "conditionalRadialBodyFixedM": [
+          699115.0992232027,
+          3140820.690877832,
+          1073181.0104474002
+        ],
+        "legacyToConditionalDisplacementM": 11975.32253119087
+      },
+      {
+        "flight": 5,
+        "lon": 77.4513883,
+        "lat": 18.44266513,
+        "observedAreoidM": -2569.13,
+        "fieldMinusObservationM": -0.0024095210305858927,
+        "dtmMinusObservationM": -0.0024087015945042367,
+        "areoidRadiusM": 3394506.86872432,
+        "conditionalRadialBodyFixedM": [
+          699109.3501034997,
+          3140865.124437604,
+          1073058.251015139
+        ],
+        "legacyToConditionalDisplacementM": 11974.098747350212
+      },
+      {
+        "flight": 6,
+        "lon": 77.44994298,
+        "lat": 18.44166028,
+        "observedAreoidM": -2568.99,
+        "fieldMinusObservationM": -0.0003693831508826406,
+        "dtmMinusObservationM": -0.00039344727656498435,
+        "areoidRadiusM": 3394507.0687030395,
+        "conditionalRadialBodyFixedM": [
+          699192.7393167858,
+          3140866.1718966495,
+          1073001.9260363148
+        ],
+        "legacyToConditionalDisplacementM": 11973.538432442121
+      },
+      {
+        "flight": 7,
+        "lon": 77.45015049,
+        "lat": 18.4398789,
+        "observedAreoidM": -2568.93,
+        "fieldMinusObservationM": 0.0037306015678950644,
+        "dtmMinusObservationM": 0.0035766385544775403,
+        "areoidRadiusM": 3394507.37890576,
+        "conditionalRadialBodyFixedM": [
+          699188.6888067074,
+          3140901.6090214904,
+          1072901.9997447035
+        ],
+        "legacyToConditionalDisplacementM": 11972.543925613876
+      },
+      {
+        "flight": 8,
+        "lon": 77.45078614,
+        "lat": 18.43723731,
+        "observedAreoidM": -2569.4,
+        "fieldMinusObservationM": 0.001817770783418382,
+        "dtmMinusObservationM": 0.0018196218329649128,
+        "areoidRadiusM": 3394507.8336552,
+        "conditionalRadialBodyFixedM": [
+          699164.5869137212,
+          3140957.6321009346,
+          1072753.6396861812
+        ],
+        "legacyToConditionalDisplacementM": 11971.068962073028
+      },
+      {
+        "flight": 9,
+        "lon": 77.44543778,
+        "lat": 18.42809392,
+        "observedAreoidM": -2579.91,
+        "fieldMinusObservationM": -0.0008212518828258908,
+        "dtmMinusObservationM": -0.000763077624469588,
+        "areoidRadiusM": 3394509.5284655998,
+        "conditionalRadialBodyFixedM": [
+          699493.1664145554,
+          3141051.249817027,
+          1072237.3304387522
+        ],
+        "legacyToConditionalDisplacementM": 11965.966022967885
+      },
+      {
+        "flight": 10,
+        "lon": 77.44371342,
+        "lat": 18.42808138,
+        "observedAreoidM": -2578.2,
+        "fieldMinusObservationM": 0.0009355036522720184,
+        "dtmMinusObservationM": 0.0009276217879232718,
+        "areoidRadiusM": 3394509.5582624,
+        "conditionalRadialBodyFixedM": [
+          699588.1082728528,
+          3141032.0367830475,
+          1072237.1761087007
+        ],
+        "legacyToConditionalDisplacementM": 11965.959739444357
+      },
+      {
+        "flight": 11,
+        "lon": 77.43879656,
+        "lat": 18.43268713,
+        "observedAreoidM": -2569.83,
+        "fieldMinusObservationM": 0.0016933762108237715,
+        "dtmMinusObservationM": 0.0017451948169764364,
+        "areoidRadiusM": 3394508.82632016,
+        "conditionalRadialBodyFixedM": [
+          699840.4829513641,
+          3140894.923143222,
+          1072498.2680419353
+        ],
+        "legacyToConditionalDisplacementM": 11968.533538982785
+      },
+      {
+        "flight": 12,
+        "lon": 77.43923886,
+        "lat": 18.432689,
+        "observedAreoidM": -2570.31,
+        "fieldMinusObservationM": 0.0011164337456648354,
+        "dtmMinusObservationM": 0.0011265964117228577,
+        "areoidRadiusM": 3394508.8189142398,
+        "conditionalRadialBodyFixedM": [
+          699816.1283326433,
+          3140899.840033257,
+          1072498.2189541978
+        ],
+        "legacyToConditionalDisplacementM": 11968.534398576687
+      },
+      {
+        "flight": 13,
+        "lon": 77.43914181,
+        "lat": 18.4328782,
+        "observedAreoidM": -2569.81,
+        "fieldMinusObservationM": 0.003204964818451117,
+        "dtmMinusObservationM": 0.0033017992814166064,
+        "areoidRadiusM": 3394508.7871678397,
+        "conditionalRadialBodyFixedM": [
+          699820.7749186546,
+          3140895.6314324522,
+          1072508.993095723
+        ],
+        "legacyToConditionalDisplacementM": 11968.640077725866
+      },
+      {
+        "flight": 14,
+        "lon": 77.43917516,
+        "lat": 18.43285852,
+        "observedAreoidM": -2569.85,
+        "fieldMinusObservationM": -0.0029352489555094508,
+        "dtmMinusObservationM": -0.002934289198492479,
+        "areoidRadiusM": 3394508.7900979198,
+        "conditionalRadialBodyFixedM": [
+          699819.0191727728,
+          3140896.364017381,
+          1072507.876082528
+        ],
+        "legacyToConditionalDisplacementM": 11968.629075629171
+      },
+      {
+        "flight": 15,
+        "lon": 77.44501701,
+        "lat": 18.42871034,
+        "observedAreoidM": -2578.9,
+        "fieldMinusObservationM": -0.002434989171433699,
+        "dtmMinusObservationM": -0.0024472184063597524,
+        "areoidRadiusM": 3394509.4267080002,
+        "conditionalRadialBodyFixedM": [
+          699513.913386863,
+          3141035.6937745824,
+          1072272.2384850953
+        ],
+        "legacyToConditionalDisplacementM": 11966.31041096403
+      },
+      {
+        "flight": 16,
+        "lon": 77.44644658,
+        "lat": 18.43013211,
+        "observedAreoidM": -2582.23,
+        "fieldMinusObservationM": 0.006203423630267935,
+        "dtmMinusObservationM": 0.0061428599337887135,
+        "areoidRadiusM": 3394509.15360336,
+        "conditionalRadialBodyFixedM": [
+          699429.015631958,
+          3141023.8367507015,
+          1072350.951937548
+        ],
+        "legacyToConditionalDisplacementM": 11967.103719104645
+      },
+      {
+        "flight": 17,
+        "lon": 77.44773285,
+        "lat": 18.43306128,
+        "observedAreoidM": -2579.56,
+        "fieldMinusObservationM": 0.0012967506390850758,
+        "dtmMinusObservationM": 0.0014049999567760096,
+        "areoidRadiusM": 3394508.61748912,
+        "conditionalRadialBodyFixedM": [
+          699347.0250481198,
+          3140987.9976582155,
+          1072516.1388820242
+        ],
+        "legacyToConditionalDisplacementM": 11968.738715701747
+      },
+      {
+        "flight": 18,
+        "lon": 77.45008781,
+        "lat": 18.43624333,
+        "observedAreoidM": -2572.99,
+        "fieldMinusObservationM": 0.0017635972599236993,
+        "dtmMinusObservationM": 0.001735933175041282,
+        "areoidRadiusM": 3394508.01976896,
+        "conditionalRadialBodyFixedM": [
+          699206.2114215111,
+          3140964.1235498404,
+          1072696.7393705053
+        ],
+        "legacyToConditionalDisplacementM": 11970.514326715414
+      },
+      {
+        "flight": 19,
+        "lon": 77.45075374,
+        "lat": 18.43705741,
+        "observedAreoidM": -2569.36,
+        "fieldMinusObservationM": -0.0008100421391645796,
+        "dtmMinusObservationM": -0.000863675546952436,
+        "areoidRadiusM": 3394507.8658359996,
+        "conditionalRadialBodyFixedM": [
+          699167.1098141792,
+          3140960.5913697286,
+          1072743.5590062367
+        ],
+        "legacyToConditionalDisplacementM": 11970.968540710412
+      },
+      {
+        "flight": 20,
+        "lon": 77.44857228,
+        "lat": 18.44335178,
+        "observedAreoidM": -2570.43,
+        "fieldMinusObservationM": -0.006716866952046985,
+        "dtmMinusObservationM": -0.006708969175633683,
+        "areoidRadiusM": 3394506.7929302403,
+        "conditionalRadialBodyFixedM": [
+          699260.6407505687,
+          3140816.9335578918,
+          1073096.3779370105
+        ],
+        "legacyToConditionalDisplacementM": 11974.483209150709
+      },
+      {
+        "flight": 21,
+        "lon": 77.44220948,
+        "lat": 18.44514544,
+        "observedAreoidM": -2558.7,
+        "fieldMinusObservationM": 0.009480053873630823,
+        "dtmMinusObservationM": 0.009574120703746303,
+        "areoidRadiusM": 3394506.57905088,
+        "conditionalRadialBodyFixedM": [
+          699604.50069401,
+          3140717.131728383,
+          1073200.7525501868
+        ],
+        "legacyToConditionalDisplacementM": 11975.48705137853
+      },
+      {
+        "flight": 22,
+        "lon": 77.4429247,
+        "lat": 18.44610066,
+        "observedAreoidM": -2561.58,
+        "fieldMinusObservationM": -0.0012239824513926578,
+        "dtmMinusObservationM": -0.0012594117324624676,
+        "areoidRadiusM": 3394506.39948864,
+        "conditionalRadialBodyFixedM": [
+          699560.7741751225,
+          3140705.567091958,
+          1073253.428845633
+        ],
+        "legacyToConditionalDisplacementM": 11976.019919940445
+      },
+      {
+        "flight": 23,
+        "lon": 77.44328534,
+        "lat": 18.45058117,
+        "observedAreoidM": -2565.68,
+        "fieldMinusObservationM": 0.0033977279467762855,
+        "dtmMinusObservationM": 0.003275573186328984,
+        "areoidRadiusM": 3394505.60514864,
+        "conditionalRadialBodyFixedM": [
+          699521.7474905425,
+          3140623.508410287,
+          1073503.4974446031
+        ],
+        "legacyToConditionalDisplacementM": 11978.520444942606
+      },
+      {
+        "flight": 24,
+        "lon": 77.44245658,
+        "lat": 18.45076052,
+        "observedAreoidM": -2563.18,
+        "fieldMinusObservationM": -0.0001812685300137673,
+        "dtmMinusObservationM": -0.000201091538201581,
+        "areoidRadiusM": 3394505.5868432,
+        "conditionalRadialBodyFixedM": [
+          699566.9564780799,
+          3140612.4076342466,
+          1073514.3547056348
+        ],
+        "legacyToConditionalDisplacementM": 11978.62088439115
+      },
+      {
+        "flight": 25,
+        "lon": 77.43059567,
+        "lat": 18.45477382,
+        "observedAreoidM": -2557.74,
+        "fieldMinusObservationM": -0.0027220666033827,
+        "dtmMinusObservationM": -0.0026577131684462074,
+        "areoidRadiusM": 3394505.0702769603,
+        "conditionalRadialBodyFixedM": [
+          700201.7363427108,
+          3140398.679787285,
+          1073741.287175792
+        ],
+        "legacyToConditionalDisplacementM": 11980.865502127668
+      },
+      {
+        "flight": 26,
+        "lon": 77.43047047,
+        "lat": 18.45164544,
+        "observedAreoidM": -2559.58,
+        "fieldMinusObservationM": 0.0011980009107901424,
+        "dtmMinusObservationM": 0.0012253162485649227,
+        "areoidRadiusM": 3394505.62287504,
+        "conditionalRadialBodyFixedM": [
+          700221.0904005133,
+          3140453.174816346,
+          1073565.2002183623
+        ],
+        "legacyToConditionalDisplacementM": 11979.119749020889
+      },
+      {
+        "flight": 27,
+        "lon": 77.42634265,
+        "lat": 18.4525068,
+        "observedAreoidM": -2556.57,
+        "fieldMinusObservationM": 0.0018630407612363342,
+        "dtmMinusObservationM": 0.0019143283611811057,
+        "areoidRadiusM": 3394505.5373208,
+        "conditionalRadialBodyFixedM": [
+          700444.429889197,
+          3140389.674665764,
+          1073614.4972933712
+        ],
+        "legacyToConditionalDisplacementM": 11979.602173325176
+      },
+      {
+        "flight": 28,
+        "lon": 77.42064135,
+        "lat": 18.45713181,
+        "observedAreoidM": -2549.64,
+        "fieldMinusObservationM": 0.0012923677604703698,
+        "dtmMinusObservationM": 0.0013643660586240003,
+        "areoidRadiusM": 3394504.81453984,
+        "conditionalRadialBodyFixedM": [
+          700739.3208465351,
+          3140241.1131375134,
+          1073876.1854459776
+        ],
+        "legacyToConditionalDisplacementM": 11982.185457750576
+      },
+      {
+        "flight": 29,
+        "lon": 77.41767573,
+        "lat": 18.45598666,
+        "observedAreoidM": -2550.23,
+        "fieldMinusObservationM": 0.0045509028241212945,
+        "dtmMinusObservationM": 0.004649237102512416,
+        "areoidRadiusM": 3394505.06353616,
+        "conditionalRadialBodyFixedM": [
+          700906.4632445627,
+          3140225.47017199,
+          1073811.7707561336
+        ],
+        "legacyToConditionalDisplacementM": 11981.54769635156
+      },
+      {
+        "flight": 30,
+        "lon": 77.41764295,
+        "lat": 18.45597433,
+        "observedAreoidM": -2550.31,
+        "fieldMinusObservationM": 0.0029804544637954677,
+        "dtmMinusObservationM": 0.003012619170021935,
+        "areoidRadiusM": 3394505.06623072,
+        "conditionalRadialBodyFixedM": [
+          700908.294192407,
+          3140225.2231348315,
+          1073811.0538806587
+        ],
+        "legacyToConditionalDisplacementM": 11981.54082973351
+      },
+      {
+        "flight": 31,
+        "lon": 77.41590824,
+        "lat": 18.45582472,
+        "observedAreoidM": -2549.36,
+        "fieldMinusObservationM": 0.0013000017588638002,
+        "dtmMinusObservationM": 0.001414417958130798,
+        "areoidRadiusM": 3394505.12031744,
+        "conditionalRadialBodyFixedM": [
+          701004.1869950595,
+          3140207.6668322706,
+          1073802.9702575272
+        ],
+        "legacyToConditionalDisplacementM": 11981.458070388768
+      },
+      {
+        "flight": 32,
+        "lon": 77.41423146,
+        "lat": 18.45592531,
+        "observedAreoidM": -2547.28,
+        "fieldMinusObservationM": 0.0026598538061080035,
+        "dtmMinusObservationM": 0.0026429557706251217,
+        "areoidRadiusM": 3394505.12944208,
+        "conditionalRadialBodyFixedM": [
+          701096.1069359095,
+          3140187.244522761,
+          1073809.2803508458
+        ],
+        "legacyToConditionalDisplacementM": 11981.514902589384
+      },
+      {
+        "flight": 33,
+        "lon": 77.41226441,
+        "lat": 18.45562295,
+        "observedAreoidM": -2545.47,
+        "fieldMinusObservationM": -0.0011329836338518362,
+        "dtmMinusObservationM": -0.0011280691910542373,
+        "areoidRadiusM": 3394505.21413024,
+        "conditionalRadialBodyFixedM": [
+          701205.5404938823,
+          3140170.457465898,
+          1073792.9008142934
+        ],
+        "legacyToConditionalDisplacementM": 11981.347003002005
+      },
+      {
+        "flight": 34,
+        "lon": 77.41226576,
+        "lat": 18.45562133,
+        "observedAreoidM": -2545.47,
+        "fieldMinusObservationM": -0.0020442859868126106,
+        "dtmMinusObservationM": -0.0020507595268099976,
+        "areoidRadiusM": 3394505.21439376,
+        "conditionalRadialBodyFixedM": [
+          701205.4731764912,
+          3140170.503862631,
+          1073792.8099248114
+        ],
+        "legacyToConditionalDisplacementM": 11981.346098444512
+      },
+      {
+        "flight": 35,
+        "lon": 77.41209277,
+        "lat": 18.45581408,
+        "observedAreoidM": -2545.12,
+        "fieldMinusObservationM": -0.0028498305518951383,
+        "dtmMinusObservationM": -0.0028990995679123444,
+        "areoidRadiusM": 3394505.1832375997,
+        "conditionalRadialBodyFixedM": [
+          701214.2327576453,
+          3140165.1563557014,
+          1073803.7349471732
+        ],
+        "legacyToConditionalDisplacementM": 11981.453728963868
+      },
+      {
+        "flight": 36,
+        "lon": 77.41208615,
+        "lat": 18.45580495,
+        "observedAreoidM": -2545.12,
+        "fieldMinusObservationM": 0.0004694760341408255,
+        "dtmMinusObservationM": 0.00042766989463416394,
+        "areoidRadiusM": 3394505.1849504,
+        "conditionalRadialBodyFixedM": [
+          701214.6332199638,
+          3140165.243918533,
+          1073803.2227845907
+        ],
+        "legacyToConditionalDisplacementM": 11981.448637031635
+      },
+      {
+        "flight": 37,
+        "lon": 77.41152403,
+        "lat": 18.4565244,
+        "observedAreoidM": -2543.69,
+        "fieldMinusObservationM": 0.009082145823413157,
+        "dtmMinusObservationM": 0.009005860887100425,
+        "areoidRadiusM": 3394505.06732112,
+        "conditionalRadialBodyFixedM": [
+          701242.7734318946,
+          3140146.4195874347,
+          1073844.0396537804
+        ],
+        "legacyToConditionalDisplacementM": 11981.850334369006
+      },
+      {
+        "flight": 38,
+        "lon": 77.4098952,
+        "lat": 18.4572826,
+        "observedAreoidM": -2539.76,
+        "fieldMinusObservationM": -0.0014414660809052293,
+        "dtmMinusObservationM": -0.001352167544155236,
+        "areoidRadiusM": 3394504.9599392,
+        "conditionalRadialBodyFixedM": [
+          701329.7354644233,
+          3140116.1530178157,
+          1073887.8271535523
+        ],
+        "legacyToConditionalDisplacementM": 11982.274093055184
+      },
+      {
+        "flight": 39,
+        "lon": 77.40988382,
+        "lat": 18.45726375,
+        "observedAreoidM": -2539.91,
+        "fieldMinusObservationM": 0.0029861060820621788,
+        "dtmMinusObservationM": 0.0030821051504972274,
+        "areoidRadiusM": 3394504.96343888,
+        "conditionalRadialBodyFixedM": [
+          701330.405869932,
+          3140116.222905537,
+          1073886.722237687
+        ],
+        "legacyToConditionalDisplacementM": 11982.263579574148
+      },
+      {
+        "flight": 40,
+        "lon": 77.40713322,
+        "lat": 18.45871172,
+        "observedAreoidM": -2523.28,
+        "fieldMinusObservationM": -0.001148010032466118,
+        "dtmMinusObservationM": -0.0012321560566306289,
+        "areoidRadiusM": 3394504.75260576,
+        "conditionalRadialBodyFixedM": [
+          701478.6311321683,
+          3140071.2630345225,
+          1073973.232269062
+        ],
+        "legacyToConditionalDisplacementM": 11983.072678704533
+      },
+      {
+        "flight": 41,
+        "lon": 77.40709567,
+        "lat": 18.45903198,
+        "observedAreoidM": -2520.55,
+        "fieldMinusObservationM": 0.008088177523859486,
+        "dtmMinusObservationM": 0.00812675495262738,
+        "areoidRadiusM": 3394504.6968408,
+        "conditionalRadialBodyFixedM": [
+          701479.9332748587,
+          3140067.4202198945,
+          1073992.0633345423
+        ],
+        "legacyToConditionalDisplacementM": 11983.251391267095
+      },
+      {
+        "flight": 42,
+        "lon": 77.40378107,
+        "lat": 18.4617056,
+        "observedAreoidM": -2497.92,
+        "fieldMinusObservationM": -0.001046666206093505,
+        "dtmMinusObservationM": -0.001085766663436516,
+        "areoidRadiusM": 3394504.3143677744,
+        "conditionalRadialBodyFixedM": [
+          701655.2591246532,
+          3139998.5151488376,
+          1074149.2455137142
+        ],
+        "legacyToConditionalDisplacementM": 11984.74545024937
+      },
+      {
+        "flight": 43,
+        "lon": 77.40038108,
+        "lat": 18.46708263,
+        "observedAreoidM": -2489.03,
+        "fieldMinusObservationM": -0.0027913347753383277,
+        "dtmMinusObservationM": -0.0028306422000241582,
+        "areoidRadiusM": 3394503.478757431,
+        "conditionalRadialBodyFixedM": [
+          701821.2626028712,
+          3139865.936538945,
+          1074453.738650532
+        ],
+        "legacyToConditionalDisplacementM": 11987.74817303625
+      },
+      {
+        "flight": 44,
+        "lon": 77.39842974,
+        "lat": 18.47225155,
+        "observedAreoidM": -2478.28,
+        "fieldMinusObservationM": -0.0033418655239074724,
+        "dtmMinusObservationM": -0.003400517047793983,
+        "areoidRadiusM": 3394502.682990264,
+        "conditionalRadialBodyFixedM": [
+          701909.1069997667,
+          3139756.637237537,
+          1074747.1399892545
+        ],
+        "legacyToConditionalDisplacementM": 11990.63449183596
+      },
+      {
+        "flight": 45,
+        "lon": 77.39239887,
+        "lat": 18.47719522,
+        "observedAreoidM": -2472.6,
+        "fieldMinusObservationM": -0.0030316361699078698,
+        "dtmMinusObservationM": -0.002983202175983024,
+        "areoidRadiusM": 3394502.062055145,
+        "conditionalRadialBodyFixedM": [
+          702220.3929936464,
+          3139596.9120428874,
+          1075026.3350284628
+        ],
+        "legacyToConditionalDisplacementM": 11993.398354263942
+      },
+      {
+        "flight": 46,
+        "lon": 77.38783313,
+        "lat": 18.47512955,
+        "observedAreoidM": -2463.05,
+        "fieldMinusObservationM": 0.004279613646758662,
+        "dtmMinusObservationM": 0.004198146306862327,
+        "areoidRadiusM": 3394502.5385340564,
+        "conditionalRadialBodyFixedM": [
+          702481.1151853598,
+          3139588.044763791,
+          1074913.5238513795
+        ],
+        "legacyToConditionalDisplacementM": 11992.249231423513
+      },
+      {
+        "flight": 47,
+        "lon": 77.38140034,
+        "lat": 18.47132473,
+        "observedAreoidM": -2451.43,
+        "fieldMinusObservationM": 9.387157524543e-05,
+        "dtmMinusObservationM": 0.00010637987406880711,
+        "areoidRadiusM": 3394503.3668531417,
+        "conditionalRadialBodyFixedM": [
+          702851.7746652532,
+          3139590.327195795,
+          1074703.8208444486
+        ],
+        "legacyToConditionalDisplacementM": 11990.131174955672
+      },
+      {
+        "flight": 48,
+        "lon": 77.37672291,
+        "lat": 18.47448236,
+        "observedAreoidM": -2430.15,
+        "fieldMinusObservationM": -0.0035810029125968867,
+        "dtmMinusObservationM": -0.0036725261484207294,
+        "areoidRadiusM": 3394502.9843587433,
+        "conditionalRadialBodyFixedM": [
+          703099.4644882932,
+          3139494.478629795,
+          1074887.7500854996
+        ],
+        "legacyToConditionalDisplacementM": 11991.89697470506
+      },
+      {
+        "flight": 49,
+        "lon": 77.37229897,
+        "lat": 18.47602447,
+        "observedAreoidM": -2422.23,
+        "fieldMinusObservationM": 0.0002916956677836424,
+        "dtmMinusObservationM": 0.00022471934789791703,
+        "areoidRadiusM": 3394502.8592919684,
+        "conditionalRadialBodyFixedM": [
+          703337.1613999649,
+          3139419.1638179175,
+          1074976.8122450088
+        ],
+        "legacyToConditionalDisplacementM": 11992.760920647246
+      },
+      {
+        "flight": 50,
+        "lon": 77.36885496,
+        "lat": 18.47989172,
+        "observedAreoidM": -2419.93,
+        "fieldMinusObservationM": -0.005687671421583218,
+        "dtmMinusObservationM": -0.005646886919294047,
+        "areoidRadiusM": 3394502.3073049434,
+        "conditionalRadialBodyFixedM": [
+          703510.3631072928,
+          3139307.6907542516,
+          1075194.5155154995
+        ],
+        "legacyToConditionalDisplacementM": 11994.92108683845
+      },
+      {
+        "flight": 51,
+        "lon": 77.36647578,
+        "lat": 18.48007438,
+        "observedAreoidM": -2417.38,
+        "fieldMinusObservationM": -0.003760292518109054,
+        "dtmMinusObservationM": -0.003735366263299511,
+        "areoidRadiusM": 3394502.345567134,
+        "conditionalRadialBodyFixedM": [
+          703640.5079595326,
+          3139277.5257102726,
+          1075205.5923196396
+        ],
+        "legacyToConditionalDisplacementM": 11995.024803642746
+      },
+      {
+        "flight": 52,
+        "lon": 77.36014058,
+        "lat": 18.48045117,
+        "observedAreoidM": -2420.26,
+        "fieldMinusObservationM": -0.0042346199888925184,
+        "dtmMinusObservationM": -0.004238866395553487,
+        "areoidRadiusM": 3394502.4651934947,
+        "conditionalRadialBodyFixedM": [
+          703985.4937400675,
+          3139190.250841534,
+          1075225.8741377937
+        ],
+        "legacyToConditionalDisplacementM": 11995.239821024561
+      },
+      {
+        "flight": 53,
+        "lon": 77.36032717,
+        "lat": 18.48285597,
+        "observedAreoidM": -2417.75,
+        "fieldMinusObservationM": 0.0005909884648644947,
+        "dtmMinusObservationM": 0.0005868723460480396,
+        "areoidRadiusM": 3394502.046742128,
+        "conditionalRadialBodyFixedM": [
+          703965.8289743646,
+          3139150.440902792,
+          1075361.5658097432
+        ],
+        "legacyToConditionalDisplacementM": 11996.580990894516
+      },
+      {
+        "flight": 54,
+        "lon": 77.36032758,
+        "lat": 18.48285671,
+        "observedAreoidM": -2417.75,
+        "fieldMinusObservationM": 0.0012735368259200186,
+        "dtmMinusObservationM": 0.0012722952155854728,
+        "areoidRadiusM": 3394502.046603389,
+        "conditionalRadialBodyFixedM": [
+          703965.8034431579,
+          3139150.432259695,
+          1075361.6073162132
+        ],
+        "legacyToConditionalDisplacementM": 11996.581403321254
+      },
+      {
+        "flight": 55,
+        "lon": 77.35698187,
+        "lat": 18.4817296,
+        "observedAreoidM": -2417.56,
+        "fieldMinusObservationM": -0.004833122568925319,
+        "dtmMinusObservationM": -0.00479643219978243,
+        "areoidRadiusM": 3394502.336137121,
+        "conditionalRadialBodyFixedM": [
+          704153.8382817283,
+          3139130.404281337,
+          1075298.4727278398
+        ],
+        "legacyToConditionalDisplacementM": 11995.955277093293
+      },
+      {
+        "flight": 56,
+        "lon": 77.35095273,
+        "lat": 18.48452894,
+        "observedAreoidM": -2420.87,
+        "fieldMinusObservationM": 0.0055870649757707724,
+        "dtmMinusObservationM": 0.005632906721984909,
+        "areoidRadiusM": 3394502.0215139696,
+        "conditionalRadialBodyFixedM": [
+          704471.9018771026,
+          3139001.670489793,
+          1075454.504190801
+        ],
+        "legacyToConditionalDisplacementM": 11997.520968764848
+      },
+      {
+        "flight": 57,
+        "lon": 77.35098453,
+        "lat": 18.48796705,
+        "observedAreoidM": -2410.48,
+        "fieldMinusObservationM": 0.004222166811359784,
+        "dtmMinusObservationM": 0.004205762825677084,
+        "areoidRadiusM": 3394501.421884979,
+        "conditionalRadialBodyFixedM": [
+          704458.0600998596,
+          3138948.1477395706,
+          1075650.652108197
+        ],
+        "legacyToConditionalDisplacementM": 11999.438161992399
+      },
+      {
+        "flight": 58,
+        "lon": 77.34832863,
+        "lat": 18.48938515,
+        "observedAreoidM": -2408.11,
+        "fieldMinusObservationM": 0.00043071389836768503,
+        "dtmMinusObservationM": 0.00036936309834345593,
+        "areoidRadiusM": 3394501.2458845037,
+        "conditionalRadialBodyFixedM": [
+          704598.18725289,
+          3138891.5425526956,
+          1075730.9706082963
+        ],
+        "legacyToConditionalDisplacementM": 12000.230768077876
+      },
+      {
+        "flight": 59,
+        "lon": 77.34834688,
+        "lat": 18.48939071,
+        "observedAreoidM": -2408.17,
+        "fieldMinusObservationM": -0.006376006217124086,
+        "dtmMinusObservationM": -0.006392730004790792,
+        "areoidRadiusM": 3394501.244424894,
+        "conditionalRadialBodyFixedM": [
+          704597.151815109,
+          3138891.608256318,
+          1075731.2632964759
+        ],
+        "legacyToConditionalDisplacementM": 12000.233855339013
+      },
+      {
+        "flight": 60,
+        "lon": 77.34511243,
+        "lat": 18.49391764,
+        "observedAreoidM": -2410.69,
+        "fieldMinusObservationM": -0.00010711355662351707,
+        "dtmMinusObservationM": -8.108551173791056e-05,
+        "areoidRadiusM": 3394500.535675622,
+        "conditionalRadialBodyFixedM": [
+          704755.053585344,
+          3138765.901421568,
+          1075984.4105073456
+        ],
+        "legacyToConditionalDisplacementM": 12002.759990027775
+      },
+      {
+        "flight": 61,
+        "lon": 77.34511629,
+        "lat": 18.49391533,
+        "observedAreoidM": -2410.69,
+        "fieldMinusObservationM": 0.0015716658044766518,
+        "dtmMinusObservationM": 0.001591908203863568,
+        "areoidRadiusM": 3394500.5359827233,
+        "conditionalRadialBodyFixedM": [
+          704754.8516951288,
+          3138765.991511616,
+          1075984.2809081255
+        ],
+        "legacyToConditionalDisplacementM": 12002.758699627544
+      },
+      {
+        "flight": 62,
+        "lon": 77.34484606,
+        "lat": 18.49436422,
+        "observedAreoidM": -2409.96,
+        "fieldMinusObservationM": 0.0011775214961744496,
+        "dtmMinusObservationM": 0.0011496835068101063,
+        "areoidRadiusM": 3394500.4640104887,
+        "conditionalRadialBodyFixedM": [
+          704767.9452212646,
+          3138755.051233911,
+          1076009.6928654201
+        ],
+        "legacyToConditionalDisplacementM": 12003.009130515176
+      },
+      {
+        "flight": 63,
+        "lon": 77.33650661,
+        "lat": 18.48883927,
+        "observedAreoidM": -2399.17,
+        "fieldMinusObservationM": -0.0009605900231690612,
+        "dtmMinusObservationM": -0.0008640838173050724,
+        "areoidRadiusM": 3394501.58018272,
+        "conditionalRadialBodyFixedM": [
+          705250.004699877,
+          3138764.674877867,
+          1075703.2619533506
+        ],
+        "legacyToConditionalDisplacementM": 11999.932695937674
+      },
+      {
+        "flight": 64,
+        "lon": 77.33377949,
+        "lat": 18.49483788,
+        "observedAreoidM": -2406.49,
+        "fieldMinusObservationM": -0.005206975787586998,
+        "dtmMinusObservationM": -0.005163496047771332,
+        "areoidRadiusM": 3394500.56806128,
+        "conditionalRadialBodyFixedM": [
+          705372.9692998294,
+          3138613.4961581947,
+          1076037.420507846
+        ],
+        "legacyToConditionalDisplacementM": 12003.278126357623
+      },
+      {
+        "flight": 65,
+        "lon": 77.33365412,
+        "lat": 18.49482293,
+        "observedAreoidM": -2406.22,
+        "fieldMinusObservationM": -0.006058768711682205,
+        "dtmMinusObservationM": -0.006078320327105757,
+        "areoidRadiusM": 3394500.5726984004,
+        "conditionalRadialBodyFixedM": [
+          705379.9556337778,
+          3138612.480758659,
+          1076036.6682527335
+        ],
+        "legacyToConditionalDisplacementM": 12003.269845174742
+      },
+      {
+        "flight": 66,
+        "lon": 77.33365298,
+        "lat": 18.49481372,
+        "observedAreoidM": -2406.24,
+        "fieldMinusObservationM": -0.008528439365363738,
+        "dtmMinusObservationM": -0.008600135449796653,
+        "areoidRadiusM": 3394500.5743376,
+        "conditionalRadialBodyFixedM": [
+          705380.0521909671,
+          3138612.618493004,
+          1076036.1453282142
+        ],
+        "legacyToConditionalDisplacementM": 12003.264711388301
+      },
+      {
+        "flight": 67,
+        "lon": 77.32710942,
+        "lat": 18.49742522,
+        "observedAreoidM": -2411.07,
+        "fieldMinusObservationM": 0.004222566690259555,
+        "dtmMinusObservationM": 0.004260821021034644,
+        "areoidRadiusM": 3394500.21941056,
+        "conditionalRadialBodyFixedM": [
+          705726.658908426,
+          3138479.3882491398,
+          1076181.123226994
+        ],
+        "legacyToConditionalDisplacementM": 12004.723251311552
+      },
+      {
+        "flight": 68,
+        "lon": 77.32708433,
+        "lat": 18.49750865,
+        "observedAreoidM": -2410.96,
+        "fieldMinusObservationM": -0.003930907963876962,
+        "dtmMinusObservationM": -0.003941580839637027,
+        "areoidRadiusM": 3394500.20512832,
+        "conditionalRadialBodyFixedM": [
+          705727.70938267,
+          3138477.638885398,
+          1076185.8377348424
+        ],
+        "legacyToConditionalDisplacementM": 12004.769768224742
+      },
+      {
+        "flight": 69,
+        "lon": 77.32709896,
+        "lat": 18.49750882,
+        "observedAreoidM": -2410.97,
+        "fieldMinusObservationM": 0.0033266948689743003,
+        "dtmMinusObservationM": 0.003334532327244233,
+        "areoidRadiusM": 3394500.20486432,
+        "conditionalRadialBodyFixedM": [
+          705726.9051625745,
+          3138477.8064750615,
+          1076185.8440230228
+        ],
+        "legacyToConditionalDisplacementM": 12004.769856806439
+      },
+      {
+        "flight": 70,
+        "lon": 77.32374878,
+        "lat": 18.49677015,
+        "observedAreoidM": -2405.29,
+        "fieldMinusObservationM": -0.01816227872541276,
+        "dtmMinusObservationM": -0.018155945630951464,
+        "areoidRadiusM": 3394500.38847312,
+        "conditionalRadialBodyFixedM": [
+          705914.6808218459,
+          3138455.4972296935,
+          1076146.2318822094
+        ],
+        "legacyToConditionalDisplacementM": 12004.359512650606
+      },
+      {
+        "flight": 71,
+        "lon": 77.32249561,
+        "lat": 18.49729751,
+        "observedAreoidM": -2398.69,
+        "fieldMinusObservationM": 0.0005469325419653615,
+        "dtmMinusObservationM": 0.0005939468373981072,
+        "areoidRadiusM": 3394500.31570848,
+        "conditionalRadialBodyFixedM": [
+          705982.5094354833,
+          3138436.4321878157,
+          1076177.9112309935
+        ],
+        "legacyToConditionalDisplacementM": 12004.654011320983
+      },
+      {
+        "flight": 72,
+        "lon": 77.32253449,
+        "lat": 18.49726866,
+        "observedAreoidM": -2398.77,
+        "fieldMinusObservationM": -0.0016698038966751483,
+        "dtmMinusObservationM": -0.001734167641188833,
+        "areoidRadiusM": 3394500.320164,
+        "conditionalRadialBodyFixedM": [
+          705980.4829432385,
+          3138437.370034447,
+          1076176.2674857264
+        ],
+        "legacyToConditionalDisplacementM": 12004.637912981767
+      }
+    ]
+  },
+  "flights": {
+    "count": 72,
+    "samples": 60602,
+    "legacyToConditionalDisplacementM": {
+      "n": 60602,
+      "meanM": 11972.002464738003,
+      "rmsM": 11972.004734625876,
+      "p95AbsM": 11990.547847226431,
+      "maxAbsM": 12006.654410272306
+    },
+    "conditionalRadialClearanceMinimumM": -2.9727601373047037,
+    "rows": [
+      {
+        "flight": 1,
+        "sourcePathLabel": 1,
+        "samples": 1153,
+        "sourceStart": 672089519.3,
+        "sourceEnd": 672089558.4,
+        "sourceDurationS": 39.10000002384186,
+        "waypointDurationS": 39.1,
+        "legacyFileMinusReconstructionM": {
+          "n": 1153,
+          "meanM": 0.0004827320911802401,
+          "rmsM": 0.0005023305270339269,
+          "p95AbsM": 0.0006908110351952409,
+          "maxAbsM": 0.0008214034163319937
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 1153,
+          "meanM": 11975.325957564202,
+          "rmsM": 11975.325957564242,
+          "p95AbsM": 11975.327331872471,
+          "maxAbsM": 11975.327408340345
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0031055572039804247,
+          "max": 3.007748295920919,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003550594244625646,
+        "landingTrackMinusControlM": 4.92278875047266e-05
+      },
+      {
+        "flight": 2,
+        "sourcePathLabel": 2,
+        "samples": 1528,
+        "sourceStart": 672355850.3,
+        "sourceEnd": 672355902.1,
+        "sourceDurationS": 51.800000071525574,
+        "waypointDurationS": 51.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 1528,
+          "meanM": 0.00047771652815334614,
+          "rmsM": 0.0004983324918176275,
+          "p95AbsM": 0.0006916890025256345,
+          "maxAbsM": 0.0008340013726347375
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 1528,
+          "meanM": 11975.327075574332,
+          "rmsM": 11975.327075574416,
+          "p95AbsM": 11975.328909881007,
+          "maxAbsM": 11975.32910848342
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0005220200919211493,
+          "max": 5.0351099608815275,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 4.92278875047266e-05,
+        "landingTrackMinusControlM": 0.0002921347449053415
+      },
+      {
+        "flight": 3,
+        "sourcePathLabel": 3,
+        "samples": 2366,
+        "sourceStart": 672622174.1,
+        "sourceEnd": 672622254.4,
+        "sourceDurationS": 80.29999995231628,
+        "waypointDurationS": 80.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 2366,
+          "meanM": 0.00047489892473724464,
+          "rmsM": 0.0004949364821268935,
+          "p95AbsM": 0.0006862366106795825,
+          "maxAbsM": 0.0008254300750511579
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 2366,
+          "meanM": 11975.514763959092,
+          "rmsM": 11975.514765203712,
+          "p95AbsM": 11975.791238643891,
+          "maxAbsM": 11975.794228284161
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0005220200919211493,
+          "max": 5.0278175836888295,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002921347449053415,
+        "landingTrackMinusControlM": 0.0001769611446935168
+      },
+      {
+        "flight": 4,
+        "sourcePathLabel": 4,
+        "samples": 3479,
+        "sourceStart": 673066047.7,
+        "sourceEnd": 673066164.6,
+        "sourceDurationS": 116.89999997615814,
+        "waypointDurationS": 116.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 3479,
+          "meanM": 0.0004819669738179837,
+          "rmsM": 0.0005007187413991525,
+          "p95AbsM": 0.000688074926503511,
+          "maxAbsM": 0.0008301730431882257
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3479,
+          "meanM": 11974.79291035402,
+          "rmsM": 11974.792918778963,
+          "p95AbsM": 11975.323389207395,
+          "maxAbsM": 11975.32376221397
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.002879348639453383,
+          "max": 5.020039472517965,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001769611446935168,
+        "landingTrackMinusControlM": 0.0003121461089304536
+      },
+      {
+        "flight": 5,
+        "sourcePathLabel": 5,
+        "samples": 3199,
+        "sourceStart": 673687471.0,
+        "sourceEnd": 673687579.2,
+        "sourceDurationS": 108.20000004768372,
+        "waypointDurationS": 108.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 3199,
+          "meanM": 0.00048100510757985866,
+          "rmsM": 0.0005003831444509926,
+          "p95AbsM": 0.0006874587369566496,
+          "maxAbsM": 0.0008142270376722924
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3199,
+          "meanM": 11974.592508627189,
+          "rmsM": 11974.592517487805,
+          "p95AbsM": 11975.321679232029,
+          "maxAbsM": 11975.325169595222
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0024159516665349656,
+          "max": 10.125280872358417,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003121461089304536,
+        "landingTrackMinusControlM": 0.0001680966283696993
+      },
+      {
+        "flight": 6,
+        "sourcePathLabel": 6,
+        "samples": 4159,
+        "sourceStart": 675019097.7,
+        "sourceEnd": 675019237.6,
+        "sourceDurationS": 139.89999997615814,
+        "waypointDurationS": 139.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 4159,
+          "meanM": 0.00047803908754343245,
+          "rmsM": 0.0004978280549193956,
+          "p95AbsM": 0.000686014771011609,
+          "maxAbsM": 0.0008337386535711192
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 4159,
+          "meanM": 11973.58889267132,
+          "rmsM": 11973.588896429103,
+          "p95AbsM": 11974.0984569467,
+          "maxAbsM": 11974.099702640442
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0003668317567644408,
+          "max": 10.159978806751951,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001680966283696993,
+        "landingTrackMinusControlM": 0.00016471769720651216
+      },
+      {
+        "flight": 7,
+        "sourcePathLabel": 7,
+        "samples": 1874,
+        "sourceStart": 676439486.8,
+        "sourceEnd": 676439549.6,
+        "sourceDurationS": 62.800000071525574,
+        "waypointDurationS": 62.8,
+        "legacyFileMinusReconstructionM": {
+          "n": 1874,
+          "meanM": 0.0004840364698315363,
+          "rmsM": 0.00050297969709901,
+          "p95AbsM": 0.0006919059562381963,
+          "maxAbsM": 0.000837723239305573
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 1874,
+          "meanM": 11973.087106222323,
+          "rmsM": 11973.087113491503,
+          "p95AbsM": 11973.53999081135,
+          "maxAbsM": 11973.542691654095
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0037491635830519954,
+          "max": 10.043922276298417,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00016471769720651216,
+        "landingTrackMinusControlM": 0.00018730235639924004
+      },
+      {
+        "flight": 8,
+        "sourcePathLabel": 8,
+        "samples": 2311,
+        "sourceStart": 677593534.6,
+        "sourceEnd": 677593612.0,
+        "sourceDurationS": 77.39999997615814,
+        "waypointDurationS": 77.4,
+        "legacyFileMinusReconstructionM": {
+          "n": 2311,
+          "meanM": 0.00047954871674863646,
+          "rmsM": 0.0004994407138199555,
+          "p95AbsM": 0.0006975333776814203,
+          "maxAbsM": 0.0008365491448230437
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 2311,
+          "meanM": 11971.801603096843,
+          "rmsM": 11971.80161791939,
+          "p95AbsM": 11972.545613825367,
+          "maxAbsM": 11972.546780976616
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0037491635830519954,
+          "max": 10.392873489499834,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00018730235639924004,
+        "landingTrackMinusControlM": 0.0003275146466890822
+      },
+      {
+        "flight": 9,
+        "sourcePathLabel": 9,
+        "samples": 4976,
+        "sourceStart": 678747608.3,
+        "sourceEnd": 678747774.7,
+        "sourceDurationS": 166.40000009536743,
+        "waypointDurationS": 166.4,
+        "legacyFileMinusReconstructionM": {
+          "n": 4976,
+          "meanM": 0.00047926639026767956,
+          "rmsM": 0.0004990835132570515,
+          "p95AbsM": 0.0006909358795150762,
+          "maxAbsM": 0.0008293104113889561
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 4976,
+          "meanM": 11968.710133876282,
+          "rmsM": 11968.71026260687,
+          "p95AbsM": 11971.068279700254,
+          "maxAbsM": 11971.073312030845
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0018237719714306877,
+          "max": 19.62360958161935,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003275146466890822,
+        "landingTrackMinusControlM": 0.00014405320344899138
+      },
+      {
+        "flight": 10,
+        "sourcePathLabel": 10,
+        "samples": 4930,
+        "sourceStart": 680432530.8,
+        "sourceEnd": 680432696.2,
+        "sourceDurationS": 165.40000009536743,
+        "waypointDurationS": 165.4,
+        "legacyFileMinusReconstructionM": {
+          "n": 4930,
+          "meanM": 0.000482313231887479,
+          "rmsM": 0.0005017167998518132,
+          "p95AbsM": 0.0006914705686737553,
+          "maxAbsM": 0.0008408039578875839
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 4930,
+          "meanM": 11965.710296238472,
+          "rmsM": 11965.71029765777,
+          "p95AbsM": 11965.96482652742,
+          "maxAbsM": 11965.96602279373
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0009316796586062992,
+          "max": 12.618584556311816,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00014405320344899138,
+        "landingTrackMinusControlM": 0.00035003376170994574
+      },
+      {
+        "flight": 11,
+        "sourcePathLabel": 11,
+        "samples": 3898,
+        "sourceStart": 681410895.3,
+        "sourceEnd": 681411026.2,
+        "sourceDurationS": 130.90000009536743,
+        "waypointDurationS": 130.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 3898,
+          "meanM": 0.00047924720700311265,
+          "rmsM": 0.0004991928869047397,
+          "p95AbsM": 0.0006906978354544526,
+          "maxAbsM": 0.0008566103052302113
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3898,
+          "meanM": 11967.28162591794,
+          "rmsM": 11967.281668240357,
+          "p95AbsM": 11968.556706424726,
+          "maxAbsM": 11968.562475837593
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0016791661973911687,
+          "max": 13.679706929583972,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00035003376170994574,
+        "landingTrackMinusControlM": 0.00021593258808156658
+      },
+      {
+        "flight": 12,
+        "sourcePathLabel": 13,
+        "samples": 5068,
+        "sourceStart": 682390499.7,
+        "sourceEnd": 682390669.2,
+        "sourceDurationS": 169.5,
+        "waypointDurationS": 169.5,
+        "legacyFileMinusReconstructionM": {
+          "n": 5068,
+          "meanM": 0.00047765634218548407,
+          "rmsM": 0.0004970508464250792,
+          "p95AbsM": 0.0006876846276612818,
+          "maxAbsM": 0.0008368275337096008
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 5068,
+          "meanM": 11968.8091351319,
+          "rmsM": 11968.809137163043,
+          "p95AbsM": 11969.16412268875,
+          "maxAbsM": 11969.180414792085
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0016791661973911687,
+          "max": 14.94489784785128,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00021593258808156658,
+        "landingTrackMinusControlM": 0.0001487587238181128
+      },
+      {
+        "flight": 13,
+        "sourcePathLabel": 12,
+        "samples": 4813,
+        "sourceStart": 684072284.1,
+        "sourceEnd": 684072444.6,
+        "sourceDurationS": 160.5,
+        "waypointDurationS": 160.5,
+        "legacyFileMinusReconstructionM": {
+          "n": 4813,
+          "meanM": 0.00048477908505836553,
+          "rmsM": 0.0005043275660472555,
+          "p95AbsM": 0.000692470991844647,
+          "maxAbsM": 0.0008386801893422187
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 4813,
+          "meanM": 11968.949707152868,
+          "rmsM": 11968.949710087403,
+          "p95AbsM": 11969.280297893192,
+          "maxAbsM": 11969.287716736892
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0032084890294754587,
+          "max": 10.494542436868414,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001487587238181128,
+        "landingTrackMinusControlM": 0.00033466874703363383
+      },
+      {
+        "flight": 14,
+        "sourcePathLabel": 14,
+        "samples": 677,
+        "sourceStart": 688335309.3,
+        "sourceEnd": 688335332.3,
+        "sourceDurationS": 23.0,
+        "waypointDurationS": 23.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 677,
+          "meanM": 0.0004757332904625611,
+          "rmsM": 0.0004950737059137326,
+          "p95AbsM": 0.0006839346053459025,
+          "maxAbsM": 0.0008032962494532041
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 677,
+          "meanM": 11968.634449622681,
+          "rmsM": 11968.634449623716,
+          "p95AbsM": 11968.639980464066,
+          "maxAbsM": 11968.640115609
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0032084890294754587,
+          "max": 5.022850163587464,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00033466874703363383,
+        "landingTrackMinusControlM": 0.0003520924273740712
+      },
+      {
+        "flight": 15,
+        "sourcePathLabel": 15,
+        "samples": 3832,
+        "sourceStart": 689487530.3,
+        "sourceEnd": 689487659.2,
+        "sourceDurationS": 128.90000009536743,
+        "waypointDurationS": 128.8,
+        "legacyFileMinusReconstructionM": {
+          "n": 3832,
+          "meanM": 0.0004818510132561902,
+          "rmsM": 0.0005021232784467038,
+          "p95AbsM": 0.0006956175634299092,
+          "maxAbsM": 0.000854064463114417
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3832,
+          "meanM": 11967.464710228664,
+          "rmsM": 11967.464742974407,
+          "p95AbsM": 11968.630769624124,
+          "maxAbsM": 11968.632944587422
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.002441600321617443,
+          "max": 13.726777363218389,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003520924273740712,
+        "landingTrackMinusControlM": 0.0001583445422320027
+      },
+      {
+        "flight": 16,
+        "sourcePathLabel": 16,
+        "samples": 3175,
+        "sourceStart": 690732221.2,
+        "sourceEnd": 690732329.1,
+        "sourceDurationS": 107.89999997615814,
+        "waypointDurationS": 107.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 3175,
+          "meanM": 0.00048475512568900815,
+          "rmsM": 0.0005037241921084557,
+          "p95AbsM": 0.0006835576178770847,
+          "maxAbsM": 0.0008192820417297334
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3175,
+          "meanM": 11966.69511374251,
+          "rmsM": 11966.695117197427,
+          "p95AbsM": 11967.1052728065,
+          "maxAbsM": 11967.108388712408
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.006233101658835949,
+          "max": 10.415315743469364,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001583445422320027,
+        "landingTrackMinusControlM": 0.00030246291664689113
+      },
+      {
+        "flight": 17,
+        "sourcePathLabel": 17,
+        "samples": 3363,
+        "sourceStart": 691978766.6,
+        "sourceEnd": 691978883.4,
+        "sourceDurationS": 116.79999995231628,
+        "waypointDurationS": 116.8,
+        "legacyFileMinusReconstructionM": {
+          "n": 3363,
+          "meanM": 0.00048374524678817437,
+          "rmsM": 0.0005030045425122345,
+          "p95AbsM": 0.0006945193815996775,
+          "maxAbsM": 0.0008396796468535218
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 3363,
+          "meanM": 11967.923476950902,
+          "rmsM": 11967.923492605929,
+          "p95AbsM": 11968.741858068892,
+          "maxAbsM": 11968.744659150043
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.006233101658835949,
+          "max": 14.679133545908371,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00030246291664689113,
+        "landingTrackMinusControlM": 0.00029669999813216507
+      },
+      {
+        "flight": 18,
+        "sourcePathLabel": 18,
+        "samples": 127,
+        "sourceStart": 692860878.9,
+        "sourceEnd": 692861003.1,
+        "sourceDurationS": 124.20000004768372,
+        "waypointDurationS": 124.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 127,
+          "meanM": 0.0004847854879418084,
+          "rmsM": 0.000508486682198855,
+          "p95AbsM": 0.0007119763298515899,
+          "maxAbsM": 0.0008287780147838354
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 127,
+          "meanM": 11969.597715813197,
+          "rmsM": 11969.597732684766,
+          "p95AbsM": 11970.514255015647,
+          "maxAbsM": 11970.516068671039
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.001777657813818223,
+          "max": 10.89510469571269,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00029669999813216507,
+        "landingTrackMinusControlM": 0.00019486401465614335
+      },
+      {
+        "flight": 19,
+        "sourcePathLabel": 19,
+        "samples": 100,
+        "sourceStart": 697565969.7,
+        "sourceEnd": 697566069.5,
+        "sourceDurationS": 99.79999995231628,
+        "waypointDurationS": 99.8,
+        "legacyFileMinusReconstructionM": {
+          "n": 100,
+          "meanM": 0.00047517094218536236,
+          "rmsM": 0.0004944718716632462,
+          "p95AbsM": 0.0006732496319840428,
+          "maxAbsM": 0.0007472160915661242
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 100,
+          "meanM": 11970.758004315216,
+          "rmsM": 11970.758005574899,
+          "p95AbsM": 11970.973823957916,
+          "maxAbsM": 11970.97492458322
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.001777657813818223,
+          "max": 10.569713953424525,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00019486401465614335,
+        "landingTrackMinusControlM": 0.00029744030001467174
+      },
+      {
+        "flight": 20,
+        "sourcePathLabel": 20,
+        "samples": 130,
+        "sourceStart": 699067706.6,
+        "sourceEnd": 699067836.9,
+        "sourceDurationS": 130.29999995231628,
+        "waypointDurationS": 130.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 130,
+          "meanM": 0.0004909215249293955,
+          "rmsM": 0.0005099779978062572,
+          "p95AbsM": 0.0006967697467356225,
+          "maxAbsM": 0.0007789782910102425
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 130,
+          "meanM": 11972.75298178561,
+          "rmsM": 11972.753052102757,
+          "p95AbsM": 11974.485902052007,
+          "maxAbsM": 11974.487653932765
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0008096901947283186,
+          "max": 10.177170206809933,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00029744030001467174,
+        "landingTrackMinusControlM": 0.00025179392200996414
+      },
+      {
+        "flight": 21,
+        "sourcePathLabel": 21,
+        "samples": 142,
+        "sourceStart": 700221776.5,
+        "sourceEnd": 700221905.7,
+        "sourceDurationS": 129.20000004768372,
+        "waypointDurationS": 129.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 142,
+          "meanM": 0.0004817732423609434,
+          "rmsM": 0.0004964924942236938,
+          "p95AbsM": 0.0006852956922164924,
+          "maxAbsM": 0.0007466628933419677
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 142,
+          "meanM": 11975.074359298093,
+          "rmsM": 11975.074364945493,
+          "p95AbsM": 11975.490953344544,
+          "maxAbsM": 11975.500068021154
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.00950054780651044,
+          "max": 14.030205812375698,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00025179392200996414,
+        "landingTrackMinusControlM": 0.00038770280768257015
+      },
+      {
+        "flight": 22,
+        "sourcePathLabel": 22,
+        "samples": 103,
+        "sourceStart": 701020744.7,
+        "sourceEnd": 701020846.1,
+        "sourceDurationS": 101.39999997615814,
+        "waypointDurationS": 101.4,
+        "legacyFileMinusReconstructionM": {
+          "n": 103,
+          "meanM": 0.0005065846963861085,
+          "rmsM": 0.0005250024304735403,
+          "p95AbsM": 0.0007336691679268285,
+          "maxAbsM": 0.0007798232918098155
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 103,
+          "meanM": 11975.74703064187,
+          "rmsM": 11975.747032289828,
+          "p95AbsM": 11976.01886897684,
+          "maxAbsM": 11976.020508004223
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.00950054780651044,
+          "max": 10.67287626532061,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00038770280768257015,
+        "landingTrackMinusControlM": 0.00018964604190998115
+      },
+      {
+        "flight": 23,
+        "sourcePathLabel": 23,
+        "samples": 131,
+        "sourceStart": 701375843.3,
+        "sourceEnd": 701375972.4,
+        "sourceDurationS": 129.10000002384186,
+        "waypointDurationS": 129.1,
+        "legacyFileMinusReconstructionM": {
+          "n": 131,
+          "meanM": 0.000464246799579897,
+          "rmsM": 0.00048601961328863317,
+          "p95AbsM": 0.000688955812491945,
+          "maxAbsM": 0.0007532377733610753
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 131,
+          "meanM": 11977.345113115081,
+          "rmsM": 11977.345146677793,
+          "p95AbsM": 11978.522082059224,
+          "maxAbsM": 11978.524095914485
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0033933299150703533,
+          "max": 12.029310882961,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00018964604190998115,
+        "landingTrackMinusControlM": 2.8199610169745454e-05
+      },
+      {
+        "flight": 24,
+        "sourcePathLabel": 24,
+        "samples": 86,
+        "sourceStart": 702261741.3,
+        "sourceEnd": 702261810.8,
+        "sourceDurationS": 69.5,
+        "waypointDurationS": 69.5,
+        "legacyFileMinusReconstructionM": {
+          "n": 86,
+          "meanM": 0.0004834805924136212,
+          "rmsM": 0.0005014027230501729,
+          "p95AbsM": 0.0006754104371338714,
+          "maxAbsM": 0.0007618974061794094
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 86,
+          "meanM": 11978.571871671093,
+          "rmsM": 11978.571871730132,
+          "p95AbsM": 11978.614230810153,
+          "maxAbsM": 11978.620885350721
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0033933299150703533,
+          "max": 10.554938784760452,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 2.8199610169745454e-05,
+        "landingTrackMinusControlM": 0.00014603471400921508
+      },
+      {
+        "flight": 25,
+        "sourcePathLabel": 25,
+        "samples": 158,
+        "sourceStart": 702707478.2,
+        "sourceEnd": 702707639.4,
+        "sourceDurationS": 161.19999992847443,
+        "waypointDurationS": 161.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 158,
+          "meanM": 0.0004689937211289491,
+          "rmsM": 0.0004891985479613109,
+          "p95AbsM": 0.0006717737797892702,
+          "maxAbsM": 0.0008200817142605648
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 158,
+          "meanM": 11979.793378421951,
+          "rmsM": 11979.793404146169,
+          "p95AbsM": 11980.870166636576,
+          "maxAbsM": 11980.874890464653
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0001906922334455885,
+          "max": 13.106957447464993,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00014603471400921508,
+        "landingTrackMinusControlM": 0.00010512634081668043
+      },
+      {
+        "flight": 26,
+        "sourcePathLabel": 26,
+        "samples": 160,
+        "sourceStart": 703689840.1,
+        "sourceEnd": 703689999.1,
+        "sourceDurationS": 159.0,
+        "waypointDurationS": 159.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 160,
+          "meanM": 0.0004944258035257767,
+          "rmsM": 0.0005124738638591345,
+          "p95AbsM": 0.000689211421267523,
+          "maxAbsM": 0.000835017559497039
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 160,
+          "meanM": 11979.64495832242,
+          "rmsM": 11979.64497811523,
+          "p95AbsM": 11980.86902190871,
+          "maxAbsM": 11980.87128204803
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0011964511545556888,
+          "max": 11.931565752845017,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00010512634081668043,
+        "landingTrackMinusControlM": 0.00026379392688551166
+      },
+      {
+        "flight": 27,
+        "sourcePathLabel": 27,
+        "samples": 153,
+        "sourceStart": 704044936.3,
+        "sourceEnd": 704045089.2,
+        "sourceDurationS": 152.90000009536743,
+        "waypointDurationS": 152.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 153,
+          "meanM": 0.00047074852914426985,
+          "rmsM": 0.0004911873309052311,
+          "p95AbsM": 0.0006910187492009476,
+          "maxAbsM": 0.0007605707949103094
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 153,
+          "meanM": 11979.002546354299,
+          "rmsM": 11979.002550710444,
+          "p95AbsM": 11979.597403760137,
+          "maxAbsM": 11979.604000843145
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.001861600860593171,
+          "max": 11.633171400519586,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00026379392688551166,
+        "landingTrackMinusControlM": 0.00012305414973127335
+      },
+      {
+        "flight": 28,
+        "sourcePathLabel": 28,
+        "samples": 146,
+        "sourceStart": 704489736.2,
+        "sourceEnd": 704489888.6,
+        "sourceDurationS": 152.39999997615814,
+        "waypointDurationS": 152.4,
+        "legacyFileMinusReconstructionM": {
+          "n": 146,
+          "meanM": 0.00047392029470940663,
+          "rmsM": 0.0004913776333977436,
+          "p95AbsM": 0.0007043712987749601,
+          "maxAbsM": 0.0007892226110574636
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 146,
+          "meanM": 11980.867383291346,
+          "rmsM": 11980.867417456026,
+          "p95AbsM": 11982.1781432658,
+          "maxAbsM": 11982.187669897436
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.001861600860593171,
+          "max": 11.106454654702702,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00012305414973127335,
+        "landingTrackMinusControlM": 0.00024371197290742647
+      },
+      {
+        "flight": 29,
+        "sourcePathLabel": 29,
+        "samples": 63,
+        "sourceStart": 708231530.8,
+        "sourceEnd": 708231597.3,
+        "sourceDurationS": 66.5,
+        "waypointDurationS": 66.6,
+        "legacyFileMinusReconstructionM": {
+          "n": 63,
+          "meanM": 0.00047983855577540504,
+          "rmsM": 0.0004995516762350899,
+          "p95AbsM": 0.0006638795908148634,
+          "maxAbsM": 0.0008043199888685028
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 63,
+          "meanM": 11981.883599324992,
+          "rmsM": 11981.88360223595,
+          "p95AbsM": 11982.186319669565,
+          "maxAbsM": 11982.186461531888
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.004573992722271214,
+          "max": 10.664204413609696,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00024371197290742647,
+        "landingTrackMinusControlM": 0.0002924084593263876
+      },
+      {
+        "flight": 30,
+        "sourcePathLabel": 30,
+        "samples": 33,
+        "sourceStart": 714270670.5,
+        "sourceEnd": 714270703.8,
+        "sourceDurationS": 33.299999952316284,
+        "waypointDurationS": 33.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 33,
+          "meanM": 0.00046509630373759147,
+          "rmsM": 0.000489863890983574,
+          "p95AbsM": 0.000682992159849369,
+          "maxAbsM": 0.0007041893953031633
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 33,
+          "meanM": 11981.54287520166,
+          "rmsM": 11981.542875202003,
+          "p95AbsM": 11981.54751994536,
+          "maxAbsM": 11981.548018911884
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.004573992722271214,
+          "max": 5.04596681878138,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002924084593263876,
+        "landingTrackMinusControlM": 0.0001788793591400222
+      },
+      {
+        "flight": 31,
+        "sourcePathLabel": 31,
+        "samples": 55,
+        "sourceStart": 715778608.3,
+        "sourceEnd": 715778663.9,
+        "sourceDurationS": 55.60000002384186,
+        "waypointDurationS": 55.6,
+        "legacyFileMinusReconstructionM": {
+          "n": 55,
+          "meanM": 0.00045960215224995666,
+          "rmsM": 0.0004804119067734703,
+          "p95AbsM": 0.000658952925424561,
+          "maxAbsM": 0.0007523570741943028
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 55,
+          "meanM": 11981.496697162667,
+          "rmsM": 11981.49669721541,
+          "p95AbsM": 11981.540834141155,
+          "maxAbsM": 11981.541003089313
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0029877193696847826,
+          "max": 10.347799891626437,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001788793591400222,
+        "landingTrackMinusControlM": 0.0002319770098658255
+      },
+      {
+        "flight": 32,
+        "sourcePathLabel": 32,
+        "samples": 55,
+        "sourceStart": 716755125.1,
+        "sourceEnd": 716755180.4,
+        "sourceDurationS": 55.299999952316284,
+        "waypointDurationS": 55.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 55,
+          "meanM": 0.0004910333245511971,
+          "rmsM": 0.000507566154883969,
+          "p95AbsM": 0.0006659933473931966,
+          "maxAbsM": 0.0008180166450902015
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 55,
+          "meanM": 11981.485681420143,
+          "rmsM": 11981.485681444807,
+          "p95AbsM": 11981.516718859813,
+          "maxAbsM": 11981.517763172913
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0026323839924771164,
+          "max": 10.6161386688741,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002319770098658255,
+        "landingTrackMinusControlM": 0.00030971485790099265
+      },
+      {
+        "flight": 33,
+        "sourcePathLabel": 33,
+        "samples": 55,
+        "sourceStart": 717289624.6,
+        "sourceEnd": 717289679.8,
+        "sourceDurationS": 55.199999928474426,
+        "waypointDurationS": 55.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 55,
+          "meanM": 0.0004869451266497534,
+          "rmsM": 0.0005060253562321016,
+          "p95AbsM": 0.0007014162206277634,
+          "maxAbsM": 0.0007679747731426462
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 55,
+          "meanM": 11981.426957550531,
+          "rmsM": 11981.42695776239,
+          "p95AbsM": 11981.516997576398,
+          "maxAbsM": 11981.517633679792
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0026323839924771164,
+          "max": 10.59835681989307,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00030971485790099265,
+        "landingTrackMinusControlM": 7.877591465724414e-05
+      },
+      {
+        "flight": 34,
+        "sourcePathLabel": 34,
+        "samples": 18,
+        "sourceStart": 722439881.1,
+        "sourceEnd": 722439899.4,
+        "sourceDurationS": 18.299999952316284,
+        "waypointDurationS": 18.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 18,
+          "meanM": 0.00047836265670873803,
+          "rmsM": 0.0004953891910547263,
+          "p95AbsM": 0.0006686551192558234,
+          "maxAbsM": 0.0006719828873131073
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 18,
+          "meanM": 11981.348983884182,
+          "rmsM": 11981.348983884367,
+          "p95AbsM": 11981.352445340217,
+          "maxAbsM": 11981.352469415318
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0011328582804708276,
+          "max": 5.000813440909951,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 7.877591465724414e-05,
+        "landingTrackMinusControlM": 6.598291755779302e-05
+      },
+      {
+        "flight": 35,
+        "sourcePathLabel": 35,
+        "samples": 53,
+        "sourceStart": 723327427.6,
+        "sourceEnd": 723327479.6,
+        "sourceDurationS": 52.0,
+        "waypointDurationS": 52.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 53,
+          "meanM": 0.00047490750845327736,
+          "rmsM": 0.0004947357760999798,
+          "p95AbsM": 0.0006669352385252377,
+          "maxAbsM": 0.0007199727877339144
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 53,
+          "meanM": 11981.403813519406,
+          "rmsM": 11981.403813638452,
+          "p95AbsM": 11981.454333333537,
+          "maxAbsM": 11981.454710048616
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0020433508284440904,
+          "max": 14.136631635110007,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 6.598291755779302e-05,
+        "landingTrackMinusControlM": 0.00013899884483923136
+      },
+      {
+        "flight": 36,
+        "sourcePathLabel": 36,
+        "samples": 60,
+        "sourceStart": 723948539.9,
+        "sourceEnd": 723948600.4,
+        "sourceDurationS": 60.5,
+        "waypointDurationS": 60.5,
+        "legacyFileMinusReconstructionM": {
+          "n": 60,
+          "meanM": 0.00048606723318206737,
+          "rmsM": 0.0005080152245826508,
+          "p95AbsM": 0.0006981222599106851,
+          "maxAbsM": 0.000764199381295658
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 60,
+          "meanM": 11981.572736115135,
+          "rmsM": 11981.572737001146,
+          "p95AbsM": 11981.828416712598,
+          "maxAbsM": 11981.832770408306
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.00046507358320013736,
+          "max": 10.000904915271349,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00013899884483923136,
+        "landingTrackMinusControlM": 0.0001829031470507076
+      },
+      {
+        "flight": 37,
+        "sourcePathLabel": 37,
+        "samples": 54,
+        "sourceStart": 724569964.0,
+        "sourceEnd": 724570019.2,
+        "sourceDurationS": 55.200000047683716,
+        "waypointDurationS": 55.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 54,
+          "meanM": 0.0004608621515537425,
+          "rmsM": 0.00048245168849231384,
+          "p95AbsM": 0.0006645587679874103,
+          "maxAbsM": 0.0007248474296546732
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 54,
+          "meanM": 11981.66270121222,
+          "rmsM": 11981.662702467065,
+          "p95AbsM": 11981.850824550409,
+          "maxAbsM": 11981.851361557641
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.009073801588328934,
+          "max": 14.366289222912656,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001829031470507076,
+        "landingTrackMinusControlM": 0.00015172618602961476
+      },
+      {
+        "flight": 38,
+        "sourcePathLabel": 38,
+        "samples": 88,
+        "sourceStart": 726167906.8,
+        "sourceEnd": 726167981.0,
+        "sourceDurationS": 74.20000004768372,
+        "waypointDurationS": 74.3,
+        "legacyFileMinusReconstructionM": {
+          "n": 88,
+          "meanM": 0.00048775068081159407,
+          "rmsM": 0.0005055615768965701,
+          "p95AbsM": 0.0006800748224254626,
+          "maxAbsM": 0.0007843832203665054
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 88,
+          "meanM": 11982.10336284378,
+          "rmsM": 11982.103364084564,
+          "p95AbsM": 11982.264137467633,
+          "maxAbsM": 11982.27409100947
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.009073801588328934,
+          "max": 10.967324680717411,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00015172618602961476,
+        "landingTrackMinusControlM": 0.0002915852382110841
+      },
+      {
+        "flight": 39,
+        "sourcePathLabel": 39,
+        "samples": 88,
+        "sourceStart": 726702920.7,
+        "sourceEnd": 726702999.5,
+        "sourceDurationS": 78.79999995231628,
+        "waypointDurationS": 78.72,
+        "legacyFileMinusReconstructionM": {
+          "n": 88,
+          "meanM": 0.0004656201703411645,
+          "rmsM": 0.0004859001990744665,
+          "p95AbsM": 0.0006843353741722401,
+          "maxAbsM": 0.0008092271769354283
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 88,
+          "meanM": 11982.426869387844,
+          "rmsM": 11982.426871097174,
+          "p95AbsM": 11982.818552637624,
+          "maxAbsM": 11982.828245619734
+        },
+        "conditionalRadialClearanceM": {
+          "min": -2.9727601373047037,
+          "max": 10.104500069030564,
+          "negativeSamples": 15,
+          "negativeBelowMinus1M": 13
+        },
+        "takeoffTrackMinusControlM": 0.0002915852382110841,
+        "landingTrackMinusControlM": 0.00011106117018237117
+      },
+      {
+        "flight": 40,
+        "sourcePathLabel": 40,
+        "samples": 85,
+        "sourceStart": 727411984.3,
+        "sourceEnd": 727412075.9,
+        "sourceDurationS": 91.60000002384186,
+        "waypointDurationS": 91.62,
+        "legacyFileMinusReconstructionM": {
+          "n": 85,
+          "meanM": 0.00046921441122635616,
+          "rmsM": 0.0004887637819170184,
+          "p95AbsM": 0.0006821788880630363,
+          "maxAbsM": 0.0007465804449280786
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 85,
+          "meanM": 11982.686480362974,
+          "rmsM": 11982.686484312264,
+          "p95AbsM": 11983.076205657939,
+          "maxAbsM": 11983.07706561868
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.003003599878411478,
+          "max": 13.366982809809997,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00011106117018237117,
+        "landingTrackMinusControlM": 0.0001307927082248566
+      },
+      {
+        "flight": 41,
+        "sourcePathLabel": 41,
+        "samples": 106,
+        "sourceStart": 728119071.0,
+        "sourceEnd": 728119180.0,
+        "sourceDurationS": 109.0,
+        "waypointDurationS": 109.1,
+        "legacyFileMinusReconstructionM": {
+          "n": 106,
+          "meanM": 0.0004817033961148122,
+          "rmsM": 0.0004995104717392527,
+          "p95AbsM": 0.0006774246718799561,
+          "maxAbsM": 0.0007076349495480452
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 106,
+          "meanM": 11983.353176636821,
+          "rmsM": 11983.353178472084,
+          "p95AbsM": 11983.698626883248,
+          "maxAbsM": 11983.700974413576
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.5849563732863317,
+          "max": 10.370741124029337,
+          "negativeSamples": 15,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001307927082248566,
+        "landingTrackMinusControlM": 0.000268151817012052
+      },
+      {
+        "flight": 42,
+        "sourcePathLabel": 42,
+        "samples": 136,
+        "sourceStart": 728829662.5,
+        "sourceEnd": 728829799.6,
+        "sourceDurationS": 137.10000002384186,
+        "waypointDurationS": 137.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 136,
+          "meanM": 0.0004921207607359523,
+          "rmsM": 0.0005095458453506767,
+          "p95AbsM": 0.000697727510796066,
+          "maxAbsM": 0.000768726897779548
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 136,
+          "meanM": 11984.007186859024,
+          "rmsM": 11984.007198855272,
+          "p95AbsM": 11984.747278620116,
+          "maxAbsM": 11984.748846601657
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.008074042501903023,
+          "max": 12.827483992844464,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.000268151817012052,
+        "landingTrackMinusControlM": 0.0002928351408440603
+      },
+      {
+        "flight": 43,
+        "sourcePathLabel": 43,
+        "samples": 146,
+        "sourceStart": 729805931.3,
+        "sourceEnd": 729806077.3,
+        "sourceDurationS": 146.0,
+        "waypointDurationS": 146.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 146,
+          "meanM": 0.0004782398677622691,
+          "rmsM": 0.0004978525780203577,
+          "p95AbsM": 0.0006736942633727517,
+          "maxAbsM": 0.0008120498190669466
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 146,
+          "meanM": 11986.348504595722,
+          "rmsM": 11986.348558254154,
+          "p95AbsM": 11987.76950682328,
+          "maxAbsM": 11987.771657151454
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0010439455090818228,
+          "max": 13.141603769693575,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002928351408440603,
+        "landingTrackMinusControlM": 0.00024123113995538952
+      },
+      {
+        "flight": 44,
+        "sourcePathLabel": 44,
+        "samples": 140,
+        "sourceStart": 730072379.1,
+        "sourceEnd": 730072520.3,
+        "sourceDurationS": 141.19999992847443,
+        "waypointDurationS": 141.26,
+        "legacyFileMinusReconstructionM": {
+          "n": 140,
+          "meanM": 0.00048675999573108696,
+          "rmsM": 0.0005069754397033373,
+          "p95AbsM": 0.0006712379805233761,
+          "maxAbsM": 0.0007531727409760448
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 140,
+          "meanM": 11989.300088878666,
+          "rmsM": 11989.300138004986,
+          "p95AbsM": 11990.656199746953,
+          "maxAbsM": 11990.66085426361
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.002781606315238605,
+          "max": 13.53261765635034,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00024123113995538952,
+        "landingTrackMinusControlM": 0.0003228993577152516
+      },
+      {
+        "flight": 45,
+        "sourcePathLabel": 45,
+        "samples": 146,
+        "sourceStart": 730342461.3,
+        "sourceEnd": 730342605.9,
+        "sourceDurationS": 144.60000002384186,
+        "waypointDurationS": 144.54,
+        "legacyFileMinusReconstructionM": {
+          "n": 146,
+          "meanM": 0.0004901511104793001,
+          "rmsM": 0.0005095071656988529,
+          "p95AbsM": 0.000698295529729256,
+          "maxAbsM": 0.0008112132231490291
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 146,
+          "meanM": 11992.219061152997,
+          "rmsM": 11992.219100585959,
+          "p95AbsM": 11993.414149284672,
+          "maxAbsM": 11993.42231125415
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0030491806378449837,
+          "max": 17.213883864154013,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003228993577152516,
+        "landingTrackMinusControlM": 0.0003522899375132673
+      },
+      {
+        "flight": 46,
+        "sourcePathLabel": 46,
+        "samples": 116,
+        "sourceStart": 730605087.8,
+        "sourceEnd": 730605223.6,
+        "sourceDurationS": 135.80000007152557,
+        "waypointDurationS": 135.86,
+        "legacyFileMinusReconstructionM": {
+          "n": 116,
+          "meanM": 0.0004958811381122945,
+          "rmsM": 0.0005138145689041999,
+          "p95AbsM": 0.0007075066483395503,
+          "maxAbsM": 0.0007925245769140879
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 116,
+          "meanM": 11992.4188633063,
+          "rmsM": 11992.418883931097,
+          "p95AbsM": 11993.399241450603,
+          "maxAbsM": 11993.400746647045
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0042707222860371985,
+          "max": 13.482027291376653,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003522899375132673,
+        "landingTrackMinusControlM": 0.00033096052868642937
+      },
+      {
+        "flight": 47,
+        "sourcePathLabel": 47,
+        "samples": 133,
+        "sourceStart": 731670382.0,
+        "sourceEnd": 731670528.1,
+        "sourceDurationS": 146.10000002384186,
+        "waypointDurationS": 146.082,
+        "legacyFileMinusReconstructionM": {
+          "n": 133,
+          "meanM": 0.000501635390605424,
+          "rmsM": 0.0005219348520318075,
+          "p95AbsM": 0.0007018406478438759,
+          "maxAbsM": 0.0007783374543683339
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 133,
+          "meanM": 11991.050727163883,
+          "rmsM": 11991.050754773056,
+          "p95AbsM": 11992.249509504363,
+          "maxAbsM": 11992.250170233805
+        },
+        "conditionalRadialClearanceM": {
+          "min": -2.14080653041583,
+          "max": 14.022425314282373,
+          "negativeSamples": 17,
+          "negativeBelowMinus1M": 7
+        },
+        "takeoffTrackMinusControlM": 0.00033096052868642937,
+        "landingTrackMinusControlM": 0.00033451490479644155
+      },
+      {
+        "flight": 48,
+        "sourcePathLabel": 48,
+        "samples": 150,
+        "sourceStart": 732732409.096,
+        "sourceEnd": 732732559.002,
+        "sourceDurationS": 149.9060000181198,
+        "waypointDurationS": 149.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 150,
+          "meanM": 0.000475063848585065,
+          "rmsM": 0.0004910572237878262,
+          "p95AbsM": 0.0006902377195856932,
+          "maxAbsM": 0.0007962356267143677
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 150,
+          "meanM": 11990.845708804993,
+          "rmsM": 11990.845727446314,
+          "p95AbsM": 11991.89657136413,
+          "maxAbsM": 11991.898130168353
+        },
+        "conditionalRadialClearanceM": {
+          "min": -9.696976894701947e-05,
+          "max": 15.613648989733974,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00033451490479644155,
+        "landingTrackMinusControlM": 0.00033849976872818254
+      },
+      {
+        "flight": 49,
+        "sourcePathLabel": 49,
+        "samples": 139,
+        "sourceStart": 733708437.347,
+        "sourceEnd": 733708580.057,
+        "sourceDurationS": 142.71000003814697,
+        "waypointDurationS": 142.71,
+        "legacyFileMinusReconstructionM": {
+          "n": 139,
+          "meanM": 0.0004656906054814159,
+          "rmsM": 0.0004933879829784664,
+          "p95AbsM": 0.0006888491892329731,
+          "maxAbsM": 0.0008129027353435906
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 139,
+          "meanM": 11992.391568559307,
+          "rmsM": 11992.391573598405,
+          "p95AbsM": 11992.75976554986,
+          "maxAbsM": 11992.762181500198
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0002987379398291523,
+          "max": 17.04292688640635,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00033849976872818254,
+        "landingTrackMinusControlM": 0.00014817103745586298
+      },
+      {
+        "flight": 50,
+        "sourcePathLabel": 50,
+        "samples": 146,
+        "sourceStart": 734684956.549,
+        "sourceEnd": 734685102.203,
+        "sourceDurationS": 145.65399992465973,
+        "waypointDurationS": 145.65,
+        "legacyFileMinusReconstructionM": {
+          "n": 146,
+          "meanM": 0.0004957377821975755,
+          "rmsM": 0.000512158459654264,
+          "p95AbsM": 0.0006639063145870906,
+          "maxAbsM": 0.000801730625159208
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 146,
+          "meanM": 11994.171413169695,
+          "rmsM": 11994.171444238427,
+          "p95AbsM": 11994.984776239897,
+          "maxAbsM": 11994.991403864107
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0002987379398291523,
+          "max": 18.25720202079583,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00014817103745586298,
+        "landingTrackMinusControlM": 0.00027037069395129576
+      },
+      {
+        "flight": 51,
+        "sourcePathLabel": 51,
+        "samples": 138,
+        "sourceStart": 735484935.615,
+        "sourceEnd": 735485072.509,
+        "sourceDurationS": 136.89399993419647,
+        "waypointDurationS": 136.89,
+        "legacyFileMinusReconstructionM": {
+          "n": 138,
+          "meanM": 0.0004968309603383232,
+          "rmsM": 0.0005160850729886163,
+          "p95AbsM": 0.0006952593573320755,
+          "maxAbsM": 0.0008022807966329503
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 138,
+          "meanM": 11995.066117689144,
+          "rmsM": 11995.066118608496,
+          "p95AbsM": 11995.335459189919,
+          "maxAbsM": 11995.353747763504
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.003761806442980742,
+          "max": 12.343846833435236,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00027037069395129576,
+        "landingTrackMinusControlM": 0.00011111990416670867
+      },
+      {
+        "flight": 52,
+        "sourcePathLabel": 52,
+        "samples": 145,
+        "sourceStart": 735839954.155,
+        "sourceEnd": 735840099.155,
+        "sourceDurationS": 145.0,
+        "waypointDurationS": 145.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 145,
+          "meanM": 0.0004923341843651323,
+          "rmsM": 0.0005150863086649693,
+          "p95AbsM": 0.0007090845302281341,
+          "maxAbsM": 0.0008433539667178847
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 145,
+          "meanM": 11995.154815891894,
+          "rmsM": 11995.154816207985,
+          "p95AbsM": 11995.272496172438,
+          "maxAbsM": 11995.277160112033
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.003761806442980742,
+          "max": 12.88973358120029,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00011111990416670867,
+        "landingTrackMinusControlM": 0.0002722805576413864
+      },
+      {
+        "flight": 53,
+        "sourcePathLabel": 53,
+        "samples": 74,
+        "sourceStart": 743642557.12,
+        "sourceEnd": 743642631.979,
+        "sourceDurationS": 74.85899996757507,
+        "waypointDurationS": 74.85,
+        "legacyFileMinusReconstructionM": {
+          "n": 74,
+          "meanM": 0.0004698823482962964,
+          "rmsM": 0.0004908829434321038,
+          "p95AbsM": 0.0006832136144808639,
+          "maxAbsM": 0.0007315308538599608
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 74,
+          "meanM": 11995.814945991713,
+          "rmsM": 11995.814954804746,
+          "p95AbsM": 11996.55681415365,
+          "maxAbsM": 11996.58099099911
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0005956807103757455,
+          "max": 6.4437484131799465,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002722805576413864,
+        "landingTrackMinusControlM": 0.00022606498479784643
+      },
+      {
+        "flight": 54,
+        "sourcePathLabel": 54,
+        "samples": 23,
+        "sourceStart": 744361844.475,
+        "sourceEnd": 744361868.853,
+        "sourceDurationS": 24.378000020980835,
+        "waypointDurationS": 24.37,
+        "legacyFileMinusReconstructionM": {
+          "n": 23,
+          "meanM": 0.00048445764977277176,
+          "rmsM": 0.0005019002724417298,
+          "p95AbsM": 0.0006651993982531424,
+          "maxAbsM": 0.0006819329569512301
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 23,
+          "meanM": 11996.581079051712,
+          "rmsM": 11996.581079051723,
+          "p95AbsM": 11996.581520244472,
+          "maxAbsM": 11996.581814324083
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0012777911351804505,
+          "max": 5.006347471681238,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00022606498479784643,
+        "landingTrackMinusControlM": 0.00022882947036540846
+      },
+      {
+        "flight": 55,
+        "sourcePathLabel": 55,
+        "samples": 142,
+        "sourceStart": 745152956.809,
+        "sourceEnd": 745153099.779,
+        "sourceDurationS": 142.97000002861023,
+        "waypointDurationS": 142.97,
+        "legacyFileMinusReconstructionM": {
+          "n": 142,
+          "meanM": 0.0004599505942020224,
+          "rmsM": 0.00048471273053610615,
+          "p95AbsM": 0.0006832815761540834,
+          "maxAbsM": 0.0007797611161017746
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 142,
+          "meanM": 11996.128658585654,
+          "rmsM": 11996.128661288547,
+          "p95AbsM": 11996.58166004563,
+          "maxAbsM": 11996.583728095487
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0012777911351804505,
+          "max": 10.37018034252742,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00022882947036540846,
+        "landingTrackMinusControlM": 0.0002887516402524322
+      },
+      {
+        "flight": 56,
+        "sourcePathLabel": 56,
+        "samples": 141,
+        "sourceStart": 746299630.069,
+        "sourceEnd": 746299771.009,
+        "sourceDurationS": 140.93999993801117,
+        "waypointDurationS": 140.94,
+        "legacyFileMinusReconstructionM": {
+          "n": 141,
+          "meanM": 0.0004724117561991246,
+          "rmsM": 0.0004891437580647338,
+          "p95AbsM": 0.0006561318472789972,
+          "maxAbsM": 0.0007064974232275389
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 141,
+          "meanM": 11996.584839195057,
+          "rmsM": 11996.584852699107,
+          "p95AbsM": 11997.55042471174,
+          "maxAbsM": 11997.564134793649
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.005602756346434035,
+          "max": 14.764721723327966,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002887516402524322,
+        "landingTrackMinusControlM": 0.0002382736669617687
+      },
+      {
+        "flight": 57,
+        "sourcePathLabel": 57,
+        "samples": 123,
+        "sourceStart": 747017223.645,
+        "sourceEnd": 747017352.231,
+        "sourceDurationS": 128.58599996566772,
+        "waypointDurationS": 128.59,
+        "legacyFileMinusReconstructionM": {
+          "n": 123,
+          "meanM": 0.0004920205071747754,
+          "rmsM": 0.0005095667206268379,
+          "p95AbsM": 0.0007026594046706337,
+          "maxAbsM": 0.0007522808983194303
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 123,
+          "meanM": 11998.586814385613,
+          "rmsM": 11998.586838488116,
+          "p95AbsM": 11999.450679045867,
+          "maxAbsM": 11999.45159273512
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.005602756346434035,
+          "max": 12.691247377118543,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002382736669617687,
+        "landingTrackMinusControlM": 0.00035814161677418205
+      },
+      {
+        "flight": 58,
+        "sourcePathLabel": 58,
+        "samples": 107,
+        "sourceStart": 747720820.036,
+        "sourceEnd": 747720926.811,
+        "sourceDurationS": 106.77499997615814,
+        "waypointDurationS": 106.77,
+        "legacyFileMinusReconstructionM": {
+          "n": 107,
+          "meanM": 0.0004799009807731621,
+          "rmsM": 0.0004948205997940907,
+          "p95AbsM": 0.0006616123681319566,
+          "maxAbsM": 0.0007448887174814062
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 107,
+          "meanM": 11999.840487817894,
+          "rmsM": 11999.840491999394,
+          "p95AbsM": 12000.231527880162,
+          "maxAbsM": 12000.232457781249
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.004299194204122614,
+          "max": 12.843263725353154,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00035814161677418205,
+        "landingTrackMinusControlM": 0.0001662567553095262
+      },
+      {
+        "flight": 59,
+        "sourcePathLabel": 59,
+        "samples": 101,
+        "sourceStart": 748163897.709,
+        "sourceEnd": 748164040.303,
+        "sourceDurationS": 142.5939999818802,
+        "waypointDurationS": 142.59,
+        "legacyFileMinusReconstructionM": {
+          "n": 101,
+          "meanM": 0.0004934011182625292,
+          "rmsM": 0.0005116461949610947,
+          "p95AbsM": 0.0007136485339214117,
+          "maxAbsM": 0.0008368448008927098
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 101,
+          "meanM": 12000.231774596186,
+          "rmsM": 12000.231774596348,
+          "p95AbsM": 12000.234277972444,
+          "maxAbsM": 12000.239988143396
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0004283167904759466,
+          "max": 20.024084363017664,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0001662567553095262,
+        "landingTrackMinusControlM": 0.0002973738085006561
+      },
+      {
+        "flight": 60,
+        "sourcePathLabel": 60,
+        "samples": 127,
+        "sourceStart": 748962868.04,
+        "sourceEnd": 748963000.876,
+        "sourceDurationS": 132.836000084877,
+        "waypointDurationS": 132.84,
+        "legacyFileMinusReconstructionM": {
+          "n": 127,
+          "meanM": 0.0004921327615065426,
+          "rmsM": 0.0005068184531623481,
+          "p95AbsM": 0.0006596168223019606,
+          "maxAbsM": 0.0007727262876415166
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 127,
+          "meanM": 12001.768777027188,
+          "rmsM": 12001.76882267886,
+          "p95AbsM": 12002.876164504207,
+          "maxAbsM": 12002.881712957667
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.00010470055667610723,
+          "max": 16.97871529009217,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002973738085006561,
+        "landingTrackMinusControlM": 0.0002707763377182962
+      },
+      {
+        "flight": 61,
+        "sourcePathLabel": 61,
+        "samples": 128,
+        "sourceStart": 749765537.397,
+        "sourceEnd": 749765666.852,
+        "sourceDurationS": 129.45500004291534,
+        "waypointDurationS": 129.46,
+        "legacyFileMinusReconstructionM": {
+          "n": 128,
+          "meanM": 0.0004912258810545504,
+          "rmsM": 0.0005100414110039476,
+          "p95AbsM": 0.0007041947009211,
+          "maxAbsM": 0.0007845320870743414
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 128,
+          "meanM": 12002.758196588067,
+          "rmsM": 12002.758196588109,
+          "p95AbsM": 12002.759280135118,
+          "maxAbsM": 12002.75998878363
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0015725326416031749,
+          "max": 24.001978475768283,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002707763377182962,
+        "landingTrackMinusControlM": 0.00030012612534840126
+      },
+      {
+        "flight": 62,
+        "sourcePathLabel": 62,
+        "samples": 121,
+        "sourceStart": 750380659.897,
+        "sourceEnd": 750380780.967,
+        "sourceDurationS": 121.07000005245209,
+        "waypointDurationS": 121.07,
+        "legacyFileMinusReconstructionM": {
+          "n": 121,
+          "meanM": 0.00048815604232989426,
+          "rmsM": 0.000508574617092376,
+          "p95AbsM": 0.0006955476335091943,
+          "maxAbsM": 0.0007712173782688935
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 121,
+          "meanM": 12003.216652327203,
+          "rmsM": 12003.21665809851,
+          "p95AbsM": 12003.785797331531,
+          "maxAbsM": 12003.794931349728
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0015725326416031749,
+          "max": 18.10920710850405,
+          "negativeSamples": 2,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00030012612534840126,
+        "landingTrackMinusControlM": 0.000265252888502056
+      },
+      {
+        "flight": 63,
+        "sourcePathLabel": 63,
+        "samples": 143,
+        "sourceStart": 751002831.535,
+        "sourceEnd": 751002974.157,
+        "sourceDurationS": 142.62199997901917,
+        "waypointDurationS": 142.62,
+        "legacyFileMinusReconstructionM": {
+          "n": 143,
+          "meanM": 0.00045545727576316386,
+          "rmsM": 0.00047534047668504364,
+          "p95AbsM": 0.0006795100979490628,
+          "maxAbsM": 0.0007637351724853388
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 143,
+          "meanM": 12001.479678250724,
+          "rmsM": 12001.479731648062,
+          "p95AbsM": 12003.009283068528,
+          "maxAbsM": 12003.00956915075
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0011949940021622751,
+          "max": 17.104913147617935,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.000265252888502056,
+        "landingTrackMinusControlM": 0.0003781492554328961
+      },
+      {
+        "flight": 64,
+        "sourcePathLabel": 64,
+        "samples": 145,
+        "sourceStart": 751711673.557,
+        "sourceEnd": 751711812.641,
+        "sourceDurationS": 139.08399999141693,
+        "waypointDurationS": 139.08,
+        "legacyFileMinusReconstructionM": {
+          "n": 145,
+          "meanM": 0.0004827783975887594,
+          "rmsM": 0.0005008295269517914,
+          "p95AbsM": 0.0006828989988295865,
+          "maxAbsM": 0.0008035477597382164
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 145,
+          "meanM": 12001.73551550102,
+          "rmsM": 12001.735576927118,
+          "p95AbsM": 12003.276380744412,
+          "maxAbsM": 12003.295755199068
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.42982759928827363,
+          "max": 15.723435269986112,
+          "negativeSamples": 8,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003781492554328961,
+        "landingTrackMinusControlM": 0.00018079498659817966
+      },
+      {
+        "flight": 65,
+        "sourcePathLabel": 65,
+        "samples": 47,
+        "sourceStart": 752245538.271,
+        "sourceEnd": 752245586.272,
+        "sourceDurationS": 48.00099992752075,
+        "waypointDurationS": 48.0,
+        "legacyFileMinusReconstructionM": {
+          "n": 47,
+          "meanM": 0.00048415744642071775,
+          "rmsM": 0.0004983944415595066,
+          "p95AbsM": 0.0006640415256584146,
+          "maxAbsM": 0.000717282405588951
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 47,
+          "meanM": 12003.272298003116,
+          "rmsM": 12003.272298003718,
+          "p95AbsM": 12003.27737585988,
+          "maxAbsM": 12003.278125607707
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.005172409154056368,
+          "max": 10.624198325213456,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00018079498659817966,
+        "landingTrackMinusControlM": 0.00021750927626938167
+      },
+      {
+        "flight": 66,
+        "sourcePathLabel": 66,
+        "samples": 24,
+        "sourceStart": 752333090.638,
+        "sourceEnd": 752333113.667,
+        "sourceDurationS": 23.02900004386902,
+        "waypointDurationS": 23.03,
+        "legacyFileMinusReconstructionM": {
+          "n": 24,
+          "meanM": 0.0004504554978636937,
+          "rmsM": 0.0004724218899987878,
+          "p95AbsM": 0.0007109595967887422,
+          "maxAbsM": 0.0007199678365536977
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 24,
+          "meanM": 12003.265377659312,
+          "rmsM": 12003.26537765949,
+          "p95AbsM": 12003.268243289784,
+          "maxAbsM": 12003.26984590155
+        },
+        "conditionalRadialClearanceM": {
+          "min": 0.0060003596668138925,
+          "max": 3.0500971048409156,
+          "negativeSamples": 0,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00021750927626938167,
+        "landingTrackMinusControlM": 0.00010974630787056701
+      },
+      {
+        "flight": 67,
+        "sourcePathLabel": 67,
+        "samples": 134,
+        "sourceStart": 754819212.221,
+        "sourceEnd": 754819348.151,
+        "sourceDurationS": 135.9300000667572,
+        "waypointDurationS": 135.93,
+        "legacyFileMinusReconstructionM": {
+          "n": 134,
+          "meanM": 0.0004809135510137878,
+          "rmsM": 0.0005006217368614738,
+          "p95AbsM": 0.0006810278252771478,
+          "maxAbsM": 0.0007640075534591042
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 134,
+          "meanM": 12003.998067616685,
+          "rmsM": 12003.99807913097,
+          "p95AbsM": 12004.724237959423,
+          "maxAbsM": 12004.727378102394
+        },
+        "conditionalRadialClearanceM": {
+          "min": -2.245595935596157,
+          "max": 17.029908147485457,
+          "negativeSamples": 19,
+          "negativeBelowMinus1M": 9
+        },
+        "takeoffTrackMinusControlM": 0.00010974630787056701,
+        "landingTrackMinusControlM": 0.0002166307721634064
+      },
+      {
+        "flight": 68,
+        "sourcePathLabel": 68,
+        "samples": 133,
+        "sourceStart": 755972851.725,
+        "sourceEnd": 755972986.86,
+        "sourceDurationS": 135.13499999046326,
+        "waypointDurationS": 135.13,
+        "legacyFileMinusReconstructionM": {
+          "n": 133,
+          "meanM": 0.0004703491464430222,
+          "rmsM": 0.0004918683831195229,
+          "p95AbsM": 0.000704318656887489,
+          "maxAbsM": 0.0008014834702451499
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 133,
+          "meanM": 12005.413255203572,
+          "rmsM": 12005.413274997736,
+          "p95AbsM": 12006.565627249134,
+          "maxAbsM": 12006.593955429795
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.004221641451749747,
+          "max": 18.017574096993485,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002166307721634064,
+        "landingTrackMinusControlM": 0.00025493099369996194
+      },
+      {
+        "flight": 69,
+        "sourcePathLabel": 69,
+        "samples": 132,
+        "sourceStart": 756327948.73,
+        "sourceEnd": 756328084.141,
+        "sourceDurationS": 135.41100001335144,
+        "waypointDurationS": 135.41,
+        "legacyFileMinusReconstructionM": {
+          "n": 132,
+          "meanM": 0.00046464630272762913,
+          "rmsM": 0.0004890165141475703,
+          "p95AbsM": 0.0007180839523475406,
+          "maxAbsM": 0.0007670252227885499
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 132,
+          "meanM": 12005.47398299108,
+          "rmsM": 12005.47400334916,
+          "p95AbsM": 12006.628715857198,
+          "maxAbsM": 12006.654410272306
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0033242568565583497,
+          "max": 17.694177135754217,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00025493099369996194,
+        "landingTrackMinusControlM": 0.00035833023646980556
+      },
+      {
+        "flight": 70,
+        "sourcePathLabel": 70,
+        "samples": 105,
+        "sourceStart": 756505495.263,
+        "sourceEnd": 756505628.159,
+        "sourceDurationS": 132.89600002765656,
+        "waypointDurationS": 132.9,
+        "legacyFileMinusReconstructionM": {
+          "n": 105,
+          "meanM": 0.0004598910413773798,
+          "rmsM": 0.00048106045123218763,
+          "p95AbsM": 0.0006494289421481609,
+          "maxAbsM": 0.0007188174215867489
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 105,
+          "meanM": 12004.903059122918,
+          "rmsM": 12004.903062435766,
+          "p95AbsM": 12005.29980407064,
+          "maxAbsM": 12005.304108374901
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0033242568565583497,
+          "max": 12.933746674623308,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.00035833023646980556,
+        "landingTrackMinusControlM": 0.0003328303612164136
+      },
+      {
+        "flight": 71,
+        "sourcePathLabel": 71,
+        "samples": 36,
+        "sourceStart": 757837146.984,
+        "sourceEnd": 757837181.948,
+        "sourceDurationS": 34.96399998664856,
+        "waypointDurationS": 34.96,
+        "legacyFileMinusReconstructionM": {
+          "n": 36,
+          "meanM": 0.00048535259788363267,
+          "rmsM": 0.0005150344418630602,
+          "p95AbsM": 0.0007156237950082843,
+          "maxAbsM": 0.0007293553316951978
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 36,
+          "meanM": 12004.475024228721,
+          "rmsM": 12004.47502497248,
+          "p95AbsM": 12004.661863292195,
+          "maxAbsM": 12004.672422203117
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0005427233954833355,
+          "max": 15.219242492104513,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0003328303612164136,
+        "landingTrackMinusControlM": 0.0002170011565526093
+      },
+      {
+        "flight": 72,
+        "sourcePathLabel": 72,
+        "samples": 31,
+        "sourceStart": 758898091.213,
+        "sourceEnd": 758898123.411,
+        "sourceDurationS": 32.19799995422363,
+        "waypointDurationS": 32.2,
+        "legacyFileMinusReconstructionM": {
+          "n": 31,
+          "meanM": 0.0004954668106947847,
+          "rmsM": 0.0005150534221977733,
+          "p95AbsM": 0.0006798838881769345,
+          "maxAbsM": 0.0007457953759559862
+        },
+        "legacyToConditionalDisplacementM": {
+          "n": 31,
+          "meanM": 12004.653115516116,
+          "rmsM": 12004.653115516636,
+          "p95AbsM": 12004.656870677602,
+          "maxAbsM": 12004.657166164992
+        },
+        "conditionalRadialClearanceM": {
+          "min": -0.0005427233954833355,
+          "max": 12.006982474361394,
+          "negativeSamples": 1,
+          "negativeBelowMinus1M": 0
+        },
+        "takeoffTrackMinusControlM": 0.0002170011565526093,
+        "landingTrackMinusControlM": 0.00021559160273840417
+      }
+    ]
+  },
+  "gate": {
+    "decision": "hold-derived-trajectory-regeneration",
+    "absolutePositionAccuracyM": null,
+    "sourceFrameTransform": null,
+    "reasons": [
+      "MMGIS map configuration and projected coordinates support spherical source-map angles; the JSON supplies no explicit vertical model version or SF3-to-IAU_MARS transform.",
+      "The radial alternative uses source-map planetocentric angles and assumes MEG016-compatible Elev_Geoid; absolute frame/datum accuracy remains unknown.",
+      "The source has 2D paths: altitude profile and uniform sample timing remain synthesized.",
+      "Source SCLK-to-ET semantics have not been independently established; preserve timing.",
+      "Scalar controls share provenance with the DTM and cannot certify absolute positioning."
+    ]
+  }
+}

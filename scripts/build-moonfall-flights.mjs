@@ -506,7 +506,9 @@ const catalog = {
           },
           cubeSphere: {
             cpuGrids: `${TERRAIN.catalogPrefix}cpu-grids.json`,
-            imagery: { url: `${IMAGERY.catalogPrefix}imagery.json` },
+            // Measured Retina tilt/zoom history needs more than the generic
+            // 160 MiB single-source target, including usable parent pages.
+            imagery: { url: `${IMAGERY.catalogPrefix}imagery.json`, maxTextureBytes: 512 * 1024 * 1024 },
           },
         },
       },

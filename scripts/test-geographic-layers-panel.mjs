@@ -95,13 +95,34 @@ try {
   // Scenario 2: select a shape in 3D, fly to it from its callout, open it.
   scenario = 'select3dFlyInspect';
   await page.getByRole('button', { name: 'Close Surface layers' }).click();
-  const target = await page.evaluate(() => {
-    const layer = window.renderer.universe.geographicLayers.get('jezero-science');
-    const feature = layer.features.find(f => f.geometry.type === 'Point');
-    const [p] = window.renderer.projectGeographicPositions('Mars', [feature.geometry.coordinates], layer.datum);
-    return { id: feature.id, ...p };
+  // Click targets are checked against the frame: each is where the layer is
+  // drawn (the pixel changes when it is hidden), on the rendered terrain.
+  const targets = await page.evaluate(() => {
+    const r = window.renderer, gl = r.renderer.getContext(), layer = r.universe.geographicLayers.get('jezero-science');
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, ratio = w / r.renderer.domElement.clientWidth;
+    const frame = () => { r.renderFrame(); const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; };
+    const on = frame(); r.geographicVectors.setVisible('jezero-science', false); const off = frame(); r.geographicVectors.setVisible('jezero-science', true);
+    const at = (id, position) => {
+      const [p] = r.projectGeographicPositions('Mars', [position], layer.datum, { sampleTerrain: true });
+      const i = 4 * ((h - 1 - Math.round(p.y * ratio)) * w + Math.round(p.x * ratio));
+      return { id, ...p, drawn: Math.hypot(on[i] - off[i], on[i + 1] - off[i + 1], on[i + 2] - off[i + 2]) };
+    };
+    const point = layer.features.find(f => f.geometry.type === 'Point'), { lonDeg, latDeg } = point.geometry.coordinates;
+    const target = at(point.id, point.geometry.coordinates);
+    // Inside the region, stepping off the traverses' diagonal, short of the
+    // region's edge: the first step 25 px or more from the point.
+    let fill = null;
+    for (let t = 0.001; t <= 0.03 && !(fill && Math.hypot(fill.x - target.x, fill.y - target.y) >= 25); t += 0.001) fill = at('string:region', { lonDeg: lonDeg + t, latDeg: latDeg - t });
+    return { point: target, fill };
   });
-  assert.ok(target.facing && target.inFront, 'target is on the visible side after flying there');
+  const target = targets.point;
+  for (const t of Object.values(targets)) assert.ok(t.facing && t.inFront && t.drawn > 10, `target ${t.id} is drawn where it is clicked (${JSON.stringify(t)})`);
+  // A fill click near a point would rightly pick the point, which is drawn over it.
+  assert.ok(Math.hypot(targets.fill.x - target.x, targets.fill.y - target.y) > 20, 'the fill target is clear of the point');
+  await page.mouse.click(targets.fill.x, targets.fill.y);
+  await page.waitForTimeout(300);
+  results.fillClick = { target: targets.fill, selected: (await scene()).selected };
+  assert.match(results.fillClick.selected?.featureId ?? '', /^string:regions?$/, 'a click on the fill selects the polygon');
   await act(() => page.mouse.click(target.x, target.y));
   await page.waitForTimeout(300);
   state = await scene();

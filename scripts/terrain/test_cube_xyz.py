@@ -13,6 +13,109 @@ from cube_xyz import sample, source_pixel, validate, in_bounds, read_tile
 
 
 class CubeXYZTests(unittest.TestCase):
+    def test_original_png_nodata_mask_is_preserved_without_erasing_valid_black(self):
+        from cube_xyz import decode
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            raster = gdal.GetDriverByName('MEM').Create('', 2, 2, 1, gdal.GDT_Byte)
+            band = raster.GetRasterBand(1); band.WriteArray(np.array([[0, 37], [81, 0]], np.uint8))
+            band.SetNoDataValue(0)
+            path = root / 'masked.png'; output = gdal.GetDriverByName('PNG').CreateCopy(str(path), raster); output = None
+            image = decode({'dimension': 2}, path, 'original')
+            np.testing.assert_array_equal(image[..., 3], [[0, 255], [255, 0]])
+            band.DeleteNoDataValue()
+            path = root / 'valid-black.png'; output = gdal.GetDriverByName('PNG').CreateCopy(str(path), raster); output = None
+            self.assertTrue(np.all(decode({'dimension': 2}, path, 'original')[..., 3] == 255))
+
+    def test_decoded_identity_rejects_reencoded_repeated_geographic_tiles(self):
+        import hashlib
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'surface-build'))
+        from worker import bundle
+        from cube_xyz import textured_content_digest
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); entries = {}
+            pattern = np.tile(np.arange(32, dtype=np.uint8) * 7, (32, 1))
+            for x, compression in enumerate([1, 9]):
+                raster = gdal.GetDriverByName('MEM').Create('', 32, 32, 1, gdal.GDT_Byte)
+                raster.GetRasterBand(1).WriteArray(pattern)
+                path = root / f'{x}.png'
+                output = gdal.GetDriverByName('PNG').CreateCopy(str(path), raster, options=[f'ZLEVEL={compression}'])
+                output = None
+                entries[f'0/{x}/0'] = {'path': path.name, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+            self.assertNotEqual(entries['0/0/0']['sha256'], entries['0/1/0']['sha256'])
+            lock = root / 'bundle.json'
+            lock.write_text(json.dumps({'version': 2, 'kind': 'locked-xyz-bundle', 'config': {
+                'url': 'https://example/{z}/{x}/{y}', 'dimension': 32, 'levels': 1, 'latitudeConvention': 'planetocentric'}, 'tiles': entries}))
+            with self.assertRaisesRegex(AssertionError, 'Repeated nonuniform decoded XYZ'):
+                bundle(lock, root / 'rejected.json', root, require_distinct=True)
+            self.assertFalse((root / 'rejected.json').exists())
+            # Authored repeating diagnostic fixtures remain possible without
+            # pretending this source-validity gate was enabled for them.
+            receipt = bundle(lock, root / 'diagnostic.json', root)
+            self.assertEqual(len(receipt['decodedIdentity']['duplicateGroups']), 1)
+            self.assertIsNone(textured_content_digest(np.full((32, 32, 4), 255, np.uint8)))
+            transparent = np.zeros((32, 32, 4), np.uint8); transparent[..., 0] = pattern
+            self.assertIsNone(textured_content_digest(transparent))
+
+    def test_pinned_response_replay_refuses_changed_bytes_without_publishing_manifest(self):
+        import gzip
+        import hashlib
+        from acquire_cube_xyz import replay
+        original=b'original response bytes'
+        digest=hashlib.sha256(original).hexdigest()
+        manifest=json.dumps({'version':2,'kind':'locked-xyz-bundle',
+            'config':{'url':'https://example/{z}/{x}/{y}','dimension':2,'levels':1,'latitudeConvention':'planetocentric'},
+            'tiles':{'0/0/0':{'path':'responses/'+digest+'.image','sha256':digest}}}).encode()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);pin=root/'inventory.json.gz';pin.write_bytes(gzip.compress(manifest,mtime=0))
+            with patch('acquire_cube_xyz.urlopen',lambda *args,**kwargs:io.BytesIO(original)):
+                replay(pin,root/'good',2)
+            self.assertEqual((root/'good/bundle.json').read_bytes(),manifest)
+            self.assertEqual((root/'good/responses'/f'{digest}.image').read_bytes(),original)
+            with patch('acquire_cube_xyz.urlopen',lambda *args,**kwargs:io.BytesIO(b'new response')):
+                with self.assertRaisesRegex(ValueError,'Original response changed'):
+                    replay(pin,root/'bad',2)
+            self.assertFalse((root/'bad/bundle.json').exists())
+
+    def test_bundle_staging_rejects_a_falsely_claimed_source_hole(self):
+        import hashlib
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'surface-build'))
+        from worker import bundle
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);stage=root/'stage';stage.mkdir()
+            raster=gdal.GetDriverByName('MEM').Create('',2,2,1,gdal.GDT_Byte);raster.GetRasterBand(1).Fill(37)
+            source=root/'original.png';gdal.GetDriverByName('PNG').CreateCopy(str(source),raster)
+            entry={'path':source.name,'sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+                   'unavailable':{'reason':'decode-failure','httpStatus':200,'url':'https://example/0/0/0'}}
+            manifest=root/'bundle.json'
+            def write():
+                manifest.write_text(json.dumps({'version':2,'kind':'locked-xyz-bundle',
+                  'config':{'url':'https://example/{z}/{x}/{y}','dimension':2,'levels':1,'latitudeConvention':'planetocentric'},'tiles':{'0/0/0':entry}}))
+            write()
+            with self.assertRaisesRegex(AssertionError,'is decodable'):
+                bundle(manifest,stage/'config.json',root)
+            source.write_bytes(b'truncated original response');entry['sha256']=hashlib.sha256(source.read_bytes()).hexdigest();write()
+            receipt=bundle(manifest,stage/'config.json',root)
+            self.assertEqual(len(receipt['unavailableResponses']),1)
+            self.assertEqual(receipt['responseBytes'],len(source.read_bytes()))
+
+    def test_pinned_unavailable_response_stays_transparent_without_network_or_parent(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'bad.image';path.write_bytes(b'original truncated upstream response')
+            entry = {'path':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+                     'unavailable':{'reason':'decode-failure','url':'https://example/1/1/1','httpStatus':200}}
+            config = {'dimension':2,'lockedTiles':{'1/1/1':entry}}
+            with patch('cube_xyz.urllib.request.urlopen',side_effect=AssertionError('network forbidden')):
+                self.assertIsNone(read_tile(config,folder,1,1,1))
+                rgb,alpha=sample(config,np.array([0.]),np.array([-1.]),1,folder,
+                                 read=lambda *args:None)
+                self.assertEqual(float(alpha[0]),0)
+                np.testing.assert_array_equal(rgb,0)
+                path.write_bytes(b'changed')
+                with self.assertRaisesRegex(ValueError,'checksum mismatch'):
+                    read_tile(config,folder,1,1,1)
+
     def test_locked_bundle_cannot_fetch_or_reuse_changed_bytes(self):
         import hashlib
         with tempfile.TemporaryDirectory() as folder:
@@ -49,7 +152,7 @@ class CubeXYZTests(unittest.TestCase):
             self.assertEqual(json.loads(receipts[0].read_text())['fallbackLevel'], 0)
             config['allowSourceFallback'] = False
             with patch('cube_xyz.urllib.request.urlopen', fetch), patch('cube_xyz.time.sleep'):
-                with self.assertRaises(RuntimeError):
+                with self.assertRaisesRegex(RuntimeError, 'after 5 attempts: https://example/1/1/1'):
                     read_tile(config, folder, 1, 1, 1)
 
     def test_pixel_centres_and_xyz_y(self):

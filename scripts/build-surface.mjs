@@ -55,7 +55,7 @@ export async function runBuildCli(args) {
     const { buildInventory } = await import('./data-hosting/lib/publish.mjs');
     const { identity } = await import('./surface-build/plan.mjs');
     try {
-      const path = resolve(v.cache, dag.buildId), receipt = await jsonFile(resolve(path, 'complete.json'));
+      const path = resolve(v.cache, dag.buildId), receipt = await jsonFile(resolve(path, 'complete.json'), 32 * 1024 * 1024);
       const actual = (await buildInventory(path)).filter(e => e.path !== 'complete.json');
       productReuse = receipt.buildId === dag.buildId && identity(actual) === identity(receipt.inventory) ? 'verified' : 'content-mismatch';
     } catch (e) { if (e.code !== 'ENOENT') throw e; productReuse = 'missing'; }

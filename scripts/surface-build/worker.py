@@ -45,6 +45,26 @@ def reject_external_masks(path):
     ), 'external mask dependencies are unsupported; use a pinned TIFF with an internal mask'
 
 
+def grid_alignment(detail, image, independent=False):
+    """Measure original grids; independently phased maps keep their own affine.
+
+    Coincident grids remain a gate unless the lock explicitly declares this
+    source independent. Both cases still require original-native-to-output
+    registration validation, and neither certifies absolute geolocation.
+    """
+    spacing=min(abs(detail[1]),abs(image[1]))
+    ratio=max(abs(detail[1]),abs(image[1]))/spacing
+    phase=[(image[0]-detail[0])/spacing,(image[3]-detail[3])/spacing]
+    error=max(abs(p-round(p))*spacing for p in phase)
+    coincident=abs(ratio-round(ratio))<1e-8 and error<1e-6
+    assert independent or coincident,'DTM/ortho native grid alignment exceeds gate'
+    return {'nativePixelRatio':detail[1]/image[1],'originOffsetsInFinestPixels':phase,
+            'finestSpacingM':spacing,'maximumGridPhaseErrorM':error,'coincident':coincident,
+            'policy':'independent-original-grids' if independent else 'require-coincident-grids',
+            'absoluteGeolocationErrorM':None,
+            'note':'Original affine grids are preserved independently; source-to-output registration is checked separately. Grid phase is not independent absolute image/DTM accuracy.'}
+
+
 def prepare_imagery(source, target):
     """Deterministic area-average pyramid of premultiplied DN and coverage.
 
@@ -55,7 +75,7 @@ def prepare_imagery(source, target):
     ds = gdal.Open(str(source)); band = ds.GetRasterBand(1)
     assert band.DataType == gdal.GDT_Byte and ds.RasterCount == 1, 'raster imagery requires one byte band'
     out = gdal.GetDriverByName('GTiff').Create(str(target), ds.RasterXSize, ds.RasterYSize, 2, gdal.GDT_Float32,
-                                             options=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3'])
+                                             options=['TILED=YES', 'COMPRESS=DEFLATE', 'PREDICTOR=3', 'BIGTIFF=YES'])
     out.SetGeoTransform(ds.GetGeoTransform()); out.SetProjection(ds.GetProjection())
     out.SetMetadataItem('COSMOLABE_PREMULTIPLIED_VALIDITY', '1')
     for row in range(0, ds.RasterYSize, 128):
@@ -152,15 +172,16 @@ def raster(path, radius, source, global_base=False):
             'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
-def bundle(path, target, source_dir):
-    from cube_xyz import validate
+def bundle(path, target, source_dir, source=None, require_distinct=False):
+    from cube_xyz import validate, textured_content_digest
     doc = json.loads(Path(path).read_text())
-    assert doc.get('version') == 1 and doc.get('kind') == 'locked-xyz-bundle', 'expected locked XYZ bundle v1'
+    assert doc.get('version') in (1, 2) and doc.get('kind') == 'locked-xyz-bundle', 'expected locked XYZ bundle v1/v2'
     config = doc['config']
     allowed = {'type', 'projection', 'latitudeConvention', 'url', 'levels', 'dimension', 'minZoom', 'bounds'}
     assert not set(config) - allowed, 'unsupported/mutable XYZ configuration'
     validate(config)
-    locked, size, seen = {}, 0, set()
+    locked, size, seen, unavailable, opaque = {}, 0, set(), [], {}
+    content_groups = {}; textured_responses = 0
     assert 0 < len(doc['tiles']) <= 100000, 'finite XYZ tile list required'
     for key, entry in sorted(doc['tiles'].items()):
         z, x, y = (int(p) for p in key.split('/'))
@@ -171,14 +192,61 @@ def bundle(path, target, source_dir):
         shutil.copyfile(local, frozen)
         assert sha(frozen) == entry['sha256'], 'XYZ source changed during staging'
         from cube_xyz import decode
-        image = decode(config, frozen, key)
-        assert np.all(image[..., 3] == 255), 'v1 unmasked lock cannot contain source alpha/nodata'
-        locked[key] = {'path': str(frozen), 'sha256': entry['sha256']}
+        failure = entry.get('unavailable')
+        if failure:
+            assert doc['version'] == 2 and isinstance(failure, dict), 'unavailable responses require XYZ bundle v2'
+            assert failure.get('reason') in ('http-missing', 'decode-failure'), 'unknown source failure'
+            expected_url = config['url'].replace('{z}', str(z)).replace('{x}', str(x)).replace('{y}', str(y))
+            assert failure.get('url') == expected_url, 'failure receipt URL differs from source address'
+            if failure['reason'] == 'decode-failure':
+                try:
+                    decode(config, frozen, key)
+                except (RuntimeError, ValueError):
+                    pass
+                else:
+                    raise AssertionError('claimed corrupt XYZ response is decodable')
+            else:
+                assert failure.get('httpStatus') in (204, 404), 'missing source requires an explicit HTTP status'
+            unavailable.append({'key': key, 'sha256': entry['sha256'], **failure})
+        else:
+            image = decode(config, frozen, key)
+            opaque[key] = bool(np.all(image[..., 3] == 255))
+            digest = textured_content_digest(image)
+            if digest:
+                textured_responses += 1
+                content_groups.setdefault((z, digest), []).append(key)
+            if doc['version'] == 1:
+                assert np.all(image[..., 3] == 255), 'v1 unmasked lock cannot contain source alpha/nodata'
+        locked[key] = {'path': str(frozen), 'sha256': entry['sha256'], **({'unavailable': failure} if failure else {})}
         if entry['sha256'] not in seen:
             size += local.stat().st_size
             seen.add(entry['sha256'])
+    duplicates = [{'sourceLevel': level, 'decodedSha256': digest, 'addresses': addresses}
+                  for (level, digest), addresses in sorted(content_groups.items()) if len(addresses) > 1]
+    assert not require_distinct or not duplicates, f'Repeated nonuniform decoded XYZ pixels at distinct addresses: {duplicates[:3]}'
     write(target, {**config, 'cache': str(Path(target).parent), 'lockedTiles': locked})
-    return {'responses': len(locked), 'responseBytes': size, 'sourceConfig': config}
+    subset_proof = None
+    evidence = (source or {}).get('metadata', {}).get('validData')
+    if evidence:
+        import math
+        from cube_xyz import source_pixel
+        from osgeo import ogr
+        checked = set(); level = config['levels']-1; dim = config.get('dimension',256)
+        for feature in evidence['geometry']['features']:
+            west,east,south,north = ogr.CreateGeometryFromJson(json.dumps(feature['geometry'])).GetEnvelope()
+            px,py = source_pixel(np.array([west,east]),np.array([north,south]),level,dim)
+            for y in range(max(0,math.floor((py.min()-2)/dim)),min(2**level-1,math.floor((py.max()+2)/dim))+1):
+                for x in range(math.floor((px.min()-2)/dim),math.floor((px.max()+2)/dim)+1):
+                    key=f'{level}/{x%(2**(level+1))}/{y}'
+                    assert opaque.get(key), 'declared XYZ valid subset lacks verified opaque original response support'
+                    checked.add(key)
+        subset_proof={'extent':'known-valid-subset','method':'Complete decoded alpha of every finest-source response intersecting the declared subset plus two native pixels; no parent resampling',
+                      'responses':sorted(checked),'nativeSourceLevel':level}
+    return {'responses': len(locked), 'responseBytes': size, 'sourceConfig': config,
+            'decodedIdentity': {'method': 'SHA-256 of full decoded RGBA, grouped within source level; uniform/transparent tiles excluded',
+                                'requiredDistinct': require_distinct, 'texturedResponses': textured_responses, 'duplicateGroups': duplicates},
+            'nativeValidSubset':subset_proof,'unavailableResponses': unavailable,
+            'fallback': 'Transparent missing pixels; independent runtime layers only. No source-parent substitution.'}
 
 
 def command(*args):
@@ -259,7 +327,7 @@ def build(args):
             audit['imagery'][source['id']] = raster(paths[source['id']], radius, source)
         else:
             audit['imagery'][source['id']] = bundle(paths[source['id']], inputs / f'{source["asset"]["checksum"]["value"]}.config.json',
-                                                   Path(job['paths'][source['id']]).parent)
+                                                   Path(job['paths'][source['id']]).parent, source, source['id'] in p['gates'].get('distinctImageTiles', []))
     fusion = out / 'fusion'
     if terrain_required:
         if terrain.get('fusionAsset'):
@@ -401,13 +469,9 @@ def build(args):
         image_srs.ImportFromWkt(image_grid['crsWkt'])
         assert detail_srs.IsSame(image_srs), 'DTM and ortho map projections differ'
         dgt, igt = detail_grid['nativeGrid'], image_grid['nativeGrid']
-        ratio = dgt[1]/igt[1]
-        phase = [(igt[0]-dgt[0])/igt[1], (igt[3]-dgt[3])/igt[5]]
-        phase_error = max(abs(p-round(p))*abs(igt[1]) for p in phase)
-        assert ratio>=1 and abs(ratio-round(ratio))<1e-8 and phase_error<1e-6, 'DTM/ortho native grid alignment exceeds gate'
-        audit['imagery'][source['id']]['dtmGridAlignment'] = {'nativePixelRatio':ratio,'originOffsetsInImagePixels':phase,
-            'maximumGridPhaseErrorM':phase_error,'absoluteGeolocationErrorM':None,
-            'note':'Checks preservation of the supplied controlled source grids, not independent absolute image/DTM registration.'}
+        proof=audit['imagery'][source['id']]
+        assert proof.get('sourceToOutputRegistration'), 'original-native-to-output imagery registration proof required'
+        proof['dtmGridAlignment']=grid_alignment(dgt,igt,source['id'] in p['gates'].get('independentImageGrids',[]))
     audit['workerPeakRssBytes'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['largestChildPeakRssBytes'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * (1024 if sys.platform != 'darwin' else 1)
     audit['sampledResources'] = sampler.finish()
