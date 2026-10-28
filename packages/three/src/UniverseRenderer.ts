@@ -74,6 +74,7 @@ import { GeographicVectorLayer, sameGeographicFeature } from './geographic/Geogr
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 import { PlaceNames } from './geographic/PlaceNames.js';
 import type { PlaceAnchor } from './geographic/PlaceSurface.js';
+import { tileFade } from './geographic/TileFade.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -316,6 +317,14 @@ export function eventLeadRequest(
 export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
 /** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
 const OVERLAY_MIN_GRAZING_SINE = 0.03;
+/**
+ * Mid cross-fade (about 300 ms), a terrain tile and the LOD replacing it both
+ * draw, dithered, and differ by their LOD error: a point sampled on one can be
+ * metres (Gale floor, close) to over a hundred metres (oblique, 28 km) under
+ * the other. So a fading tile hides a point only beyond this share of the
+ * camera range before it; settled surfaces use the height tolerance alone.
+ */
+const OVERLAY_FADING_LOD_SHARE = 0.01;
 
 /** Whether the ray's first `length` units pass through the sphere. */
 function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
@@ -1768,7 +1777,8 @@ export class UniverseRenderer {
         normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
         const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
         const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
-        facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, far));
+        const fadingFar = Math.min(far, (1 - OVERLAY_FADING_LOD_SHARE) * distance);
+        facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, tileFade(mesh.material) ? fadingFar : far));
       }
       const inFront = view.copy(world).applyMatrix4(toView).z < -near;
       world.project(this.camera);

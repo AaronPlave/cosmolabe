@@ -143,6 +143,16 @@ describe('projectGeographicPositions at long range and low angles', () => {
     const rise = mesh(new THREE.PlaneGeometry(2, 2).rotateY(Math.PI / 2), [1000.03, 0, 0]);
     expect(view(100, 3, [rise]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
   });
+
+  it('does not hide a point under the other side of a terrain cross-fade, but a fading tile far in front still hides it', () => {
+    const fading = (m: THREE.Mesh) => { (m.material as THREE.Material).defines = { FEATURE_FADE: 1 }; return m; };
+    // The same 30 m rise, as the LOD fading out over the one the point was sampled on: ~570 m short of 100 km.
+    const lod = fading(mesh(new THREE.PlaneGeometry(2, 2).rotateY(Math.PI / 2), [1000.03, 0, 0]));
+    expect(view(100, 3, [lod]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(true);
+    // A fading wall 5 km toward the camera.
+    const wall = fading(mesh(new THREE.PlaneGeometry(1, 1), [1000.25, 0, 5]));
+    expect(view(100, 5, [wall]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
+  });
 });
 
 describe('renderedSurfaceHeightsKm', () => {
