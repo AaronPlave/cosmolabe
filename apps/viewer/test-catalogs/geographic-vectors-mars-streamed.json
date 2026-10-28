@@ -79,6 +79,14 @@
       "longitude": 136.07
     },
     {
+      "name": "Gale region vertex very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.4,
+      "longitude": 138.75
+    },
+    {
       "name": "Sun",
       "class": "star",
       "trajectory": {

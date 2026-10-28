@@ -290,6 +290,14 @@ describe('navigation', () => {
     expect(flyOverSurface).not.toHaveBeenCalled();
     expect(geo.notice).toMatch(/Phobos/);
   });
+
+  it('withholds feature navigation when its declared frame differs from the body attitude', () => {
+    const b = renderer!.getBodyMesh('Mars') as unknown as { body: { rotation?: { bodyFixedFrame: string } } };
+    b.body.rotation = { bodyFixedFrame: 'MOON_ME_DE421' };
+    const feature = universe!.geographicLayers.layers[0];
+    expect(navigationUnavailable(feature)).toMatch(/frame .* differs/);
+    expect(goToFeature({ layerId: feature.id, featureId: feature.features[0].id, bodyName: 'Mars' })).toBe(false);
+  });
 });
 
 describe('the panel view follows the selection', () => {

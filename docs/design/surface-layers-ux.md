@@ -1,6 +1,7 @@
 # Surface layers: one interaction design for browsing, styling and drawing
 
-Status: implemented across #273 (#198), #277 (#199) and #278 (#200).
+Status: implemented across #273 (#198), #277 (#199) and #278 (#200). GPU cost
+of the vector pass is tracked separately (see #278).
 This document is the workflow map and visual proposal that review asked for.
 
 ## The problem
@@ -86,11 +87,12 @@ the combined experience was too complex:
  │ MOON                    │    │ │ ⌖ sites         MPt │ │    │ Measurement    0.1234…  │
  │ 👁 ● Lunar regions    ⋯ │    │ │ ⟋ traverse      Ln  │ │    │ ▸ Location and source   │
  │                         │    │ └─────────────────────┘ │    │ ▸ Appearance (#277)     │
- │                         │    │ ▸ Appearance  (#277)    │    │ [Edit shape] (#278)     │
+ │                         │    │ ▸ Appearance  (#277)    │    │ (yours: name editable,  │
  │                         │    │ ▸ About this layer      │    │                         │
  └─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
  Row "⋯": Show only this layer · Move up/down (#277) · About · Edit a copy / Export (#278)
  Feature "⋯": Frame · Copy coordinates · Copy reference · Copy geometry · Duplicate/Delete (#278)
+ Your own feature: the name is editable in place and its handles show on selection (#278).
 
  Scene while drawing (#278):
  ┌──────────────────────────────────────────────────────────┐
@@ -114,12 +116,25 @@ These count clicks and key presses, with typing a search term as one action.
 | --- | --- | --- |
 | 1. Show a hidden layer and open a named feature ("traverse") | 5: open panel, checkbox, list icon, search, row. Details appear below the list | 4: open panel, eye, search all features, result. The Feature view replaces the list |
 | 2. Select a shape in 3D, inspect it, fly to it | 3–4: click, callout (opens the panel at the bottom of a long column, sometimes scrolled), Fly to | 2 to fly (click, callout ✈); 3 to inspect and fly (click, callout name, Fly to) |
-| 3. Browse → draw a polygon in a new layer → name it → move a vertex → done | 11 + vertices, across two panels: open Draw, New layer, Create, Polygon, vertices, Enter, find details, name, Save, Edit shape, drag, Done | 8 + vertices, one panel and the floating bar: Draw, Polygon, vertices, Enter, name and Enter, Edit shape, drag, Done |
+| 3. Browse → draw a polygon in a new layer → name it → move a vertex → done | 11 + vertices, across two panels: open Draw, New layer, Create, Polygon, vertices, Enter, find details, name, Save, Edit shape, drag, Done | 5 + vertices, one panel and the floating bar: Draw (a polygon at first), vertices, Enter, name and Enter, drag, Done. The annotations layer is made on the way; handles show on selection, so there is no Edit shape step |
 | 4. Desktop and narrow | Two panels can be open; Draw and Surface layers each take a sheet on a phone | One panel or sheet; the floating bar keeps the scene visible |
 
 Selection survives every transition in scenario 3. The new shape is selected
-when finished, stays selected through Edit shape, and back from the Feature
-view returns to its layer.
+when finished and stays selected while it is edited; Done or back from the
+Feature view returns to its layer. All four scenarios are driven, with the
+actions counted, by `scripts/test-geographic-layers-panel.mjs` (1, 2) and
+`scripts/test-geographic-drawing.mjs` (3).
+
+**Pass 4** (the owner's drawing review on #278) removed what remained between
+"Draw" and a named shape:
+
+- The New layer form is no longer a step: shapes go into "My annotations ·
+  Body", made on first use in the body's existing convention.
+- Drawing ends with the shape selected and the cursor in its name.
+- Shape editing follows the selection instead of a mode.
+- A read-only feature is copied on its own instead of copying its whole layer.
+- Export, rename, delete, import and new layer moved into "…" menus.
+- The user's own layers draw and pick over published data by default.
 
 ## Review passes
 

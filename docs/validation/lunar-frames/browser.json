@@ -57,21 +57,21 @@
         "bodyName": "Moon",
         "frame": "MOON_ME_DE421",
         "bodyFixedPositionKm": [
-          -6.402930415254559,
-          7.6904928333285625,
-          -1737.4418622703608
+          -6.39241370471359,
+          7.677861321025944,
+          -1734.5881416781442
         ],
         "source": "terrain",
-        "latDeg": -89.6699999999337,
-        "lonDeg": 129.78000003581414,
+        "latDeg": -89.66999999992599,
+        "lonDeg": 129.78000003997914,
         "latitudeKind": "geodetic",
         "resolution": {
-          "surfaceKm": 0.03599493819979205,
-          "latDeg": 0.0011869886874651204,
-          "lonDeg": 0.20609035794041958
+          "surfaceKm": 0.04011497928521781,
+          "latDeg": 0.0013250297466232562,
+          "lonDeg": 0.23005767252936432
         },
         "hit": {
-          "heightKm": 0.07068060655956288,
+          "heightKm": -2.783087319313836,
           "datum": {
             "referenceShape": {
               "kind": "sphere",
@@ -83,7 +83,7 @@
           }
         },
         "terrainSample": {
-          "elevationKm": -2.7890408414023673,
+          "elevationKm": -2.7890408413447942,
           "datum": {
             "referenceShape": {
               "kind": "sphere",
@@ -98,7 +98,7 @@
           "describesHit": true
         },
         "altitude": {
-          "km": -2.7890408414023673,
+          "km": -2.7890408413447942,
           "from": "terrain-sample",
           "datum": {
             "referenceShape": {
@@ -111,9 +111,9 @@
           }
         },
         "surfaceNormal": [
-          0.01323213726282602,
-          0.02471955654535652,
-          -0.9996068497502699
+          0.010935869531916336,
+          -0.01705847261784533,
+          -0.999794686557959
         ]
       },
       "camera": [
@@ -139,14 +139,14 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 61,
+        "textures": 46,
         "pinnedTextures": 30,
-        "textureBytes": 22674432,
-        "inFlight": 0,
+        "textureBytes": 17098752,
+        "inFlight": 4,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 61,
-        "bytes": 1598666,
+        "requests": 50,
+        "bytes": 1243707,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
@@ -154,32 +154,30 @@
         "count": 0,
         "budgetLimited": false,
         "queued": 0,
-        "tiles": 4,
+        "tiles": 6,
         "splitTiles": 0,
-        "blocks": 11,
+        "blocks": 10,
         "extraDraws": 0,
         "displayedLevels": {
-          "3": 1,
-          "5": 4
+          "4": 4
         },
         "wantedLevels": {
-          "7": 11,
-          "8": 40,
-          "9": 26
+          "8": 35,
+          "9": 16
         },
-        "fallbackBlocks": 77,
+        "fallbackBlocks": 51,
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 5,
+        "maxDisplayedLevel": 4,
         "committedGroups": 0,
         "waitingGroups": 4,
-        "updateMs": 0.3999999761581421,
+        "updateMs": 0.40000003576278687,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 77.49999988079071,
+        "uploadMs": 52.29999989271164,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -328,16 +326,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 117,
+        "textures": 147,
         "pinnedTextures": 30,
-        "textureBytes": 43490304,
-        "inFlight": 2,
+        "textureBytes": 54641664,
+        "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 126,
-        "bytes": 2993922,
+        "requests": 147,
+        "bytes": 3375494,
         "failures": 0,
-        "aborted": 7,
+        "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
         "count": 0,
@@ -345,14 +343,16 @@
         "queued": 0,
         "tiles": 22,
         "splitTiles": 0,
-        "blocks": 42,
+        "blocks": 81,
         "extraDraws": 0,
         "displayedLevels": {
           "2": 1,
           "3": 6,
           "4": 7,
           "5": 8,
-          "6": 14
+          "6": 8,
+          "7": 9,
+          "8": 36
         },
         "wantedLevels": {
           "3": 8,
@@ -362,19 +362,19 @@
           "7": 16,
           "8": 37
         },
-        "fallbackBlocks": 53,
+        "fallbackBlocks": 0,
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 6,
+        "maxDisplayedLevel": 8,
         "committedGroups": 0,
-        "waitingGroups": 6,
-        "updateMs": 0.8999999761581421,
+        "waitingGroups": 0,
+        "updateMs": 1.4000000357627869,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 145.5999999642372,
+        "uploadMs": 150.09999972581863,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -523,16 +523,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 140,
+        "textures": 167,
         "pinnedTextures": 30,
-        "textureBytes": 52039680,
+        "textureBytes": 62075904,
         "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 154,
-        "bytes": 3426171,
+        "requests": 167,
+        "bytes": 3743150,
         "failures": 0,
-        "aborted": 14,
+        "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
         "count": 0,
@@ -557,12 +557,12 @@
         "maxDisplayedLevel": 2,
         "committedGroups": 0,
         "waitingGroups": 0,
-        "updateMs": 0.6000000238418579,
+        "updateMs": 0.3999999761581421,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 168.8999999165535,
+        "uploadMs": 168.1999997496605,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -574,28 +574,8 @@
       "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
     }
   ],
-  "hostedRequests": 509,
+  "hostedRequests": 526,
   "hostedManifests": [
-    {
-      "url": "https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json",
-      "sha256": "47f84fa70cfbe09248a03499166ac01af47c090656ae3470755e4035883dc9b3",
-      "bytes": 547794,
-      "source": {
-        "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
-        "kind": "imagery",
-        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
-        "base": "wac-global-100m-cog.tif",
-        "detail": "/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif",
-        "version": "cube-imagery-composite-3f34a19541af7710"
-      },
-      "registration": {
-        "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
-        "pixelConvention": "corner",
-        "registrationErrorKm": null,
-        "resampling": "each source bilinear from its overview ≤ 0.4 output-sample spacing, 3×3 box per pixel; detail composited over base by its coverage (nodata 0 → base)",
-        "footprint": "global (base, levels 0–6); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)"
-      }
-    },
     {
       "url": "https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/cpu-grids.json",
       "sha256": "25fc941847c2c0e07abe281ccdf00ab80e58c219d2b257f98a11cc25143cdd78",
@@ -631,6 +611,26 @@
       }
     },
     {
+      "url": "https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json",
+      "sha256": "47f84fa70cfbe09248a03499166ac01af47c090656ae3470755e4035883dc9b3",
+      "bytes": 547794,
+      "source": {
+        "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+        "kind": "imagery",
+        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
+        "base": "wac-global-100m-cog.tif",
+        "detail": "/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif",
+        "version": "cube-imagery-composite-3f34a19541af7710"
+      },
+      "registration": {
+        "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
+        "pixelConvention": "corner",
+        "registrationErrorKm": null,
+        "resampling": "each source bilinear from its overview ≤ 0.4 output-sample spacing, 3×3 box per pixel; detail composited over base by its coverage (nodata 0 → base)",
+        "footprint": "global (base, levels 0–6); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)"
+      }
+    },
+    {
       "url": "https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/tileset.json",
       "sha256": "515878d39c4a127f4069ee13094860fd235cbdd42f60090e0252020ce16af56a",
       "bytes": 1445799
@@ -657,5 +657,6 @@
     "hiddenDuringGap": true,
     "visibleAfterRecovery": true
   },
+  "placeMismatchNavigationUnavailable": true,
   "passed": true
 }

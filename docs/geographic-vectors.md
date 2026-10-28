@@ -5,6 +5,8 @@ and multipoints use 7 CSS pixel circular marks; linework and every polygon ring
 use 2 CSS pixel strokes. Polygon fills are translucent and preserve holes.
 Selection uses a gold mark/stroke and hover uses white. Emphasis does not grow
 polygon fill silhouettes. Round segments use their strongest coverage at joins.
+Overlapping translucent fills blend, an earlier source feature over a later one,
+each once; the strongest stroke or point draws over them.
 Shared source borders belong to both polygons: hovered and selected strokes draw
 in sparse passes after ordinary borders, so source/page order cannot hide a
 neighbor's highlight. These passes retain the existing draw budget.
@@ -69,11 +71,15 @@ transforms cancel scene translation in double precision before GPU upload.
 Distances/placement offsets are kilometres throughout. No display radius enters
 a physical coordinate conversion.
 
-A reference globe can be drawn when terrain is unavailable. The viewer's small
-surface-status readout identifies each body's rendering mode and reports
-limitations. This is body-wide context: terrain coverage at individual features
-is **not assessed**, even while terrain is streaming elsewhere on the body.
-The readout avoids host UI rectangles and hides when no free space remains. `renderer.geographicVectors.status` and `.diagnostics` provide the
+A reference globe can be drawn when terrain is unavailable. What each body's
+vectors are drawn on (streamed terrain or the reference globe) is body-wide
+context: terrain coverage at individual features is **not assessed**, even while
+terrain is streaming elsewhere on the body. The viewer states it in a layer's
+*About this layer* (`geographicSurfaceNote`), with any drawing problems for that
+layer, rather than over the scene. The small scene readout appears only for an
+actionable problem (datum mismatch, a surface vectors cannot drape on, budgets
+that suppressed drawing, features left out); it avoids host UI rectangles and
+hides when no free space remains. `renderer.geographicVectors.status` and `.diagnostics` provide the
 same information to embed hosts. A feature's appearance is **not a terrain
 measurement**: source uncertainty and displayed mesh deviation may be unknown.
 Surface tools still return the existing `SurfacePoint` with its own hit source,
@@ -175,8 +181,9 @@ screen-width strokes around cell boundaries; extremely distant/subpixel globe
 and grazing views can clip a mark at the index padding boundary. Dense cells use overflow pages rather than rejecting valid features. Each draw
 still scans at most 256 candidates. Sparse batches keep a single pass; overflow
 batches draw fills, then strokes, then points, with earlier source pages last.
-Translucent overlaps across pages composite with normal alpha blending (rather
-than the single winner within a page). CPU picking searches all admitted
+Translucent overlaps composite with normal alpha blending, within a page as
+across pages: fills in source order, then the page's strongest stroke or point
+over them. CPU picking searches all admitted
 candidates and retains point/stroke/fill and nearest/source tie precedence.
 Rendering admits at most **16 pages per body/datum/placement group**, independently
 of the 100,000-primitive and 1,000,000-reference storage caps. A group requiring
@@ -187,13 +194,15 @@ The nine-page localized Jezero fixture is retained in full.
 
 All main, overlay and camera-relative passes share a **2,048 surface-draw budget
 per frame**. Before allocating proxies, each group is checked against its
-visible mesh count times page count. If it would exceed the remaining budget,
+visible mesh count times its passes (the batch and each highlight; the shader
+loops over a pass's pages in one draw). If it would exceed the remaining budget,
 its remaining passes and picking are suppressed for that frame, its proxies
 are released and `vector-draw-budget` explains the limit. Earlier passes may
 already have drawn part of that group; it cannot acquire invisible pick targets.
 The next frame retries with a fresh budget, so reduced visible detail recovers
-automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs.
-One surface proxy is reused across pages, without allocating an object per
+automatically. `metrics.drawPages` and `metrics.drawCalls` expose both costs
+(see GPU cost below for what culling changes).
+One surface proxy draws all pages, without allocating an object per
 feature. The limits diagnose overload rather than silently dropping
 individual polygon rings.
 
@@ -209,6 +218,82 @@ two passes agree visually. The existing CPU surface hit still describes that
 globe's reference shape; a GPU displacement image is not promoted to measured
 terrain. Float32 geographic projection at planetary radii also limits sub-metre
 display accuracy. Use the shared physical surface queries for scientific data.
+
+## GPU cost
+
+The pass is drawn on proxies of the visible surface meshes (the reference
+globe, or each resident terrain tile), so its fragment shader runs wherever
+those meshes cover the screen, whether or not a feature is near. Two things
+keep that in proportion to the features:
+
+- **Scissoring to the features.** Each batch, and each selection or hover
+  highlight, has a footprint: the longitude/latitude box of its vertices,
+  taking the short way across the 180° seam. Edges are drawn linear in
+  longitude and latitude, so every drawn fragment lies in that box. The box is
+  projected at the lowest and highest heights the meshes that can draw it are
+  drawn at, padded by 16 CSS pixels for marks, and the pass is scissored to that
+  rectangle. Height ranges come from each terrain tile's bounding box in body
+  axes, or for a whole reference globe from its chord sag. Terrain tiles whose
+  extent cannot touch the footprint are not drawn at all. A footprint off
+  screen or wholly behind the camera draws nothing. The full viewport is kept
+  when the box spans more than 60°, reaches within 1° of a pole, is partly
+  behind the camera, uses a displacement-mapped globe or terrain-relative
+  offset on a whole globe, or the pass renders into a render target.
+  Picking is unaffected.
+- **Closed-form latitude.** Every covered fragment converts its body-fixed
+  position to geodetic latitude. This uses Bowring's closed form (at most
+  1e-9° from the exact value on Mars and Earth, far below float32's 5e-6°)
+  instead of a five-step iteration.
+
+- **One draw for all pages.** The fragment shader converts its position once
+  and loops over the pages of its cell, compositing them in order (page 0
+  lowest) as separate draws would blend them, so extra pages cost an index
+  fetch per fragment rather than another draw of every tile. Close up, where a
+  finer grid needs fewer pages, the loop stops at that grid's page count.
+
+- **A fine global level with covered cells.** Global data (with polar
+  charts, such as countries) is indexed on whole-globe grids rather than local
+  ones. Besides the 256 × 128 level (1.4° cells) there is a 1024 × 512 level
+  (0.35°) for close views, over the latitudes clear of polar-chart primitives;
+  outside them the shader falls back to the coarser level. On both, a
+  polygon's fill triangles stay only in cells its outline crosses, and a cell
+  wholly inside it holds one covered reference, drawn without a triangle
+  test; segments go only in the cells they pass near. Countries seen from
+  ~100 km scanned ~114 candidates per pixel on the coarse level; the fine
+  level is left out if it would exceed the reference budget.
+
+`metrics.drawCalls` counts the draws made after culling, and
+`metrics.shadedPixels` the viewport pixels the shader could run on, summed over
+passes. The frame budget still counts every visible mesh.
+
+`scripts/benchmark-geographic-gpu.mjs` measures whole-frame GPU time with timer
+queries over reproducible scenes (`test-catalogs/geographic-vectors-gpu-bench`
+and the dense Jezero and Earth countries catalogs): vectors off and on, one
+point, one small polygon, a selected polygon, 200 annotations, dense Jezero,
+Earth countries, and Jezero on measured terrain when its local data is present.
+`CL_GPU=hardware` runs it on Chrome with Metal at 3840×2160, writing to
+`work/geographic/gpu/<label>`. Results under SwiftShader at 1280×720 follow. That is a
+software renderer, so the absolute numbers are not hardware numbers. Its time
+is dominated by fragment work, though, so it shows how the pass scales with
+covered pixels. Extra GPU time over the same view with vectors off:
+
+| Scene | Before | Scissor | Scissor and closed-form latitude |
+| --- | --- | --- | --- |
+| Jezero close, one point | 112 ms | 6 ms | 11 ms |
+| Jezero close, one small polygon | 251 ms | 13 ms | 11 ms |
+| Jezero close, polygon selected | 392 ms | 32 ms | 16 ms |
+| Jezero close, 200 annotations | 432 ms | 356 ms | 236 ms |
+| Mars disk, one small polygon | 72 ms | 9 ms | 9 ms |
+| Mars disk, 200 annotations | 359 ms | 161 ms | 152 ms |
+| Dense Jezero (1,601 features, 9 pages) | 990 ms | 244 ms | 187 ms |
+| Earth orbit, countries (6 pages) | 1,321 ms | 1,321 ms | 1,249 ms |
+| Rhine close, countries (6 pages) | 2,116 ms | 2,057 ms | 1,863 ms |
+
+Small scenes vary by a few milliseconds between runs. Layers that cover the
+screen, such as global countries or annotations spread across the view, still
+cost one full-screen pass per page. Reducing that needs a different
+presentation for background cartography (the raster path in #266/#267), not
+this pass.
 
 ## Reproducible validation
 
@@ -232,9 +317,8 @@ regions, seam/polar picking, multipart geometry, budgets, placement and lifetime
 
 The second browser check exercises the real viewer/catalog loader, an explicit
 fixed frame on an oblate Mars globe, automatic vector drawing, stable scene-hit
-identity, selection and the reference-globe readout. It also captures the full
-viewer chrome at desktop and mobile sizes and asserts that the status is clear
-of host UI. Artifacts are `viewer-reference.png`, `viewer-chrome-desktop.png`,
+identity, selection and that no routine readout floats over the scene. It also captures the full
+viewer chrome at desktop and mobile sizes. Artifacts are `viewer-reference.png`, `viewer-chrome-desktop.png`,
 `viewer-chrome-mobile.png` and `viewer.json`.
 
 The review follow-up also exercises absolute Z=0 and Z=2 m against a detailed

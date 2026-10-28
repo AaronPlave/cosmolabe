@@ -13,6 +13,10 @@ export function layerSwatch(layer: GeographicLayer): string {
 
 /** Where the data comes from, in task words. */
 export function layerOrigin(layer: GeographicLayer): { label: string; title: string } {
+  if (layer.ownership === 'user') {
+    const copy = typeof layer.definition.provenance?.workingCopyOf === 'string';
+    return { label: copy ? 'Your editable copy' : 'Yours', title: 'Kept in this browser. Export it from the … menu to share it.' };
+  }
   return layer.ownership === 'catalog'
     ? { label: 'From the catalog', title: 'Published with the catalog; it is never modified here.' }
     : { label: 'Opened from a file', title: 'Opened from a local file for this session; it is never modified here.' };

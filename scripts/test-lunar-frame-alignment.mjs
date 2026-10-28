@@ -120,6 +120,17 @@ try {
     const hidden = !bm.visible; r.renderFrame();return { hiddenDuringGap: hidden, visibleAfterRecovery: bm.visible };
   });
   assert.deepEqual(report.orientationRecovery, { hiddenDuringGap: true, visibleAfterRecovery: true });
+  await page.getByRole('button', { name: 'Navigate', exact: true }).click();
+  await page.getByRole('radiogroup', { name: 'Navigate mode' }).getByText('places', { exact: true }).click();
+  await page.getByPlaceholder('Name or alias…').fill('Shackleton');
+  await page.locator('[aria-label="Named places"] button').filter({ has: page.getByText('Shackleton', { exact: true }) }).click();
+  await page.getByText(/Place frame IAU_MOON differs from the rendered surface frame MOON_ME_DE421/).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Jump to', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Fly to', exact: true }).isDisabled(), true);
+  report.placeMismatchNavigationUnavailable = true;
+  await page.screenshot({ path: `${out}/unavailable-place.png` });
+  await page.getByRole('button', { name: 'Navigate', exact: true }).click();
+  await page.evaluate(() => window.cosmo.select('Polaris-A'));
   await page.setViewportSize({width:390,height:844}); await page.screenshot({path:`${out}/compact.png`});
   if(process.env.HOSTED !== '0')assert.ok(report.hostedRequests>0);assert.deepEqual(report.errors,[]);report.passed=true;
 } finally { await page.unrouteAll({ behavior: 'ignoreErrors' }); await writeFile(`${out}/metrics.json`,JSON.stringify(report,null,2));await context.close();await browser.close(); }

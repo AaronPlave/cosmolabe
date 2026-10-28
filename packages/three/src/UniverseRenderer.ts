@@ -74,6 +74,7 @@ import { GeographicVectorLayer, sameGeographicFeature } from './geographic/Geogr
 import type { GeographicFeatureRef } from './geographic/GeographicIndex.js';
 import { PlaceNames } from './geographic/PlaceNames.js';
 import type { PlaceAnchor } from './geographic/PlaceSurface.js';
+import { tileFade } from './geographic/TileFade.js';
 
 // Reusable temporaries for clampCameraAboveSurfaces (avoid per-frame allocation)
 const _clampTmpVec = /* @__PURE__ */ new THREE.Vector3();
@@ -316,6 +317,15 @@ export function eventLeadRequest(
 export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
 /** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
 const OVERLAY_MIN_GRAZING_SINE = 0.03;
+/**
+ * Mid cross-fade (about 300 ms), a terrain tile and the LOD replacing it both
+ * draw, dithered, and differ by their LOD error: a point sampled on one can lie
+ * metres (Gale floor, close) to over a hundred metres under the other. A fading
+ * tile's own height at the point, measured down the normal from this far above,
+ * is that disagreement; the tile hides the point only beyond twice it (plus the
+ * height tolerance) along the line of sight, so a real ridge still hides it.
+ */
+const OVERLAY_FADING_PROBE_KM = 1;
 
 /** Whether the ray's first `length` units pass through the sphere. */
 function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
@@ -1389,12 +1399,12 @@ export class UniverseRenderer {
     }
 
     this.geographicVectors.end();
-    const vectorText = geographicStatusText(this.geographicVectors.status, this.geographicVectors.diagnostics.length);
+    const vectorText = geographicStatusText(this.geographicVectors.diagnostics.length);
     if (this.geographicStatus.textContent !== vectorText) {
       this.geographicStatus.textContent = vectorText;
       this.geographicStatus.style.display = vectorText ? '' : 'none';
     }
-    this.geographicStatus.title = 'Body rendering mode only; terrain coverage at individual features is not assessed. Vectors follow the displayed triangles, including fallback surfaces. Drawing is not a terrain elevation measurement; source uncertainty may be unknown. ' + this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
+    this.geographicStatus.title = this.geographicVectors.diagnostics.slice(0, 3).map(d => d.message).join(' ');
     if (vectorText) {
       const position = geographicStatusPosition(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
         this.geographicStatus.offsetWidth, this.geographicStatus.offsetHeight, this._screenOccluders?.() ?? []);
@@ -1752,6 +1762,7 @@ export class UniverseRenderer {
     const center = bm.position, eye = this.camera.position;
     const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
     const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
+    const above = new THREE.Ray();
     const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
     return positions.map((position) => {
       const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
@@ -1768,7 +1779,13 @@ export class UniverseRenderer {
         normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
         const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
         const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
-        facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, far));
+        facing = !surfaces.some((mesh) => {
+          if (!tileFade(mesh.material)) return this.overlayOcclusion.intersects(mesh, ray, far);
+          above.origin.copy(world).addScaledVector(normal, OVERLAY_FADING_PROBE_KM * this.scaleFactor); above.direction.copy(normal).negate();
+          const t = this.overlayOcclusion.firstHit(mesh, above, 2 * OVERLAY_FADING_PROBE_KM * this.scaleFactor);
+          const disagreement = t === null ? 0 : Math.abs(OVERLAY_FADING_PROBE_KM * this.scaleFactor - t);
+          return this.overlayOcclusion.intersects(mesh, ray, Math.max(0, far - 2 * disagreement / sine));
+        });
       }
       const inFront = view.copy(world).applyMatrix4(toView).z < -near;
       world.project(this.camera);

@@ -174,7 +174,7 @@ local-product behavior. Generated work files stay outside the durable report.
 - All 20 MoonFall flight/rest arcs retain exactly the same reference radius,
   epoch, absolute-altitude flag and waypoint values as the base commit.
 - [Browser metrics](browser.json): Chrome on ANGLE Metal / **Apple M4 Max**,
-  509 hosted payload requests, no exhausted network retries, no page errors,
+  526 hosted payload requests, no exhausted network retries, no page errors,
   no GL errors. Frame orientation residuals are numerical roundoff. All three
   rendered surface picks report `MOON_ME_DE421`; imagery's required base has
   zero uncovered blocks. The polar screenshot uses an oblique eye aimed at
@@ -201,3 +201,22 @@ A final kinematics check also verifies that sub-points and co-rotating speeds
 use the selected lunar realization, including an explicitly IAU_MOON-stated
 input transformed into DE421. The lunar/kinematics/invariants/reference suites
 passed 28 tests; the final package, test, viewer and Svelte typechecks passed.
+
+After merging main at `e7355942` (#278), the importer resolution preserves both
+explicit frame metadata and user ownership. The new editing/export path retains
+the selected lunar frame, rejects contradictory GeoJSON frame declarations,
+and refuses a pick from another frame. The affected importer/editing/lunar and
+terrain suites passed 144 tests; geographic-vector/place/imagery/DSK suites
+passed 92 tests. Package/test/viewer/Svelte typechecks and lint passed again.
+The hosted GPU run was repeated on the merged application: 526 payload requests,
+no network/page/GL errors, and the same 0.0077 mm rendered LRO numerical residual.
+`browser.json` and the screenshots contain this post-merge run.
+
+The final native Places check selects the USGS Shackleton record, shows its
+IAU_MOON/DE421 disagreement, and verifies that Fly and Jump are disabled.
+[Unavailable place](unavailable-place.png) records that state. The source
+remains searchable; its coordinates are not silently reinterpreted. The final
+Places/feature-navigation/editing unit suites passed 90 tests.
+
+GDAL validation also passed: `dem.py selftest`, all three
+`test_cube_ellipsoid.py` regressions, and all eleven `test_cube_xyz.py` regressions.

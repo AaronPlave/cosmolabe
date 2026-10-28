@@ -275,7 +275,7 @@ export function parseGeographicGeoJson(
   }
   return {
     id: spec.id, name: spec.name, body: spec.body, frame: c.frame ?? bodyFixedFrameName(spec.body),
-    ownership: source.kind === 'catalog' ? 'catalog' : 'transient', definition: spec, source,
+    ownership: source.kind === 'catalog' ? 'catalog' : source.kind === 'user' ? 'user' : 'transient', definition: spec, source,
     coordinates: c, datum: geographicDatum(c), features, skippedFeatures: data.features.length - features.length, diagnostics,
   };
 }

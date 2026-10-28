@@ -210,6 +210,8 @@ export function navigationUnavailable(layer: GeographicLayer): string | null {
   void geo.revision;
   const bm = getRenderer()?.getBodyMesh(layer.body);
   if (!bm) return `${layer.body} is not in this scene.`;
+  const frame = bm.body.rotation?.bodyFixedFrame;
+  if (frame && frame !== layer.frame) return `Layer frame ${layer.frame} differs from the rendered surface frame ${frame}. Navigation is unavailable.`;
   if (bm.body.geometryType !== 'Globe') return `${layer.body} is not drawn as a globe, so it has no latitude/longitude surface to fly over.`;
   return null;
 }
@@ -333,7 +335,8 @@ function refreshInView(force = false): void {
     if (angle(sample.axis, direction) - sample.radius > horizon) continue;
     for (const p of sample.positions) { positions.push(p); owners.push(sample.id); }
   }
-  const projected = positions.length ? renderer.projectGeographicPositions(layer.body, positions, layer.datum) : [];
+  // At decoded terrain height: over a deep floor the datum can be far above what is drawn.
+  const projected = positions.length ? renderer.projectGeographicPositions(layer.body, positions, layer.datum, { sampleTerrain: true }) : [];
   const visible = new Set<string>();
   projected?.forEach((p, i) => {
     if (p.facing && p.inFront && p.x >= 0 && p.y >= 0 && p.x <= canvas.clientWidth && p.y <= canvas.clientHeight) visible.add(owners[i]);

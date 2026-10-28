@@ -22,7 +22,7 @@ on. It asserts:
 - Revert undoes changes since the editor opened, and Reset returns to the
   catalog defaults and removes the labels.
 
-Captures (`defaults.png`, `styled.png`, `category.png`, `labels.png`,
-`compact.png`) come from Chromium with SwiftShader at 1280×800 and 390×844:
-they show behaviour and appearance, not hardware performance.
-[`editor.json`](editor.json) holds the recorded results.
+The captures kept here (`styled.png`, `labels.png`) come from Chromium with
+SwiftShader at 1280×800: they show behaviour and appearance, not hardware
+performance. A run writes all its captures and `editor.json` to
+`work/geographic/style-editor`.

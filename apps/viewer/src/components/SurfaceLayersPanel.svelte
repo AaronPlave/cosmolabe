@@ -14,14 +14,18 @@
   import ImageryLayersSection from './ImageryLayersSection.svelte';
   import GeographicLayerView from './GeographicLayerView.svelte';
   import GeographicFeatureDetails from './GeographicFeatureDetails.svelte';
+  import GeographicLayerMenuItems from './GeographicLayerMenuItems.svelte';
+  import GeographicLayerForm from './GeographicLayerForm.svelte';
+  import { edits, startDrawing, drawBody, importNeedsConventions, importLayerText, undoDelete } from '../lib/geographic-editing.svelte';
+  import { PenLine } from 'lucide-svelte';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import {
-    geo, geographicLoads, layerVisible, setLayerVisible, isolateLayer, isIsolated, showAllLayers, hoverFeature,
+    geo, geographicLoads, layerVisible, setLayerVisible, showAllLayers, hoverFeature,
     surfacePanelView, openLayer, openImagery, showLayerList, searchAllFeatures, selectFeature, featureRef,
     GLOBAL_SEARCH_LIMIT,
   } from '../lib/geographic-layers.svelte';
   import { layerSwatch, layerIssue } from '../lib/geographic-layer-labels';
-  import { geoStyles, openStyleEditor, layerRank, moveLayer } from '../lib/geographic-styles.svelte';
+  import { geoStyles, openStyleEditor } from '../lib/geographic-styles.svelte';
 
   interface Props { onClose: () => void; }
   let { onClose }: Props = $props();
@@ -56,12 +60,34 @@
     onClose();
   }
 
+  let fileInput = $state<HTMLInputElement | null>(null);
+  async function importFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { edits.message = 'GeoJSON over 2 MiB cannot be imported for editing.'; return; }
+    const text = await file.text();
+    // Plain GeoJSON would mean Earth WGS84: ask which body and convention it is in, never guess.
+    if (importNeedsConventions(text)) { edits.form = { mode: 'import', text, fileName: file.name }; return; }
+    const id = importLayerText(text);
+    if (id) openLayer(id);
+  }
+
   const failureLabel = (load: GeographicLayerLoad) => load.id || load.source.identity || 'Unnamed layer';
 </script>
 
 <InstrumentPanel key="layers" title="Surface layers" width={340} onClose={close}>
+  {#if edits.deleted}
+    <div class="deleted ui-meta" role="status">
+      <span>Deleted “{edits.deleted.name}”.</span>
+      <button class="undo" onclick={undoDelete}>Undo</button>
+    </div>
+  {/if}
   {#if !vs.assetsReady}
     <p class="ui-helper text-text-muted">Loading the scene…</p>
+  {:else if edits.form}
+    <GeographicLayerForm />
   {:else if view.kind === 'feature'}
     <GeographicFeatureDetails layer={view.layer} feature={view.feature} />
   {:else if view.kind === 'layer'}
@@ -75,16 +101,28 @@
       <code>geographicLayers</code>; see docs/geographic-layers.md.
     </p>
   {:else}
-    {#if groups.some((g) => g.layers.length)}
-      <Input
-        type="search"
-        class="ui-control h-7 w-full"
-        placeholder="Search all features"
-        aria-label="Search all features"
-        value={geo.globalQuery}
-        oninput={(e) => (geo.globalQuery = (e.target as HTMLInputElement).value)}
-      />
-    {/if}
+    <div class="top-row">
+      {#if groups.some((g) => g.layers.length)}
+        <Input
+          type="search"
+          class="ui-control h-7 min-w-0 flex-1"
+          placeholder="Search all features"
+          aria-label="Search all features"
+          value={geo.globalQuery}
+          oninput={(e) => (geo.globalQuery = (e.target as HTMLInputElement).value)}
+        />
+      {/if}
+      <button class="draw-button" onclick={() => startDrawing()} disabled={!drawBody()} title="Draw on {drawBody() ?? 'a globe'}"><PenLine size={13} /> Draw</button>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger class="icon-action" aria-label="More layer actions" title="More"><Ellipsis size={14} /></DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end">
+          <DropdownMenu.Item onSelect={() => (edits.form = { mode: 'new' })}>New layer…</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={() => fileInput?.click()}>Import GeoJSON…</DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+      <input bind:this={fileInput} type="file" accept=".geojson,.json,application/geo+json,application/json" class="hidden" onchange={importFile} />
+    </div>
+    {#if edits.message && !edits.tool}<p class="ui-helper message" role="status">{edits.message}</p>{/if}
 
     {#if geo.globalQuery.trim()}
       <ul class="results" aria-label="Search results">
@@ -131,17 +169,7 @@
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger class="icon-action" aria-label="More for {layer.name}" title="More"><Ellipsis size={14} /></DropdownMenu.Trigger>
                   <DropdownMenu.Content align="end">
-                    {#if isIsolated(layer.id)}
-                      <DropdownMenu.Item onSelect={() => showAllLayers(layer.body)}>Show all {layer.body} layers</DropdownMenu.Item>
-                    {:else}
-                      <DropdownMenu.Item onSelect={() => isolateLayer(layer.id)}>Show only this layer</DropdownMenu.Item>
-                    {/if}
-                    <DropdownMenu.Item onSelect={() => { openLayer(layer.id); openStyleEditor(layer.id); }}>Style</DropdownMenu.Item>
-                    {#if layerRank(layer.id).count > 1}
-                      <DropdownMenu.Item disabled={layerRank(layer.id).index <= 0} onSelect={() => moveLayer(layer.id, true)}>Draw above other layers</DropdownMenu.Item>
-                      <DropdownMenu.Item disabled={layerRank(layer.id).index >= layerRank(layer.id).count - 1} onSelect={() => moveLayer(layer.id, false)}>Draw below other layers</DropdownMenu.Item>
-                    {/if}
-                    <DropdownMenu.Item onSelect={() => openLayer(layer.id, { about: true })}>About this layer</DropdownMenu.Item>
+                    <GeographicLayerMenuItems {layer} />
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </li>
@@ -179,9 +207,31 @@
 </InstrumentPanel>
 
 <style>
+  .deleted { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding: 4px 8px;
+    border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-2); color: var(--color-text-secondary); }
+  .undo { border: none; background: none; padding: 0; color: var(--color-text-primary); text-decoration: underline; cursor: pointer; }
   .body-group {
     margin-top: 10px;
   }
+  .top-row { display: flex; align-items: center; gap: 4px; }
+  .draw-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 4px;
+    background: var(--color-text-primary);
+    color: var(--color-surface-1, #0d1117);
+    font-size: var(--text-metadata);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .draw-button:disabled { opacity: 0.4; cursor: default; }
+  .hidden { display: none; }
+  .message { margin-top: 6px; color: var(--color-text-secondary); }
   .body-header {
     display: flex;
     align-items: baseline;
