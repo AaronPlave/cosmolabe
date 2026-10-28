@@ -11,6 +11,7 @@
   import { geographicFeatureAnchor, geographicFeatureName } from '@cosmolabe/core';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { Plane } from 'lucide-svelte';
+  import { drawnSurface } from '../lib/drawn-surface';
   import { geo, findFeature, goToFeature, navigationUnavailable, showSelectedDetails } from '../lib/geographic-layers.svelte';
 
   let found = $derived(findFeature(geo.selected));
@@ -20,7 +21,8 @@
     void vs.frameTick;
     const r = getRenderer();
     if (!r || !found || !anchor) return null;
-    const p = r.projectGeographicPositions(found.layer.body, [anchor], found.layer.datum, { sampleTerrain: true })?.[0];
+    // On the drawn surface, so the leader touches the feature as drawn even on a coarse globe.
+    const p = drawnSurface.project(r, found.layer.body, [anchor], found.layer.datum)?.[0];
     const canvas = r.renderer.domElement;
     if (!p || !p.facing || !p.inFront || p.x < 0 || p.y < 0 || p.x > canvas.clientWidth || p.y > canvas.clientHeight) return null;
     // Whole pixels: sub-pixel motion of a resting view reads as jitter in text.

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, wrapLon,
-  type GeographicLayer, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
+import { bodyFixedToGeodetic, geodeticToBodyFixed, isSupportedGeodeticDatum, resolveGeographicStyle, wrapLon,
+  type GeographicLayer, type GeographicLayerStyle, type BodyFixedPosition, type Universe } from '@cosmolabe/core';
 import type { BodyMesh } from '../BodyMesh.js';
 import type { SurfacePoint } from '../SceneHit.js';
-import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic } from './GeographicIndex.js';
+import { GeographicIndex, VECTOR_RENDER_PAGE_LIMIT, type GeographicFeatureRef, type GeographicRenderDiagnostic, type GeographicStyleResolver } from './GeographicIndex.js';
 import { GeographicMaterial } from './GeographicMaterial.js';
 
 export type GeographicPlacement =
@@ -73,6 +73,10 @@ export class GeographicVectorLayer {
   private readonly excludedSources = new Set<string>();
   private readonly visibility = new Map<string, boolean>();
   private readonly filters = new Map<string, ReadonlySet<string>>();
+  private readonly styles = new Map<string, GeographicLayerStyle>();
+  private order: string[] = [];
+  private restyles = 0;
+  private readonly styleOf: GeographicStyleResolver = (layer, feature) => resolveGeographicStyle(layer, this.styles.get(layer.id), feature);
   private selected: GeographicFeatureRef | null = null;
   private hovered: GeographicFeatureRef | null = null;
   private _diagnostics: GeographicRenderDiagnostic[] = [];
@@ -89,8 +93,8 @@ export class GeographicVectorLayer {
   get diagnostics(): readonly GeographicRenderDiagnostic[] { return this._diagnostics; }
   get status(): readonly GeographicVectorStatus[] { return this._status; }
   get featureCount(): number { return this.batches.reduce((n, b) => n + b.index.features.length, 0); }
-  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number } {
-    return { drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
+  get metrics(): { batches: number; surfaceMeshes: number; offsetVertices: number; textureBytes: number; drawPages: number; drawCalls: number; restyles: number } {
+    return { restyles: this.restyles, drawCalls: this.drawCalls, drawPages: this.batches.reduce((n, b) => n + b.material.pages, 0), batches: this.batches.length, surfaceMeshes: this.proxyCount, offsetVertices: this.offsetVertices,
       textureBytes: this.batches.reduce((n, b) => n + this.drawMaterials(b).flatMap(m => m.textures).reduce((sum, t) => sum + (t.image.data?.byteLength ?? 0), 0), 0) };
   }
   /** Source inclusion is independent of its retained drawing visibility. */
@@ -119,6 +123,36 @@ export class GeographicVectorLayer {
     this.dirty = true;
   }
   featureFilter(layerId: string): ReadonlySet<string> | null { return this.filters.get(layerId) ?? null; }
+  /**
+   * Presentation for one layer; null returns it to the catalog's display
+   * defaults. A layer already drawing is restyled in place: its record texture
+   * is repacked and re-uploaded, with no re-triangulation, new GPU resources
+   * or shader recompile. Source data is never touched.
+   */
+  setStyle(layerId: string, style: GeographicLayerStyle | null): void {
+    if (style) this.styles.set(layerId, style); else this.styles.delete(layerId);
+    if (this.dirty) return;
+    for (const batch of this.batches) {
+      if (!batch.layers.some(l => l.id === layerId)) continue;
+      batch.index.restyle(this.styleOf);
+      batch.material.restyle(batch.index);
+      // Highlight views share the restyled primitives but have their own records.
+      for (const h of batch.highlights) h.material.dispose();
+      batch.highlights = [];
+      this.restyles++;
+    }
+    this.updateHighlights();
+  }
+  getStyle(layerId: string): GeographicLayerStyle | null { return this.styles.get(layerId) ?? null; }
+  /**
+   * Draw order among layers sharing a body: earlier IDs win where fills or
+   * equal-coverage strokes overlap. Unlisted layers follow, in load order.
+   */
+  setLayerOrder(layerIds: readonly string[]): void {
+    if (layerIds.length === this.order.length && layerIds.every((id, i) => id === this.order[i])) return;
+    this.order = [...layerIds]; this.dirty = true;
+  }
+  get layerOrder(): readonly string[] { return this.order; }
   get selectedFeature(): GeographicFeatureRef | null { return this.selected; }
   setPlacement(layerId: string, placement: GeographicPlacement): void {
     const height = placement.mode === 'clamp' ? 0 : placement.mode === 'terrain-relative' ? placement.offsetKm : placement.heightKm;
@@ -164,7 +198,9 @@ export class GeographicVectorLayer {
     // Every feature still shown. A selection or hover outside it (hidden, filtered,
     // unloaded) is cleared here rather than left pointing at nothing.
     const shown = new Set<string>();
-    for (const layer of this.universe.geographicLayers.layers) {
+    const rank = (id: string) => { const i = this.order.indexOf(id); return i < 0 ? this.order.length : i; };
+    const ordered = [...this.universe.geographicLayers.layers].sort((a, b) => rank(a.id) - rank(b.id));
+    for (const layer of ordered) {
       if (this.excludedSources.has(layer.id)) continue;
       if (!this.isVisible(layer.id) || layer.definition.display?.opacity === 0) continue;
       const subsets = new Map<string, { layer: GeographicLayer; placement: GeographicPlacement }>();
@@ -215,7 +251,7 @@ export class GeographicVectorLayer {
       if (!isSupportedGeodeticDatum(datum)) continue;
       const a = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0];
       const c = shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[2];
-      const index = new GeographicIndex(layers);
+      const index = new GeographicIndex(layers, false, this.styleOf);
       this._diagnostics.push(...index.diagnostics);
       if (!index.primitives.length) continue;
       const pages = index.renderPages;

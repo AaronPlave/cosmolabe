@@ -338,6 +338,7 @@ describe('which demo catalogs cannot search at all', () => {
     'geographic-vectors-earth-overlay-comparison.json',
     'geographic-vectors-jezero-dense.json',
     'geographic-vectors-jezero-terrain.json',
+    'geographic-vectors-mars-streamed.json',
     'geographic-vectors-shackleton-terrain.json',
     'geographic-vectors.json',
     'ingenuity-jezero.json',

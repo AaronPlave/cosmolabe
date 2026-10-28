@@ -5,6 +5,8 @@
   import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
   import GeographicCallout from './components/GeographicCallout.svelte';
+  import GeographicLabels from './components/GeographicLabels.svelte';
+  import './lib/geographic-styles.svelte';
   import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
@@ -604,6 +606,7 @@
 
   {#if !loading && !uiHidden}
     <ViewportHud />
+    <GeographicLabels />
     <GeographicCallout />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of

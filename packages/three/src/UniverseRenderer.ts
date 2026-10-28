@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ContourOcclusion } from './ContourOcclusion.js';
 import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
 import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
@@ -303,6 +304,30 @@ export function eventLeadRequest(
   } : null;
 }
 
+/**
+ * How far an overlay point may sit off the drawn surface, in km: cached
+ * drawn-surface heights, float32 vertices and interpolation between them
+ * (about 0.35 m of float32 resolution at Mars' radius). The line of sight
+ * stops this far short of the point *along the surface normal*: that is,
+ * `OVERLAY_HEIGHT_TOLERANCE_KM / sin(angle to the surface)` along the ray,
+ * capped at grazing angles. A fraction of the whole distance would skip
+ * real terrain near a distant point (400 m at 100 km for 0.4%).
+ */
+export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
+/** The grazing cap: the sine below which the stop-short distance stops growing (~1.7°). */
+const OVERLAY_MIN_GRAZING_SINE = 0.03;
+
+/** Whether the ray's first `length` units pass through the sphere. */
+function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
+  const oc = ray.origin.clone().sub(center);
+  const b = oc.dot(ray.direction), c = oc.lengthSq() - radius * radius;
+  if (c < 0) return true; // the camera is inside the sphere: below any surface
+  const disc = b * b - c;
+  if (disc < 0) return false;
+  const t = -b - Math.sqrt(disc);
+  return t > 0 && t < length;
+}
+
 export class UniverseRenderer {
   readonly scene: THREE.Scene;
   readonly renderer: THREE.WebGLRenderer;
@@ -399,6 +424,8 @@ export class UniverseRenderer {
   /** How long the last probe pick took, ms; a slow one spaces out the next. */
   private _probePickCostMs = 0;
   /** The last pin occlusion cast (`_pinOccluded`) and what it was cast for. */
+  /** BVH line of sight for overlays (`projectGeographicPositions` with `occlusion`). */
+  private readonly overlayOcclusion = new ContourOcclusion();
   private readonly _pinOcclusion = {
     point: null as SurfacePoint | null,
     view: new THREE.Matrix4(),
@@ -1656,15 +1683,60 @@ export class UniverseRenderer {
   }
 
   /**
+   * Height (km above the datum, along the geodetic normal) of the surface
+   * actually drawn at each position: the globe's facets or the resident
+   * terrain tiles, whichever is visible. Geographic vectors drape on those same
+   * triangles, and a geodetic position is the same latitude/longitude anywhere
+   * along its normal, so an overlay placed at this height sits exactly on the
+   * drawn feature, even where a coarse globe mesh lies below the ellipsoid.
+   * Null where nothing drawn is hit. Surface tile overlays are not consulted.
+   */
+  renderedSurfaceHeightsKm(bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum): (number | null)[] {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return positions.map(() => null);
+    const targets: THREE.Object3D[] = [];
+    if (bm.mesh.visible) targets.push(bm.mesh);
+    if (bm.terrainTileGroup?.visible) targets.push(bm.terrainTileGroup);
+    const rotation = bm.bodyToWorldQuaternion(new THREE.Quaternion());
+    const toWorld = new THREE.Matrix4().compose(bm.position, rotation, new THREE.Vector3().setScalar(this.scaleFactor));
+    const shape = datum.referenceShape;
+    // From above any relief (Olympus Mons is ~22 km) down the normal, to well below the datum.
+    const aboveKm = 40 + 0.01 * (shape.kind === 'sphere' ? shape.radiusKm : shape.radiiKm[0]);
+    const ray = new THREE.Raycaster();
+    const origin = new THREE.Vector3(), direction = new THREE.Vector3();
+    const visible = (hit: THREE.Intersection) => {
+      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
+      return true;
+    };
+    return positions.map((position) => {
+      const top = geodeticToBodyFixed({ ...position, heightKm: aboveKm }, datum);
+      const ground = geodeticToBodyFixed({ ...position, heightKm: 0 }, datum);
+      origin.set(top.xKm, top.yKm, top.zKm).applyMatrix4(toWorld);
+      direction.set(ground.xKm, ground.yKm, ground.zKm).applyMatrix4(toWorld).sub(origin).normalize();
+      ray.set(origin, direction);
+      ray.far = 2 * aboveKm * this.scaleFactor;
+      const hit = ray.intersectObjects(targets, true).find(visible);
+      return hit ? aboveKm - hit.distance / this.scaleFactor : null;
+    });
+  }
+
+  /**
    * Canvas CSS-pixel positions of geodetic points on a body, for host overlays
-   * such as a selected feature's callout or an in-view filter. A 2D position
-   * sits on the datum (height 0), or on the resident CPU terrain sample when
-   * `sampleTerrain` is set and that terrain shares the datum's reference shape.
-   * `facing` is false past the datum's horizon; terrain occlusion is not tested.
-   * Null for a body that is not drawn.
+   * such as a selected feature's callout, labels or edit handles. A 2D
+   * position sits on the datum (height 0), or on the resident CPU terrain
+   * sample when `sampleTerrain` is set and that terrain shares the datum's
+   * reference shape.
+   *
+   * `inFront` is false behind the camera's near plane. `facing` is false where
+   * the body hides the point: cheaply, when the line from the camera passes
+   * through a sphere safely inside the body (so a point higher than a low
+   * camera, on a crater rim or a slope, is never rejected); and with
+   * `occlusion`, when that line first meets the surface actually drawn (globe
+   * facets or terrain tiles). Use `occlusion` for the few overlays shown, not
+   * for choosing among many candidates. Null for a body that is not drawn.
    */
   projectGeographicPositions(
-    bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum, options: { sampleTerrain?: boolean } = {},
+    bodyName: string, positions: readonly BodyFixedPosition[], datum: TerrainDatum, options: { sampleTerrain?: boolean; occlusion?: boolean } = {},
   ): { x: number; y: number; facing: boolean; inFront: boolean }[] | null {
     const bm = this.bodyMeshes.get(bodyName);
     if (!bm?.visible) return null;
@@ -1674,18 +1746,63 @@ export class UniverseRenderer {
     const toView = this.camera.matrixWorldInverse;
     const terrain = options.sampleTerrain ? bm.terrainDatum : null;
     const sameShape = terrain && JSON.stringify(terrain.referenceShape) === JSON.stringify(datum.referenceShape);
-    const world = new THREE.Vector3(), normal = new THREE.Vector3(), toCamera = new THREE.Vector3(), view = new THREE.Vector3();
+    const shape = datum.referenceShape;
+    // Below any drawn surface: the lowest radius less 1% (Hellas is ~8 km deep on Mars, ~0.25%).
+    const inner = 0.99 * (shape.kind === 'sphere' ? shape.radiusKm : Math.min(...shape.radiiKm)) * this.scaleFactor;
+    const center = bm.position, eye = this.camera.position;
+    const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
+    const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
+    const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
     return positions.map((position) => {
       const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
       const p = geodeticToBodyFixed({ ...position, heightKm }, datum);
       world.set(p.xKm, p.yKm, p.zKm).applyMatrix4(toWorld);
-      const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
-      normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
-      const facing = normal.dot(toCamera.copy(this.camera.position).sub(world)) > 0;
-      const inFront = view.copy(world).applyMatrix4(toView).z < 0;
+      toPoint.copy(world).sub(eye);
+      const distance = toPoint.length();
+      ray.set(eye, toPoint.divideScalar(distance || 1));
+      let facing = !segmentHitsSphere(ray, distance, center, inner);
+      if (facing && surfaces.length) {
+        // Stop just short of the point, which lies on the drawn surface itself:
+        // by the height tolerance along the normal, however far away it is.
+        const lat = position.latDeg * Math.PI / 180, lon = position.lonDeg * Math.PI / 180;
+        normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
+        const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
+        const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
+        facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, far));
+      }
+      const inFront = view.copy(world).applyMatrix4(toView).z < -near;
       world.project(this.camera);
       return { x: (world.x + 1) / 2 * canvas.clientWidth, y: (1 - world.y) / 2 * canvas.clientHeight, facing, inFront };
     });
+  }
+
+  /**
+   * Identifies the surface a body is drawn with now: which globe and terrain
+   * tile meshes are visible. It changes when terrain refines or retires tiles
+   * (or a fade ends), so callers caching drawn-surface heights
+   * (`renderedSurfaceHeightsKm`) know to sample again. Computed at most once
+   * per rendered frame. Null for a body that is not drawn.
+   */
+  drawnSurfaceKey(bodyName: string): string | null {
+    const bm = this.bodyMeshes.get(bodyName);
+    if (!bm?.visible) return null;
+    const frame = this.renderer.info.render.frame;
+    const cached = this._surfaceKeys.get(bodyName);
+    if (cached && cached.frame === frame) return cached.key;
+    let count = 0, sum = 0, mix = 0;
+    for (const mesh of this.drawnSurfaceMeshes(bm)) { count++; sum += mesh.id; mix = (mix * 31 + mesh.id) >>> 0; }
+    const key = `${count}:${sum}:${mix}`;
+    this._surfaceKeys.set(bodyName, { frame, key });
+    return key;
+  }
+  private readonly _surfaceKeys = new Map<string, { frame: number; key: string }>();
+
+  /** The meshes of a body's surface as drawn this frame: globe facets and visible terrain tiles. */
+  private drawnSurfaceMeshes(bm: BodyMesh): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    const roots = [bm.mesh, bm.terrainTileGroup].filter((o): o is THREE.Object3D => !!o && o.visible);
+    for (const root of roots) root.traverseVisible((o) => { if (o instanceof THREE.Mesh && o.geometry instanceof THREE.BufferGeometry) meshes.push(o); });
+    return meshes;
   }
 
   /** Show or clear the selected event's observer/occulter/background geometry. */
