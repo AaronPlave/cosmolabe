@@ -123,8 +123,6 @@ export class BodyMesh extends THREE.Object3D {
   private surfaceOverlays: SurfaceTileOverlay[] = [];
   private _surfaceState: SurfaceTransitionState = 'static';
   private loggedStreamFallback = false;
-  /** Frame counter for throttling terrain elevation sampling */
-  private terrainSampleFrame = 0;
   /**
    * Initial-asset tracker, set by UniverseRenderer right after construction.
    * Every model/texture load this mesh starts registers with it, so the viewer
@@ -1785,8 +1783,13 @@ export class BodyMesh extends THREE.Object3D {
    * The overlay group is NOT added to this BodyMesh — the caller (UniverseRenderer)
    * adds it to a separate scene for camera-relative rendering.
    */
-  addSurfaceTiles(config: SurfaceTileConfig, renderer: THREE.WebGLRenderer): SurfaceTileOverlay {
-    const overlay = new SurfaceTileOverlay(config, this.displayRadius, renderer);
+  addSurfaceTiles(config: SurfaceTileConfig): SurfaceTileOverlay {
+    const rotation = this.body.rotation;
+    if (!(rotation instanceof SpiceRotation)
+        || rotation.bodyFixedFrame.toUpperCase() !== config.registration.bodyFixedFrame.toUpperCase()) {
+      throw new Error(`Site mesh ${config.name}: requires matching explicit SPICE body-fixed rotation ${config.registration.bodyFixedFrame}`);
+    }
+    const overlay = new SurfaceTileOverlay(config);
     this.surfaceOverlays.push(overlay);
     overlay.group.visible = false;
     return overlay;
@@ -1803,54 +1806,16 @@ export class BodyMesh extends THREE.Object3D {
    */
   updateSurfaceTiles(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
     if (this.surfaceOverlays.length === 0) return;
-    this.terrainSampleFrame++;
 
     // Show surface tiles earlier than terrain — start loading tiles when the body
     // is at least 20 px on screen so they're ready by the time the user zooms in.
     const visible = screenPixels >= 20;
     for (const overlay of this.surfaceOverlays) {
-      overlay.group.visible = visible;
-      if (!visible) continue;
+      overlay.group.visible = visible && overlay.visibleFrom(camera.position, this.position, this.mesh.quaternion, this.scaleFactor);
+      if (!overlay.group.visible) continue;
 
-      // Terrain-following: snap tile altitude to sit slightly INSIDE the global terrain.
-      // Since the CRR render pass clears depth first (tileScene renders on top of
-      // main scene), being slightly inside eliminates the visible floating gap.
-      // The -0.005 km (-5m) inset ensures overlap even when the global terrain
-      // is at a slightly different height than the sampled elevation.
-      if (this.terrainSampleFrame % 5 === 0) {
-        const terrainSample = this.sampleTerrainElevation(overlay.lat, overlay.lon);
-        if (terrainSample != null) {
-          overlay.terrainAdjustKm = terrainSample.elevationKm - overlay.altitudeOffset - 0.005;
-        }
-      }
-
-      // Set full world transform for LOD computation (no parent provides position).
-      // Apply the terrain radial adjustment here too, so TilesRenderer's frustum
-      // culling and SSE computation use the adjusted position — not the configured
-      // altitude which may be km below the visible terrain at coarse LOD.
+      // One fixed body transform for streaming, CRR, eviction and recovery.
       overlay.group.position.copy(this.position);
-      if (overlay.terrainAdjustKm !== 0) {
-        const ecefLen = overlay.ecefPositionKm.length();
-        if (ecefLen > 0) {
-          const adjustScene = overlay.terrainAdjustKm * this.scaleFactor;
-          // Radial direction: ECEF position normalized, rotated to world frame
-          const rx = overlay.ecefPositionKm.x / ecefLen;
-          const ry = overlay.ecefPositionKm.y / ecefLen;
-          const rz = overlay.ecefPositionKm.z / ecefLen;
-          // Apply body quaternion to get world-frame direction (inline to avoid allocation)
-          const q = this.mesh.quaternion;
-          const ix = q.w * rx + q.y * rz - q.z * ry;
-          const iy = q.w * ry + q.z * rx - q.x * rz;
-          const iz = q.w * rz + q.x * ry - q.y * rx;
-          const iw = -q.x * rx - q.y * ry - q.z * rz;
-          const wx = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y;
-          const wy = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z;
-          const wz = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x;
-          overlay.group.position.x += wx * adjustScene;
-          overlay.group.position.y += wy * adjustScene;
-          overlay.group.position.z += wz * adjustScene;
-        }
-      }
       overlay.group.quaternion.copy(this.mesh.quaternion);
       overlay.group.scale.setScalar(this.scaleFactor);
       overlay.group.updateMatrixWorld(true);
@@ -1859,9 +1824,10 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
-  /** Restore overlay group transforms to parented mode after CRR render pass. */
+  /** Restore fixed world transforms after CRR, including for visual occlusion. */
   updateSurfaceTileTransforms(): void {
     for (const overlay of this.surfaceOverlays) {
+      overlay.group.position.copy(this.position);
       overlay.group.quaternion.copy(this.mesh.quaternion);
       overlay.group.scale.setScalar(this.scaleFactor);
       overlay.group.updateMatrixWorld(true);

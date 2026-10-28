@@ -5,12 +5,14 @@ import { UniverseRenderer } from '../UniverseRenderer.js';
 type ClampHarness = {
   camera: THREE.PerspectiveCamera;
   _cameraClampCorrectionKm: number;
+  cameraController: { focusBody: unknown; controls: { target: THREE.Vector3 } };
   clampCameraAboveSurfaces(options?: { cubeOnly?: boolean; resetCorrection?: boolean }): boolean;
 };
 
 function fixture(cube = true) {
   let radiusKm = 100;
-  const navigation = vi.fn(() => ({ radiusKm }));
+  let settled = true;
+  const navigation = vi.fn(() => ({ radiusKm, settled }));
   const body = {
     body: { name: 'Mars', geometryType: 'Globe', geometryData: {} },
     position: new THREE.Vector3(), mesh: { quaternion: new THREE.Quaternion() },
@@ -21,14 +23,45 @@ function fixture(cube = true) {
   const camera = new THREE.PerspectiveCamera();
   camera.position.set(100.05, 0, 0);
   const renderer = Object.assign(Object.create(UniverseRenderer.prototype), {
-    camera, scaleFactor: 1, cameraController: { focusBody: null },
+    camera, scaleFactor: 1, cameraController: { focusBody: null, controls: { target: new THREE.Vector3(100, 0, 0) } },
     bodyMeshes: new Map([['Mars', body]]), _terrainClampCache: new Map(), _renderDebugFrame: 0,
     _cameraClampCorrectionKm: 0,
   }) as ClampHarness;
-  return { renderer, navigation, select: (radius: number) => { radiusKm = radius; } };
+  return { renderer, navigation, select: (radius: number, ready = true) => { radiusKm = radius; settled = ready; } };
 }
 
 describe('camera clearance after terrain selection', () => {
+  it('recovers a parked rover close-up after transient coarse terrain refines', () => {
+    const { renderer, select } = fixture();
+    renderer.cameraController.focusBody = { body: { parentName: 'Mars', geometryData: { surfaceLock: true } } };
+    select(101, false);
+    renderer.clampCameraAboveSurfaces();
+    expect(renderer.camera.position.length()).toBeCloseTo(101.002, 10);
+    select(100, true);
+    renderer.clampCameraAboveSurfaces();
+    expect(renderer.camera.position.length()).toBeCloseTo(100.05, 10);
+  });
+
+  it('never restores a reserved camera below newly established physical ground', () => {
+    const { renderer, select } = fixture();
+    renderer.cameraController.focusBody = { body: { parentName: 'Mars', geometryData: { surfaceLock: true } } };
+    select(101, false); renderer.clampCameraAboveSurfaces();
+    select(100.1, true); renderer.clampCameraAboveSurfaces();
+    expect(renderer.camera.position.length()).toBeCloseTo(100.102, 10);
+  });
+
+  it.each(['camera', 'target', 'focus'] as const)('cancels recovery after %s input', input => {
+    const { renderer, select } = fixture();
+    renderer.cameraController.focusBody = { body: { parentName: 'Mars', geometryData: { surfaceLock: true } } };
+    select(101, false); renderer.clampCameraAboveSurfaces();
+    if (input === 'camera') renderer.camera.position.y += .01;
+    if (input === 'target') renderer.cameraController.controls.target.y += .01;
+    if (input === 'focus') renderer.cameraController.focusBody = null;
+    const before = renderer.camera.position.clone();
+    select(100, true); renderer.clampCameraAboveSurfaces();
+    expect(renderer.camera.position.distanceTo(before)).toBe(0);
+  });
+
   it('accounts for a newly visible coarse triangle in the same frame', () => {
     const { renderer, navigation, select } = fixture();
     expect(renderer.clampCameraAboveSurfaces()).toBe(false);

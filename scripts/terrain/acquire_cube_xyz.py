@@ -81,8 +81,19 @@ def required(config, tiles, tile_size, gutter):
             ranges = [(positive.min(),180),(-180,negative.max())]
         if lat.max()>89.999999 or lat.min() < -89.999999:
             ranges = [(-180,180)]
+        # Regional sources must not cause acquisitions across an entire coarse
+        # cube face. The adapter samples only inside these same declared bounds.
+        south, north = float(lat.min()), float(lat.max())
+        if config.get('bounds') is not None:
+            w, s, e, n = config['bounds']
+            south, north = max(south, s), min(north, n)
+            if south > north:
+                continue
+            source_ranges = [(w, e)] if w <= e else [(w, 180), (-180, e)]
+            ranges = [(max(a, c), min(b, d)) for a, b in ranges for c, d in source_ranges
+                      if max(a, c) <= min(b, d)]
         dim = config.get('dimension',256)
-        _, py = source_pixel(lon,lat,z,dim)
+        _, py = source_pixel(np.zeros(2),np.array([south,north]),z,dim)
         y0,y1 = max(0,int(py.min()//dim)-1),min(2**z-1,int(py.max()//dim)+1)
         for west,east in ranges:
             px,_ = source_pixel(np.array([west,east]),np.zeros(2),z,dim)

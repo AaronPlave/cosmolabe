@@ -1,0 +1,29 @@
+{
+  "asset": {
+    "version": "1.1",
+    "gltfUpAxis": "Z"
+  },
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {
+      "box": [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0.1
+      ]
+    },
+    "geometricError": 0,
+    "content": {
+      "uri": "square.gltf"
+    }
+  }
+}

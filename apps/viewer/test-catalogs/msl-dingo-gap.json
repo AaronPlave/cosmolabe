@@ -1,8 +1,14 @@
 {
   "name": "MSL Curiosity at Dingo Gap",
-  "defaultGeographicNames": ["Mars"],
+  "defaultGeographicNames": [
+    "Mars"
+  ],
   "defaultTime": "2014-02-05T12:00:00Z",
-  "require": ["base/naif.json", "places/mars.json", "places/msl-sites.json"],
+  "require": [
+    "base/naif.json",
+    "places/mars.json",
+    "places/msl-sites.json"
+  ],
   "spiceKernels": [
     "kernels/msl/msl.tf",
     "kernels/msl/msl_tp_ops120808_iau2000_v1.tf",
@@ -11,7 +17,11 @@
     "kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp",
     "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
     "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc",
-    { "url": "kernels/msl/mar099s.bsp", "label": "Mars satellite ephemeris", "size": 64000000 }
+    {
+      "url": "kernels/msl/mar099s.bsp",
+      "label": "Mars satellite ephemeris",
+      "size": 64000000
+    }
   ],
   "items": [
     {
@@ -27,87 +37,271 @@
       "type": "Viewpoint",
       "center": "Mars",
       "distance": 3400,
-      "latitude": -5,
-      "longitude": 137
+      "latitude": -4.626550593,
+      "longitude": 137.407262581
     },
     {
       "name": "Curiosity Surface",
       "type": "Viewpoint",
       "center": "Curiosity",
       "distance": 0.5,
-      "latitude": 45,
-      "longitude": 90
+      "frame": "IAU_MARS",
+      "from": {
+        "kind": "vector",
+        "vector": [
+          -0.5513986171887498,
+          0.5069080430012352,
+          -0.6625736192326045
+        ],
+        "frame": "IAU_MARS"
+      },
+      "up": {
+        "kind": "vector",
+        "vector": [
+          -0.05938111347106716,
+          0.05458984314164341,
+          0.9967416076339479
+        ],
+        "frame": "IAU_MARS"
+      }
     },
     {
       "name": "Curiosity Close-up",
       "type": "Viewpoint",
       "center": "Curiosity",
       "distance": 0.02,
-      "latitude": 30,
-      "longitude": 45
+      "frame": "IAU_MARS",
+      "from": {
+        "kind": "vector",
+        "vector": [
+          -0.5513986171887498,
+          0.5069080430012352,
+          -0.6625736192326045
+        ],
+        "frame": "IAU_MARS"
+      },
+      "up": {
+        "kind": "vector",
+        "vector": [
+          -0.05938111347106716,
+          0.05458984314164341,
+          0.9967416076339479
+        ],
+        "frame": "IAU_MARS"
+      }
+    },
+    {
+      "name": "Dingo Gap Daylight",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "frame": "IAU_MARS",
+      "time": "2014-02-05T20:00:00Z",
+      "eye": [
+        -2488.5896699780733,
+        2287.7934041134035,
+        -273.5568642450679
+      ],
+      "target": [
+        -2488.3695347460966,
+        2287.5910308825714,
+        -273.53266599957334
+      ],
+      "up": [
+        -0.05938111347106716,
+        0.05458984314164341,
+        0.9967416076339479
+      ]
     },
     {
       "name": "Sun",
       "class": "star",
-      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
-      "geometry": { "type": "Globe", "radius": 695000 },
-      "label": { "color": [1.0, 0.9, 0.3] }
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
     },
     {
       "name": "Earth",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "EMB" },
-      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
-      "label": { "color": [0.4, 0.6, 1.0] }
+      "trajectory": {
+        "type": "Builtin",
+        "name": "EMB"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      }
     },
     {
       "name": "Mars",
       "class": "planet",
       "center": "Sun",
       "trajectoryFrame": "J2000",
-      "trajectory": { "type": "Builtin", "name": "Mars" },
-      "rotationModel": { "type": "Builtin", "name": "IAU_MARS" },
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Mars"
+      },
+      "rotationModel": {
+        "type": "Spice",
+        "bodyFrame": "IAU_MARS"
+      },
       "geometry": {
         "type": "Globe",
-        "radii": [3396.19, 3396.19, 3376.2],
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
         "baseMap": "textures/mars.dds",
         "terrain": {
-          "type": "quantized-mesh",
-          "url": "https://marshub.s3.amazonaws.com/mars_v14/",
-          "referenceRadiusOffsetKm": 8.765,
-          "errorTarget": 1,
-          "imagery": [
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-              "levels": 7
+          "type": "3dtiles",
+          "url": "data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb/tileset-measured.json",
+          "datum": {
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "sourceMetadata": {
+            "id": "terrain-207dcdb48c82b74acaad4fcb",
+            "version": "207dcdb48c82b74acaad4fcb22452b064e995c1245115fe42a4916ef50b5209d"
+          },
+          "errorTarget": 3,
+          "fadeDurationMs": 0,
+          "cubeSphere": {
+            "cpuGrids": "data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb/cpu-grids.json",
+            "residentLevel": 2,
+            "nearSurface": {
+              "radiusM": 500,
+              "maxErrorM": 0.5,
+              "altitudeM": 5000
             },
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
-              "levels": 12,
-              "bounds": [135.18, -6.57, 139.24, -2.81],
-              "minZoom": 4
-            },
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
-              "levels": 16,
-              "bounds": [137.12, -4.95, 137.73, -4.25],
-              "minZoom": 8
+            "imagery": {
+              "maxTextureBytes": 268435456,
+              "maxConcurrentRequests": 6,
+              "maxBlocksPerTile": 64
             }
-          ]
+          }
         },
         "surfaceTiles": [
           {
-            "name": "Dingo Gap",
-            "url": "https://raw.githubusercontent.com/NASA-AMMOS/3DTilesSampleData/master/msl-dingo-gap/0528_0260184_to_s64o256/0528_0260184_to_s64o256/0528_0260184_to_s64o256_tileset.json",
-            "lat": -4.5895,
-            "lon": 137.4417,
-            "altitudeOffset": -4.5
+            "name": "Dingo Gap (approximate visual reconstruction)",
+            "url": "https://raw.githubusercontent.com/NASA-AMMOS/3DTilesSampleData/76444abbb4faff1b05f46a09b81ca2c24602b333/msl-dingo-gap/0528_0260184_to_s64o256/0528_0260184_to_s64o256/0528_0260184_to_s64o256_tileset.json",
+            "sourceVersion": "76444abbb4faff1b05f46a09b81ca2c24602b333",
+            "registration": {
+              "version": "places-26-184-meg016-estimate-v1",
+              "bodyFixedFrame": "IAU_MARS",
+              "bodyFixedKmFromLocalMeters": [
+                -5.9381113471067184e-05,
+                5.4589843141643385e-05,
+                0.000996741607633948,
+                0.0,
+                -0.0006767826595591601,
+                -0.000736182879263047,
+                0.0,
+                0.0,
+                0.000733784106589238,
+                -0.0006745774361077761,
+                8.066081831529473e-05,
+                0.0,
+                -2488.3695347460966,
+                2287.5910308825714,
+                -273.53266599957334,
+                1.0
+              ],
+              "status": "estimated",
+              "uncertaintyKm": null,
+              "provenance": "docs/validation/curiosity-gale/source-registration.md"
+            },
+            "coverage": {
+              "min": [
+                -130.88626336479,
+                -129.8634136122488,
+                -5.788966655731201
+              ],
+              "max": [
+                130.1287436336744,
+                129.37459046717265,
+                10.685829539273364
+              ]
+            },
+            "physicalQueryPolicy": "visual-only",
+            "overlapPolicy": "composite",
+            "priority": 0
           }
         ],
-        "atmosphere": "Mars"
+        "atmosphere": "Mars",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global \u00b7 Viking",
+            "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
+            "resolutionMeters": 325.60563825058347,
+            "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "type": "cube",
+            "url": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json"
+          },
+          {
+            "id": "gale-ctx",
+            "name": "Gale \u00b7 CTX",
+            "description": "Gale CTX BlockAdj service, retained as an independent finite cube layer. Available grid interval about 20.35m; output spacing about 12.96m. Native instrument resolution and absolute registration are separate.",
+            "resolutionMeters": 20.350352390661467,
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "type": "cube",
+            "url": "data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf/imagery.json",
+            "bounds": [
+              135.18,
+              -6.57,
+              139.24,
+              -2.81
+            ]
+          },
+          {
+            "id": "curiosity-hirise",
+            "name": "Curiosity \u00b7 HiRISE",
+            "description": "Curiosity HiRISE mosaic service, retained as an independent finite cube layer. Available grid interval about 1.27m; output spacing about 1.62m. No high-resolution elevation is inferred from this imagery.",
+            "resolutionMeters": 1.2718970244163417,
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "type": "cube",
+            "url": "data/curiosity-cube/imagery-65a14eef13d9c08962ea5879/imagery.json",
+            "bounds": [
+              137.12,
+              -4.95,
+              137.73,
+              -4.25
+            ]
+          }
+        ]
       },
-      "label": { "color": [0.9, 0.4, 0.2] },
+      "label": {
+        "color": [
+          0.9,
+          0.4,
+          0.2
+        ]
+      },
       "items": [
         {
           "name": "Curiosity",
@@ -129,14 +323,28 @@
             "source": "models/Curiosity_static.glb",
             "size": 0.003,
             "surfaceLock": true,
-            "meshRotation": [0.7071, -0.7071, 0, 0]
+            "meshRotation": [
+              0.7071,
+              -0.7071,
+              0,
+              0
+            ]
           },
-          "label": { "color": [0.3, 0.9, 0.3] },
+          "label": {
+            "color": [
+              0.3,
+              0.9,
+              0.3
+            ]
+          },
           "trajectoryPlot": {
             "visible": false
-          }
+          },
+          "description": "Authoritative SPICE position and attitude, preserved without terrain snapping. These operational states differ from the PLACES/orbital reconstruction; apparent ground clearance is not a calibrated measurement."
         }
-      ]
+      ],
+      "description": "Dingo Gap is a fixed, approximate visual reconstruction. Absolute registration accuracy is unknown. Globe terrain owns picking, clearance and measurements. The SPICE rover differs from orbital localization; its pose is preserved."
     }
-  ]
+  ],
+  "description": "Dingo Gap is an approximate visual reconstruction, placed once using the sample site/drive frame, PLACES localization and the MOLA areoid. Absolute registration accuracy is unknown. Globe terrain owns picking, measurements and camera clearance; mesh pixels composite over it. Curiosity keeps its authoritative SPICE pose, which differs from orbital localization; no terrain snap is applied. See docs/validation/curiosity-gale/source-registration.md."
 }
