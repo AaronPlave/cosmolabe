@@ -319,12 +319,13 @@ export const OVERLAY_HEIGHT_TOLERANCE_KM = 0.003;
 const OVERLAY_MIN_GRAZING_SINE = 0.03;
 /**
  * Mid cross-fade (about 300 ms), a terrain tile and the LOD replacing it both
- * draw, dithered, and differ by their LOD error: a point sampled on one can be
- * metres (Gale floor, close) to over a hundred metres (oblique, 28 km) under
- * the other. So a fading tile hides a point only beyond this share of the
- * camera range before it; settled surfaces use the height tolerance alone.
+ * draw, dithered, and differ by their LOD error: a point sampled on one can lie
+ * metres (Gale floor, close) to over a hundred metres under the other. A fading
+ * tile's own height at the point, measured down the normal from this far above,
+ * is that disagreement; the tile hides the point only beyond twice it (plus the
+ * height tolerance) along the line of sight, so a real ridge still hides it.
  */
-const OVERLAY_FADING_LOD_SHARE = 0.01;
+const OVERLAY_FADING_PROBE_KM = 1;
 
 /** Whether the ray's first `length` units pass through the sphere. */
 function segmentHitsSphere(ray: THREE.Ray, length: number, center: THREE.Vector3, radius: number): boolean {
@@ -1761,6 +1762,7 @@ export class UniverseRenderer {
     const center = bm.position, eye = this.camera.position;
     const surfaces = options.occlusion ? this.drawnSurfaceMeshes(bm) : [];
     const world = new THREE.Vector3(), view = new THREE.Vector3(), toPoint = new THREE.Vector3(), normal = new THREE.Vector3(), ray = new THREE.Ray();
+    const above = new THREE.Ray();
     const near = (this.camera as THREE.PerspectiveCamera).near ?? 0;
     return positions.map((position) => {
       const heightKm = position.heightKm ?? (sameShape ? bm.sampleTerrain(position.latDeg, position.lonDeg)?.elevationKm : undefined) ?? 0;
@@ -1777,8 +1779,13 @@ export class UniverseRenderer {
         normal.set(Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)).applyQuaternion(rotation);
         const sine = Math.max(Math.abs(normal.dot(ray.direction)), OVERLAY_MIN_GRAZING_SINE);
         const far = Math.max(0, distance - OVERLAY_HEIGHT_TOLERANCE_KM * this.scaleFactor / sine);
-        const fadingFar = Math.min(far, (1 - OVERLAY_FADING_LOD_SHARE) * distance);
-        facing = !surfaces.some((mesh) => this.overlayOcclusion.intersects(mesh, ray, tileFade(mesh.material) ? fadingFar : far));
+        facing = !surfaces.some((mesh) => {
+          if (!tileFade(mesh.material)) return this.overlayOcclusion.intersects(mesh, ray, far);
+          above.origin.copy(world).addScaledVector(normal, OVERLAY_FADING_PROBE_KM * this.scaleFactor); above.direction.copy(normal).negate();
+          const t = this.overlayOcclusion.firstHit(mesh, above, 2 * OVERLAY_FADING_PROBE_KM * this.scaleFactor);
+          const disagreement = t === null ? 0 : Math.abs(OVERLAY_FADING_PROBE_KM * this.scaleFactor - t);
+          return this.overlayOcclusion.intersects(mesh, ray, Math.max(0, far - 2 * disagreement / sine));
+        });
       }
       const inFront = view.copy(world).applyMatrix4(toView).z < -near;
       world.project(this.camera);

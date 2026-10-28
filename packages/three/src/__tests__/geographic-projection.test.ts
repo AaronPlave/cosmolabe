@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { TerrainDatum } from '@cosmolabe/core';
 import { UniverseRenderer } from '../UniverseRenderer.js';
 import { ContourOcclusion } from '../ContourOcclusion.js';
@@ -152,6 +153,17 @@ describe('projectGeographicPositions at long range and low angles', () => {
     // A fading wall 5 km toward the camera.
     const wall = fading(mesh(new THREE.PlaneGeometry(1, 1), [1000.25, 0, 5]));
     expect(view(100, 5, [wall]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
+  });
+
+  it('still counts a real ridge on a fading tile at regional range: the allowance is the LODs\' disagreement, not the range', () => {
+    // One fading tile: ground that agrees with the point's height, and the ridge 300 m toward a
+    // camera 100 km out at 5° (the line passes 26 m above the ground there). A share of the
+    // range (1% = 1 km) would have skipped it.
+    const ground = new THREE.PlaneGeometry(2, 2).rotateY(Math.PI / 2).translate(1000, 0, 0);
+    const ridge = new THREE.PlaneGeometry(0.4, 1).translate(1000, 0, 0.3);
+    const tile = mesh(mergeGeometries([ground, ridge]), [0, 0, 0]);
+    (tile.material as THREE.Material).defines = { FEATURE_FADE: 1 };
+    expect(view(100, 5, [tile]).projectGeographicPositions('Moon', [point], datum, { occlusion: true })![0].facing).toBe(false);
   });
 });
 
