@@ -87,7 +87,7 @@ export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
 export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
-export { KeyboardControls } from './controls/KeyboardControls.js';
+export { KeyboardControls, CAMERA_KEY_BINDINGS } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 export { CameraModeName } from './controls/CameraModes.js';
 export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';

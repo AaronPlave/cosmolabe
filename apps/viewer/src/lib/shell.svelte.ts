@@ -78,31 +78,23 @@ export interface ToolDef {
   dock: 'left' | 'right';
   /** Panel width in px at the desktop layout; ignored when compact. */
   width: number;
-  /** Single-key shortcut, where one already existed. */
-  shortcut?: string;
 }
 
 /**
- * The tool table — the single source of truth for the rail, the keyboard map
- * and the command palette, which previously kept three partial copies of this
- * list between `App.svelte` and `BottomBar.svelte`.
+ * Tool surfaces and their placement. Keyboard bindings live in `keymap.ts`;
+ * this table owns only the tools themselves.
  */
 export const TOOLS: readonly ToolDef[] = [
-  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300, shortcut: 'b' },
+  { id: 'catalog', label: 'Catalog',  icon: Globe,    presentation: 'panel',  dock: 'left',  width: 300 },
   // A place on a body by latitude and longitude (#190). A panel, not a
   // dialog: it stays beside the scene for trying the next place or view.
   { id: 'navigate', label: 'Navigate', icon: MapPin,  presentation: 'panel',  dock: 'left',  width: 288 },
-  // E is camera roll-right in KeyboardControls; tool shortcuts must not steal
-  // renderer controls while the canvas has focus.
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // The view from a physical instrument (#192): a second camera, not a
   // replacement for the main one, so it is a window like any other tool.
-  { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440, shortcut: 'i' },
-  // Backtick: the universal console idiom, unclaimed, and not a letter, so it
-  // cannot collide with a renderer control or #15's keymap. The app's input
-  // guard runs first, so a backtick typed into a text field stays a backtick.
-  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380, shortcut: '`' },
+  { id: 'instrument', label: 'Instrument view', icon: Aperture, presentation: 'panel', dock: 'right', width: 440 },
+  { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right',  width: 380 },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
 ];

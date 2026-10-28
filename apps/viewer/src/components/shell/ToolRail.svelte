@@ -24,6 +24,7 @@
    */
   import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
   import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { shortcutFor } from '../../lib/keymap';
   import { onDestroy } from 'svelte';
   import { copyViewLink } from '../../lib/view-link';
   import { ef } from '../../lib/event-finder.svelte';
@@ -65,7 +66,9 @@
   const compact = $derived(shell.layout === 'compact');
 
   function hint(tool: ToolDef): string {
-    return tool.shortcut ? `${tool.label} (${tool.shortcut.toUpperCase()})` : tool.label;
+    const id = tool.id === 'instrument' ? 'instr:open' : `tool:${tool.id}`;
+    const shortcut = shortcutFor(id);
+    return shortcut ? `${tool.label} (${shortcut})` : tool.label;
   }
 
   /**
@@ -167,17 +170,15 @@
     {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
   </button>
 
-  {#if !compact}
-    <button
-      class="rail-btn"
-      aria-pressed={shell.shortcutsOpen}
-      aria-label="Keyboard shortcuts"
-      title="Keyboard shortcuts"
-      onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
-    >
-      <Keyboard size={16} />
-    </button>
-  {/if}
+  <button
+    class="rail-btn"
+    aria-pressed={shell.shortcutsOpen}
+    aria-label="Keyboard shortcuts"
+    title="Keyboard shortcuts (?)"
+    onclick={() => (shell.shortcutsOpen = !shell.shortcutsOpen)}
+  >
+    <Keyboard size={16} />
+  </button>
 {/snippet}
 
 <nav

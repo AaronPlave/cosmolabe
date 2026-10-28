@@ -11,10 +11,11 @@
   import PanelDock from './components/shell/PanelDock.svelte';
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
+  import KeyboardHelp from './components/shell/KeyboardHelp.svelte';
   import ProbePanel from './components/ProbePanel.svelte';
   import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, dismissGeographicContext, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
-    shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
+    shell, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
     isToolOpen, openTool,
   } from './lib/shell.svelte';
@@ -33,6 +34,10 @@
   } from './lib/catalog-nav';
   import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
   import { cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
+  import { heldCameraBindingForCode, matchKeyBinding } from './lib/keymap';
+  import { startHeldCameraMove, stopHeldCameraMove, stopAllHeldCameraMoves } from './lib/held-camera-moves';
+  import FaultStatus from './components/shell/FaultStatus.svelte';
+  import { recordViewerFault, recordViewerLog } from './lib/viewer-log.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
@@ -201,7 +206,8 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const binding = matchKeyBinding(e);
+    if (binding?.id === 'search:open') {
       e.preventDefault();
       commandPaletteOpen = !commandPaletteOpen;
       return;
@@ -229,55 +235,54 @@
     const renderer = getRenderer();
     if (!renderer) return;
 
-    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      switch (e.key) {
-        case ' ': e.preventDefault(); togglePlay(); return;
-        case 'ArrowLeft': e.preventDefault(); stepBackward(); return;
-        case 'ArrowRight': e.preventDefault(); stepForward(); return;
-        case 'ArrowDown': slower(); return;
-        case 'ArrowUp': faster(); return;
-        case 'r': reverse(); return;
-        case 'f': flyToTracked(); return;
-        case 't': setDisplayOption('trajectories', !vs.showTrajectories); return;
-        case 'l': setDisplayOption('labels', !vs.showLabels); return;
-        case 'g': setDisplayOption('grid', !vs.showGrid); return;
-        case 'x': setDisplayOption('axes', !vs.showAxes); return;
-        case 'm': cycleCamera(); return;
-        case 'p': toggleProbe(); return;
-        case 'o': shell.catalogBrowserOpen = true; return;
-        case 'Escape':
-          if (cancelAppearancePick()) return;
-          if (cancelMeasurementPick()) return;
-          if (shell.shortcutsOpen) shell.shortcutsOpen = false;
-          // A flight is the most transient thing on screen: Escape stops it
-          // where it is before it dismisses anything.
-          else if (vs.flight) stopFlight();
-          // An active mode is what Escape is for: the probe goes before any
-          // selection. The pinned point stays until a second Escape (or its
-          // panel's close) clears it.
-          else if (vs.probeActive) setProbeActive(false);
-          else if (measurements.selectedId) selectMeasurement(null);
-          // An event selection is the smallest thing on screen to dismiss:
-          // it goes before any panel does.
-          else if (ef.selectedId) clearSelection();
-          else if (dismissTopSurface()) return;
-          else if (dismissGeographicContext()) return;
-          else if (vs.selectedBodyName) selectBody(null);
-          else resetCamera();
-          return;
-        case '\\': e.preventDefault(); uiHidden = !uiHidden; return;
-      }
-
-      // Tool shortcuts come from the shell's own table, so adding a tool does
-      // not mean remembering to add a case above as well.
-      const tool = TOOLS.find((t) => t.shortcut === e.key);
-      // `I` opens, restores or raises the Instrument view without changing its
-      // sensor (#192). Closing stays with the rail, Escape and X.
-      if (tool && !e.repeat) {
-        if (tool.id === 'instrument') openTool('instrument');
-        else toggleTool(tool.id);
-      }
+    if (!binding) return;
+    if (binding.id.startsWith('cam:dolly-') || binding.id.startsWith('cam:crane-')) {
+      e.preventDefault();
+      if (!e.repeat) startHeldCameraMove(binding.id);
+      return;
     }
+    if (e.repeat) return;
+    e.preventDefault();
+
+    switch (binding.id) {
+      case 'time:play': togglePlay(); return;
+      case 'time:step-back': stepBackward(); return;
+      case 'time:step-fwd': stepForward(); return;
+      case 'time:slower': slower(); return;
+      case 'time:faster': faster(); return;
+      case 'time:reverse': reverse(); return;
+      case 'cam:fly-to': flyToTracked(); return;
+      case 'cam:cycle': cycleCamera(); return;
+      case 'disp:traj': setDisplayOption('trajectories', !vs.showTrajectories); return;
+      case 'disp:labels': setDisplayOption('labels', !vs.showLabels); return;
+      case 'disp:grid': setDisplayOption('grid', !vs.showGrid); return;
+      case 'disp:axes': setDisplayOption('axes', !vs.showAxes); return;
+      case 'probe:toggle': toggleProbe(); return;
+      case 'catalog:open': shell.catalogBrowserOpen = true; return;
+      case 'tool:catalog': toggleTool('catalog'); return;
+      case 'instr:open': openTool('instrument'); return;
+      case 'tool:script': toggleTool('script'); return;
+      case 'help:toggle': shell.shortcutsOpen = !shell.shortcutsOpen; return;
+      case 'shell:zen': uiHidden = !uiHidden; return;
+      case 'cam:escape':
+        if (cancelAppearancePick()) return;
+        if (cancelMeasurementPick()) return;
+        if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+        else if (vs.flight) stopFlight();
+        else if (vs.probeActive) setProbeActive(false);
+        else if (measurements.selectedId) selectMeasurement(null);
+        else if (ef.selectedId) clearSelection();
+        else if (dismissTopSurface()) return;
+        else if (dismissGeographicContext()) return;
+        else if (vs.selectedBodyName) selectBody(null);
+        else resetCamera();
+        return;
+    }
+  }
+
+  function onKeyup(e: KeyboardEvent) {
+    const binding = heldCameraBindingForCode(e.code);
+    if (binding?.id.startsWith('cam:dolly-') || binding?.id.startsWith('cam:crane-')) stopHeldCameraMove(binding.id);
   }
 
   /**
@@ -379,6 +384,7 @@
       const message = err instanceof Error ? err.message : String(err);
       if (generation !== navGeneration || loadToken !== loadGeneration) return;
       catalogs.loadError = `Couldn't load ${vs.loadingCatalog || 'the catalog'}: ${message}`;
+      recordViewerLog('error', 'Catalog load', catalogs.loadError, { showStatus: false });
       console.error('[Cosmolabe] Catalog load failed:', err);
     } finally {
       if (loadToken === loadGeneration) loadInFlight = false;
@@ -475,6 +481,7 @@
       }
     } catch (err) {
       catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+      recordViewerLog('error', 'View restore', catalogs.loadError, { showStatus: false });
     }
   }
 
@@ -491,6 +498,7 @@
       const item = state ? findEntry([state], param) : null;
       if (!item) {
         catalogs.loadError = `No catalog "${param}" in this viewer's catalog sources.`;
+        recordViewerLog('error', 'Catalog source', catalogs.loadError, { showStatus: false });
         return;
       }
       if (loadInFlight || vs.showLoading) { navPending = true; return; }
@@ -518,11 +526,22 @@
     } catch (err) {
       if (generation === navGeneration) {
         catalogs.loadError = `Couldn't restore view: ${err instanceof Error ? err.message : String(err)}`;
+        recordViewerLog('error', 'View restore', catalogs.loadError, { showStatus: false });
       }
     }
   }
 
   onMount(() => {
+    const onRuntimeError = (event: ErrorEvent) => {
+      const location = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : '';
+      recordViewerFault('Runtime error', `${event.message || 'Uncaught browser error'}${location}`);
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+      recordViewerFault('Unhandled rejection', reason);
+    };
+    window.addEventListener('error', onRuntimeError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
     onResize();
     // Visual-regression / deep-link entry: `?catalog=<name>` auto-loads a demo
     // (combine with `?test=1` for deterministic offscreen capture — see
@@ -551,13 +570,15 @@
       stopLayoutWatch();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('error', onRuntimeError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
       window.removeEventListener('pointerdown', onWindowPointerDown, true);
       window.removeEventListener('pointerup', onWindowPointerUp);
     };
   });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} onblur={stopAllHeldCameraMoves} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
 <div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={!!measurements.pendingPickSlot} style={shellVars}>
@@ -598,8 +619,13 @@
     </div>
   {/if}
 
+  {#if !uiHidden}
+    <FaultStatus />
+  {/if}
+
   {#if !loading && !uiHidden}
     <ViewportHud />
+    <KeyboardHelp />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time

@@ -8,8 +8,8 @@
 import {
   etToDate, navigationReference, resolveGeographicTarget, surfacePointTarget, surfaceViewPlacement, pointFrameRangeKm,
   withTerrainElevation, withoutTerrainCoverage, describeNavigationTarget, compactTargetLabel, GeographicNavigationError, ViewpointError,
-  type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
-  type ViewpointDefinition,
+  resolveViewpoint, presetViewpoint,
+  type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset, type ViewDirection, type ViewPreset, type ViewpointDefinition,
 } from '@cosmolabe/core';
 import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
@@ -23,6 +23,7 @@ import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { navigateToPlace, selectPlace } from './places';
+import { clearViewerFault, recordViewerFault, recordViewerLog } from './viewer-log.svelte';
 
 // ── Exported types ──
 
@@ -563,6 +564,14 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
         summary.failures,
       );
     }
+    for (const [index, failure] of summary.failures.entries()) {
+      const detail = `${failure.owner} · ${failure.role}: ${failure.reason} (${failure.url})`;
+      if (index === 0) recordViewerFault('Asset load', detail);
+      else recordViewerLog('error', 'Asset load', detail, { showStatus: false });
+    }
+    if (summary.timedOut) {
+      recordViewerLog('warning', 'Asset load', `${summary.stillPending.length} asset(s) were still pending at the initial load deadline.`);
+    }
   }));
   // A renderer whose assets settled before this binding (an all-analytical
   // catalog with nothing to fetch) has already emitted; take the summary it kept.
@@ -585,6 +594,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // (e.g. body mesh positions) can re-derive once per render, even while
   // playback is paused.
   let rafId = 0;
+  let lastFrameFaultId: string | null = null;
   const tick = () => {
     vs.frameTick++;
     // The controller changes what it tracks on its own between calls — a
@@ -593,6 +603,14 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     // from the start (`focusBody`), so the HUD does not read the previous body
     // for the length of the flight.
     const cc = renderer.cameraController;
+    const frameFault = cc.frameFault;
+    if (frameFault) {
+      if (lastFrameFaultId !== frameFault.frameId) recordViewerFault('Camera frame', frameFault.message);
+      lastFrameFaultId = frameFault.frameId;
+    } else {
+      lastFrameFaultId = null;
+      clearViewerFault('Camera frame');
+    }
     const focus = cc.focusBody?.body.name ?? null;
     if (vs.trackedBodyName !== focus) {
       vs.trackedBodyName = focus;
@@ -1346,6 +1364,55 @@ export function applyViewpoint(name: string, opts: { animate?: boolean } = {}): 
   syncTimeState();
   syncCameraState();
   return true;
+}
+
+function applySemanticViewpoint(definition: ViewpointDefinition, center: string): boolean {
+  if (!_renderer) return false;
+  const body = center ? _renderer.getBodyMesh(center) : undefined;
+  if (!center || !body) return false;
+
+  try {
+    const resolved = resolveViewpoint(_renderer.getContext().universe, definition, vs.et);
+    const scale = _renderer.scaleFactor;
+    _renderer.cameraController.establishView({
+      position: new THREE.Vector3(...resolved.eye).multiplyScalar(scale),
+      target: new THREE.Vector3(...resolved.target).multiplyScalar(scale),
+      up: new THREE.Vector3(...resolved.up),
+    }, { origin: body, track: body });
+    syncCameraState();
+    return true;
+  } catch (error) {
+    recordViewerFault('Camera viewpoint', error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
+/** Apply a semantic direction as a camera relationship to the current center. */
+export function setViewFromDirection(direction: ViewDirection, centerName?: string): boolean {
+  if (!_renderer) return false;
+  const center = centerName
+    ?? vs.trackedBodyName
+    ?? vs.selectedBodyName
+    ?? _renderer.cameraController.originBody?.body.name;
+  const body = center ? _renderer.getBodyMesh(center) : undefined;
+  if (!center || !body) return false;
+  const rangeKm = _renderer.camera.position.distanceTo(_renderer.cameraController.controls.target) / _renderer.scaleFactor;
+  const distance = Math.max(rangeKm, body.displayRadius * 3, 1);
+  return applySemanticViewpoint({ name: `${center}: vector view`, center, distance, from: direction }, center);
+}
+
+/** The named vector-derived views are ordinary semantic viewpoints, not modes. */
+export function applyViewPreset(preset: ViewPreset, centerName?: string): boolean {
+  if (!_renderer) return false;
+  const center = centerName
+    ?? vs.trackedBodyName
+    ?? vs.selectedBodyName
+    ?? _renderer.cameraController.originBody?.body.name;
+  const body = center ? _renderer.getBodyMesh(center) : undefined;
+  if (!center || !body) return false;
+  const rangeKm = _renderer.camera.position.distanceTo(_renderer.cameraController.controls.target) / _renderer.scaleFactor;
+  const distance = Math.max(rangeKm, body.displayRadius * 3, 1);
+  return applySemanticViewpoint(presetViewpoint(preset, center, distance), center);
 }
 
 /** Vertical field of view, in degrees. */

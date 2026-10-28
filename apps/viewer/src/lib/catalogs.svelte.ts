@@ -11,6 +11,7 @@ import { fetchCatalogSource, loadCatalogSources, type CatalogSourceState } from 
 import {
   catalogSourceDeployment, nextSourceParam, sourceParamValues, withSourceParams,
 } from './deployment';
+import { recordViewerLog } from './viewer-log.svelte';
 
 const deployment = catalogSourceDeployment();
 
@@ -46,8 +47,13 @@ export function initCatalogSources(): Promise<CatalogSourceState[]> {
     }
   }).then((states) => {
     for (const s of states) {
-      if (s.status === 'error') console.warn(`[Cosmolabe] Catalog source "${s.source.id}" unavailable: ${s.error}`);
-      else if (s.status === 'ready') for (const w of s.warnings) console.warn(`[Cosmolabe] Catalog source "${s.source.id}": ${w}`);
+      if (s.status === 'error') {
+        recordViewerLog('warning', 'Catalog source', `${s.source.id} unavailable: ${s.error}`);
+        console.warn(`[Cosmolabe] Catalog source "${s.source.id}" unavailable: ${s.error}`);
+      } else if (s.status === 'ready') for (const w of s.warnings) {
+        recordViewerLog('warning', 'Catalog source', `${s.source.id}: ${w}`);
+        console.warn(`[Cosmolabe] Catalog source "${s.source.id}": ${w}`);
+      }
     }
     return states;
   });

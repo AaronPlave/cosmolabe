@@ -34,7 +34,7 @@
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
-  import { shell, setTimelineDepth, isToolOpen, TOOLS } from '../../lib/shell.svelte';
+  import { shell, setTimelineDepth, isToolOpen } from '../../lib/shell.svelte';
   import { formatDuration, inWindow } from '../../lib/scrubber-math';
   import { getSpice } from '../../lib/loader';
   import {
@@ -553,10 +553,6 @@
     if (e.key === 'Enter') goToTime();
   }
 
-  // Tool shortcuts come from the tool table rather than being restated here.
-  // The hand-written strip advertised `E: events` — a key nothing bound, since
-  // E is camera roll — and a restated list drifts the moment a tool is added.
-  const toolShortcuts = TOOLS.flatMap((t) => (t.shortcut ? [`${t.shortcut.toUpperCase()}: ${t.label.toLowerCase()}`] : []));
 </script>
 
 <!-- Desktop: its own dock along the full bottom edge. Compact:
@@ -625,12 +621,6 @@
   {#if inspector}
     <SelectedEventInspector event={inspector.event} x={inspector.x} bottom={inspector.bottom} />
   {/if}
-  {#if shell.shortcutsOpen}
-    <div class="py-0.5 text-center text-[12px] text-text-muted">
-      Space: play &middot; &larr;/&rarr;: step &middot; &uarr;/&darr;: speed &middot; R: reverse &middot; F: fly to &middot; {#each toolShortcuts as hint (hint)}{hint} &middot; {/each}P: pick &middot; M: camera &middot; Cmd+K: search &middot; \: zen
-    </div>
-  {/if}
-
   <!-- The transport. Collapsed, one row: play, axis, clock — the wrapped
        three-row transport it replaced cost the scene a third of a phone
        screen before a sheet was even open. Expanded on a desktop, two rows

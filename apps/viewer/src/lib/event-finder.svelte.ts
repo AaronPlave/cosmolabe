@@ -80,6 +80,7 @@ import {
 import { matchSharedEvent, validateEventLinkState, type EventLinkState, type SharedEventQuery } from './event-link-state';
 import { ViewStateError } from '@cosmolabe/control';
 import { faultMessage } from './event-query';
+import { recordViewerLog } from './viewer-log.svelte';
 import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -1064,6 +1065,7 @@ export async function runSearch() {
     ef.events = [];
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
+    recordViewerLog('error', 'Event search', faultMessage(ef.fault), { showStatus: false });
     return;
   }
 
@@ -1107,6 +1109,7 @@ export async function runSearch() {
       ef.events = [];
       setEventResults(item.id, []);
       ef.fault = result.fault;
+      recordViewerLog('error', 'Event search', faultMessage(result.fault), { showStatus: false });
       ef.hint = null;
     }
     ef.searched = result.ok;

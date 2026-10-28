@@ -22,6 +22,7 @@ import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
 import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
 import { surfaceEntryPose } from './surfaceEntry.js';
+import type { CameraFrameFault } from './modes/FrameLockedMode.js';
 
 /** A camera pose in scene coordinates. */
 export interface ViewpointPose {
@@ -387,6 +388,11 @@ export class CameraController {
 
   /** Current camera mode name */
   get mode(): CameraModeName { return this._activeMode.name; }
+
+  /** Exact fault from a locked frame, or null when the active camera mode is healthy. */
+  get frameFault(): CameraFrameFault | null {
+    return (this._activeMode as ICameraMode & { frameFault?: CameraFrameFault | null }).frameFault ?? null;
+  }
 
   /** Bound event handlers (for cleanup) */
   private readonly _detachPointerInput: () => void;

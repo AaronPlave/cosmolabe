@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked, applyViewPreset, setViewFromDirection } from '../lib/viewer-state.svelte';
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -10,6 +10,8 @@
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
+  import { shortcutFor } from '../lib/keymap';
+  import type { ViewPreset } from '@cosmolabe/core';
 
   interface Props {
     onClose: () => void;
@@ -23,6 +25,21 @@
   let selectedViewpoint = $state('');
   let vpCounter = $state(0);
   let recording = $state(false);
+  let vectorX = $state('0');
+  let vectorY = $state('0');
+  let vectorZ = $state('1');
+  let vectorFrame = $state('');
+
+  const viewCenter = $derived.by(() => {
+    void vs.frameTick;
+    return vs.trackedBodyName ?? vs.selectedBodyName ?? getRenderer()?.cameraController.originBody?.body.name ?? '';
+  });
+
+  function applyVectorView() {
+    const vector: [number, number, number] = [Number(vectorX), Number(vectorY), Number(vectorZ)];
+    if (!vector.every(Number.isFinite) || vector.every(value => value === 0)) return;
+    setViewFromDirection({ kind: 'vector', vector, ...(vectorFrame.trim() ? { frame: vectorFrame.trim() } : {}) }, viewCenter);
+  }
 
   $effect(() => {
     const r = getRenderer();
@@ -60,9 +77,9 @@
 
     <!-- Toggle rows -->
     {#each [
-      { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
-      { key: 'grid' as const, label: 'Grid', shortcut: 'G', value: vs.showGrid },
-      { key: 'axes' as const, label: 'Axes', shortcut: 'X', value: vs.showAxes },
+      { key: 'trajectories' as const, label: 'Trajectories', shortcut: shortcutFor('disp:traj'), value: vs.showTrajectories },
+      { key: 'grid' as const, label: 'Grid', shortcut: shortcutFor('disp:grid'), value: vs.showGrid },
+      { key: 'axes' as const, label: 'Axes', shortcut: shortcutFor('disp:axes'), value: vs.showAxes },
       { key: 'sensors' as const, label: 'Sensors', shortcut: '', value: vs.showSensors },
       { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
@@ -78,8 +95,8 @@
     <Separator class="my-1" />
     <div class="ui-section-label px-3 py-1">Labels</div>
     {#each [
-      { key: 'labels' as const, label: 'Body labels', shortcut: 'L', value: vs.showLabels },
-      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
+      { key: 'labels' as const, label: 'Body labels', shortcut: shortcutFor('disp:labels'), value: vs.showLabels },
+      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: undefined, value: vs.showSensorLabels },
     ] as opt}
       <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
         <Checkbox checked={opt.value} onCheckedChange={() => setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />
@@ -129,6 +146,33 @@
         <option value="surface-explorer">Surface Explorer</option>
         <option value="instrument">Instrument</option>
       </select>
+    </div>
+
+    <Separator class="my-1" />
+    <div class="px-3 py-1">
+      <div class="ui-section-label mb-1">Vector views</div>
+      <div class="grid grid-cols-3 gap-1">
+        {#each ['top', 'sun', 'velocity'] as preset}
+          <button
+            class="ui-control h-7 rounded border border-border bg-surface-3 px-1 text-xs text-text-secondary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!viewCenter}
+            title={viewCenter ? `${preset[0].toUpperCase()}${preset.slice(1)} view of ${viewCenter}` : 'Track or select a body first'}
+            onclick={() => applyViewPreset(preset as ViewPreset, viewCenter)}
+          >{preset[0].toUpperCase()}{preset.slice(1)}</button>
+        {/each}
+      </div>
+      <div class="mt-2 grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(5rem,1.3fr)] gap-1">
+        <input aria-label="View direction X" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorX} />
+        <input aria-label="View direction Y" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorY} />
+        <input aria-label="View direction Z" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" type="number" step="any" bind:value={vectorZ} />
+        <input aria-label="Direction reference frame" class="ui-control min-w-0 rounded border border-border bg-surface-3 px-1.5 py-1 font-mono text-xs" placeholder="Scene frame" bind:value={vectorFrame} />
+      </div>
+      <button
+        class="ui-control mt-1.5 h-7 w-full rounded border border-border bg-surface-3 text-xs text-text-secondary hover:bg-border-active hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={!viewCenter}
+        title={viewCenter ? `Set view from direction relative to ${viewCenter}` : 'Track or select a body first'}
+        onclick={applyVectorView}
+      >Set view from vector</button>
     </div>
 
     <!-- Viewpoints -->

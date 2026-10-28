@@ -89,9 +89,30 @@ describe('spiceFrame (arbitrary furnished frame)', () => {
   });
 
   it('returns null without SPICE or when pxform throws (coverage gap)', () => {
-    expect(spiceFrame('X').orientation(fakeCtx([], null), new THREE.Quaternion())).toBeNull();
+    const withoutSpice = spiceFrame('X');
+    expect(withoutSpice.orientation(fakeCtx([], null), new THREE.Quaternion())).toBeNull();
+    expect(withoutSpice.fault).toBe('No SPICE instance is available.');
     const gap = fakeCtx([], fakeSpice({ pxform: () => { throw new Error('CK gap'); } }));
-    expect(spiceFrame('X').orientation(gap, new THREE.Quaternion())).toBeNull();
+    const source = spiceFrame('X');
+    expect(source.orientation(gap, new THREE.Quaternion())).toBeNull();
+    expect(source.fault).toBe('CK gap');
+  });
+
+  it('exposes an exact frame fault to the status surface when a CK transform fails', () => {
+    const ctx = fakeCtx([fakeBodyMesh('LRO')], fakeSpice({ pxform: () => { throw new Error('CK gap 03:12 to 03:40 for -82000'); } }));
+    ctx.et = 123.456;
+    const mode = new ScFixedMode();
+    mode.activate(ctx, { bodyName: 'LRO', frameName: 'LRO_SC_BUS' });
+    mode.update(ctx);
+    expect(mode.frameFault).toEqual({
+      frameId: 'spice:LRO_SC_BUS',
+      et: 123.456,
+      message: 'Frame spice:LRO_SC_BUS unavailable at ET 123.456: CK gap 03:12 to 03:40 for -82000',
+    });
+    const healthy = new ScFixedMode();
+    healthy.activate(ctx, { bodyName: 'LRO', frameName: 'LRO_SC_BUS' });
+    healthy.update({ ...ctx, spice: fakeSpice() });
+    expect(healthy.frameFault).toBeNull();
   });
 
   it('agrees with the body rotation model when that model is the same rotation from J2000', () => {
