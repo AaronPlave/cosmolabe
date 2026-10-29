@@ -9,10 +9,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 507,
-          "lastMs": 0.3999999761581421,
-          "meanMs": 0.3241666679581006,
-          "maxMs": 0.5
+          "count": 505,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.33333333283662797,
+          "maxMs": 0.6000000238418579
         },
         "parse": {
           "count": 0,
@@ -36,7 +36,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 214,
-          "cpu": 251
+          "cpu": 252
         },
         "network": {
           "requests": 214,
@@ -55,14 +55,14 @@
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 311,
+            "textures": 322,
             "pinnedTextures": 30,
-            "textureBytes": 115602432,
+            "textureBytes": 119691264,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 311,
-            "bytes": 6253788,
+            "requests": 322,
+            "bytes": 6493299,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -102,14 +102,14 @@
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 242.19999986886978,
+            "uploadMs": 241.99999994039536,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 311,
+          "requests": 322,
           "failed": 0
         }
       },
@@ -119,15 +119,15 @@
           "visible": true,
           "vertices": 1363,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00002637327890563006
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000023884322579365482
         },
         {
           "id": "Polaris-A__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -135,7 +135,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -143,15 +143,15 @@
           "visible": true,
           "vertices": 1431,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000010517596103289412
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000009449499623572693
         },
         {
           "id": "Polaris-B__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -159,7 +159,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -167,15 +167,15 @@
           "visible": true,
           "vertices": 1488,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.0000015860851108382072
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.00002292482714841922
         },
         {
           "id": "Polaris-C__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -183,7 +183,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -191,15 +191,15 @@
           "visible": true,
           "vertices": 1259,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.0000259541134898861
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000011136646942548489
         },
         {
           "id": "Polaris-D__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -207,11 +207,11 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 156950
+      "litPixels": 156958
     },
     {
       "key": "hopper-origin-0",
@@ -221,10 +221,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 590,
-          "lastMs": 0.40000003576278687,
-          "meanMs": 0.2758333310484886,
-          "maxMs": 0.5
+          "count": 595,
+          "lastMs": 0.2999999523162842,
+          "meanMs": 0.3116666649778684,
+          "maxMs": 0.6000000238418579
         },
         "parse": {
           "count": 0,
@@ -248,7 +248,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 214,
-          "cpu": 291
+          "cpu": 288
         },
         "network": {
           "requests": 214,
@@ -267,14 +267,14 @@
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 373,
+            "textures": 366,
             "pinnedTextures": 30,
-            "textureBytes": 138648576,
+            "textureBytes": 136046592,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 373,
-            "bytes": 7860252,
+            "requests": 366,
+            "bytes": 7670170,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -314,14 +314,14 @@
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 280.1999998688698,
+            "uploadMs": 279.7999999523163,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 373,
+          "requests": 366,
           "failed": 0
         }
       },
@@ -331,15 +331,15 @@
           "visible": true,
           "vertices": 1363,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00002637327620354423
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000023884328590287955
         },
         {
           "id": "Polaris-A__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -347,7 +347,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -355,15 +355,15 @@
           "visible": true,
           "vertices": 1431,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000010517591706637829
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000094495021780253
         },
         {
           "id": "Polaris-B__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -371,7 +371,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -379,15 +379,15 @@
           "visible": true,
           "vertices": 1488,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000001586085867827959
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000022924823875459692
         },
         {
           "id": "Polaris-C__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -395,7 +395,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -403,15 +403,15 @@
           "visible": true,
           "vertices": 1259,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000025954110048874933
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000011136645339155122
         },
         {
           "id": "Polaris-D__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -419,11 +419,11 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 156950
+      "litPixels": 156958
     },
     {
       "key": "close-flight-0",
@@ -433,10 +433,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 660,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.2999999985098839,
-          "maxMs": 1
+          "count": 666,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.313333331545194,
+          "maxMs": 0.9000000357627869
         },
         "parse": {
           "count": 0,
@@ -460,7 +460,7 @@
           "visible": 122,
           "drawn": 52,
           "inCache": 298,
-          "cpu": 320
+          "cpu": 317
         },
         "network": {
           "requests": 298,
@@ -479,14 +479,14 @@
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 511,
+            "textures": 501,
             "pinnedTextures": 30,
-            "textureBytes": 189944832,
+            "textureBytes": 186227712,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 511,
-            "bytes": 10591029,
+            "requests": 501,
+            "bytes": 10405227,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -523,19 +523,19 @@
             "maxDisplayedLevel": 10,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 2,
+            "updateMs": 1.800000011920929,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 387.2999997138977,
+            "uploadMs": 400.8000002503395,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 511,
+          "requests": 501,
           "failed": 0
         }
       },
@@ -545,15 +545,15 @@
           "visible": true,
           "vertices": 1363,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00002637327620354423
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000023884328590287955
         },
         {
           "id": "Polaris-A__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -561,7 +561,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -569,15 +569,15 @@
           "visible": true,
           "vertices": 1431,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000010517591706637829
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000094495021780253
         },
         {
           "id": "Polaris-B__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -585,7 +585,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -593,15 +593,15 @@
           "visible": true,
           "vertices": 1488,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000001586085867827959
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000022924823875459692
         },
         {
           "id": "Polaris-C__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -609,7 +609,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -617,15 +617,15 @@
           "visible": true,
           "vertices": 1259,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000025954110048874933
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000011136645339155122
         },
         {
           "id": "Polaris-D__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -633,11 +633,11 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 1131127
+      "litPixels": 1131137
     },
     {
       "key": "flight-2",
@@ -647,9 +647,9 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 823,
-          "lastMs": 0.40000003576278687,
-          "meanMs": 0.21249999950329462,
+          "count": 830,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.2108333354194959,
           "maxMs": 0.5
         },
         "parse": {
@@ -674,7 +674,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 310,
-          "cpu": 324
+          "cpu": 321
         },
         "network": {
           "requests": 310,
@@ -693,14 +693,14 @@
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 530,
+            "textures": 520,
             "pinnedTextures": 30,
-            "textureBytes": 197007360,
+            "textureBytes": 193290240,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 530,
-            "bytes": 10934574,
+            "requests": 520,
+            "bytes": 10748772,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -735,19 +735,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5,
+            "updateMs": 1.4000000357627869,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 402.09999990463257,
+            "uploadMs": 414.4000002145767,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 530,
+          "requests": 520,
           "failed": 0
         }
       },
@@ -757,7 +757,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -765,7 +765,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -773,7 +773,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -781,7 +781,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -789,7 +789,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -797,7 +797,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -805,7 +805,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -813,7 +813,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -821,7 +821,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -829,7 +829,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -837,19 +837,19 @@
           "visible": true,
           "vertices": 963,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000004831536941082719
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000030346362402530933
         },
         {
           "id": "Polaris-D__arc4",
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 253011
+      "litPixels": 253038
     },
     {
       "key": "hopper-origin-2",
@@ -859,10 +859,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 907,
-          "lastMs": 0.3999999761581421,
-          "meanMs": 0.2908333331346512,
-          "maxMs": 0.40000003576278687
+          "count": 914,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.2824999993046125,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -886,7 +886,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 310,
-          "cpu": 326
+          "cpu": 327
         },
         "network": {
           "requests": 310,
@@ -912,7 +912,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 530,
-            "bytes": 10934574,
+            "bytes": 10974256,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -947,12 +947,12 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5,
+            "updateMs": 1.600000023841858,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 402.09999990463257,
+            "uploadMs": 423.00000017881393,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -969,7 +969,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -977,7 +977,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -985,7 +985,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -993,7 +993,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1001,7 +1001,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1009,7 +1009,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1017,7 +1017,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1025,7 +1025,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1033,7 +1033,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1041,7 +1041,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1049,19 +1049,19 @@
           "visible": true,
           "vertices": 963,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000004831536922541355
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000030346352593540244
         },
         {
           "id": "Polaris-D__arc4",
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 253011
+      "litPixels": 253038
     },
     {
       "key": "close-flight-2",
@@ -1071,9 +1071,9 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 978,
-          "lastMs": 0.20000004768371582,
-          "meanMs": 0.3191666652758916,
+          "count": 985,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.3124999995032946,
           "maxMs": 1
         },
         "parse": {
@@ -1098,7 +1098,7 @@
           "visible": 143,
           "drawn": 57,
           "inCache": 390,
-          "cpu": 331
+          "cpu": 332
         },
         "network": {
           "requests": 390,
@@ -1124,7 +1124,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 604,
-            "bytes": 11832650,
+            "bytes": 11872332,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1164,12 +1164,12 @@
             "maxDisplayedLevel": 11,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 2.100000023841858,
+            "updateMs": 2.300000011920929,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 462.1999999284744,
+            "uploadMs": 484.8999999165535,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -1186,7 +1186,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1194,7 +1194,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1202,7 +1202,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1210,7 +1210,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1218,7 +1218,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1226,7 +1226,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1234,7 +1234,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1242,7 +1242,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1250,7 +1250,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1258,7 +1258,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1266,19 +1266,19 @@
           "visible": true,
           "vertices": 963,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000004831536922541355
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000030346352593540244
         },
         {
           "id": "Polaris-D__arc4",
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 147151
+      "litPixels": 147167
     },
     {
       "key": "flight-3",
@@ -1288,10 +1288,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1138,
+          "count": 1145,
           "lastMs": 0.3999999761581421,
-          "meanMs": 0.19916666448116302,
-          "maxMs": 0.40000003576278687
+          "meanMs": 0.2016666680574417,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -1315,7 +1315,7 @@
           "visible": 153,
           "drawn": 22,
           "inCache": 402,
-          "cpu": 333
+          "cpu": 334
         },
         "network": {
           "requests": 402,
@@ -1341,7 +1341,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 609,
-            "bytes": 11927020,
+            "bytes": 11966702,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1376,12 +1376,12 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.800000011920929,
+            "updateMs": 1.600000023841858,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 466.29999989271164,
+            "uploadMs": 488.89999985694885,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -1398,7 +1398,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1406,7 +1406,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1414,7 +1414,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1422,7 +1422,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1430,7 +1430,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1438,7 +1438,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1446,7 +1446,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1454,7 +1454,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1462,7 +1462,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1470,7 +1470,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1478,7 +1478,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1486,11 +1486,11 @@
           "visible": true,
           "vertices": 1430,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.0000046801786702408864
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 8.68897870228617e-7
         }
       ],
-      "litPixels": 422419
+      "litPixels": 422464
     },
     {
       "key": "hopper-origin-4",
@@ -1500,10 +1500,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 1222,
-          "lastMs": 0.3999999761581421,
-          "meanMs": 0.2758333350221316,
-          "maxMs": 0.40000003576278687
+          "count": 1229,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.2975000003973643,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -1527,7 +1527,7 @@
           "visible": 153,
           "drawn": 22,
           "inCache": 402,
-          "cpu": 335
+          "cpu": 336
         },
         "network": {
           "requests": 402,
@@ -1553,7 +1553,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 610,
-            "bytes": 11950213,
+            "bytes": 11989895,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1588,12 +1588,12 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5,
+            "updateMs": 1.399999976158142,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 467.29999989271164,
+            "uploadMs": 489.89999985694885,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -1610,7 +1610,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1618,7 +1618,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1626,7 +1626,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1634,7 +1634,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1642,7 +1642,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1650,7 +1650,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1658,7 +1658,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1666,7 +1666,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1674,7 +1674,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1682,7 +1682,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1690,7 +1690,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1698,11 +1698,11 @@
           "visible": true,
           "vertices": 1430,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000004680178036958906
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 8.688966310641245e-7
         }
       ],
-      "litPixels": 422419
+      "litPixels": 422464
     },
     {
       "key": "close-flight-4",
@@ -1712,10 +1712,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 1293,
-          "lastMs": 0.09999996423721313,
-          "meanMs": 0.2466666688521703,
-          "maxMs": 0.40000003576278687
+          "count": 1303,
+          "lastMs": 0.20000004768371582,
+          "meanMs": 0.2583333363135656,
+          "maxMs": 0.6000000238418579
         },
         "parse": {
           "count": 0,
@@ -1739,7 +1739,7 @@
           "visible": 74,
           "drawn": 32,
           "inCache": 418,
-          "cpu": 337
+          "cpu": 338
         },
         "network": {
           "requests": 418,
@@ -1765,7 +1765,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 649,
-            "bytes": 12441885,
+            "bytes": 12481567,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1802,12 +1802,12 @@
             "maxDisplayedLevel": 10,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5,
+            "updateMs": 1.399999976158142,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 494.39999997615814,
+            "uploadMs": 520.2000001072884,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -1824,7 +1824,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1832,7 +1832,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1840,7 +1840,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1848,7 +1848,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1856,7 +1856,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1864,7 +1864,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1872,7 +1872,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1880,7 +1880,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1888,7 +1888,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1896,7 +1896,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1904,7 +1904,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -1912,11 +1912,11 @@
           "visible": true,
           "vertices": 1430,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000004680178036958906
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 8.688966310641245e-7
         }
       ],
-      "litPixels": 188095
+      "litPixels": 188104
     },
     {
       "key": "parked",
@@ -1926,9 +1926,9 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1392,
-          "lastMs": 0.3999999761581421,
-          "meanMs": 0.2291666661699613,
+          "count": 1401,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.22499999900658926,
           "maxMs": 0.5
         },
         "parse": {
@@ -1953,7 +1953,7 @@
           "visible": 153,
           "drawn": 22,
           "inCache": 426,
-          "cpu": 338
+          "cpu": 339
         },
         "network": {
           "requests": 426,
@@ -1979,7 +1979,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 670,
-            "bytes": 12787526,
+            "bytes": 12827208,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -2014,12 +2014,12 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.600000023841858,
+            "updateMs": 1.5999999642372131,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 507.9000000357628,
+            "uploadMs": 534.700000166893,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -2036,7 +2036,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2044,7 +2044,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2052,7 +2052,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2060,7 +2060,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2068,7 +2068,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2076,7 +2076,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2084,7 +2084,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2092,7 +2092,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2100,7 +2100,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2108,7 +2108,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2116,7 +2116,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2124,23 +2124,23 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 165238
+      "litPixels": 165241
     },
     {
       "key": "playback-1",
-      "et": 913759420.3806562,
+      "et": 913759420.3790565,
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "glError": 0,
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1535,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.3166666661699613,
+          "count": 1544,
+          "lastMs": 0.40000003576278687,
+          "meanMs": 0.31666666517655057,
           "maxMs": 0.40000003576278687
         },
         "parse": {
@@ -2165,7 +2165,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 430,
-          "cpu": 341
+          "cpu": 342
         },
         "network": {
           "requests": 430,
@@ -2191,7 +2191,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 684,
-            "bytes": 13155494,
+            "bytes": 13195176,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -2226,12 +2226,12 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.600000023841858,
+            "updateMs": 1.699999988079071,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 516.6999999880791,
+            "uploadMs": 544.6000001430511,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -2248,15 +2248,15 @@
           "visible": true,
           "vertices": 499,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000016975446999801617
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000013024990594202985
         },
         {
           "id": "Polaris-A__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2264,7 +2264,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2272,15 +2272,15 @@
           "visible": true,
           "vertices": 511,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000014874980836939507
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000002458982457596528
         },
         {
           "id": "Polaris-B__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2288,7 +2288,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2296,15 +2296,15 @@
           "visible": true,
           "vertices": 561,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000019675019552373132
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000020800976770331666
         },
         {
           "id": "Polaris-C__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2312,7 +2312,7 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2320,15 +2320,15 @@
           "visible": true,
           "vertices": 488,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00000611858124020525
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000007219070807816474
         },
         {
           "id": "Polaris-D__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2336,23 +2336,23 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 156437
+      "litPixels": 156444
     },
     {
       "key": "playback-1000",
-      "et": 913759667.2834562,
+      "et": 913759679.2834563,
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "glError": 0,
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1625,
+          "count": 1631,
           "lastMs": 0.2999999523162842,
-          "meanMs": 0.30833333283662795,
+          "meanMs": 0.3183333317438761,
           "maxMs": 0.40000003576278687
         },
         "parse": {
@@ -2377,7 +2377,7 @@
           "visible": 150,
           "drawn": 22,
           "inCache": 430,
-          "cpu": 341
+          "cpu": 342
         },
         "network": {
           "requests": 430,
@@ -2403,7 +2403,7 @@
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
             "requests": 684,
-            "bytes": 13155494,
+            "bytes": 13195176,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -2443,7 +2443,7 @@
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 516.6999999880791,
+            "uploadMs": 544.6000001430511,
             "gpuError": null,
             "inheritedGlErrors": []
           },
@@ -2458,17 +2458,17 @@
         {
           "id": "Polaris-A__arc0",
           "visible": true,
-          "vertices": 1390,
+          "vertices": 1438,
           "cachePoints": 1511,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00002439332252637311
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000002109761161776852
         },
         {
           "id": "Polaris-A__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1760,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2476,23 +2476,23 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1628,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
           "id": "Polaris-B__arc0",
           "visible": true,
-          "vertices": 1460,
+          "vertices": 1498,
           "cachePoints": 1790,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000009380611513383496
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.000010941666505841779
         },
         {
           "id": "Polaris-B__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1595,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2500,23 +2500,23 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 1432,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
           "id": "Polaris-C__arc0",
           "visible": true,
-          "vertices": 1519,
+          "vertices": 1564,
           "cachePoints": 1887,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.000012860918900004641
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000132754433123236
         },
         {
           "id": "Polaris-C__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1892,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2524,23 +2524,23 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2188,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
           "id": "Polaris-D__arc0",
           "visible": true,
-          "vertices": 1291,
+          "vertices": 1336,
           "cachePoints": 2619,
-          "frame": "IAU_MOON",
-          "markerErrorM": 0.00002889288544419401
+          "frame": "MOON_ME_DE421",
+          "markerErrorM": 0.0000031441409347967846
         },
         {
           "id": "Polaris-D__arc2",
           "visible": false,
           "vertices": 0,
           "cachePoints": 1917,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         },
         {
@@ -2548,42 +2548,149 @@
           "visible": false,
           "vertices": 0,
           "cachePoints": 2922,
-          "frame": "IAU_MOON",
+          "frame": "MOON_ME_DE421",
           "markerErrorM": null
         }
       ],
-      "litPixels": 156957
+      "litPixels": 156994
     }
   ],
   "errors": [],
+  "loading": {
+    "navigationToAssetsReadyMs": 4408.900000035763,
+    "arcCaches": [
+      {
+        "body": "Polaris-A",
+        "arc": 0,
+        "points": 1511,
+        "ms": 7
+      },
+      {
+        "body": "Polaris-A",
+        "arc": 2,
+        "points": 1760,
+        "ms": 6
+      },
+      {
+        "body": "Polaris-A",
+        "arc": 4,
+        "points": 1628,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-B",
+        "arc": 0,
+        "points": 1790,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-B",
+        "arc": 2,
+        "points": 1595,
+        "ms": 3
+      },
+      {
+        "body": "Polaris-B",
+        "arc": 4,
+        "points": 1432,
+        "ms": 3
+      },
+      {
+        "body": "Polaris-C",
+        "arc": 0,
+        "points": 1887,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-C",
+        "arc": 2,
+        "points": 1892,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-C",
+        "arc": 4,
+        "points": 2188,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-D",
+        "arc": 0,
+        "points": 2619,
+        "ms": 5
+      },
+      {
+        "body": "Polaris-D",
+        "arc": 2,
+        "points": 1917,
+        "ms": 4
+      },
+      {
+        "body": "Polaris-D",
+        "arc": 4,
+        "points": 2922,
+        "ms": 6
+      }
+    ]
+  },
   "viewpoints": [
     {
       "day": 0,
       "name": "Shackleton Overview",
-      "heightKm": 59.99999999999977,
+      "heightKm": 60,
       "targetRadiusKm": 1737.4,
-      "rangeKm": 59.99999999999987
+      "rangeKm": 60.00000000000003
     },
     {
       "day": 0,
       "name": "PSR Floor View",
       "heightKm": 19.999999999999773,
       "targetRadiusKm": 1737.3999999999999,
-      "rangeKm": 20.00000000000007
+      "rangeKm": 19.999999999999943
     },
     {
       "day": 12,
       "name": "Shackleton Overview",
-      "heightKm": 60,
-      "targetRadiusKm": 1737.3999999999999,
-      "rangeKm": 60.00000000000009
+      "heightKm": 59.99999999999977,
+      "targetRadiusKm": 1737.4,
+      "rangeKm": 59.999999999999574
     },
     {
       "day": 12,
       "name": "PSR Floor View",
       "heightKm": 19.999999999999773,
-      "targetRadiusKm": 1737.4,
-      "rangeKm": 19.999999999999737
+      "targetRadiusKm": 1737.3999999999996,
+      "rangeKm": 20.000000000000092
+    }
+  ],
+  "frameBenchmarks": [
+    {
+      "mode": "playback",
+      "frames": 180,
+      "setTimeAndRenderCpuMs": {
+        "median": 12.099999964237213,
+        "p95": 16.30000001192093,
+        "max": 19.399999976158142
+      },
+      "animationFrameIntervalMs": {
+        "median": 17.5,
+        "p95": 23.399999976158142,
+        "max": 28
+      }
+    },
+    {
+      "mode": "scrubbing",
+      "frames": 180,
+      "setTimeAndRenderCpuMs": {
+        "median": 10.900000035762787,
+        "p95": 16.19999998807907,
+        "max": 18.400000035762787
+      },
+      "animationFrameIntervalMs": {
+        "median": 18.80000001192093,
+        "p95": 24.30000001192093,
+        "max": 29.899999976158142
+      }
     }
   ]
 }

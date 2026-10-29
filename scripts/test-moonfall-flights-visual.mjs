@@ -15,6 +15,11 @@ const browser = await chromium.launch({ headless: true,
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const report = { passed: false, phases: [], errors: [] };
 page.on('pageerror', e => report.errors.push(e.message));
+const arcCaches = [];
+page.on('console', message => {
+  const match = message.text().match(/Arc cache built for (Polaris-\w) arc(\d): (\d+) pts in (\d+)ms/);
+  if (match) arcCaches.push({ body: match[1], arc: Number(match[2]), points: Number(match[3]), ms: Number(match[4]) });
+});
 try {
   await page.goto(`${base}?catalog=test-catalogs/moonfall-shackleton`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.renderer?.trajectoryLines?.has('Polaris-D__arc4'), null, { timeout: 120000 });
@@ -22,6 +27,7 @@ try {
     await window.renderer.waitForInitialAssets();
     window.cosmo.setPlaying(false);
   });
+  report.loading = { navigationToAssetsReadyMs: await page.evaluate(() => performance.now()), arcCaches };
   // Exercise the authored default and the actual Viewpoint dropdown before
   // the close-flight harness takes over the camera. A hand-placed test camera
   // cannot catch a broken catalog preset.
@@ -105,7 +111,7 @@ try {
     assert.equal(phase.glError, 0);
     assert.equal(phase.lines.length, 12, 'Rest arcs must allocate no lines/caches');
     for (const line of phase.lines) {
-      assert.equal(line.frame, 'IAU_MOON');
+      assert.equal(line.frame, 'MOON_ME_DE421');
       if (line.markerErrorM !== null) assert.ok(line.markerErrorM < 1, `${line.id} detached: ${line.markerErrorM}m`);
     }
     await page.screenshot({ path: `${out}/${key}.png` });
@@ -144,6 +150,25 @@ try {
     await page.evaluate(() => window.cosmo.setPlaying(false));
     await snapshot(`playback-${rate}`);
   }
+  report.frameBenchmarks = await page.evaluate(async () => {
+    const r = window.renderer, body = r.universe.getBody('Polaris-D');
+    const flights = body.trajectory.arcs.filter(a => a.showLine !== false), results = [];
+    for (const mode of ['playback', 'scrubbing']) {
+      const cpu = [], intervals = []; let previous;
+      for (let i = 0; i < 180; i++) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const now = performance.now(); if (previous !== undefined) intervals.push(now - previous); previous = now;
+        const arc = flights[mode === 'playback' ? 0 : i % flights.length];
+        const fraction = mode === 'playback' ? .25 + i / 360 : ((i * 79) % 180) / 180;
+        const start = performance.now();
+        r.timeController.setTime(arc.startTime + fraction * (arc.trajectory.endTime - arc.startTime));
+        r.renderFrame(); cpu.push(performance.now() - start);
+      }
+      const stats = values => { values.sort((a,b) => a-b); return { median: values[Math.floor(values.length / 2)], p95: values[Math.floor(values.length * .95)], max: values.at(-1) }; };
+      results.push({ mode, frames: cpu.length, setTimeAndRenderCpuMs: stats(cpu), animationFrameIntervalMs: stats(intervals) });
+    }
+    return results;
+  });
   assert.deepEqual(report.errors, []);
   report.passed = true;
 } finally {

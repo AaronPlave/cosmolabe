@@ -162,6 +162,20 @@
           "name": "Polaris-A",
           "class": "spacecraft",
           "trajectoryFrame": "MOON_ME_DE421",
+          "surfaceTrajectory": {
+            "frame": "MOON_ME_DE421",
+            "positionUnits": "km",
+            "purpose": "synthetic-demo",
+            "datum": {
+              "referenceShape": {
+                "kind": "sphere",
+                "radiusKm": 1737.4
+              },
+              "verticalDatum": "reference-sphere",
+              "heightConvention": "radial"
+            },
+            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
           "trajectoryPlot": {
             "frame": "MOON_ME_DE421",
             "sampleInterval": 1
@@ -9946,7 +9960,12 @@
               0.85,
               1
             ]
-          },
+          }
+        },
+        {
+          "name": "Polaris-B",
+          "class": "spacecraft",
+          "trajectoryFrame": "MOON_ME_DE421",
           "surfaceTrajectory": {
             "frame": "MOON_ME_DE421",
             "positionUnits": "km",
@@ -9960,12 +9979,7 @@
               "heightConvention": "radial"
             },
             "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
-          }
-        },
-        {
-          "name": "Polaris-B",
-          "class": "spacecraft",
-          "trajectoryFrame": "MOON_ME_DE421",
+          },
           "trajectoryPlot": {
             "frame": "MOON_ME_DE421",
             "sampleInterval": 1
@@ -26038,7 +26052,12 @@
               0.65,
               0.3
             ]
-          },
+          }
+        },
+        {
+          "name": "Polaris-C",
+          "class": "spacecraft",
+          "trajectoryFrame": "MOON_ME_DE421",
           "surfaceTrajectory": {
             "frame": "MOON_ME_DE421",
             "positionUnits": "km",
@@ -26052,12 +26071,7 @@
               "heightConvention": "radial"
             },
             "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
-          }
-        },
-        {
-          "name": "Polaris-C",
-          "class": "spacecraft",
-          "trajectoryFrame": "MOON_ME_DE421",
+          },
           "trajectoryPlot": {
             "frame": "MOON_ME_DE421",
             "sampleInterval": 1
@@ -36934,7 +36948,12 @@
               0.4,
               1
             ]
-          },
+          }
+        },
+        {
+          "name": "Polaris-D",
+          "class": "spacecraft",
+          "trajectoryFrame": "MOON_ME_DE421",
           "surfaceTrajectory": {
             "frame": "MOON_ME_DE421",
             "positionUnits": "km",
@@ -36948,12 +36967,7 @@
               "heightConvention": "radial"
             },
             "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
-          }
-        },
-        {
-          "name": "Polaris-D",
-          "class": "spacecraft",
-          "trajectoryFrame": "MOON_ME_DE421",
+          },
           "trajectoryPlot": {
             "frame": "MOON_ME_DE421",
             "sampleInterval": 1
@@ -58342,20 +58356,6 @@
               1,
               0.5
             ]
-          },
-          "surfaceTrajectory": {
-            "frame": "MOON_ME_DE421",
-            "positionUnits": "km",
-            "purpose": "synthetic-demo",
-            "datum": {
-              "referenceShape": {
-                "kind": "sphere",
-                "radiusKm": 1737.4
-              },
-              "verticalDatum": "reference-sphere",
-              "heightConvention": "radial"
-            },
-            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
           }
         }
       ]

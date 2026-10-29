@@ -1,0 +1,28 @@
+{
+  "linear": {
+    "node": "v22.23.3",
+    "platform": "darwin/arm64",
+    "catalogBytes": 1997914,
+    "flights": 12,
+    "knots": 9608,
+    "catalogParseAndLoadMedianMs": 6.603917000000024,
+    "playback240kCallsMs": 64.79775000000006,
+    "scrubbing240kCallsMs": 66.40379099999996,
+    "cacheBuildMedianMs": 8.187457999999879,
+    "cachePoints": 23141,
+    "checksum": 6547798.334033522
+  },
+  "binary": {
+    "node": "v22.23.3",
+    "platform": "darwin/arm64",
+    "catalogBytes": 1997914,
+    "flights": 12,
+    "knots": 9608,
+    "catalogParseAndLoadMedianMs": 6.797957999999994,
+    "playback240kCallsMs": 6.330125000000066,
+    "scrubbing240kCallsMs": 10.013791000000083,
+    "cacheBuildMedianMs": 2.19662500000004,
+    "cachePoints": 23141,
+    "checksum": 6547798.334033522
+  }
+}

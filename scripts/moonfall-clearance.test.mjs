@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Universe, resolveViewpoint } from '../packages/core/dist/index.js';
 import { hoppers } from './data/moonfall-sorties.mjs';
+import { lunarTestSpice } from './lib/lunar-test-spice.mjs';
 import { bakeFlight, trajectory, terrainSource, validateFlight, sha256, segmentSteps } from './lib/moonfall-clearance.mjs';
 
 const read = file => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8'));
@@ -14,9 +15,14 @@ const actual = catalog.items.find(i => i.name === 'Moon').items;
 const grids = process.env.MOONFALL_GRIDS ?? resolve(dataset.localDir, 'cpu-grids.json');
 
 describe('MoonFall synthetic flight clearance', () => {
-  it('places the named surface views above the Moon and aims at their region across epochs', () => {
-    const u = new Universe();
+  it('places the named surface views above the Moon and aims at their region across epochs', async () => {
+    const u = new Universe(await lunarTestSpice());
     u.loadCatalog(catalog);
+    expect(catalog.require).toContain('base/lunar-surface.json');
+    const moon = catalog.items.find(item => item.name === 'Moon');
+    expect(moon.rotationModel.bodyFrame).toBe('MOON_ME_DE421');
+    expect(moon.geometry.terrain.frame).toBe('MOON_ME_DE421');
+    expect(u.frames.isResolvable('MOON_ME_DE421', u.time)).toBe(true);
     for (const [name, heightKm] of [['Shackleton Overview', 60], ['PSR Floor View', 20]]) {
       const def = u.viewpoints.find(v => v.name === name);
       for (const et of [u.time, u.time + 12 * 86400]) {
@@ -37,7 +43,10 @@ describe('MoonFall synthetic flight clearance', () => {
     expect(report.sampling).toEqual({ maxDistanceM: 2, maxTimeS: .1 });
     expect(report.flights).toHaveLength(12);
     for (const hopper of actual) {
-      expect(hopper.trajectoryPlot).toEqual({ frame: 'BodyFixed', sampleInterval: 1 });
+      expect(hopper.trajectoryPlot).toEqual({ frame: 'MOON_ME_DE421', sampleInterval: 1 });
+      expect(hopper.trajectoryFrame).toBe('MOON_ME_DE421');
+      expect(hopper.surfaceTrajectory.frame).toBe('MOON_ME_DE421');
+      expect(hopper.surfaceTrajectory.terrainRevision).toBe(dataset.build);
       expect(hopper.arcs).toHaveLength(5);
       for (const [i, arc] of hopper.arcs.entries()) {
         expect(arc.trajectory.useAbsoluteAlt).toBe(true);

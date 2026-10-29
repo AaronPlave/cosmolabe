@@ -4,9 +4,10 @@ The Shackleton Overview and PSR Floor View presets place the camera 60 km
 and 20 km above the lunar reference sphere, respectively. `distance` measures
 from the lunar centre, so their former 60 km / 20 km values put the camera
 inside the Moon. Both now use explicit body-fixed surface targets and north-up
-directions. Their authored latitudes/longitudes are retained; #238 is separate.
+directions. Their authored latitudes/longitudes are retained. The branch now
+includes merged #301, with the explicit DE421 lunar realization.
 
-The four synthetic demonstration hoppers use anchored `BodyFixed` plots. A
+The four synthetic demonstration hoppers use anchored `MOON_ME_DE421` plots. A
 composite arc whose source frame is body-fixed now defaults to an anchored
 plot in that exact source frame; inertial arcs retain historical-epoch world
 trails. Explicit plot-frame overrides win. Body-fixed composite flight trails
@@ -37,7 +38,10 @@ proof, source-data uncertainty, vehicle dynamics validation, or flight safety.
 The authoritative product is `cube-fused-79895697c6b6-g3-m12-b6747ec9d`, radial
 heights above the 1737.4 km sphere. All queries require finest product coverage;
 missing data fails. No terrain, elevation cache, datum, or source-frame rotation
-was changed. The MOON_ME / IAU_MOON provenance audit remains in #238.
+was changed by the bake. Merged #301 supplies the audited `MOON_ME_DE421`
+terrain, rotation, and surface-trajectory provenance; both the generator and
+output require `base/lunar-surface.json`. This metadata integration preserves
+all authored routes and baked absolute heights; it does not re-register them.
 
 `scripts/data/moonfall-clearance.json` contains before/after results, every
 original segment's endpoints and worst location/time, sample counts, route and
@@ -88,7 +92,7 @@ parked intervals, 1x and 1000x playback pass. Actual cached paths contain
 hundreds of vertices during the short flights; marker/resolver-head agreement
 is better than 0.001 m. Captures explicitly render into the canvas and reject
 empty images. No page errors or GL errors were recorded. Unit tests exercise
-all twelve actual sorties at three fractions with a nonidentity rotating parent
+all twelve actual sorties at three fractions using the real lunar FK/PCK
 and current-epoch rotations separated by ten days, plus inertial overrides.
 
 The Ingenuity flight-12 event check passes with path/event-anchor agreement,
@@ -96,18 +100,58 @@ visible above-ground curves and zero changed pixels for the deliberately
 below-ground camera (physical terrain occlusion). Other GPU platforms and
 mobile devices were not tested for this change.
 
-Follow-up verification (2026-10-29) used the reported
-`http://localhost:5174/?catalog=test-catalogs/moonfall-shackleton` URL.
-The actual Viewpoint dropdown applies both presets at the initial epoch and
-twelve days later: camera heights/ranges are 60 km and 20 km, with targets on
-the 1737.4 km datum sphere. The twelve flight/origin/playback phases still pass
-on Apple M4 Max / ANGLE Metal with no page or GL errors. The new preset
-regression and full local clearance replay pass (4 tests); viewer TypeScript
-and Svelte checks pass with no errors or warnings. Surface Layers opens and
-lists the Moon layers in fresh loads and after selecting MoonFall again in
-the catalog picker. The reported stuck existing session was not reproduced;
-these results do not claim a fix for it. GitHub review submissions, inline
-comments and conversation comments were empty when checked.
+Integrated verification (2026-10-29) after rebasing onto #301:
+
+- All twelve DE421 cached flights retain marker/path agreement, flight-only
+  visibility, event-requested leads, and parked suppression. Real FK/PCK/SPK
+  coverage is furnished for the viewpoint and actual-catalog regressions.
+- Every actual sortie checks a contradictory `IAU_MOON` surface provenance
+  declaration while both frames are resolvable: marker placement, cached path,
+  leads, event glyphs and spans withhold together and recover without changing
+  supplied coordinates. The existing live/cached ordinary/composite regression
+  matrix also passes.
+- Loaded Chrome / Apple M4 Max ANGLE Metal: twelve flight phases and four
+  UI-applied presets pass. The independent lunar browser regression passes
+  orientation-gap recovery, resolvable provenance-mismatch recovery, the real
+  LRO reference, terrain picking, and Shackleton/Tycho Jump/Fly navigation.
+  No page, GL or hosted-network errors. See `moonfall-browser.json` and
+  `lunar-integration-browser.json`.
+- 1,898 core/three tests pass (7 skipped); four MoonFall script tests pass,
+  including all twelve pinned-field replays. Build, test/viewer typechecks,
+  Svelte (zero errors/warnings), changed-file lint and diff checks pass.
+- Regeneration yields identical catalog SHA-256
+  `28c087691fdf9470a5c7d0845ae0e03b5dc09ba428bf236b3523d6ac98bab6b0`
+  and report SHA-256
+  `df6fdc5db8fb0d544a99b5bb0f47c8693d15561cdfd51337b1ebd0fb302f929a`.
+  All arcs and the complete clearance report match the pre-integration reviewed
+  paths byte-for-byte in content; the catalog changes only frame metadata/order.
+
+## Trajectory performance
+
+`node scripts/benchmark-moonfall-trajectories.mjs [OUT.json]` measures the actual
+1,997,914-byte catalog, 9,608 flight knots, and all twelve path caches. On
+Node 22.23.3 / Apple arm64, median of seven warmed trials (nine catalog loads):
+
+| Operation | Linear lookup (ms) | Binary lookup (ms) |
+| --- | ---: | ---: |
+| JSON parse + Universe catalog load | 6.60 | 6.80 |
+| 240,000 sequential state samples | 64.80 | 6.33 |
+| 240,000 shuffled state samples | 66.40 | 10.01 |
+| Build all 12 native path caches | 8.19 | 2.20 |
+
+Both versions produce exactly 23,141 cache points and the same accumulated
+position checksum. Binary lower-bound lookup preserves exact/duplicate-knot
+selection and clamped endpoints. Reverse-scrubbing tests cover all 4,097 knots
+and Hermite midpoints of an irregularly spaced path. No spatial or temporal
+clearance requirement or generated path was reduced. See `trajectory-benchmark.json`.
+
+Loaded browser navigation-to-assets-ready was 4.41 s (local Vite, local product
+files, warm OS cache; includes kernel/assets, not a network cold-load claim).
+All twelve cache-build logs total 54 ms including provenance/frame checks.
+Across 180 measured frames per mode, set-time + render CPU median/p95 was
+12.1/16.3 ms for sequential playback and 10.9/16.2 ms for random scrubbing;
+RAF interval median/p95 was 17.5/23.4 ms and 18.8/24.3 ms respectively. These
+are measured workstation timings, not cross-device performance guarantees.
 
 ![Shackleton catalog preset and Surface Layers](shackleton-preset.png)
 ![PSR catalog preset](psr-preset.png)
