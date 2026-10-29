@@ -19,6 +19,7 @@ import {
 import { untrack } from 'svelte';
 import { vs } from './viewer-state.svelte';
 import { resetTimeline } from './timeline.svelte';
+import { resettable } from './session.svelte';
 
 export const analysis = $state({
   bodies: {} as AnalysisContext['bodies'],
@@ -30,6 +31,7 @@ export const analysis = $state({
    * their optional 3D explanatory overlays. */
   catalogActivities: [] as GeometryEvent[],
 });
+resettable(analysis);
 
 let itemSequence = 0;
 

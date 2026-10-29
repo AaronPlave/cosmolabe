@@ -1,3 +1,5 @@
+import type { StateAvailability } from '../availability.js';
+
 export type Quaternion = [number, number, number, number]; // [w, x, y, z]
 
 /** Named inertial frames cosmolabe recognises for `RotationModel.sourceFrame`.
@@ -29,6 +31,12 @@ export interface RotationModel {
   readonly sourceFrame: InertialFrameName;
   /** Exact destination frame when known; never an alias for a different realization. */
   readonly bodyFixedFrame?: string;
+  /**
+   * Coverage-aware models say whether — and why not — `rotationAt(et)` has
+   * data. Where this reports unavailable, `rotationAt` throws
+   * `StateUnavailableError`; it never returns a held or identity attitude.
+   */
+  availabilityAt?(et: number): StateAvailability;
 }
 
 /** Cosmolabe's internal canonical inertial frame — what `Universe.absolutePositionOf`

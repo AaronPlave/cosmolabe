@@ -3,6 +3,8 @@ export type {
   ViewerControl,
   ScriptActivity,
   ScriptActivityFilter,
+  ScriptAvailability,
+  ScriptObjectState,
   ViewerSnapshotState,
   CircleDirection,
   CoordinateNavigationOptions,

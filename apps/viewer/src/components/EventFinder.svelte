@@ -216,7 +216,7 @@
       <Select.Trigger size="sm" class="ui-control min-w-0 flex-1 rounded border-border bg-surface-3 px-2 text-text-primary">
         <Select.Value placeholder="Select event type" />
       </Select.Trigger>
-      <Select.Content align="start" class="w-[360px] max-w-[calc(100vw-24px)] rounded-md border border-border bg-panel p-1">
+      <Select.Content align="start" class="w-[360px] max-w-[calc(100cqw-24px)] rounded-md border border-border bg-panel p-1">
         {#each EVENT_KINDS as k (k.kind)}
           <Select.Item
             value={k.kind}
@@ -297,7 +297,7 @@
             <CircleHelp size={12} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+            <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100cqw-24px)] p-3 ui-helper">
               <p>Suggested starts near the current scene time: up to {ef.kind === 'occultation' ? '90 days' : '2 years'}, clipped to usable coverage when known.</p>
               <p class="mt-2">Available chooses one full searchable interval. Separate intervals exclude gaps in kernel coverage, with a small buffer at each edge. Custom lets you enter dates.</p>
               <p class="mt-2 font-mono">{utc(form.startEt)} – {utc(form.endEt)} UTC</p>

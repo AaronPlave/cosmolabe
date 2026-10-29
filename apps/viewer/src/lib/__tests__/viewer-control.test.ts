@@ -6,7 +6,7 @@
  * module. What is faked is the renderer below it, which needs WebGL.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
+import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
@@ -19,6 +19,7 @@ import {
   DISPLAY_OPTIONS,
   releaseSurfaceTarget, dismissGeographicContext,
   bindRenderer,
+  emit,
   selectBody,
   unbindRenderer,
   vs,
@@ -904,6 +905,80 @@ describe('events', () => {
     off();
     control.setTime({ kind: 'et', et: 900 });
     expect(seen).toEqual([500]);
+  });
+
+  it('tells a host its own seeks from the viewer\'s, and does not re-seek to where it is', () => {
+    const host = createViewerControl({ host: true });
+    const seen: ScriptEventMap['time'][] = [];
+    const off = host.on('time', (e) => seen.push(e));
+    host.setTime({ kind: 'et', et: 500 });
+    host.setTime({ kind: 'et', et: 500 });
+    createViewerControl().setTime({ kind: 'et', et: 600 });
+    off();
+    expect(seen).toEqual([{ et: 500, cause: 'host' }, { et: 600, cause: 'viewer' }]);
+    expect(renderer.calls.filter((c) => c === 'setTime(500)')).toHaveLength(1);
+  });
+
+  it('coalesces playback to a few notifications, ending on the clock', () => {
+    vi.useFakeTimers();
+    try {
+      const control = createViewerControl({ host: true });
+      const seen: ScriptEventMap['time'][] = [];
+      const off = control.on('time', (e) => seen.push(e));
+      renderer.timeController.play();
+      for (let frame = 0; frame < 30; frame++) {
+        renderer.timeController.step(1);
+        vi.advanceTimersByTime(16);
+      }
+      vi.advanceTimersByTime(300);
+      off();
+      expect(seen.length).toBeGreaterThanOrEqual(1);
+      expect(seen.length).toBeLessThanOrEqual(3);
+      expect(seen.every((e) => e.cause === 'playback')).toBe(true);
+      expect(seen.at(-1)!.et).toBe(renderer.timeController.et);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('notifies playback changes once each', () => {
+    const control = createViewerControl({ host: true });
+    const seen: ScriptEventMap['playback'][] = [];
+    const rate = control.getRate();
+    const off = control.on('playback', (e) => seen.push(e));
+    control.setPlaying(true);
+    control.setPlaying(true);
+    control.setTimeRate(120);
+    off();
+    expect(seen).toEqual([{ playing: true, rate }, { playing: true, rate: 120 }]);
+  });
+
+  it('notifies activity selection, and drops it when the record goes rather than reselecting a later namesake', () => {
+    const records = parseMissionActivities(ingenuityCatalog.activities);
+    vs.activities = records;
+    const control = createViewerControl({ host: true });
+    const seen: (string | null)[] = [];
+    const off = control.on('activitySelect', ({ id }) => seen.push(id));
+    expect(control.selectActivity!(records[0].id)).toBe(true);
+    vs.activities = records.slice(1);
+    emit('activities', vs.activities.length);
+    expect(control.getSelectedActivity!()).toBeUndefined();
+    vs.activities = records;
+    emit('activities', vs.activities.length);
+    expect(control.getSelectedActivity!()).toBeUndefined();
+    off();
+    expect(seen).toEqual([records[0].id, null]);
+  });
+
+  it('subscriptions outlive a catalog load', () => {
+    const control = createViewerControl({ host: true });
+    const seen: (string | null)[] = [];
+    const off = control.on('select', ({ name }) => seen.push(name));
+    unbindRenderer();
+    bind();
+    control.select('Titan');
+    off();
+    expect(seen).toEqual(['Titan']);
   });
 });
 

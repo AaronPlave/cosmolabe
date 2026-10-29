@@ -1,4 +1,5 @@
 import type { Vec3 } from '../spice-injection.js';
+import type { StateAvailability } from '../availability.js';
 
 export interface CartesianState {
   position: Vec3;
@@ -26,4 +27,9 @@ export interface Trajectory {
    * samples); the catalog's `trajectoryFrame` supplies it then.
    */
   readonly frame?: string;
+  /**
+   * Coverage-aware models say whether — and why not — `stateAt(et)` has data.
+   * Where this reports unavailable, `stateAt` returns NaN vectors.
+   */
+  availabilityAt?(et: number): StateAvailability;
 }

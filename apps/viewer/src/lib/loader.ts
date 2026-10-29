@@ -11,7 +11,9 @@ import {
   Universe,
   loadCatalogFromUrl,
   etFromCalendarString,
+  type CatalogFetcher,
   type ResolvedCatalogGraph,
+  type UniverseOptions,
 } from '@cosmolabe/core';
 // The runtime SPICE instance is @cosmolabe/frames' heritage adapter over
 // cspice-wasm, and HeritageSpice — the adapter's own type — is what the
@@ -56,6 +58,24 @@ import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
 import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
 import { categorizeFiles, resolveCatalogOrder, rememberLocalFilePath } from './local-files';
+import { workspace } from './workspace.svelte';
+
+/**
+ * What an embedding host adds to every scene (`embed.ts`): asset locations
+ * when the viewer is not served from its own page, and the mission-state
+ * factories and binding. Empty for the standalone app.
+ */
+export interface SceneHooks {
+  cspiceWasmUrl?: string;
+  starsUrl?: string;
+  universeOptions?: Pick<UniverseOptions, 'trajectoryFactories' | 'rotationFactories'>;
+  /** Called with each scene's universe once its catalogs are loaded, and with null when it goes. */
+  bindUniverse?(universe: Universe | null): void;
+}
+let hooks: SceneHooks = {};
+export function setSceneHooks(next: SceneHooks): void {
+  hooks = next;
+}
 
 let geographicImport: AbortController | null = null;
 function beginGeographicImport(): AbortController {
@@ -267,7 +287,8 @@ async function fetchWithProgress(
 async function ensureSpice(): Promise<HeritageSpice> {
   if (!spice) {
     setLoadingState({ label: 'Initializing SPICE...' });
-    spice = await createHeritageSpice({ locateFile: () => cspiceWasmUrl });
+    const wasmUrl = hooks.cspiceWasmUrl ?? cspiceWasmUrl;
+    spice = await createHeritageSpice({ locateFile: () => wasmUrl });
   }
   return spice;
 }
@@ -347,7 +368,7 @@ async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKer
  * fetch but not the CSPICE load, so this is a real second or two on a large
  * catalog -- paid for answers that belong to the scene on screen.
  */
-async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promise<void> {
+async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?: AbortSignal): Promise<void> {
   teardownScene();
   const s = await ensureSpice();
 
@@ -366,6 +387,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
   let sizedLoaded = 0;
 
   for (let i = 0; i < plan.length; i++) {
+    signal?.throwIfAborted();
     const k = plan[i];
     const name = kernelName(k.source);
     setPhaseProgress('kernels', doneBytes / totalBytes, {
@@ -414,6 +436,7 @@ function teardownScene(): void {
   geometryWorker = null;
 
   unbindRenderer();
+  hooks.bindUniverse?.(null);
   renderer?.dispose();
   renderer = null;
   universe?.dispose();
@@ -568,7 +591,7 @@ function initScene(
 
   universe = new Universe(
     spice ?? undefined,
-    (resolveFile || resolveFileBinary) ? { resolveFile, resolveFileBinary } : undefined,
+    (resolveFile || resolveFileBinary || hooks.universeOptions) ? { resolveFile, resolveFileBinary, ...hooks.universeOptions } : undefined,
   );
 
   // Inject Cesium Ion token from VITE_CESIUM_ION_TOKEN into any `terrain` block
@@ -607,6 +630,7 @@ function initScene(
     }
   }
 
+  hooks.bindUniverse?.(universe);
   startSceneWorkers();
 
   // Visual-regression test mode (`?test=1`): strip GPU-variant noise so
@@ -617,7 +641,7 @@ function initScene(
     showTrajectories: true,
     showLabels: true,
     showStars: !TEST_MODE,
-    starFieldOptions: { catalogUrl: `${import.meta.env.BASE_URL}stars.bin` },
+    starFieldOptions: { catalogUrl: hooks.starsUrl ?? `${import.meta.env.BASE_URL}stars.bin` },
     trajectoryOptions: { trailDuration: 86400 * 30 },
     minBodyPixels: 0,
     antialias: !TEST_MODE,
@@ -699,8 +723,9 @@ function initScene(
     renderer.timeController.setTime(catalogEt);
   }
 
-  // Expose for console-based tuning during development.
-  (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
+  // Expose for console-based tuning during development — on our own page
+  // only: an embedding host's window is not ours to write globals into.
+  if (!workspace.embedded) (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
 
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('geographic-comparison')) {
     const sceneUniverse = universe;
@@ -714,7 +739,7 @@ function initScene(
   // instance from `createViewerControl()` directly, and nothing in the port
   // reaches for this global. Exposed unconditionally because driving the viewer
   // from the browser console is the point; only `runScript` below is gated.
-  (window as unknown as { cosmo: ViewerControl }).cosmo = getCosmo();
+  if (!workspace.embedded) (window as unknown as { cosmo: ViewerControl }).cosmo = getCosmo();
 
   // Visual-regression capture hook (`?test=1` only). Lets the offscreen driver
   // (scripts/visual-regression.mjs) seek to a fixed epoch, apply a named
@@ -802,7 +827,7 @@ export function demoCatalogUrl(name: string): string {
 }
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
-export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
+export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string, fetcher?: CatalogFetcher) {
   const geographicController = beginGeographicImport();
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
@@ -812,7 +837,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   beginLoad('Fetching catalog...', { catalog: name });
 
   try {
-    const graph = await loadCatalogFromUrl(entryUrl);
+    const graph = await loadCatalogFromUrl(entryUrl, fetcher);
     geographicController.signal.throwIfAborted();
     beginLoad('Preparing scene...', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
@@ -835,7 +860,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
     // A DSK surface is the exception: it is read by SPICE even with no kernels.
     if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
-      await buildSceneSpice(catalogKernels);
+      await buildSceneSpice(catalogKernels, geographicController.signal);
       geographicController.signal.throwIfAborted();
     } else {
       teardownScene();
@@ -852,8 +877,29 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
     if (geographicImport === geographicController) endLoad();
+    // A session disposed mid-load: whatever this load built is nobody's.
+    if (geographicController.signal.reason === SESSION_DISPOSED) teardownScene();
     throw err;
   }
+}
+
+const SESSION_DISPOSED = new Error('The viewer was disposed');
+
+/**
+ * Release everything the viewer session holds — scene, workers, SPICE, the
+ * user's dropped kernels — and stop any load in flight from building another
+ * scene. An embedding host's dispose; the standalone page never calls it.
+ */
+export function disposeSession(): void {
+  geographicImport?.abort(SESSION_DISPOSED);
+  geographicImport = null;
+  // The canvas goes with the session, so its WebGL context is released now
+  // rather than whenever the collector gets to it. (A scene switch keeps it:
+  // the next scene draws on the same canvas.)
+  renderer?.renderer.forceContextLoss();
+  teardownScene();
+  userKernelSources.length = 0;
+  endLoad();
 }
 
 /**

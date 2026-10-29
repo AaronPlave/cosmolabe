@@ -16,6 +16,7 @@ import {
 import type { GeographicFeatureRef } from '@cosmolabe/three';
 import { getRenderer, onViewerEvent } from './viewer-state.svelte';
 import { getUniverse } from './loader';
+import { resettable } from './session.svelte';
 
 const STORAGE_KEY = 'cosmolabe-geographic-styles';
 /** At most this many layers' styles are kept; the least recently edited go first. */
@@ -42,6 +43,7 @@ export const geoStyles = $state({
   /** Session draw order of vector layers, by body, earliest drawn on top. */
   order: [] as string[],
 });
+resettable(geoStyles);
 
 /** The style when the editor opened, for Revert. */
 let snapshot: { layerId: string; style: GeographicLayerStyle | null } | null = null;

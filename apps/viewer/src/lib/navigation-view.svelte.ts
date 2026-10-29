@@ -1,8 +1,10 @@
 import type { SurfaceViewPreset } from '@cosmolabe/core';
+import { resettable } from './session.svelte';
 
 export type NavigationFraming = 'auto' | 'feature' | 'custom';
 /** Retain framing intent, not a previous feature's computed altitude. */
 export const navigationView = $state({ preset: 'overhead' as SurfaceViewPreset, framing: 'auto' as NavigationFraming, rangeText: '' });
+resettable(navigationView);
 
 export function featureRangeKm(diameterKm?: number): number | undefined {
   if (diameterKm === undefined || !Number.isFinite(diameterKm) || diameterKm <= 0) return undefined;

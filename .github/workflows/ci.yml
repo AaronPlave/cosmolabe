@@ -97,6 +97,7 @@ jobs:
       browser: ${{ steps.filter.outputs.browser }}
       stars: ${{ steps.filter.outputs.stars }}
       geographic: ${{ steps.filter.outputs.geographic }}
+      embed: ${{ steps.filter.outputs.embed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -193,6 +194,14 @@ jobs:
               - 'scripts/test-sun-viewer-gpu.mjs'
               - 'scripts/test-sun-terrain-gpu.mjs'
               - 'scripts/test-site-mesh-depth-gpu.mjs'
+            # The embeddable workspace and its reference host (docs/embedding.md).
+            embed:
+              - 'apps/viewer/src/**'
+              - 'apps/viewer/vite.embed.config.ts'
+              - 'apps/viewer/rollup.dts.config.mjs'
+              - 'packages/control/**'
+              - 'examples/embed-host/**'
+              - 'scripts/test-embed-*.mjs'
             geographic:
               - 'scripts/test-geographic*.mjs'
               - 'scripts/test-place*.mjs'
@@ -260,6 +269,26 @@ jobs:
             work/surface-build/skyfall-ci/browser/
           if-no-files-found: warn
           retention-days: 7
+
+  embed:
+    name: Embeddable workspace and reference host
+    needs: changes
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.embed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+      - name: Build packages and the embeddable workspace
+        run: npm run build:embed
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Installed package in an independent host project
+        run: node scripts/test-embed-package.mjs
+      - name: Reference host acceptance (fixtures, sync, coverage, isolation, lifecycle)
+        run: node scripts/test-embed-host.mjs
 
   stars:
     name: Targeted StarField WebGL and viewer

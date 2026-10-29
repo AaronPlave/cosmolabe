@@ -902,7 +902,11 @@ export class UniverseRenderer {
 
       bm.scale.setScalar(1); // Always real scale
 
-      if (bm.hasModel) {
+      if (bm.hasModel && !bm.attitudeAvailable) {
+        // Position known, attitude not: the marker, never a model at a held attitude.
+        bm.setModelVisible(false);
+        bm.mesh.visible = true;
+      } else if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
         // Surface-locked bodies (rovers, landers): always show the model at full
@@ -1061,7 +1065,10 @@ export class UniverseRenderer {
     for (const sf of this.sensorFrustums.values()) {
       // A sensor is drawn only while its own body is: an instrument does not
       // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
-      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      const sensorBody = this.bodyMeshes.get(sf.body.name);
+      // Nor is a sensor drawn while its spacecraft's supplied attitude is missing.
+      const carrier = sf.body.parentName ? this.bodyMeshes.get(sf.body.parentName) : undefined;
+      sf.present = (sensorBody?.present ?? true) && sensorBody?.attitudeAvailable !== false && carrier?.attitudeAvailable !== false;
       if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).

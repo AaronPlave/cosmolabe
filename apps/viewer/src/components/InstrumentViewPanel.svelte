@@ -148,10 +148,10 @@
   .feed.sized {
     flex: none;
     aspect-ratio: var(--feed-aspect);
-    max-height: 60vh;
+    max-height: 60cqh;
   }
   @media (max-width: 767px) {
-    .feed.sized { max-height: 30vh; }
+    .feed.sized { max-height: 30cqh; }
   }
   canvas {
     position: absolute;

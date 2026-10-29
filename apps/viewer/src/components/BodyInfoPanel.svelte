@@ -2,6 +2,7 @@
   import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
   import { getUniverse } from '../lib/loader';
   import type { InfoRow } from '@cosmolabe/three';
+  import type { StateAvailability } from '@cosmolabe/core';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import SurfaceAppearanceControls from './SurfaceAppearanceControls.svelte';
@@ -34,7 +35,8 @@
     const r = getRenderer();
     if (!r || !vs.selectedBodyName) return null;
     const bm = r.getBodyMesh(vs.selectedBodyName);
-    if (!bm) return null;
+    // A body with no position now keeps its last mesh position; that is not a range.
+    if (!bm || !bm.present) return null;
     return r.camera.position.distanceTo(bm.position) / r.scaleFactor;
   });
 
@@ -127,10 +129,35 @@
     if (!state) return null;
     const [x, y, z] = state.position;
     const [vx, vy, vz] = state.velocity;
+    // No state at this epoch: say nothing rather than NaN km.
+    if (![x, y, z, vx, vy, vz].every(Number.isFinite)) return null;
     const range = Math.sqrt(x * x + y * y + z * z);
     const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
     return { range, speed };
   });
+
+  /**
+   * Position and attitude availability for bodies whose state can be missing
+   * (host mission-state sources, #43's structured reasons): the same answer
+   * the scene draws from, so the panel says why the model or marker is absent.
+   */
+  let stateStatus = $derived.by(() => {
+    void vs.et;
+    const u = getUniverse();
+    const name = vs.selectedBodyName;
+    const body = name ? u?.getBody(name) : undefined;
+    if (!u || !name || !body) return null;
+    const s = u.stateAvailability(name, vs.et);
+    const aware = !!body.trajectory.availabilityAt || !!body.rotation?.availabilityAt;
+    if (!aware && s.position.available && s.attitude?.available !== false) return null;
+    return s;
+  });
+
+  function availabilityText(a: StateAvailability): string {
+    if (!a.available) return a.message ?? 'Unavailable';
+    const kind = a.classification === 'planned' ? 'Predicted' : a.classification ? a.classification[0].toUpperCase() + a.classification.slice(1) : 'Available';
+    return a.authority === 'exploratory' ? `${kind} · exploratory` : kind;
+  }
 
   // SPE angle (Sun-Probe-Earth) — comm geometry, independent of target body
   let speAngle = $derived.by(() => {
@@ -271,6 +298,20 @@
             <span class="ui-readout">{formatDist(bodyAltitudes.aboveRef)}</span>
           </div>
         {/if}
+      </div>
+    {/if}
+
+    {#if stateStatus}
+      <div class="ui-section-label mt-2 mb-1 pt-2 border-t border-border">State</div>
+      <div class="flex flex-col gap-0.5" data-state-status>
+        {#each [['Position', stateStatus.position], ['Attitude', stateStatus.attitude]] as const as [label, a] (label)}
+          {#if a}
+            <div class="ui-data-row" data-availability={a.available ? 'available' : a.reason ?? 'unavailable'}>
+              <span class="ui-label">{label}</span>
+              <span class="ui-readout {a.available ? '' : 'text-warning'}" title={a.sourceId ? `Source ${a.sourceId}` : undefined}>{availabilityText(a)}</span>
+            </div>
+          {/if}
+        {/each}
       </div>
     {/if}
 

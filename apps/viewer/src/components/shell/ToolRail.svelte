@@ -28,6 +28,7 @@
   import { copyViewLink } from '../../lib/view-link';
   import { ef } from '../../lib/event-finder.svelte';
   import { vs, cycleCamera, selectBody } from '../../lib/viewer-state.svelte';
+  import { workspace } from '../../lib/workspace.svelte';
 
   interface Props {
     probeActive: boolean;
@@ -92,18 +93,20 @@
 </script>
 
 {#snippet buttons()}
-  <button
-    class="rail-btn"
-    aria-haspopup="dialog"
-    aria-expanded={shell.catalogBrowserOpen}
-    aria-label="Open catalog"
-    title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
-    onclick={() => (shell.catalogBrowserOpen = true)}
-  >
-    <FolderOpen size={16} />
-  </button>
+  {#if workspace.ui.catalogBrowser}
+    <button
+      class="rail-btn"
+      aria-haspopup="dialog"
+      aria-expanded={shell.catalogBrowserOpen}
+      aria-label="Open catalog"
+      title={vs.catalogName ? `Open catalog (O) — current: ${vs.catalogName}` : 'Open catalog (O)'}
+      onclick={() => (shell.catalogBrowserOpen = true)}
+    >
+      <FolderOpen size={16} />
+    </button>
 
-  <div class="rail-divider" class:horizontal={compact}></div>
+    <div class="rail-divider" class:horizontal={compact}></div>
+  {/if}
 
   <button
     class="rail-btn"
@@ -157,15 +160,18 @@
     <Info size={16} />
   </button>
 
-  <button
-    class="rail-btn"
-    aria-label="Copy view link"
-    title="Copy view link"
-    disabled={shareBusy || !vs.assetsReady || vs.showLoading || ef.running || ef.restoring}
-    onclick={copyLink}
-  >
-    {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
-  </button>
+  <!-- A view link addresses this viewer's page; an embedding host's page is not one. -->
+  {#if !workspace.embedded}
+    <button
+      class="rail-btn"
+      aria-label="Copy view link"
+      title="Copy view link"
+      disabled={shareBusy || !vs.assetsReady || vs.showLoading || ef.running || ef.restoring}
+      onclick={copyLink}
+    >
+      {#if shareStatus && !shareError}<Check size={16} />{:else}<Link size={16} />{/if}
+    </button>
+  {/if}
 
   {#if !compact}
     <button
@@ -206,7 +212,7 @@
 </nav>
 
 {#if shareStatus}
-  <div class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role={shareError ? 'alert' : 'status'}>
+  <div class="shell-surface fixed left-1/2 top-3 z-40 flex max-w-[calc(100cqw-2rem)] -translate-x-1/2 items-start gap-3 rounded-md border px-3 py-2 text-[12px] text-text-secondary backdrop-blur-md" role={shareError ? 'alert' : 'status'}>
     <span class="min-w-0 break-words">{shareStatus}</span>
     <button aria-label="Dismiss link message" class="text-text-muted hover:text-text-primary" onclick={() => { shareStatus = ''; }}>&times;</button>
   </div>

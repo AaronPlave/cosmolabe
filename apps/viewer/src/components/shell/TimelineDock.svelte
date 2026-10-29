@@ -54,6 +54,7 @@
   import * as Popover from '$lib/components/ui/popover';
   import Input from '$lib/components/ui/input/input.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
+  import { layerRoot, toWorkspace, workspaceSize } from '../../lib/workspace.svelte';
 
   interface Props {
     /** Render bare, for a parent that supplies the surrounding chrome. */
@@ -308,14 +309,15 @@
     const [title, ...rest] = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
     const lines = rest.flatMap((line) => line.split(' · '));
     const half = (calloutSize.w || 200) / 2;
-    const x = Math.max(half + 8, Math.min(window.innerWidth - half - 8, timeline.anchor.x));
-    const below = timeline.anchor.y - (calloutSize.h || 60) - 8 < 8;
-    return { title, lines, x, y: below ? timeline.anchor.y + 24 : timeline.anchor.y, below, kind: hoveredEvent.kind, state: hoveredEvent.state };
+    const anchor = toWorkspace(timeline.anchor.x, timeline.anchor.y);
+    const x = Math.max(half + 8, Math.min(workspaceSize().width - half - 8, anchor.x));
+    const below = anchor.y - (calloutSize.h || 60) - 8 < 8;
+    return { title, lines, x, y: below ? anchor.y + 24 : anchor.y, below, kind: hoveredEvent.kind, state: hoveredEvent.state };
   });
 
   /** Moves an element to the end of the page, out of every clipping ancestor. */
   function portal(node: HTMLElement) {
-    document.body.appendChild(node);
+    layerRoot().appendChild(node);
     return { destroy: () => node.remove() };
   }
 
@@ -411,7 +413,7 @@
     // Desktop: above the dock and its edge handle. A phone: above the
     // floating dock (inset 8 px from the bottom).
     const bottom = shell.chromeBottom + (compact ? 16 : 20);
-    return { event, x: trackBox.left + f * trackBox.width, bottom };
+    return { event, x: toWorkspace(trackBox.left + f * trackBox.width, 0).x, bottom };
   });
 
   // ── Active events, collapsed ──
@@ -488,10 +490,10 @@
   const regionSize = $derived(
     timeline.laneHeight != null
       ? ` height: ${timeline.laneHeight}px; max-height: none;`
-      : timeline.laneFit ? ' max-height: 58vh;' : '',
+      : timeline.laneFit ? ' max-height: 58cqh;' : '',
   );
   function maxLaneHeight() {
-    return Math.round(window.innerHeight * 0.58);
+    return Math.round(workspaceSize().height * 0.58);
   }
   function onResizeStart(e: PointerEvent) {
     if (e.button !== 0 || !regionEl) return;
@@ -727,7 +729,7 @@
           {#each clock as line}<span class="clock-line">{line}</span>{/each}
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content side="top" sideOffset={8} class="w-80 max-w-[calc(100vw-16px)] p-3">
+          <Popover.Content side="top" sideOffset={8} class="w-80 max-w-[calc(100cqw-16px)] p-3">
             <div class="flex flex-col gap-2">
               <span class="ui-label">Go to time</span>
               <div class="flex gap-1.5">
@@ -955,7 +957,7 @@
     z-index: var(--tl-z-callout);
     font-family: var(--font-sans);
     width: max-content;
-    max-width: min(420px, calc(100vw - 16px));
+    max-width: min(420px, calc(100cqw - 16px));
     padding: 5px 8px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 4px;
@@ -1002,7 +1004,7 @@
      content, so the controls and clock line up with the track itself. */
   .transport.gridded {
     display: grid;
-    grid-template-columns: clamp(260px, 22vw, 320px) minmax(0, 1fr) auto;
+    grid-template-columns: clamp(260px, 22cqw, 320px) minmax(0, 1fr) auto;
     grid-template-areas:
       'controls track clock'
       'add caption .';
@@ -1086,7 +1088,7 @@
     /* Vertical swipes scroll; horizontal ones are the surface's, gaps between
        rows included. */
     touch-action: pan-y;
-    max-height: 38vh;
+    max-height: 38cqh;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1122,7 +1124,7 @@
       justify-content: center;
     }
     .lane-region {
-      max-height: 30vh;
+      max-height: 30cqh;
     }
   }
 </style>

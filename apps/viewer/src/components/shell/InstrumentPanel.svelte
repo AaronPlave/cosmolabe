@@ -33,6 +33,7 @@
     raisePanel, panelZIndex, setPanelMounted, isExpanded, toggleExpanded, type PanelKey,
   } from '../../lib/shell.svelte';
   import { moveFloat, resizeFloat, floatFromDocked, type FloatRect } from '../../lib/panel-geometry';
+  import { toWorkspace, workspaceSize } from '../../lib/workspace.svelte';
 
   interface Props {
     /**
@@ -77,7 +78,7 @@
   const rect = $derived(floating && key != null ? floatOf(key) : null);
   const expanded = $derived(expandable && key != null && isExpanded(key));
 
-  const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
+  const viewport = () => workspaceSize();
 
   /**
    * One gesture loop for both the header drag and the corner resize.
@@ -95,8 +96,9 @@
     const startX = e.clientX;
     const startY = e.clientY;
     const box = el.getBoundingClientRect();
+    const at = toWorkspace(box.left, box.top);
     const base: FloatRect = floatOf(key) ?? floatFromDocked(
-      { x: box.left, y: box.top, w: box.width, h: box.height },
+      { x: at.x, y: at.y, w: box.width, h: box.height },
       viewport(),
     );
     const panel = key;
@@ -146,9 +148,10 @@
   function undock() {
     if (key == null || !root) return;
     const box = root.getBoundingClientRect();
+    const at = toWorkspace(box.left, box.top);
     setFloat(
       key,
-      floatFromDocked({ x: box.left, y: box.top, w: box.width, h: box.height }, viewport()),
+      floatFromDocked({ x: at.x, y: at.y, w: box.width, h: box.height }, viewport()),
       viewport(),
     );
   }
@@ -167,7 +170,7 @@
       const h = minimized ? '' : ` height: ${rect.h}px;`;
       return `position: fixed; left: ${rect.x}px; top: ${rect.y}px; width: ${rect.w}px;${h} z-index: ${key != null ? panelZIndex(key) : 16}`;
     }
-    return `width: ${width}px${initialHeightVh != null && !minimized ? `; height: ${initialHeightVh}dvh` : ''}`;
+    return `width: ${width}px${initialHeightVh != null && !minimized ? `; height: ${initialHeightVh}cqh` : ''}`;
   });
 </script>
 

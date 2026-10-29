@@ -1,6 +1,7 @@
 import type { SurfaceAppearanceSettings, UniverseRenderer } from '@cosmolabe/three';
 import { excludeFromProbe, getRenderer, setProbeActive } from './viewer-state.svelte';
 import { cancelMeasurementPick } from './spatial-measurements.svelte';
+import { resettable } from './session.svelte';
 
 let owner: UniverseRenderer | null = null;
 excludeFromProbe(() => cancelAppearancePick());
@@ -11,6 +12,7 @@ export const appearancePick = $state({
   feedback: '',
   revision: 0,
 });
+resettable(appearancePick);
 
 export function startAppearancePick(bodyName: string, bound: 'minKm' | 'maxKm'): void {
   cancelAppearancePick();

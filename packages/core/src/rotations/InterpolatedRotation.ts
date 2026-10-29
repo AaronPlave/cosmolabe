@@ -98,7 +98,7 @@ export function parseQFile(text: string): OrientationRecord[] {
 }
 
 /** Spherical linear interpolation between two unit quaternions. */
-function slerp(a: Quaternion, b: Quaternion, t: number): Quaternion {
+export function slerp(a: Quaternion, b: Quaternion, t: number): Quaternion {
   // Ensure shortest path (dot product positive)
   let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
   const bSign = dot < 0 ? -1 : 1;
