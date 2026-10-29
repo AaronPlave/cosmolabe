@@ -69,6 +69,7 @@ export class Universe {
     this.frames = new FrameRegistry({
       spice,
       bodyRotation: (key) => this.bodyRotationByFrameKey(key),
+      isBodyFixedFrame: (frameName) => this.isDeclaredBodyFixedFrame(frameName),
       isBodyFixedFrame: (name) => this.isDeclaredBodyFixedFrame(name),
     });
   }
@@ -98,6 +99,13 @@ export class Universe {
     this.frameKeyIndex = undefined;
     this.bodyFixedFrameKeys = undefined;
     this.frames.invalidateBodyFrameClassification();
+  }
+
+  /** An exact rotation target is a body-fixed frame, irrespective of its SPICE name. */
+  private isDeclaredBodyFixedFrame(frameName: string): boolean {
+    const key = normalizeFrameKey(frameName);
+    return [...this.bodies.values()].some(b => b.rotation?.bodyFixedFrame &&
+      normalizeFrameKey(b.rotation.bodyFixedFrame) === key);
   }
 
   loadCatalog(json: CatalogJson, options?: { source?: string; geographicLayers?: readonly GeographicLayerLoad[] }): void {
