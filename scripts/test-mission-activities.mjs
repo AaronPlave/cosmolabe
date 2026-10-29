@@ -149,6 +149,30 @@ try {
       assert.ok(await page.getByRole('region',{name:'Selected event',exact:true}).innerText().then(t=>t.includes('duration unknown')));
     }
     await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-desktop.png`});
+    const desktopLayouts = [];
+    for(const width of [1440,1100,900]) {
+      await page.setViewportSize({width,height:900});
+      await page.waitForTimeout(150);
+      const layout = await page.evaluate(()=>{
+        const track=document.querySelector('.transport-axis .track').getBoundingClientRect();
+        return {width:innerWidth,pageWidth:document.documentElement.scrollWidth,lanes:[...document.querySelectorAll('.activity-lane.wide')].map(row=>{
+          const nav=row.querySelector('.activity-navigation').getBoundingClientRect(),plot=row.querySelector('.activity-axis').getBoundingClientRect(),r=row.getBoundingClientRect();
+          const picker=row.querySelector('.picker-trigger').getBoundingClientRect();
+          return {rowHeight:r.height,navHeight:nav.height,plotHeight:plot.height,pickerWidth:picker.width,centerError:Math.abs((nav.top+nav.bottom-plot.top-plot.bottom)/2),leftError:Math.abs(plot.left-track.left),widthError:Math.abs(plot.width-track.width),controlsFit:[...row.querySelectorAll('.activity-navigation > button')].every(el=>el.getBoundingClientRect().right<=plot.left+1)};
+        })};
+      });
+      assert.ok(layout.pageWidth<=width);
+      assert.ok(layout.lanes.length);
+      for(const lane of layout.lanes) {
+        assert.ok(lane.centerError<1 && lane.leftError<1 && lane.widthError<1,JSON.stringify(lane));
+        assert.ok(lane.controlsFit && lane.pickerWidth>=80,JSON.stringify(lane));
+        assert.ok(lane.rowHeight<=Math.max(lane.navHeight,lane.plotHeight)+5,JSON.stringify(lane));
+        if(width===1440)assert.ok(lane.navHeight<32, 'Single desktop navigation row');
+      }
+      desktopLayouts.push(layout);
+      if(width!==1440)await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-${width}.png`});
+    }
+
     await page.setViewportSize({width:390,height:844});
     await page.waitForTimeout(350); // Responsive shell replaces the dock after resize.
     await page.locator('.picker-trigger').first().scrollIntoViewIfNeeded();
@@ -183,7 +207,7 @@ try {
         return {records:4,meanMs:times.reduce((a,b)=>a+b,0)/times.length,p95Ms:times[Math.floor(times.length*.95)]};
       });
     }
-    results.cases.push({catalog,count,ids:state.ids,gpu:state.gpu,geometry});
+    results.cases.push({catalog,count,ids:state.ids,gpu:state.gpu,geometry,desktopLayouts});
     await page.setViewportSize({width:1440,height:900});
   }
   await page.setViewportSize({width:1440,height:900});

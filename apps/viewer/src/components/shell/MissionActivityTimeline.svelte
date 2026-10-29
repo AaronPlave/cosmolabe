@@ -80,7 +80,10 @@
 </script>
 
 {#if items.length}
-  <div class="activity-navigation" role="group" aria-label={`${items[0].vehicle} ${label} navigation`} data-tl-no-axis>
+  <div class="activity-lane" class:wide={expanded && wide}
+    style={expanded && wide ? `grid-template-columns: ${axis.left}px ${axis.width}px minmax(0, 1fr)` : ''}
+    data-tl-row={expanded ? `lane:activity:${items[0].vehicle}:${label}` : undefined}>
+  <div class="activity-navigation" class:narrow={expanded && wide && axis.left < 300} role="group" aria-label={`${items[0].vehicle} ${label} navigation`} data-tl-no-axis>
     <span class="vehicle" title={label === 'activity' ? 'Activities' : `${vehicleLabel} · ${heading}`}>{vehicleLabel}{label === 'activity' ? '' : ` · ${heading}`}</span>
     <button class="tl-icon-btn" aria-label={`Previous ${label}`} disabled={!previous} onclick={() => seek(previous)}><ChevronLeft size={14} /></button>
     <button bind:this={trigger} class="picker-trigger" aria-label={`Choose ${label}`} aria-haspopup="dialog" aria-expanded={pickerOpen} aria-controls={pickerId} onclick={openPicker}>
@@ -99,8 +102,6 @@
     {#if selected}<button class="tl-icon-btn" onclick={() => setScrubberWindow(...activityWindow(selected!))} aria-label={`Fit activity ${selected.name}`} title="Fit activity"><Maximize2 size={13}/></button>{/if}
   </div>
   {#if expanded}
-    <div class="activity-lane" class:wide style={wide ? `grid-template-columns: ${axis.left}px ${axis.width}px minmax(0, 1fr)` : ''} data-tl-row={`lane:activity:${items[0].vehicle}:${label}`}>
-      {#if wide}<span aria-hidden="true"></span>{/if}
       <div class="activity-axis" style={`height: ${rows * 21 + 4}px`} data-tl-plot role="group" aria-label={`${items[0].vehicle} ${label} intervals`}>
         {#each marks as { item, row, count, windowStart, windowEnd } (item.id)}
           <button class="activity-mark" class:active={vs.et >= item.start && vs.et <= item.end}
@@ -114,8 +115,8 @@
         {/each}
         {#if vs.et >= vs.scrubMin && vs.et <= vs.scrubMax}<span class="activity-playhead" style={`left: ${fraction(vs.et)}%`}></span>{/if}
       </div>
-    </div>
   {/if}
+  </div>
 {/if}
 
 <style>
@@ -133,6 +134,12 @@
   .picker-result[aria-pressed="true"] { background:var(--color-control-hover); box-shadow:inset 2px 0 var(--ev); }
   .activity-lane { padding:2px 0; font-size:11px; }
   .activity-lane.wide { display:grid; align-items:center; }
+  .wide .activity-navigation { padding:2px 6px; gap:3px; }
+  .wide .picker-trigger { flex:1; width:120px; max-width:120px; }
+  .wide .activity-navigation :global(.tl-icon-btn) { flex-shrink:0; }
+  .activity-navigation.narrow { flex-wrap:wrap; }
+  .narrow .vehicle { flex-basis:100%; max-width:none; }
+  .narrow .picker-trigger { flex:none; }
   .activity-axis { position:relative; background:rgb(255 255 255 / 3%); overflow:hidden; }
   .activity-mark { position:absolute; height:17px; background:var(--ev); opacity:.72; border-radius:2px; overflow:hidden; font-size:10px; white-space:nowrap; text-align:center; }
   .activity-mark.bounded { background:color-mix(in srgb, var(--ev) 12%, transparent); box-shadow:inset 0 -2px color-mix(in srgb, var(--ev) 55%, transparent); color:var(--color-text-secondary); }
