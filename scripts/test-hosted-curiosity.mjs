@@ -71,6 +71,7 @@ try {
   console.log('site mesh initialized');
   await page.evaluate(async () => { await window.renderer.waitForInitialAssets(); window.cosmo.setPlaying(false); });
   console.log('initial assets complete');
+  await page.getByText(source.displayNote, { exact: true }).waitFor({ state: 'visible' });
   assert.equal(await page.evaluate(() => window.cosmo.viewpoint('Mars Orbit')), true);
   await settle('Mars');
   report.gpu = await page.evaluate(() => { const gl = window.renderer.getContext().webglRenderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
@@ -157,7 +158,9 @@ try {
   await page.waitForFunction(() => window.renderer?.getBodyMesh('Mars')?.hasSurfaceTiles);
   await page.evaluate(async () => { await window.renderer.waitForInitialAssets(); window.cosmo.setPlaying(false); window.cosmo.viewpoint('Dingo Gap Daylight'); });
   await settle('Mars'); assert.deepEqual((await snapshot()).fixed, fixed); report.reloadTransformStable = true;
-  await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: `${out}/compact.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText(source.displayNote, { exact: true }).waitFor({ state: 'visible' });
+  await page.screenshot({ path: `${out}/compact.png` });
   await Promise.all(pending);
   assert.ok(report.vikingRequests > 0, 'Existing immutable Viking base must be fetched');
   for (const p of receipt.products) {

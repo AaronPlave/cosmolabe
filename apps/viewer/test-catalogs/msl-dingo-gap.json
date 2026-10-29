@@ -1,5 +1,5 @@
 {
-  "name": "MSL Curiosity at Dingo Gap",
+  "name": "Curiosity at Mars",
   "defaultGeographicNames": [
     "Mars"
   ],
@@ -14,14 +14,14 @@
     "kernels/msl/msl_tp_ops120808_iau2000_v1.tf",
     "kernels/msl/MSL_76_SCLKSCET.00012.tsc",
     "kernels/msl/msl_ls_ops120808_iau2000_v1.bsp",
-    "kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp",
     "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
     "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc",
     {
       "url": "kernels/msl/mar099s.bsp",
       "label": "Mars satellite ephemeris",
       "size": 64000000
-    }
+    },
+    "kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp"
   ],
   "items": [
     {
@@ -340,12 +340,12 @@
           "trajectoryPlot": {
             "visible": false
           },
-          "description": "Authoritative SPICE position and attitude, preserved without terrain snapping. These operational states differ from the PLACES/orbital reconstruction; apparent ground clearance is not a calibrated measurement."
+          "description": "Existing NAIF orbital-localized position SPK loaded last; original telemetry SPK retained as input and audited comparison. Original attitude and art model; no snapping or fitted offsets. Wheel-to-NAV-origin registration is not established."
         }
       ],
-      "description": "Dingo Gap is a fixed, approximate visual reconstruction. Absolute registration accuracy is unknown. Globe terrain owns picking, clearance and measurements. The SPICE rover differs from orbital localization; its pose is preserved."
+      "description": "Dingo Gap is a fixed, approximate visual reconstruction. Absolute registration accuracy is unknown. Globe terrain owns picking, clearance and measurements."
     }
   ],
-  "description": "Dingo Gap is an approximate visual reconstruction, placed once using the sample site/drive frame, PLACES localization and the MOLA areoid. Absolute registration accuracy is unknown. Globe terrain owns picking, measurements and camera clearance; mesh pixels composite over it. Curiosity keeps its authoritative SPICE pose, which differs from orbital localization; no terrain snap is applied. See docs/validation/curiosity-gale/source-registration.md.",
-  "displayNote": "Telemetry rover pose: apparent height is not measured ground clearance. Compare the orbital-localized Curiosity demo in the catalog browser."
+  "description": "Curiosity uses the existing NAIF orbital-localized position SPK with explicit priority and the original telemetry attitude. Dingo Gap registration is estimated; absolute accuracy and exact wheel-to-ground clearance are unknown. Globe terrain owns physical queries. No snapping or fitted offsets. See docs/validation/curiosity-gale/source-registration.md.",
+  "displayNote": "Orbital-localized rover position + telemetry attitude. Estimated site registration; exact wheel-to-ground clearance is not established."
 }

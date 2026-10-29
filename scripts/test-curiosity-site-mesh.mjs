@@ -9,18 +9,16 @@ const base = process.argv[2] ?? 'http://127.0.0.1:5177/';
 const out = process.argv[3] ?? 'work/curiosity-247/browser';
 await mkdir(out, { recursive: true });
 const synthetic = process.env.SITE_MESH_SYNTHETIC === '1';
-const localized = process.env.SITE_MESH_LOCALIZED === '1';
-const catalogId = localized ? 'msl-dingo-gap-localized' : 'msl-dingo-gap';
-const states = localized
-  ? { rows: JSON.parse(await readFile('docs/validation/curiosity-gale/pose-chain.json', 'utf8')).rows.map(r =>
-    ({ utc:r.utc, et:r.et, positionKm:r.localizedPositionKm, roverToBody:r.localizedRoverToBody })) }
-  : JSON.parse(await readFile('docs/validation/curiosity-gale/spice-states.json', 'utf8'));
+const catalogId = 'msl-dingo-gap';
+const states = { rows: JSON.parse(await readFile('docs/validation/curiosity-gale/pose-chain.json', 'utf8')).rows.map(r =>
+  ({ utc:r.utc, et:r.et, positionKm:r.localizedPositionKm, roverToBody:r.localizedRoverToBody })) };
+const caption = 'Orbital-localized rover position + telemetry attitude. Estimated site registration; exact wheel-to-ground clearance is not established.';
 const browser = await chromium.launch({ headless: true,
   ...(process.platform === 'darwin' ? { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
-  args: ['--enable-gpu', '--ignore-gpu-blocklist', process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader'] });
+  args: [...(process.env.CHROMIUM_HOST_RESOLVER_RULES ? [`--host-resolver-rules=${process.env.CHROMIUM_HOST_RESOLVER_RULES}`] : []), '--enable-gpu', '--ignore-gpu-blocklist', process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader'] });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
 const page = await context.newPage(); page.setDefaultTimeout(120000);
-const report = { synthetic, localized, passed: false, views: [], states: [], errors: [], requestFailures: [] };
+const report = { synthetic, positionSource: 'orbital-localized', passed: false, views: [], states: [], errors: [], requestFailures: [] };
 let sourceFault = false;
 await page.route('**/NASA-AMMOS/3DTilesSampleData/**', route => sourceFault && route.request().url().endsWith('.b3dm')
   ? route.fulfill({ status: 503, body: 'Deliberate site-mesh outage fixture' }) : route.continue());
@@ -65,9 +63,7 @@ try {
   await page.waitForFunction(() => window.renderer?.getBodyMesh('Mars')?.hasSurfaceTiles);
   await page.waitForFunction(() => window.renderer.getBodyMesh('Mars').terrainManager?.cubeImageryStats?.version);
   await page.evaluate(async () => { await window.renderer.waitForInitialAssets(); window.cosmo.setPlaying(false); });
-  await page.getByText(localized
-    ? 'Orbital-localized rover position + telemetry attitude. Estimated site registration; this view does not establish measured wheel clearance.'
-    : 'Telemetry rover pose: apparent height is not measured ground clearance. Compare the orbital-localized Curiosity demo in the catalog browser.', { exact: true }).waitFor({state:'visible'});
+  await page.getByText(caption, { exact: true }).waitFor({state:'visible'});
   report.gpu = await page.evaluate(() => { const gl = window.renderer.getContext().webglRenderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info'); return gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER); });
   const initial = await snapshot(), fixed = initial.overlays.map(o => o.fixed);
@@ -154,6 +150,7 @@ try {
     assert.ok(report.views.some(v=>v.overlays[1].models>0),'Second ENU mesh must actually load and draw');
   }
   await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(1000);
+  await page.getByText(caption, { exact: true }).waitFor({state:'visible'});
   await page.screenshot({ path: `${out}/compact.png` });
   assert.deepEqual(report.errors, []); report.passed = true;
 } finally {

@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// Read-only comparison: preserve catalog load order; evaluate a separately labeled
-// localized alternative. DAF summaries establish which SPK segments win.
+// Read-only comparison: replay the historical telemetry kernel order, then the
+// orbital-localized default. DAF summaries establish which SPK segments win.
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createSpiceEngine } from '../packages/cspice-wasm/dist/index.js';
 
 const root = 'apps/viewer/test-catalogs/kernels/';
+const catalog = JSON.parse(await readFile('apps/viewer/test-catalogs/msl-dingo-gap.json', 'utf8'));
+const localizedKernel = 'kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp';
+if (catalog.spiceKernels.at(-1) !== localizedKernel) throw new Error('Canonical Curiosity must load localized position last');
+
 const original = JSON.parse(await readFile('docs/validation/curiosity-gale/spice-states.json', 'utf8'));
 const snapshot = JSON.parse(await readFile('docs/validation/curiosity-gale/evidence/places-control-snapshot.json', 'utf8'));
 const output = process.argv[2];

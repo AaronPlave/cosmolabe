@@ -5,8 +5,10 @@ independent imagery choices, while replacing legacy quantized terrain with a
 shared Mars cube build containing a bounded Gale residual. Dingo Gap is fixed
 in `IAU_MARS` and explicitly visual-only. Read the
 [scientific registration decision](source-registration.md) before interpreting
-placement: absolute registration accuracy is unknown and the operational rover
-does not coincide with the orbital-localized reconstruction.
+placement: absolute registration accuracy and exact wheel-to-ground clearance
+are unknown. The single Curiosity demo uses the existing orbital-localized
+position SPK with original telemetry attitude; telemetry positions remain an
+audited numerical comparison.
 
 ## Published products
 
@@ -176,8 +178,8 @@ part of the data publication.
 
 ## PR #299 review acceptance
 
-The original demo preserves telemetry SPK precedence. The separately labeled
-`msl-dingo-gap-localized` catalog reorders the existing localized SPK last;
+The single `msl-dingo-gap` demo loads the existing orbital-localized SPK last,
+retaining the telemetry SPK as input and an explicit audit case;
 [pose-chain.json](pose-chain.json) and the [source report](source-registration.md)
 explain matched-epoch radial residuals and the remaining model-origin uncertainty.
 Catalog-level `displayNote` uses the existing viewport caption, reset on scene
@@ -217,12 +219,16 @@ python3 scripts/terrain/audit_curiosity_pose.py --chain "$RUN/pose-chain.json" \
 node scripts/test-sun-viewer-gpu.mjs
 node scripts/test-sun-terrain-gpu.mjs
 node scripts/test-site-mesh-depth-gpu.mjs "$RUN/occlusion"
-SITE_MESH_LOCALIZED=1 node scripts/test-curiosity-site-mesh.mjs "$VIEWER_URL" "$RUN/localized"
+SITE_MESH_SYNTHETIC=1 node scripts/test-curiosity-site-mesh.mjs "$VIEWER_URL" "$RUN/site-mesh"
 ```
 
-[Review GPU metrics](browser/review/acceptance.json) retain the oblique/near-horizon
+Historical [review GPU metrics](browser/review/acceptance.json) retain the oblique/near-horizon
 foreground-relief results and both source-solution checks. Unmodified
 [localized close-up](browser/review/localized-close-up.png),
 [compact caption](browser/review/localized-compact.png), and
 [foreground ridge](browser/review/foreground-relief.png) captures accompany them.
-Both solar scripts and the new site-depth test now run in targeted renderer CI.
+Both solar scripts and the new site-depth test run in targeted renderer CI.
+The historical metrics predate consolidation; the current site-mesh test checks
+the single catalog against all five localized position/unchanged attitude exports,
+including source failure/recovery and the compact caption. The source audit
+continues to replay the original telemetry kernel order from `spice-states.json`.

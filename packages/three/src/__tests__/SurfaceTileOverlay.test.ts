@@ -36,13 +36,16 @@ describe('fixed mission-site reconstruction placement', () => {
   it('preserves the original mission inputs and publishes the audited fixed transform', () => {
     const json = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
     const current = json('../../../../apps/viewer/test-catalogs/msl-dingo-gap.json');
-    const localized = json('../../../../apps/viewer/test-catalogs/msl-dingo-gap-localized.json');
-    expect(localized.spiceKernels.at(-1)).toContain('msl_surf_rover_loc_');
-    expect(localized.items.find((i: any) => i.name === 'Mars').geometry).toEqual(current.items.find((i: any) => i.name === 'Mars').geometry);
-    expect(localized.displayNote).toContain('Orbital-localized');
     const previous = json('../../../../docs/validation/curiosity-gale/previous-catalog.json');
     const audit = json('../../../../docs/validation/curiosity-gale/source-registration.json');
-    expect(current.spiceKernels).toEqual(previous.spiceKernels);
+    const loc = 'kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp';
+    expect(current.spiceKernels).toEqual([...previous.spiceKernels.filter((k: unknown) => k !== loc), loc]);
+    expect(current.spiceKernels).toContain('kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp');
+    expect(current.displayNote).toContain('Orbital-localized');
+    expect(current.displayNote).toContain('clearance is not established');
+    const index = json('../../../../apps/viewer/test-catalogs/index.json');
+    const entries = Array.isArray(index) ? index : index.catalogs;
+    expect(entries.filter((e: any) => e.id.startsWith('msl-dingo-gap')).map((e: any) => e.id)).toEqual(['msl-dingo-gap']);
     expect(current.defaultTime).toBe(previous.defaultTime);
     const rover = (catalog: any) => catalog.items.find((item: any) => item.name === 'Mars').items[0];
     expect(rover(current).trajectory).toEqual(rover(previous).trajectory);

@@ -80,13 +80,15 @@ then publishes ellipsoid/geodetic-normal query metadata. No unexplained
 
 ## SPICE discrepancy and physical ownership
 
-Curiosity's original trajectory, kernel order and attitude inputs remain unchanged.
+Curiosity's trajectory definition, attitude inputs and geometry remain unchanged.
+The single mission demo now loads the existing orbital-localized position SPK
+last; the original telemetry load order remains a reproducible audit case.
 The complete read-only [pose-chain audit](pose-chain.json) resolves SPK segments
 from their DAF descriptors and evaluates two source solutions at the **same five
 epochs**, including the PLACES anchor's exact SCLK. This identifies a source
 selection difference, rather than accepting the screenshot as unexplained error.
 
-The catalog's last overlapping position SPK is
+In the original telemetry audit case, the last overlapping position SPK is
 `msl_surf_rover_tlm_0449_0583_v1.bsp`. It resolves NAIF **−76** through site 25
 or 26 (`−76525`/`−76526`), then landing site `−76900`, to Mars center **499**.
 The rover/site segments use `MSL_LOCAL_LEVEL` (frame `−76910`); the landing
@@ -100,11 +102,11 @@ states or confuse Gaussian/planetodetic latitude with planetocentric latitude.
 Changing the inertial Mars pole model is not an explanation for their different
 body-fixed radial coordinates.
 
-The already supplied `msl_surf_rover_loc_0000_2003_v1.bsp` is overridden by that
-telemetry file. Its embedded NAIF pedigree explicitly identifies the PLACES
+The already supplied `msl_surf_rover_loc_0000_2003_v1.bsp` was overridden by that
+telemetry file in the original catalog. Its embedded NAIF pedigree explicitly identifies the PLACES
 `localized_interp` data view, produced July 2018. Loading that **unchanged** SPK
 last instead resolves −76 directly relative to 499 in IAU_MARS. This is a
-defensible alternative orbital-localized **position product**, not a newly
+defensible orbital-localized **position product**, not a newly
 fitted position or an independent geolocation control. The downloaded PLACES
 anchor is site 26/drive 184, sol 528, SCLK **444369371**, corresponding to
 **2014-01-30T16:05:36.470 UTC** with the supplied clock kernel. Its exact original
@@ -138,17 +140,17 @@ axes, +X forward and +Z down. The art model keeps its existing 3 m overall-size
 normalization, authored root, and `[0.7071,-0.7071,0,0]` mesh rotation, without
 `meshOffset`. Its wheel-to-NAV-origin registration has not been independently
 established, so even the localized visualization cannot measure wheel clearance.
-The rendered telemetry states/attitudes are checked against independent NAIF
+The rendered localized states/attitudes are checked against independent NAIF
 exports; the complete viewer frame chain introduces no fitted offsets.
 
-The original **Curiosity at Mars** demo preserves telemetry position priority.
-The separate **Curiosity — orbital-localized position** demo explicitly loads
-that existing localized SPK last and retains the same attitude, art model,
-mesh and terrain. Both show a persistent plain-text caption identifying the
-solution and its limits. The close-up is useful source comparison, not an
-acceptance claim of calibrated rover-on-ground alignment. Absolute accuracy
-and model-origin uncertainty remain unknown; neither demo snaps the rover or
-refits the mesh/DEM.
+The single **Curiosity at Mars** demo explicitly loads the unchanged localized
+SPK last and retains the same telemetry attitude, art model, viewpoints, mesh
+and terrain. The telemetry SPK remains an input, and the audit explicitly
+replays its original priority before evaluating the localized default at all
+five epochs. The persistent compact caption identifies the localized solution
+and its limits. Absolute accuracy and model-origin uncertainty remain unknown;
+this is not calibrated rover-on-ground alignment. No snapping or mesh/DEM refit
+is applied. There is no second shipped source-comparison catalog.
 
 The catalog declares `physicalQueryPolicy: visual-only` and
 `overlapPolicy: composite`. On the near hemisphere, loaded reconstruction
