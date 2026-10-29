@@ -64,8 +64,23 @@ describe('CommLink strategies', () => {
     expect(line(scene).visible).toBe(false);
     plugin.setContactWindows(undefined);
     const d = plugin.data;
-    if (d.authority === 'exploratory') expect(d.value.candidateWindows).toHaveLength(1);
-    else throw new Error('expected exploratory');
+    if (d.authority !== 'exploratory') throw new Error('expected exploratory');
+    expect(d.value.candidateWindows).toHaveLength(1);
+    expect(() => (d.value.candidateWindows as ContactWindow[]).push(windows[0])).toThrow();
+    expect(() => { (d.value.candidateWindows[0] as { endEt: number }).endEt = 1; }).toThrow();
+  });
+  it('hides a host link while an endpoint is absent or has no ephemeris', () => {
+    const { plugin, ctx, scene, universe } = fixture();
+    plugin.setContactWindows(supplied([{ spacecraft: 'SC', station: 'station', startEt: 0, endEt: 100 }]));
+    plugin.onBeforeRender(50, ctx);
+    expect(line(scene).visible).toBe(true); // meshes keep their last positions below
+    universe.addBody(new Body({ name: 'station', trajectory: new FixedPointTrajectory([2, 0, 0]), existsUntil: 40 }));
+    plugin.onBeforeRender(50, ctx);
+    expect(line(scene).visible).toBe(false);
+    universe.addBody(new Body({ name: 'station', trajectory: new FixedPointTrajectory([2, 0, 0]) }));
+    universe.getBody('SC')!.setTrajectory(new FixedPointTrajectory([NaN, 0, 0]));
+    plugin.onBeforeRender(50, ctx);
+    expect(line(scene).visible).toBe(false);
   });
   it('keeps an empty schedule empty and restores fallback only when removed', () => {
     const { plugin, ctx, scene } = fixture();

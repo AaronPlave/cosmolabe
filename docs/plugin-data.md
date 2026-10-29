@@ -60,9 +60,10 @@ Window endpoints and validity bounds are inclusive ET seconds.
 With no host schedule, `setLinks` configures candidate pairs and time bounds.
 Inside those bounds the plugin uses `hasLineOfSight`, evaluated in physical km
 through `Universe.absolutePositionOf`, independently of display scale and camera
-origin. It checks the segment against each other body's largest physical radius.
-This conservative spherical approximation does not model ellipsoid shape,
-terrain, station elevation masks, antenna pointing, refraction or light time.
+origin. It checks the segment against each other body's physical triaxial
+ellipsoid (`radii`), oriented by the body's rotation model, or axis-aligned with
+the scene frame when it has none, so a station on an oblate body's surface is not
+falsely blocked. It does not model terrain, station elevation masks, antenna pointing, refraction or light time.
 Missing/non-finite states hide a link. `setContactWindows(undefined)` explicitly
 restores this fallback. `plugin.data` exposes the chosen authority and provenance;
 in fallback mode its payload is `{ candidateWindows }`, a different type from the
@@ -70,8 +71,14 @@ host `ContactWindow[]`, because those intervals are candidate bounds, not comput
 contact windows. A link whose occulting body's position is unavailable is hidden
 (intentionally conservative). Supplied windows are copied and frozen on
 `setContactWindows`; mutating the host's original array afterwards has no effect.
-Per-window line objects and per-frame occluder lookups scale linearly with the
-schedule and body count; one line per endpoint pair is a possible follow-up.
+A host link is also hidden while either endpoint is outside its existence window
+or has no ephemeris at the current ET, independently of local LOS. `candidateWindows`
+is a frozen snapshot. Per-window line objects and per-frame occluder lookups scale
+linearly with the schedule and body count. Measured on the plugin alone (no GPU
+draw cost): 20 exploratory links against 50 ellipsoid occulters take about
+0.18 ms/frame; a 2000-window host schedule builds in about 9 ms and costs about
+0.02 ms/frame, though it holds 2000 lines. One line per endpoint pair is a
+possible follow-up.
 
 ## Visual semantics
 

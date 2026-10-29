@@ -46,7 +46,7 @@ export class CommLinkPlugin implements RendererPlugin {
 
   /** The current strategy's product, available to inspectors and hosts. */
   get data(): HostData<readonly ContactWindow[]> | ExploratoryData<{ readonly candidateWindows: readonly ContactWindow[] }> {
-    return this.contacts ?? exploratoryData({ candidateWindows: this.links }, {
+    return this.contacts ?? exploratoryData({ candidateWindows: Object.freeze(this.links.map(l => Object.freeze({ ...l }))) }, {
       id: 'comm-link:line-of-sight', kind: 'analysis', classification: 'exploratory',
       source: 'Viewer straight-line geometry; link intervals are candidate bounds',
     });
@@ -77,9 +77,12 @@ export class CommLinkPlugin implements RendererPlugin {
         continue;
       }
 
+      // Meshes keep their last position while a body is absent or its ephemeris
+      // has a gap, so check presence/coverage here; this is not a LOS check.
       const scBm = ctx.getBodyMesh(link.spacecraft);
       const stBm = ctx.getBodyMesh(link.station);
-      if (!scBm || !stBm) {
+      if (!scBm || !stBm || ![link.spacecraft, link.station].every(name =>
+        ctx.universe.isPresentAt(name, et) && ctx.universe.absolutePositionOf(name, et).every(Number.isFinite))) {
         line.visible = false;
         continue;
       }
