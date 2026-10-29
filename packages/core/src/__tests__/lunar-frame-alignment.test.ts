@@ -55,25 +55,45 @@ describe('DE421 lunar surface placement', () => {
     const et = spice.str2et('2028-12-15T10:04:00');
     expect(u.frames.transformRequired([1, 2, 3], LUNAR_SURFACE_FRAME, 'ECLIPJ2000', et))
       .toEqual(mat3Vec(spice.pxform(LUNAR_SURFACE_FRAME, 'ECLIPJ2000', et), [1, 2, 3]));
-    // Removing the body must not leave a cached body-fixed classification.
+    // Authoritative lunar classification does not depend on a loaded body.
     u.removeBody('Moon');
-    expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('inertial');
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('body-fixed');
     u.loadCatalog(catalog);
     expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('body-fixed');
   });
 
-  it('classifies a declared non-IAU lunar SPICE frame as body-fixed, including after catalog changes', () => {
+  it('classifies other exact rotation targets only while declared by a loaded body', () => {
     const u = new Universe(spice);
     // An unknown SPICE name must not be classified from its spelling alone.
-    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('inertial');
-    u.loadCatalog(catalog);
-    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('body-fixed');
+    const frame = 'MOON_CUSTOM_TEST';
+    expect(u.frames.get(frame)?.kind).toBe('inertial');
+    const custom: CatalogJson = { items: [{ name: 'Moon', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+      rotationModel: { type: 'Spice', bodyFrame: frame } }] };
+    u.loadCatalog(custom);
+    expect(u.frames.get(frame)?.kind).toBe('body-fixed');
     expect(u.frames.get('IAU_MOON')?.kind).toBe('body-fixed');
     expect(u.frames.get('ECLIPJ2000')?.kind).toBe('inertial');
     // Replacing the body's rotation target invalidates an earlier classification.
     u.loadCatalog({ items: [{ name: 'Moon', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
       rotationModel: { type: 'Builtin', name: 'IAU_MOON' } }] });
-    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('inertial');
+    expect(u.frames.get(frame)?.kind).toBe('inertial');
+    u.loadCatalog(custom);
+    expect(u.frames.get(frame)?.kind).toBe('body-fixed');
+    u.removeBody('Moon');
+    expect(u.frames.get(frame)?.kind).toBe('inertial');
+  });
+
+  it('classifies authoritative lunar frames independently without granting transforms or aliases', () => {
+    const registry = new FrameRegistry({ spice });
+    for (const name of ['MOON_ME', 'MOON_PA', 'MOON_ME_DE421', 'MOON_PA_DE421']) {
+      expect(registry.get(name)?.kind).toBe('body-fixed');
+      expect(registry.isResolvable(name, 0)).toBe(true);
+    }
+    expect(registry.get('MOON_UNKNOWN')?.kind).toBe('inertial');
+    expect(registry.sameFrame('MOON_ME_DE421', 'MOON_PA_DE421')).toBe(false);
+    expect(registry.sameFrame('MOON_ME', 'MOON_ME_DE421')).toBe(false);
+    expect(registry.isResolvable('MOON_PA_DE421', 1e11)).toBe(false);
+    expect(new FrameRegistry().isResolvable('MOON_PA_DE421', 0)).toBe(false);
   });
 
   it('reports surface coordinates and co-rotating speeds in the selected realization', () => {

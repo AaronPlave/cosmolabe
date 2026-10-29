@@ -210,6 +210,12 @@ export const BUILTIN_FRAMES: readonly FrameDefinition[] = [
 
 const IAU_PREFIX = 'IAU_';
 
+// Authoritative body-fixed names from NAIF's moon_080317.tf (frames 31000,
+// 31001, 31006, 31007). Classification is independent of the render target;
+// each name still resolves through its own SPICE transform, never an alias.
+// https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_080317.tf
+const LUNAR_BODY_FIXED_SPICE_FRAMES = new Set(['MOON_PA', 'MOON_ME', 'MOON_PA_DE421', 'MOON_ME_DE421']);
+
 export class FrameRegistry {
   private readonly byKey = new Map<string, FrameDefinition>();
   /** `IAU_*` and SPICE-frame definitions, synthesized on first request. */
@@ -449,11 +455,11 @@ export class FrameRegistry {
   private spiceDefinition(name: string): FrameDefinition {
     return {
       name,
-      // SPICE CK/PCK frames are not all inertial: a body's *declared* target
-      // (e.g. MOON_ME_DE421) is body-fixed even though it lacks an IAU_ prefix.
-      // Unknown SPICE frames retain the conservative inertial default; names
-      // alone never establish that a frame rotates with a particular body.
-      kind: this.isBodyFixedFrame?.(name) ? 'body-fixed' : 'inertial',
+      // Known lunar frames and a body's declared target are body-fixed even
+      // without an IAU_ prefix. Unknown names retain the inertial default;
+      // a MOON_* spelling alone establishes neither kind nor equivalence.
+      kind: LUNAR_BODY_FIXED_SPICE_FRAMES.has(normalizeFrameKey(name)) || this.isBodyFixedFrame?.(name)
+        ? 'body-fixed' : 'inertial',
       spiceName: name,
       toICRF: (et, registry) => registry.spiceToJ2000(name, et),
     };

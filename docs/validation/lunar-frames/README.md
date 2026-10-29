@@ -286,6 +286,26 @@ manifests, and reject an unknown legacy revision. The six focused suites
 passed 103 tests; full package/test/viewer/Svelte typechecks and changed-file
 lint passed.
 
+## Body-fixed classification independent of render selection
+
+The exact lunar names `MOON_PA`, `MOON_ME`, `MOON_PA_DE421` and
+`MOON_ME_DE421` are classified as body-fixed from the
+[NAIF lunar FK](https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_080317.tf)
+(frame IDs 31000, 31001, 31006, 31007), independently of the Moon's selected
+rotation target or catalog presence. This changes classification only: each
+name still requires its own SPICE transform and kernel coverage. ME, PA and
+IAU_MOON remain distinct. Unknown `MOON_*` names retain the conservative
+inertial default unless explicitly registered or selected as a loaded body's
+rotation target. Other applications can supply authoritative classifications
+with `FrameRegistry.register` and their own transform definitions.
+
+Real-kernel regressions cover classification before catalog loading and after
+removal, missing/out-of-coverage transforms, and a parked PA trajectory plotted
+in PA while the Moon renders in ME. The path stays coincident with its marker
+at epochs ten days apart, while equal native ME coordinates land elsewhere.
+The existing custom-target classification/invalidation regression is retained
+using a separate test frame.
+
 ## Independent geolocation accuracy: source evidence and acceptance
 
 The SPICE transform closure above does not validate absolute registration of
