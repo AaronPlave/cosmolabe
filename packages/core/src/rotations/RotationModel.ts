@@ -27,7 +27,7 @@ export type InertialFrameName = string;
 export interface RotationModel {
   rotationAt(et: number): Quaternion;
   readonly sourceFrame: InertialFrameName;
-  /** Exact target frame when known; never an alias for a different realization. */
+  /** Exact destination frame when known; never an alias for a different realization. */
   readonly bodyFixedFrame?: string;
 }
 

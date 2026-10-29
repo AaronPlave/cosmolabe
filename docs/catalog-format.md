@@ -235,6 +235,37 @@ its own geometry type, [`Dsk`](#dsk).
 
 Relative paths in `Mesh.source`, `Dsk.source`, a Globe's `baseMap`, `normalMap`, `displacementMap`, `bumpMap` and tile `template`/`topLayer`, `terrain.url`, `imagery[].url`, `terrain.imagery[].url`, `surfaceTiles[].url` and `Rings.texture` resolve against **the catalog file that contains them**. This matches how `require` and `spiceKernels` already resolve. A catalog at `…/scenes/main.json` that says `"source": "../models/spacecraft.glb"` loads `…/models/spacecraft.glb`, wherever the viewer itself is hosted. Absolute URLs and root-relative paths (`/tiles/`) are used as written.
 
+#### Fixed mission-site meshes (`Globe.surfaceTiles`)
+
+Each entry uses the existing 3D Tiles loader and requires `name`, `url`,
+`sourceVersion`, `registration`, source-local metre `coverage: {min:[x,y,z],
+max:[x,y,z]}`, `physicalQueryPolicy: "visual-only"` and `overlapPolicy:
+"composite"`. Optional `priority` orders coincident sites; `errorTarget` and
+`maxCacheBytes` control streaming. Multiple entries are independent.
+
+`registration` requires `version`, `bodyFixedFrame`, `provenance`, `status`
+(`estimated` or `controlled`), `uncertaintyKm` (absolute accuracy, `null` if
+unknown), and `bodyFixedKmFromLocalMeters`: a column-major affine 4×4 matrix
+mapping original local metres to declared body-fixed kilometres. Its basis must
+be rigid, right-handed and scaled by 0.001. Source axes must be established
+offline; glTF's up-axis alone does not establish planetary orientation. The
+body needs a rotation with an explicit matching destination frame. `Spice`
+rotation uses `bodyFrame`; synthetic/non-SPICE bodies may use `Fixed` rotation
+with `bodyFixedFrame` and an explicit `inertialFrame`. A frame label declares
+the axes represented by that orientation; it does not certify registration.
+An absent or mismatched destination frame is rejected. The matrix remains fixed across
+camera changes, time, terrain LOD, eviction, retries and reloads. Legacy
+`lat`/`lon`/`altitudeOffset` placement is replaced by this explicit contract.
+
+The coverage box is a display envelope, not a trusted physical mask. Loaded
+local pixels composite over near-side globe pixels and local triangles visually
+occlude models. Cube terrain remains active beneath gaps and failures and owns
+picking, measurements and clearance/navigation; local rocks and overhangs do
+not become query ground truth. No authoritative local-mesh query policy is
+implemented. See the [Dingo Gap source audit](validation/curiosity-gale/source-registration.md)
+and the [small ENU fixture](../apps/viewer/test-catalogs/fixtures/site-mesh/tileset.json)
+for two source-axis conventions and explicit uncertainty.
+
 ### `Globe.imagery`
 
 Streamed, tiled surface imagery that replaces the static `baseMap` as the camera approaches. It is independent of terrain: a Globe with `imagery` and no `terrain` draws the imagery on the body's ellipsoid, and a Globe with both drapes the same imagery over the terrain. Imagery detail is chosen from the source's own levels and the projected image size, never from the terrain mesh's LOD.
@@ -645,3 +676,5 @@ The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can 
 Catalogs **do not** embed kernel paths. SPICE kernels are loaded separately, either via drag-drop in the demo viewer or by calling `Spice.loadKernel(...)` before invoking `CatalogLoader.load(...)`. A catalog that uses `"trajectory": { "type": "Spice", … }` will fail to evaluate at render time if the required kernel hasn't been loaded — but the catalog itself parses fine.
 
 This separation lets the same catalog be reused with different kernel sets (e.g. development predicts vs. reconstructed ephemerides).
+
+The optional catalog-level `displayNote` supplies a visible plain-text scene caption. A scene load resets it; scripts can replace or clear it with `displayNote`. Use it to explain source-solution limits that affect interpretation of the displayed geometry.

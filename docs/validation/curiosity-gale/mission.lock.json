@@ -1,0 +1,930 @@
+{
+  "version": 1,
+  "kind": "locked-surface-plan",
+  "desired": {
+    "version": 1,
+    "kind": "desired-surface-plan",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "-180..180",
+      "referenceShape": {
+        "kind": "sphere",
+        "radiusKm": 3396.19
+      }
+    },
+    "layers": [
+      {
+        "id": "site",
+        "name": "Dingo Gap finite source-mask check",
+        "body": "Mars",
+        "source": "embedded",
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "dingo",
+              "properties": null,
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      137.40506940236844,
+                      -4.628743771631555
+                    ],
+                    [
+                      137.40945575963156,
+                      -4.628743771631555
+                    ],
+                    [
+                      137.40945575963156,
+                      -4.624357414368445
+                    ],
+                    [
+                      137.40506940236844,
+                      -4.624357414368445
+                    ],
+                    [
+                      137.40506940236844,
+                      -4.628743771631555
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "regions": [
+      {
+        "id": "site",
+        "feature": {
+          "layerId": "site",
+          "featureId": "string:dingo"
+        },
+        "elevation": {
+          "gsdM": 4
+        },
+        "fallback": "require-target"
+      },
+      {
+        "id": "image-gale-ctx",
+        "feature": {
+          "layerId": "site",
+          "featureId": "string:dingo"
+        },
+        "imagery": {
+          "gsdM": 25
+        },
+        "fallback": "require-target"
+      },
+      {
+        "id": "image-curiosity-hirise",
+        "feature": {
+          "layerId": "site",
+          "featureId": "string:dingo"
+        },
+        "imagery": {
+          "gsdM": 2
+        },
+        "fallback": "require-target"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "base",
+      "productId": "USGS-HRSC-MOLA-200m-v2",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "dingo",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+      },
+      "nativeGsdM": 200,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 11384463908,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        },
+        "retrieval": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif; original pixel window or original global raster; source-grid interval 200m does not establish physical accuracy"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/JPL-Caltech/USGS Astrogeology/University of Arizona; T. Parker and F. Calef III"
+      },
+      "metadata": {
+        "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 200,
+        "dataType": "Int16",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "EPSG:4326",
+        "sourceCoordinates": "planetocentric east-positive",
+        "sourceDatum": "MOLA areoid elevation",
+        "registration": {
+          "group": "HRSC-MOLA",
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "role": "raster",
+            "bytes": 11384463908,
+            "sizeEvidence": "pinned local input bytes; detail is a finite exact source window"
+          }
+        ],
+        "unknowns": [
+          "Absolute body-fixed accuracy is unknown.",
+          "The merged 1m Gale grid mixes source resolutions; native stereo source at Dingo Gap is unverified."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "dingo",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "method": "Executor checks every touched native pixel and interpolation halo; source audit checks complete 400m crop mask.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    },
+    {
+      "id": "detail",
+      "productId": "USGS-Gale-merged-DEM-v3-native-window",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "dingo",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif"
+      },
+      "nativeGsdM": 1,
+      "accuracyM": null,
+      "projection": "Mars-EQC-0-0",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 641163,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "0e82a5a8a6c1ce970ee3c1867009842f605546b7bd8f692568d2517ced7eb5c9"
+        },
+        "retrieval": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif; original pixel window or original global raster; source-grid interval 1m does not establish physical accuracy"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/JPL-Caltech/USGS Astrogeology/University of Arizona; T. Parker and F. Calef III"
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+        "confidence": "verified-mask",
+        "rasterGsdM": 1,
+        "dataType": "Float32",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric east-positive",
+        "sourceDatum": "MOLA areoid elevation",
+        "registration": {
+          "group": "Gale-controlled-mosaic-v3",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+            "role": "raster",
+            "bytes": 641163,
+            "sizeEvidence": "pinned local input bytes; detail is a finite exact source window"
+          }
+        ],
+        "unknowns": [
+          "Absolute body-fixed accuracy is unknown.",
+          "The merged 1m Gale grid mixes source resolutions; native stereo source at Dingo Gap is unverified."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "dingo",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+          "method": "Executor checks every touched native pixel and interpolation halo; source audit checks complete 400m crop mask.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    },
+    {
+      "id": "gale-ctx",
+      "productId": "gale-ctx",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "dingo",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif"
+      },
+      "nativeGsdM": 20.350352390661467,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 159473,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "3d34fbab14e535df5e2371bd2b8e7bce9c470db0cc05c1136f515ccc5ea43191"
+        },
+        "retrieval": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/JPL-Caltech/USGS Astrogeology/University of Arizona; T. Parker and F. Calef III"
+      },
+      "metadata": {
+        "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "confidence": "verified-mask",
+        "rasterGsdM": 20.350352390661467,
+        "dataType": "Byte",
+        "bands": [
+          "imagery"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "EPSG:4326",
+        "sourceCoordinates": "planetocentric east-positive",
+        "sourceDatum": "orbital mosaic directions; no elevation claim",
+        "registration": {
+          "group": "gale-ctx",
+          "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "role": "raster",
+            "bytes": 159473,
+            "sizeEvidence": "finite response inventory"
+          }
+        ],
+        "unknowns": [
+          "Absolute registration and acquisition illumination are unknown.",
+          "Available service grid interval is distinct from original instrument GSD."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "dingo",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+          "method": "All acquired original responses and full decoded masks checked by shared executor.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    },
+    {
+      "id": "curiosity-hirise",
+      "productId": "curiosity-hirise",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "dingo",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.628743771631555
+                  ],
+                  [
+                    137.40945575963156,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.624357414368445
+                  ],
+                  [
+                    137.40506940236844,
+                    -4.628743771631555
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif"
+      },
+      "nativeGsdM": 1.2718970244163417,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "bytes": 192503,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "ad88431ebcf390e9c0e7df7d310a11871e273797948fced56312e9e4961fd26a"
+        },
+        "retrieval": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png"
+      },
+      "license": {
+        "name": "NASA/USGS public domain",
+        "attribution": "NASA/JPL-Caltech/USGS Astrogeology/University of Arizona; T. Parker and F. Calef III"
+      },
+      "metadata": {
+        "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "confidence": "verified-mask",
+        "rasterGsdM": 1.2718970244163417,
+        "dataType": "Byte",
+        "bands": [
+          "imagery"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "EPSG:4326",
+        "sourceCoordinates": "planetocentric east-positive",
+        "sourceDatum": "orbital mosaic directions; no elevation claim",
+        "registration": {
+          "group": "curiosity-hirise",
+          "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+            "role": "raster",
+            "bytes": 192503,
+            "sizeEvidence": "finite response inventory"
+          }
+        ],
+        "unknowns": [
+          "Absolute registration and acquisition illumination are unknown.",
+          "Available service grid interval is distinct from original instrument GSD."
+        ],
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "dingo",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.628743771631555
+                      ],
+                      [
+                        137.40945575963156,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.624357414368445
+                      ],
+                      [
+                        137.40506940236844,
+                        -4.628743771631555
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+          "method": "All acquired original responses and full decoded masks checked by shared executor.",
+          "extent": "known-valid-subset"
+        },
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        }
+      }
+    }
+  ],
+  "selections": [
+    {
+      "regionId": "site",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 4,
+      "resampling": "cubic",
+      "transformations": [
+        {
+          "kind": "areoid-radial",
+          "outputDatum": {
+            "referenceShape": {
+              "kind": "ellipsoid",
+              "radiiKm": [
+                3396.19,
+                3396.19,
+                3376.2
+              ]
+            },
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "areoid": {
+            "label": {
+              "bytes": 3760,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+              },
+              "retrieval": "Official detached MEG016 datum asset"
+            },
+            "image": {
+              "bytes": 33177600,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+              },
+              "retrieval": "Official detached MEG016 datum asset"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "regionId": "image-gale-ctx",
+      "channel": "imagery",
+      "sourceIds": [
+        "gale-ctx"
+      ],
+      "outputGsdM": 25,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    },
+    {
+      "regionId": "image-curiosity-hirise",
+      "channel": "imagery",
+      "sourceIds": [
+        "curiosity-hirise"
+      ],
+      "outputGsdM": 2,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    }
+  ],
+  "processing": {
+    "generator": {
+      "name": "cosmolabe-surface-build",
+      "version": "1"
+    },
+    "fusion": "residual-bias-none",
+    "parameters": {
+      "profile": "bounded-real-mars",
+      "toolchain": {
+        "python": "3.14.5",
+        "gdal": "3.13.0",
+        "numpy": "2.4.6"
+      },
+      "terrain": {
+        "base": "base",
+        "detail": "detail",
+        "globalLevel": 2,
+        "regions": [
+          "gale@-4.626550593,137.407262581:3=50,4=35,5=25,6=18,7=12,8=8,9=4,10=2,11=1,12=0.6,13=0.4,14=0.3,15=0.25"
+        ],
+        "blendM": 50,
+        "fitStride": 8,
+        "fusionAsset": {
+          "bytes": 1048,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "4e2eec7251015b96e6052976d2e73a7930250bdca17692f33fdc53e1c98f4663"
+          },
+          "retrieval": "Pinned Gale residual; no bias removal"
+        },
+        "baseOverviewAsset": {
+          "bytes": 1847506216,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "e7d37b9b00c929b5495f933d4df7e4d0fd551ca6c08d838159eb6d5a8a343c75"
+          },
+          "retrieval": "Pinned global source overview"
+        }
+      },
+      "imagery": [
+        {
+          "sourceId": "gale-ctx",
+          "globalLevel": 2,
+          "regions": [
+            "gale@-4.626550593,137.407262581:3=20,4=12,5=8,6=5,7=2,8=1,9=0.5"
+          ],
+          "visible": true,
+          "opacity": 1
+        },
+        {
+          "sourceId": "curiosity-hirise",
+          "globalLevel": 2,
+          "regions": [
+            "dingo@-4.626550593,137.407262581:3=20,4=12,5=8,6=5,7=2,8=1,9=0.5,10=0.4,11=0.3,12=0.3"
+          ],
+          "visible": true,
+          "opacity": 1
+        }
+      ],
+      "gates": {
+        "maxOffsetM": 10,
+        "maxBoundaryStepM": 1,
+        "clearanceM": 50,
+        "controls": [
+          {
+            "lat": -4.681336464471799,
+            "lon": 137.40726258099997,
+            "heightM": -4912.11102390389,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.680483028101206,
+            "lon": 137.40726258099997,
+            "heightM": -4911.751414134869,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.681336507746452,
+            "lon": 137.40810886878054,
+            "heightM": -4914.7585718856135,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.68263933523597,
+            "lon": 137.40587289174843,
+            "heightM": -4913.452779296676,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.68218175447444,
+            "lon": 137.4054820453039,
+            "heightM": -4912.260997749854,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.682230290827597,
+            "lon": 137.40542822303303,
+            "heightM": -4911.884767742322,
+            "toleranceM": 1
+          },
+          {
+            "lat": -4.68222217370174,
+            "lon": 137.4053162194735,
+            "heightM": -4911.830525892128,
+            "toleranceM": 1
+          }
+        ]
+      },
+      "caveats": [
+        "Only the bounded Gale crop contributes local elevation. Jezero residuals are not reused.",
+        "The 1m source grid and 4m output target do not certify native stereo resolution or physical accuracy.",
+        "Dingo Gap is visual-only, with unknown absolute registration uncertainty. SPICE rover states are never adjusted.",
+        "Viking is independently reused from the already published immutable product; it is not rebuilt here."
+      ]
+    }
+  },
+  "output": {
+    "representation": "tiled-raster-pyramid",
+    "formatVersion": "cosmolabe-cube-1",
+    "tileSize": 1024,
+    "gutter": 2,
+    "imageryEncoding": "png",
+    "elevationEncoding": "float32"
+  },
+  "desiredIdentity": "sha256:4e40bb951006defce8162d90d570ab2746f727d1ba10bd4aaae34720d522bf94",
+  "identity": "sha256:017bfbf12e141713556067dc3172e40959d7f9ae3301b3860a7723b25360b8d3"
+}

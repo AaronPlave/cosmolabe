@@ -47,5 +47,8 @@ kernels/test-data/cassini/040909R_SCPSE_04183_04185_subset.bsp -filter -diff -me
 
 # Small reproducibility inventories must survive a plain clone and offline CI.
 docs/validation/ingenuity-jezero/evidence/*-responses.json.gz -filter -diff -merge -text
+# Bounded Curiosity source evidence and response inventories are small fixtures.
+docs/validation/curiosity-gale/evidence/*.gz -filter -diff -merge -text
+docs/validation/curiosity-gale/evidence/*.tif -filter -diff -merge -text
 # Preserve byte-exact public PDS evidence, including its original whitespace.
 docs/validation/ingenuity-jezero/evidence/flight-12-pds-label.xml -text -whitespace

@@ -38,6 +38,7 @@ import {
 } from './kernel-set';
 import {
   bindRenderer,
+  displayNote,
   unbindRenderer,
   selectAndFlyTo,
   syncBodies,
@@ -660,6 +661,8 @@ function initScene(
   // Bind reactive state
   configureMeasurementInput(renderer);
   bindRenderer(renderer, universe);
+  const caption = catalogs.at(-1)?.displayNote;
+  displayNote(typeof caption === 'string' ? caption : '');
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);
 

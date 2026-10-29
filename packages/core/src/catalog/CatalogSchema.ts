@@ -56,7 +56,7 @@ const keys = (...k: string[]): KeySet => new Set(k);
 // ── Catalog and item level ──────────────────────────────────────────────────
 
 const CATALOG_KEYS = keys(
-  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport',
+  'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport', 'displayNote',
   'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates',
   // Free text for whoever reads the file; no code interprets it.
   'description',
@@ -139,7 +139,7 @@ const ROTATION_KEYS: Record<string, KeySet> = {
     'type', 'period', 'epoch', 'meridianAngle', 'inclination', 'ascendingNode',
     'ascension', 'declination', 'inertialFrame',
   ),
-  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame'),
+  Fixed: keys('type', 'quaternion', 'inclination', 'ascendingNode', 'meridianAngle', 'inertialFrame', 'bodyFixedFrame'),
   FixedEuler: keys('type', 'sequence', 'angles', 'inertialFrame'),
   Interpolated: keys('type', 'source', 'records', 'inertialFrame'),
   Spice: keys('type', 'bodyFrame', 'inertialFrame', 'fallbackFrame'),
@@ -263,7 +263,12 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
     },
     imagery: IMAGERY,
     surfaceTiles: {
-      keys: keys('name', 'url', 'lat', 'lon', 'altitudeOffset', 'errorTarget', 'maxCacheBytes'),
+      keys: keys('name', 'url', 'sourceVersion', 'registration', 'coverage',
+        'physicalQueryPolicy', 'overlapPolicy', 'priority', 'errorTarget', 'maxCacheBytes'),
+      children: {
+        registration: { keys: keys('version', 'bodyFixedFrame', 'bodyFixedKmFromLocalMeters', 'status', 'provenance', 'uncertaintyKm') },
+        coverage: { keys: keys('min', 'max') },
+      },
     },
     surfaceLock: SURFACE_LOCK,
   },
