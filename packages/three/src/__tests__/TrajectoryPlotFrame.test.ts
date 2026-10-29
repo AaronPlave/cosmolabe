@@ -48,6 +48,17 @@ describe('explicit trajectory plot reference frames', () => {
     }
   });
 
+  it('clears a landed surface-flight trail while preserving an explicit event lead', () => {
+    const u = universe(); u.loadCatalog({ items: [{ name: 'Probe', trajectory: { type: 'FixedPoint', position: [1, 0, 0] } }] });
+    const line = new TrajectoryLine(u.getBody('Probe')!, { fixedResolver: (_name, t) => [t, t * t, 0],
+      minTime: 0, maxTime: 10, trailDuration: 86400, activeOnly: true });
+    line.update(5, 1); expect(line.visible).toBe(true); expect(line.drawnTrail().count).toBeGreaterThan(2);
+    line.update(11, 1); expect(line.visible).toBe(false); expect(line.drawnTrail().count).toBe(0);
+    line.setLeadRequest('event', { duration: 5 });
+    line.update(-1, 1); expect(line.drawnTrail().count).toBe(0); expect(line.drawnLead().count).toBeGreaterThan(0);
+    line.update(5, 1); expect(line.visible).toBe(true);
+    line.dispose();
+  });
   it('advances a short-flight cache window instead of bridging seconds of curvature with one chord', () => {
     const u=universe();u.loadCatalog({items:[{name:'Probe',trajectory:{type:'FixedPoint',position:[0,0,0]}}]});
     const resolver=(_name:string,t:number):Vec3=>[t,t*t,0];
