@@ -1,4 +1,5 @@
-/** Authored demonstration schedule, not mission operational telemetry. */
+/** Canonical authored schedule for MoonFall activities and the offline terrain
+ * bake. These demonstration routes are not mission operational telemetry. */
 export const hoppers = [
   {
     name: 'Polaris-A',

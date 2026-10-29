@@ -17,7 +17,7 @@
  * Each hopper does 3 flights over ~14 days (rest periods are for thermal /
  * power margin).
  *
- * Authoring vs runtime: scripts/data/moonfall-sorties.mjs specifies (lat, lon, altM_above_terrain)
+ * Authoring vs runtime: scripts/moonfall-schedule.mjs specifies (lat, lon, altM_above_terrain)
  * for human readability — "fly to lat X, lon Y, 80 m above the ground". The
  * build script samples the ground along each route from the Moon terrain the
  * catalog draws — the cube-sphere product pinned in
@@ -45,6 +45,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { bakeFlight, validateFlight, terrainSource, terrainDigest, sha256 } from './lib/moonfall-clearance.mjs';
+import { hoppers } from './moonfall-schedule.mjs';
+import { moonfallActivities } from './mission-activities.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-shackleton.json');
@@ -64,10 +66,6 @@ const MISSION = {
   defaultTime: '2028-12-15T10:04:00Z',
   defaultViewpoint: 'Shackleton Overview',
 };
-
-// Each waypoint: t (seconds from flight epoch), lat (deg), lon (deg), altM (meters above terrain).
-import { hoppers } from './moonfall-schedule.mjs';
-import { moonfallActivities } from './mission-activities.mjs';
 
 // --- Terrain elevation sampling --------------------------------------------
 

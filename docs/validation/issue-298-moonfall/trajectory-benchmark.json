@@ -24,5 +24,18 @@
     "cacheBuildMedianMs": 2.19662500000004,
     "cachePoints": 23141,
     "checksum": 6547798.334033522
+  },
+  "withActivities": {
+    "node": "v22.23.3",
+    "platform": "darwin/arm64",
+    "catalogBytes": 2016732,
+    "flights": 12,
+    "knots": 9608,
+    "catalogParseAndLoadMedianMs": 8.173708999999917,
+    "playback240kCallsMs": 6.829207999999994,
+    "scrubbing240kCallsMs": 9.211374999999975,
+    "cacheBuildMedianMs": 2.0117079999999987,
+    "cachePoints": 23141,
+    "checksum": 6547798.334033522
   }
 }

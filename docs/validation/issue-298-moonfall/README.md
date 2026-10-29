@@ -17,7 +17,8 @@ The eight parked arcs opt out before allocating lines or caches. Flights set
 
 ## Offline authoring and acceptance
 
-`scripts/data/moonfall-sorties.mjs` retains the original human-authored route, epochs,
+`scripts/moonfall-schedule.mjs` is the single authored schedule used by the
+activity importer and flight bake. It retains the original human-authored route, epochs,
 and AGL targets. The builder keeps the original Cartesian Hermite route's
 horizontal motion, samples it at no more than 50 m of travelled distance and
 2 s, and bakes absolute radial heights above the pinned finest CPU terrain.
@@ -100,7 +101,8 @@ visible above-ground curves and zero changed pixels for the deliberately
 below-ground camera (physical terrain occlusion). Other GPU platforms and
 mobile devices were not tested for this change.
 
-Integrated verification (2026-10-29) after rebasing onto #301:
+Integrated verification (2026-10-29) after rebasing onto current main, including
+#301 and #303 (mission activities, issue #293):
 
 - All twelve DE421 cached flights retain marker/path agreement, flight-only
   visibility, event-requested leads, and parked suppression. Real FK/PCK/SPK
@@ -116,20 +118,46 @@ Integrated verification (2026-10-29) after rebasing onto #301:
   LRO reference, terrain picking, and Shackleton/Tycho Jump/Fly navigation.
   No page, GL or hosted-network errors. See `moonfall-browser.json` and
   `lunar-integration-browser.json`.
-- 1,898 core/three tests pass (7 skipped); four MoonFall script tests pass,
+- 1,918 core/three tests pass (7 skipped); five MoonFall script tests pass,
   including all twelve pinned-field replays. Build, test/viewer typechecks,
   Svelte (zero errors/warnings), changed-file lint and diff checks pass.
 - Regeneration yields identical catalog SHA-256
-  `28c087691fdf9470a5c7d0845ae0e03b5dc09ba428bf236b3523d6ac98bab6b0`
+  `31d228c35611f3f3d2e047309b69eda42e0cc550020992f8b0c5bd8d6ca4f246`
   and report SHA-256
   `df6fdc5db8fb0d544a99b5bb0f47c8693d15561cdfd51337b1ebd0fb302f929a`.
   All arcs and the complete clearance report match the pre-integration reviewed
-  paths byte-for-byte in content; the catalog changes only frame metadata/order.
+  paths exactly. Compared with reviewed head `57797b93`, the catalog only adds
+  activity metadata; the rest of the parsed catalog is identical.
+
+## Mission activity integration
+
+The generator emits `activities: moonfallActivities()` from the same canonical
+`scripts/moonfall-schedule.mjs` used by the terrain bake. The duplicate
+`data/moonfall-sorties.mjs` was removed after comparing both authored arrays for
+exact equality. All 12 hops and 12 landing milestones retain their IDs, names,
+vehicles and semantic UTC intervals from main. The report's authored/path and
+terrain-input hashes remain unchanged. A real-SPICE unit regression compares
+every activity to its baked arc and verifies parked gaps. It allows only 10
+microseconds between UTC-to-TDB end conversion and elapsed trajectory seconds.
+
+```sh
+node scripts/test-moonfall-activities-visual.mjs http://127.0.0.1:5190/
+```
+
+Chrome / Apple M4 Max ANGLE Metal: each of the 12 hops is selected through the
+native picker and expanded interval mark, identifies the correct hopper and
+flight bounds, remains selected during 10x playback, and becomes inactive with
+zero drawn trail during the following parked interval. All checks pass with no
+page/GL errors. `activities-browser.json` and the screenshot record the results.
+The activity importer tests (5) and viewer activity tests (7) also pass.
+
+![MoonFall activity timeline after the final landing](moonfall-timeline.png)
 
 ## Trajectory performance
 
 `node scripts/benchmark-moonfall-trajectories.mjs [OUT.json]` measures the actual
-1,997,914-byte catalog, 9,608 flight knots, and all twelve path caches. On
+catalog, 9,608 flight knots, and all twelve path caches. The pre-activity
+1,997,914-byte catalog supplied the following lookup comparison. On
 Node 22.23.3 / Apple arm64, median of seven warmed trials (nine catalog loads):
 
 | Operation | Linear lookup (ms) | Binary lookup (ms) |
@@ -145,12 +173,17 @@ selection and clamped endpoints. Reverse-scrubbing tests cover all 4,097 knots
 and Hermite midpoints of an irregularly spaced path. No spatial or temporal
 clearance requirement or generated path was reduced. See `trajectory-benchmark.json`.
 
-Loaded browser navigation-to-assets-ready was 4.41 s (local Vite, local product
-files, warm OS cache; includes kernel/assets, not a network cold-load claim).
-All twelve cache-build logs total 54 ms including provenance/frame checks.
-Across 180 measured frames per mode, set-time + render CPU median/p95 was
-12.1/16.3 ms for sequential playback and 10.9/16.2 ms for random scrubbing;
-RAF interval median/p95 was 17.5/23.4 ms and 18.8/24.3 ms respectively. These
+With activities integrated, the catalog is 2,016,732 bytes. A fresh Node run
+measures 8.17 ms parse/load, 6.83/9.21 ms sequential/shuffled 240k samples, and
+2.01 ms to build all caches; the cache count and checksum remain identical.
+See `trajectory-benchmark.json` (`withActivities`).
+
+Latest loaded-browser navigation-to-assets-ready was 5.30 s (local Vite, local
+product files, warm OS cache; includes kernels/assets, not a network cold-load
+claim). All twelve cache-build logs total 53 ms including provenance/frame
+checks. Across 180 measured frames per mode, set-time + render CPU median/p95
+was 11.6/15.3 ms for sequential playback and 10.8/16.9 ms for random scrubbing;
+RAF interval median/p95 was 17.0/21.3 ms and 18.9/27.3 ms respectively. These
 are measured workstation timings, not cross-device performance guarantees.
 
 ![Shackleton catalog preset and Surface Layers](shackleton-preset.png)

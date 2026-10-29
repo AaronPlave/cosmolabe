@@ -2,7 +2,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Universe, resolveViewpoint } from '../packages/core/dist/index.js';
-import { hoppers } from './data/moonfall-sorties.mjs';
+import { hoppers } from './moonfall-schedule.mjs';
+import { moonfallActivities } from './mission-activities.mjs';
 import { lunarTestSpice } from './lib/lunar-test-spice.mjs';
 import { bakeFlight, trajectory, terrainSource, validateFlight, sha256, segmentSteps } from './lib/moonfall-clearance.mjs';
 
@@ -15,6 +16,35 @@ const actual = catalog.items.find(i => i.name === 'Moon').items;
 const grids = process.env.MOONFALL_GRIDS ?? resolve(dataset.localDir, 'cpu-grids.json');
 
 describe('MoonFall synthetic flight clearance', () => {
+  it('keeps semantic activities aligned with all 12 baked flights and their landing boundaries', async () => {
+    expect(catalog.activities).toEqual(moonfallActivities());
+    const u = new Universe(await lunarTestSpice()); u.loadCatalog(catalog);
+    const activities = u.activities.list();
+    expect(activities.filter(a => a.kind === 'hop')).toHaveLength(12);
+    expect(activities.filter(a => a.kind === 'landing')).toHaveLength(12);
+    for (const hopper of hoppers) {
+      const body = u.getBody(hopper.name);
+      hopper.flights.forEach((flight, i) => {
+        const hop = activities.find(a => a.id === `moonfall:${hopper.name}:hop:${i + 1}`);
+        const landing = activities.find(a => a.id === `moonfall:${hopper.name}:landing:${i + 1}`);
+        const arc = body.trajectory.arcs[i * 2];
+        expect(hop).toMatchObject({ vehicle: hopper.name, name: flight.label, start: arc.startTime });
+        // Activity end is UTC converted to TDB; trajectory knots are elapsed
+        // seconds from the UTC epoch. Allow only their microsecond clock delta.
+        expect(Math.abs(hop.end - arc.trajectory.endTime)).toBeLessThan(1e-5);
+        expect(landing).toMatchObject({ vehicle: hopper.name, start: hop.end, end: hop.end, temporality: 'instant' });
+        // The semantic hop stops at landing, while the following parked arc
+        // remains usable for body playback without extending the activity.
+        expect(body.trajectory.arcAt((hop.start + hop.end) / 2)).toBe(arc);
+        if (i < 2) {
+          const parked = body.trajectory.arcs[i * 2 + 1];
+          const t = (parked.startTime + parked.endTime) / 2;
+          expect(body.trajectory.arcAt(t)).toBe(parked);
+          expect(activities.some(a => a.vehicle === hopper.name && a.kind === 'hop' && a.start <= t && a.end >= t)).toBe(false);
+        }
+      });
+    }
+  });
   it('places the named surface views above the Moon and aims at their region across epochs', async () => {
     const u = new Universe(await lunarTestSpice());
     u.loadCatalog(catalog);
