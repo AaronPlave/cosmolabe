@@ -119,6 +119,7 @@ export type {
 export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, TerrainMeshTile, TerrainTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
+export type { SiteMeshConfig, SiteMeshRegistration } from './SiteMeshPlacement.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';

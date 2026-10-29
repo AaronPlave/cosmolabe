@@ -13,6 +13,28 @@ from cube_xyz import sample, source_pixel, validate, in_bounds, read_tile
 
 
 class CubeXYZTests(unittest.TestCase):
+    def test_finite_acquisition_clips_regional_bounds_and_keeps_sampler_halos(self):
+        import cube_imagery as cube
+        from acquire_cube_xyz import required
+        cube.R_KM = 3396.19
+        config = {'dimension': 256, 'levels': 12, 'minZoom': 4, 'bounds': [137.40, -4.63, 137.42, -4.61]}
+        tiles = cube.select_tiles(2, [])
+        keys = required(config, tiles, 1024, 2)
+        self.assertTrue(keys)
+        self.assertLess(len(keys), 200)
+        # Every source response used by the runtime's bilinear kernel near
+        # both footprint corners must be present, including the pixel halo.
+        for level in {z for z, _, _ in keys}:
+            for lon, lat in [(137.40, -4.63), (137.42, -4.61)]:
+                px, py = source_pixel(lon, lat, level, 256)
+                for dx in [0, 1]:
+                    for dy in [0, 1]:
+                        self.assertIn((level, int((np.floor(px)+dx)//256), int((np.floor(py)+dy)//256)), keys)
+        config['bounds'] = [179.99, -1, -179.99, 1]
+        wrapped = required(config, tiles, 1024, 2)
+        self.assertTrue(wrapped)
+        self.assertLess(len(wrapped), 300)
+
     def test_original_png_nodata_mask_is_preserved_without_erasing_valid_black(self):
         from cube_xyz import decode
         with tempfile.TemporaryDirectory() as folder:

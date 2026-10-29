@@ -147,7 +147,12 @@ def raster(path, radius, source, global_base=False):
     assert srs, 'raster has no CRS'
     assert abs(srs.GetSemiMajor() - radius) < 1e-4 and srs.GetInvFlattening() == 0, 'source reference shape differs from lock'
     assert (source['projection'] == 'EPSG:4326') == bool(srs.IsGeographic()), 'source projection differs from lock'
-    assert ds.GetMetadataItem('AREA_OR_POINT') != 'Point', 'pixel-is-point raster is unsupported'
+    # GDAL applies GeoTIFF RasterPixelIsPoint's half-pixel tie-point correction
+    # when exposing GetGeoTransform(). All shared samplers use those pixel
+    # centres (i+.5,j+.5), for Area and Point alike. Retain the original tag and
+    # samples; never relabel the source or apply a second half-pixel shift.
+    area_or_point = ds.GetMetadataItem('AREA_OR_POINT')
+    assert area_or_point in (None, 'Area', 'Point'), 'unknown source pixel interpretation'
     gt = geographic_grid(ds)
     assert gt[1] > 0 and gt[5] < 0 and gt[2] == gt[4] == 0, 'requires north-up grid'
     if global_base:
@@ -169,7 +174,9 @@ def raster(path, radius, source, global_base=False):
     return {'width': ds.RasterXSize, 'height': ds.RasterYSize, 'validPixels': valid_count,
             'invalidPixels': ds.RasterXSize*ds.RasterYSize-valid_count, 'rasterGsdM': float(raster_gsd),
             'nativeValidSubset': valid_subset(ds, source, gt),
-            'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
+            'grid': list(gt), 'nativeGrid': list(ds.GetGeoTransform()), 'areaOrPoint': area_or_point,
+            'sampleCoordinates': 'GDAL affine pixel centres (i+0.5,j+0.5); original source tag retained',
+            'crsWkt': srs.ExportToWkt(), 'sourceSha256': sha(path), 'decodedBytes': ds.RasterXSize*ds.RasterYSize * gdal.GetDataTypeSize(b.DataType) // 8}
 
 
 def bundle(path, target, source_dir, source=None, require_distinct=False):

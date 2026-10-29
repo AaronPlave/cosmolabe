@@ -363,6 +363,7 @@ export class UniverseRenderer {
   private readonly minBodyPixels: number;
   private readonly modelSurfaceDepth = new ModelSurfaceDepth();
   private readonly overlaySurfaceDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false });
+  private readonly siteForegroundDepth = new ModelSurfaceDepth({ logarithmicDepth: true, side: THREE.DoubleSide, layer: 0, measureDistance: false, clipAtDistance: true });
   private readonly bodyMeshes = new Map<string, BodyMesh>();
   private readonly trajectoryLines = new Map<string, TrajectoryLine>();
   private readonly trajectoryPlotFrames = new WeakMap<TrajectoryLine, TrajectoryPlotFrame>();
@@ -459,7 +460,6 @@ export class UniverseRenderer {
   /** Camera pose at the last probe hover pick. */
   private readonly _probePickView = new THREE.Matrix4();
   private readonly _surfaceRaycaster = new THREE.Raycaster();
-  private readonly _surfaceTileRaycaster = new THREE.Raycaster();
   /** Label boxes the event annotation and probe callouts reserve this frame. */
   /** Boxes the probe's callouts occupied in the last frame they were placed. */
   private probeCalloutRects: ScreenRect[] = [];
@@ -1342,6 +1342,7 @@ export class UniverseRenderer {
       let hasVisibleTiles = false;
       let minTileDist = Infinity;
       let maxTileDist = 0;
+      let foregroundLimit = Infinity;
 
       for (const bm of this.bodyMeshes.values()) {
         if (!bm.hasSurfaceTiles) continue;
@@ -1355,6 +1356,8 @@ export class UniverseRenderer {
             hasVisibleTiles = true;
             if (d < minTileDist) minTileDist = d;
             if (d > maxTileDist) maxTileDist = d;
+            foregroundLimit = Math.min(foregroundLimit, overlay.foregroundDistanceTo(
+              this.camera.position, bm.position, bm.mesh.quaternion, this.scaleFactor));
           }
         }
       }
@@ -1365,12 +1368,11 @@ export class UniverseRenderer {
         const savedFar = this.camera.far;
 
         // Tight near/far for full depth precision on small surface geometry
-        this.camera.near = Math.max(1e-10, minTileDist * 0.01);
+        this.camera.near = Math.max(1e-10, Math.min(savedNear, minTileDist * 0.01));
         this.camera.far = Math.max(maxTileDist * 10, minTileDist * 1000);
         this.camera.position.set(0, 0, 0);
         this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
-
         // Apply camera-relative transforms: body center offset from saved camera pos
         for (const bm of this.bodyMeshes.values()) {
           if (!bm.hasSurfaceTiles) continue;
@@ -1383,8 +1385,23 @@ export class UniverseRenderer {
           }
         }
 
-        // Render only the tile scene (separate from main scene) with cleared depth
+        // Rebuild proven foreground planetary relief in this pass's logarithmic/CRR
+        // depth space. Only terrain beyond the nearest site envelope is cleared;
+        // close ridges must still hide distant reconstructed pixels.
         this.renderer.clearDepth();
+        const foreground: THREE.Mesh[] = [];
+        for (const bm of this.bodyMeshes.values()) {
+          if (!bm.visible) continue;
+          const collect = (group: THREE.Object3D) => group.traverseVisible(object => {
+            if ((object as THREE.Mesh).isMesh) foreground.push(object as THREE.Mesh);
+          });
+          if (bm.mesh.visible) collect(bm.mesh);
+          for (const mesh of bm.getDskMeshes()) if (mesh.visible) collect(mesh);
+          if (bm.terrainTileGroup?.visible) collect(bm.terrainTileGroup);
+        }
+        this.siteForegroundDepth.clipDistance.value = foregroundLimit;
+        this.siteForegroundDepth.update(foreground, savedPos, Infinity, savedPos);
+        this.renderer.render(this.siteForegroundDepth.scene, this.camera);
         this.renderer.render(this.tileScene, this.camera);
         this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
@@ -1395,6 +1412,9 @@ export class UniverseRenderer {
         this.camera.far = savedFar;
         this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
+        for (const bm of this.bodyMeshes.values()) {
+          if (bm.hasSurfaceTiles) bm.updateSurfaceTileTransforms();
+        }
       }
     }
 
@@ -1436,9 +1456,19 @@ export class UniverseRenderer {
       const savedNear = this.camera.near;
       const savedFar = this.camera.far;
 
-      const surfaceDistance = this.modelSurfaceDepth.update(
-        [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes()), this.camera.position, minModelDist,
-      );
+      // Visual reconstructions occlude models with their actual selected
+      // triangles, while remaining excluded from every physical query API.
+      const modelOccluders = [...this.bodyMeshes.values()].flatMap(bm => bm.getDskMeshes());
+      for (const bm of this.bodyMeshes.values()) {
+        for (const overlay of bm.getSurfaceOverlays()) {
+          if (!overlay.group.visible) continue;
+          overlay.group.traverseVisible(object => {
+            const mesh = object as THREE.Mesh;
+            if (mesh.isMesh) modelOccluders.push(mesh);
+          });
+        }
+      }
+      const surfaceDistance = this.modelSurfaceDepth.update(modelOccluders, this.camera.position, minModelDist);
       // Include foreground physical plates in the tight linear depth range.
       this.camera.near = Math.max(1e-15, Math.min(minModelDist, surfaceDistance) * 0.1);
       this.camera.far = Math.max(maxModelDist * 10, minModelDist * 100);
@@ -2785,10 +2815,9 @@ export class UniverseRenderer {
 
   /**
    * Whether rendered surface lies between the camera and the pinned point:
-   * a ray from the camera to the pin, against the same globes, terrain and
-   * overlays the probe picks from, so a ridge hides it and terrain rising
-   * into view past the horizon does not. Overlays draw over the main scene,
-   * so where the ray meets one, the overlay alone decides.
+   * a ray from the camera to the pin, against the same authoritative globes
+   * and terrain the probe picks from, so a ridge hides it and terrain rising
+   * into view past the horizon does not. Visual-only sites do not move pins.
    *
    * The pin sits on the surface as rendered (`_refinePin` re-seats it as
    * terrain refines), so only a hit within a fixed physical distance of it
@@ -2886,8 +2915,8 @@ export class UniverseRenderer {
 
   /**
    * Re-seat the pin on the surface as it is rendered now. A pin placed from
-   * far off sits on the coarse terrain loaded then; as finer tiles (or an
-   * overlay) arrive, the surface at its spot moves — by kilometres in
+   * far off sits on the coarse terrain loaded then; as finer terrain tiles
+   * arrive, the surface at its spot moves — by kilometres in
    * places — and the pin would float above it or sink into it, and read the
    * coarse height. A short radial ray through the pin finds the surface there
    * now; when it differs, the pin and its reading move to it (same place,
@@ -3048,10 +3077,10 @@ export class UniverseRenderer {
   }
 
   /**
-   * Cast `_surfaceRaycaster`'s ray against every rendered surface: globe
-   * meshes and terrain tiles in the main scene, and the camera-relative
-   * surface overlays. Returns the surface seen along it: an overlay hit wins
-   * over the main scene, because overlays draw over it.
+   * Cast against authoritative globe, DSK and rendered terrain surfaces.
+   * Site reconstructions are visual-only: their triangles must never become
+   * probe points, measurement endpoints, navigation pivots or refined pins.
+   * Visual composition and model occlusion use separate rendering passes.
    */
   private _castSurfaces(): SurfaceRayHit | null {
     const raycaster = this._surfaceRaycaster;
@@ -3090,47 +3119,6 @@ export class UniverseRenderer {
     // currently visible LOD rather than a nearer, inactive cached tile.
     const mainHits = raycaster.intersectObjects(mainTargets, true).filter(visible);
 
-    // tileScene: surface tile overlays use camera-relative rendering (CRR).
-    // Apply CRR transforms (camera at origin) before raycasting, then restore.
-    const tileRaycaster = this._surfaceTileRaycaster;
-    tileRaycaster.ray.origin.copy(raycaster.ray.origin).sub(this.camera.position);
-    tileRaycaster.ray.direction.copy(raycaster.ray.direction);
-    tileRaycaster.far = raycaster.far;
-    const tileTargets: THREE.Object3D[] = [];
-    const overlayBodyMap = new Map<THREE.Object3D, BodyMesh>();
-    const savedGroupState: { overlay: any; pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3 }[] = [];
-    for (const bm of this.bodyMeshes.values()) {
-      if (!reachable.has(bm)) continue;
-      for (const overlay of bm.getSurfaceOverlays()) {
-        if (overlay.group.visible) {
-          // Save current LOD transform
-          savedGroupState.push({
-            overlay,
-            pos: overlay.group.position.clone(),
-            quat: overlay.group.quaternion.clone(),
-            scale: overlay.group.scale.clone(),
-          });
-          // Apply CRR transform for raycasting
-          overlay.setCameraRelativeTransform(
-            bm.position, bm.mesh.quaternion, this.scaleFactor, this.camera.position,
-          );
-          tileTargets.push(overlay.group);
-          overlayBodyMap.set(overlay.group, bm);
-        }
-      }
-    }
-    const tileHits = tileTargets.length > 0 ? tileRaycaster.intersectObjects(tileTargets, true).filter(visible) : [];
-    // The overlay's normal is only valid under the transform it was hit with.
-    const tileNormal = tileHits[0] ? surfaceNormalWorld(tileHits[0]) : null;
-    // Restore LOD transforms
-    for (const { overlay, pos, quat, scale } of savedGroupState) {
-      overlay.group.position.copy(pos);
-      overlay.group.quaternion.copy(quat);
-      overlay.group.scale.copy(scale);
-      overlay.group.updateMatrixWorld(true);
-    }
-
-
     // Pick the closest hit
     let bestWorldPoint: THREE.Vector3 | null = null;
     let bestBm: BodyMesh | null = null;
@@ -3163,33 +3151,13 @@ export class UniverseRenderer {
       }
     }
 
-    if (tileHits.length > 0) {
-      // CRR tile hits ALWAYS take priority over globe/terrain hits.
-      // Surface tiles render on top (depth cleared), so they're what the user sees.
-      const hit = tileHits[0];
-      bestWorldPoint = hit.point.clone().add(this.camera.position);
-      bestBm = null;
-      renderedSkirt = false;
-      bestDist = hit.distance;
-      bestNormal = tileNormal;
-      source = 'surface-overlay';
-      tintHeightKm = undefined;
-      let obj: THREE.Object3D | null = hit.object;
-      while (obj) {
-        const bm = overlayBodyMap.get(obj);
-        if (bm) { bestBm = bm; break; }
-        obj = obj.parent;
-      }
-    }
-
     if (!bestWorldPoint || !bestBm) return null;
     return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm };
   }
 
   /**
-   * Surface discovery: the rendered surface under an NDC position, as a
-   * `SurfacePoint`. Globe meshes, terrain tiles and camera-relative surface
-   * overlays are all candidates; overlays win because they draw on top.
+   * Surface discovery: the authoritative surface under an NDC position, as a
+   * `SurfacePoint`. Visual-only reconstructions never participate.
    */
   private _discoverSurface(ndcX: number, ndcY: number, sampleTerrain = true): { point: SurfacePoint; cameraRangeKm: number; ray: SurfaceRayHit } | null {
     // Reused: this runs every frame the pointer moves while probing.
@@ -3250,8 +3218,7 @@ export class UniverseRenderer {
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
     // The rendered intersection is the point. Decoded CPU terrain at the
     // same place is its own record, and becomes the point's altitude only
-    // when the terrain is the surface that was hit (an overlay hit sits over
-    // the global terrain product, not on it).
+    // when the terrain is the surface that was hit.
     const terrainSample = isDsk || !sampleTerrain ? null : bm.sampleTerrainBodyFixed({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
     const resolution = resolutionAt(r, latDeg);
     // An irregular plate surface does not define a spherical altitude datum.
@@ -3625,6 +3592,8 @@ export class UniverseRenderer {
    */
   get cameraClampCorrectionKm(): number { return this._cameraClampCorrectionKm; }
   private _cameraClampCorrectionKm = 0;
+  private _pendingCubeCameraClamp: { body: BodyMesh; focus: BodyMesh; requested: THREE.Vector3;
+    clamped: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
   private clampCameraAboveSurfaces({ cubeOnly = false, resetCorrection = true }: { cubeOnly?: boolean; resetCorrection?: boolean } = {}): boolean {
     const cam = this.camera.position;
@@ -3645,6 +3614,32 @@ export class UniverseRenderer {
       ? focus.body.parentName
       : null;
 
+    // A cold cut to an absolute rover pose can encounter a coarse resident
+    // triangle kilometres above the eventual ground. Keep the camera safe
+    // while loading, then recover the requested pose if it has stayed parked.
+    // Any camera/target input cancels this reservation. Never move the rover
+    // or its site mesh, and never recover below either physical or drawn ground.
+    const pending = this._pendingCubeCameraClamp;
+    if (resetCorrection && pending) {
+      const bm = pending.body;
+      const inv = bm.mesh.quaternion.clone().invert();
+      const local = (p: THREE.Vector3) => p.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv);
+      const parked = focus === pending.focus && this.bodyMeshes.get(bm.body.name) === bm
+        && local(cam).distanceTo(pending.clamped) < 1e-7
+        && local(this.cameraController.controls.target).distanceTo(pending.target) < 1e-7;
+      if (!parked) this._pendingCubeCameraClamp = null;
+      else {
+        const p = pending.requested;
+        const nav = bm.terrainNavigationSurface({ xKm: p.x, yKm: -p.z, zKm: p.y });
+        if (nav?.radiusKm != null) {
+          const restored = p.clone().setLength(Math.max(p.length(), nav.radiusKm + MARGIN_KM));
+          cam.copy(restored).applyQuaternion(bm.mesh.quaternion).multiplyScalar(this.scaleFactor).add(bm.position);
+          pending.clamped.copy(restored);
+          if (nav.settled) this._pendingCubeCameraClamp = null;
+        }
+      }
+    }
+
     // DEBUG: enable with window.__clampDebug = true
     if (typeof window !== 'undefined' && (window as any).__clampDebug) {
       console.log(`[clamp] focus=${focus?.body.name ?? 'null'} surfaceLock=${focus?.body.geometryData?.surfaceLock ?? false} skip=${skipParentName ?? 'none'}`);
@@ -3662,6 +3657,7 @@ export class UniverseRenderer {
       // Base clamp: reference sphere
       let clampRadiusKm = bm.displayRadius;
       let hasTerrainSample = false;
+      let transientCubeClamp = false;
 
       // Terrain-aware clamp: query actual elevation at camera position
       if (bm.hasTerrain) {
@@ -3682,6 +3678,7 @@ export class UniverseRenderer {
           if (!terrainPosition) continue;
           const latDeg = terrainPosition.latDeg;
           const cubeNavigation = bm.terrainNavigationSurface(bodyFixedPoint);
+          transientCubeClamp = cubeNavigation != null && !cubeNavigation.settled;
 
           // Sample terrain every 5 frames, use cached value between samples.
           // Use terrain elevation for both positive (mountains) and negative (basins/craters)
@@ -3720,6 +3717,15 @@ export class UniverseRenderer {
       if (dist < surfaceR && (hasTerrainSample || dist >= sphereR)) {
         if (typeof window !== 'undefined' && (window as any).__clampDebug) {
           console.log(`[clamp] PUSH on ${bm.body.name}: dist=${dist.toExponential(3)} surfaceR=${surfaceR.toExponential(3)} hasTerrain=${hasTerrainSample}`);
+        }
+        if (transientCubeClamp && focus && bm.body.name === skipParentName) {
+          const inv = bm.mesh.quaternion.clone().invert();
+          const requested = cam.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv);
+          if (!this._pendingCubeCameraClamp) this._pendingCubeCameraClamp = {
+            body: bm, focus, requested, clamped: requested.clone(),
+            target: this.cameraController.controls.target.clone().sub(bm.position).divideScalar(this.scaleFactor).applyQuaternion(inv),
+          };
+          this._pendingCubeCameraClamp.clamped.copy(requested).setLength(surfaceR / this.scaleFactor);
         }
         // Push camera out to just above surface along the same direction
         this._cameraClampCorrectionKm = Math.max(this._cameraClampCorrectionKm, (surfaceR - dist) / this.scaleFactor);
@@ -3831,6 +3837,7 @@ export class UniverseRenderer {
     this.bloomEffect = null;
     this.modelSurfaceDepth.dispose();
     this.overlaySurfaceDepth.dispose();
+    this.siteForegroundDepth.dispose();
     this.renderer.dispose();
     this.events.dispose();
     for (const plugin of this.plugins) plugin.dispose?.();
@@ -4064,7 +4071,7 @@ export class UniverseRenderer {
       if (body.geometryType === 'Globe' && body.geometryData?.surfaceTiles) {
         const tiles = body.geometryData.surfaceTiles as SurfaceTileConfig[];
         for (const tileCfg of tiles) {
-          const overlay = bm.addSurfaceTiles(tileCfg, this.renderer);
+          const overlay = bm.addSurfaceTiles(tileCfg);
           this.tileScene.add(overlay.group);
 
           console.log(`[Cosmolabe] Initialized surface tiles "${tileCfg.name}" on ${body.name}`);

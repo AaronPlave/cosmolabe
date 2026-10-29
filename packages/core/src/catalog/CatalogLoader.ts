@@ -78,6 +78,8 @@ export interface CatalogJson {
   /** Viewer: geographic names initially enabled on these bodies (otherwise opt-in). */
   defaultGeographicNames?: string[];
   name?: string;
+  /** Viewer caption shown until a script replaces or clears it. */
+  displayNote?: string;
   version?: string;
   require?: string[];
   items?: CatalogItem[];
@@ -281,6 +283,8 @@ export interface RotationModelSpec {
   ascension?: number;
   declination?: number;
   bodyFrame?: string;
+  /** Fixed rotation: explicit destination axes for registered local geometry. */
+  bodyFixedFrame?: string;
   inertialFrame?: string;
   /** Spice rotation: frame to use where `bodyFrame` has no data (a CK gap), e.g. an articulated part's zero frame. */
   fallbackFrame?: string;
@@ -1479,6 +1483,7 @@ export class CatalogLoader {
           return new FixedRotation(
             [spec.quaternion[0], spec.quaternion[1], spec.quaternion[2], spec.quaternion[3]],
             sourceFrame,
+            spec.bodyFixedFrame,
           );
         }
         // Pole angles form: inclination/ascendingNode/meridianAngle (degrees)
@@ -1487,6 +1492,7 @@ export class CatalogLoader {
           (spec.ascendingNode ?? 0) * Math.PI / 180,
           (spec.meridianAngle ?? 0) * Math.PI / 180,
           sourceFrame,
+          spec.bodyFixedFrame,
         );
       }
 

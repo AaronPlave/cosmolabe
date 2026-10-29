@@ -311,6 +311,27 @@
       "localDir": "apps/viewer/test-catalogs/data/ingenuity-cube/imagery-4992e13935cc9898d6522634",
       "catalogPrefix": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/",
       "build": "4992e13935cc9898d65226349f2cf222"
+    },
+    "cube-terrain/terrain-207dcdb48c82b74acaad4fcb": {
+      "kind": "cube-terrain",
+      "name": "terrain-207dcdb48c82b74acaad4fcb",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb",
+      "catalogPrefix": "data/curiosity-cube/terrain-207dcdb48c82b74acaad4fcb/",
+      "build": "207dcdb48c82b74acaad4fcb22452b06"
+    },
+    "cube-imagery/imagery-df467b18c609f3ac702aaeaf": {
+      "kind": "cube-imagery",
+      "name": "imagery-df467b18c609f3ac702aaeaf",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf",
+      "catalogPrefix": "data/curiosity-cube/imagery-df467b18c609f3ac702aaeaf/",
+      "build": "df467b18c609f3ac702aaeaf84eb0668"
+    },
+    "cube-imagery/imagery-65a14eef13d9c08962ea5879": {
+      "kind": "cube-imagery",
+      "name": "imagery-65a14eef13d9c08962ea5879",
+      "localDir": "apps/viewer/test-catalogs/data/curiosity-cube/imagery-65a14eef13d9c08962ea5879",
+      "catalogPrefix": "data/curiosity-cube/imagery-65a14eef13d9c08962ea5879/",
+      "build": "65a14eef13d9c08962ea5879f795274b"
     }
   }
 }

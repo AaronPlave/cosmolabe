@@ -27,6 +27,8 @@ export type InertialFrameName = string;
 export interface RotationModel {
   rotationAt(et: number): Quaternion;
   readonly sourceFrame: InertialFrameName;
+  /** Explicit destination frame, required for geometry registered in named body axes. */
+  readonly bodyFixedFrame?: string;
 }
 
 /** Cosmolabe's internal canonical inertial frame — what `Universe.absolutePositionOf`

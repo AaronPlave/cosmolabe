@@ -13,16 +13,16 @@
           "Curiosity Dingo Gap"
         ],
         "sourceFields": {
-          "origin": "Reuses the existing Dingo Gap 3D Tiles overlay anchor in this scene; approximate regional context, not a rover landing position.",
-          "sceneOverlay": "Dingo Gap",
-          "accuracy": "Catalog anchor; no survey accuracy supplied."
+          "origin": "PLACES localized site 26 drive 184; matches the retained Landform local frame. Estimated visual registration; not a rover landing point.",
+          "sceneOverlay": "Dingo Gap (approximate visual reconstruction)",
+          "accuracy": "Absolute body-fixed accuracy unknown; operational relative camera checks do not certify absolute accuracy."
         }
       },
       "geometry": {
         "type": "Point",
         "coordinates": [
-          137.4417,
-          -4.5895
+          137.407262581,
+          -4.626550593
         ]
       }
     }

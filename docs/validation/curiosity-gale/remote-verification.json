@@ -1,0 +1,292 @@
+{
+  "publicationIdentity": "011ebce5f8ad09e35f8e782152812c4754d6cc489a0458894e6864b46f3b7258",
+  "baseUrl": "https://data.aaronplave.com",
+  "startedAt": "2026-10-28T13:10:55.169Z",
+  "products": [
+    {
+      "productId": "terrain-207dcdb48c82b74acaad4fcb",
+      "objects": 585,
+      "bytes": 51846127,
+      "originSamples": [
+        {
+          "origin": "https://aaronplave.com",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.com"
+        },
+        {
+          "origin": "https://aaronplave.github.io",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.github.io"
+        },
+        {
+          "origin": "http://localhost:5173",
+          "status": 200,
+          "allowOrigin": "http://localhost:5173"
+        }
+      ],
+      "coldLods": [
+        {
+          "path": "nx/0/0/0.glb",
+          "level": 0,
+          "status": 200,
+          "bytes": 160876,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a2faa7bd7503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "160876",
+            "content-type": "model/gltf-binary",
+            "date": "Wed, 28 Oct 2026 13:11:24 GMT",
+            "etag": "\"65161ae488b7ced38f6508c5feca8472\"",
+            "last-modified": "Wed, 28 Oct 2026 13:06:37 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=GEMxWbiCvAACf0qFatsk1j3tr3TlEuiPvAWSZGBSp%2FpG8rQ7AloD5fJvfNqxjE05Bn4e%2Fpwl1ITBqzD4k6sxThWBXIS4b3iDhJNnIo5%2FVeyURS2WUCDX5iuyDTUNj0r1uXAu8G%2Fc\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "nx/7/56/122.glb",
+          "level": 7,
+          "status": 200,
+          "bytes": 160908,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a2faddb8d5ec8-PDX",
+            "connection": "keep-alive",
+            "content-length": "160908",
+            "content-type": "model/gltf-binary",
+            "date": "Wed, 28 Oct 2026 13:11:26 GMT",
+            "etag": "\"a8fd6f58f8341ae038d3cdc3b2ba1dc4\"",
+            "last-modified": "Wed, 28 Oct 2026 13:06:49 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=4RXus9AWZOBHW5m%2FasUMVDLGESO74NbIs6E8rXJihkuEwb7KbujtximFGhwidLEn2YQk%2FFVFwDd3QGUzTeri%2B1gNuyl4q50tyarW3p%2Bweqxnr7IYD2kt5u%2BtSTgHI%2BcAjWfDFd71\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "nx/15/14585/31447.glb",
+          "level": 15,
+          "status": 200,
+          "bytes": 160920,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a2fbbb8aa503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "160920",
+            "content-type": "model/gltf-binary",
+            "date": "Wed, 28 Oct 2026 13:11:27 GMT",
+            "etag": "\"1cdf2e38b93133f6424053632befd2dc\"",
+            "last-modified": "Wed, 28 Oct 2026 13:06:46 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=VE0p3rvl2I3XN10Yc%2Ft2zC9LXWGb4G%2FQ8tAMli82Z5tq7lJyLjBWjfHcpXchYurJWEjJ%2FpnX5%2B7bLxFF4dskpnEC2BHHIOy4jsMy%2FUZcwlzIFNqEbC6kZT92Y5uKtBbepunpAnp1\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      ],
+      "missingStatus": 404
+    },
+    {
+      "productId": "imagery-df467b18c609f3ac702aaeaf",
+      "objects": 23,
+      "bytes": 12343371,
+      "originSamples": [
+        {
+          "origin": "https://aaronplave.com",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.com"
+        },
+        {
+          "origin": "https://aaronplave.github.io",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.github.io"
+        },
+        {
+          "origin": "http://localhost:5173",
+          "status": 200,
+          "allowOrigin": "http://localhost:5173"
+        }
+      ],
+      "coldLods": [
+        {
+          "path": "tiles/nx/0/0/0.png",
+          "level": 0,
+          "status": 200,
+          "bytes": 13898,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a2ff72fde503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "13898",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:37 GMT",
+            "etag": "\"ace6195eef6fdbfac750cef62783577a\"",
+            "last-modified": "Wed, 28 Oct 2026 13:07:52 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=4ByfIzbTMYqYDyy9a8uRJGlUNl60cX9V47IMn2aa2GrwN%2Ffdr1rsnL4xLiDYChXK4HhfyHO6PR8ehY8La9fJtw522jEgkTpJFxGQgCsLHzt3IOjxawH8Abo0Abo8xbbVrJz9Uq%2Bp\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "tiles/nx/4/6/15.png",
+          "level": 4,
+          "status": 200,
+          "bytes": 451433,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a2ff8f9c75ec8-PDX",
+            "connection": "keep-alive",
+            "content-length": "451433",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:37 GMT",
+            "etag": "\"7778534fbc58cb9e9892df6fa1c71ba8\"",
+            "last-modified": "Wed, 28 Oct 2026 13:07:54 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=8HcUE%2FPG2UtZ8ro0uvC5Sn9O4C864QPyWto6qG5r4uKM4iND0sCOYh6201%2FyMKyXLelC7IpDfPx6lyNuyWphgrpPmwhVyI1mnhLmin7xWMiy9GmNnFxZIcPVsbEJg0uAbN7CRyPo\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "tiles/nx/9/228/491.png",
+          "level": 9,
+          "status": 200,
+          "bytes": 526009,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a30021bf9503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "526009",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:38 GMT",
+            "etag": "\"e9da4981ad67d54cce8c04e44c435e30\"",
+            "last-modified": "Wed, 28 Oct 2026 13:07:56 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=c3mUm3qd6X%2B%2FcGuLp%2FeNWihJwOU49x8KQKTOdy6ecz7mnuOVSpvN1dnleeBNjzsowgd%2F6aLfNHnaj2jGsp4baIMpToM48ynCemQNlAkx%2FlQ8jCZyKaTLVB9%2FWQoQ1DceDnMPtF4g\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      ],
+      "missingStatus": 404
+    },
+    {
+      "productId": "imagery-65a14eef13d9c08962ea5879",
+      "objects": 28,
+      "bytes": 12678309,
+      "originSamples": [
+        {
+          "origin": "https://aaronplave.com",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.com"
+        },
+        {
+          "origin": "https://aaronplave.github.io",
+          "status": 200,
+          "allowOrigin": "https://aaronplave.github.io"
+        },
+        {
+          "origin": "http://localhost:5173",
+          "status": 200,
+          "allowOrigin": "http://localhost:5173"
+        }
+      ],
+      "coldLods": [
+        {
+          "path": "tiles/nx/0/0/0.png",
+          "level": 0,
+          "status": 200,
+          "bytes": 4187,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a30306a73503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "4187",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:46 GMT",
+            "etag": "\"9958b7821a36b7c159e1513ae3d48368\"",
+            "last-modified": "Wed, 28 Oct 2026 13:08:14 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=l9V%2Ffjl99wXVMGrVHEERhe7je%2F15ljxXK7FaL4P7Ge6p5stlJhqmfm9RY2npHutd2ASq3wiI38stnZbDzf0mWcmjD9%2FXzy3hhiBBqF1E4OM7N3bdhFGwPiFqZn6HHdyGbX6dDML7\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "tiles/nx/6/28/61.png",
+          "level": 6,
+          "status": 200,
+          "bytes": 397982,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a303388525ec8-PDX",
+            "connection": "keep-alive",
+            "content-length": "397982",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:46 GMT",
+            "etag": "\"a0057dcb367276c56ef9fa206b79a51d\"",
+            "last-modified": "Wed, 28 Oct 2026 13:08:17 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=BvXA7UY3616Wv0cMoxHHEordiIA%2B1o79Cd8hpjYbPTNV7d6ew460vEzt0ReV4mpXkFsy04sbKEAnar%2BiiFR51p%2BbeV53KGgbkaZJE1hJdJ%2FCUxBGl%2B3Au%2BKAYwvBPX6Rb4EjOBz5\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        },
+        {
+          "path": "tiles/nx/12/1823/3931.png",
+          "level": 12,
+          "status": 200,
+          "bytes": 743398,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "https://aaronplave.com",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "MISS",
+            "cf-ray": "a51a30387d81503f-PDX",
+            "connection": "keep-alive",
+            "content-length": "743398",
+            "content-type": "image/png",
+            "date": "Wed, 28 Oct 2026 13:11:47 GMT",
+            "etag": "\"2e1a41a4c6be98066e5ec9f10fff5b3e\"",
+            "last-modified": "Wed, 28 Oct 2026 13:08:23 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=jWd6sw6MqET1KWvBDKZPeZx%2FdHwdFNWBdn1KeWr2%2BdU29bicly0KPKY7JvgVAl1rjFJ4UvLE%2F1sMyCedd3TRT7XmjxITKwOsY%2BmQUDZj4E1bfMYk2oPHKmxaDIDLwUcJKOFC%2BYft\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      ],
+      "missingStatus": 404
+    }
+  ],
+  "transportRetries": [],
+  "passed": true,
+  "finishedAt": "2026-10-28T13:11:48.710Z"
+}
