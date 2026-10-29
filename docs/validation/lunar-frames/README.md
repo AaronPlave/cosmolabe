@@ -30,6 +30,31 @@ transform agreement. In particular, uncontrolled imagery, residual fusion,
 source resolution, raster interpolation and the two lunar ephemeris releases
 must not be folded into the numerical closure bound below.
 
+## Accuracy evidence and acceptance boundary
+
+The source products have **documented, nonzero** uncertainty, but a single
+absolute registration bound for this exact fused terrain and WAC/NAC composite
+has **not** been demonstrated. Do not substitute a coordinate-transform closure
+number for that bound.
+
+| Evidence | What the published number actually establishes |
+| --- | --- |
+| [NASA PGDA south-pole LOLA mosaic](https://pgda.gsfc.nasa.gov/products/81) | Its 87–90°S mosaic is supplied in DE421 mean-Earth X/Y. Its **30–55 cm typical RMS** is a *mosaic-to-constituent-field residual* after alignment/blending, **not** finished absolute horizontal accuracy. |
+| [NASA PGDA individual high-resolution LOLA fields](https://pgda.gsfc.nasa.gov/products/78) | Reported adjusted-track geolocation uncertainty of **~10–20 cm horizontal, ~2–4 cm vertical** over the individually studied regions. These are not bounds for globally fused or interpolated grid cells. |
+| [USGS WAC global morphology mosaic](https://astrogeology.usgs.gov/search/map/moon_lro_lroc_wac_global_morphology_mosaic_100m) | The source is a **100 m/pixel mosaic**, with different map-control sources at high and low latitudes; pixel spacing alone is not position accuracy. |
+| [USGS lunar foundational-product inventory](https://fdp.astrogeology.usgs.gov/fdp/moon/) | Lists the *uncontrolled* WAC orthomosaic with an approximately **45 m** lateral figure; it is an inventory-level source qualification, not a bound on the controlled NAC overlay or finished composite. |
+
+For operational acceptance, independently check the **exact immutable output
+revisions** against independently surveyed/controlled points across polar and
+non-polar regions, including imagery seams and terrain blend boundaries. Record
+control-source identity, frame/epoch, coverage and uncertainty, horizontal and
+vertical residual distributions, interpolation/fusion error and withheld
+locations with no independent control. Maintain distinct bounds for terrain,
+WAC imagery and NAC imagery rather than taking a minimum or averaging them.
+If that validation cannot be run, the finite end-to-end bound remains
+**unknown**, not zero; preserve the unverified status of #238. The existing
+SPICE numerical closure and source-product statistics cannot satisfy it.
+
 ## Reproduction and results
 
 ```sh
