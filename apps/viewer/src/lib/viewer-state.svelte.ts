@@ -24,7 +24,8 @@ import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
 import { navigateToPlace, selectPlace, viewportPlace } from './places';
 import { setCatalogActivities } from './analysis.svelte';
-import { trajectoryIntervalEvent, trajectoryIntervals } from './trajectory-timeline';
+import { activityEvent } from './mission-activities';
+import type { MissionActivity } from '@cosmolabe/core';
 
 // ── Exported types ──
 
@@ -92,6 +93,8 @@ export const vs = $state({
 
   // Scene
   bodies: [] as BodyEntry[],
+  activities: [] as MissionActivity[],
+  activityMetadataAvailable: false,
   kernelCount: 0,
 
   // Display
@@ -478,6 +481,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
   _renderer = renderer;
   _universe = universe;
+  if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
   vs.catalogName = vs.loadingCatalog || null;
   const syncPlaces = () => {
     vs.places = renderer.placeNames?.index ?? null;
@@ -618,6 +622,9 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
 }
 
 export function unbindRenderer() {
+  vs.activities = [];
+  vs.activityMetadataAvailable = false;
+  setCatalogActivities([]);
   for (const unsub of _unsubscribers) unsub();
   _unsubscribers = [];
   _renderer = null;
@@ -1749,5 +1756,11 @@ export function syncBodies(universe: Universe) {
   emit('load', vs.bodies.map(b => b.name));
   // Scene listeners first invalidate the old catalog's searches/selection.
   // Publish this catalog's activities afterwards so that reset cannot erase them.
-  setCatalogActivities(trajectoryIntervals(allBodies).map(trajectoryIntervalEvent));
+  syncActivities(universe);
+}
+
+function syncActivities(universe: Universe) {
+  vs.activities = [...universe.activities.list()];
+  vs.activityMetadataAvailable = universe.activities.available;
+  setCatalogActivities(vs.activities.map(activityEvent));
 }

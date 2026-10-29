@@ -19,6 +19,7 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
@@ -156,6 +157,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
   };
 
   return {
+    listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
+    getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    selectActivity, seekActivity, navigateActivity,
     // ── Write: scene setup ──
     gotoObject: (name, opts) =>
       gotoObject(name, { animate: opts?.seconds !== undefined, duration: opts?.seconds }),

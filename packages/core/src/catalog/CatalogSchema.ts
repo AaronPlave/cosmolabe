@@ -57,7 +57,7 @@ const keys = (...k: string[]): KeySet => new Set(k);
 
 const CATALOG_KEYS = keys(
   'name', 'version', 'require', 'items', 'spiceKernels', 'spkImport', 'displayNote',
-  'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates',
+  'activities', 'defaultTime', 'defaultViewpoint', 'defaultGeographicNames', 'frames', 'geographicLayers', 'geographicCoordinates',
   // Free text for whoever reads the file; no code interprets it.
   'description',
 );

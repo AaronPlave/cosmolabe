@@ -7,11 +7,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
-import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe } from '@cosmolabe/core';
+import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
+import { selectEvent } from '../event-finder.svelte';
+import { activityEvent } from '../mission-activities';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
@@ -21,6 +23,12 @@ import {
   unbindRenderer,
   vs,
 } from '../viewer-state.svelte';
+
+import { readFileSync } from 'node:fs';
+const readCatalog = (name: string) => JSON.parse(readFileSync(new URL(`../../../test-catalogs/${name}.json`, import.meta.url), 'utf8'));
+const ingenuityCatalog = readCatalog('ingenuity-jezero');
+const moonfallCatalog = readCatalog('moonfall-shackleton');
+const curiosityCatalog = readCatalog('msl-dingo-gap');
 
 // ── A renderer with no WebGL behind it ──
 
@@ -998,5 +1006,64 @@ describe('a script end to end', () => {
       execute(parse(['setFov 20', 'gotoObject Titam', 'setFov 90'].join('\n')), control),
     ).rejects.toThrow('line 2: gotoObject: no object named "Titam" (did you mean "Titan"?)');
     expect(control.getCamera().fov).toBe(20);
+  });
+});
+
+
+describe('shared activity host and script operations', () => {
+  it.each([['Ingenuity', ingenuityCatalog, 72], ['MoonFall', moonfallCatalog, 24], ['Curiosity', curiosityCatalog, 2]] as const)('reads and navigates real %s metadata independently of trajectories', async (_name, catalog, count) => {
+    vs.activities = parseMissionActivities(catalog.activities);
+    const host = createViewerControl();
+    expect(host.listActivities!()).toHaveLength(count);
+    const a = host.listActivities!()[0];
+    const epoch = renderer.timeController.et;
+    const calls = renderer.calls.length;
+    expect(host.selectActivity!(a.id)).toBe(true);
+    expect(host.getSelectedActivity!()?.id).toBe(a.id);
+    expect(renderer.timeController.et).toBe(epoch);
+    expect(renderer.calls.length).toBe(calls);
+    await execute(parse(`seekActivity "${a.id}" end`), host);
+    expect(renderer.timeController.et).toBe(a.end);
+    await execute(parse(`selectActivity "${a.id}"`), host);
+    expect(host.getActivity!(a.id)?.provenance.source).toBe(a.provenance.source);
+    const selectedBody = vs.selectedBodyName;
+    selectEvent(activityEvent(vs.activities[0]));
+    expect(vs.selectedBodyName).toBe(selectedBody);
+    expect(host.getSelectedActivity!()?.id).toBe(a.id);
+    expect(host.listActivities!({ vehicle: a.vehicle, kind: a.kind }).every(x => x.vehicle === a.vehicle)).toBe(true);
+    // Caller mutations cannot corrupt the catalog snapshot.
+    (host.getActivity!(a.id) as { name: string }).name = 'mutated';
+    expect(host.getActivity!(a.id)?.name).toBe(a.name);
+    unbindRenderer();
+    expect(host.listActivities!()).toEqual([]);
+    expect(host.selectActivity!(a.id)).toBe(false);
+    expect(host.seekActivity!(a.id)).toBe(false);
+    await expect(execute(parse(`seekActivity "${a.id}"`), host)).rejects.toThrow(/no activity/);
+  });
+  it('filters concurrent vehicles, handles ties/instant milestones and preserves the selected ID across playback', () => {
+    const source = parseMissionActivities(moonfallCatalog.activities);
+    const first = source[0];
+    vs.activities = parseMissionActivities([
+      { ...first, timeSystem: 'ET', id: 'a', kind: 'flight', vehicle: 'Aircraft' },
+      { ...first, timeSystem: 'ET', id: 'b', kind: 'drive', vehicle: 'Rover' },
+      { ...first, timeSystem: 'ET', id: 'c', kind: 'landing', temporality: 'instant', start: first.end, end: first.end },
+    ]);
+    const host = createViewerControl();
+    host.selectActivity!('a');
+    expect(host.navigateActivity!('next')).toBe(true);
+    expect(host.getSelectedActivity!()?.id).toBe('b');
+    expect(host.navigateActivity!('next', { vehicle: 'Aircraft' })).toBe(true);
+    expect(host.getSelectedActivity!()?.id).toBe('a');
+    host.selectActivity!('c'); host.seekActivity!('c', 'end');
+    expect(renderer.timeController.et).toBe(first.end);
+    host.setTimeRate(-1); host.setPlaying(true);
+    expect(host.getSelectedActivity!()?.id).toBe('c');
+    expect(host.navigateActivity!('next', { vehicle: 'missing' })).toBe(false);
+    vs.activities = vs.activities.map(a => a.id === 'c' ? { ...a, enabled: false } : a);
+    expect(host.selectActivity!('c')).toBe(false);
+    expect(host.seekActivity!('c')).toBe(false);
+    const before = renderer.timeController.et;
+    expect(host.seekActivity!('stale')).toBe(false);
+    expect(renderer.timeController.et).toBe(before);
   });
 });

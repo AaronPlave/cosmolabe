@@ -109,7 +109,7 @@ export interface ScriptCompletion {
   readonly insert: string;
   /** What the list shows. */
   readonly label: string;
-  readonly kind: 'verb' | 'object' | 'viewpoint' | 'value';
+  readonly kind: 'verb' | 'object' | 'viewpoint' | 'activity' | 'value';
   /** The verb's usage line, or the parameter a value is for. */
   readonly detail?: string;
   /** One-line help, for a verb. */
@@ -118,6 +118,7 @@ export interface ScriptCompletion {
 
 /** Names only the running viewer knows. */
 export interface CompletionNames {
+  readonly activities?: readonly string[];
   readonly objects?: readonly string[];
   readonly viewpoints?: readonly string[];
 }
@@ -158,6 +159,8 @@ export function completionsAt(ctx: CursorContext, names: CompletionNames = {}): 
       return ctx.quoted ? [] : values(param.values ?? [], 'value');
     case 'boolean':
       return ctx.quoted ? [] : values(BOOLEANS, 'value');
+    case 'activity':
+      return values(names.activities ?? [], 'activity');
     case 'object':
       return values(names.objects ?? [], 'object');
     case 'viewpoint':

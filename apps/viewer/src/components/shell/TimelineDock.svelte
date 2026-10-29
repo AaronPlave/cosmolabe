@@ -31,9 +31,8 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
-  import TrajectoryTimeline from './TrajectoryTimeline.svelte';
-  import { trajectoryIntervalSeries } from '../../lib/trajectory-timeline';
-  import { getUniverse } from '../../lib/loader';
+  import MissionActivityTimeline from './MissionActivityTimeline.svelte';
+  import { activitySeries } from '../../lib/mission-activities';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -124,9 +123,8 @@
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
-  const trajectoryActivities = $derived.by(() => {
-    void vs.bodies;
-    return trajectoryIntervalSeries(getUniverse()?.getAllBodies() ?? []);
+  const missionActivitySeries = $derived.by(() => {
+    return activitySeries(vs.activities);
   });
 
   // ── Transport overview ──
@@ -137,7 +135,7 @@
   // Exact distinctions are the lanes'. Past three families, bands get too
   // thin to read and the overview becomes a density instead.
   const MAX_BANDS = 3;
-  let eventMarkers = $derived.by(() => {
+  const eventGeometry = $derived.by(() => {
     const range = { start: vs.scrubMin, end: vs.scrubMax };
     const drawn = visibleTimelineEvents().flatMap((event) => {
       // Events outside the window are dropped rather than clamped to an edge,
@@ -145,7 +143,20 @@
       const span = eventTimelineFractions(event, range);
       return span ? [{ event, span }] : [];
     });
-    const families = [...new Set(drawn.map(d => d.event.queryId))];
+    // Dense mission metadata gets bounded overview representatives. Exact records
+    // remain discoverable through the native activity chooser and control port.
+    const activityBins = new Map<string, typeof drawn[number]>();
+    const ordinary = drawn.filter(d => d.event.kind !== 'mission-activity');
+    for (const d of drawn) if (d.event.kind === 'mission-activity') {
+      const bin = Math.max(0, Math.min(199, Math.floor(d.span.start * 200)));
+      const key = `${d.event.queryId}:${bin}`;
+      if (!activityBins.has(key)) activityBins.set(key, d);
+    }
+    const bounded = [...ordinary, ...activityBins.values()];
+    return { drawn: bounded, families: [...new Set(bounded.map(d => d.event.queryId))] };
+  });
+  let eventMarkers = $derived.by(() => {
+    const { drawn, families } = eventGeometry;
     return drawn.map(({ event, span }) => ({
       id: eventKey(event),
       queryId: event.queryId,
@@ -766,10 +777,8 @@
     {/if}
   </div>
 
-  {#if !expanded}
-    {#each trajectoryActivities as series (series.body)}
-      <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
-    {/each}
+  {#if !expanded && vs.activities.length}
+    <MissionActivityTimeline items={vs.activities} label="activity" {expanded} wide={wideLanes} {axis} />
   {/if}
 
   {#if expanded}
@@ -781,8 +790,9 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
-      {#each trajectoryActivities as series (series.body)}
-        <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+      {#if !vs.activities.length}<p class="px-2 py-1 text-xs text-text-secondary">{vs.activityMetadataAvailable ? 'No activities in supplied metadata' : 'No activity records supplied · operation state unknown'}</p>{/if}
+      {#each missionActivitySeries as series (series.body + series.label)}
+        <MissionActivityTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
       {/each}
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />

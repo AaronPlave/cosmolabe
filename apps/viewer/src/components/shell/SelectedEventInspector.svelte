@@ -13,6 +13,7 @@
    * page-level layer (fixed, viewport coordinates), clamped by its measured
    * width.
    */
+  import { getActivity, seekActivity } from '../../lib/activity-control';
   import type { GeometryEvent } from '@cosmolabe/core';
   import { eventDuration, eventEnd, eventStart, focusForEvent, isIntervalEvent } from '@cosmolabe/core';
   import { etToUtcString, flyToBody, hasBody } from '../../lib/viewer-state.svelte';
@@ -36,6 +37,7 @@
   let open = $state(false);
   let width = $state(0);
 
+  const activity = $derived(event.kind === 'mission-activity' ? getActivity(event.id) : undefined);
   const title = $derived(eventCalloutTitle(event));
   const headline = $derived(headlineMetric(event));
   const search = $derived(configuredItem(event.queryId)?.label);
@@ -89,16 +91,24 @@
     {#if isIntervalEvent(event)}
       <span class="stamp">{bare(eventStart(event))}</span>
       <span class="arrow">→</span>
-      <button class="stamp end" onclick={() => selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
+      <button class="stamp end" onclick={() => activity ? seekActivity(activity.id, 'end') : selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
     {:else}
       <span class="stamp">{utc(eventStart(event))}</span>
     {/if}
   </div>
   {#if isIntervalEvent(event) && !open}
-    <div class="when">Duration {formatSeconds(eventDuration(event))}</div>
+    <div class="when">{activity?.provenance.timing === 'bounded' ? 'Reported window · drive duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`}</div>
   {/if}
+  {#if activity}<div class="when">{activity.provenance.authority} · {activity.provenance.timing} timing</div>{/if}
   {#if open}
-    <div class="details"><EventDetails {event} showEnd={false} /></div>
+    <div class="details">
+      {#if activity}
+        <p>{activity.provenance.limitations}</p>
+        <p>{activity.start} → {activity.end} ET seconds past J2000</p>
+        {#if /^https?:/.test(activity.provenance.source)}<a class="link" href={activity.provenance.source} target="_blank" rel="noreferrer">Source · {activity.provenance.version}</a>
+        {:else}<p>{activity.provenance.source} · {activity.provenance.version}</p>{/if}
+      {:else}<EventDetails {event} showEnd={false} />{/if}
+    </div>
   {/if}
   <div class="actions">
     <button class="link" onclick={() => open = !open} aria-expanded={open}>

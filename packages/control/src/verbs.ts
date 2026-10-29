@@ -79,6 +79,7 @@ const LAYER_IDS = LAYERS.map((l) => l.id);
 
 export type ParamType =
   /** Names a scene object. Passed to the host verbatim. */
+  | 'activity'
   | 'object'
   /** Names a catalog viewpoint. Passed verbatim. */
   | 'viewpoint'
@@ -119,7 +120,7 @@ export interface VerbSpec {
    * What a `false` return means, so the error can suggest a real name.
    * Absent when `false` is not about a name (`setFov` out of range, say).
    */
-  readonly resolvesName?: 'object' | 'viewpoint';
+  readonly resolvesName?: 'object' | 'viewpoint' | 'activity';
   readonly presets?: readonly VerbPreset[];
   /** Table-driven dispatch. `args` are already coerced to `params`' types. */
   invoke(host: ViewerControl, args: readonly VerbValue[]): unknown;
@@ -159,6 +160,15 @@ const CIRCLE_DIRECTIONS: readonly (readonly [string, CircleDirection])[] = [
 ];
 
 export const VERB_LIST: readonly VerbSpec[] = [
+  { name: 'selectActivity', params: [{ name: 'activity', type: 'activity' }], category: 'Time', method: 'selectActivity', resolvesName: 'activity',
+    help: 'Select an activity by stable ID without seeking or moving the camera.', invoke: (h, a) => h.selectActivity!(str(a[0])) },
+  { name: 'seekActivity', params: [{ name: 'activity', type: 'activity' }, { name: 'edge', type: 'enum', values: ['start', 'end'], optional: true }],
+    category: 'Time', method: 'seekActivity', resolvesName: 'activity', help: 'Seek an activity edge; both edges of a milestone mean its one epoch.',
+    invoke: (h, a) => h.seekActivity!(str(a[0]), optStr(a[1]) as 'start' | 'end' | undefined) },
+  { name: 'navigateActivity', params: [{ name: 'direction', type: 'enum', values: ['previous', 'next'] }, { name: 'vehicle', type: 'object', optional: true }, { name: 'kind', type: 'enum', values: ['flight', 'drive', 'hop', 'descent', 'landing', 'phase', 'other'], optional: true }],
+    category: 'Time', method: 'navigateActivity', help: 'Select previous/next in start/end/ID order, optionally within a vehicle and kind. Does not seek.',
+    invoke: (h, a) => h.navigateActivity!(str(a[0]) as 'previous' | 'next', { vehicle: optStr(a[1]), kind: optStr(a[2]) }) },
+
   // ── Scene ──
   {
     name: 'gotoObject',
