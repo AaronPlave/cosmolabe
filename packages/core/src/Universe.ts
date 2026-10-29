@@ -56,6 +56,8 @@ export class Universe {
   readonly frames: FrameRegistry;
   /** Normalized body name → body, for `IAU_<BODY>` lookups; rebuilt lazily. */
   private frameKeyIndex?: Map<string, Body>;
+  /** Exact rotation-target frame names, rebuilt with the body index. */
+  private bodyFixedFrameKeys?: Set<string>;
 
   constructor(spice?: SpiceInstance, options?: UniverseOptions) {
     this.spice = spice;
@@ -67,6 +69,7 @@ export class Universe {
     this.frames = new FrameRegistry({
       spice,
       bodyRotation: (key) => this.bodyRotationByFrameKey(key),
+      isBodyFixedFrame: (name) => this.isDeclaredBodyFixedFrame(name),
     });
   }
 
@@ -79,6 +82,22 @@ export class Universe {
       }
     }
     return this.frameKeyIndex.get(key)?.rotation;
+  }
+
+  private isDeclaredBodyFixedFrame(name: string): boolean {
+    if (!this.bodyFixedFrameKeys) {
+      this.bodyFixedFrameKeys = new Set();
+      for (const body of this.bodies.values()) {
+        if (body.rotation?.bodyFixedFrame) this.bodyFixedFrameKeys.add(normalizeFrameKey(body.rotation.bodyFixedFrame));
+      }
+    }
+    return this.bodyFixedFrameKeys.has(normalizeFrameKey(name));
+  }
+
+  private invalidateBodyFrameTargets(): void {
+    this.frameKeyIndex = undefined;
+    this.bodyFixedFrameKeys = undefined;
+    this.frames.invalidateBodyFrameClassification();
   }
 
   loadCatalog(json: CatalogJson, options?: { source?: string; geographicLayers?: readonly GeographicLayerLoad[] }): void {
@@ -114,7 +133,7 @@ export class Universe {
         if (parent) parent.children.push(body);
       }
     }
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
 
     for (const vp of result.viewpoints) {
       this._viewpoints.push(vp);
@@ -147,7 +166,7 @@ export class Universe {
 
   addBody(body: Body): void {
     this.bodies.set(body.name, body);
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
     this.wireBodyChangeCallback(body);
     if (body.parentName) {
       const parent = this.bodies.get(body.parentName);
@@ -161,6 +180,7 @@ export class Universe {
       if (field === 'trajectory') {
         this.events.emit('body:trajectoryChanged', { body: b });
       } else if (field === 'rotation') {
+        this.invalidateBodyFrameTargets();
         this.events.emit('body:rotationChanged', { body: b });
       }
     };
@@ -170,7 +190,7 @@ export class Universe {
     const body = this.bodies.get(name);
     if (!body) return false;
     this.bodies.delete(name);
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
     this.events.emit('body:removed', { bodyName: name });
     return true;
   }
