@@ -44,6 +44,24 @@ describe('DE421 lunar surface placement', () => {
     }
   });
 
+  it('classifies exact non-IAU lunar rotation targets as body-fixed without aliasing IAU_MOON', () => {
+    const u = new Universe(spice);
+    u.loadCatalog(catalog);
+    const de421 = u.frames.get(LUNAR_SURFACE_FRAME)!;
+    expect(de421.kind).toBe('body-fixed');
+    expect(u.frames.get('IAU_MOON')!.kind).toBe('body-fixed');
+    expect(u.frames.sameFrame('IAU_MOON', LUNAR_SURFACE_FRAME)).toBe(false);
+    expect(u.frames.get('EME2000')!.kind).toBe('inertial');
+    const et = spice.str2et('2028-12-15T10:04:00');
+    expect(u.frames.transformRequired([1, 2, 3], LUNAR_SURFACE_FRAME, 'ECLIPJ2000', et))
+      .toEqual(mat3Vec(spice.pxform(LUNAR_SURFACE_FRAME, 'ECLIPJ2000', et), [1, 2, 3]));
+    // Removing the body must not leave a cached body-fixed classification.
+    u.removeBody('Moon');
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('inertial');
+    u.loadCatalog(catalog);
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('body-fixed');
+  });
+
   it('reports surface coordinates and co-rotating speeds in the selected realization', () => {
     const u = new Universe(spice); u.loadCatalog(catalog);
     const at = (name: string) => u.getBody(name);
