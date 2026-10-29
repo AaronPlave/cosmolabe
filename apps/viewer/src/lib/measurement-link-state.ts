@@ -83,6 +83,7 @@ function surfacePoint(value: unknown): SurfacePointAnchor {
   const point: SurfacePointAnchor = { bodyName: p.bodyName, bodyFixedPositionKm: positionVector(p.bodyFixedPositionKm), source: p.source,
     latDeg: number(p.latDeg, 90), lonDeg: number(p.lonDeg, 180), latitudeKind: p.latitudeKind,
     hit: { heightKm: hit.heightKm === null ? null : number(hit.heightKm), datum: hit.datum === null ? null : datum(hit.datum) } };
+  if (p.frame !== undefined) { check(text(p.frame), 'invalid surface frame.'); point.frame = p.frame; }
   check((hit.heightKm === null) === (hit.datum === null), 'inconsistent hit datum.');
   if (p.terrainSample !== undefined) {
     const t = object(p.terrainSample);

@@ -99,6 +99,44 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('accepts only audited legacy lunar imagery in the declared DE421 terrain frame', async () => {
+    const m = manifest(1), loader = controlledLoader();
+    const unknown = new CubeImageryLayer({ url: 'http://test/imagery.json' }, { frame: 'MOON_ME_DE421', fetchManifest: async () => m, loadTexture: loader.loadTexture });
+    await expect(unknown.ready).rejects.toThrow(/does not match terrain frame/); unknown.dispose();
+    m.source.version = 'cube-imagery-composite-3f34a19541af7710';
+    const audited = new CubeImageryLayer({ url: 'http://test/imagery.json' }, { frame: 'MOON_ME_DE421', fetchManifest: async () => m, loadTexture: loader.loadTexture });
+    await audited.ready;
+    expect(m.registration.crsId).toBe('cosmolabe:cube-gnomonic-1/IAU_MOON');
+    audited.dispose();
+  });
+
+  it.each([false, true])('composites audited legacy and corrected DE421 sources (corrected base: %s)', async correctedBase => {
+    const legacy = manifest(1), corrected = manifest(1), loader = controlledLoader();
+    legacy.source.version = 'cube-imagery-composite-3f34a19541af7710';
+    corrected.source.version = 'corrected-v2';
+    corrected.registration.crsId = 'cosmolabe:cube-gnomonic-1/MOON_ME_DE421';
+    const inputs = correctedBase ? [corrected, legacy] : [legacy, corrected];
+    const before = JSON.stringify(inputs);
+    const layer = new CubeImageryLayer({ url: 'http://base/a.json', layers: [
+      { type: 'cube', url: 'http://base/a.json' }, { type: 'cube', url: 'http://overlay/a.json' },
+    ] }, { frame: 'MOON_ME_DE421', fetchManifest: async url => inputs[url.includes('base') ? 0 : 1], loadTexture: loader.loadTexture });
+    await layer.ready;
+    expect((layer as any).sources.every((source: any) => source.manifest && !source.setupFailed)).toBe(true);
+    expect(JSON.stringify(inputs)).toBe(before);
+    layer.dispose();
+  });
+
+  it('rejects unknown legacy revisions beside corrected imagery even without a terrain frame', async () => {
+    const base = manifest(1), overlay = manifest(1), loader = controlledLoader();
+    base.registration.crsId = 'cosmolabe:cube-gnomonic-1/MOON_ME_DE421';
+    const layer = new CubeImageryLayer({ url: 'http://base/a.json', layers: [
+      { type: 'cube', url: 'http://base/a.json' }, { type: 'cube', url: 'http://overlay/a.json' },
+    ] }, { fetchManifest: async url => url.includes('base') ? base : overlay, loadTexture: loader.loadTexture });
+    await layer.ready;
+    expect((layer as any).sources[1].setupFailed).toBe(true);
+    layer.dispose();
+  });
+
   it('settles sibling loading beside an opaque upper footprint without hidden-page churn', async () => {
     const address=directionToTexel(southPole,3,256,4).address,neighbour={...address,x:address.x+1},m=manifest(5);
     for(let L=2;L<=5;L++){const k=2**Math.max(0,L-3),x0=L<3?neighbour.x>>1:neighbour.x*k,y0=L<3?neighbour.y>>1:neighbour.y*k;for(let x=x0;x<x0+k;x++)for(let y=y0;y<y0+k;y++)m.tiles.push(cubeTileId({...neighbour,level:L,x,y}));}

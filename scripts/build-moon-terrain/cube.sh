@@ -38,6 +38,7 @@ mkdir -p "${OUT}"
 ${PY} ../terrain/dem.py cube-tile \
   --base "${SRC}/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif" \
   --fusion data/fused --out "${OUT}" \
+  --body Moon --frame MOON_ME_DE421 \
   --global-level 3 \
   --region 'shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15' \
   --region 'corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25' \

@@ -63,8 +63,13 @@
   ],
   "errors": [],
   "httpErrors": [],
-  "abortedRequests": 15,
-  "otherRequestFailures": [],
+  "abortedRequests": 10,
+  "otherRequestFailures": [
+    {
+      "url": "http://127.0.0.1:5194/test-catalogs/data/ingenuity-cube/imagery-04513d4681559e949e39e30f/tiles/py/0/0/0.png",
+      "error": "net::ERR_CONTENT_LENGTH_MISMATCH"
+    }
+  ],
   "checks": [
     "visible searchable activity picker and result count",
     "Flight 44 filter, keyboard selection and empty results",
@@ -76,9 +81,10 @@
   ],
   "performance": {
     "records": 10000,
-    "meanMs": 16.59833333293597,
-    "p95Ms": 17.69999998807907,
+    "meanMs": 16.65250000009934,
+    "p95Ms": 17.5,
     "marks": 4,
     "options": 1
-  }
+  },
+  "integratedMain": "330de2e8"
 }

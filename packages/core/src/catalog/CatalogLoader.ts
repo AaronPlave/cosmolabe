@@ -1,4 +1,5 @@
 import { parseMissionActivities, type MissionActivity, type MissionActivitySpec } from '../MissionActivity.js';
+import { validateSurfaceTrajectoryProvenance, type SurfaceTrajectoryProvenance } from '../geometry/surface-trajectory.js';
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 import type { GeographicCoordinates, GeographicLayerDefinition } from '../geographic/model.js';
 import { Body, type TrajectoryPlotConfig } from '../Body.js';
@@ -131,6 +132,7 @@ export interface CatalogItem {
    *  the catalog loads. */
   trajectoryFrame?: string | TrajectoryFrameSpec;
   trajectory?: TrajectorySpec;
+  surfaceTrajectory?: SurfaceTrajectoryProvenance;
   trajectoryPlot?: TrajectoryPlotSpec;
   rotationModel?: RotationModelSpec;
   bodyFrame?: string | BodyFrameSpec;
@@ -638,6 +640,11 @@ export class CatalogLoader {
     this.frames = frames ?? new FrameRegistry({ spice: this.spice });
   }
 
+  private catalogBodyFrames = new Map<string, string>();
+  private frameForBody(name: string): string {
+    return this.catalogBodyFrames.get(normalizeFrameKey(name)) ?? this.frames.bodyFixedFrameFor(name);
+  }
+
   /** The frame to ask SPICE for when a catalog names `frame`: its SPICE
    *  spelling (`EclipticJ2000` → `ECLIPJ2000`, `EME2000` → `J2000`), the
    *  center's `IAU_` frame for `BodyFixed`, and J2000 for frames SPICE cannot
@@ -647,7 +654,7 @@ export class CatalogLoader {
     if (frame === undefined) return fallback;
     const canonical = this.frames.canonicalName(frame);
     const name = canonical === BODY_FIXED
-      ? (center ? bodyFixedFrameName(center) : undefined)
+      ? (center ? this.frameForBody(center) : undefined)
       : this.frames.spiceName(canonical);
     if (!name) return 'J2000';
     // A body-fixed frame of a body SPICE has no PCK or CK frame for
@@ -681,7 +688,7 @@ export class CatalogLoader {
     }
     const type = typeof frame.type === 'string' ? frame.type : '';
     if (/^body[-_ ]?fixed$/i.test(type)) {
-      const name = typeof frame.body === 'string' && frame.body ? bodyFixedFrameName(frame.body) : BODY_FIXED;
+      const name = typeof frame.body === 'string' && frame.body ? this.frameForBody(frame.body) : BODY_FIXED;
       this.checkFrameName(owner, name);
       return name;
     }
@@ -706,6 +713,7 @@ export class CatalogLoader {
       return;
     }
     const canonical = this.frames.canonicalName(frame);
+    const missingBehavior = /^(MOON_ME|MOON_PA)(_|$)/i.test(canonical) ? 'placement is unavailable' : 'states are used unrotated';
     if (canonical === BODY_FIXED) return;
     if (canonical.startsWith('IAU_')) {
       // Its body may be further down this catalog; checked once it has loaded.
@@ -716,7 +724,7 @@ export class CatalogLoader {
       if (!this.frames.get(canonical)) {
         console.warn(
           `[Cosmolabe] "${owner}": unknown frame "${frame}" and no SPICE instance to resolve it; ` +
-            `states are used unrotated. Declare it in the catalog's "frames" or use a registered frame.`,
+            `${missingBehavior}. Declare it in the catalog's "frames" or use a registered frame.`,
         );
       }
       return;
@@ -729,7 +737,7 @@ export class CatalogLoader {
     if (!this.frames.isResolvable(canonical, this.probeEpoch) && spiceName && this.frames.spiceRejects(spiceName)) {
       console.warn(
         `[Cosmolabe] "${owner}": frame "${frame}" is not a registry frame and SPICE does not recognize it ` +
-          `(missing frame kernel?); states are used unrotated.`,
+          `(missing frame kernel?); ${missingBehavior}.`,
       );
     }
   }
@@ -781,6 +789,19 @@ export class CatalogLoader {
         console.warn(`[Cosmolabe] catalog frame ${JSON.stringify(spec?.name)}:`, err instanceof Error ? err.message : err);
       }
     }
+
+    // Normalize structured references against this catalog's target attitudes,
+    // including parents not installed into Universe until this load completes.
+    this.catalogBodyFrames.clear();
+    const indexFrames = (items: CatalogItem[]) => {
+      for (const item of items) {
+        if (item.rotationModel?.type === 'Spice' && item.rotationModel.bodyFrame) {
+          this.catalogBodyFrames.set(normalizeFrameKey(item.name), item.rotationModel.bodyFrame);
+        }
+        if (item.items) indexFrames(item.items);
+      }
+    };
+    indexFrames(json.items ?? []);
 
     const bodies: Body[] = [];
     const viewpoints: ViewpointDefinition[] = [];
@@ -912,6 +933,7 @@ export class CatalogLoader {
     // Waypoints → BODY_FIXED, SPICE → the frame it queried, OEM → REF_FRAME).
     const trajectoryFrame = frameName(item.trajectoryFrame);
 
+    if (item.surfaceTrajectory) validateSurfaceTrajectoryProvenance(item.surfaceTrajectory);
     const body = new Body({
       name: item.name,
       naifId: item.naifId,
@@ -926,6 +948,7 @@ export class CatalogLoader {
       labelVisible: item.label?.visible !== false,
       geometryType: geometry?.type as string | undefined,
       geometryData: geometry,
+      surfaceTrajectory: item.surfaceTrajectory,
       trajectoryPlot,
       trajectoryFrame,
       existsFrom: this.existenceBound(item, 'startTime'),
@@ -1321,7 +1344,10 @@ export class CatalogLoader {
           });
         }
         if (waypoints.length < 2) return new FixedPointTrajectory([0, 0, 0]);
-        return new WaypointTrajectory(waypoints, refRadius, { useAbsoluteAlt: spec.useAbsoluteAlt === true });
+        return new WaypointTrajectory(waypoints, refRadius, {
+          useAbsoluteAlt: spec.useAbsoluteAlt === true || !!item.surfaceTrajectory,
+          frame: item.surfaceTrajectory?.frame,
+        });
       }
 
       default:
@@ -1432,7 +1458,14 @@ export class CatalogLoader {
       }
 
       case 'Spice':
-        if (!this.spice) return undefined;
+        if (!this.spice) {
+          const target = spec.bodyFrame ?? bodyFixedFrameName(item.name);
+          if (!/^(MOON_ME|MOON_PA)(_|$)/i.test(target)) return undefined;
+          return {
+            sourceFrame: spec.inertialFrame ?? 'ECLIPJ2000', bodyFixedFrame: target,
+            rotationAt: () => { throw new Error(`Orientation unavailable for ${item.name}: SPICE is required`); },
+          };
+        }
         return new SpiceRotation(
           this.spice,
           spec.bodyFrame ?? bodyFixedFrameName(item.name),

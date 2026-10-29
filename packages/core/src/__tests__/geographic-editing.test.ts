@@ -24,6 +24,15 @@ function apply(layer: GeographicEditLayer, op: GeographicEditOperation): Geograp
   return result.layer;
 }
 
+it('retains the explicit lunar realization through edits, GeoJSON export and import', () => {
+  const layer = createGeographicEditLayer({ id: 'lunar', name: 'Lunar', body: 'Moon', coordinates: { ...moon, frame: 'MOON_ME_DE421' } });
+  const text = exportGeographicEditLayer(layer), exported = JSON.parse(text);
+  expect(exported[GEOGRAPHIC_GEOJSON_EXTENSION].frame).toBe('MOON_ME_DE421');
+  expect(geographicEditLayerToLayer(importGeographicEditLayer(text).layer).frame).toBe('MOON_ME_DE421');
+  exported[GEOGRAPHIC_GEOJSON_EXTENSION].frame = 'IAU_MOON';
+  expect(() => importGeographicEditLayer(JSON.stringify(exported))).toThrow(/frame declarations disagree/);
+});
+
 describe.each([['Mars', mars, 77.4, 18.4], ['Moon', moon, -170, -85]] as const)('drawing and editing on %s', (body, coordinates, lon, lat) => {
   const blank = () => createGeographicEditLayer({ id: `${body}:notes`, name: 'Notes', body, coordinates });
 

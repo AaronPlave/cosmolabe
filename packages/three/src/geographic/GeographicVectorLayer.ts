@@ -313,6 +313,10 @@ export class GeographicVectorLayer {
     for (const batch of this.batches) {
       const bm = byName.get(batch.bodyName);
       if (!bm?.visible || batch.suppressed) continue;
+      const frame = bm.body.rotation?.bodyFixedFrame ?? this.universe.frames.bodyFixedFrameFor(bm.body.name);
+      if (batch.layers.some(layer => !this.universe.frames.sameFrame(layer.frame, frame))) {
+        this.diagnose(batch, 'frame-mismatch', `Layer and surface frames differ (${batch.layers[0].frame} / ${frame}); draping unavailable.`); continue;
+      }
       if (bm.body.geometryType !== 'Globe') {
         this.diagnose(batch, 'unsupported-surface', 'Geographic draping requires a globe; mesh/DSK does not expose a latitude/longitude heightfield.'); continue;
       }

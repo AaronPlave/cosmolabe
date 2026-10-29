@@ -241,6 +241,21 @@ describe('cube grid CPU triangles and ray queries', () => {
     expect(Math.hypot(hit.position.xKm, hit.position.yKm, hit.position.zKm) - R).toBeLessThan(0.05);
   });
 
+  it('ends an exhausted bounded ray after rejecting a superseded ancestor hit', async () => {
+    const source = new CubeSphereGridSource(manifest(), async uri => {
+      const level = Number(uri.split('/')[2]);
+      return new Float32Array(W * W).fill(level === 0 ? 300 : 100).buffer;
+    }, { residentLevel: 2 });
+    await source.ready;
+    const surface = new CubeGridSurface(source, 'Moon', 'MOON_ME_DE421');
+    // The coarse 300 m surface lies at the inclusive end of the ray, but the
+    // finest 100 m surface owning this point is beyond it. Advancing past the
+    // rejected coarse hit must end the query, never reverse its interval.
+    expect(surface.intersectRay({ origin: { xKm: 0, yKm: 0, zKm: -(R + 1) }, direction: [0, 0, 1],
+      nearKm: 0, farKm: 0.7000000005 }, { maxMeshErrorKm: 0.001 }).kind).toBe('unavailable');
+    source.dispose();
+  });
+
   it('keeps closed mixed-level edges queryable without reviving superseded interiors', async () => {
     const m = manifest();
     const source = new CubeSphereGridSource(m, async uri => {

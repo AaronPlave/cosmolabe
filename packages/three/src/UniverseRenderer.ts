@@ -984,6 +984,7 @@ export class UniverseRenderer {
         tl.update(et, this.scaleFactor, undefined, this.camera);
         if (!tl.visible) continue;
         const center = centerName ? this.absolutePositionOf(centerName, et) : [0, 0, 0];
+        if (!center.every(Number.isFinite)) { tl.visible = false; continue; }
         plotFrame.place(tl, [center[0] - originAbsPos[0], center[1] - originAbsPos[1], center[2] - originAbsPos[2]], this.scaleFactor, et);
         continue;
       }
@@ -995,7 +996,7 @@ export class UniverseRenderer {
         // vertexOffset = (centerAbs - originAbs) in km, so vertices become origin-relative
         const centerAbsNow = this.absolutePositionOf(centerName, et);
         // Skip if center position is NaN (SPICE kernel out of coverage)
-        if (isNaN(centerAbsNow[0])) continue;
+        if (isNaN(centerAbsNow[0])) { tl.visible = false; continue; }
         const vertOff: [number, number, number] = [
           centerAbsNow[0] - originAbsPos[0],
           centerAbsNow[1] - originAbsPos[1],
@@ -1043,6 +1044,7 @@ export class UniverseRenderer {
         tl.update(et, this.scaleFactor, this.absolutePositionOf, this.camera, undefined, vertOff);
       }
       } catch (err) {
+        tl.visible = false; // Missing transforms must not leave a previously oriented surface trail visible.
         console.error(`[Cosmolabe] Trail update error for ${tl.body.name}:`, err);
       }
     }
@@ -1092,8 +1094,9 @@ export class UniverseRenderer {
       const parentName = line.body.parentName;
       const centerName = arcCenter ?? parentName;
       const center = centerName ? this.absolutePositionOf(centerName, et) : null;
-      if (center && !center.every(Number.isFinite)) {
+      if (!line.visible || (center && !center.every(Number.isFinite))) {
         markers.visible = false;
+        markers.update(this.scaleFactor, [0, 0, 0], () => [NaN, NaN, NaN], null);
         continue;
       }
       markers.visible = this.bodyMeshes.get(markers.body.name)?.visible ?? true;
@@ -1977,7 +1980,7 @@ export class UniverseRenderer {
       // Span strokes retrace this line's drawn vertices — trail, live head
       // sample, and future lead — so they reach the body while the event is
       // underway and follow the lead when it is still ahead.
-      const markers = new EventMarkers(body, { depthTest: this.trajectoryPlotFrames.has(line), path: () => line.drawnPath(),
+      const markers = new EventMarkers(body, { sampleAvailable: t => line.sampleAvailableAt(t), depthTest: this.trajectoryPlotFrames.has(line), path: () => line.drawnPath(),
         transform: () => this.trajectoryPlotFrames.has(line) ? line.matrixWorld : undefined });
       markers.setMarkers(pieces.map(({ event, start, end }) => ({
         id: event.id,
@@ -3253,6 +3256,7 @@ export class UniverseRenderer {
 
     const point: SurfacePoint = {
       bodyName: bm.body.name,
+      frame: bm.bodyFixedFrame,
       bodyFixedPositionKm: [ecefX, ecefY, ecefZ],
       source: ray.source,
       latDeg,
@@ -3430,7 +3434,7 @@ export class UniverseRenderer {
       // must NOT be clamped; for them surfaceLock only governs visibility.
       const traj = bm.body.trajectory;
       if (!(traj instanceof WaypointTrajectory)) continue;
-      if (traj.useAbsoluteAlt) continue;
+      if (traj.useAbsoluteAlt || bm.body.surfaceTrajectory) continue;
       const lockSpec = bm.body.geometryData.surfaceLock;
       // "aboveTerrain" mode: trajectory altitude is height above local terrain.
       // Renderer samples terrain at the body's lat/lon and offsets the body
@@ -4172,6 +4176,7 @@ export class UniverseRenderer {
             body.parentName, t => body.stateAt(t).position, body.trajectory.startTime ?? this.timeController.et) : null;
           if (plotFrame) trajOpts.fixedResolver = plotFrame.resolve;
           if (plotCfg?.sampleInterval) trajOpts.cacheResampleInterval = plotCfg.sampleInterval;
+          if (body.surfaceTrajectory) trajOpts.sampleAvailable = t => this.universe.trajectoryPlacementAvailable(body, t);
           const tl = new TrajectoryLine(body, trajOpts);
           if (plotFrame) this.trajectoryPlotFrames.set(tl, plotFrame);
           tl.layers.set(OVERLAY_LAYER);
@@ -4382,7 +4387,7 @@ export class UniverseRenderer {
       if (plotCfg.visible === false) continue;
       const plotFrame = plotCfg.frame ? new TrajectoryPlotFrame(this.universe, arcFrame, plotCfg.frame,
         arcCenterBodyName, t => arc.trajectory.stateAt(t).position, Math.max(arc.startTime, arc.trajectory.startTime ?? -Infinity)) : null;
-      const arcResolver = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
+      const resolveArc = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
         return this.universe.toWorldFrame(
           [state.position[0], state.position[1], state.position[2]],
@@ -4391,6 +4396,11 @@ export class UniverseRenderer {
           t,
         );
       });
+
+      const sampleAvailable = body.surfaceTrajectory
+        ? (t: number) => this.universe.trajectoryPlacementAvailable(body, t, { frame: arcFrame, centerName: arcCenterBodyName }) : undefined;
+      const arcResolver: PositionResolver = (name, t) => sampleAvailable && !sampleAvailable(t)
+        ? [NaN, NaN, NaN] : resolveArc(name, t);
 
       // An arc's own trajectoryPlot overrides the body's field by field: a
       // cruise arc can keep years of trail while the orbit phase keeps days.
@@ -4426,6 +4436,7 @@ export class UniverseRenderer {
         maxTime: plotFrame ? Math.min(arc.endTime, arc.trajectory.endTime ?? Infinity, body.existsUntil ?? Infinity)
           : isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
+        sampleAvailable,
         cacheResampleInterval: plotCfg.sampleInterval,
         fadeFraction: plotCfg?.fade ?? 1.0,
         color: plotColor(plotCfg.color),
@@ -4573,11 +4584,13 @@ export class UniverseRenderer {
     // (TEME, a CK frame), so each sample rotates at its own epoch.
     const frames = this.universe.frames;
     const srcFrame = this.universe.resolveFrame(body.frame, body.parentName);
-    if (frames.sameFrame(srcFrame, WORLD_FRAME)) return;
+    if (frames.sameFrame(srcFrame, WORLD_FRAME) && !body.surfaceTrajectory) return;
     const p = cache.positions;
     for (let i = 0; i < cache.count; i++) {
       const j = i * 3;
-      const a = frames.transform([p[j], p[j + 1], p[j + 2]], srcFrame, WORLD_FRAME, cache.times[i]);
+      const a = this.universe.trajectoryPlacementAvailable(body, cache.times[i])
+        ? this.universe.toWorldFrame([p[j], p[j + 1], p[j + 2]], srcFrame, body.parentName, cache.times[i])
+        : [NaN, NaN, NaN];
       p[j] = a[0];
       p[j + 1] = a[1];
       p[j + 2] = a[2];
@@ -4695,7 +4708,7 @@ export class UniverseRenderer {
     // J2000 obliquity) off its trail for any equatorial-frame trajectory.
     const resolver = (t: number): [number, number, number] => {
       try {
-        return trajOpts.fixedResolver?.(body.name, t) ?? this.universe.relativePositionInWorld(body.name, t);
+        return tl.positionAt(t, (_name, epoch) => this.universe.relativePositionInWorld(body.name, epoch));
       } catch {
         return [NaN, NaN, NaN];
       }

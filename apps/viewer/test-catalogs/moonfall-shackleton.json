@@ -1,9 +1,16 @@
 {
   "name": "MoonFall at Shackleton",
-  "defaultGeographicNames": ["Moon"],
   "defaultTime": "2028-12-15T10:04:00Z",
   "defaultViewpoint": "Shackleton Overview",
-  "require": ["base/naif.json", "places/moon.json", "places/moonfall-sites.json"],
+  "require": [
+    "base/naif.json",
+    "base/lunar-surface.json",
+    "places/moon.json",
+    "places/moonfall-sites.json"
+  ],
+  "defaultGeographicNames": [
+    "Moon"
+  ],
   "items": [
     {
       "name": "Shackleton Overview",
@@ -86,8 +93,9 @@
         "name": "Moon"
       },
       "rotationModel": {
-        "type": "Builtin",
-        "name": "IAU_MOON"
+        "type": "Spice",
+        "bodyFrame": "MOON_ME_DE421",
+        "inertialFrame": "ECLIPJ2000"
       },
       "geometry": {
         "type": "Globe",
@@ -99,6 +107,7 @@
         "displacementBias": -9,
         "terrain": {
           "type": "3dtiles",
+          "frame": "MOON_ME_DE421",
           "url": "data/moon-terrain-cube/tileset.json",
           "errorTarget": 2,
           "fadeDurationMs": 0,
@@ -130,7 +139,21 @@
         {
           "name": "Polaris-A",
           "class": "spacecraft",
-          "trajectoryFrame": "BodyFixed",
+          "trajectoryFrame": "MOON_ME_DE421",
+          "surfaceTrajectory": {
+            "frame": "MOON_ME_DE421",
+            "positionUnits": "km",
+            "purpose": "synthetic-demo",
+            "datum": {
+              "referenceShape": {
+                "kind": "sphere",
+                "radiusKm": 1737.4
+              },
+              "verticalDatum": "reference-sphere",
+              "heightConvention": "radial"
+            },
+            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
           "arcs": [
             {
               "startTime": "2028-12-15T10:00:00Z",
@@ -416,7 +439,21 @@
         {
           "name": "Polaris-B",
           "class": "spacecraft",
-          "trajectoryFrame": "BodyFixed",
+          "trajectoryFrame": "MOON_ME_DE421",
+          "surfaceTrajectory": {
+            "frame": "MOON_ME_DE421",
+            "positionUnits": "km",
+            "purpose": "synthetic-demo",
+            "datum": {
+              "referenceShape": {
+                "kind": "sphere",
+                "radiusKm": 1737.4
+              },
+              "verticalDatum": "reference-sphere",
+              "heightConvention": "radial"
+            },
+            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
           "arcs": [
             {
               "startTime": "2028-12-15T10:00:00Z",
@@ -678,7 +715,21 @@
         {
           "name": "Polaris-C",
           "class": "spacecraft",
-          "trajectoryFrame": "BodyFixed",
+          "trajectoryFrame": "MOON_ME_DE421",
+          "surfaceTrajectory": {
+            "frame": "MOON_ME_DE421",
+            "positionUnits": "km",
+            "purpose": "synthetic-demo",
+            "datum": {
+              "referenceShape": {
+                "kind": "sphere",
+                "radiusKm": 1737.4
+              },
+              "verticalDatum": "reference-sphere",
+              "heightConvention": "radial"
+            },
+            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
           "arcs": [
             {
               "startTime": "2028-12-15T10:00:00Z",
@@ -958,7 +1009,21 @@
         {
           "name": "Polaris-D",
           "class": "spacecraft",
-          "trajectoryFrame": "BodyFixed",
+          "trajectoryFrame": "MOON_ME_DE421",
+          "surfaceTrajectory": {
+            "frame": "MOON_ME_DE421",
+            "positionUnits": "km",
+            "purpose": "synthetic-demo",
+            "datum": {
+              "referenceShape": {
+                "kind": "sphere",
+                "radiusKm": 1737.4
+              },
+              "verticalDatum": "reference-sphere",
+              "heightConvention": "radial"
+            },
+            "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
           "arcs": [
             {
               "startTime": "2028-12-15T10:00:00Z",

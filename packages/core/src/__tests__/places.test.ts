@@ -140,6 +140,11 @@ describe('shared place index', () => {
     if (jezero.feature.geometry.type !== 'Point') throw new Error('Expected point');
     expect(jezero.feature.geometry.coordinates.lonDeg).toBeCloseTo(77.6873, 5);
     expect(jezero.feature.geometry.coordinates.latDeg).toBeGreaterThan(18.4082);
-    expect(index.search('Shackleton')[0].ref).toBe('moon:usgs:places/gazetteer:5450');
+    const shackleton = index.search('Shackleton')[0];
+    expect(shackleton.ref).toBe('moon:usgs:places/gazetteer:5450');
+    expect(shackleton.layer.frame).toBe('MOON_ME_DE421');
+    if (shackleton.feature.geometry.type !== 'Point') throw new Error('Expected point');
+    expect(shackleton.feature.geometry.coordinates.lonDeg).toBeCloseTo(129.78, 10);
+    expect(shackleton.feature.geometry.coordinates.latDeg).toBeCloseTo(-89.67, 10);
   });
 });
