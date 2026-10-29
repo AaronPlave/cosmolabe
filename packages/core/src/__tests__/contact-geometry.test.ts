@@ -47,6 +47,16 @@ describe('exploratory line of sight', () => {
     const h = Math.SQRT1_2; // +90° about x: polar axis → -y, so z extent becomes 1
     expect(hasLineOfSight(mk([h, h, 0, 0]), 'SC', 'station', 0)).toBe(false);
   });
+  it.each([
+    ['throws', () => { throw new Error('no CK coverage'); }],
+    ['is non-finite', () => [NaN, 0, 0, 0] as [number, number, number, number]],
+  ])('is not clear when an occulter rotation model %s', (_, rotationAt) => {
+    const u = geometry([2, 0, 0], [3, 0, 0]); // clear of the planet if it could be oriented
+    expect(hasLineOfSight(u, 'SC', 'station', 0)).toBe(true);
+    u.addBody(new Body({ name: 'planet', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [1, 1, 1],
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt } }));
+    expect(hasLineOfSight(u, 'SC', 'station', 0)).toBe(false);
+  });
   it('does not claim visibility with missing or non-finite state', () => {
     const universe = geometry([2, 0, 0], [3, 0, 0]);
     expect(hasLineOfSight(universe, 'missing', 'station', 0)).toBe(false);

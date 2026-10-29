@@ -1,5 +1,6 @@
 import type { Universe } from '../Universe.js';
 import { rotateVecByQuat, type Vec3 } from '../kinematics.js';
+import type { Quaternion } from '../rotations/RotationModel.js';
 
 /** Exploratory straight-line visibility against each body's physical triaxial
  * ellipsoid (`radii`), oriented by its rotation model when it has one and
@@ -22,7 +23,11 @@ export function hasLineOfSight(universe: Universe, spacecraft: string, station: 
     if (!center.every(Number.isFinite)) return false; // unknown geometry is not clear
     // Work in the body-fixed frame with axes scaled by the radii, where the
     // ellipsoid is the unit sphere. Nearest point of the segment to the origin:
-    const q = universe.bodyToWorldQuat(body, et);
+    let q: Quaternion | undefined;
+    if (body.rotation) { // axis-aligned only for bodies with no rotation model
+      try { q = universe.bodyToWorldQuat(body, et); } catch { return false; }
+      if (!q || !q.every(Number.isFinite)) return false; // unknown orientation is not clear
+    }
     const toUnit = (v: Vec3): Vec3 => {
       const f = q ? rotateVecByQuat(v, [q[0], -q[1], -q[2], -q[3]]) : v;
       return [f[0] / body.radii![0], f[1] / body.radii![1], f[2] / body.radii![2]];

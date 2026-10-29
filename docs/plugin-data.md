@@ -62,7 +62,8 @@ Inside those bounds the plugin uses `hasLineOfSight`, evaluated in physical km
 through `Universe.absolutePositionOf`, independently of display scale and camera
 origin. It checks the segment against each other body's physical triaxial
 ellipsoid (`radii`), oriented by the body's rotation model, or axis-aligned with
-the scene frame when it has none, so a station on an oblate body's surface is not
+the scene frame when it has none (a body whose rotation model throws or returns
+non-finite values blocks the link rather than being guessed), so a station on an oblate body's surface is not
 falsely blocked. It does not model terrain, station elevation masks, antenna pointing, refraction or light time.
 Missing/non-finite states hide a link. `setContactWindows(undefined)` explicitly
 restores this fallback. `plugin.data` exposes the chosen authority and provenance;
