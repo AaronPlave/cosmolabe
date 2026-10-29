@@ -17,9 +17,9 @@
  * Each hopper does 3 flights over ~14 days (rest periods are for thermal /
  * power margin).
  *
- * Authoring vs runtime: waypoints below specify (lat, lon, altM_above_terrain)
+ * Authoring vs runtime: scripts/data/moonfall-sorties.mjs specifies (lat, lon, altM_above_terrain)
  * for human readability — "fly to lat X, lon Y, 80 m above the ground". The
- * build script samples the ground at each waypoint from the Moon terrain the
+ * build script samples the ground along each route from the Moon terrain the
  * catalog draws — the cube-sphere product pinned in
  * scripts/data-hosting/datasets.json (#149), on its finest CPU grid, which is
  * the same lattice triangles the finest .glb tile renders — adds the authored
@@ -31,20 +31,20 @@
  * inside or above the cube terrain.
  *
  * Sampled elevations are cached with the product revision in
- * scripts/data/moon-elevations-cube.json, so rebuilding needs the product only
- * when a waypoint or the pinned revision changes. scripts/data/moon-elevations.json
+ * scripts/data/moon-elevations-cube.json, and the continuous bake/validation always needs the pinned grids. scripts/data/moon-elevations.json
  * keeps the LOLA 118 m samples as control points for validate-cube-terrain.mjs.
  *
  * Output: apps/viewer/test-catalogs/moonfall-shackleton.json
  *
  * Run: node scripts/build-moonfall-flights.mjs [--grids DIR/cpu-grids.json | URL]
- *   (needs `npm run build`, and the pinned product's grids when the cache is stale;
+ *   (needs `npm run build`, and the pinned product's grids;
  *   default: the dataset's localDir)
  */
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { bakeFlight, validateFlight, terrainSource, terrainDigest, sha256 } from './lib/moonfall-clearance.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-shackleton.json');
@@ -96,7 +96,7 @@ function collectAllWaypointCoords() {
 async function ensureElevations() {
   const cache = existsSync(CACHE_FILE) ? JSON.parse(readFileSync(CACHE_FILE, 'utf8')) : {};
   const allCoords = collectAllWaypointCoords();
-  if (cache.revision === TERRAIN.build && allCoords.every(c => cacheKey(c.latDeg, c.lonDeg) in cache.elevations)) {
+  if (cache.revision === TERRAIN.build && allCoords.every(c => Number.isFinite(cache.elevations?.[cacheKey(c.latDeg, c.lonDeg)]))) {
     console.log(`Elevation cache hit (${allCoords.length} waypoint sites, ${TERRAIN.build}).`);
     return cache.elevations;
   }
@@ -131,7 +131,7 @@ function isoAdd(iso, seconds) {
   return new Date(new Date(iso).getTime() + seconds * 1000).toISOString();
 }
 
-function flightArc(flight, elevations) {
+function flightArc(flight) {
   const last = flight.waypoints[flight.waypoints.length - 1];
   return {
     startTime: flight.epoch,
@@ -143,16 +143,7 @@ function flightArc(flight, elevations) {
       // Absolute altitudes (km above 1737.4 km lunar mean). Pre-computed at
       // build time from the cube terrain's ground + authored altM above terrain.
       useAbsoluteAlt: true,
-      waypoints: flight.waypoints.map(w => {
-        const groundM = elevations[cacheKey(w.lat, w.lon)] ?? 0;
-        const absAltKm = (groundM + w.altM) / 1000;
-        return {
-          t: w.t,
-          lat: w.lat,
-          lon: w.lon,
-          alt: `${absAltKm.toFixed(6)}km`,
-        };
-      }),
+      waypoints: flight.bakedWaypoints,
     },
   };
 }
@@ -165,15 +156,14 @@ function hopperItem(hopper, elevations) {
   const arcs = [];
   for (let i = 0; i < hopper.flights.length; i++) {
     const f = hopper.flights[i];
-    arcs.push(flightArc(f, elevations));
+    arcs.push(flightArc(f));
     if (i < hopper.flights.length - 1) {
       const restStart = arcs[arcs.length - 1].endTime;
       const next = hopper.flights[i + 1];
       const lastWp = f.waypoints[f.waypoints.length - 1];
-      const groundM = elevations[cacheKey(lastWp.lat, lastWp.lon)] ?? 0;
-      const absAltKm = (groundM + lastWp.altM) / 1000;
-      const altStr = `${absAltKm.toFixed(6)}km`;
+      const altStr = f.bakedWaypoints.at(-1).alt;
       arcs.push({
+        showLine: false, // parked: no geometry or days-long zero-motion cache
         startTime: restStart,
         endTime: next.epoch,
         trajectory: {
@@ -198,6 +188,7 @@ function hopperItem(hopper, elevations) {
       datum: { referenceShape: { kind: 'sphere', radiusKm: 1737.4 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
       terrainRevision: TERRAIN.build,
     },
+    trajectoryPlot: { frame: 'MOON_ME_DE421', sampleInterval: 1 },
     arcs,
     rotationModel: { type: 'SurfaceUp' },
     geometry: {
@@ -218,6 +209,37 @@ function hopperItem(hopper, elevations) {
 }
 
 const elevations = await ensureElevations();
+const source = await terrainSource(opt.grids ?? join(ROOT, TERRAIN.localDir, 'cpu-grids.json'), TERRAIN.build);
+const report = { revision: TERRAIN.build, authoredSha256: sha256(hoppers),
+  sampling: { maxDistanceM: 2, maxTimeS: .1 },
+  thresholds: { minClearanceM: .75, maxClearanceM: 500 }, flights: [] };
+for (const hopper of hoppers) for (const flight of hopper.flights) {
+  const original = flight.waypoints.map(w => ({ t: w.t, lat: w.lat, lon: w.lon,
+    alt: `${(elevations[cacheKey(w.lat, w.lon)] + w.altM) / 1000}km` }));
+  const before = await validateFlight(original, source);
+  const baked = await bakeFlight(flight, elevations, source);
+  const after = await validateFlight(baked, source);
+  const segments = flight.waypoints.slice(0, -1).map((a, i) => {
+    const b = flight.waypoints[i + 1];
+    const parts = after.segments.filter(s => s.startS >= a.t - 1e-8 && s.endS <= b.t + 1e-8);
+    const worst = parts.reduce((a, b) => a.minClearanceM < b.minClearanceM ? a : b);
+    return { segment: i, from: a, to: b, minClearanceM: worst.minClearanceM,
+      maxClearanceM: Math.max(...parts.map(s => s.maxClearanceM)), at: worst.at,
+      samples: parts.reduce((sum, s) => sum + s.samples, 0) };
+  });
+  report.flights.push({ hopper: hopper.name, epoch: flight.epoch, label: flight.label,
+    pathSha256: sha256(baked), knots: baked.length,
+    before, after: { ...after, segments } });
+  console.log(`${hopper.name} ${flight.label}: before ${before.minClearanceM.toFixed(2)} m; after ${after.minClearanceM.toFixed(2)}..${after.maxClearanceM.toFixed(2)} m (${after.samples} samples)`);
+  if (after.minClearanceM < report.thresholds.minClearanceM || after.maxClearanceM > report.thresholds.maxClearanceM) {
+    throw Error('Flight clearance acceptance failed; catalog has not been written');
+  }
+  flight.bakedWaypoints = baked;
+}
+console.log('Terrain grids:', source.stats);
+report.terrainInputsSha256 = terrainDigest(source);
+report.terrainInputs = Object.fromEntries([...source.clearanceInputs].sort(([a], [b]) => a.localeCompare(b)));
+source.dispose();
 
 const catalog = {
   activities: moonfallActivities(),
@@ -320,5 +342,6 @@ const catalog = {
 };
 
 writeFileSync(OUT, JSON.stringify(catalog, null, 2) + '\n');
+writeFileSync(join(CACHE_DIR, 'moonfall-clearance.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(`Wrote ${OUT}`);
 console.log(`  ${hoppers.length} hoppers, ${hoppers.reduce((n, h) => n + h.flights.length, 0)} flights total`);

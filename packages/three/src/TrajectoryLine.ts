@@ -71,6 +71,8 @@ export interface TrajectoryLineOptions {
   minTime?: number;
   /** Maximum time — freeze trail at this time (for completed arcs) */
   maxTime?: number;
+  /** Surface-flight trails stop at landing; explicit event leads still work. */
+  activeOnly?: boolean;
   /** Fixed position resolver that overrides the one passed to update() */
   fixedResolver?: PositionResolver;
   /** Fraction of trail (from oldest end) that fades to transparent (0-1, default 1.0 = full fade) */
@@ -204,6 +206,7 @@ export class TrajectoryLine extends THREE.Object3D {
   // Time bounds
   private readonly minTime?: number;
   private readonly maxTime?: number;
+  private readonly activeOnly: boolean;
   private readonly fixedResolver?: PositionResolver;
   private userVisible = true;
   private readonly sampleAvailable?: (et: number) => boolean;
@@ -237,6 +240,7 @@ export class TrajectoryLine extends THREE.Object3D {
     this.orbitNumPoints = 300;
     this.minTime = options.minTime;
     this.maxTime = options.maxTime;
+    this.activeOnly = options.activeOnly ?? false;
     this.fixedResolver = options.fixedResolver;
     this.fadeFraction = options.fadeFraction ?? 1.0;
     this.subdivisionPixels = options.subdivisionPixels ?? 1;
@@ -544,11 +548,11 @@ export class TrajectoryLine extends THREE.Object3D {
     const resolver = this.fixedResolver ?? resolvePos;
 
     // The trail is hidden before its arc starts and once its window has moved
-    // entirely past the arc's end. The lead is not: a future arc's path can be
-    // requested (an event on it) before the playhead reaches the arc.
+    // entirely past the arc's end (or at landing for activeOnly paths). The
+    // lead is not: an event can request it before the playhead reaches the arc.
     const trailActive =
       !(this.minTime != null && et < this.minTime) &&
-      !(this.maxTime != null && et - this.trailDuration > this.maxTime);
+      !(this.maxTime != null && (this.activeOnly ? et : et - this.trailDuration) > this.maxTime);
     this.trailLine.visible = trailActive;
     if (this.orbitLine) this.orbitLine.visible = trailActive;
     if (!trailActive) {

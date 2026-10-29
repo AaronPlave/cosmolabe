@@ -4365,27 +4365,18 @@ export class UniverseRenderer {
       const arcDuration = arc.endTime - arc.startTime;
       const arcCenterName = arc.centerName;
 
-      // Resolver returns positions relative to the arc's center body, in
-      // the world frame (EclipticJ2000). The trail's Object3D position is
-      // set to the center body's absolute world position each frame, so we
-      // only emit relative world-frame coords here — keeps vertices near
-      // origin for Float32 precision.
-      //
-      // The arc's frame goes through the frame registry: an inertial frame
-      // (EME2000, TEME, …) is rotated into ECLIPJ2000, and a body-fixed arc
-      // (Waypoints, FixedSpherical) is lifted out of the center body's
-      // rotating frame first.
-      //
-      // Without this, body-fixed arcs (MoonFall hoppers, Ingenuity, ground
-      // stations) draw their trail in the parent's body-fixed frame —
-      // visually static against the inertial sky while the body marker
-      // rotates with the parent. Result: trail offset from label/marker by
-      // the parent's rotation since some reference time.
+      // Body-fixed arcs describe a path attached to their source frame. Sample
+      // that path once locally and orient it at the rendered epoch, just like
+      // the marker. Inertial arcs retain historical-epoch world-frame trails.
+      // An explicit plot frame always wins (including an inertial opt-out).
       const arcFrame = body.arcFrame(arc);
       const arcCenterBodyName = arcCenterName ?? body.parentName;
       const plotCfg = { ...body.trajectoryPlot, ...arc.plot };
       if (plotCfg.visible === false) continue;
-      const plotFrame = plotCfg.frame ? new TrajectoryPlotFrame(this.universe, arcFrame, plotCfg.frame,
+      const sourceFrame = this.universe.resolveFrame(arcFrame, arcCenterBodyName);
+      const plotFrameName = plotCfg.frame ??
+        (this.universe.frames.get(sourceFrame)?.kind === 'body-fixed' ? arcFrame : undefined);
+      const plotFrame = plotFrameName ? new TrajectoryPlotFrame(this.universe, arcFrame, plotFrameName,
         arcCenterBodyName, t => arc.trajectory.stateAt(t).position, Math.max(arc.startTime, arc.trajectory.startTime ?? -Infinity)) : null;
       const resolveArc = plotFrame?.resolve ?? ((_name: string, t: number): [number, number, number] => {
         const state = arc.trajectory.stateAt(t);
@@ -4437,6 +4428,7 @@ export class UniverseRenderer {
           : isLastArc ? body.existsUntil : Math.min(arc.endTime, body.existsUntil ?? Infinity),
         fixedResolver: arcResolver,
         sampleAvailable,
+        activeOnly: !!plotFrame && this.universe.frames.get(plotFrame.frame)?.kind === 'body-fixed',
         cacheResampleInterval: plotCfg.sampleInterval,
         fadeFraction: plotCfg?.fade ?? 1.0,
         color: plotColor(plotCfg.color),
@@ -4475,13 +4467,9 @@ export class UniverseRenderer {
         const trajStart = coverStart != null && i > 0 ? Math.max(coverStart, arc.startTime) : coverStart;
         const trajEnd = coverEnd != null && !isLastArc ? Math.min(coverEnd, arc.endTime) : coverEnd;
         if (trajStart != null && trajEnd != null && trajEnd > trajStart) {
-          // Cache must store samples in the SAME frame the trail's runtime
-          // resolver produces, otherwise cached samples and live tail
-          // samples don't agree and the trail draws offset from the marker.
-          // Specifically: for body-fixed arcs the runtime resolver applies
-          // the parent's rotation conjugate (body-fixed → inertial) +
-          // alignment to ECLIPJ2000; the cache MUST do the same. Calling
-          // arcResolver here routes through that exact pipeline.
+          // Cached vertices and the live head must share coordinates: local
+          // anchored plot coordinates for framed paths, historical world
+          // coordinates otherwise. Reuse the exact runtime resolver.
           const cacheResolver = (t: number): [number, number, number] => {
             try {
               return arcResolver(body.name, t);

@@ -83,6 +83,15 @@ jobs:
           npm test -- --exclude scripts/surface-build.test.mjs
           npx vitest run --project scripts scripts/surface-build.test.mjs --testNamePattern '^finite locked surface build planning'
 
+      - name: Replay MoonFall clearance against pinned hosted CPU terrain
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          DATA_BASE_URL: ${{ vars.DATA_BASE_URL }}
+        run: |
+          MOONFALL_GRIDS=$(node --input-type=module -e "import {loadDatasets,remotePrefix,joinUrl} from './scripts/data-hosting/lib/datasets.mjs'; console.log(joinUrl(process.env.DATA_BASE_URL, remotePrefix(loadDatasets().datasets['cube-terrain/moon-terrain-cube']) + 'cpu-grids.json'))")
+          export MOONFALL_GRIDS
+          npx vitest run --project scripts scripts/moonfall-clearance.test.mjs
+
       - name: Planetary nomenclature converter regressions
         run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
 

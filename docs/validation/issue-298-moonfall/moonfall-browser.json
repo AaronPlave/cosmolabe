@@ -1,0 +1,2559 @@
+{
+  "passed": true,
+  "phases": [
+    {
+      "key": "flight-1",
+      "et": 913759659.1834564,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 165,
+          "lastMs": 0.5,
+          "meanMs": 0.30833333134651186,
+          "maxMs": 1.300000011920929
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 246,
+          "cpu": 197
+        },
+        "network": {
+          "requests": 246,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 39326544,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 52566264,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 234,
+            "pinnedTextures": 30,
+            "textureBytes": 86980608,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 234,
+            "bytes": 4596506,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 104,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 33,
+              "9": 43
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.699999988079071,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 181.9000000357628,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 234,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": true,
+          "vertices": 1363,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.00002637327890563006
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": true,
+          "vertices": 1431,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000010517596103289412
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": true,
+          "vertices": 1488,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.0000015860851108382072
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": true,
+          "vertices": 1259,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.0000259541134898861
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 156926
+    },
+    {
+      "key": "hopper-origin-0",
+      "et": 913759659.1834564,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 249,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.31249999602635703,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 246,
+          "cpu": 235
+        },
+        "network": {
+          "requests": 246,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 39326544,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 52566264,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 277,
+            "pinnedTextures": 30,
+            "textureBytes": 102964224,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 277,
+            "bytes": 5772284,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 104,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 33,
+              "9": 43
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.5,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 216.5999999642372,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 277,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": true,
+          "vertices": 1363,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.00002637327620354423
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": true,
+          "vertices": 1431,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000010517591706637829
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": true,
+          "vertices": 1488,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000001586085867827959
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": true,
+          "vertices": 1259,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000025954110048874933
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 156926
+    },
+    {
+      "key": "close-flight-0",
+      "et": 913759659.1834564,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 320,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.3099999974171321,
+          "maxMs": 1
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 141,
+          "visible": 122,
+          "drawn": 52,
+          "inCache": 334,
+          "cpu": 264
+        },
+        "network": {
+          "requests": 334,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 53394576,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 71370456,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 454,
+            "pinnedTextures": 30,
+            "textureBytes": 168757248,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 454,
+            "bytes": 9444089,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 52,
+            "splitTiles": 0,
+            "blocks": 165,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "4": 4,
+              "5": 19,
+              "6": 27,
+              "7": 35,
+              "8": 17,
+              "9": 21,
+              "10": 36
+            },
+            "wantedLevels": {
+              "4": 7,
+              "5": 28,
+              "6": 29,
+              "7": 25,
+              "8": 20,
+              "9": 23,
+              "10": 30
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.899999976158142,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 355.5999998450279,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 454,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": true,
+          "vertices": 1363,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.00002637327620354423
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": true,
+          "vertices": 1431,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000010517591706637829
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": true,
+          "vertices": 1488,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000001586085867827959
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": true,
+          "vertices": 1259,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000025954110048874933
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 1131127
+    },
+    {
+      "key": "flight-2",
+      "et": 914268949.1836202,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 484,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.2291666676600774,
+          "maxMs": 0.5999999642372131
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 346,
+          "cpu": 268
+        },
+        "network": {
+          "requests": 346,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 55312944,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 73934664,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 475,
+            "pinnedTextures": 30,
+            "textureBytes": 176563200,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 475,
+            "bytes": 9839727,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 116,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 29,
+              "9": 59
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.5999999642372131,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 373.59999990463257,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 475,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": true,
+          "vertices": 963,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004831536941082719
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 253017
+    },
+    {
+      "key": "hopper-origin-2",
+      "et": 914268949.1836202,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 567,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.32166666984558107,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 346,
+          "cpu": 274
+        },
+        "network": {
+          "requests": 346,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 55312944,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 73934664,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 501,
+            "pinnedTextures": 30,
+            "textureBytes": 186227712,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 501,
+            "bytes": 10453810,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 116,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 29,
+              "9": 59
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.300000011920929,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 394.9999997019768,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 501,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": true,
+          "vertices": 963,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004831536922541355
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 253017
+    },
+    {
+      "key": "close-flight-2",
+      "et": 914268949.1836202,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 638,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.3275000020861626,
+          "maxMs": 0.800000011920929
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 162,
+          "visible": 143,
+          "drawn": 57,
+          "inCache": 422,
+          "cpu": 279
+        },
+        "network": {
+          "requests": 422,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 67462608,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 90174648,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 575,
+            "pinnedTextures": 30,
+            "textureBytes": 213734400,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 575,
+            "bytes": 11363754,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 57,
+            "splitTiles": 0,
+            "blocks": 188,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "3": 1,
+              "4": 4,
+              "5": 18,
+              "6": 22,
+              "7": 29,
+              "8": 16,
+              "9": 27,
+              "10": 25,
+              "11": 40
+            },
+            "wantedLevels": {
+              "4": 6,
+              "5": 22,
+              "6": 21,
+              "7": 21,
+              "8": 21,
+              "9": 28,
+              "10": 30,
+              "11": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 11,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 2.099999964237213,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 454.8999996185303,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 575,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": true,
+          "vertices": 963,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004831536922541355
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 147151
+    },
+    {
+      "key": "flight-3",
+      "et": 914825324.1838038,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 798,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.21999999632438025,
+          "maxMs": 0.699999988079071
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 153,
+          "visible": 153,
+          "drawn": 22,
+          "inCache": 438,
+          "cpu": 281
+        },
+        "network": {
+          "requests": 438,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 70020432,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 93593592,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 580,
+            "pinnedTextures": 30,
+            "textureBytes": 215592960,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 580,
+            "bytes": 11458124,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 116,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 29,
+              "9": 59
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.699999988079071,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 458.599999666214,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 580,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": true,
+          "vertices": 1430,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.0000046801786702408864
+        }
+      ],
+      "litPixels": 422397
+    },
+    {
+      "key": "hopper-origin-4",
+      "et": 914825324.1838038,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 884,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.2899999996026357,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 153,
+          "visible": 153,
+          "drawn": 22,
+          "inCache": 438,
+          "cpu": 283
+        },
+        "network": {
+          "requests": 438,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 70020432,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 93593592,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 580,
+            "pinnedTextures": 30,
+            "textureBytes": 215592960,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 580,
+            "bytes": 11458124,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 116,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 29,
+              "9": 59
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.5,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 458.599999666214,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 580,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": true,
+          "vertices": 1430,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004680178036958906
+        }
+      ],
+      "litPixels": 422397
+    },
+    {
+      "key": "close-flight-4",
+      "et": 914825324.1838038,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Polaris-D",
+      "terrain": {
+        "update": {
+          "count": 956,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.26166666448116305,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 93,
+          "visible": 74,
+          "drawn": 32,
+          "inCache": 454,
+          "cpu": 285
+        },
+        "network": {
+          "requests": 454,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 72578256,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 97012536,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 619,
+            "pinnedTextures": 30,
+            "textureBytes": 230089728,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 619,
+            "bytes": 11949796,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 32,
+            "splitTiles": 0,
+            "blocks": 119,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "4": 4,
+              "5": 20,
+              "6": 30,
+              "7": 27,
+              "8": 11,
+              "9": 3,
+              "10": 18
+            },
+            "wantedLevels": {
+              "4": 10,
+              "5": 25,
+              "6": 22,
+              "7": 25,
+              "8": 11,
+              "9": 3,
+              "10": 18
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.399999976158142,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 481.69999980926514,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 619,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": true,
+          "vertices": 1430,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004680178036958906
+        }
+      ],
+      "litPixels": 188095
+    },
+    {
+      "key": "parked",
+      "et": 914014359.1835384,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 1056,
+          "lastMs": 0.20000004768371582,
+          "meanMs": 0.23916666706403097,
+          "maxMs": 0.6000000238418579
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 153,
+          "visible": 153,
+          "drawn": 22,
+          "inCache": 462,
+          "cpu": 286
+        },
+        "network": {
+          "requests": 462,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 73857168,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 98722008,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 640,
+            "pinnedTextures": 30,
+            "textureBytes": 237895680,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 640,
+            "bytes": 12295437,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 119,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 30,
+              "9": 61
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.399999976158142,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 496.0999998450279,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 640,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 165239
+    },
+    {
+      "key": "playback-1",
+      "et": 913759420.3893561,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 1198,
+          "lastMs": 0.2999999523162842,
+          "meanMs": 0.3308333332339923,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 466,
+          "cpu": 289
+        },
+        "network": {
+          "requests": 466,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 74496624,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 99576744,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 670,
+            "pinnedTextures": 30,
+            "textureBytes": 249047040,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 670,
+            "bytes": 12912693,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 119,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 30,
+              "9": 61
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.9000000357627869,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 513.9999997615814,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 670,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": true,
+          "vertices": 499,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000010038208363306526
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": true,
+          "vertices": 511,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000006042490424779342
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": true,
+          "vertices": 561,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000014295171051265623
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": true,
+          "vertices": 488,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000017723199339331296
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 156440
+    },
+    {
+      "key": "playback-1000",
+      "et": 913759679.383456,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "glError": 0,
+      "origin": "Moon",
+      "terrain": {
+        "update": {
+          "count": 1284,
+          "lastMs": 0.40000003576278687,
+          "meanMs": 0.32500000049670535,
+          "maxMs": 0.5
+        },
+        "parse": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "cpuDecode": {
+          "count": 0,
+          "lastMs": 0,
+          "meanMs": 0,
+          "maxMs": 0
+        },
+        "sample": {
+          "count": 0,
+          "lastMicros": 0,
+          "meanMicros": 0
+        },
+        "tiles": {
+          "active": 150,
+          "visible": 150,
+          "drawn": 22,
+          "inCache": 466,
+          "cpu": 289
+        },
+        "network": {
+          "requests": 466,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 74496624,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 99576744,
+          "textureBytes": 388096
+        },
+        "imagery": {
+          "cube": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 670,
+            "pinnedTextures": 30,
+            "textureBytes": 249047040,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 670,
+            "bytes": 12912693,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 22,
+            "splitTiles": 0,
+            "blocks": 119,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 1,
+              "3": 1,
+              "4": 7,
+              "5": 9,
+              "7": 4,
+              "8": 30,
+              "9": 61
+            },
+            "wantedLevels": {
+              "4": 11,
+              "5": 5,
+              "7": 14,
+              "8": 40,
+              "9": 26
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 9,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.5999999642372131,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 513.9999997615814,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "layers": 0,
+          "activeOverlays": 1,
+          "overlayResolution": 256,
+          "requests": 670,
+          "failed": 0
+        }
+      },
+      "lines": [
+        {
+          "id": "Polaris-A__arc0",
+          "visible": true,
+          "vertices": 1438,
+          "cachePoints": 1511,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000004371728634565119
+        },
+        {
+          "id": "Polaris-A__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1760,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-A__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1628,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc0",
+          "visible": true,
+          "vertices": 1498,
+          "cachePoints": 1790,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.000009883087000463572
+        },
+        {
+          "id": "Polaris-B__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1595,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-B__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1432,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc0",
+          "visible": true,
+          "vertices": 1564,
+          "cachePoints": 1887,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.0000068208301385211885
+        },
+        {
+          "id": "Polaris-C__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1892,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-C__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2188,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc0",
+          "visible": true,
+          "vertices": 1336,
+          "cachePoints": 2619,
+          "frame": "IAU_MOON",
+          "markerErrorM": 0.0000019767648650225038
+        },
+        {
+          "id": "Polaris-D__arc2",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 1917,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        },
+        {
+          "id": "Polaris-D__arc4",
+          "visible": false,
+          "vertices": 0,
+          "cachePoints": 2922,
+          "frame": "IAU_MOON",
+          "markerErrorM": null
+        }
+      ],
+      "litPixels": 156987
+    }
+  ],
+  "errors": []
+}
