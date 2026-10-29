@@ -40,8 +40,10 @@ async function load(catalog, count) {
   await page.evaluate(()=>window.cosmo.setPlaying(false));
 }
 async function expanded() {
+  await page.waitForFunction(()=>document.querySelector('[aria-label="Expand timeline"]') || document.querySelector('[aria-label="Collapse timeline"]'));
   const button = page.getByRole('button',{name:'Expand timeline',exact:true});
   if (await button.count()) await button.click();
+  await page.getByRole('button',{name:'Collapse timeline',exact:true}).waitFor();
 }
 try {
   for (const [catalog, count] of [['ingenuity-jezero',72],['moonfall-shackleton',24],['msl-dingo-gap',2],['fixtures/mission-activities',4]]) {
@@ -51,14 +53,43 @@ try {
     const state = await page.evaluate(()=>({ids:window.cosmo.listActivities().map(a=>a.id),gpu:(()=>{const gl=window.renderer.renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return {vendor:gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),antialias:gl.getContextAttributes().antialias};})()}));
     await page.evaluate(()=>window.cosmo.setLayer('trajectories',false));
     assert.equal(await page.evaluate(()=>window.cosmo.listActivities().length),count);
-    const chooser = page.locator('select[aria-label^="Choose"]').first();
-    const id = await chooser.locator('option:not([disabled])').first().getAttribute('value');
-    await chooser.selectOption(id);
+    await expanded();
+    const chooser = page.locator('.picker-trigger').first();
+    await chooser.click();
+    const menu = page.getByRole('dialog',{name:/^Choose /});
+    if (catalog === 'ingenuity-jezero') {
+      const search = menu.getByRole('searchbox');
+      await search.fill('Flight 44');
+      await page.getByRole('status').filter({hasText:'1 activity'}).waitFor();
+      assert.equal(await menu.locator('.picker-result').count(),1);
+      assert.ok(await menu.innerText().then(t=>t.includes('Flight 44')));
+      await page.screenshot({path:`${out}/flight-44-search.png`});
+      await menu.locator('.picker-result').click();
+      const flightInspector = page.getByRole('region',{name:'Selected event',exact:true});
+      await flightInspector.getByRole('button',{name:'Details',exact:true}).click();
+      await page.screenshot({path:`${out}/flight-44-details.png`});
+      await flightInspector.getByRole('button',{name:'Less',exact:true}).click();
+      const selectedId = await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id);
+      await chooser.click();
+      assert.equal(await menu.locator('.picker-result[aria-pressed="true"]').count(),1);
+      await page.waitForFunction(()=>document.activeElement?.matches('.activity-picker input'));
+      await page.keyboard.press('Escape');
+      await menu.waitFor({state:'hidden'});
+      assert.ok(await chooser.evaluate(node=>node===document.activeElement));
+      assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),selectedId);
+      await chooser.click();
+      await search.fill('no-such-activity');
+      await menu.getByText('No activities found').waitFor();
+      assert.equal(await menu.locator('.picker-result').count(),0);
+      await search.fill('');
+    }
+    const id = await menu.locator('.picker-result:not([disabled])').first().getAttribute('data-activity-id');
+    await menu.locator('.picker-result:not([disabled])').first().click();
     assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
     const selected = await page.evaluate(()=>window.cosmo.getSelectedActivity());
     assert.equal(await page.evaluate(()=>window.cosmo.getTime()),selected.start);
     await expanded();
-    console.log('After select', await page.locator('select[aria-label^="Choose"]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))));
+    console.log('After select', await page.locator('.picker-trigger').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))));
     const nextButton = page.getByRole('button',{name:/^Next (activity|flight|hop|drive|descent|landing)$/}).first();
     if (await nextButton.isEnabled()) {
       await nextButton.click();
@@ -73,7 +104,7 @@ try {
     }
     await page.evaluate(()=>{const a=window.cosmo.getSelectedActivity(); window.cosmo.seekActivity(a.id,'end');});
     assert.equal(await page.evaluate(()=>window.cosmo.getTime()),selected.end);
-    await page.getByRole('button',{name:`Window ${selected.name}`,exact:true}).click();
+    await page.getByRole('button',{name:`Fit activity ${selected.name}`,exact:true}).click();
     const lane = page.getByRole('button',{name:`Go to ${selected.name}`,exact:true});
     await lane.scrollIntoViewIfNeeded();
     await lane.click();
@@ -101,6 +132,17 @@ try {
       assert.ok(await page.locator('[data-tl-row^="lane:event-query"]').count());
       assert.ok(await page.locator('[data-tl-row^="profile:"]').count());
     }
+    assert.equal(await page.locator('.activity-tools').count(),0);
+    const triggerWidth = await chooser.evaluate(node=>node.getBoundingClientRect().width);
+    assert.ok(triggerWidth<=180);
+    const inspector = page.getByRole('region',{name:'Selected event',exact:true});
+    await inspector.getByRole('button',{name:'Details',exact:true}).click();
+    assert.ok(!(await inspector.innerText()).includes('ET seconds'));
+    assert.ok(!(await inspector.innerText()).includes(selected.provenance.limitations));
+    await inspector.getByText('Source and technical details',{exact:true}).click();
+    assert.ok((await inspector.innerText()).includes(selected.provenance.limitations));
+    await inspector.getByText('Source and technical details',{exact:true}).click();
+    await inspector.getByRole('button',{name:'Less',exact:true}).click();
     assert.equal(await page.locator('.activity-facts').count(),0);
     if(catalog==='msl-dingo-gap') {
       assert.ok(await page.locator('.activity-mark.bounded').count());
@@ -109,10 +151,19 @@ try {
     await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-desktop.png`});
     await page.setViewportSize({width:390,height:844});
     await page.waitForTimeout(350); // Responsive shell replaces the dock after resize.
-    await page.locator('select[aria-label^="Choose"]').first().scrollIntoViewIfNeeded();
-    await page.locator('select[aria-label^="Choose"]').first().focus();
+    await page.locator('.picker-trigger').first().scrollIntoViewIfNeeded();
+    await page.locator('.picker-trigger').first().click();
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
+    if(catalog==='ingenuity-jezero') {
+      await page.locator('.picker-trigger').first().click();
+      const phoneMenu = page.getByRole('dialog',{name:/^Choose /});
+      await phoneMenu.getByRole('searchbox').fill('Flight 44');
+      await phoneMenu.getByText('1 activity',{exact:true}).waitFor();
+      await page.screenshot({path:`${out}/flight-44-search-390.png`});
+      await phoneMenu.getByRole('searchbox').press('Enter');
+      assert.ok(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.name==='Flight 44'));
+    }
     await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-390.png`});
     const geometry = await page.evaluate(()=>({
       pageWidth:document.documentElement.scrollWidth, viewport:innerWidth,
@@ -121,7 +172,7 @@ try {
     }));
     assert.ok(geometry.pageWidth<=geometry.viewport);
     await page.getByRole('button',{name:'Collapse timeline',exact:true}).click();
-    assert.equal(await page.locator('select[aria-label="Choose activity"]').count(),1);
+    assert.equal(await page.locator('.picker-trigger[aria-label="Choose activity"]').count(),1);
     await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-compact-390.png`});
     if(catalog==='fixtures/mission-activities') {
       await page.evaluate(()=>{window.cosmo.setTimeRate(10);window.cosmo.setPlaying(true);});
@@ -147,15 +198,16 @@ try {
   assert.ok(afterBin.span < beforeBin.span);
   assert.equal(afterBin.time,beforeBin.time);
   assert.equal(afterBin.id,beforeBin.id);
+  await page.getByRole('button',{name:'Choose flight',exact:true}).click();
   await page.getByRole('searchbox',{name:'Search Aircraft flight'}).fill('Stress flight 9999');
-  await page.getByRole('combobox',{name:'Choose flight'}).selectOption('stress:9999');
+  await page.locator('.picker-result[data-activity-id="stress:9999"]').click();
   assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),'stress:9999');
   await page.evaluate(()=>{window.cosmo.seekActivity('stress:0');window.cosmo.setTimeRate(10);window.cosmo.setPlaying(true);});
   results.performance = await page.evaluate(async()=>{
     const samples=[];let last=performance.now();
     for(let i=0;i<120;i++) {await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}
     samples.sort((a,b)=>a-b);window.cosmo.setPlaying(false);
-    return {records:window.cosmo.listActivities().length,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length,p95Ms:samples[Math.floor(samples.length*.95)],marks:document.querySelectorAll('.activity-mark').length,options:document.querySelectorAll('select[aria-label="Choose flight"] option').length};
+    return {records:window.cosmo.listActivities().length,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length,p95Ms:samples[Math.floor(samples.length*.95)],marks:document.querySelectorAll('.activity-mark').length,options:document.querySelectorAll('.picker-result').length};
   });
   assert.ok(results.performance.marks<=200);
   assert.ok(results.performance.options<=202);

@@ -223,7 +223,7 @@
     if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
     // Transient controls own Escape before focus or scene dismissal.
-    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
+    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content], [popover]:popover-open')) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||

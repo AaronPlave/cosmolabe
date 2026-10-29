@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "catalog": "ingenuity-jezero",
+      "count": 72,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 59.5,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "moonfall-shackleton",
+      "count": 24,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "msl-dingo-gap",
+      "count": 2,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 80.5,
+        "pageScroll": 0
+      }
+    },
+    {
+      "catalog": "fixtures/mission-activities",
+      "count": 4,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    }
+  ],
+  "errors": [],
+  "httpErrors": [],
+  "abortedRequests": 15,
+  "otherRequestFailures": [],
+  "checks": [
+    "visible searchable activity picker and result count",
+    "Flight 44 filter, keyboard selection and empty results",
+    "selected result indication and Escape restores focus without clearing selection",
+    "180px-capped picker, no standalone search/status row",
+    "inspector Details keeps full limitations in a secondary disclosure, no raw ET",
+    "desktop and 390px expanded and compact layouts across real catalogs",
+    "previous selection cleanup, navigation fitting and dense aggregate zoom"
+  ],
+  "performance": {
+    "records": 10000,
+    "meanMs": 16.59833333293597,
+    "p95Ms": 17.69999998807907,
+    "marks": 4,
+    "options": 1
+  }
+}

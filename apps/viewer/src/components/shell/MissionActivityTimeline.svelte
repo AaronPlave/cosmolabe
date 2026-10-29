@@ -5,12 +5,22 @@
   import { previewEvent, isSelectedEvent } from '../../lib/event-finder.svelte';
   import { timeline, eventKey } from '../../lib/timeline.svelte';
   import { vs, setPlaying, setScrubberWindow, etToUtcString } from '../../lib/viewer-state.svelte';
-  import { ChevronLeft, ChevronRight } from 'lucide-svelte';
+  import { ChevronDown, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-svelte';
+  import { tick } from 'svelte';
 
   let { items, label, expanded, wide, axis }: {
     items: MissionActivity[]; label: string; expanded: boolean; wide: boolean;
     axis: { left: number; width: number; railEnd: number };
   } = $props();
+  const pickerId = $props.id();
+  let picker = $state<HTMLDivElement>(undefined!);
+  let trigger = $state<HTMLButtonElement>(undefined!);
+  let searchInput = $state<HTMLInputElement>(undefined!);
+  let pickerOpen = $state(false);
+  let pickerLeft = $state(0);
+  let pickerBottom = $state(0);
+  const kinds: Record<string, string> = {flight:'Flights', drive:'Drives', hop:'Hops', descent:'Descents', landing:'Landings', phase:'Phases', other:'Activities'};
+  const heading = $derived(kinds[label] ?? 'Activities');
   const vehicleLabel = $derived(label === 'activity' ? 'Activities' : items[0]?.vehicle);
   let search = $state('');
   const selected = $derived(items.find(a => isSelectedEvent(activityEvent(a))));
@@ -18,10 +28,40 @@
   const selectedIndex = $derived(selected ? navigable.indexOf(selected) : -1);
   const previous = $derived(selectedIndex >= 0 ? navigable[selectedIndex - 1] : adjacentActivity(navigable, vs.et, -1));
   const next = $derived(selectedIndex >= 0 ? navigable[selectedIndex + 1] : adjacentActivity(navigable, vs.et, 1));
-  // No per-frame list scan: active state is CSS on visible marks and this O(1) selected read.
-  const selectedState = $derived(!selected ? 'Choose activity' : vs.et < selected.start ? 'Upcoming' : vs.et > selected.end ? 'Past' : selected.provenance.timing === 'bounded' ? 'Within reported window' : 'Active');
   const matches = $derived(items.filter(a => `${a.vehicle} ${a.name}`.toLowerCase().includes(search.toLowerCase())));
-  const choices = $derived(selected && !matches.slice(0, 200).includes(selected) ? [selected, ...matches.slice(0, 200)] : matches.slice(0, 200));
+  const choices = $derived(matches.slice(0, 200));
+  async function togglePicker(event: Event) {
+    pickerOpen = (event as ToggleEvent).newState === 'open';
+    if (pickerOpen) {
+      await tick(); searchInput.focus();
+      picker.querySelector<HTMLElement>('[aria-pressed="true"]')?.scrollIntoView({block:'nearest'});
+    }
+  }
+  function openPicker() {
+    const rect = trigger.getBoundingClientRect();
+    pickerLeft = Math.max(8, Math.min(rect.left, innerWidth - Math.min(320, innerWidth - 16) - 8));
+    pickerBottom = innerHeight - rect.top + 6;
+    search = '';
+    picker.togglePopover();
+  }
+  function choose(item: MissionActivity) {
+    seek(item); picker.hidePopover(); trigger.focus();
+  }
+  function pickerKey(event: KeyboardEvent) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const buttons = [...picker.querySelectorAll<HTMLButtonElement>('.picker-result:not(:disabled)')];
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const target = index < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1) : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[target]?.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation();
+      picker.hidePopover(); trigger.focus();
+    } else if (event.key === 'Enter' && event.target === searchInput) {
+      const first = choices.find(a => a.enabled !== false);
+      if (first) { event.preventDefault(); choose(first); }
+    }
+  }
   const layout = $derived(activityLayout(items));
   const marks = $derived(visibleActivityMarks(layout, vs.scrubMin, vs.scrubMax));
   const rows = $derived(Math.max(1, ...marks.map(m => m.row + 1)));
@@ -41,23 +81,26 @@
 
 {#if items.length}
   <div class="activity-navigation" role="group" aria-label={`${items[0].vehicle} ${label} navigation`} data-tl-no-axis>
-    <span class="vehicle">{vehicleLabel}{label === 'activity' ? '' : ` · ${label}`}</span>
+    <span class="vehicle" title={label === 'activity' ? 'Activities' : `${vehicleLabel} · ${heading}`}>{vehicleLabel}{label === 'activity' ? '' : ` · ${heading}`}</span>
     <button class="tl-icon-btn" aria-label={`Previous ${label}`} disabled={!previous} onclick={() => seek(previous)}><ChevronLeft size={14} /></button>
-    <select aria-label={`Choose ${label}`} value={selected?.id ?? ''} onchange={event => seek(items.find(a => a.id === event.currentTarget.value))}>
-      <option value="" disabled>Choose {label} · {items.length}</option>
-      {#each choices as item (item.id)}<option value={item.id} disabled={item.enabled === false}>{description(item)}</option>{/each}
-    </select>
+    <button bind:this={trigger} class="picker-trigger" aria-label={`Choose ${label}`} aria-haspopup="dialog" aria-expanded={pickerOpen} aria-controls={pickerId} onclick={openPicker}>
+      <span>{selected ? `${label === 'activity' ? `${selected.vehicle} · ` : ''}${selected.name}` : `Choose ${label}`}</span><ChevronDown size={12}/>
+    </button>
+    <div data-tl-no-axis bind:this={picker} id={pickerId} popover="auto" class="activity-picker" role="dialog" aria-label={`Choose ${label}`} style={`left:${pickerLeft}px; bottom:${pickerBottom}px`} ontoggle={togglePicker} onkeydowncapture={pickerKey} tabindex="-1">
+      <input bind:this={searchInput} type="search" aria-label={`Search ${items[0].vehicle} ${label}`} placeholder="Search activities" bind:value={search}/>
+      <p class="result-count" role="status">{matches.length === 0 ? 'No activities found' : `${matches.length} ${matches.length === 1 ? 'activity' : 'activities'}${matches.length > 200 ? ' · first 200 shown; refine search' : ''}`}</p>
+      <ul>
+        {#each choices as item (item.id)}
+          <li><button class="picker-result" aria-pressed={item.id === selected?.id} disabled={item.enabled === false} data-activity-id={item.id} onclick={() => choose(item)}><span>{label === 'activity' ? `${item.vehicle} · ` : ''}{item.name}</span><small>{etToUtcString(item.start).split(' ')[0]}</small></button></li>
+        {/each}
+      </ul>
+    </div>
     <button class="tl-icon-btn" aria-label={`Next ${label}`} disabled={!next} onclick={() => seek(next)}><ChevronRight size={14} /></button>
-    {#if selected}<button class="window-button" onclick={() => setScrubberWindow(...activityWindow(selected!))} aria-label={`Window ${selected.name}`}>Window</button>{/if}
+    {#if selected}<button class="tl-icon-btn" onclick={() => setScrubberWindow(...activityWindow(selected!))} aria-label={`Fit activity ${selected.name}`} title="Fit activity"><Maximize2 size={13}/></button>{/if}
   </div>
   {#if expanded}
-    <div class="activity-tools" data-tl-no-axis>
-      {#if matches.length > 200}<span>First 200 of {matches.length}; search to narrow</span>{/if}
-      {#if items.length > 20}<input type="search" aria-label={`Search ${items[0].vehicle} ${label}`} placeholder="Search activities" bind:value={search} />{/if}
-      <span>{selectedState}</span>
-    </div>
     <div class="activity-lane" class:wide style={wide ? `grid-template-columns: ${axis.left}px ${axis.width}px minmax(0, 1fr)` : ''} data-tl-row={`lane:activity:${items[0].vehicle}:${label}`}>
-      {#if wide}<span class="text-text-secondary" data-tl-no-axis>{label}</span>{/if}
+      {#if wide}<span aria-hidden="true"></span>{/if}
       <div class="activity-axis" style={`height: ${rows * 21 + 4}px`} data-tl-plot role="group" aria-label={`${items[0].vehicle} ${label} intervals`}>
         {#each marks as { item, row, count, windowStart, windowEnd } (item.id)}
           <button class="activity-mark" class:active={vs.et >= item.start && vs.et <= item.end}
@@ -78,14 +121,18 @@
 <style>
   .activity-navigation { display:flex; align-items:center; gap:4px; padding:3px 8px; min-width:0; font-size:11px; }
   .vehicle { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  select, input { min-width:0; background:var(--color-surface-2, #171b20); color:inherit; border-radius:4px; padding:4px; }
-  select { flex:1; max-width:440px; }
-  .window-button { font-size:11px; padding:4px; }
-  .activity-tools { display:flex; gap:8px; padding:2px 8px; font-size:11px; align-items:center; }
-  .activity-tools input { width:130px; }
+  .picker-trigger { width:180px; max-width:42vw; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:6px; background:var(--color-surface-2, #171b20); border-radius:4px; padding:4px 6px; }
+  .picker-trigger span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .activity-picker { position:fixed; top:auto; right:auto; margin:0; width:min(320px, calc(100vw - 16px)); max-height:min(340px, 55vh); overflow:hidden; padding:8px; border:1px solid var(--color-chrome-border); border-radius:6px; background:var(--color-surface-1); color:var(--color-text-primary); box-shadow:0 4px 18px #0008; font-size:12px; }
+  .activity-picker input { width:100%; padding:6px; background:var(--color-surface-2, #171b20); color:inherit; border-radius:4px; }
+  .result-count { margin:6px 0; color:var(--color-text-secondary); font-size:11px; }
+  .activity-picker ul { list-style:none; padding:0; margin:0; max-height:calc(min(340px, 55vh) - 84px); overflow-y:auto; overscroll-behavior:contain; }
+  .picker-result { display:flex; justify-content:space-between; gap:12px; width:100%; padding:6px; text-align:left; border-radius:3px; }
+  .picker-result small { white-space:nowrap; color:var(--color-text-secondary); }
+  .picker-result:hover, .picker-result:focus-visible { background:var(--color-control-hover); }
+  .picker-result[aria-pressed="true"] { background:var(--color-control-hover); box-shadow:inset 2px 0 var(--ev); }
   .activity-lane { padding:2px 0; font-size:11px; }
   .activity-lane.wide { display:grid; align-items:center; }
-  .activity-lane.wide > span { padding-left:8px; }
   .activity-axis { position:relative; background:rgb(255 255 255 / 3%); overflow:hidden; }
   .activity-mark { position:absolute; height:17px; background:var(--ev); opacity:.72; border-radius:2px; overflow:hidden; font-size:10px; white-space:nowrap; text-align:center; }
   .activity-mark.bounded { background:color-mix(in srgb, var(--ev) 12%, transparent); box-shadow:inset 0 -2px color-mix(in srgb, var(--ev) 55%, transparent); color:var(--color-text-secondary); }
@@ -93,5 +140,5 @@
   .activity-mark.selected, .activity-mark.previewed, .activity-mark:hover { outline:1px solid white; outline-offset:-1px; }
   .activity-mark span { padding:0 4px; }
   .activity-playhead { position:absolute; width:1px; height:100%; background:white; pointer-events:none; }
-  @media (max-width:480px) { .vehicle { max-width:80px; } .activity-navigation { padding:3px 4px; } }
+  @media (max-width:480px) { .vehicle { max-width:125px; } .activity-navigation { padding:3px 4px; } }
 </style>

@@ -46,8 +46,17 @@ The 41 data-hosting tests include actual Vite GET/HEAD routing and local-file pr
 
 ## PR feedback follow-up
 
-The captures above now show the simplified navigation surface: short activity/date labels, a single status, and complete activity times/provenance/source/limitations/ET in inspector Details. Curiosity discovery windows use a faint band and edge accent instead of solid drive bars or dashed borders. Chooser and previous/next fit the selected activity; grouped density marks zoom into their time bin without selecting an arbitrary member or seeking.
+The first feedback pass simplified labels and moved metadata into inspector Details. The later focused UX pass below supersedes that presentation. Curiosity discovery windows use a faint band and edge accent instead of solid drive bars or dashed borders. Chooser and previous/next fit the selected activity; grouped density marks zoom into their time bin without selecting an arbitrary member or seeking.
 
 [Final browser results](review-feedback.json) cover all three catalogs and the concurrent fixture on desktop and 390px, plus grouped zoom over 10,000 records. The geometry-event → activity regression verifies body highlight cleanup and unchanged clock/camera selection. Zero JavaScript/HTTP errors occurred. Navigation cancellations are recorded separately. The existing scientific/source and physical-device limitations still apply.
 
 All 639 viewer tests, five importer/refresh tests, test/viewer TypeScript checks, Svelte (zero errors/warnings), focused ESLint and the production viewer build pass. The metadata refresher was run twice on the real catalogs with no diff. Regression fixtures cover activities first/middle/last and nested fields, preserving unrelated bytes and numeric spellings with idempotent output.
+
+
+## Focused activity navigation UX pass
+
+The current captures use one compact row with a capitalized vehicle/type heading, previous/next, a 180px-capped selected-name picker and an accessible Fit activity icon. The plotted lane carries no duplicate kind label, standalone search box or status row. Search is inside a visible picker menu with count, empty state and selected indication. The menu keeps its search field visible while results scroll. Arrow keys/Enter choose results; Escape closes the menu and preserves scene selection.
+
+The inspector now shows UTC bounds, duration (unknown for bounded drive windows), a short authority/source indication and opt-in technical provenance. Opening Details no longer dumps the disclaimer or raw ET; Source and technical details is a second disclosure. Numeric ET remains available through records/API.
+
+[Flight 44 search](flight-44-search.png), [390px search](flight-44-search-390.png), and [Flight 44 inspector with Details expanded](flight-44-details.png) demonstrate the specifically reviewed case. All other captures above are refreshed across the three real catalogs and concurrent fixture. See [UX interaction results](ux-polish.json) for browser scope and errors. Physical mobile input and other browser engines remain untested.
