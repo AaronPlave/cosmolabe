@@ -39,6 +39,24 @@ describe('mission activities independent of trajectory storage', () => {
     expect(records.filter(a=>a.start<=672089550 && a.end>=672089550)).toHaveLength(3);
     expect(fixture.items.some((b: {name: string})=>b.name===records[2].vehicle)).toBe(false);
   });
+  it('represents seven coincident activities with four rows and an exact overflow picker group', () => {
+    const source = parseMissionActivities(catalog('fixtures/mission-activities').activities)[0];
+    const records = Array.from({length:7},(_,i)=>({...source,id:`overlap:${i}`,start:0,end:100}));
+    const marks = visibleActivityMarks(activityLayout(records),0,100);
+    expect(marks).toHaveLength(4);
+    expect(marks.map(m=>m.row)).toEqual([0,1,2,3]);
+    expect(marks[3]).toMatchObject({count:4,windowStart:0,windowEnd:100});
+    expect(marks.flatMap(m=>m.members!.map(a=>a.id))).toEqual(records.map(a=>a.id));
+  });
+  it('keeps nested overflow intervals covered until the longest interval ends', () => {
+    const source = parseMissionActivities(catalog('fixtures/mission-activities').activities)[0];
+    const records = [[0,100],[0,100],[0,100],[0,100],[1,10],[20,30],[110,120]].map(([start,end],i)=>({...source,id:`nested:${i}`,start,end}));
+    const marks = visibleActivityMarks(activityLayout(records),0,120);
+    const group = marks.find(m=>m.count>1)!;
+    expect(group).toMatchObject({count:3,windowStart:0,windowEnd:100});
+    expect(group.members?.map(a=>a.id)).toEqual(['nested:3','nested:4','nested:5']);
+    expect(marks.reduce((n,m)=>n+m.count,0)).toBe(records.length);
+  });
   it('bounds visible density and exact navigation for long overlapping missions', () => {
     const source = parseMissionActivities(catalog('fixtures/mission-activities').activities)[0];
     const records = Array.from({length:10000},(_,i)=>({...source,id:`a${String(i).padStart(5,'0')}`,start:i*2,end:i*2+30}));

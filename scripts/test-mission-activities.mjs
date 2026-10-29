@@ -8,7 +8,7 @@ await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless:true,
   ...(process.platform === 'darwin' ? { executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
   args:[process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader', '--enable-gpu', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport:{width:1440,height:900} });
+let page = await browser.newPage({ viewport:{width:1440,height:900} });
 page.setDefaultTimeout(30000);
 const results = { cases:[], errors:[], failedRequests:[], httpErrors:[] };
 page.on('pageerror', e => results.errors.push(e.message));
@@ -19,6 +19,8 @@ const stress = { name:'Activity stress fixture', defaultTime:fixture.defaultTime
   activities:Array.from({length:10000}, (_,i)=>({...fixture.activities[0], id:`stress:${i}`, name:`Stress flight ${i}`, start:672089519.3+i*2, end:672089529.3+i*2})) };
 
 await page.route('**/test-catalogs/activity-stress.json', route => route.fulfill({json:stress}));
+const overlap = {...stress, name:'Coincident activities',activities:stress.activities.slice(0,7).map((a,i)=>({...a,id:`overlap:${i}`,name:`Overlap ${i}`,start:672089519.3,end:672089579.3}))};
+await page.route('**/test-catalogs/activity-overlap.json', route=>route.fulfill({json:overlap}));
 async function liveModule(name) {
   return page.evaluate(async name=>{
     const url=performance.getEntriesByType('resource').map(r=>r.name).find(url=>new URL(url).pathname.endsWith('/src/lib/'+name));
@@ -138,10 +140,8 @@ try {
     const inspector = page.getByRole('region',{name:'Selected event',exact:true});
     await inspector.getByRole('button',{name:'Details',exact:true}).click();
     assert.ok(!(await inspector.innerText()).includes('ET seconds'));
-    assert.ok(!(await inspector.innerText()).includes(selected.provenance.limitations));
-    await inspector.getByText('Source and technical details',{exact:true}).click();
     assert.ok((await inspector.innerText()).includes(selected.provenance.limitations));
-    await inspector.getByText('Source and technical details',{exact:true}).click();
+    assert.equal(await inspector.locator('details').count(),0);
     await inspector.getByRole('button',{name:'Less',exact:true}).click();
     assert.equal(await page.locator('.activity-facts').count(),0);
     if(catalog==='msl-dingo-gap') {
@@ -211,6 +211,17 @@ try {
     await page.setViewportSize({width:1440,height:900});
   }
   await page.setViewportSize({width:1440,height:900});
+  await load('activity-overlap',7);
+  await expanded();
+  assert.equal(await page.locator('.activity-mark').count(),4);
+  for(let i=3;i<7;i++) {
+    await page.getByRole('button',{name:'Choose among 4 overlapping activities',exact:true}).click();
+    const menu=page.getByRole('dialog',{name:'Choose flight',exact:true});
+    assert.equal(await menu.locator('.picker-result').count(),4);
+    await menu.locator(`[data-activity-id="overlap:${i}"]`).click();
+    assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),`overlap:${i}`);
+  }
+  await page.screenshot({path:`${out}/overlap-desktop.png`});
   await load('activity-stress',10000);
   await expanded();
   const aggregate = page.getByRole('button',{name:/^Zoom into \d+ activities$/}).first();
@@ -239,6 +250,48 @@ try {
   assert.equal(results.errors.length,0,results.errors.join('\n'));
   const assetErrors=results.httpErrors.filter(r=>/\/test-catalogs\/(data|kernels)\//.test(new URL(r.url).pathname));
   assert.deepEqual(assetErrors,[], 'Managed assets must load through the native Vite fallback');
+  const desktopPage=page;
+  const touchContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:1});
+  page=await touchContext.newPage();
+  page.setDefaultTimeout(30000);
+  page.on('pageerror', e=>results.errors.push(e.message));
+  page.on('response', r=>{if(r.status()>=400)results.httpErrors.push({url:r.url(),status:r.status()});});
+  results.touch=[];
+  for(const [catalog,count] of [['ingenuity-jezero',72],['msl-dingo-gap',2]]) {
+    await load(catalog,count);
+    await expanded();
+    assert.ok(await page.evaluate(()=>navigator.maxTouchPoints>0 && !matchMedia('(hover: hover)').matches));
+    await page.locator('.picker-trigger').first().tap();
+    await page.getByRole('dialog',{name:/^Choose /}).locator('.picker-result:not([disabled])').first().tap();
+    const selected=await page.evaluate(()=>window.cosmo.getSelectedActivity());
+    const mark=page.getByRole('button',{name:`Go to ${selected.name}`,exact:true});
+    await mark.scrollIntoViewIfNeeded();
+    await mark.tap();
+    const inspector=page.getByRole('region',{name:'Selected event',exact:true});
+    await inspector.waitFor();
+    assert.equal(await page.locator('.event-callout').count(),0);
+    const stateUrl=await liveModule('event-finder.svelte.ts');
+    assert.equal(await page.evaluate(async url=>(await import(url)).ef.previewId,stateUrl),null);
+    const geometry=await page.evaluate(()=>{
+      const i=document.querySelector('[aria-label="Selected event"]').getBoundingClientRect();
+      const t=document.querySelector('[data-tl-row="transport"]').getBoundingClientRect();
+      return {inspectorBottom:i.bottom,transportTop:t.top,pageWidth:document.documentElement.scrollWidth};
+    });
+    assert.ok(geometry.inspectorBottom<=geometry.transportTop && geometry.pageWidth<=390,JSON.stringify(geometry));
+    await page.screenshot({path:`${out}/${catalog}-touch-390.png`});
+    await inspector.getByRole('button',{name:'Details',exact:true}).tap();
+    assert.ok((await inspector.innerText()).includes(selected.provenance.limitations));
+    assert.equal(await inspector.locator('details').count(),0);
+    await inspector.getByRole('button',{name:'Less',exact:true}).tap();
+    await page.getByRole('button',{name:'Play',exact:true}).tap();
+    assert.ok(await page.evaluate(()=>window.cosmo.isPlaying()));
+    await page.getByRole('button',{name:'Pause',exact:true}).tap();
+    results.touch.push({catalog,geometry,hasTouch:true,hover:false});
+  }
+  assert.deepEqual(results.errors,[]);
+  assert.deepEqual(results.httpErrors,[]);
+  await touchContext.close();
+  page=desktopPage;
   console.log('Mission activity browser acceptance passed');
 } catch (error) {
   await page.screenshot({path:`${out}/failure.png`});

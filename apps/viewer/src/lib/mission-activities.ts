@@ -25,16 +25,37 @@ export function activityLayout(items: readonly MissionActivity[]) {
     let row = ends.findIndex(end => end < item.start);
     if (row < 0) row = ends.length;
     row = Math.min(3, row);
-    ends[row] = item.end;
+    ends[row] = Math.max(ends[row] ?? -Infinity, item.end);
     return { item, row };
   });
+}
+
+interface ActivityMark {
+  item: MissionActivity; row: number; count: number; windowStart: number; windowEnd: number;
+  /** Small overlapping groups open their exact members; dense bins zoom. */
+  members?: MissionActivity[];
 }
 
 /** Window/record changes only. Bound DOM density; exact navigation stays in the chooser. */
 export function visibleActivityMarks(layout: ReturnType<typeof activityLayout>, min: number, max: number, limit = 200) {
   const visible = layout.filter(({ item }) => item.end >= min && item.start <= max);
-  if (visible.length <= limit) return visible.map(m => ({ ...m, count: 1, windowStart: m.item.start, windowEnd: m.item.end }));
-  const bins = new Map<number, { item: MissionActivity; row: number; count: number; windowStart: number; windowEnd: number }>();
+  if (visible.length <= limit) {
+    const marks: ActivityMark[] = [];
+    let overflow: ActivityMark | undefined;
+    for (const m of visible) {
+      if (m.row === 3 && overflow && m.item.start <= overflow.windowEnd) {
+        overflow.count++;
+        overflow.windowEnd = Math.max(overflow.windowEnd, m.item.end);
+        overflow.members!.push(m.item);
+      } else {
+        const mark = { ...m, count: 1, windowStart: m.item.start, windowEnd: m.item.end, members: [m.item] };
+        marks.push(mark);
+        if (m.row === 3) overflow = mark;
+      }
+    }
+    return marks;
+  }
+  const bins = new Map<number, ActivityMark>();
   for (const m of visible) {
     const bin = Math.max(0, Math.min(limit - 1, Math.floor((m.item.start - min) / (max - min) * limit)));
     const entry = bins.get(bin);

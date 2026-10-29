@@ -105,12 +105,11 @@
   {#if open}
     <div class="details">
       {#if activity}
-        <details class="technical">
-          <summary>Source and technical details</summary>
+        <div class="technical">
           <p>{activity.provenance.limitations}</p>
           <p>{activity.provenance.authority} · {activity.provenance.timing} timing</p>
           <p>{activity.provenance.source} · version {activity.provenance.version}</p>
-        </details>
+        </div>
       {:else}<EventDetails {event} showEnd={false} />{/if}
     </div>
   {/if}
@@ -133,7 +132,6 @@
 
 <style>
   .technical { max-height:160px; overflow:auto; overflow-wrap:anywhere; }
-  .technical summary { cursor:pointer; color:var(--color-text-secondary); }
   .inspector {
     position: fixed;
     z-index: calc(var(--tl-z-callout) - 1);

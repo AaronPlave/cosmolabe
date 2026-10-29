@@ -3,7 +3,7 @@
   import { activityEvent, activityLayout, visibleActivityMarks } from '../../lib/mission-activities';
   import { selectActivity, seekActivity } from '../../lib/activity-control';
   import { previewEvent, isSelectedEvent } from '../../lib/event-finder.svelte';
-  import { timeline, eventKey } from '../../lib/timeline.svelte';
+  import { timeline, eventKey, setTimelineHover } from '../../lib/timeline.svelte';
   import { vs, setPlaying, setScrubberWindow, etToUtcString } from '../../lib/viewer-state.svelte';
   import { ChevronDown, ChevronLeft, ChevronRight, Maximize2 } from 'lucide-svelte';
   import { tick } from 'svelte';
@@ -23,12 +23,13 @@
   const heading = $derived(kinds[label] ?? 'Activities');
   const vehicleLabel = $derived(label === 'activity' ? 'Activities' : items[0]?.vehicle);
   let search = $state('');
+  let groupIds = $state<Set<string> | null>(null);
   const selected = $derived(items.find(a => isSelectedEvent(activityEvent(a))));
   const navigable = $derived(items.filter(a => a.enabled !== false));
   const selectedIndex = $derived(selected ? navigable.indexOf(selected) : -1);
   const previous = $derived(selectedIndex >= 0 ? navigable[selectedIndex - 1] : adjacentActivity(navigable, vs.et, -1));
   const next = $derived(selectedIndex >= 0 ? navigable[selectedIndex + 1] : adjacentActivity(navigable, vs.et, 1));
-  const matches = $derived(items.filter(a => `${a.vehicle} ${a.name}`.toLowerCase().includes(search.toLowerCase())));
+  const matches = $derived(items.filter(a => (!groupIds || groupIds.has(a.id)) && `${a.vehicle} ${a.name}`.toLowerCase().includes(search.toLowerCase())));
   const choices = $derived(matches.slice(0, 200));
   async function togglePicker(event: Event) {
     pickerOpen = (event as ToggleEvent).newState === 'open';
@@ -37,7 +38,9 @@
       picker.querySelector<HTMLElement>('[aria-pressed="true"]')?.scrollIntoView({block:'nearest'});
     }
   }
-  function openPicker() {
+  function openPicker(members?: MissionActivity[]) {
+    clearPreview();
+    groupIds = members ? new Set(members.map(a => a.id)) : null;
     const rect = trigger.getBoundingClientRect();
     pickerLeft = Math.max(8, Math.min(rect.left, innerWidth - Math.min(320, innerWidth - 16) - 8));
     pickerBottom = innerHeight - rect.top + 6;
@@ -65,8 +68,10 @@
   const layout = $derived(activityLayout(items));
   const marks = $derived(visibleActivityMarks(layout, vs.scrubMin, vs.scrubMax));
   const rows = $derived(Math.max(1, ...marks.map(m => m.row + 1)));
+  function clearPreview() { setTimelineHover(null); previewEvent(null); }
   function seek(item: MissionActivity | undefined, window = true) {
     if (!item) return;
+    clearPreview();
     setPlaying(false);
     selectActivity(item.id);
     seekActivity(item.id);
@@ -82,11 +87,12 @@
 {#if items.length}
   <div class="activity-lane" class:wide={expanded && wide}
     style={expanded && wide ? `grid-template-columns: ${axis.left}px ${axis.width}px minmax(0, 1fr)` : ''}
+    onpointerdowncapture={event => { if (event.pointerType === 'touch') clearPreview(); }}
     data-tl-row={expanded ? `lane:activity:${items[0].vehicle}:${label}` : undefined}>
   <div class="activity-navigation" class:narrow={expanded && wide && axis.left < 300} role="group" aria-label={`${items[0].vehicle} ${label} navigation`} data-tl-no-axis>
     <span class="vehicle" title={label === 'activity' ? 'Activities' : `${vehicleLabel} · ${heading}`}>{vehicleLabel}{label === 'activity' ? '' : ` · ${heading}`}</span>
     <button class="tl-icon-btn" aria-label={`Previous ${label}`} disabled={!previous} onclick={() => seek(previous)}><ChevronLeft size={14} /></button>
-    <button bind:this={trigger} class="picker-trigger" aria-label={`Choose ${label}`} aria-haspopup="dialog" aria-expanded={pickerOpen} aria-controls={pickerId} onclick={openPicker}>
+    <button bind:this={trigger} class="picker-trigger" aria-label={`Choose ${label}`} aria-haspopup="dialog" aria-expanded={pickerOpen} aria-controls={pickerId} onclick={() => openPicker()}>
       <span>{selected ? `${label === 'activity' ? `${selected.vehicle} · ` : ''}${selected.name}` : `Choose ${label}`}</span><ChevronDown size={12}/>
     </button>
     <div data-tl-no-axis bind:this={picker} id={pickerId} popover="auto" class="activity-picker" role="dialog" aria-label={`Choose ${label}`} style={`left:${pickerLeft}px; bottom:${pickerBottom}px`} ontoggle={togglePicker} onkeydowncapture={pickerKey} tabindex="-1">
@@ -103,14 +109,14 @@
   </div>
   {#if expanded}
       <div class="activity-axis" style={`height: ${rows * 21 + 4}px`} data-tl-plot role="group" aria-label={`${items[0].vehicle} ${label} intervals`}>
-        {#each marks as { item, row, count, windowStart, windowEnd } (item.id)}
-          <button class="activity-mark" class:active={vs.et >= item.start && vs.et <= item.end}
-            class:selected={item.id === selected?.id} class:bounded={item.provenance.timing === 'bounded'}
+        {#each marks as { item, row, count, windowStart, windowEnd, members } (item.id)}
+          <button class="activity-mark" class:active={vs.et >= (members && count > 1 ? windowStart : item.start) && vs.et <= (members && count > 1 ? windowEnd : item.end)}
+            class:selected={members ? members.some(a => a.id === selected?.id) : item.id === selected?.id} class:bounded={item.provenance.timing === 'bounded'}
             class:previewed={timeline.previewEventId === eventKey(activityEvent(item))}
-            disabled={item.enabled === false} data-tl-event-mark data-ev-kind="mission-activity"
+            disabled={count === 1 && item.enabled === false} data-tl-event-mark data-ev-kind="mission-activity"
             style={`top: ${row * 21 + 3}px; left: ${Math.max(0, fraction(count > 1 ? windowStart : item.start))}%; width: max(5px, ${Math.min(100, fraction(count > 1 ? windowEnd : item.end)) - Math.max(0, fraction(count > 1 ? windowStart : item.start))}%)`}
-            aria-label={count > 1 ? `Zoom into ${count} activities` : `Go to ${item.name}`} title={count > 1 ? `Zoom into ${count} activities` : description(item)}
-            onclick={() => count > 1 ? setScrubberWindow(windowStart, windowEnd) : seek(item, false)} onfocus={() => previewEvent(count > 1 ? null : activityEvent(item))} onblur={() => previewEvent(null)}
+            aria-label={count > 1 ? members ? `Choose among ${count} overlapping activities` : `Zoom into ${count} activities` : `Go to ${item.name}`} title={count > 1 ? members ? `Choose among ${count} overlapping activities` : `Zoom into ${count} activities` : description(item)}
+            onclick={() => count > 1 ? (members ? openPicker(members) : setScrubberWindow(windowStart, windowEnd)) : seek(item, false)} onfocus={() => { if (matchMedia('(hover: hover)').matches) previewEvent(count > 1 ? null : activityEvent(item)); }} onblur={() => previewEvent(null)}
           ><span>{count > 1 ? `${count} activities` : item.temporality === 'instant' ? '◆' : item.name}</span></button>
         {/each}
         {#if vs.et >= vs.scrubMin && vs.et <= vs.scrubMax}<span class="activity-playhead" style={`left: ${fraction(vs.et)}%`}></span>{/if}

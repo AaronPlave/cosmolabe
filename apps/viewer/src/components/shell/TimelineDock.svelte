@@ -302,6 +302,9 @@
   let calloutSize = $state({ w: 0, h: 0 });
   const callout = $derived.by(() => {
     if (!hoveredEvent || !timeline.anchor) return null;
+    // The selected activity's inspector owns its detail; a second activity
+    // callout must not cover the transport, including focus left after a tap.
+    if (hoveredEvent.kind === 'mission-activity' && selectedEventOf(allTimelineEvents())?.kind === 'mission-activity') return null;
     const [title, ...rest] = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
     const lines = rest.flatMap((line) => line.split(' · '));
     const half = (calloutSize.w || 200) / 2;
