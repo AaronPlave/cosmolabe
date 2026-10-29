@@ -25,7 +25,7 @@
   const layout = $derived(activityLayout(items));
   const marks = $derived(visibleActivityMarks(layout, vs.scrubMin, vs.scrubMax));
   const rows = $derived(Math.max(1, ...marks.map(m => m.row + 1)));
-  function seek(item: MissionActivity | undefined, window = false) {
+  function seek(item: MissionActivity | undefined, window = true) {
     if (!item) return;
     setPlaying(false);
     selectActivity(item.id);
@@ -34,8 +34,8 @@
   }
   const fraction = (et: number) => (et - vs.scrubMin) / (vs.scrubMax - vs.scrubMin) * 100;
   function description(a: MissionActivity) {
-    const duration = a.temporality === 'instant' ? 'Milestone' : a.provenance.timing === 'bounded' ? 'Reported date window; duration unknown' : `${(a.end - a.start).toFixed(1)} s`;
-    return `${a.vehicle} ${a.name} · ${etToUtcString(a.start)} → ${etToUtcString(a.end)} · ${duration} · ${a.provenance.authority}`;
+    const date = etToUtcString(a.start).replace(/\s.*$/, '');
+    return `${label === 'activity' ? `${a.vehicle} · ` : ''}${a.name} · ${date}`;
   }
 </script>
 
@@ -55,19 +55,18 @@
       {#if matches.length > 200}<span>First 200 of {matches.length}; search to narrow</span>{/if}
       {#if items.length > 20}<input type="search" aria-label={`Search ${items[0].vehicle} ${label}`} placeholder="Search activities" bind:value={search} />{/if}
       <span>{selectedState}</span>
-      {#if selected}<span class="activity-facts" title={`${selected.start} → ${selected.end} ET seconds past J2000 · ${selected.provenance.source} (${selected.provenance.version}) · ${selected.provenance.limitations}`}>{description(selected)} · {selected.provenance.limitations}</span>{/if}
     </div>
     <div class="activity-lane" class:wide style={wide ? `grid-template-columns: ${axis.left}px ${axis.width}px minmax(0, 1fr)` : ''} data-tl-row={`lane:activity:${items[0].vehicle}:${label}`}>
       {#if wide}<span class="text-text-secondary" data-tl-no-axis>{label}</span>{/if}
       <div class="activity-axis" style={`height: ${rows * 21 + 4}px`} data-tl-plot role="group" aria-label={`${items[0].vehicle} ${label} intervals`}>
-        {#each marks as { item, row, count } (item.id)}
+        {#each marks as { item, row, count, windowStart, windowEnd } (item.id)}
           <button class="activity-mark" class:active={vs.et >= item.start && vs.et <= item.end}
-            class:selected={item.id === selected?.id} class:estimated={item.provenance.timing !== 'exact'}
+            class:selected={item.id === selected?.id} class:bounded={item.provenance.timing === 'bounded'}
             class:previewed={timeline.previewEventId === eventKey(activityEvent(item))}
             disabled={item.enabled === false} data-tl-event-mark data-ev-kind="mission-activity"
-            style={`top: ${row * 21 + 3}px; left: ${Math.max(0, fraction(item.start))}%; width: max(5px, ${Math.min(100, fraction(item.end)) - Math.max(0, fraction(item.start))}%)`}
-            aria-label={`Go to ${item.name}`} title={`${count > 1 ? `${count} activities here; choose to inspect. ` : ''}${description(item)} · ${item.provenance.limitations}`}
-            onclick={() => seek(item)} onfocus={() => previewEvent(activityEvent(item))} onblur={() => previewEvent(null)}
+            style={`top: ${row * 21 + 3}px; left: ${Math.max(0, fraction(count > 1 ? windowStart : item.start))}%; width: max(5px, ${Math.min(100, fraction(count > 1 ? windowEnd : item.end)) - Math.max(0, fraction(count > 1 ? windowStart : item.start))}%)`}
+            aria-label={count > 1 ? `Zoom into ${count} activities` : `Go to ${item.name}`} title={count > 1 ? `Zoom into ${count} activities` : description(item)}
+            onclick={() => count > 1 ? setScrubberWindow(windowStart, windowEnd) : seek(item, false)} onfocus={() => previewEvent(count > 1 ? null : activityEvent(item))} onblur={() => previewEvent(null)}
           ><span>{count > 1 ? `${count} activities` : item.temporality === 'instant' ? '◆' : item.name}</span></button>
         {/each}
         {#if vs.et >= vs.scrubMin && vs.et <= vs.scrubMax}<span class="activity-playhead" style={`left: ${fraction(vs.et)}%`}></span>{/if}
@@ -84,14 +83,13 @@
   .window-button { font-size:11px; padding:4px; }
   .activity-tools { display:flex; gap:8px; padding:2px 8px; font-size:11px; align-items:center; }
   .activity-tools input { width:130px; }
-  .activity-facts { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .activity-lane { padding:2px 0; font-size:11px; }
   .activity-lane.wide { display:grid; align-items:center; }
   .activity-lane.wide > span { padding-left:8px; }
   .activity-axis { position:relative; background:rgb(255 255 255 / 3%); overflow:hidden; }
   .activity-mark { position:absolute; height:17px; background:var(--ev); opacity:.72; border-radius:2px; overflow:hidden; font-size:10px; white-space:nowrap; text-align:center; }
-  .activity-mark.estimated { border:1px dashed currentColor; }
-  .activity-mark.active { opacity:1; color:#111; }
+  .activity-mark.bounded { background:color-mix(in srgb, var(--ev) 12%, transparent); box-shadow:inset 0 -2px color-mix(in srgb, var(--ev) 55%, transparent); color:var(--color-text-secondary); }
+  .activity-mark.active:not(.bounded) { opacity:1; color:#111; }
   .activity-mark.selected, .activity-mark.previewed, .activity-mark:hover { outline:1px solid white; outline-offset:-1px; }
   .activity-mark span { padding:0 4px; }
   .activity-playhead { position:absolute; width:1px; height:100%; background:white; pointer-events:none; }

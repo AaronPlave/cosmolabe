@@ -1169,7 +1169,7 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
   // Selecting inspects a result; it does not change which search the form
   // is editing. Editing is its own action (`openConfiguredQuery`, a lane
   // label). The selection is shown wherever it is, by the global inspector.
-  setSelection(event);
+  selectEventForInspection(event);
   const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
   if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));
   applyEventFocus(focus, {
@@ -1177,6 +1177,14 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
     selectBody,
     highlightBodies,
   });
+  syncEventResultsInScene();
+  syncOccultationGeometryAtTime();
+}
+
+/** Shared inspection path; never seeks or moves the camera. */
+export function selectEventForInspection(event: GeometryEvent) {
+  setSelection(event);
+  highlightBodies(event.kind === 'mission-activity' ? [] : focusForEvent(event).bodies);
   syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }

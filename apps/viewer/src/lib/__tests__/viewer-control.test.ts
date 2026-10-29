@@ -112,6 +112,10 @@ function makeFakeRenderer(objects: string[]) {
   const renderer = {
     calls,
     scaleFactor: 1e-6,
+    setHoveredBody: vi.fn(),
+    setLabelPinned: vi.fn(),
+    setEventResults: vi.fn(),
+    setOccultationGeometry: vi.fn(),
     camera,
     // The production renderer emits initial-asset progress and readiness here.
     // This control-layer fake has no asynchronous assets, but it must expose
@@ -1011,6 +1015,26 @@ describe('a script end to end', () => {
 
 
 describe('shared activity host and script operations', () => {
+  it('clears prior event highlights and synchronizes the scene without changing time or camera', () => {
+    vs.activities = parseMissionActivities(ingenuityCatalog.activities);
+    selectEvent({id:'geometry', queryId:'geometry-query', kind:'closest-approach', temporality:'instant', et:42,
+      label:'Approach', bodies:{observer:'Cassini', target:'Titan'}});
+    expect(vs.highlightedBodies).toEqual(['Cassini', 'Titan']);
+    const time = renderer.timeController.et;
+    const selectedBody = vs.selectedBodyName;
+    const calls = [...renderer.calls];
+    renderer.setEventResults.mockClear();
+    const host = createViewerControl();
+    expect(host.selectActivity!(vs.activities[0].id)).toBe(true);
+    expect(vs.highlightedBodies).toEqual([]);
+    expect(renderer.setLabelPinned).toHaveBeenCalledWith('Cassini', false);
+    expect(renderer.setLabelPinned).toHaveBeenCalledWith('Titan', false);
+    expect(renderer.setHoveredBody).toHaveBeenLastCalledWith(null);
+    expect(renderer.setEventResults).toHaveBeenCalled();
+    expect(renderer.timeController.et).toBe(time);
+    expect(vs.selectedBodyName).toBe(selectedBody);
+    expect(renderer.calls).toEqual(calls);
+  });
   it.each([['Ingenuity', ingenuityCatalog, 72], ['MoonFall', moonfallCatalog, 24], ['Curiosity', curiosityCatalog, 2]] as const)('reads and navigates real %s metadata independently of trajectories', async (_name, catalog, count) => {
     vs.activities = parseMissionActivities(catalog.activities);
     const host = createViewerControl();

@@ -49,6 +49,8 @@ describe('mission activities independent of trajectory storage', () => {
     const elapsed = performance.now()-before;
     expect(marks.length).toBeLessThanOrEqual(200);
     expect(marks.reduce((n,m)=>n+m.count,0)).toBe(10000);
+    expect(marks[0]).toMatchObject({count:50, windowStart:0, windowEnd:100});
+    expect(marks.at(-1)).toMatchObject({windowStart:19900, windowEnd:20000});
     expect(Math.max(...layout.map(m=>m.row))).toBe(3);
     console.info(`Activity benchmark: 10000 records, layout+density+10000 binary seeks ${elapsed.toFixed(1)} ms`);
   });

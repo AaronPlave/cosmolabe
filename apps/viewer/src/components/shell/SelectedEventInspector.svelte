@@ -87,6 +87,7 @@
   <!-- Time as structure, not one wrapping run: the span, then (collapsed)
        its duration on a line of its own. Expanded, the details carry the
        duration, so it is not repeated here. -->
+  {#if !activity || open}
   <div class="when">
     {#if isIntervalEvent(event)}
       <span class="stamp">{bare(eventStart(event))}</span>
@@ -96,10 +97,11 @@
       <span class="stamp">{utc(eventStart(event))}</span>
     {/if}
   </div>
+  {/if}
   {#if isIntervalEvent(event) && !open}
     <div class="when">{activity?.provenance.timing === 'bounded' ? 'Reported window · drive duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`}</div>
   {/if}
-  {#if activity}<div class="when">{activity.provenance.authority} · {activity.provenance.timing} timing</div>{/if}
+  {#if activity && open}<div class="when">{activity.provenance.authority} · {activity.provenance.timing} timing</div>{/if}
   {#if open}
     <div class="details">
       {#if activity}

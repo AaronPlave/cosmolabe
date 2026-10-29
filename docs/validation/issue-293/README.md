@@ -42,3 +42,12 @@ The Vite fallback now prefers existing files and proxies missing managed files f
 An isolated-cache Vite server on port 5194 passed the complete desktop/390px mission-activity smoke across all three mission catalogs, the concurrent fixture, and 10,000 records. See [native fallback results](native-fallback.json): zero JavaScript errors, zero HTTP errors; aborted tile requests during navigation are recorded separately. This supersedes the initial asset-unavailability limitation above for this interaction smoke, while preserving the stated scientific/source and device limits. A 504 from a shared Vite dependency cache was isolated; two transient upstream 502s led to a tested, single bounded retry for CDN/socket failures. Real 404s and persistent errors remain visible.
 
 The 41 data-hosting tests include actual Vite GET/HEAD routing and local-file precedence, custom base paths, remote pin selection, gzip/binary/range streaming, credential exclusion, local-only mode, real upstream 404s, and bounded transient-error recovery. Viewer TypeScript/Svelte checks, config lint and the production viewer build passed.
+
+
+## PR feedback follow-up
+
+The captures above now show the simplified navigation surface: short activity/date labels, a single status, and complete activity times/provenance/source/limitations/ET in inspector Details. Curiosity discovery windows use a faint band and edge accent instead of solid drive bars or dashed borders. Chooser and previous/next fit the selected activity; grouped density marks zoom into their time bin without selecting an arbitrary member or seeking.
+
+[Final browser results](review-feedback.json) cover all three catalogs and the concurrent fixture on desktop and 390px, plus grouped zoom over 10,000 records. The geometry-event → activity regression verifies body highlight cleanup and unchanged clock/camera selection. Zero JavaScript/HTTP errors occurred. Navigation cancellations are recorded separately. The existing scientific/source and physical-device limitations still apply.
+
+All 639 viewer tests, five importer/refresh tests, test/viewer TypeScript checks, Svelte (zero errors/warnings), focused ESLint and the production viewer build pass. The metadata refresher was run twice on the real catalogs with no diff. Regression fixtures cover activities first/middle/last and nested fields, preserving unrelated bytes and numeric spellings with idempotent output.

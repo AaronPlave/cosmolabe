@@ -33,12 +33,12 @@ export function activityLayout(items: readonly MissionActivity[]) {
 /** Window/record changes only. Bound DOM density; exact navigation stays in the chooser. */
 export function visibleActivityMarks(layout: ReturnType<typeof activityLayout>, min: number, max: number, limit = 200) {
   const visible = layout.filter(({ item }) => item.end >= min && item.start <= max);
-  if (visible.length <= limit) return visible.map(m => ({ ...m, count: 1 }));
-  const bins = new Map<number, { item: MissionActivity; row: number; count: number }>();
+  if (visible.length <= limit) return visible.map(m => ({ ...m, count: 1, windowStart: m.item.start, windowEnd: m.item.end }));
+  const bins = new Map<number, { item: MissionActivity; row: number; count: number; windowStart: number; windowEnd: number }>();
   for (const m of visible) {
     const bin = Math.max(0, Math.min(limit - 1, Math.floor((m.item.start - min) / (max - min) * limit)));
     const entry = bins.get(bin);
-    if (entry) entry.count++; else bins.set(bin, { ...m, count: 1 });
+    if (entry) entry.count++; else bins.set(bin, { ...m, count: 1, windowStart: min + bin / limit * (max - min), windowEnd: min + (bin + 1) / limit * (max - min) });
   }
   return [...bins.values()];
 }

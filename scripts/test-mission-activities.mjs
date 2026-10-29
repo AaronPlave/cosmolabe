@@ -63,6 +63,11 @@ try {
     if (await nextButton.isEnabled()) {
       await nextButton.click();
       assert.notEqual(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
+      const stateUrl = await liveModule('viewer-state.svelte.ts');
+      assert.ok(await page.evaluate(async url => {
+        const {vs} = await import(url), a = window.cosmo.getSelectedActivity();
+        return vs.scrubMin <= a.start && vs.scrubMax >= a.end && vs.scrubMax - vs.scrubMin <= Math.max(60, a.end-a.start)*2;
+      }, stateUrl), 'Navigation fits the new activity');
       await page.getByRole('button',{name:/^Previous (activity|flight|hop|drive|descent|landing)$/}).first().click();
       assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
     }
@@ -81,8 +86,25 @@ try {
         a.setEventResults(q.id,[{id:'fixture:event',queryId:q.id,kind:'closest-approach',temporality:'instant',et:672089540,label:'Synthetic closest approach',bodies:{observer:'Aircraft',target:'Rover'}}]);
         a.createConfiguredProfile({quantity:'range',bodies:{observer:'Aircraft',target:'Rover'}},'Fixture range');
       },analysisUrl);
+      const eventUrl = await liveModule('event-finder.svelte.ts');
+      const stateUrl = await liveModule('viewer-state.svelte.ts');
+      const cleanup = await page.evaluate(async ({eventUrl,stateUrl,id}) => {
+        const ef = await import(eventUrl), {vs} = await import(stateUrl);
+        ef.selectEvent({id:'fixture:event',queryId:'fixture-query',kind:'closest-approach',temporality:'instant',et:672089540,label:'Synthetic closest approach',bodies:{observer:'Aircraft',target:'Rover'}});
+        const before = [...vs.highlightedBodies], time = window.cosmo.getTime(), target = vs.selectedBodyName;
+        window.cosmo.selectActivity(id);
+        return {before,after:[...vs.highlightedBodies],timeUnchanged:time===window.cosmo.getTime(),targetUnchanged:target===vs.selectedBodyName};
+      },{eventUrl,stateUrl,id});
+      assert.ok(cleanup.before.length>0);
+      assert.deepEqual(cleanup.after,[]);
+      assert.ok(cleanup.timeUnchanged && cleanup.targetUnchanged);
       assert.ok(await page.locator('[data-tl-row^="lane:event-query"]').count());
       assert.ok(await page.locator('[data-tl-row^="profile:"]').count());
+    }
+    assert.equal(await page.locator('.activity-facts').count(),0);
+    if(catalog==='msl-dingo-gap') {
+      assert.ok(await page.locator('.activity-mark.bounded').count());
+      assert.ok(await page.getByRole('region',{name:'Selected event',exact:true}).innerText().then(t=>t.includes('duration unknown')));
     }
     await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-desktop.png`});
     await page.setViewportSize({width:390,height:844});
@@ -116,6 +138,15 @@ try {
   await page.setViewportSize({width:1440,height:900});
   await load('activity-stress',10000);
   await expanded();
+  const aggregate = page.getByRole('button',{name:/^Zoom into \d+ activities$/}).first();
+  assert.ok(await aggregate.count());
+  const stateUrl = await liveModule('viewer-state.svelte.ts');
+  const beforeBin = await page.evaluate(async url=>{const {vs}=await import(url);return {span:vs.scrubMax-vs.scrubMin,time:vs.et,id:window.cosmo.getSelectedActivity()?.id??null};},stateUrl);
+  await aggregate.click();
+  const afterBin = await page.evaluate(async url=>{const {vs}=await import(url);return {span:vs.scrubMax-vs.scrubMin,time:vs.et,id:window.cosmo.getSelectedActivity()?.id??null};},stateUrl);
+  assert.ok(afterBin.span < beforeBin.span);
+  assert.equal(afterBin.time,beforeBin.time);
+  assert.equal(afterBin.id,beforeBin.id);
   await page.getByRole('searchbox',{name:'Search Aircraft flight'}).fill('Stress flight 9999');
   await page.getByRole('combobox',{name:'Choose flight'}).selectOption('stress:9999');
   assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),'stress:9999');
