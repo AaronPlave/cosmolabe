@@ -231,3 +231,32 @@ regressions. Chrome/Metal (Apple M4 Max) passed the complete Places browser
 check and the hosted MoonFall check, including Jump to Shackleton, Jump to
 Tycho, and Fly back to the same Shackleton surface pivot. The corrected
 gazetteer frame does not relax the mismatched-frame placement guard.
+
+## PR review follow-up: consistent path provenance and effective imagery frames
+
+The marker, parent-relative samples and explicit composite-arc samples share
+`Universe.trajectoryPlacementAvailable`. An inactive arc is checked against its
+own source frame and center, not whichever arc is active at the sample epoch.
+Trajectory lines recheck the placement contract before displaying existing
+cached geometry, and gate their live/event samples and cache reads. Future
+leads apply the same gate. Cached event glyphs are revalidated, and hidden
+paths clear their event glyphs and separately attached span strokes. Worker
+and synchronous cache sampling retain the same provenance constraints.
+
+The numerical regression uses two distinct, resolvable frames and warms the
+path and event caches before introducing a contradictory provenance frame.
+It covers ordinary/composite paths, explicit plot frames, cached/live paths,
+future leads, event glyphs/spans and recovery. The loaded MoonFall regression
+uses actual `IAU_MOON` and `MOON_ME_DE421` kernels: a contradiction withholds
+the marker, all five Polaris-A trails and its interval event, preserving the
+supplied state. Restoring the declaration restores the path and annotation.
+The Apple M4 Max/Metal run passed with 963 hosted payload requests and no
+page, GL or network errors; `browser.json` records the current review run.
+
+Imagery compatibility compares projection/scheme and the effective normalized
+frame after revision-specific metadata errata, independently retaining body,
+pixel convention, tile size and gutter checks. Regressions accept an audited
+legacy/corrected DE421 pair in either layer order, preserve the original
+manifests, and reject an unknown legacy revision. The six focused suites
+passed 103 tests; full package/test/viewer/Svelte typechecks and changed-file
+lint passed.

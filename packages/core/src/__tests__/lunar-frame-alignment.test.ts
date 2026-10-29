@@ -102,7 +102,11 @@ describe('DE421 lunar surface placement', () => {
     u.loadCatalog({ items: [{ name: 'Absolute', trajectoryFrame: 'IAU_MOON', surfaceTrajectory: provenance,
       trajectory: { type: 'InterpolatedStates', samples } }] });
     expect(u.getBody('Absolute')!.stateAt(0).position).toEqual([1736, 0, 0]);
+    expect(u.frames.isResolvable('IAU_MOON', 0)).toBe(true);
+    expect(u.frames.isResolvable(LUNAR_SURFACE_FRAME, 0)).toBe(true);
     expect(u.absolutePositionOf('Absolute', 0).every(Number.isNaN)).toBe(true);
+    expect(u.relativePositionInWorld('Absolute', 0).every(Number.isNaN)).toBe(true);
+    expect(u.trajectoryPlacementAvailable('Absolute', 0)).toBe(false);
     expect(u.surfaceTrajectoryStatus('Absolute', 0, { frame: LUNAR_SURFACE_FRAME, datum })?.kind).toBe('unavailable');
   });
 

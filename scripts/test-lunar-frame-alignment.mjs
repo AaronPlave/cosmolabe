@@ -128,6 +128,36 @@ try {
     r.renderFrame();return { hiddenDuringGap: hidden, visibleAfterRecovery: bm.visible, visibleSurfaceTrailsDuringGap };
   });
   assert.deepEqual(report.orientationRecovery, { hiddenDuringGap: true, visibleAfterRecovery: true, visibleSurfaceTrailsDuringGap: 0 });
+  report.provenanceRecovery = await page.evaluate(() => {
+    const r = window.renderer, u = r.universe, b = u.getBody('Polaris-A'), et = r.timeController.et;
+    const original = b.surfaceTrajectory.frame, supplied = b.stateAt(et).position;
+    const event = { id: 'frame-audit', queryId: 'frame-audit', kind: 'distance-range', temporality: 'interval',
+      start: et - 20, end: et + 20, bodies: { observer: b.name }, label: 'Provenance regression' };
+    r.setEventResults([event], event); r.renderFrame();
+    const lines = [...r.trajectoryLines.values()].filter(line => line.body === b);
+    const groups = [...r.eventMarkerGroups.values()].filter(group => group.line.body === b);
+    const before = { trails: lines.filter(line => line.visible).length, groups: groups.length,
+      anchors: groups.filter(({ markers }) => markers.anchorAt(event.id, event.queryId, et)).length };
+    const bothResolvable = u.frames.isResolvable(original, et) && u.frames.isResolvable('IAU_MOON', et);
+    let withheld;
+    try {
+      b.surfaceTrajectory.frame = 'IAU_MOON'; r.renderFrame();
+      withheld = { marker: !r.getBodyMesh(b.name).present,
+        trails: lines.every(line => !line.visible && line.drawnPath().length === 0),
+        events: groups.every(({ markers }) => !markers.visible && !markers.spanEmphasis.visible && !markers.spanPreview.visible),
+        unchanged: JSON.stringify(b.stateAt(et).position) === JSON.stringify(supplied) };
+    } finally { b.surfaceTrajectory.frame = original; r.renderFrame(); }
+    const recovered = r.getBodyMesh(b.name).present && lines.some(line => line.visible) &&
+      groups.some(({ markers }) => markers.visible && markers.anchorAt(event.id, event.queryId, et));
+    r.setEventResults([]);
+    return { bothResolvable, before, withheld, recovered: !!recovered };
+  });
+  assert.equal(report.provenanceRecovery.bothResolvable, true);
+  assert.ok(report.provenanceRecovery.before.trails > 0);
+  assert.ok(report.provenanceRecovery.before.anchors > 0);
+  assert.deepEqual(report.provenanceRecovery.withheld, { marker: true, trails: true, events: true, unchanged: true });
+  assert.equal(report.provenanceRecovery.recovered, true);
+
   await page.getByRole('button', { name: 'Navigate', exact: true }).click();
   await page.getByRole('radiogroup', { name: 'Navigate mode' }).getByText('places', { exact: true }).click();
   await page.getByPlaceholder('Name or alias…').fill('Shackleton');

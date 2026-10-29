@@ -139,45 +139,46 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 149,
+        "textures": 143,
         "pinnedTextures": 30,
-        "textureBytes": 55385088,
-        "inFlight": 7,
+        "textureBytes": 53154816,
+        "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 156,
-        "bytes": 3062516,
+        "requests": 143,
+        "bytes": 3055822,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
-        "count": 3,
+        "count": 0,
         "budgetLimited": false,
-        "queued": 3,
+        "queued": 0,
         "tiles": 6,
         "splitTiles": 0,
-        "blocks": 30,
+        "blocks": 57,
         "extraDraws": 0,
         "displayedLevels": {
-          "8": 24
+          "8": 15,
+          "9": 36
         },
         "wantedLevels": {
           "8": 35,
           "9": 16
         },
-        "fallbackBlocks": 16,
+        "fallbackBlocks": 0,
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
+        "maxDisplayedLevel": 9,
         "committedGroups": 0,
-        "waitingGroups": 9,
-        "updateMs": 0.7000000476837158,
+        "waitingGroups": 0,
+        "updateMs": 0.699999988079071,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 148.20000010728836,
+        "uploadMs": 154.29999989271164,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -326,14 +327,14 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 203,
+        "textures": 197,
         "pinnedTextures": 30,
-        "textureBytes": 75457536,
+        "textureBytes": 73227264,
         "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 203,
-        "bytes": 4447092,
+        "requests": 197,
+        "bytes": 4370633,
         "failures": 0,
         "aborted": 0,
         "evicted": 0,
@@ -343,7 +344,7 @@
         "queued": 0,
         "tiles": 22,
         "splitTiles": 0,
-        "blocks": 81,
+        "blocks": 99,
         "extraDraws": 0,
         "displayedLevels": {
           "2": 1,
@@ -352,7 +353,8 @@
           "5": 8,
           "6": 8,
           "7": 9,
-          "8": 36
+          "8": 30,
+          "9": 24
         },
         "wantedLevels": {
           "3": 8,
@@ -366,15 +368,15 @@
         "failedBlocks": 0,
         "untexturedBlocks": 0,
         "baseUncoveredBlocks": 0,
-        "maxDisplayedLevel": 8,
+        "maxDisplayedLevel": 9,
         "committedGroups": 0,
         "waitingGroups": 0,
-        "updateMs": 1,
+        "updateMs": 1.0999999642372131,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 199.10000014305115,
+        "uploadMs": 196.30000019073486,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -523,16 +525,16 @@
       "imagery": {
         "version": "cube-imagery-composite-3f34a19541af7710",
         "ready": true,
-        "textures": 227,
+        "textures": 223,
         "pinnedTextures": 30,
-        "textureBytes": 84378624,
+        "textureBytes": 82891776,
         "inFlight": 0,
         "failedTiles": 0,
         "maxTextureBytes": 536870912,
-        "requests": 229,
-        "bytes": 4951003,
+        "requests": 223,
+        "bytes": 4937068,
         "failures": 0,
-        "aborted": 2,
+        "aborted": 0,
         "evicted": 0,
         "blockBuildMs": 0,
         "count": 0,
@@ -557,12 +559,12 @@
         "maxDisplayedLevel": 2,
         "committedGroups": 0,
         "waitingGroups": 0,
-        "updateMs": 0.6000000238418579,
+        "updateMs": 0.3999999761581421,
         "blockGeometryBytes": 0,
         "transitionTextureBytes": 1486848,
         "protectedOverBudgetBytes": 0,
         "gpuAllocatedBytes": 538255360,
-        "uploadMs": 219.80000013113022,
+        "uploadMs": 223.0999999642372,
         "gpuError": null,
         "inheritedGlErrors": []
       },
@@ -574,28 +576,8 @@
       "terrainRevision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
     }
   ],
-  "hostedRequests": 871,
+  "hostedRequests": 963,
   "hostedManifests": [
-    {
-      "url": "https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json",
-      "sha256": "47f84fa70cfbe09248a03499166ac01af47c090656ae3470755e4035883dc9b3",
-      "bytes": 547794,
-      "source": {
-        "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
-        "kind": "imagery",
-        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
-        "base": "wac-global-100m-cog.tif",
-        "detail": "/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif",
-        "version": "cube-imagery-composite-3f34a19541af7710"
-      },
-      "registration": {
-        "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
-        "pixelConvention": "corner",
-        "registrationErrorKm": null,
-        "resampling": "each source bilinear from its overview ≤ 0.4 output-sample spacing, 3×3 box per pixel; detail composited over base by its coverage (nodata 0 → base)",
-        "footprint": "global (base, levels 0–6); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)"
-      }
-    },
     {
       "url": "https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/cpu-grids.json",
       "sha256": "25fc941847c2c0e07abe281ccdf00ab80e58c219d2b257f98a11cc25143cdd78",
@@ -631,6 +613,26 @@
       }
     },
     {
+      "url": "https://data.aaronplave.com/cube-imagery/moon-imagery-cube-wac-nac/cube-imagery-composite-3f34a19541af7710/imagery.json",
+      "sha256": "47f84fa70cfbe09248a03499166ac01af47c090656ae3470755e4035883dc9b3",
+      "bytes": 547794,
+      "source": {
+        "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+        "kind": "imagery",
+        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
+        "base": "wac-global-100m-cog.tif",
+        "detail": "/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_safed/LMAP/SouthPolar/LRO_LROC_NAC_SPOLE-90_Mosaic_1m_controlled_cog.tif",
+        "version": "cube-imagery-composite-3f34a19541af7710"
+      },
+      "registration": {
+        "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
+        "pixelConvention": "corner",
+        "registrationErrorKm": null,
+        "resampling": "each source bilinear from its overview ≤ 0.4 output-sample spacing, 3×3 box per pixel; detail composited over base by its coverage (nodata 0 → base)",
+        "footprint": "global (base, levels 0–6); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)"
+      }
+    },
+    {
       "url": "https://data.aaronplave.com/cube-terrain/moon-terrain-cube/cube-fused-79895697c6b6-g3-m12-b6747ec9d/tileset.json",
       "sha256": "515878d39c4a127f4069ee13094860fd235cbdd42f60090e0252020ce16af56a",
       "bytes": 1445799
@@ -658,6 +660,21 @@
     "visibleAfterRecovery": true,
     "visibleSurfaceTrailsDuringGap": 0
   },
+  "provenanceRecovery": {
+    "bothResolvable": true,
+    "before": {
+      "trails": 5,
+      "groups": 1,
+      "anchors": 1
+    },
+    "withheld": {
+      "marker": true,
+      "trails": true,
+      "events": true,
+      "unchanged": true
+    },
+    "recovered": true
+  },
   "placeNavigation": {
     "frame": "MOON_ME_DE421",
     "jumped": {
@@ -680,9 +697,9 @@
         -0.00173370181629433
       ],
       "position": [
-        -0.00007055932305442598,
-        -0.00001882103550975597,
-        -0.002254648634898264
+        -0.00007055932305442623,
+        -0.00001882103550975619,
+        -0.002254648634898263
       ],
       "selectedRef": "moon:usgs:places/gazetteer:5450"
     }

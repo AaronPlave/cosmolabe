@@ -59,6 +59,8 @@ function preferHit(hit: EventMarkerHit, best: EventMarkerHit | null): boolean {
 export type EventMarkerType = EventMarker['kind'];
 
 export interface EventMarkersOptions {
+  /** Recheck cached annotations against the owning path placement contract. */
+  sampleAvailable?: (et: number) => boolean;
   markerSize?: number;
   /** Surface plot glyphs share physical scene depth; inertial annotations default on top. */
   depthTest?: boolean;
@@ -637,7 +639,9 @@ export class EventMarkers extends THREE.Object3D {
       const emphasized = !!marker.selected || this.isPreview(marker);
       const range = emphasized && leadVisibility ? leadVisibility.range : visibleRange;
       visual.visibleRange = range;
-      const inRange = range !== null &&
+      const available = !this.options.sampleAvailable || visual.times.every(t => this.options.sampleAvailable!(t));
+      if (!available) visual.framePositions = null;
+      const inRange = available && range !== null &&
         visual.pieceStart <= range[1] && visual.pieceEnd >= range[0];
       if (!inRange) {
         visual.visibleRange = null;

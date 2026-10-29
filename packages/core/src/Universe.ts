@@ -269,10 +269,23 @@ export class Universe {
     return result;
   }
 
-  private surfaceTrajectoryFrameAgrees(body: Body, et: number): boolean {
+  /** Shared marker/path gate. Explicit arc context must be used when sampling
+   * an inactive composite arc, rather than the body's active arc at that epoch. */
+  trajectoryPlacementAvailable(body: Body | string, et: number, sample?: { frame: string; centerName?: string }): boolean {
+    const b = typeof body === 'string' ? this.getBody(body) : body;
+    if (!b) return false;
+    if (!b.surfaceTrajectory) return true;
+    try {
+      return this.surfaceTrajectoryFrameAgrees(b, et, sample) && this.frames.isResolvable(b.surfaceTrajectory.frame, et);
+    } catch { return false; }
+  }
+
+  private surfaceTrajectoryFrameAgrees(body: Body, et: number, sample?: { frame: string; centerName?: string }): boolean {
     const provenance = body.surfaceTrajectory;
-    return !provenance || (this.frames.sameFrame(this.frameOf(body, et), provenance.frame) &&
-      (!body.declaredFrame || this.frames.sameFrame(this.resolveFrame(body.declaredFrame, body.activeParentAt(et)), provenance.frame)));
+    const center = sample ? sample.centerName : body.activeParentAt(et);
+    const frame = sample ? this.resolveFrame(sample.frame, center) : this.frameOf(body, et);
+    return !provenance || (this.frames.sameFrame(frame, provenance.frame) &&
+      (!body.declaredFrame || this.frames.sameFrame(this.resolveFrame(body.declaredFrame, center), provenance.frame)));
   }
 
   private transformPosition(position: Vec3, from: string, to: string, et: number): Vec3 {
@@ -307,7 +320,7 @@ export class Universe {
   /** A body's position relative to its active parent, in the scene frame. */
   relativePositionInWorld(bodyName: string, et: number): Vec3 {
     const body = this.getBody(bodyName);
-    if (!body) return [NaN, NaN, NaN];
+    if (!body || !this.trajectoryPlacementAvailable(body, et)) return [NaN, NaN, NaN];
     const p = body.stateAt(et).position;
     return this.transformPosition([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
   }
@@ -352,8 +365,7 @@ export class Universe {
       const body = this.getBody(bodyName);
       if (!body) return [NaN, NaN, NaN];
 
-      if (body.surfaceTrajectory && (!this.surfaceTrajectoryFrameAgrees(body, et) ||
-          !this.frames.isResolvable(body.surfaceTrajectory.frame, et))) return [NaN, NaN, NaN];
+      if (!this.trajectoryPlacementAvailable(body, et)) return [NaN, NaN, NaN];
       const state = body.stateAt(et);
       let pos: Vec3 = [state.position[0], state.position[1], state.position[2]];
       if (isNaN(pos[0])) return [NaN, NaN, NaN];
@@ -371,6 +383,7 @@ export class Universe {
       while (currentParent) {
         const parent = this.getBody(currentParent);
         if (!parent) break;
+        if (!this.trajectoryPlacementAvailable(parent, et)) return [NaN, NaN, NaN];
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
 

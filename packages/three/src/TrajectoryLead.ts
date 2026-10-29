@@ -206,6 +206,7 @@ export interface LeadFrame {
   resolve: (t: number) => [number, number, number];
   /** The owning line's cache, when it has one. */
   cache: TrajectoryCache | null;
+  sampleAvailable?: (et: number) => boolean;
   /** The trail's head sample at `et`, so lead and trail meet exactly. */
   head: { t: number; x: number; y: number; z: number } | null;
   /** Coverage the lead must stay inside. */
@@ -597,7 +598,7 @@ export class TrajectoryLead {
     const xyz: number[] = [];
     const push = (t: number, p: [number, number, number]) => {
       times.push(t);
-      xyz.push(p[0], p[1], p[2]);
+      xyz.push(...(frame.sampleAvailable && !frame.sampleAvailable(t) ? [NaN, NaN, NaN] : p));
     };
 
     const cache = frame.cache;
