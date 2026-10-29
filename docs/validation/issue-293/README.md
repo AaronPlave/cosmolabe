@@ -13,7 +13,7 @@ Validated 2026-10-29 in the native viewer on an isolated local Vite server (5193
 
 - All 638 native viewer tests passed (50 files); focused core/catalog/control/importer tests passed (179 tests), including malformed-calendar and importer parity regressions.
 - Package build, viewer production build, test/viewer TypeScript checks, Svelte checks (zero errors/warnings), focused ESLint, and `git diff --check` passed.
-- `node scripts/test-mission-activities.mjs http://127.0.0.1:5193/ work/issue-293` exercises the actual app: hidden trajectories, picker, previous/next, source edge seek, lane click, selected state, window zoom, keyboard input, desktop/390px layout, compact transport, same-session catalog replacement, event/profile coexistence and the 10,000-record stress catalog. Records are served through native catalog loading. The test uses the repository's immutable hosted-data rewrite for missing local scene assets.
+- `node scripts/test-mission-activities.mjs http://127.0.0.1:5193/ work/issue-293` exercises the actual app: hidden trajectories, picker, previous/next, source edge seek, lane click, selected state, window zoom, keyboard input, desktop/390px layout, compact transport, same-session catalog replacement, event/profile coexistence and the 10,000-record stress catalog. Records are served through native catalog loading. The current test uses Vite's native local-first fallback for missing managed files, without browser URL rewriting.
 - At 390px every catalog has document width 390, no document scroll, and one compact activity chooser. Expanded multi-vehicle rows scroll inside the lane region; its mobile maximum is 30vh.
 - Performance samples use 120 animation frames with playback enabled. The activity model and UI bound dense mark/option counts. Frame measurements and GPU identity are summarized below; raw output remains under ignored `work/issue-293/`.
 
@@ -34,3 +34,11 @@ The browser run logged failed hosted terrain/imagery requests (cross-origin asse
 - Four-record baseline: mean 18.54 ms, p95 17.60 ms.
 - 10,000 records: mean 16.61 ms, p95 17.70 ms; 168 visible activity marks, 2 chooser options after search.
 - Failed asset requests: 48; JavaScript errors: 0.
+
+## Native local-first data loading follow-up
+
+The Vite fallback now prefers existing files and proxies missing managed files from their registry-pinned deployed build, on the same local origin. The reported Ingenuity CPU-grid URL at `http://localhost:5173/test-catalogs/data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/cpu-grids.json` returned 200 for GET and HEAD, with valid JSON whose SHA-256 matches the existing copy in the main checkout. No catalogs are rewritten in the browser smoke test anymore.
+
+An isolated-cache Vite server on port 5194 passed the complete desktop/390px mission-activity smoke across all three mission catalogs, the concurrent fixture, and 10,000 records. See [native fallback results](native-fallback.json): zero JavaScript errors, zero HTTP errors; aborted tile requests during navigation are recorded separately. This supersedes the initial asset-unavailability limitation above for this interaction smoke, while preserving the stated scientific/source and device limits. A 504 from a shared Vite dependency cache was isolated; two transient upstream 502s led to a tested, single bounded retry for CDN/socket failures. Real 404s and persistent errors remain visible.
+
+The 41 data-hosting tests include actual Vite GET/HEAD routing and local-file precedence, custom base paths, remote pin selection, gzip/binary/range streaming, credential exclusion, local-only mode, real upstream 404s, and bounded transient-error recovery. Viewer TypeScript/Svelte checks, config lint and the production viewer build passed.

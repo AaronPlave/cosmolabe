@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { createReadStream, readFileSync, existsSync, cpSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { gunzipSync } from 'zlib';
+import { loadDatasets } from '../../scripts/data-hosting/lib/datasets.mjs';
+import { createDevAssetFallback } from '../../scripts/data-hosting/lib/dev-assets.mjs';
 
 function normalizeBase(raw: string | undefined): string {
   if (!raw) return '/';
@@ -37,11 +39,7 @@ const fusedTerrainPlugin = {
       const match = cleanUrl.match(/\/((?:mars|moon)-terrain-fused\/\d+\/\d+\/\d+\.terrain)$/);
       if (!match) return next();
       const filePath = path.join(TERRAIN_DATA_DIR, match[1]);
-      if (!existsSync(filePath)) {
-        res.statusCode = 404;
-        res.end();
-        return;
-      }
+      if (!existsSync(filePath)) return next();
       try {
         const gzipped = readFileSync(filePath);
         const decompressed = gunzipSync(gzipped);
@@ -60,6 +58,11 @@ const fusedTerrainPlugin = {
 const testCatalogsPlugin = {
   name: 'test-catalogs-static-files',
   configureServer(server: any) {
+    const fallback = createDevAssetFallback({
+      datasets: loadDatasets().datasets,
+      baseUrl: process.env.DATA_BASE_URL || 'https://data.aaronplave.com',
+      mode: process.env.DEV_DATA_MODE || 'auto',
+    });
     const route = `${server.config.base}test-catalogs/`.replace(/\\/g, '/');
     const contentTypes: Record<string, string> = {
       '.json': 'application/json; charset=utf-8',
@@ -95,7 +98,9 @@ const testCatalogsPlugin = {
       let stat;
       try {
         stat = statSync(filePath);
-      } catch {
+      } catch (error: any) {
+        if ((error.code === 'ENOENT' || error.code === 'ENOTDIR') &&
+          fallback(req, res, path.relative(TEST_CATALOGS_DIR, filePath).split(path.sep).join('/'))) return;
         res.statusCode = 404;
         res.end('Not found');
         return;

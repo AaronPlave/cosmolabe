@@ -1,9 +1,7 @@
-/** Native timeline acceptance. Uses published immutable data mappings for assets absent locally. */
+/** Native timeline acceptance, including local-first Vite dataset fallback. */
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { loadDatasets } from './data-hosting/lib/datasets.mjs';
-import { rewriteCatalog } from './data-hosting/lib/hosted-catalogs.mjs';
 const base = process.argv[2] ?? 'http://127.0.0.1:5193/';
 const out = process.argv[3] ?? 'work/issue-293';
 await mkdir(out, { recursive: true });
@@ -12,23 +10,15 @@ const browser = await chromium.launch({ headless:true,
   args:[process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport:{width:1440,height:900} });
 page.setDefaultTimeout(30000);
-const results = { cases:[], errors:[], failedRequests:[] };
+const results = { cases:[], errors:[], failedRequests:[], httpErrors:[] };
 page.on('pageerror', e => results.errors.push(e.message));
+page.on('response', r => { if (r.status() >= 400) results.httpErrors.push({url:r.url(),status:r.status()}); });
 page.on('requestfailed', r=>results.failedRequests.push({url:r.url(),error:r.failure()?.errorText}));
-const datasets = loadDatasets().datasets;
 const fixture = JSON.parse(await readFile('apps/viewer/test-catalogs/fixtures/mission-activities.json','utf8'));
 const stress = { name:'Activity stress fixture', defaultTime:fixture.defaultTime, items:fixture.items,
   activities:Array.from({length:10000}, (_,i)=>({...fixture.activities[0], id:`stress:${i}`, name:`Stress flight ${i}`, start:672089519.3+i*2, end:672089529.3+i*2})) };
 
-await page.route('**/test-catalogs/**/*.json', async route => {
-  if (route.request().url().endsWith('/activity-stress.json')) return route.fulfill({json:stress});
-  const response = await route.fetch();
-  if (!response.ok()) return route.fulfill({response});
-  const json = await response.json();
-  const path = new URL(route.request().url()).pathname.split('/test-catalogs/')[1];
-  const rewritten = rewriteCatalog(json, path, datasets, 'https://data.aaronplave.com');
-  await route.fulfill({ response, json: rewritten.json });
-});
+await page.route('**/test-catalogs/activity-stress.json', route => route.fulfill({json:stress}));
 async function liveModule(name) {
   return page.evaluate(async name=>{
     const url=performance.getEntriesByType('resource').map(r=>r.name).find(url=>new URL(url).pathname.endsWith('/src/lib/'+name));
@@ -140,6 +130,8 @@ try {
   assert.ok(results.performance.options<=202);
   await page.screenshot({path:`${out}/stress-desktop.png`});
   assert.equal(results.errors.length,0,results.errors.join('\n'));
+  const assetErrors=results.httpErrors.filter(r=>/\/test-catalogs\/(data|kernels)\//.test(new URL(r.url).pathname));
+  assert.deepEqual(assetErrors,[], 'Managed assets must load through the native Vite fallback');
   console.log('Mission activity browser acceptance passed');
 } catch (error) {
   await page.screenshot({path:`${out}/failure.png`});
