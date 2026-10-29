@@ -92,10 +92,11 @@ supplies the declared surface orientation; these are explicitly separate inputs.
   pinned to the same terrain revision and its provenance says `synthetic-demo`.
 - Geographic layers can declare `coordinates.frame`. Draping across different
   physical frames is explicitly unavailable rather than interpreting coordinates
-  in the current attitude. The authored MoonFall sites declare DE421. Unqualified
-  USGS place layers retain their legacy IAU declaration; they are not silently
-  relabelled by changing the MoonFall attitude. Auditing their exact realization
-  remains necessary before enabling those layers in this scene.
+  in the current attitude. The authored MoonFall sites and audited USGS LOLA 2011 gazetteer
+  declare DE421. See [the source audit](../../planetary-nomenclature.md#verified-usgs-snapshots).
+  The gazetteer had inherited IAU_MOON only because its frame was omitted;
+  correcting that metadata preserves every source coordinate and restores
+  MoonFall labels and Fly/Jump. It is not an IAU-to-DE421 coordinate rotation.
 - Existing saved picks without `frame` retain legacy current-attitude semantics;
   they are not sufficient provenance for absolute operational placements.
 - Non-lunar defaults and the legacy permissive `FrameRegistry.transform` API
@@ -194,8 +195,7 @@ not a new LOD, photometric or absolute geolocation validation claim.
 
 Operational acceptance still requires a finite, independently justified source
 geolocation/registration bound for these exact fused and composited products.
-That bound is **unknown here**, not zero. USGS place-frame provenance and the
-separate LRO production catalog migration also remain explicit follow-ups.
+That bound is **unknown here**, not zero. The separate LRO production catalog migration remains an explicit follow-up.
 
 A final kinematics check also verifies that sub-points and co-rotating speeds
 use the selected lunar realization, including an explicitly IAU_MOON-stated
@@ -208,15 +208,14 @@ the selected lunar frame, rejects contradictory GeoJSON frame declarations,
 and refuses a pick from another frame. The affected importer/editing/lunar and
 terrain suites passed 144 tests; geographic-vector/place/imagery/DSK suites
 passed 92 tests. Package/test/viewer/Svelte typechecks and lint passed again.
-The hosted GPU run was repeated on the merged application: 516 payload requests,
+The hosted GPU run was repeated on the merged application: 871 payload requests,
 no network/page/GL errors, and the same 0.0077 mm rendered LRO numerical residual.
 `browser.json` and the screenshots contain this post-merge run.
 
-The final native Places check selects the USGS Shackleton record, shows its
-IAU_MOON/DE421 disagreement, and verifies that Fly and Jump are disabled.
-[Unavailable place](unavailable-place.png) records that state. The source
-remains searchable; its coordinates are not silently reinterpreted. The final
-Places/feature-navigation/editing unit suites passed 90 tests.
+The native Places check selects the USGS Shackleton record and verifies Fly
+and Jump in MoonFall after the source frame audit. [Gazetteer place](gazetteer-place.png)
+records that state. The source coordinates remain unchanged; genuinely mismatched
+frames still withhold placement and navigation.
 
 GDAL validation also passed: `dem.py selftest`, all three
 `test_cube_ellipsoid.py` regressions, and all eleven `test_cube_xyz.py` regressions.
@@ -226,3 +225,9 @@ while the lunar frame is unavailable, then restores the body after recovery.
 This prevents a previously oriented trail from remaining visible through a
 transform failure. The focused lunar/plot/DSK suites passed 29 tests and full
 typechecks passed after this safeguard.
+
+The gazetteer follow-up passed 40 focused TypeScript tests and 12 converter
+regressions. Chrome/Metal (Apple M4 Max) passed the complete Places browser
+check and the hosted MoonFall check, including Jump to Shackleton, Jump to
+Tycho, and Fly back to the same Shackleton surface pivot. The corrected
+gazetteer frame does not relax the mismatched-frame placement guard.
