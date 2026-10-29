@@ -285,3 +285,37 @@ legacy/corrected DE421 pair in either layer order, preserve the original
 manifests, and reject an unknown legacy revision. The six focused suites
 passed 103 tests; full package/test/viewer/Svelte typechecks and changed-file
 lint passed.
+
+## Independent geolocation accuracy: source evidence and acceptance
+
+The SPICE transform closure above does not validate absolute registration of
+the exact fused terrain and WAC/NAC composited imagery. Source-level figures
+are informative but are **not** a bound on Cosmolabe's immutable payloads:
+
+- [PGDA south-pole LOLA DEM](https://pgda.gsfc.nasa.gov/products/81): 5 m/pixel
+  DE421 mean-Earth mosaic; 30–55 cm typical RMS **internal field residual**,
+  not absolute horizontal accuracy or fused-cube output uncertainty.
+- [Wagner et al. (2024)](https://doi.org/10.3847/psj/ad54c6): NAC DTM
+  orthophotos usually better than 10 m horizontally; other controlled NAC
+  products usually better than 30 m. These are typical source-product
+  accuracies, not validation of this particular south-pole mosaic, resampling,
+  or the WAC fallback region.
+- [USGS foundational dataset inventory](https://fdp.astrogeology.usgs.gov/fdp/moon/):
+  WAC and NAC products have different spatial resolution and control.
+
+To establish an **independent** finite end-to-end bound, first identify
+independent ground-control or geodetic features *not used to control the
+source imagery*. Record coordinate frame, source/epoch, reference coordinate,
+its error, and exact terrain/imagery manifest SHA-256. Compare these against
+the rendered cube and CPU ray/height samplers at Shackleton, near the pole,
+across cube-face/tile boundaries, inside NAC coverage, and in WAC-only areas.
+Report horizontal (east/north) and vertical signed residuals, RMS, median,
+P95, maximum and N for terrain and imagery separately; account for reference
+uncertainty, interpolation, blend and image resolution. If only comparing
+LOLA terrain to LOLA-derived control, label the outcome **internal
+cross-product consistency**, never independent geolocation accuracy.
+
+Until suitable independent control points are obtained and used for a
+reproducible experiment, the exact fused/composited product's finite
+operational placement error remains **unknown**. Do not fill registration
+metadata with an invented bound or reuse a source-level typical accuracy.
