@@ -596,7 +596,7 @@ def cmd_nac(args):
             'attribution': 'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'url': args.source}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner',
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner',
                     'registrationErrorKm': None,
                     'resampling': f'bilinear from the overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; nodata 0 → alpha',
                     'footprint': 'LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S); transparent elsewhere'}
@@ -613,7 +613,7 @@ def cmd_composite(args):
                            'LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; '
                            'PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)',
             'base': os.path.basename(args.base), 'detail': args.detail}
-    registration = {'crsId': 'cosmolabe:cube-gnomonic-1/IAU_MOON', 'pixelConvention': 'corner', 'registrationErrorKm': None,
+    registration = {'crsId': f'cosmolabe:cube-gnomonic-1/{args.frame}', 'pixelConvention': 'corner', 'registrationErrorKm': None,
                     'resampling': f'each source bilinear from its overview ≤ 0.4 output-sample spacing, {args.supersample}×{args.supersample} box per pixel; '
                                   'detail composited over base by its coverage (nodata 0 → base)',
                     'footprint': f'global (base, levels 0–{args.global_level}); detail inside the LROC NAC South Pole mosaic square (±182.107 km polar stereographic, reaching 81.5°S)'}
@@ -735,6 +735,8 @@ def main():
     sub.choices['fixture'].add_argument('--body', default='Moon')
     sub.choices['fixture'].add_argument('--frame')
     sub.choices['nac'].add_argument('--source', required=True)
+    for name in ['nac', 'composite']:
+        sub.choices[name].add_argument('--frame', required=True, help='Audited physical lunar frame realization')
     sub.choices['xyz'].add_argument('--source', required=True, help='XYZ source JSON; explicit latitudeConvention and disk cache required')
     sub.choices['xyz'].add_argument('--radius-km', type=float, required=True)
     sub.choices['xyz'].add_argument('--body', required=True)

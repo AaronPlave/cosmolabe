@@ -1,3 +1,4 @@
+import { lunarProductFrame } from '@cosmolabe/core';
 import * as THREE from 'three';
 import { clampOpacity, describeImageryLayers, layerStatus, type ImageryLayerInfo } from './ImageryLayers.js';
 import type { TerrainImageryConfig } from './TerrainManager.js';
@@ -353,7 +354,7 @@ export class CubeImageryLayer {
     fallbackBlocks: 0, failedBlocks: 0, untexturedBlocks: 0, baseUncoveredBlocks: 0, maxDisplayedLevel: -1, updateMs: 0,
     committedGroups: 0, waitingGroups: 0,
   };
-  constructor(config: CubeImageryConfig, deps: { fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number } = {}) {
+  constructor(config: CubeImageryConfig, deps: { frame?: string; fetchManifest?: (url: string) => Promise<CubeImageryManifest>; loadTexture?: TextureLoader; radiusKm?: number; horizonRadiusKm?: () => number } = {}) {
     this.horizonRadiusKm = deps.horizonRadiusKm ?? (() => 0);
     this.options = {
       maxScreenTexelError: config.maxScreenTexelError ?? 1.5,
@@ -386,8 +387,18 @@ export class CubeImageryLayer {
       try {
         const manifest = await (source.index === 0 ? baseManifest : fetchManifest(source.baseUrl).then(validateCubeImageryManifest));
         const reference = await baseManifest;
+        const effectiveCrs = (m: CubeImageryManifest) => {
+          const slash = m.registration.crsId.lastIndexOf('/');
+          const scheme = m.registration.crsId.slice(0, slash);
+          const frame = lunarProductFrame(m.registration.crsId.slice(slash + 1).toUpperCase(), m.source.version);
+          return { scheme, frame };
+        };
+        const { scheme, frame } = effectiveCrs(manifest);
+        const referenceCrs = effectiveCrs(reference);
+        if (deps.frame && frame !== deps.frame) throw new Error(`Cube imagery frame ${frame} does not match terrain frame ${deps.frame}`);
         if (this.disposed) return;
-        if (reference.bodyId !== manifest.bodyId || reference.registration.crsId !== manifest.registration.crsId ||
+        if (reference.bodyId !== manifest.bodyId || referenceCrs.scheme !== scheme || referenceCrs.frame !== frame ||
+          reference.registration.pixelConvention !== manifest.registration.pixelConvention ||
           reference.tileSize !== manifest.tileSize || reference.gutter !== manifest.gutter) {
           throw new Error('Cube imagery sources must share body, registration, tile size and gutter');
         }

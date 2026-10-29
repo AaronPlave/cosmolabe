@@ -7,7 +7,8 @@
     "referenceShape": {
       "kind": "sphere",
       "radiusKm": 1737.4
-    }
+    },
+    "frame": "MOON_ME_DE421"
   },
   "geographicLayers": [
     {
@@ -24,7 +25,13 @@
         "sourceFile": "MOON_nomenclature_center_pts.kmz",
         "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
         "converter": "cosmolabe:191:v2",
-        "geometrySemantics": "point-anchor-not-feature-boundary"
+        "geometrySemantics": "point-anchor-not-feature-boundary",
+        "controlNetwork": "LOLA 2011",
+        "frameEvidence": [
+          "https://planetarynames.wr.usgs.gov/News?page=37",
+          "https://planetarynames.wr.usgs.gov/GIS_Downloads",
+          "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/document/rdrsis.htm"
+        ]
       }
     },
     {
@@ -41,7 +48,13 @@
         "sourceFile": "MOON_nomenclature_center_pts.kmz",
         "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
         "converter": "cosmolabe:191:v2",
-        "geometrySemantics": "point-anchor-not-feature-boundary"
+        "geometrySemantics": "point-anchor-not-feature-boundary",
+        "controlNetwork": "LOLA 2011",
+        "frameEvidence": [
+          "https://planetarynames.wr.usgs.gov/News?page=37",
+          "https://planetarynames.wr.usgs.gov/GIS_Downloads",
+          "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/document/rdrsis.htm"
+        ]
       }
     },
     {
@@ -58,7 +71,13 @@
         "sourceFile": "MOON_nomenclature_center_pts.kmz",
         "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
         "converter": "cosmolabe:191:v2",
-        "geometrySemantics": "point-anchor-not-feature-boundary"
+        "geometrySemantics": "point-anchor-not-feature-boundary",
+        "controlNetwork": "LOLA 2011",
+        "frameEvidence": [
+          "https://planetarynames.wr.usgs.gov/News?page=37",
+          "https://planetarynames.wr.usgs.gov/GIS_Downloads",
+          "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/document/rdrsis.htm"
+        ]
       }
     },
     {
@@ -75,7 +94,13 @@
         "sourceFile": "MOON_nomenclature_center_pts.kmz",
         "sourceSha256": "03f6c18254f35e1a83421825341d522b0cca73e90da000bf68c6fff4284ce40e",
         "converter": "cosmolabe:191:v2",
-        "geometrySemantics": "point-anchor-not-feature-boundary"
+        "geometrySemantics": "point-anchor-not-feature-boundary",
+        "controlNetwork": "LOLA 2011",
+        "frameEvidence": [
+          "https://planetarynames.wr.usgs.gov/News?page=37",
+          "https://planetarynames.wr.usgs.gov/GIS_Downloads",
+          "https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/document/rdrsis.htm"
+        ]
       }
     }
   ]

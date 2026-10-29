@@ -63,6 +63,19 @@ class NomenclatureTests(unittest.TestCase):
             second = next(f for f in data['features'] if f['properties']['name'] == 'Site Alpha')
             self.assertEqual(second['geometry']['coordinates'], [0, -89.5])
 
+    def test_preserves_explicit_frame_without_inferring_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'moon.kml'
+            source.write_bytes(KML)
+            args = options(source, root / 'places.json')
+            args.body = 'Moon'
+            converter.convert(args)
+            self.assertNotIn('frame', json.loads(args.output_catalog.read_text())['geographicCoordinates'])
+            args.frame = 'MOON_ME_DE421'
+            converter.convert(args)
+            self.assertEqual(json.loads(args.output_catalog.read_text())['geographicCoordinates']['frame'], args.frame)
+
     def test_kmz_nested_doc_and_stable_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -78,6 +78,17 @@ The normalized Jezero latitude shown in the viewer is **geodetic**, approximatel
 
 Moon currently fits just below the converter's conservative 7.5 MB budget. Future full-body snapshots may grow beyond it: conversion must fail explicitly instead of dropping records or relaxing renderer budgets. Split larger datasets into independently loaded regional catalogs after profiling.
 
+The lunar snapshot uses the **LOLA 2011 control network** named by
+[USGS GIS Downloads](https://planetarynames.wr.usgs.gov/GIS_Downloads).
+The [2012 USGS update](https://planetarynames.wr.usgs.gov/News?page=37)
+explains that coordinates were aligned to the December 2011 LOLA LDEM_128
+hillshade; the [LOLA product specification](https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/lrolol_1xxx/document/rdrsis.htm)
+declares DE421 mean Earth/polar axis. The companion catalog therefore explicitly
+sets `geographicCoordinates.frame` to `MOON_ME_DE421`. The Moon 2000 sphere
+in the PRJ describes shape; it does not identify the SPICE `IAU_MOON` attitude.
+No point, ID, source hash or source field changes. These approximate feature
+centers remain identification anchors, with no surveyed landing accuracy claim.
+
 ## Optional offline converter
 
 Authors refreshing static data can download the exact per-body **center point** archive and run the standard-library converter. Direct runtime KMZ ingestion is deliberately omitted: static GeoJSON reuses existing load guards/workers and avoids shipping another archive/XML parser in the viewer. Broader interchange belongs to #201.
@@ -94,7 +105,7 @@ python3 scripts/convert-planetary-nomenclature.py \
   --source-url 'https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/MARS_nomenclature_center_pts.kmz'
 ```
 
-For Moon, use its actual archive URL, `--body Moon --sphere-radius-km 1737.4 --layer-id moon:usgs:places` with the same latitude/longitude options. Other sources require independently verified conventions. `--longitude-domain=-180..180` needs the equals sign because its value begins with a minus sign.
+For Moon, use its actual archive URL, `--body Moon --sphere-radius-km 1737.4 --frame MOON_ME_DE421 --layer-id moon:usgs:places` with the same latitude/longitude options. Other sources require independently verified conventions. `--longitude-domain=-180..180` needs the equals sign because its value begins with a minus sign.
 
 Conversion fails conspicuously if valid points fall into the other longitude domain. Review every skip count. Z is omitted because arbitrary KML altitude lacks a planetary vertical datum. Unsupported/malformed/non-point placemarks are counted, not reduced to invented centroids. DTD/entity declarations are rejected at the decoded XML parser boundary, including UTF-16; archive traversal, symlinks, excessive size/ratio/entries, XML depth/elements, field lengths and record counts are bounded. Input/output path collisions are rejected before writing.
 

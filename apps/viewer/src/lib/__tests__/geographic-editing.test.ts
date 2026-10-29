@@ -54,6 +54,20 @@ beforeEach(() => {
   scene();
 });
 
+it('authors in the selected lunar frame and refuses picks from a different declared frame', () => {
+  vi.mocked(universe!.getBody).mockImplementation(((name: string) => name === 'Moon' ? ({ name, radii: [1737.4, 1737.4, 1737.4] }) : undefined) as never);
+  const selectedFrame = vi.spyOn(universe!.frames, 'bodyFixedFrameFor').mockReturnValue('MOON_ME_DE421');
+  const coordinates = editing.inferredCoordinates('Moon')!;
+  expect(coordinates.frame).toBe('MOON_ME_DE421');
+  const id = createLayer({ body: 'Moon', name: 'Lunar notes', coordinates })!, layer = editLayer(id)!;
+  let frame = 'MOON_ME_DE421';
+  const pick = { pickScene: () => ({ kind: 'surface', point: { bodyName: 'Moon', frame, bodyFixedPositionKm: [1737.4, 0, 0] } }) } as unknown as Parameters<typeof editing.surfacePosition>[0];
+  expect(editing.surfacePosition(pick, layer, 0, 0)).toEqual([0, 0]);
+  frame = 'IAU_MOON';
+  expect(editing.surfacePosition(pick, layer, 0, 0)).toBeNull();
+  selectedFrame.mockRestore();
+});
+
 describe('authored layers in the scene', () => {
   it('installs an authored layer as a user-owned scene layer and keeps it in this browser', () => {
     const id = createLayer({ body: 'Mars', name: 'Jezero notes', coordinates: mars })!;

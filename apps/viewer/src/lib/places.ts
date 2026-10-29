@@ -70,10 +70,16 @@ export function showPlaceDataset(layerId: string, visible: boolean): void {
   if (visible && !vs.excludedPlaceLayers.includes(layerId)) labels?.hiddenLayers.delete(layerId); else labels?.hiddenLayers.add(layerId);
 }
 
+export function placeFrameUnavailable(place: Place): string | null {
+  const frame = getRenderer()?.getBodyMesh(place.layer.body)?.body.rotation?.bodyFixedFrame;
+  return frame && frame !== place.layer.frame
+    ? `Place frame ${place.layer.frame} differs from the rendered surface frame ${frame}. Navigation is unavailable.` : null;
+}
+
 /** Places use exactly the coordinate panel's resolution, physical terrain
  * refinement, surface pivot and arc-flight path. Extent only guides framing. */
 export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: { source?: 'viewport-dblclick' } = {}): boolean {
-  if (!isPlaceAvailable(place) || place.feature.geometry.type !== 'Point') return false;
+  if (!isPlaceAvailable(place) || place.feature.geometry.type !== 'Point' || placeFrameUnavailable(place)) return false;
   // A scene gesture has predictable framing; it must not inherit invalid or
   // unrelated form settings, nor overwrite the user's retained form choices.
   const viewport = options.source === 'viewport-dblclick';

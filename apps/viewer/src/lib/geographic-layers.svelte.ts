@@ -210,6 +210,8 @@ export function navigationUnavailable(layer: GeographicLayer): string | null {
   void geo.revision;
   const bm = getRenderer()?.getBodyMesh(layer.body);
   if (!bm) return `${layer.body} is not in this scene.`;
+  const frame = bm.body.rotation?.bodyFixedFrame;
+  if (frame && frame !== layer.frame) return `Layer frame ${layer.frame} differs from the rendered surface frame ${frame}. Navigation is unavailable.`;
   if (bm.body.geometryType !== 'Globe') return `${layer.body} is not drawn as a globe, so it has no latitude/longitude surface to fly over.`;
   return null;
 }

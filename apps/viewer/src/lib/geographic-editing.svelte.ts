@@ -23,7 +23,7 @@
  * catalog that loads it through the ordinary path.
  */
 import {
-  GeographicEditSession, bodyFixedToGeodetic, createGeographicEditLayer, createGeographicWorkingCopy, exportGeographicEditLayer,
+  GeographicEditSession, bodyFixedFrameName, bodyFixedToGeodetic, createGeographicEditLayer, createGeographicWorkingCopy, exportGeographicEditLayer,
   geodesicDistanceKm, geographicDatum, geographicEditCompanionCatalog, geographicEditFeatureRefId, geographicEditLayerToLayer,
   geographicPositionInConvention, importGeographicEditLayer, normalizeGeographicPosition, parseGeographicEditDocument,
   serializeGeographicEditDocument, GEOGRAPHIC_EDIT_MAX_LAYERS, GEOGRAPHIC_GEOJSON_EXTENSION,
@@ -205,7 +205,7 @@ export function inferredCoordinates(body: string): GeographicCoordinates | null 
   if (!referenceShape) return null;
   const existing = getUniverse()?.geographicLayers.layers.find((l) => l.body === body && l.ownership !== 'user');
   const c = existing?.coordinates;
-  return { latitude: c?.latitude ?? 'planetocentric', longitudeDirection: c?.longitudeDirection ?? 'east', longitudeDomain: c?.longitudeDomain ?? '-180..180', referenceShape };
+  return { frame: getUniverse()?.frames.bodyFixedFrameFor(body) ?? bodyFixedFrameName(body), latitude: c?.latitude ?? 'planetocentric', longitudeDirection: c?.longitudeDirection ?? 'east', longitudeDomain: c?.longitudeDomain ?? '-180..180', referenceShape };
 }
 
 export const annotationLayerName = (body: string) => `My annotations · ${body}`;
@@ -296,6 +296,7 @@ export function duplicateFeature(layerId: string, featureId: string | number): v
 export function surfacePosition(renderer: UniverseRenderer, layer: GeographicEditLayer, x: number, y: number): GeoPosition | null {
   const hit = renderer.pickScene(x, y, 'probe', { renderedOnly: true });
   if (hit?.kind !== 'surface' || hit.point.bodyName !== layer.body) return null;
+  if (hit.point.frame && hit.point.frame !== (layer.coordinates.frame ?? bodyFixedFrameName(layer.body))) return null;
   const [xKm, yKm, zKm] = hit.point.bodyFixedPositionKm;
   // Through the layer's own datum, whatever latitude the hit was reported in; heights are not kept.
   const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, geographicDatum(layer.coordinates));

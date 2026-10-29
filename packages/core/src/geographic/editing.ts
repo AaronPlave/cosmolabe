@@ -148,7 +148,7 @@ function featureJson(feature: GeographicEditFeature): { [key: string]: JsonValue
 /** The layer's conventions and identity, as the GeoJSON extension member carries them. */
 function extensionMember(layer: GeographicEditLayer): JsonValue {
   return {
-    version: GEOGRAPHIC_EDIT_VERSION, body: layer.body, frame: bodyFixedFrameName(layer.body),
+    version: GEOGRAPHIC_EDIT_VERSION, body: layer.body, frame: layer.coordinates.frame ?? bodyFixedFrameName(layer.body),
     coordinates: layer.coordinates as unknown as JsonValue,
     layer: { id: layer.id, name: layer.name },
     ...(layer.basedOn ? { basedOn: { layerId: layer.basedOn.layerId, source: layer.basedOn.source.identity } } : {}),
@@ -473,10 +473,17 @@ export function importGeographicEditLayer(
   if (geographicObject(meta)) {
     const layerMeta = geographicObject(meta.layer) ? meta.layer : {};
     if (typeof meta.body !== 'string' || !meta.body) throw new Error(`${GEOGRAPHIC_GEOJSON_EXTENSION} needs a body`);
+    const coordinates = validateGeographicCoordinates(meta.coordinates);
+    if (meta.frame !== undefined) {
+      if (typeof meta.frame !== 'string' || !meta.frame.trim() || (coordinates.frame && coordinates.frame !== meta.frame)) {
+        throw new Error('Geographic frame declarations disagree or are invalid');
+      }
+      if (!coordinates.frame && meta.frame !== bodyFixedFrameName(meta.body)) coordinates.frame = meta.frame;
+    }
     identity = {
       id: typeof layerMeta.id === 'string' && layerMeta.id ? layerMeta.id : fallback?.id ?? 'imported',
       name: typeof layerMeta.name === 'string' && layerMeta.name ? layerMeta.name : fallback?.name ?? 'Imported layer',
-      body: meta.body, coordinates: validateGeographicCoordinates(meta.coordinates),
+      body: meta.body, coordinates,
     };
   } else if (fallback) identity = { ...fallback, coordinates: validateGeographicCoordinates(fallback.coordinates) };
   else throw new Error('This GeoJSON does not say which body or coordinate convention it uses; RFC 7946 would mean Earth WGS84. Open it with a companion catalog, or choose the body and convention.');

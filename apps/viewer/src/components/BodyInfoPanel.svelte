@@ -1,5 +1,6 @@
 <script lang="ts">
   import { vs, selectBody, getRenderer, flyToBody } from '../lib/viewer-state.svelte';
+  import { getUniverse } from '../lib/loader';
   import type { InfoRow } from '@cosmolabe/three';
   import { Navigation } from 'lucide-svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -8,6 +9,24 @@
 
   let bodyEntry = $derived(vs.bodies.find(b => b.name === vs.selectedBodyName));
   let description = $derived(vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.body.description : undefined);
+
+  let surfaceProvenance = $derived.by(() => {
+    void vs.frameTick;
+    const et = vs.et, name = vs.selectedBodyName, u = getUniverse(), r = getRenderer();
+    if (!name || !u || !r) return null;
+    const body = u.getBody(name), provenance = body?.surfaceTrajectory;
+    if (!body || !provenance) return null;
+    const parent = body.activeParentAt(et), bm = parent ? r.getBodyMesh(parent) : undefined;
+    if (!bm?.terrainDatum) return { provenance, messages: ['Current terrain datum is unavailable; no terrain adjustment is applied.'] };
+    const status = u.surfaceTrajectoryStatus(name, et, { frame: u.frames.bodyFixedFrameFor(parent!),
+      datum: bm.terrainDatum, terrainRevision: bm.terrainSourceRevision });
+    return { provenance, messages: status?.diagnostics.map(d => d.message) ?? [] };
+  });
+
+  let terrainFrameStatus = $derived.by(() => {
+    void vs.frameTick;
+    return vs.selectedBodyName ? getRenderer()?.getBodyMesh(vs.selectedBodyName)?.terrainFrameAvailability : null;
+  });
 
   // Compute live distance from camera (re-derives each frame via vs.et)
   let distance = $derived.by(() => {
@@ -208,6 +227,15 @@
 
     {#if bodyEntry?.classification}
       <div class="body-kind">{classificationLabel(bodyEntry.classification)}</div>
+    {/if}
+    {#if terrainFrameStatus?.kind === 'unavailable'}
+      <p class="text-xs text-text-muted mb-2">Terrain unavailable: {terrainFrameStatus.reason}</p>
+    {/if}
+    {#if surfaceProvenance}
+      <p class="text-xs text-text-muted mb-2">Absolute positions · {surfaceProvenance.provenance.frame} · km{surfaceProvenance.provenance.purpose === 'synthetic-demo' ? ' · Synthetic demo' : ''}</p>
+      {#each surfaceProvenance.messages as message}
+        <p class="text-xs text-text-muted mb-2">{message}</p>
+      {/each}
     {/if}
     {#if description}
       <p class="text-xs text-text-muted mb-3">{description}</p>

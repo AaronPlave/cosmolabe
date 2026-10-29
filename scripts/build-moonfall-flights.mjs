@@ -400,7 +400,12 @@ function hopperItem(hopper, elevations) {
   return {
     name: hopper.name,
     class: 'spacecraft',
-    trajectoryFrame: 'BodyFixed',
+    trajectoryFrame: 'MOON_ME_DE421',
+    surfaceTrajectory: {
+      frame: 'MOON_ME_DE421', positionUnits: 'km', purpose: 'synthetic-demo',
+      datum: { referenceShape: { kind: 'sphere', radiusKm: 1737.4 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+      terrainRevision: TERRAIN.build,
+    },
     arcs,
     rotationModel: { type: 'SurfaceUp' },
     geometry: {
@@ -426,10 +431,11 @@ const catalog = {
   name: MISSION.catalogName,
   defaultTime: MISSION.defaultTime,
   defaultViewpoint: MISSION.defaultViewpoint,
-  // Real ephemeris and IAU_MOON (de440s, pck00011): where the Sun and Earth
+  // Real ephemeris and DE421 mean-Earth orientation (de440s, lunar binary PCK): where the Sun and Earth
   // sit in the polar sky — grazing sun, Earth dipping below the horizon — is
   // the point of a south-pole mission.
-  require: ['base/naif.json'],
+  require: ['base/naif.json', 'base/lunar-surface.json', 'places/moon.json', 'places/moonfall-sites.json'],
+  defaultGeographicNames: ['Moon'],
   items: [
     {
       name: 'Shackleton Overview',
@@ -466,7 +472,8 @@ const catalog = {
       name: 'Earth',
       class: 'planet',
       center: 'Sun',
-      trajectory: { type: 'Builtin', name: 'Earth', visible: false },
+      trajectory: { type: 'Builtin', name: 'Earth' },
+      trajectoryPlot: { visible: false },
       geometry: {
         type: 'Globe',
         radius: 6378,
@@ -480,7 +487,7 @@ const catalog = {
       class: 'moon',
       center: 'Earth',
       trajectory: { type: 'Builtin', name: 'Moon' },
-      rotationModel: { type: 'Builtin', name: 'IAU_MOON' },
+      rotationModel: { type: 'Spice', bodyFrame: 'MOON_ME_DE421', inertialFrame: 'ECLIPJ2000' },
       geometry: {
         type: 'Globe',
         radius: 1737.4,
@@ -496,6 +503,7 @@ const catalog = {
         // is in docs/design/cube-sphere-experiment.md, "First migration".
         terrain: {
           type: '3dtiles',
+          frame: 'MOON_ME_DE421',
           url: `${TERRAIN.catalogPrefix}tileset.json`,
           errorTarget: 2,
           fadeDurationMs: 0,

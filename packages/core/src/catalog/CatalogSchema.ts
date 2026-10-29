@@ -65,7 +65,7 @@ const CATALOG_KEYS = keys(
 const ITEM_KEYS = keys(
   'description',
   'name', 'type', 'class', 'center', 'trajectoryFrame', 'trajectory', 'trajectoryPlot',
-  'rotationModel', 'bodyFrame', 'geometry', 'label', 'naifId', 'mass', 'radii',
+  'rotationModel', 'bodyFrame', 'geometry', 'label', 'naifId', 'mass', 'radii', 'surfaceTrajectory',
   'startTime', 'endTime', 'items', 'arcs', 'spiceKernels',
 );
 
@@ -236,7 +236,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
         'type', 'url', 'cesiumIonAssetId', 'cesiumIonToken', 'imagery', 'errorTarget',
         'maxCacheBytes', 'normalMapUrl', 'normalMapStrength', 'preloadAtPixels', 'showAtPixels',
         'referenceRadiusOffsetKm', 'samplerMaxTiles', 'skirtLength', 'skirtScale',
-        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere',
+        'fadeDurationMs', 'overlayResolution', 'datum', 'sourceMetadata', 'drawCulling', 'cubeSphere', 'frame', 'bodyId',
       ),
       children: {
         imagery: IMAGERY,
@@ -280,7 +280,7 @@ const GEOMETRY_NESTED: Record<string, Record<string, NestedSpec>> = {
 // ── Geographic layers (core/geographic) ─────────────────────────────────────
 
 const GEOGRAPHIC_COORDINATES: NestedSpec = {
-  keys: keys('latitude', 'longitudeDirection', 'longitudeDomain', 'referenceShape', 'height'),
+  keys: keys('latitude', 'longitudeDirection', 'longitudeDomain', 'referenceShape', 'height', 'frame'),
   children: {
     referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
     height: { keys: keys('unit', 'datum', 'convention') },
@@ -631,6 +631,12 @@ export function validateCatalog(json: unknown, options: CatalogValidationOptions
     }
     if (typeof item.type === 'string' && SKIPPED_ITEM_TYPES.has(item.type)) return;
     checkKeys(item, ITEM_KEYS, path, `item ${owner}`, 'item', [['a Viewpoint', VIEWPOINT_KEYS]]);
+    checkNested(item, { surfaceTrajectory: {
+      keys: keys('frame', 'positionUnits', 'datum', 'purpose', 'terrainRevision'),
+      children: { datum: { keys: keys('referenceShape', 'verticalDatum', 'heightConvention'), children: {
+        referenceShape: { keys: keys('kind', 'radiusKm', 'radiiKm') },
+      } } },
+    } }, path, `item ${owner}`, 'item');
     checkTrajectory(item.trajectory, `${path}.trajectory`, owner);
     checkRotation(item.rotationModel, `${path}.rotationModel`, owner);
     checkGeometry(item.geometry, `${path}.geometry`, owner);

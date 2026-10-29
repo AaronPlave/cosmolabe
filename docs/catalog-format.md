@@ -158,6 +158,16 @@ A Keplerian orbit propagates with the center's GM, from a built-in table of the 
 
 Some trajectory types know their own frame, and that frame is used whatever `trajectoryFrame` says: **TLE** output is TEME, **FixedSpherical** and **Waypoints** are body-fixed to the item's `center`, an **OEM** file's `REF_FRAME` is its frame, and a **Spice** trajectory is in the frame it is queried in. TLE items no longer need `trajectoryFrame: "J2000"` (it is ignored), and TEME is now rotated into J2000 with precession and nutation instead of being treated as J2000. That rotation is about 20 arcminutes by 2026, or tens of km at LEO.
 
+Absolute surface inputs may add an item-level `surfaceTrajectory` with `frame`,
+`positionUnits: "km"`, a physical `datum` (`referenceShape`, `verticalDatum`,
+`heightConvention`), `purpose: "supplied" | "synthetic-demo"`, and optional
+`terrainRevision` used in planning. This records provenance and prevents terrain
+adjustment; it never requests snapping or adds a datum offset. Frame declaration
+conflicts withhold placement. Frame/datum/revision comparisons are available via
+`Universe.surfaceTrajectoryStatus` and the body inspector. See the
+[lunar audit and migration guide](validation/lunar-frames/README.md) for the
+complete schema, numerical comparisons, uncertainty and legacy behavior.
+
 ## Rotation models
 
 Picked by `rotationModel.type`:
@@ -429,8 +439,8 @@ Frames are named, and every name resolves through one registry (`Universe.frames
 | `B1950`, `FK4`, `ECLIPB1950`, `GALACTIC` | `EquatorB1950` | inertial | SPICE's fixed matrices | same |
 | `MOD`, `TOD`, `TEME` | `TETE` (TOD) | inertial, time-dependent | IAU-1976 precession, IAU-1980 nutation | same (SPICE has no TEME) |
 | `ITRF` | `ITRF93`, `ITRF2000`…`ITRF2020`, `ECEF`, `TDR` | Earth-fixed | SPICE `ITRF93` when a binary Earth PCK is loaded | TEME + GMST, with UT1 ≈ UTC (≤ 0.4 km at the surface) |
-| `IAU_<BODY>` | | body-fixed | the body's own `rotationModel`, else SPICE's PCK frame | the body's own `rotationModel` |
-| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to `IAU_<CENTER>` | same |
+| `IAU_<BODY>` | | body-fixed | the body's rotation if its declared target is this frame, else SPICE's PCK frame | the matching body's `rotationModel` |
+| `BodyFixed` | `body-fixed` | body-fixed to the item's current `center` | resolves to the centre's declared target frame (default `IAU_<CENTER>`) | same |
 | any SPICE frame | | per SPICE | `pxform` (CK, TK and dynamic frames, `MOON_ME`, …) | not resolvable |
 
 The static inertial frames use their fixed matrices even when SPICE is loaded. They are identical to SPICE's built-in definitions (the tests check this to 1e-12) and keep `pxform` off the per-frame path. EME2000 and ICRF are distinct names with an identity rotation between them. SPICE treats `J2000` as ICRF-aligned, and every JPL ephemeris is delivered that way, so applying the ~23 mas frame bias would offset SPICE-driven planets by about 17 km at 1 AU. What "EME2000" means depends on who wrote the file. From JPL and SPICE tools it is SPICE's J2000, which is ICRF-aligned; from Orekit, STK or GMAT it is FK5 J2000, which carries the bias. For the second kind, set `"trajectoryFrame": "EME2000_IERS"`: on an OEM whose `REF_FRAME` is EME2000 or ICRF, that declaration refines the file's label rather than being reported as a mismatch.

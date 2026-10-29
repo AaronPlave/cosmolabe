@@ -4,12 +4,12 @@
  * At the pole the Sun circles the horizon once per lunar day, within ~1.5° of
  * it, rising and sinking over the year with the Moon's tilt; Earth bobs ±6.8°
  * each month. Lighting and Earth visibility at Shackleton hinge on fractions of
- * a degree, so the catalog flies the real ephemeris and IAU_MOON, and the
- * SPICE-free fallback carries the Moon's periodic terms and a correct Earth
- * orbit (#149). Truth here is
- * CSPICE's spkpos in IAU_MOON.
+ * a degree, so the catalog uses real ephemerides and the DE421 mean-Earth frame.
+ * Missing orientation data makes the lunar surface unavailable (#238).
+ * Truth here is CSPICE's spkpos in MOON_ME_DE421.
  */
 import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadCatalogFromUrl, etFromCalendarString, Universe, type CatalogJson, type SpiceInstance } from '@cosmolabe/core';
@@ -49,30 +49,27 @@ describe('moonfall-shackleton.json: Sun and Earth over the south pole', () => {
     json = graph.catalogs.map((c) => c.json);
     spice = await createHeritageSpice();
     for (const k of graph.kernels) {
-      const buf = readFileSync(fileURLToPath(k.url));
-      await spice.furnish({ type: 'buffer', data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer, filename: k.url.split('/').pop()! });
+      const raw = readFileSync(fileURLToPath(k.url));
+      const buf = k.url.endsWith('.gz') ? gunzipSync(raw) : raw;
+      await spice.furnish({ type: 'buffer', data: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer, filename: k.url.split('/').pop()!.replace(/\.gz$/, '') });
     }
   });
 
   it('furnishes the ephemeris and the Moon orientation', () => {
-    expect(kernels).toEqual(expect.arrayContaining(['naif0012.tls', 'pck00011.tpc', 'de440s.bsp']));
+    expect(kernels).toEqual(expect.arrayContaining(['naif0012.tls', 'pck00011.tpc', 'de440s.bsp', 'moon_080317.tf.gz', 'moon_pa_de421_1900_2050.bpc.gz']));
   });
 
-  // With SPICE the scene is the ephemeris: what is left is light time and
-  // aberration (spkpos uses LT+S). Without it, the Sun is right to the Moon's
-  // offset from its Keplerian fallback orbit (≤0.15°); Earth, seen from the
-  // Moon, is not checked there — that orbit is tens of degrees off by 2028.
-  it.each([
-    ['with SPICE', true, ['SUN', 'EARTH'], 0.01, 0.1],
-    ['SPICE-free fallback', false, ['SUN'], 0.2, 0.2],
-  ] as const)('%s', (_, withSpice, targets, elTol, azTol) => {
-    const u = withSpice ? new Universe(spice) : new Universe();
+  // Geometric scene versus the apparent (LT+S) sky, with the original
+  // elevation/azimuth acceptance tolerances preserved.
+  it('matches the SPICE Sun and Earth sky in the declared surface frame', () => {
+    const u = new Universe(spice);
+    const targets = ['SUN', 'EARTH'] as const, elTol = 0.01, azTol = 0.1;
     for (const j of json) u.loadCatalog(j);
     let maxEl = -Infinity, minEl = Infinity;
     for (const et of times) {
       for (const target of targets) {
         const [el, az] = seenFromMoon(u, target === 'SUN' ? 'Sun' : 'Earth', et);
-        const [tel, taz] = elAz(spice.spkpos(target, et, 'IAU_MOON', 'LT+S', 'MOON').position);
+        const [tel, taz] = elAz(spice.spkpos(target, et, 'MOON_ME_DE421', 'LT+S', 'MOON').position);
         expect(Math.abs(el - tel), `${target} elevation @ ${et}`).toBeLessThan(elTol);
         expect(Math.abs(((az - taz + 540) % 360) - 180), `${target} azimuth @ ${et}`).toBeLessThan(azTol);
         if (target === 'SUN') { maxEl = Math.max(maxEl, el); minEl = Math.min(minEl, el); }
@@ -82,4 +79,11 @@ describe('moonfall-shackleton.json: Sun and Earth over the south pole', () => {
     expect(maxEl).toBeGreaterThan(1.4);
     expect(minEl).toBeLessThan(-1.4);
   });
+  it('requires orientation kernels instead of approximating DE421 with IAU_MOON', () => {
+    const u = new Universe();
+    for (const j of json) u.loadCatalog(j);
+    expect(() => u.bodyToWorldQuat('Moon', t0)).toThrow(/SPICE is required/);
+    expect(u.absolutePositionOf('Polaris-A', t0).every(Number.isNaN)).toBe(true);
+  });
+
 });
