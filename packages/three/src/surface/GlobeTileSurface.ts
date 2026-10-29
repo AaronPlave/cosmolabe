@@ -1,4 +1,4 @@
-import { TerrainSampler, geodeticToBodyFixed, type TerrainTile } from '../TerrainSampler.js';
+import { TerrainSampler, geodeticToBodyFixed, isSupportedGeodeticDatum, type TerrainTile } from '../TerrainSampler.js';
 import { CpuMeshSurface } from './CpuMeshSurface.js';
 import { normalizedRay, type PhysicalSurface, type PhysicalSurfaceMetadata, type SurfaceIntersection, type SurfaceQueryOptions, type SurfaceRay } from './PhysicalSurface.js';
 
@@ -11,6 +11,8 @@ export class GlobeTileSurface implements PhysicalSurface {
   readonly metadata: PhysicalSurfaceMetadata;
   private tile: TerrainTile | undefined;
   private intersector: CpuMeshSurface | undefined;
+  /** Actual triangle tests in the last query. */
+  trianglesTested = 0;
   constructor(
     readonly sampler: TerrainSampler,
     readonly tileId: string,
@@ -25,20 +27,19 @@ export class GlobeTileSurface implements PhysicalSurface {
   sampleElevation(latDeg: number, lonDeg: number) { return this.sampler.sample(latDeg, lonDeg, true); }
 
   intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
+    this.trianglesTested = 0;
     normalizedRay(ray, options);
     const tile = this.sampler.getTile(this.tileId);
     if (tile !== this.tile) { this.tile = tile; this.intersector = undefined; }
     if (!tile) return { kind: 'unavailable', reason: 'not-resident', metadata: this.metadata };
     const datum = this.sampler.datum;
-    // Existing converters implement spheres and geodetic oblate ellipsoids only.
-    // Do not reinterpret radial oblate/areoid/unknown metadata as geodetic height.
-    if ((datum.verticalDatum !== 'reference-sphere' && datum.verticalDatum !== 'ellipsoid')
-      || (datum.referenceShape.kind === 'ellipsoid' && (datum.heightConvention !== 'geodetic-normal'
-        || datum.referenceShape.radiiKm[0] !== datum.referenceShape.radiiKm[1]))) {
+    if (!isSupportedGeodeticDatum(datum)) {
       return { kind: 'unavailable', reason: 'unsupported-datum', metadata: this.metadata };
     }
     const vertexCount = tile.kind === 'mesh' ? tile.u.length : tile.width * tile.height;
     const indexCount = tile.kind === 'mesh' ? tile.indices.length : (tile.width - 1) * (tile.height - 1) * 6;
+    // CpuMeshSurface fits optional acceleration into the remaining budget.
+    // Only the physical mesh is required for admission in both checks.
     if (vertexCount * 24 + indexCount * 4 > this.maxBytes) {
       return { kind: 'unavailable', reason: 'budget', metadata: this.metadata };
     }
@@ -63,10 +64,11 @@ export class GlobeTileSurface implements PhysicalSurface {
       }
       this.intersector = new CpuMeshSurface(
         { ...this.metadata, source: tile.source ?? this.sampler.source }, { positionsKm, indices },
-        { meshDeviationBoundKm: null, sourceUncertaintyKm: tile.uncertaintyKm ?? tile.source?.uncertaintyKm ?? this.sampler.source.uncertaintyKm }, this.maxBytes,
+        { meshDeviationBoundKm: null, sourceUncertaintyKm: tile.uncertaintyKm ?? tile.source?.uncertaintyKm ?? this.sampler.source.uncertaintyKm }, this.maxBytes, true,
       );
     }
     const result = this.intersector.intersectRay(ray, options);
+    this.trianglesTested = this.intersector.trianglesTested;
     return result.kind === 'hit' ? { ...result, tileId: this.tileId } : result;
   }
 }

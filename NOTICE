@@ -7,7 +7,7 @@ respective terms.
 
 This software is not approved or endorsed by the National Aeronautics and
 Space Administration (NASA) or the Jet Propulsion Laboratory (JPL). It
-uses NASA-released open-source components (CSPICE via TimeCraftJS,
+uses NASA-released open-source components (CSPICE via cspice-wasm,
 3DTilesRendererJS) but is independently developed and maintained.
 
 ================================================================================
@@ -53,6 +53,11 @@ https://github.com/NASA-AMMOS/3DTilesRendererJS
   Copyright 2020, California Institute of Technology.
   Licensed under the Apache License, Version 2.0.
 
+  packages/three/src/TerrainContours.ts adapts the example-directory
+  topolines/wrapTopoLineMaterial.js from v0.4.27: scalar elevation-only
+  bands, existing datum-aware kilometre heights, tile-local footprint,
+  ordered antialiasing edges, and plateau/skirt suppression.
+
 ================================================================================
 
 Three.js (MIT)
@@ -71,9 +76,12 @@ https://github.com/shashwatak/satellite-js
 
 ================================================================================
 
-TimeCraftJS (Apache-2.0)
+Historical validation reference: TimeCraftJS (Apache-2.0)
 https://github.com/NASA-AMMOS/timecraftjs
 
+  No TimeCraftJS code or build is distributed. Committed numerical test
+  expectations were captured from its independent CSPICE build before removal.
+  Historical attribution is retained for that reference provenance.
   Copyright 2020, California Institute of Technology.
   Licensed under the Apache License, Version 2.0.
   United States Government Sponsorship acknowledged.
@@ -85,11 +93,11 @@ https://naif.jpl.nasa.gov/naif/toolkit.html
 
   SPICE kernels and documentation are produced by the Navigation and
   Ancillary Information Facility (NAIF) at NASA's Jet Propulsion Laboratory.
-  CSPICE reaches this project two ways: via TimeCraftJS's WebAssembly
-  compilation, and as the WebAssembly module bundled at
+  CSPICE is distributed as the WebAssembly module bundled at
   packages/cspice-wasm/wasm/cspice.wasm. CSPICE itself is provided under
   NAIF's own terms; see https://naif.jpl.nasa.gov/naif/rules.html
-  SPICE test kernels and fixtures under kernels/fixtures/ are NAIF products.
+  SPICE test kernels under kernels/fixtures/ and kernels/test-data/ are NAIF
+  products (test_instruments.ti is a synthetic test definition).
 
 ================================================================================
 
@@ -119,7 +127,7 @@ https://github.com/PaulMRamirez/cosmolabe
     - packages/frames/        The two seam contracts of ADR M-0002 —
                               StateProvider and FramesService — plus the
                               heritage adapter implementing the
-                              @cosmolabe/spice surface over cspice-wasm.
+                              consumer injection surface over cspice-wasm.
                               Was bessel/packages/frames.
     - kernels/                SPICE test kernels, generated fixtures, and the
                               fetch script used by those packages' tests.

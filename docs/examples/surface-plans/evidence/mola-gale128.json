@@ -1,0 +1,208 @@
+{
+  "ODEResults": {
+    "Count": "1",
+    "Products": {
+      "Product": {
+        "BB_georeferenced": "True",
+        "Bundle_lid": "urn:nasa:pds:mgs_mola_topography_derived",
+        "Center_georeferenced": "True",
+        "Center_latitude": "-22",
+        "Center_longitude": "135",
+        "Collection_lid": "urn:nasa:pds:mgs_mola_topography_derived:data_meg128",
+        "Data_Set_Id": "mgs_mola_topography_derived-data_meg128",
+        "Description": "This data product is a topographic\r\n map of Mars at a resolution of 0.00781 (1/128) by 0.00781 degrees,\r\n based on altimetry data acquired by the Mars Global Surveyor MOLA\r\n instrument and accumulated over the course of the primary and extended\r\n mission. The MOLA Precision Experiment Data Records (PEDRs) are the\r\n source for this data set. The map is in the form of a binary table\r\n with one row for each 0.00781-degree latitude. Map coordinates use\r\n the IAU2000 reference system, and areoid defined by the Goddard Mars\r\n potential model GMM3 (mgm1025) evaluated to degree and order 50. The\r\n binned data include all MOLA nadir observations from the Mapping Phase\r\n through the Primary and Extended missions, from the end of aerobraking\r\n in February 1999 through June 2001. Additionally, off-nadir\r\n observations of the north pole are included from 87 N latitude and\r\n northward, taken during the spring of 1998, and of both poles taken\r\n during Mapping from 87 N and S to the poles. Data are adjusted using a\r\n first-order crossover solution for radial, along-track, and\r\n across-track position. Parts of orbits are excluded where solutions\r\n for these orbits are deemed to be poor. (Note: subtract 10000 from a\r\n MOLA mapping phase orbit number to determine the equivalent MGS\r\n Project orbit number.) Also excluded are shots more than 1.2 degree\r\n off-nadir (except as noted above), channel 4 returns, and any returns\r\n not classified as ground returns, e.g. clouds or noise, according to\r\n the SHOT_CLASSIFICATION_CODE. A total of nearly 600,000,000\r\n observations are represented.",
+        "Easternmost_longitude": "180",
+        "External_url": "https://ode.rsl.wustl.edu/mars/indexproductpage.aspx?product_id=megt00n090hb&product_idGeo=55579677",
+        "FilesURL": "https://ode.rsl.wustl.edu/mars/productfiles.aspx?product_id=megt00n090hb&product_idGeo=55579677",
+        "Footprint_C0_geometry": "POLYGON ((90 -44, 90 0, 180 0, 180 -44, 90 -44))",
+        "Footprint_geometry": "POLYGON ((90 -44, 90 0, 180 0, 180 -44, 90 -44))",
+        "Footprint_GL_geometry": "POLYGON ((90 -44, 90 -43, 90 -42, 90 -41, 90 -40, 90 -39, 90 -38, 90 -37, 90 -36, 90 -35, 90 -34, 90 -33, 90 -32, 90 -31, 90 -30, 90 -29, 90 -28, 90 -27, 90 -26, 90 -25, 90 -24, 90 -23, 90 -22, 90 -21, 90 -20, 90 -19, 90 -18, 90 -17, 90 -16, 90 -15, 90 -14, 90 -13, 90 -12, 90 -11, 90 -10, 90 -9, 90 -8, 90 -7, 90 -6, 90 -5, 90 -4, 90 -3, 90 -2, 90 -1, 90 0, 91 0, 92 0, 93 0, 94 0, 95 0, 96 0, 97 0, 98 0, 99 0, 100 0, 101 0, 102 0, 103 0, 104 0, 105 0, 106 0, 107 0, 108 0, 109 0, 110 0, 111 0, 112 0, 113 0, 114 0, 115 0, 116 0, 117 0, 118 0, 119 0, 120 0, 121 0, 122 0, 123 0, 124 0, 125 0, 126 0, 127 0, 128 0, 129 0, 130 0, 131 0, 132 0, 133 0, 134 0, 135 0, 136 0, 137 0, 138 0, 139 0, 140 0, 141 0, 142 0, 143 0, 144 0, 145 0, 146 0, 147 0, 148 0, 149 0, 150 0, 151 0, 152 0, 153 0, 154 0, 155 0, 156 0, 157 0, 158 0, 159 0, 160 0, 161 0, 162 0, 163 0, 164 0, 165 0, 166 0, 167 0, 168 0, 169 0, 170 0, 171 0, 172 0, 173 0, 174 0, 175 0, 176 0, 177 0, 178 0, 179 0, 180 0, 180 -1, 180 -2, 180 -3, 180 -4, 180 -5, 180 -6, 180 -7, 180 -8, 180 -9, 180 -10, 180 -11, 180 -12, 180 -13, 180 -14, 180 -15, 180 -16, 180 -17, 180 -18, 180 -19, 180 -20, 180 -21, 180 -22, 180 -23, 180 -24, 180 -25, 180 -26, 180 -27, 180 -28, 180 -29, 180 -30, 180 -31, 180 -32, 180 -33, 180 -34, 180 -35, 180 -36, 180 -37, 180 -38, 180 -39, 180 -40, 180 -41, 180 -42, 180 -43, 180 -44, 179 -44, 178 -44, 177 -44, 176 -44, 175 -44, 174 -44, 173 -44, 172 -44, 171 -44, 170 -44, 169 -44, 168 -44, 167 -44, 166 -44, 165 -44, 164 -44, 163 -44, 162 -44, 161 -44, 160 -44, 159 -44, 158 -44, 157 -44, 156 -44, 155 -44, 154 -44, 153 -44, 152 -44, 151 -44, 150 -44, 149 -44, 148 -44, 147 -44, 146 -44, 145 -44, 144 -44, 143 -44, 142 -44, 141 -44, 140 -44, 139 -44, 138 -44, 137 -44, 136 -44, 135 -44, 134 -44, 133 -44, 132 -44, 131 -44, 130 -44, 129 -44, 128 -44, 127 -44, 126 -44, 125 -44, 124 -44, 123 -44, 122 -44, 121 -44, 120 -44, 119 -44, 118 -44, 117 -44, 116 -44, 115 -44, 114 -44, 113 -44, 112 -44, 111 -44, 110 -44, 109 -44, 108 -44, 107 -44, 106 -44, 105 -44, 104 -44, 103 -44, 102 -44, 101 -44, 100 -44, 99 -44, 98 -44, 97 -44, 96 -44, 95 -44, 94 -44, 93 -44, 92 -44, 91 -44, 90 -44))",
+        "Footprint_NP_geometry": "GEOMETRYCOLLECTION EMPTY",
+        "Footprint_souce": "PDS Label Bounding Box",
+        "Footprint_SP_geometry": "GEOMETRYCOLLECTION EMPTY",
+        "Footprints_cross_meridian": "False",
+        "ihid": "MGS",
+        "iid": "MOLA",
+        "label": {
+          "PDS4LabelURL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml"
+        },
+        "LabelFileName": "megt00n090hb.xml",
+        "LabelURL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml",
+        "Map_resolution": "463.0576672",
+        "Map_scale": "128",
+        "Maximum_latitude": "0",
+        "Minimum_latitude": "-44",
+        "Observation_time": "1999-08-08T15:10:20.000Z",
+        "ode_id": "55579677",
+        "ODE_notes": {
+          "ODE_note": [
+            "NOTE: Product Type set by ODE",
+            "NOTE: Instrument Host Id set by ODE",
+            "NOTE: Label Map Resolution in km/pixel - Converted to meters/pixel",
+            "NOTE: Observation time set to mid-point between start time and stop time",
+            "NOTE: Center lat/lon set as center of min/max latitude and east/west longitude"
+          ]
+        },
+        "pdsid": "megt00n090hb",
+        "PDSVolume_Id": "mgs_mola_topography_derived",
+        "Pole_state": "none",
+        "Product_creation_time": "2003-03-21T01:00:00",
+        "Product_files": {
+          "Product_file": [
+            {
+              "Creation_date": "2026-08-25T14:22:12.047",
+              "Description": "MAP PROJECTION FILE",
+              "FileName": "DSMAP.CAT",
+              "KBytes": "4",
+              "Type": "Referenced",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/catalog/dsmap.cat"
+            },
+            {
+              "Creation_date": "2026-08-25T14:22:54.721",
+              "Description": "PRODUCT ENVI HEADER",
+              "FileName": "MEGT00N090HB.HDR",
+              "KBytes": "2",
+              "Type": "Product",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.hdr"
+            },
+            {
+              "Creation_date": "2026-08-25T14:22:54.744",
+              "Description": "PRODUCT DATA FILE",
+              "FileName": "MEGT00N090HB.IMG",
+              "KBytes": "126720",
+              "Type": "Product",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.img"
+            },
+            {
+              "Creation_date": "2026-08-25T14:22:55.461",
+              "Description": "PDS3 PRODUCT LABEL FILE",
+              "FileName": "MEGT00N090HB.LBL",
+              "KBytes": "5",
+              "Type": "Product",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.lbl"
+            },
+            {
+              "Creation_date": "2026-08-25T14:22:55.501",
+              "Description": "PDS4 PRODUCT LABEL FILE",
+              "FileName": "MEGT00N090HB.XML",
+              "KBytes": "16",
+              "Type": "Product",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/meg128/megt00n090hb.xml"
+            },
+            {
+              "Creation_date": "2026-09-18T13:23:37.586",
+              "Description": "DERIVED MOLA TOPOGRAPHY SMOOTHED COLOR IMAGE LABEL",
+              "FileName": "MEGT00N090HB_ALTCOLOR_PNG.LBL",
+              "KBytes": "1",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/altcolorimage/meg128/megt00n090hb_altcolor_png.lbl"
+            },
+            {
+              "Creation_date": "2026-09-18T13:25:16.773",
+              "Description": "DERIVED MOLA TOPOGRAPHY SMOOTHED COLOR IMAGE",
+              "FileName": "MEGT00N090HB_ALTCOLOR_PNG.PNG",
+              "KBytes": "2115",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/altcolorimage/meg128/megt00n090hb_altcolor_png.png"
+            },
+            {
+              "Creation_date": "2026-09-18T13:23:37.572",
+              "Description": "DERIVED MOLA TOPOGRAPHY COLOR IMAGE LABEL",
+              "FileName": "MEGT00N090HB_COLOR_PNG.LBL",
+              "KBytes": "1",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/colorimage/meg128/megt00n090hb_color_png.lbl"
+            },
+            {
+              "Creation_date": "2026-09-18T13:24:41.874",
+              "Description": "DERIVED MOLA TOPOGRAPHY COLOR IMAGE",
+              "FileName": "MEGT00N090HB_COLOR_PNG.PNG",
+              "KBytes": "39961",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/colorimage/meg128/megt00n090hb_color_png.png"
+            },
+            {
+              "Creation_date": "2026-09-18T13:23:37.561",
+              "Description": "DERIVED MOLA TOPOGRAPHY MONO IMAGE LABEL",
+              "FileName": "MEGT00N090HB_MONO_PNG.LBL",
+              "KBytes": "1",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/monoimage/meg128/megt00n090hb_mono_png.lbl"
+            },
+            {
+              "Creation_date": "2026-09-18T13:24:09.275",
+              "Description": "DERIVED MOLA TOPOGRAPHY MONO IMAGE",
+              "FileName": "MEGT00N090HB_MONO_PNG.PNG",
+              "KBytes": "13778",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/mgs_mola_topography_derived-data_meg128/mola_topo_der/monoimage/meg128/megt00n090hb_mono_png.png"
+            },
+            {
+              "Creation_date": "2026-09-18T13:25:20.255",
+              "Description": "PRODUCT KML FILE <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "MEGT00N090HB_XML.KML",
+              "KBytes": "9",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/kmlfiles/mgs_mola_topography_derived-data_meg128/mola_topo_der/meg128/megt00n090hb_xml.kml"
+            },
+            {
+              "Creation_date": "2026-09-18T13:25:20.164",
+              "Description": "PRODUCT FOOTPRINT SHAPEFILES (TAR.GZ) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "MEGT00N090HB_XML.TAR.GZ",
+              "KBytes": "4",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mgs_mola_topography_derived-data_meg128/mola_topo_der/meg128/megt00n090hb_xml.tar.gz"
+            },
+            {
+              "Creation_date": "2026-09-18T13:25:20.121",
+              "Description": "PRODUCT FOOTPRINT SHAPEFILES (ZIP) <A HREF=\"PAGEHELP/CONTENT/FREQUENTLY_ASKED_QUESTIONS/PRODUCT_FOOTPRINTS.HTM\" TARGET=\"_BLANK\">HELP</A>",
+              "FileName": "MEGT00N090HB_XML.ZIP",
+              "KBytes": "14",
+              "Type": "Derived",
+              "URL": "https://ode.rsl.wustl.edu/mars/datafile/shapefiles/mgs_mola_topography_derived-data_meg128/mola_topo_der/meg128/megt00n090hb_xml.zip"
+            },
+            {
+              "Creation_date": "2026-08-25T14:22:13.123",
+              "Description": "USER GUIDE",
+              "FileName": "MOLA_ENVI.PDF",
+              "KBytes": "183",
+              "Type": "Referenced",
+              "URL": "https://pds-geosciences.wustl.edu/mgs/urn-nasa-pds-mgs_mola_topography_derived/document/mola_envi.pdf"
+            }
+          ]
+        },
+        "Product_lid": "urn:nasa:pds:mgs_mola_topography_derived:data_meg128:megt00n090hb",
+        "Product_name": "megt00n090hb.img",
+        "Product_title": "MGS MOLA MEGDR product: megt00n090hb",
+        "Product_version_id": "1.1",
+        "ProductURL": "https://ode.rsl.wustl.edu/mars/indexproductpage.aspx?product_id=megt00n090hb&product_idGeo=55579677",
+        "pt": "MEGDR",
+        "RelativePathtoVol": "meg128\\",
+        "Solar_distance_text": "",
+        "Start_orbit_number": "3",
+        "Stop_orbit_number": "20333",
+        "Target_name": "MARS",
+        "USGS_Sites": {
+          "USGS_Site": [
+            "Gale",
+            "Spirit"
+          ]
+        },
+        "UTC_start_time": "1997-09-15T19:10:00.000Z",
+        "UTC_stop_time": "2001-06-30T11:10:40.000Z",
+        "Westernmost_longitude": "90"
+      }
+    },
+    "QuerySummary": {
+      "Date": "2026-10-21T12:35:39.868",
+      "limit": "1",
+      "output": "JSON",
+      "productId": "megt00n090hb",
+      "query": "PRODUCT",
+      "Query_Elapsed_Time": "00:00:00.0312613",
+      "results": "COPMFL",
+      "target": "mars"
+    },
+    "Status": "Success"
+  }
+}

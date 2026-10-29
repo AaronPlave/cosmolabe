@@ -14,8 +14,8 @@
    * width.
    */
   import type { GeometryEvent } from '@cosmolabe/core';
-  import { eventDuration, eventEnd, eventStart, isIntervalEvent } from '@cosmolabe/core';
-  import { etToUtcString } from '../../lib/viewer-state.svelte';
+  import { eventDuration, eventEnd, eventStart, focusForEvent, isIntervalEvent } from '@cosmolabe/core';
+  import { etToUtcString, flyToBody, hasBody } from '../../lib/viewer-state.svelte';
   import { clearSelection, openConfiguredQuery, selectEvent } from '../../lib/event-finder.svelte';
   import { configuredItem } from '../../lib/analysis.svelte';
   import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric } from '../../lib/event-query';
@@ -39,6 +39,12 @@
   const title = $derived(eventCalloutTitle(event));
   const headline = $derived(headlineMetric(event));
   const search = $derived(configuredItem(event.queryId)?.label);
+  // Selecting the event already selected its primary body without moving the
+  // camera; going there is a separate, explicit navigation.
+  const primary = $derived.by(() => {
+    const name = focusForEvent(event).primary;
+    return name && hasBody(name) ? name : null;
+  });
   const utc = (et: number) => etToUtcString(et);
   const bare = (et: number) => etToUtcString(et).replace(' UTC', '');
   const left = $derived.by(() => {
@@ -98,9 +104,16 @@
     <button class="link" onclick={() => open = !open} aria-expanded={open}>
       {#if open}<ChevronUp size={11} /> Less{:else}<ChevronDown size={11} /> Details{/if}
     </button>
-    <button class="link" onclick={edit} title={search ? `Edit “${search}” in Event Finder` : 'Open in Event Finder'}>
-      Edit search
-    </button>
+    {#if search}
+      <button class="link" onclick={edit} title={`Edit “${search}” in Event Finder`}>
+        Edit search
+      </button>
+    {/if}
+    {#if primary}
+      <button class="link" onclick={() => flyToBody(primary)} title="Fly the camera to {primary}">
+        Fly to {primary}
+      </button>
+    {/if}
   </div>
 </div>
 

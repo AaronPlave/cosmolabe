@@ -1,11 +1,11 @@
 <script lang="ts">
   import { CameraModeName } from '@cosmolabe/three';
   import type { PluginOverlay } from '@cosmolabe/three';
-  import { vs, clearLookAt, getRenderer } from '../lib/viewer-state.svelte';
+  import { vs, clearLookAt, getRenderer, stopFlight, releaseSurfaceTarget } from '../lib/viewer-state.svelte';
   import { ArrowRight, X } from 'lucide-svelte';
 
   const frameLabel = $derived.by(() => {
-    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return 'Free orbit';
+    if (vs.cameraMode === CameraModeName.FREE_ORBIT) return vs.surfaceTarget ? 'Surface orbit' : 'Free orbit';
     const mode = vs.cameraMode.replaceAll('-', ' ');
     return vs.trackedBodyName ? `${vs.trackedBodyName} ${mode}` : mode;
   });
@@ -41,24 +41,60 @@
 </script>
 
 <!-- View context belongs to the viewport rather than either panel dock. Keeping
-     it top-centred gives tracking, look-at and reference frame one stable home
-     without competing with the rail or timeline. -->
-{#if vs.trackedBodyName || vs.lookAtBodyName || vs.cameraMode !== CameraModeName.FREE_ORBIT}
+     it top-centred gives tracking, look-at, a flight in progress and reference
+     frame one stable home without competing with the rail or timeline. -->
+{#if vs.flight || vs.trackedBodyName || vs.lookAtBodyName || vs.surfaceTarget || vs.cameraMode !== CameraModeName.FREE_ORBIT}
   <div data-scene-occluder class="view-context pointer-events-auto absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-7rem)] -translate-x-1/2 items-center">
-    {#if vs.trackedBodyName || vs.lookAtBodyName}
+    {#if vs.flight}
+      <!-- The flight owns the camera until it lands; a drag, a zoom, a movement
+           key, Escape or this button stops it where it is. -->
+      <span class="context-label" aria-live="polite">Flying to</span>
+      <span class="context-value truncate">{vs.flight.target ?? 'viewpoint'}</span>
+      <button class="context-clear" aria-label="Stop flight" title="Stop flight (Esc)" onclick={stopFlight}>
+        <X size={12} />
+      </button>
+      <span class="context-divider" aria-hidden="true"></span>
+    {:else if vs.trackedBodyName || vs.lookAtBodyName}
       <span class="context-label">Tracking</span>
       <span class="context-value truncate">{vs.trackedBodyName ?? 'Free camera'}</span>
       {#if vs.lookAtBodyName}
         <ArrowRight class="context-arrow" size={13} aria-hidden="true" />
         <span class="context-value truncate">{vs.lookAtBodyName}</span>
-        <button class="clear-look-at" aria-label="Clear look-at target" title="Clear look-at target" onclick={clearLookAt}>
+        <button class="context-clear" aria-label="Clear look-at target" title="Clear look-at target" onclick={clearLookAt}>
           <X size={12} />
         </button>
       {/if}
       <span class="context-divider" aria-hidden="true"></span>
     {/if}
-    <span class="context-label">Frame</span>
-    <span class="frame-value truncate">{frameLabel}</span>
+    {#if vs.surfaceTarget}
+      <!-- The surface point navigated to (#190): the target on the body,
+           not the camera's position, which the readout never shows. -->
+      {@const t = vs.surfaceTarget}
+      <!-- One group, so a narrow bar wraps the target whole, label and all. -->
+      <span class="context-group">
+      <span class="context-label">Target</span>
+      <!-- Never truncated: a cut-off hemisphere letter changes the place.
+           Full precision and the entered convention are in the tooltip. -->
+      <span
+        class="target-value"
+        title={[`${t.place?.name ? t.place.name + ' · ' : ''}${t.bodyName} ${t.coordinates}`, t.convention, t.surface, ...t.notes].join('\n')}
+      >
+        {#if t.place}<span class="named-target">{t.place.name}</span>
+        {:else}<span class="target-wide">{t.label.wide.lat}, {t.label.wide.lon}</span>
+        <span class="target-narrow">{t.label.narrow.lat}, {t.label.narrow.lon}</span>{/if}
+      </span>
+      <!-- Releases the point and aims at the tracked body's centre,
+           keeping the camera location, selection and time. -->
+      <button class="context-clear" aria-label="Clear surface target" title="Clear surface target" onclick={releaseSurfaceTarget}>
+        <X size={12} />
+      </button>
+      </span>
+      <span class="context-divider" aria-hidden="true"></span>
+    {/if}
+    <span class="context-group min-w-0">
+      <span class="context-label">Frame</span>
+      <span class="frame-value truncate">{frameLabel}</span>
+    </span>
   </div>
 {/if}
 
@@ -136,6 +172,23 @@
     color: var(--color-text-primary);
   }
 
+  .context-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .target-value {
+    flex: none;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--color-text-primary);
+  }
+  .target-narrow { display: none; }
+
   :global(.context-arrow) {
     flex: none;
     color: var(--color-text-muted);
@@ -159,7 +212,7 @@
     color: var(--color-text-secondary);
   }
 
-  .clear-look-at {
+  .context-clear {
     display: grid;
     width: 20px;
     height: 20px;
@@ -174,12 +227,12 @@
     cursor: pointer;
   }
 
-  .clear-look-at:hover {
+  .context-clear:hover {
     background: var(--color-control-hover);
     color: var(--color-text-primary);
   }
 
-  .clear-look-at:focus-visible {
+  .context-clear:focus-visible {
     outline: 1px solid var(--color-border-strong);
     outline-offset: 1px;
   }
@@ -190,12 +243,28 @@
       right: 8px;
       top: 8px;
       max-width: none;
+      /* Tailwind's -translate-x-1/2 is the `translate` property, which
+         `transform: none` leaves in place: pinned to both edges, the bar was
+         still shifted half its width off the left of a phone screen. */
       transform: none;
+      translate: none;
+      /* A phone is too narrow for tracking, target and frame on one line:
+         wrap onto a second rather than cut a coordinate off. */
+      flex-wrap: wrap;
+      row-gap: 6px;
+      padding-block: 7px;
     }
 
     .context-value,
     .frame-value {
       max-width: none;
     }
+
+    /* Two places at a phone width, so the pair fits whole beside the rest. */
+    .target-wide { display: none; }
+    .target-narrow { display: inline; }
   }
+
+  .named-target { display: block; max-width: min(240px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 </style>

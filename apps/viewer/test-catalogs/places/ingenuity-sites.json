@@ -1,0 +1,28 @@
+{
+  "name": "NASA/JPL MMGIS Ingenuity landing waypoints",
+  "geographicCoordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "sphere",
+      "radiusKm": 3396.19
+    }
+  },
+  "geographicLayers": [
+    {
+      "id": "mission:ingenuity-sites",
+      "name": "NASA/JPL MMGIS Ingenuity landing waypoints",
+      "body": "Mars",
+      "source": "ingenuity-sites.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "NASA/JPL MMGIS Ingenuity landing waypoints; planetocentric orbital-map coordinates (PDS Camera SIS section 20.11)",
+        "sourceUrl": "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/m20_heli_waypoints.json",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}

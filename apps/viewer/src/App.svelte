@@ -4,6 +4,15 @@
   import LoadingScreen from './components/LoadingScreen.svelte';
   import CatalogBrowser from './components/CatalogBrowser.svelte';
   import ViewportHud from './components/ViewportHud.svelte';
+  import GeographicCallout from './components/GeographicCallout.svelte';
+  import GeographicLabels from './components/GeographicLabels.svelte';
+  import GeographicEditOverlay from './components/GeographicEditOverlay.svelte';
+  import DrawToolbar from './components/DrawToolbar.svelte';
+  import {
+    edits, finishDraft, removeLastVertex, cancelDrawing, deleteSelectedVertex, undo, redo, editingFeature, undoDelete,
+  } from './lib/geographic-editing.svelte';
+  import './lib/geographic-styles.svelte';
+  import { geo, clearGeographicSelection } from './lib/geographic-layers.svelte';
   import CommandPalette from './components/CommandPalette.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import BodyInfoPanel from './components/BodyInfoPanel.svelte';
@@ -11,11 +20,12 @@
   import PanelDock from './components/shell/PanelDock.svelte';
   import ToolPanels from './components/shell/ToolPanels.svelte';
   import TimelineDock from './components/shell/TimelineDock.svelte';
-  import InstrumentPanel from './components/shell/InstrumentPanel.svelte';
-  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody } from './lib/viewer-state.svelte';
+  import ProbePanel from './components/ProbePanel.svelte';
+  import { vs, getRenderer, setDisplayOption, cycleCamera, flyToTracked, resetCamera, stopFlight, dismissGeographicContext, togglePlay, reverse, faster, slower, stepForward, stepBackward, selectBody, toggleProbe, setProbeActive, clearProbePin } from './lib/viewer-state.svelte';
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
-    reclampFloats, topVisiblePanel, minimizePanel, isToolId,
+    reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
+    isToolOpen, openTool,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
@@ -24,19 +34,19 @@
   import { restoreView } from './lib/view-link';
   import { requestedView } from './lib/view-state-url';
   import type { CatalogEntry } from './lib/catalog-sources';
+  import type { SurfacePoint } from '@cosmolabe/three';
   import { catalogs, initCatalogSources, sourceSettled, syncSourceParams } from './lib/catalogs.svelte';
   import {
     catalogLocation, findEntry, isCurrentEntry, requestedCatalog, withCatalogLocation, allEntries,
     type CatalogLocation, type SourcedEntry,
   } from './lib/catalog-nav';
   import { cancelMeasurementPick, measurements, selectMeasurement } from './lib/spatial-measurements.svelte';
+  import { cancelAppearancePick } from './lib/surface-appearance-pick.svelte';
 
   let canvas: HTMLCanvasElement;
   let commandPaletteOpen = $state(false);
-  let pickModeActive = $state(false);
-  let pickResult = $state<{ bodyName: string; latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number; bodyFixedHitKm: readonly [number, number, number] } | null>(null);
   let uiHidden = $state(false);
-  let contextMenu = $state<{ x: number; y: number; bodyName: string | null } | null>(null);
+  let contextMenu = $state<{ x: number; y: number; bodyName: string | null; surfacePoint: SurfacePoint | null } | null>(null);
 
   const compact = $derived(shell.layout === 'compact');
 
@@ -44,6 +54,13 @@
   // scene nothing (#94: no persistent header).
   $effect(() => {
     document.title = vs.catalogName ? `${vs.catalogName} — Cosmolabe` : 'Cosmolabe';
+  });
+
+  // Closing the Instrument view window — X, Escape, the rail, Display's Off —
+  // ends the feed. Here rather than in the panel, which also unmounts for a
+  // layout switch or a scene load that must not end it.
+  $effect(() => {
+    if (!isToolOpen('instrument')) untrack(() => getRenderer()?.setInstrumentView(null));
   });
 
   // A scene deep-linked by path is named by that path until a source lists it
@@ -82,14 +99,14 @@
    *
    * The selection-driven panels do not open through the rail, so they fall back
    * into the sheet rather than competing for it: whatever the user last did —
-   * opened a tool, picked a surface, selected a body — is what is on screen.
+   * opened a tool, probed a point, selected a body — is what is on screen.
    */
   const fallbackSheet = $derived.by(() => {
     if (shell.activeSheet != null) return null;
-    if (pickResult && !isMinimized('pick')) return 'pick';
+    if (vs.probePin && !isMinimized('probe')) return 'probe';
     if (vs.selectedBodyName && !isMinimized('info')) return 'info';
     return null;
-  });;
+  });
 
   /**
    * One condition for the whole load, so there is one loading screen rather than
@@ -156,21 +173,6 @@
     loadFiles(() => handleDrop(canvas, dt));
   }
 
-  function onCanvasClick(e: MouseEvent) {
-    if (e.defaultPrevented || !pickModeActive || measurements.pendingPickSlot) return;
-    const renderer = getCurrentRenderer();
-    if (!renderer) return;
-    e.stopPropagation();
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    const result = renderer.pickSurface(ndcX, ndcY);
-    if (result) {
-      pickResult = result;
-      renderer.setPickMarker(result);
-    }
-  }
-
   /** Capture-phase pointerdown on window — records right-click start before CameraController blocks it */
   function onWindowPointerDown(e: PointerEvent) {
     if (e.button === 2) {
@@ -193,23 +195,13 @@
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const bodyName = renderer.pickBody(screenX, screenY);
+    // The surface under the click, through the same scene hit as the probe
+    // (#127): only a genuine hit offers surface navigation, never a lat/lon
+    // made up from the body's centre.
+    const hit = renderer.pickScene(screenX, screenY, 'probe');
+    const surfacePoint = hit?.kind === 'surface' ? hit.point : null;
 
-    contextMenu = { x: e.clientX, y: e.clientY, bodyName };
-  }
-
-  function togglePickMode() {
-    cancelMeasurementPick();
-    pickModeActive = !pickModeActive;
-    if (!pickModeActive) {
-      pickResult = null;
-      getCurrentRenderer()?.setPickMarker(null);
-    }
-  }
-
-  function closePickResult() {
-    pickResult = null;
-    pickModeActive = false;
-    getCurrentRenderer()?.setPickMarker(null);
+    contextMenu = { x: e.clientX, y: e.clientY, bodyName, surfacePoint };
   }
 
   /** Suppress native context menu on the canvas */
@@ -230,20 +222,38 @@
     // marks it handled, so the Escape does not go on to dismiss a panel too.
     if (shell.catalogBrowserOpen || e.defaultPrevented) return;
 
-    // Text entry of any kind, contenteditable included — the script editor is
-    // one, and a bare `t` typed into it must not toggle trajectories.
+    // Transient controls own Escape before focus or scene dismissal.
+    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
       (e.target instanceof HTMLElement && e.target.isContentEditable)
-    ) return;
-
-    // An open popover or menu handles its own Escape (it closes); that same
-    // press must not also clear a selection or dismiss a panel behind it.
-    if (e.key === 'Escape' && document.querySelector('[data-popover-content], [data-dropdown-menu-content], [data-select-content]')) return;
+    ) {
+      // First leave text entry; subsequent Escape presses follow the normal
+      // flight / inspector / geographic-target dismissal ladder.
+      if (e.key === 'Escape') { e.preventDefault(); (e.target as HTMLElement).blur(); }
+      return;
+    }
 
     const renderer = getRenderer();
     if (!renderer) return;
+
+    // Undo a delete, which ended the selection and with it the editing keys.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && edits.deleted && !edits.tool && !editingFeature()) {
+      e.preventDefault(); undoDelete(); return;
+    }
+    // Drawing and editing keys (#200), while a draw tool or vertex editing is on.
+    if (edits.tool || editingFeature()) {
+      const mod = e.ctrlKey || e.metaKey;
+      // Undo and redo apply to the layer being drawn into or edited.
+      const layerId = editingFeature()?.layerId ?? edits.target;
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(layerId); else undo(layerId); return; }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(layerId); return; }
+      if (!mod && e.key === 'Enter' && edits.tool) { e.preventDefault(); finishDraft(); return; }
+      if (!mod && e.key === 'Backspace' && removeLastVertex()) { e.preventDefault(); return; }
+      if (!mod && e.key === 'Delete' && deleteSelectedVertex()) { e.preventDefault(); return; }
+      if (e.key === 'Escape' && cancelDrawing()) return;
+    }
 
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
       switch (e.key) {
@@ -259,26 +269,27 @@
         case 'g': setDisplayOption('grid', !vs.showGrid); return;
         case 'x': setDisplayOption('axes', !vs.showAxes); return;
         case 'm': cycleCamera(); return;
-        case 'i': {
-          const sensors = renderer.getSensorNames();
-          if (sensors.length === 0) return;
-          const current = renderer.activeInstrumentView;
-          const idx = current ? sensors.indexOf(current) : -1;
-          const next = idx + 1 < sensors.length ? sensors[idx + 1] : null;
-          renderer.setInstrumentView(next, { marginX: 16, marginY: 60 });
-          return;
-        }
-        case 'p': togglePickMode(); return;
+        case 'p': toggleProbe(); return;
         case 'o': shell.catalogBrowserOpen = true; return;
         case 'Escape':
+          if (cancelAppearancePick()) return;
           if (cancelMeasurementPick()) return;
-          if (measurements.selectedId) { selectMeasurement(null); return; }
           if (shell.shortcutsOpen) shell.shortcutsOpen = false;
+          // A flight is the most transient thing on screen: Escape stops it
+          // where it is before it dismisses anything.
+          else if (vs.flight) stopFlight();
+          // An active mode is what Escape is for: the probe goes before any
+          // selection. The pinned point stays until a second Escape (or its
+          // panel's close) clears it.
+          else if (vs.probeActive) setProbeActive(false);
+          else if (measurements.selectedId) selectMeasurement(null);
+          // A selected surface feature is as small as an event selection.
+          else if (geo.selected) clearGeographicSelection();
           // An event selection is the smallest thing on screen to dismiss:
           // it goes before any panel does.
           else if (ef.selectedId) clearSelection();
           else if (dismissTopSurface()) return;
-          else if (pickModeActive) closePickResult();
+          else if (dismissGeographicContext()) return;
           else if (vs.selectedBodyName) selectBody(null);
           else resetCamera();
           return;
@@ -288,7 +299,12 @@
       // Tool shortcuts come from the shell's own table, so adding a tool does
       // not mean remembering to add a case above as well.
       const tool = TOOLS.find((t) => t.shortcut === e.key);
-      if (tool && !e.repeat) toggleTool(tool.id);
+      // `I` opens, restores or raises the Instrument view without changing its
+      // sensor (#192). Closing stays with the rail, Escape and X.
+      if (tool && !e.repeat) {
+        if (tool.id === 'instrument') openTool('instrument');
+        else toggleTool(tool.id);
+      }
     }
   }
 
@@ -307,6 +323,13 @@
    * would be a poor trade.
    */
   function dismissTopSurface(): boolean {
+    // An expanded panel covers the workspace, whatever was touched since: it
+    // steps back to its window before anything behind it is dismissed.
+    const expanded = expandedPanel();
+    if (expanded) {
+      toggleExpanded(expanded);
+      return true;
+    }
     const top = topVisiblePanel();
     if (top == null) return false;
     if (compact) {
@@ -316,12 +339,10 @@
     // The selection-driven panels have no open flag to clear: closing them is
     // undoing what put them there.
     if (isToolId(top)) closeTool(top);
-    else if (top === 'pick') closePickResult();
+    else if (top === 'probe') clearProbePin();
     else if (top === 'info') selectBody(null);
     return true;
   }
-
-  function fmtCoord(n: number, dec: number) { return n.toFixed(dec); }
 
   // ── Catalog navigation (#94) ──
   //
@@ -567,10 +588,10 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:document ondragover={onDocDragOver} ondrop={onDocDrop} />
 
-<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={pickModeActive || !!measurements.pendingPickSlot} style={shellVars}>
+<div class="relative w-full h-full overflow-hidden" class:cursor-crosshair={!!measurements.pendingPickSlot} style={shellVars}>
   <!-- `touch-none`: the browser must not claim a drag as a scroll or a pinch as
        a page zoom before the camera controls see the gesture. -->
-  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" onclick={onCanvasClick} oncontextmenu={onCanvasContextMenu}></canvas>
+  <canvas bind:this={canvas} class="absolute inset-0 w-full h-full block touch-none" oncontextmenu={onCanvasContextMenu}></canvas>
 
   <!-- Gated on `loading`, not `sceneLoaded`: the scene graph exists well before
        its models and textures do, and handing over a sky of placeholder spheres
@@ -607,6 +628,10 @@
 
   {#if !loading && !uiHidden}
     <ViewportHud />
+    <GeographicLabels />
+    <GeographicCallout />
+    <GeographicEditOverlay />
+    <DrawToolbar />
 
     <!-- Instruments overlay the scene; none of them places itself, and any of
          them can be dragged out of its dock. Compact shows one sheet at a time
@@ -618,11 +643,8 @@
         {#if shell.activeSheet === 'info' || fallbackSheet === 'info'}
           <BodyInfoPanel />
         {/if}
-        {#if pickResult && (shell.activeSheet === 'pick' || fallbackSheet === 'pick')}
-          <InstrumentPanel key="pick" title="Surface pick" onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
+        {#if shell.activeSheet === 'probe' || fallbackSheet === 'probe'}
+          <ProbePanel />
         {/if}
       </PanelDock>
     {:else}
@@ -632,12 +654,7 @@
       <PanelDock side="right">
         <BodyInfoPanel />
         <ToolPanels dock="right" />
-        {#if pickResult}
-          <InstrumentPanel key="pick" title="Surface pick" width={224} onClose={closePickResult}>
-            <div class="font-semibold text-text-primary mb-1.5">{pickResult.bodyName}</div>
-            {@render pickRows(pickResult)}
-          </InstrumentPanel>
-        {/if}
+        <ProbePanel width={240} />
       </PanelDock>
     {/if}
 
@@ -652,15 +669,15 @@
         <div class="shell-divider mx-2 border-t"></div>
         <ToolRail
           inline
-          pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
-          onTogglePick={togglePickMode}
+          probeActive={vs.probeActive}
+          onToggleProbe={toggleProbe}
           onOpenSearch={() => commandPaletteOpen = true}
         />
       </div>
     {:else}
       <ToolRail
-        pickModeActive={pickModeActive || !!measurements.pendingPickSlot}
-        onTogglePick={togglePickMode}
+        probeActive={vs.probeActive}
+        onToggleProbe={toggleProbe}
         onOpenSearch={() => commandPaletteOpen = true}
       />
       <TimelineDock />
@@ -673,6 +690,7 @@
         x={contextMenu.x}
         y={contextMenu.y}
         bodyName={contextMenu.bodyName}
+        surfacePoint={contextMenu.surfacePoint}
         onClose={() => contextMenu = null}
       />
     {/if}
@@ -684,10 +702,3 @@
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.24);
   }
 </style>
-
-{#snippet pickRows(pick: { latDeg: number; lonDeg: number; altKm: number; cameraDistanceKm: number })}
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lat</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.latDeg), 5)}&deg; {pick.latDeg >= 0 ? 'N' : 'S'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Lon</span><span class="font-mono text-text-primary">{fmtCoord(Math.abs(pick.lonDeg), 5)}&deg; {pick.lonDeg >= 0 ? 'E' : 'W'}</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Sampled alt</span><span class="font-mono text-text-primary">{pick.altKm >= 0 ? '+' : ''}{fmtCoord(pick.altKm * 1000, 1)} m</span></div>
-  <div class="flex justify-between gap-4 leading-relaxed"><span class="text-text-secondary">Dist</span><span class="font-mono text-text-primary">{pick.cameraDistanceKm < 1 ? `${fmtCoord(pick.cameraDistanceKm * 1000, 1)} m` : `${fmtCoord(pick.cameraDistanceKm, 3)} km`}</span></div>
-{/snippet}

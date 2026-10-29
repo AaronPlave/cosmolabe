@@ -13,6 +13,10 @@ symbol on `HostData` prevents a plugin from satisfying that type with an object
 literal containing `authority: 'host'`. Do not expose the adapter itself through
 renderer/plugin contexts. As with other TypeScript contracts, assertions, `any`
 and hostile JavaScript are outside this boundary; this is not a security sandbox.
+`HostDataAdapter` is exported, so the type guarantees adapter issuance but does not
+authenticate a real host: any code importing `@cosmolabe/core` can construct one.
+Separately authored plugins are kept honest by the integration keeping adapters
+out of their reach, not by the type system.
 
 ```ts
 import { HostDataAdapter, type ContactWindow } from '@cosmolabe/core';
@@ -61,7 +65,13 @@ This conservative spherical approximation does not model ellipsoid shape,
 terrain, station elevation masks, antenna pointing, refraction or light time.
 Missing/non-finite states hide a link. `setContactWindows(undefined)` explicitly
 restores this fallback. `plugin.data` exposes the chosen authority and provenance;
-in fallback mode its intervals are candidate bounds, not computed contact windows.
+in fallback mode its payload is `{ candidateWindows }`, a different type from the
+host `ContactWindow[]`, because those intervals are candidate bounds, not computed
+contact windows. A link whose occulting body's position is unavailable is hidden
+(intentionally conservative). Supplied windows are copied and frozen on
+`setContactWindows`; mutating the host's original array afterwards has no effect.
+Per-window line objects and per-frame occluder lookups scale linearly with the
+schedule and body count; one line per endpoint pair is a possible follow-up.
 
 ## Visual semantics
 

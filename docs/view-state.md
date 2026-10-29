@@ -41,13 +41,27 @@ Links are capped at 8 KiB, including URL overhead when copied.
 
 ## Camera and navigation scope
 
-The semantic-viewpoint (#114) and unified-navigation (#115) issues are still open
-at the time of this implementation. V1 composes existing catalog viewpoints and
-the `ViewerControl` navigation methods instead of defining replacement camera
-or navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
+V1 composes catalog viewpoints (semantic viewpoints, #114) and the
+`ViewerControl` navigation methods instead of defining replacement camera or
+navigation models. Copy supports free orbit, body-fixed, and spacecraft-fixed
 orbit cameras. Named-view detection excludes session-only saved viewpoints and
-compares actual eye/target/up and coordinate origin, so moving away from a preset
+compares actual eye/up and coordinate origin, plus the target or, for a
+viewpoint with `lookAt`, the look-at body, so moving away from a preset
 produces an explicit pose link.
+
+A catalog viewpoint is a relationship resolved where it is shown: at its own
+`time` when it has one, and at the current time otherwise. Copy resolves it at
+the link's time to compare, and restore applies a named view after seeking to
+the link's time, so a timeless view such as "over Jezero" reproduces the pose
+the sender saw. A viewpoint's own epoch still yields to the link's explicit
+time. (Before #114, named views resolved once at catalog load; a link to a
+timeless body-relative view may restore differently from what that older
+viewer showed.)
+
+#114 also provides a portable semantic form (`viewpointToJson` /
+`validateViewpoint` in `@cosmolabe/core`) for views that are not in the
+catalog, such as a Top / Sun / Velocity preset. V1 does not encode it yet;
+adding it is an additive `view` kind beside `named` and `pose`.
 
 Surface, surface-explorer, instrument, LVLH, and chase modes have additional
 private parameters that the current port cannot capture faithfully. Copy rejects
@@ -98,6 +112,16 @@ normalize to ECLIPJ2000). These coordinates use the scene origin and the named
 frame orientation; they do not imply a body-centered origin. Body-fixed endpoints
 alone add the named body’s changing position. Coordinates must be finite and
 bounded to ±1e12 km.
+
+Reference geometry shares the same item list. Velocity items reuse the endpoint
+slots (the moving object in `source`; `target` is the reference, or null for the
+central body), axes items carry their origin in `source` and a `frame` name, and
+angle-between-directions items (`vector-angle`) carry `first`/`second` operands:
+a direction (two endpoints), a velocity (object and optional reference) or a
+frame axis (frame, origin and one of `±X`, `±Y`, `±Z`). Operands are copies, not
+references to other items, so deleting the item an operand came from leaves the
+angle intact. Every frame and body an item names, including inside operands, is
+checked against the catalog before restoration.
 
 The validator allowlists definitions and excludes hover, active picking, edit
 handles, renderer geometry, and sampled values. All definitions and catalog

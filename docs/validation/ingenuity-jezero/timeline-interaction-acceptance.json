@@ -1,0 +1,68 @@
+{
+  "passed": true,
+  "errors": [],
+  "checks": [
+    "collapsed overview: 72 markers; native click selects without zoom; activity inspector",
+    "main marker keyboard selection",
+    "dragging main activity mark scrubs without zoom",
+    "expanded interval click selects without zoom",
+    "expanded hover uses shared preview and callout",
+    "dragging expanded interval pans; release does not select/seek",
+    "expanded background click seeks",
+    "dragging expanded playhead scrubs",
+    "expanded wheel zoom",
+    "expanded marker keyboard selection",
+    "activity and computed-query overview markers coexist",
+    "compact expanded drag pans",
+    "compact collapsed main marker remains selectable"
+  ],
+  "pointerTrace": [
+    {
+      "name": "pointerdown",
+      "target": "event-marker s-x8proS_j7-Km interval previewed preview",
+      "tag": "BUTTON",
+      "detail": 0,
+      "x": 311.5,
+      "y": 855.6199951171875
+    },
+    {
+      "name": "pointerup",
+      "target": "track s-x8proS_j7-Km",
+      "tag": "DIV",
+      "detail": 0,
+      "x": 311.5,
+      "y": 855.6199951171875
+    },
+    {
+      "name": "click",
+      "target": "track s-x8proS_j7-Km",
+      "tag": "DIV",
+      "detail": 1,
+      "x": 311,
+      "y": 855
+    }
+  ],
+  "firstClick": {
+    "overviewBefore": {
+      "et": 678747677.4238,
+      "min": 672003119.3,
+      "max": 790520523.411,
+      "selected": null,
+      "query": null,
+      "hover": null
+    },
+    "after": {
+      "et": 682390499.7,
+      "min": 672003119.3,
+      "max": 790520523.411,
+      "selected": "Ingenuity:11",
+      "query": "activity:Ingenuity",
+      "hover": "activity:Ingenuity\u0000Ingenuity:11"
+    }
+  },
+  "gpu": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "error": 0,
+    "visibleArcs": 0
+  }
+}

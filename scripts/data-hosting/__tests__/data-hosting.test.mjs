@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeQuantizedMesh } from '../../../packages/three/src/internal/quantized-mesh.ts';
@@ -13,7 +13,8 @@ import { publicDirCopyFilter } from '../lib/public-dir-filter.mjs';
 import { createLocalStorage, createS3Storage } from '../lib/storage.mjs';
 import { terrainManifest, validateTerrain } from '../lib/terrain.mjs';
 import { verifyBuild } from '../lib/verify.mjs';
-import { serveStore, tmp, writePyramid, writeKernels } from './helpers.mjs';
+import { cubeImageryManifest, cubeTerrainManifest, validateCubeImagery, validateCubeTerrain } from '../lib/cube.mjs';
+import { serveStore, tmp, writeCubeProducts, writePyramid, writeKernels } from './helpers.mjs';
 
 const ORIGIN = 'https://pages.example.org';
 const quiet = () => {};
@@ -192,9 +193,87 @@ describe('terrain publishing', () => {
   });
 });
 
+describe('cube-sphere terrain and imagery publishing (#149)', () => {
+  const servers = [];
+  afterEach(async () => { while (servers.length) await servers.pop().close(); });
+  const publish = (storage, src, kind, build = 'b1') => {
+    const dataset = { kind, name: 'demo' };
+    const [validate, manifest, deferred] = kind === 'cube-terrain'
+      ? [validateCubeTerrain, cubeTerrainManifest, ['tileset.json', 'cpu-grids.json']]
+      : [validateCubeImagery, cubeImageryManifest, ['imagery.json']];
+    return publishDirectory({ storage, srcDir: src, prefix: remotePrefix(dataset, build), deferred, concurrency: 4, log: quiet, retry: { tries: 1 },
+      validate, buildManifest: (entries, inventorySha256) => manifest({ dataset, build, entries, inventorySha256, srcDir: src }) });
+  };
+
+  it('publishes geometry, CPU grids and imagery with their content types, entry points last, and verifies one revision', async () => {
+    const { terrain, imagery } = writeCubeProducts(tmp('cube'));
+    const store = createLocalStorage(tmp('store'));
+    const order = [];
+    await publish({ ...store, put: async (k, b, m) => { order.push(k); return store.put(k, b, m); } }, terrain, 'cube-terrain');
+    await publish(store, imagery, 'cube-imagery');
+    expect(order.slice(-3)).toEqual(['cube-terrain/demo/b1/tileset.json', 'cube-terrain/demo/b1/cpu-grids.json', 'cube-terrain/demo/b1/manifest.json']);
+    expect((await store.head('cube-terrain/demo/b1/nz/0/0/0.glb')).contentType).toBe('model/gltf-binary');
+    expect((await store.head('cube-imagery/demo/b1/tiles/nz/0/0/0.png')).contentType).toBe('image/png');
+    const manifest = JSON.parse((await store.get('cube-terrain/demo/b1/manifest.json')).toString());
+    expect(manifest).toMatchObject({ kind: 'cube-terrain', revision: 'cube-r1', tileCount: 2, gridBytes: 36 });
+    expect(manifest.sampleGrids).toContain('heights/nz/0/0/0.f32');
+    const host = await serveStore(store); servers.push(host);
+    for (const prefix of ['cube-terrain/demo/b1/', 'cube-imagery/demo/b1/']) {
+      expect((await verifyBuild({ baseUrl: host.url, prefix, origins: [ORIGIN] })).problems).toEqual([]);
+    }
+    const broken = await serveStore(store, { cors: false, html404: true }); servers.push(broken);
+    const problems = (await verifyBuild({ baseUrl: broken.url, prefix: 'cube-terrain/demo/b1/', origins: [ORIGIN] })).problems.join('\n');
+    expect(problems).toMatch(/Access-Control-Allow-Origin/);
+    expect(problems).not.toMatch(/HTML page/); // the cube loaders check status, not the 404 body
+  });
+
+  it('publishes and verifies JPEG imagery (encoding "jpeg", .jpg tiles)', async () => {
+    const imagery = tmp('jpeg');
+    const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
+    mkdirSync(join(imagery, 'tiles/nz/0/0'), { recursive: true });
+    writeFileSync(join(imagery, 'tiles/nz/0/0/0.jpg'), jpg);
+    writeFileSync(join(imagery, 'imagery.json'), JSON.stringify({ format: 'cosmolabe-cube-imagery-1', source: { version: 'img-j1' },
+      encoding: 'jpeg', uri: 'tiles/{face}/{level}/{x}/{y}.jpg', tiles: ['nz/0/0/0'] }));
+    const store = createLocalStorage(tmp('store'));
+    await publish(store, imagery, 'cube-imagery');
+    expect((await store.head('cube-imagery/demo/b1/tiles/nz/0/0/0.jpg')).contentType).toBe('image/jpeg');
+    const host = await serveStore(store); servers.push(host);
+    expect((await verifyBuild({ baseUrl: host.url, prefix: 'cube-imagery/demo/b1/', origins: [ORIGIN] })).problems).toEqual([]);
+  });
+
+  it('refuses geometry and CPU grids from different revisions, or a build missing a grid, before uploading', async () => {
+    const store = createLocalStorage(tmp('store'));
+    const mixed = writeCubeProducts(tmp('cube'), { tilesetRevision: 'cube-r0' });
+    await expect(publish(store, mixed.terrain, 'cube-terrain')).rejects.toThrow(/revision mismatch/);
+    const partial = writeCubeProducts(tmp('cube'));
+    rmSync(join(partial.terrain, 'heights/px/0/0/0.f32'));
+    await expect(publish(store, partial.terrain, 'cube-terrain')).rejects.toThrow(/heights\/px\/0\/0\/0.f32 is missing/);
+    expect((await store.list('cube-terrain/')).size).toBe(0);
+  });
+});
+
 describe('kernel publishing', () => {
   const servers = [];
   afterEach(async () => { while (servers.length) await servers.pop().close(); });
+
+  it('retains derived-kernel source URLs and hashed scripts without claiming an unmodified upstream copy', async () => {
+    const src = tmp('derived');
+    writeKernels(src);
+    const derived = {
+      sourceUrls: ['https://spiftp.esac.esa.int/data/SPICE/ROSETTA/kernels/spk/ROS_COG_V4.BSP'],
+      scripts: ['scripts/resample-spk.mjs'],
+    };
+    const dataset = { kind: 'kernels', name: 'demo', localDir: 'nonexistent-dir', fetchScripts: [],
+      attribution: 'Derived ESA product', derivedKernels: { 'a.bsp': derived } };
+    const manifest = await kernelManifest({ dataset, build: 'test', entries: [{ path: 'a.bsp', size: 16, sha256: 'fixture' }],
+      inventorySha256: 'fixture', srcDir: src, root: ROOT, strictProvenance: true });
+    expect(manifest.attribution).toBe('Derived ESA product');
+    expect(manifest.files[0]).toMatchObject({ upstreamUrl: null, repositoryPath: null,
+      derivation: { sourceUrls: derived.sourceUrls, scripts: [{ path: 'scripts/resample-spk.mjs', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }] } });
+    await expect(kernelManifest({ dataset: { ...dataset, derivedKernels: {} }, build: 'test',
+      entries: [{ path: 'a.bsp', size: 16, sha256: 'fixture' }], inventorySha256: 'fixture',
+      srcDir: src, root: ROOT, strictProvenance: true })).rejects.toThrow(/no upstream URL/);
+  });
 
   it('validates headers, writes a manifest with checksums, and byte-checks through the public URL', async () => {
     const src = tmp('k'); const store = createLocalStorage(tmp('store'));
@@ -247,7 +326,14 @@ describe('upstream resolution from the real fetch scripts', () => {
         const ds = datasets[`kernels/${set}`];
         const texts = ds.fetchScripts.map((s) => readFileSync(join(ROOT, s), 'utf8'));
         const url = resolveUpstream(file, texts);
-        if (url) { resolved++; expect(url).toMatch(/^https:\/\/naif\.jpl\.nasa\.gov\/pub\/naif\//); continue; }
+        if (url) { resolved++; expect(url).toMatch(/^https:\/\/(naif\.jpl\.nasa\.gov\/pub\/naif|spiftp\.esac\.esa\.int\/data\/SPICE\/ROSETTA)\//); continue; }
+        const derived = ds.derivedKernels?.[file.replace(/\.gz$/, '')];
+        if (derived) {
+          expect(derived.sourceUrls.length).toBeGreaterThan(0);
+          for (const source of derived.sourceUrls) expect(source).toMatch(/^https:\/\/spiftp\.esac\.esa\.int\/data\/SPICE\/ROSETTA\/kernels\//);
+          for (const script of derived.scripts) expect(existsSync(join(ROOT, script))).toBe(true);
+          continue;
+        }
         if (!tracked.has(`${ds.localDir}/${file.replace(/\.gz$/, '')}`) && !tracked.has(`${ds.localDir}/${file}`)) problems.push(`${set}/${file}`);
       }
     }
@@ -305,6 +391,44 @@ describe('hosted catalog rewriting', () => {
     'kernels/psyche': { kind: 'kernels', name: 'psyche', catalogPrefix: 'kernels/psyche/', build: null },
   };
   const base = 'https://data.example.org';
+
+  it('omits both local-only Jezero experiments without making hosted builds require their terrain', async () => {
+    const all = loadDatasets().datasets;
+    const id = 'cube-terrain/mars-terrain-cube-jezero';
+    const ds = all[id];
+    expect(ds.localOnly).toBe(true);
+    expect(ds.build).toBeNull();
+    expect(ds.catalogs).toContain('mars-cube-imagery-experiment.json');
+    const dist = tmp('local-experiment');
+    const pub = join(dist, 'test-catalogs');
+    const originals = new Map();
+    mkdirSync(join(pub, ds.catalogPrefix), { recursive: true });
+    for (const cat of ds.catalogs) {
+      const original = readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8');
+      originals.set(cat, original);
+      mkdirSync(dirname(join(pub, cat)), { recursive: true });
+      writeFileSync(join(pub, cat), original);
+    }
+    writeFileSync(join(pub, ds.catalogPrefix, 'cpu-grids.json'), '{}');
+    // Both local-data and hosted-data deployment copy modes omit every listed experiment.
+    for (const sets of [{ [id]: ds }, all]) {
+      const keep = publicDirCopyFilter(sets, pub);
+      for (const cat of ds.catalogs) expect(keep(join(pub, cat))).toBe(false);
+      expect(keep(join(pub, ds.catalogPrefix))).toBe(false);
+      expect(keep(join(pub, ds.catalogPrefix, 'cpu-grids.json'))).toBe(false);
+      expect(keep(join(pub, 'experiments/other.json'))).toBe(true);
+    }
+    const rec = await buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet });
+    expect(rec.datasets).toEqual({});
+    for (const cat of ds.catalogs) {
+      expect(existsSync(join(pub, cat))).toBe(false);
+      expect(readFileSync(join(ROOT, CATALOG_ROOT, cat), 'utf8')).toBe(originals.get(cat));
+    }
+    expect(existsSync(join(pub, ds.catalogPrefix))).toBe(false);
+    // A production catalog accidentally using the unpublished local product must still fail.
+    writeFileSync(join(pub, 'production.json'), JSON.stringify({ url: `${ds.catalogPrefix}cpu-grids.json` }));
+    await expect(buildHostedCatalogs({ dist, baseUrl: base, datasets: all, strict: true, log: quiet })).rejects.toThrow(id);
+  });
 
   it('resolves paths the way the viewer does', () => {
     expect(resolveLocalPath('kernels/a.bsp', 'x.json')).toBe('kernels/a.bsp');

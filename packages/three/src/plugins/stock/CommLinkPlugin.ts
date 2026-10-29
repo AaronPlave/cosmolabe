@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { exploratoryData, hasLineOfSight, PLUGIN_DATA_COLORS, type ContactWindow, type HostData, type PluginData } from '@cosmolabe/core';
+import { exploratoryData, hasLineOfSight, PLUGIN_DATA_COLORS, type ContactWindow, type ExploratoryData, type HostData } from '@cosmolabe/core';
 import type { RendererPlugin } from '../RendererPlugin.js';
 import type { RendererContext } from '../RendererContext.js';
 
@@ -36,13 +36,17 @@ export class CommLinkPlugin implements RendererPlugin {
         }
       }
     }
-    this.contacts = contacts;
+    // Copy so later mutation of the host's retained arrays cannot bypass validation/rebuild.
+    this.contacts = contacts && Object.freeze({
+      ...contacts,
+      value: Object.freeze(contacts.value.map(w => Object.freeze({ ...w }))),
+    });
     if (this.ctx) this.rebuild();
   }
 
   /** The current strategy's product, available to inspectors and hosts. */
-  get data(): PluginData<readonly ContactWindow[]> {
-    return this.contacts ?? exploratoryData(this.links, {
+  get data(): HostData<readonly ContactWindow[]> | ExploratoryData<{ readonly candidateWindows: readonly ContactWindow[] }> {
+    return this.contacts ?? exploratoryData({ candidateWindows: this.links }, {
       id: 'comm-link:line-of-sight', kind: 'analysis', classification: 'exploratory',
       source: 'Viewer straight-line geometry; link intervals are candidate bounds',
     });

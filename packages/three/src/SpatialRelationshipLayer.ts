@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
-import { endpointLabel, formatSpatialDistance, resolveSpatialEndpoint, resolveSpatialRelationship, type SpatialEndpoint, type SpatialRelationship, type Universe } from '@cosmolabe/core';
+import { endpointLabel, formatSpatialDistance, formatSpatialSpeed, referenceVectorLabel, resolveSpatialEndpoint, resolveSpatialRelationship, type ResolvedSpatialRelationship, type SpatialEndpoint, type SpatialRelationship, type Universe } from '@cosmolabe/core';
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { clipSegmentInFront } from './EventMarkers.js';
 import { MeasurementArrow } from './MeasurementArrow.js';
@@ -13,6 +13,8 @@ export interface SpatialInteraction {
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   picking: () => boolean;
+  /** A surface endpoint pick shares the Point Probe cursor and frame-time budget. */
+  surfacePicking?: () => boolean;
   onOpenEditor?: (id: string) => void;
   onClearSelection?: () => void;
   labelIcon?: (kind: SpatialRelationship['kind']) => SVGSVGElement;
@@ -27,6 +29,8 @@ interface Visual {
   arc: Stroke;
   marks: THREE.Points;
   arrow?: MeasurementArrow;
+  /** Frame axes: one stroke and one tip letter per axis, X, Y, Z. */
+  axes?: Array<{ stroke: Stroke; letter: HTMLSpanElement }>;
   callout: EventCallout;
   label: HTMLButtonElement;
   labelSize: { width: number; height: number };
@@ -37,6 +41,34 @@ interface Visual {
   hitSegments: THREE.Vector3[];
   box: ScreenRect | null;
 }
+
+/** One relationship's world-space geometry and wording for the current view. */
+interface Shape {
+  segments: THREE.Vector3[];
+  arc: THREE.Vector3[];
+  axes: THREE.Vector3[][];
+  /** Picked as geometry but not drawn by the main stroke (an arrow's cone). */
+  pickExtra: THREE.Vector3[];
+  marks: THREE.Vector3[];
+  /** Tip kept clear of compact labels, as an arrowhead is. */
+  tip?: THREE.Vector3;
+  anchor: THREE.Vector3;
+  labelAnchor: THREE.Vector3;
+  /** Where the compact label goes when its anchor is off screen (an angle's vertex). */
+  labelFallback?: THREE.Vector3;
+  compact: string;
+  title: string;
+  detail: string;
+  /** Faint legs leave the arc as the angle's subject. */
+  faintSegments?: boolean;
+}
+
+/** Muted versions of the body-axes convention: red X, green Y, blue Z. Letters carry the same meaning. */
+export const AXIS_COLORS = ['#cf8a7c', '#93bd84', '#84a8d6'] as const;
+const KIND_NAMES: Record<SpatialRelationship['kind'], string> = {
+  distance: 'distance measurement', direction: 'direction measurement', angle: 'angle measurement',
+  velocity: 'velocity', axes: 'frame axes', 'vector-angle': 'angle between directions',
+};
 
 /** Fixed-capacity fat segments: actual CSS-pixel width, not WebGL's ignored linewidth. */
 class Stroke {
@@ -99,6 +131,8 @@ export class SpatialRelationshipLayer {
     private readonly canvas: HTMLCanvasElement,
     private readonly calloutContainer: HTMLElement,
     private readonly obstacles: () => CalloutObstacles,
+    /** A body's axes length in km, as its mesh draws it (`BodyMesh.axesLengthKm`). */
+    private readonly bodyAxesLengthKm: (bodyName: string) => number | undefined = () => undefined,
   ) {
     this.root.layers.set(2);
     this.feedback.layers.set(2); this.feedback.renderOrder = 104; this.feedback.frustumCulled = false;
@@ -108,7 +142,10 @@ export class SpatialRelationshipLayer {
   setDraftEndpoints(endpoints: readonly SpatialEndpoint[]): void { this.draftEndpoints = endpoints; }
   setVisible(visible: boolean): void {
     this.visible = visible; this.root.visible = visible;
-    if (!visible) for (const visual of this.visuals.values()) { visual.callout.hide(); visual.label.style.display = 'none'; visual.box = null; }
+    if (!visible) for (const visual of this.visuals.values()) {
+      visual.callout.hide(); visual.label.style.display = 'none'; visual.box = null;
+      for (const axis of visual.axes ?? []) axis.letter.style.display = 'none';
+    }
   }
   attach(scene: THREE.Scene): void { scene.add(this.root); }
   setInteraction(interaction: SpatialInteraction): void { this.interaction = interaction; }
@@ -150,27 +187,21 @@ export class SpatialRelationshipLayer {
     };
     const base = this.obstacles();
     const point = (p: readonly number[]) => new THREE.Vector3((p[0] - originKm[0]) * this.scaleFactor, (p[1] - originKm[1]) * this.scaleFactor, (p[2] - originKm[2]) * this.scaleFactor);
-    const resolvedItems = new Map(this.relationships.map(r => [r.id, r.visible === false ? null : resolveSpatialRelationship(this.universe, r, et)]));
+    const shapes = new Map<string, Shape | null>();
+    const resolution = new Map(); // One frame's positions, shared by every overlay.
+    for (const r of this.relationships) {
+      const resolved = r.visible === false ? null : resolveSpatialRelationship(this.universe, r, et, resolution);
+      shapes.set(r.id, resolved ? this.shape(resolved, point, height) : null);
+    }
     const geometryPaths: number[][] = [];
     const arrowheads: ScreenRect[] = [];
     // Reserve the actual strokes/cones before placing any compact label, including
     // geometry whose own label is later suppressed. This keeps priority predictable.
-    for (const r of this.relationships) {
-      const resolved = resolvedItems.get(r.id);
-      if (!resolved) continue;
-      const source = point(resolved.source), target = point(resolved.target);
-      let segments = [source, target];
-      if (r.kind === 'angle' && resolved.vertex && resolved.angleDeg !== undefined) {
-        const vertex = point(resolved.vertex);
-        segments = anglePoints(source, vertex, target, angleDisplayRadius(this.camera, vertex, Math.min(source.distanceTo(vertex), target.distanceTo(vertex)), height));
-      } else if (r.kind === 'direction') {
-        const vector = target.clone().sub(source), length = r.fullLength ? vector.length() : directionDisplayLength(this.camera, source, vector.length(), height);
-        const tip = source.clone().addScaledVector(vector.normalize(), length);
-        segments = [source, tip];
-        const projected = projectAnchor(tip, this.camera, width, height);
-        if (projected) arrowheads.push({ x0: projected.x - 10, y0: projected.y - 10, x1: projected.x + 10, y1: projected.y + 10 });
-      }
-      const clipped = clip(segments);
+    for (const shape of shapes.values()) {
+      if (!shape) continue;
+      const projectedTip = shape.tip && projectAnchor(shape.tip, this.camera, width, height);
+      if (projectedTip) arrowheads.push({ x0: projectedTip.x - 10, y0: projectedTip.y - 10, x1: projectedTip.x + 10, y1: projectedTip.y + 10 });
+      const clipped = clip([...shape.segments, ...shape.arc, ...shape.axes.flat()]);
       for (let i = 0; i < clipped.length; i += 2) {
         const a = clipped[i].clone().project(this.camera), b = clipped[i + 1].clone().project(this.camera);
         if ([a.x, a.y, b.x, b.y].every(Number.isFinite)) geometryPaths.push([(a.x + 1) * width / 2, (1 - a.y) * height / 2, (b.x + 1) * width / 2, (1 - b.y) * height / 2]);
@@ -182,88 +213,64 @@ export class SpatialRelationshipLayer {
       if (!visual) visual = this.create(relationship);
       visual.box = null;
       visual.label.style.display = 'none';
+      for (const axis of visual.axes ?? []) axis.letter.style.display = 'none';
       visual.group.visible = relationship.visible !== false;
-      const resolved = resolvedItems.get(relationship.id);
-      if (!resolved || (relationship.kind === 'angle' && resolved.angleDeg === undefined) ||
-          (relationship.kind === 'direction' && resolved.distanceKm === 0)) {
-        visual.group.visible = false; visual.hitSegments = []; visual.callout.hide(); continue;
-      }
-      const source = point(resolved.source), target = point(resolved.target);
-      const vertex = relationship.kind === 'angle' && resolved.vertex ? point(resolved.vertex) : undefined;
+      const shape = shapes.get(relationship.id);
+      if (!shape) { visual.group.visible = false; visual.hitSegments = []; visual.callout.hide(); continue; }
       const active = relationship.selected || relationship.emphasized;
       const highlighted = active || relationship.hovered;
-      const color = relationship.color ?? '#82aabd';
+      const color = relationship.kind === 'axes' ? '#c3d0d8' : relationship.color ?? '#82aabd';
       const opacity = active ? 1 : relationship.hovered ? 0.95 : selected ? 0.75 : 0.9;
       visual.group.position.copy(origin); // Camera-relative float32 vertices retain close-up precision.
       visual.stroke.width = active ? 2.5 : highlighted ? 2 : 1.5;
       visual.arc.width = active ? 2.5 : 1.8;
       for (const stroke of [visual.stroke, visual.arc]) { stroke.material.color.set(color); stroke.material.opacity = opacity; }
+      if (shape.faintSegments) visual.stroke.material.opacity = opacity * 0.55;
+      if (visual.stroke.halo) visual.stroke.halo.material.opacity = opacity * 0.5;
       // Opaque, antialiased arc pieces share the same color at joins. Overlapping
       // caps cannot accumulate alpha into bright beads; selection changes width.
       visual.arc.material.transparent = false; visual.arc.material.alphaToCoverage = true;
       visual.arc.material.opacity = 1; visual.arc.material.color.set(color).multiplyScalar(opacity);
       const markMaterial = visual.marks.material as THREE.PointsMaterial;
       markMaterial.color.set(color); markMaterial.size = active ? 8 : 6; markMaterial.opacity = opacity;
-      let anchor = source.clone().lerp(target, 0.5);
-      let title = '', detail = '';
-      let segments: THREE.Vector3[];
-      let pickExtra: THREE.Vector3[] = [];
-      let arc: THREE.Vector3[] = [];
-      let marks: THREE.Vector3[] = [];
-      if (relationship.kind === 'angle') {
-        const all = anglePoints(source, vertex!, target, angleDisplayRadius(this.camera, vertex!, Math.min(source.distanceTo(vertex!), target.distanceTo(vertex!)), height));
-        segments = all.slice(0, 4); arc = all.slice(4);
-        marks = relationship.editing ? [source, vertex!, target] : [vertex!];
-        visual.stroke.material.opacity = opacity * 0.55;
-        anchor = arc[Math.floor(arc.length / 2)].clone();
-        title = `At ${endpointLabel(relationship.vertex)} · between ${endpointLabel(relationship.source)} and ${endpointLabel(relationship.target)}`;
-        detail = `${resolved.angleDeg!.toFixed(2)}°`;
-      } else if (relationship.kind === 'direction') {
-        const vector = target.clone().sub(source), trueLength = vector.length();
-        const length = relationship.fullLength ? trueLength : directionDisplayLength(this.camera, source, trueLength, height);
-        const tip = source.clone().addScaledVector(vector.normalize(), length);
+      if (visual.arrow && relationship.kind === 'direction') {
+        const [source, tip] = shape.pickExtra;
+        const vector = tip.clone().sub(source), length = vector.length();
         const head = directionHeadLength(this.camera, tip, length, height);
-        segments = directionShaftPoints(source, tip, head);
-        pickExtra = [source, tip];
-        marks = highlighted || relationship.editing ? [source] : []; // The arrowhead has no competing endpoint marker.
-        visual.arrow!.position.copy(source).sub(origin);
-        visual.arrow!.setDirection(vector);
-        visual.arrow!.setLength(length, head, head * 0.65);
-        visual.arrow!.setStyle(color, opacity);
-        if (visual.stroke.halo) visual.stroke.halo.material.opacity = opacity * 0.5;
-        anchor = source.clone();
-        title = `Direction to ${endpointLabel(relationship.target)}`;
-        detail = `From ${endpointLabel(relationship.source)}${relationship.showDistance ? ` · ${formatSpatialDistance(resolved.distanceKm!)}` : ''}`;
-      } else {
-        segments = [source, target, ...(relationship.editing ? [] : distanceTicks(source, target, this.camera, height))];
-        marks = relationship.editing ? [source, target] : [];
-        title = highlighted ? `${endpointLabel(relationship.source)} ↔ ${endpointLabel(relationship.target)}` : 'Distance';
-        detail = formatSpatialDistance(resolved.distanceKm!);
+        visual.arrow.position.copy(source).sub(origin);
+        visual.arrow.setDirection(vector.normalize());
+        visual.arrow.setLength(length, head, head * 0.65);
+        visual.arrow.setStyle(color, opacity);
       }
-      segments = clip(segments); arc = clip(arc);
+      const segments = clip(shape.segments), arc = clip(shape.arc);
       visual.stroke.write(segments, origin); visual.arc.write(arc, origin);
-      visual.hitSegments = [...segments, ...arc, ...clip(pickExtra)];
-      writePoints(visual.marks.geometry, marks.filter(p => projectAnchor(p, this.camera, width, height) !== null), origin);
+      const axes = shape.axes.map(clip);
+      visual.axes?.forEach((axis, i) => {
+        axis.stroke.width = visual.stroke.width;
+        axis.stroke.material.color.set(AXIS_COLORS[i]); axis.stroke.material.opacity = opacity;
+        if (axis.stroke.halo) axis.stroke.halo.material.opacity = opacity * 0.5;
+        axis.stroke.write(axes[i] ?? [], origin);
+        const at = shape.axes[i] && axisLetterPlacement(shape.axes[i][0], shape.axes[i][1], this.camera, width, height);
+        if (!at) return;
+        axis.letter.style.display = 'block';
+        axis.letter.style.opacity = String(opacity);
+        axis.letter.style.transform = `translate(${at.box.x0}px, ${at.box.y0}px)`;
+      });
+      visual.hitSegments = [...segments, ...arc, ...axes.flat(), ...clip(shape.pickExtra)];
+      writePoints(visual.marks.geometry, shape.marks.filter(p => projectAnchor(p, this.camera, width, height) !== null), origin);
       const obstacles = { ...base, rects: [...base.rects, ...occupied.map(rect => ({ ...rect, weight: 3 }))] };
-      let screenAnchor = projectAnchor(anchor, this.camera, width, height);
       if (!active) {
         visual.callout.hide();
         visual.label.dataset.hovered = String(!!relationship.hovered);
-        let labelAnchor = anchor;
-        let text = detail;
-        if (relationship.kind === 'direction') {
-          const vector = target.clone().sub(source);
-          const length = relationship.fullLength ? vector.length() : directionDisplayLength(this.camera, source, vector.length(), height);
-          labelAnchor = source.clone().addScaledVector(vector.normalize(), length);
-          text = `To ${compactEndpointName(relationship.target)}`;
-        }
-        if (relationship.kind === 'angle' && !projectAnchor(labelAnchor, this.camera, width, height)) labelAnchor = vertex!;
+        let labelAnchor = shape.labelAnchor;
+        if (shape.labelFallback && !projectAnchor(labelAnchor, this.camera, width, height)) labelAnchor = shape.labelFallback;
         const projected = projectAnchor(labelAnchor, this.camera, width, height);
-        if (projected && this.placeCompactLabel(visual, projected, text, color, obstacles, width, height, geometryPaths, arrowheads)) occupied.push(visual.box!);
+        if (projected && this.placeCompactLabel(visual, projected, shape.compact, color, obstacles, width, height, geometryPaths, arrowheads)) occupied.push(visual.box!);
         continue; // Crowding suppresses a compact label, never expands it into another card.
       }
-      if (!screenAnchor) screenAnchor = [source, target, ...(vertex ? [vertex] : []), ...arc].map(p => projectAnchor(p, this.camera, width, height)).find(Boolean) ?? null;
-      visual.callout.setLiveContent({ lines: [title, detail], color, tone: 'selected', feature: 'point' });
+      let screenAnchor = projectAnchor(shape.anchor, this.camera, width, height);
+      if (!screenAnchor) screenAnchor = [...shape.segments, ...shape.marks, ...shape.arc, ...shape.axes.flat()].map(p => projectAnchor(p, this.camera, width, height)).find(Boolean) ?? null;
+      visual.callout.setLiveContent({ lines: [shape.title, shape.detail], color, tone: 'selected', feature: 'point' });
       visual.box = visual.callout.update(screenAnchor, { width, height }, obstacles);
       if (visual.box) occupied.push(visual.box);
     }
@@ -275,6 +282,87 @@ export class SpatialRelationshipLayer {
     writePoints(this.feedback.geometry, handles, origin);
     this.feedback.visible = handles.length > 0;
     return occupied;
+  }
+
+  /** Geometry for one resolved relationship, or null where it is undefined (a zero-length direction). */
+  private shape(resolved: ResolvedSpatialRelationship, point: (p: readonly number[]) => THREE.Vector3, height: number): Shape | null {
+    const r = resolved.relationship;
+    const editing = !!r.editing, highlighted = !!(r.selected || r.emphasized || r.hovered);
+    const empty = { arc: [], axes: [], pickExtra: [], marks: [] };
+    switch (resolved.kind) {
+      case 'distance': {
+        const source = point(resolved.source), target = point(resolved.target);
+        const anchor = source.clone().lerp(target, 0.5);
+        const detail = formatSpatialDistance(resolved.distanceKm);
+        return { ...empty, segments: [source, target, ...(editing ? [] : distanceTicks(source, target, this.camera, height))],
+          marks: editing ? [source, target] : [], anchor, labelAnchor: anchor, compact: detail, detail,
+          title: highlighted ? `${endpointLabel(resolved.relationship.source)} ↔ ${endpointLabel(resolved.relationship.target)}` : 'Distance' };
+      }
+      case 'direction': {
+        if (resolved.distanceKm === 0) return null;
+        const rel = resolved.relationship;
+        const source = point(resolved.source), target = point(resolved.target);
+        const vector = target.clone().sub(source), trueLength = vector.length();
+        const length = rel.fullLength ? trueLength : directionDisplayLength(this.camera, source, trueLength, height);
+        const tip = source.clone().addScaledVector(vector.normalize(), length);
+        return { ...empty, segments: directionShaftPoints(source, tip, directionHeadLength(this.camera, tip, length, height)),
+          pickExtra: [source, tip], tip, marks: highlighted || editing ? [source] : [], // The arrowhead has no competing endpoint marker.
+          anchor: source, labelAnchor: tip, compact: `To ${compactEndpointName(rel.target)}`,
+          title: `Direction to ${endpointLabel(rel.target)}`,
+          detail: `From ${endpointLabel(rel.source)}${rel.showDistance ? ` · ${formatSpatialDistance(resolved.distanceKm)}` : ''}` };
+      }
+      case 'angle': {
+        if (resolved.angleDeg === undefined) return null;
+        const rel = resolved.relationship;
+        const source = point(resolved.source), vertex = point(resolved.vertex), target = point(resolved.target);
+        const all = anglePoints(source, vertex, target, angleDisplayRadius(this.camera, vertex, Math.min(source.distanceTo(vertex), target.distanceTo(vertex)), height));
+        const arc = all.slice(4), anchor = arc[Math.floor(arc.length / 2)].clone();
+        const detail = `${resolved.angleDeg.toFixed(2)}°`;
+        return { ...empty, segments: all.slice(0, 4), arc, faintSegments: true, marks: editing ? [source, vertex, target] : [vertex],
+          anchor, labelAnchor: anchor, labelFallback: vertex, compact: detail, detail,
+          title: `At ${endpointLabel(rel.vertex)} · between ${endpointLabel(rel.source)} and ${endpointLabel(rel.target)}` };
+      }
+      case 'velocity': {
+        if (!resolved.direction) return null;
+        const rel = resolved.relationship;
+        const source = point(resolved.origin), direction = new THREE.Vector3(...resolved.direction);
+        const length = directionDisplayLength(this.camera, source, Infinity, height);
+        const tip = source.clone().addScaledVector(direction, length);
+        const speed = formatSpatialSpeed(resolved.speedKmS);
+        return { ...empty, segments: [source, tip, ...rateChevrons(tip, direction, directionHeadLength(this.camera, tip, length, height), this.camera)],
+          tip, marks: highlighted || editing ? [source] : [], anchor: source, labelAnchor: tip, compact: speed,
+          title: `Velocity of ${endpointLabel(rel.object)}`,
+          detail: `Relative to ${resolved.center ? endpointLabel(resolved.center) : 'scene origin'} · ${speed}` };
+      }
+      case 'axes': {
+        const rel = resolved.relationship;
+        const source = point(resolved.origin);
+        const bodyLengthKm = rel.origin.kind === 'entity' ? this.bodyAxesLength(rel.origin.bodyName) : 0;
+        const length = axesDisplayLength(this.camera, source, height, bodyLengthKm * this.scaleFactor);
+        const axes = resolved.axes.map(axis => [source, source.clone().addScaledVector(new THREE.Vector3(...axis), length)]);
+        return { ...empty, segments: [], axes, marks: highlighted || editing ? [source] : [], anchor: source, labelAnchor: source, compact: rel.frame,
+          title: `${rel.frame} axes`, detail: `At ${endpointLabel(rel.origin)}` };
+      }
+      case 'vector-angle': {
+        if (resolved.angleDeg === undefined || !resolved.first.direction || !resolved.second.direction) return null;
+        const rel = resolved.relationship;
+        const vertex = point(resolved.vertex);
+        const length = directionDisplayLength(this.camera, vertex, Infinity, height);
+        const legs = [resolved.first.direction, resolved.second.direction].map(d => vertex.clone().addScaledVector(new THREE.Vector3(...d), length));
+        const all = anglePoints(legs[0], vertex, legs[1], angleDisplayRadius(this.camera, vertex, length, height));
+        const arc = all.slice(4), anchor = arc[Math.floor(arc.length / 2)].clone();
+        const detail = `${resolved.angleDeg.toFixed(2)}°`;
+        return { ...empty, segments: all.slice(0, 4), arc, faintSegments: true, marks: [vertex], anchor, labelAnchor: anchor, labelFallback: vertex, compact: detail,
+          title: `Between ${lowerFirst(referenceVectorLabel(rel.first))} and ${lowerFirst(referenceVectorLabel(rel.second))}`, detail };
+      }
+    }
+  }
+  /** Axes at a body are as long as its mesh's own axes; a body without a mesh falls back to its radii. */
+  private bodyAxesLength(bodyName: string): number {
+    const fromMesh = this.bodyAxesLengthKm(bodyName);
+    if (fromMesh !== undefined && fromMesh > 0) return fromMesh;
+    const radii = this.universe.getBody(bodyName)?.radii;
+    return radii ? Math.max(...radii) * 2 : 0;
   }
   private placeCompactLabel(v: Visual, anchor: { x: number; y: number }, text: string, color: string, obstacles: CalloutObstacles, width: number, height: number, paths: readonly number[][], arrowheads: readonly ScreenRect[]): boolean {
     v.label.style.maxWidth = `${Math.max(1, width - 12)}px`;
@@ -290,18 +378,29 @@ export class SpatialRelationshipLayer {
     const { box, candidate } = placement;
     v.labelCandidate = candidate;
     v.label.style.display = 'flex'; v.label.style.transform = `translate(${box.x0}px, ${box.y0}px)`;
-    v.label.title = text; v.label.setAttribute('aria-label', `Select ${v.kind} measurement: ${text}`); v.box = box;
+    v.label.title = text; v.label.setAttribute('aria-label', `Select ${KIND_NAMES[v.kind]}: ${text}`); v.box = box;
     return true;
   }
 
   private create(relationship: SpatialRelationship): Visual {
-    const stroke = new Stroke(relationship.kind === 'direction'), arc = new Stroke();
+    const stroke = new Stroke(relationship.kind === 'direction' || relationship.kind === 'velocity'), arc = new Stroke();
     const marks = new THREE.Points(pointGeometry(3), new THREE.PointsMaterial({ color: '#82aabd', map: this.ring, transparent: true, size: 6, sizeAttenuation: false, depthTest: false, depthWrite: false }));
     marks.frustumCulled = false; marks.renderOrder = 101;
     const group = new THREE.Group(); group.add(stroke.line, arc.line, marks);
     if (stroke.halo) group.add(stroke.halo);
     const arrow = relationship.kind === 'direction' ? new MeasurementArrow() : undefined;
     if (arrow) group.add(arrow);
+    const axes = relationship.kind === 'axes' ? (['X', 'Y', 'Z'] as const).map((name, i) => {
+      const axisStroke = new Stroke(true);
+      group.add(axisStroke.line, axisStroke.halo!);
+      const letter = document.createElement('span');
+      letter.className = 'cosmolabe-axis-letter'; letter.textContent = name;
+      Object.assign(letter.style, { position: 'absolute', left: '0', top: '0', display: 'none', pointerEvents: 'none', color: AXIS_COLORS[i],
+        font: '600 12px/20px var(--font-mono, monospace)', width: '16px', height: '20px', textAlign: 'center',
+        background: 'rgba(9,13,18,0.88)', borderRadius: '3px', textShadow: '0 1px 0 #000' });
+      this.calloutContainer.append(letter);
+      return { stroke: axisStroke, letter };
+    }) : undefined;
     const label = document.createElement('button');
     label.className = 'cosmolabe-measurement-value'; label.dataset.measurementId = relationship.id;
     Object.assign(label.style, { position: 'absolute', left: '0', top: '0', display: 'none', pointerEvents: 'auto', cursor: 'pointer',
@@ -311,7 +410,7 @@ export class SpatialRelationshipLayer {
     const icon = this.interaction?.labelIcon?.(relationship.kind);
     if (icon) { icon.style.flexShrink = '0'; label.append(icon); }
     const labelValue = document.createElement('span'); label.append(labelValue);
-    label.setAttribute('aria-label', `Select ${relationship.kind} measurement`);
+    label.setAttribute('aria-label', `Select ${KIND_NAMES[relationship.kind]}`);
     const activate = (event: MouseEvent | KeyboardEvent) => {
       const rect = this.canvas.getBoundingClientRect();
       if (event instanceof MouseEvent && this.interaction?.beforePick(event.clientX - rect.left, event.clientY - rect.top)) return;
@@ -333,14 +432,15 @@ export class SpatialRelationshipLayer {
     labelObserver?.observe(label);
     group.traverse(child => child.layers.set(2));
     this.root.add(group);
-    const visual: Visual = { kind: relationship.kind, group, stroke, arc, marks, arrow, callout, label, labelSize, labelObserver, labelText: '', labelValue, hitSegments: [], box: null };
+    const visual: Visual = { kind: relationship.kind, group, stroke, arc, marks, arrow, axes, callout, label, labelSize, labelObserver, labelText: '', labelValue, hitSegments: [], box: null };
     this.visuals.set(relationship.id, visual);
     return visual;
   }
   private remove(id: string, v: Visual): void {
     v.group.removeFromParent(); v.stroke.dispose(); v.arc.dispose();
     v.marks.geometry.dispose(); (v.marks.material as THREE.Material).dispose();
-    v.arrow?.dispose(); v.callout.dispose(); v.labelObserver?.disconnect(); v.label.remove();
+    v.arrow?.dispose(); v.callout.dispose();
+    for (const axis of v.axes ?? []) { axis.stroke.dispose(); axis.letter.remove(); } v.labelObserver?.disconnect(); v.label.remove();
     this.visuals.delete(id);
   }
   dispose(): void {
@@ -370,6 +470,10 @@ function projectAnchor(p: THREE.Vector3, camera: THREE.PerspectiveCamera, width:
 function worldPerPixel(camera: THREE.PerspectiveCamera, point: THREE.Vector3, height: number): number {
   const depth = -point.clone().applyMatrix4(camera.matrixWorldInverse).z;
   return depth > camera.near && depth < camera.far ? 2 * depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2) / Math.max(1, height) : 0;
+}
+/** Axes span at least 64 px, or the body's own axes length (scene units) when that is longer. */
+export function axesDisplayLength(camera: THREE.PerspectiveCamera, origin: THREE.Vector3, height: number, bodyLength: number): number {
+  return Math.max(worldPerPixel(camera, origin, height) * 64, bodyLength);
 }
 /** Bounded display length carries orientation only, independent of target distance. */
 export function directionDisplayLength(camera: THREE.PerspectiveCamera, source: THREE.Vector3, trueLength: number, height: number): number {
@@ -432,8 +536,71 @@ export function anglePoints(source: THREE.Vector3, vertex: THREE.Vector3, target
   return points;
 }
 
+/** Two open chevrons behind the tip: a rate glyph, distinct from a direction's solid cone without relying on color. */
+export function rateChevrons(tip: THREE.Vector3, direction: THREE.Vector3, headLength: number, camera: THREE.Camera): THREE.Vector3[] {
+  const view = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+  const side = direction.clone().cross(view);
+  if (side.lengthSq() < 1e-12) side.setFromMatrixColumn(camera.matrixWorld, 0);
+  side.normalize().multiplyScalar(headLength * 0.5);
+  return [0, 0.6].flatMap(offset => {
+    const apex = tip.clone().addScaledVector(direction, -offset * headLength);
+    const back = apex.clone().addScaledVector(direction, -headLength * 0.7);
+    return [apex, back.clone().add(side), apex, back.clone().sub(side)];
+  });
+}
+
+/**
+ * Where an axis letter goes: the tip, or else the point nearest the tip where
+ * the axis is still on screen, even when both ends are off it. The segment is
+ * clipped to the near plane in view space (so nothing behind the camera
+ * projects mirrored), then to the viewport inset by `margin`.
+ */
+function projectedAxisSegment(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number) {
+  const a = start.clone().applyMatrix4(camera.matrixWorldInverse), b = end.clone().applyMatrix4(camera.matrixWorldInverse);
+  const near = -camera.near * 1.001; // In front of the camera is z < -near.
+  if (a.z > near && b.z > near) return null;
+  if (a.z > near) a.lerp(b, (a.z - near) / (a.z - b.z));
+  else if (b.z > near) b.lerp(a, (b.z - near) / (b.z - a.z));
+  const screen = (p: THREE.Vector3) => { p.applyMatrix4(camera.projectionMatrix); return { x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 }; };
+  return [screen(a), screen(b)] as const;
+}
+
+export function axisLetterAnchor(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera, width: number, height: number, margin = 10): { x: number; y: number } | null {
+  const segment = projectedAxisSegment(start, end, camera, width, height);
+  if (!segment) return null;
+  const [p0, p1] = segment;
+  // Liang–Barsky against the inset viewport; keep the end of the visible part nearest the tip.
+  const dx = p1.x - p0.x, dy = p1.y - p0.y;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, p0.x - margin], [dx, width - margin - p0.x], [-dy, p0.y - margin], [dy, height - margin - p0.y]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+    if (t0 > t1) return null;
+  }
+  return { x: p0.x + dx * t1, y: p0.y + dy * t1 };
+}
+
+/** Fixed just beyond the visible tip, along the projected axis. No collision
+ * avoidance: labels stay attached to their axes even when other labels overlap.
+ * Attenuate the offset smoothly for axes pointing straight at the camera.
+ */
+export function axisLetterPlacement(start: THREE.Vector3, end: THREE.Vector3, camera: THREE.PerspectiveCamera,
+  width: number, height: number): { box: ScreenRect } | null {
+  const anchor = axisLetterAnchor(start, end, camera, width, height, 33);
+  const segment = projectedAxisSegment(start, end, camera, width, height);
+  if (!anchor || !segment) return null;
+  const dx = segment[1].x - segment[0].x, dy = segment[1].y - segment[0].y;
+  const scale = 16 / Math.max(16, Math.hypot(dx, dy));
+  const x = anchor.x + dx * scale, y = anchor.y + dy * scale;
+  return { box: { x0: x - 8, y0: y - 10, x1: x + 8, y1: y + 10 } };
+}
+
+function lowerFirst(text: string): string { return text.charAt(0).toLowerCase() + text.slice(1); }
+
 function compactEndpointName(endpoint: SpatialEndpoint): string {
   if (endpoint.kind === 'entity') return endpointLabel(endpoint);
+  if (endpoint.kind === 'surface-point') return endpoint.label?.split(' (')[0] ?? `${endpoint.point.bodyName} point`;
   if (endpoint.kind === 'body-fixed') return endpoint.label?.split(' (')[0] ?? `${endpoint.bodyName} point`;
   return endpoint.label ?? 'Coordinate';
 }

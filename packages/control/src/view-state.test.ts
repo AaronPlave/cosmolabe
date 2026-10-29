@@ -87,6 +87,16 @@ describe('portable ViewState v1', () => {
     expect(host.timeText).toBe('2026-10-01T00:00:00Z');
   });
 
+  it('applies a named view at the link time, where a timeless viewpoint resolves', () => {
+    const host = new FakeViewer();
+    host.time = 987;
+    const seenAt: number[] = [];
+    host.viewpoint = () => { seenAt.push(host.time); return true; };
+    applyViewState(host, { ...state(), view: { kind: 'named', name: 'Ring Plane View', fov: 45 } });
+    expect(seenAt).toEqual([123456]);
+    expect(host.time).toBe(123456);
+  });
+
   it('reports control refusals and composes an event epoch without a result payload', () => {
     const host = new FakeViewer();
     host.setCameraReference = () => true;

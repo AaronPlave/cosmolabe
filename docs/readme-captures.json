@@ -1,0 +1,291 @@
+{
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "scenes": [
+    {
+      "id": "clipper",
+      "catalog": "europa-clipper",
+      "output": "mission-clipper.jpg",
+      "utc": "2031-03-07T03:39:51.823Z",
+      "et": 983893261.0077376,
+      "tracked": "Europa Clipper",
+      "selected": null,
+      "camera": {
+        "position": [
+          -0.01681691842760148,
+          0.0198401259414045,
+          0.0023268349807595966
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "fov": 42
+      },
+      "trajectory": null,
+      "sensor": "EIS NAC",
+      "panel": null
+    },
+    {
+      "id": "lro",
+      "catalog": "lro-moon",
+      "output": "mission-lro.jpg",
+      "utc": "2025-01-15T00:40:00Z",
+      "et": 790173669.1843309,
+      "tracked": "LRO",
+      "selected": null,
+      "camera": {
+        "position": [
+          4.774652944134822,
+          4.154194615020986,
+          70.48844847765731
+        ],
+        "target": [
+          -8.70405497870584,
+          32.41592258224267,
+          66.06135405382672
+        ],
+        "up": [
+          0.11746528674699255,
+          -0.4374680135416149,
+          -0.8915288237277582
+        ],
+        "fov": 65
+      },
+      "trajectory": "LRO",
+      "sensor": null,
+      "panel": null,
+      "terrain": "Moon",
+      "untrack": true
+    },
+    {
+      "id": "cassini",
+      "catalog": "cassini-soi",
+      "output": "mission-cassini.jpg",
+      "utc": "2004-07-01T02:48:00Z",
+      "et": 141922144.18409976,
+      "tracked": "Saturn",
+      "selected": "Cassini",
+      "camera": {
+        "position": [
+          180000,
+          -250000,
+          220000
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "fov": 48
+      },
+      "trajectory": "Cassini",
+      "sensor": null,
+      "panel": null
+    },
+    {
+      "id": "mars",
+      "catalog": "ingenuity-jezero",
+      "output": "mission-mars.jpg",
+      "utc": "2021-07-05T09:00:08Z",
+      "et": 678747677.184,
+      "viewpoint": "Wright Brothers Field",
+      "tracked": "Ingenuity",
+      "selected": null,
+      "trajectory": null,
+      "sensor": null,
+      "panel": null,
+      "terrain": "Mars",
+      "omitImageryHosts": [
+        "astro.arcgis.com"
+      ],
+      "surfaceCamera": {
+        "height": 0.001,
+        "offset": 0.004
+      },
+      "experimental": true
+    },
+    {
+      "id": "events",
+      "catalog": "cassini-soi",
+      "output": "mission-events.png",
+      "utc": "2004-07-01T02:38:22.467Z",
+      "et": 141921566.6511854,
+      "tracked": "Saturn",
+      "selected": null,
+      "camera": {
+        "position": [
+          180000,
+          -250000,
+          220000
+        ],
+        "target": [
+          0,
+          0,
+          -65000
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "fov": 48
+      },
+      "trajectory": "Cassini",
+      "sensor": null,
+      "panel": "events",
+      "timeline": [
+        141912064.184,
+        141933664.184
+      ],
+      "searches": [
+        {
+          "kind": "closest-approach",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "label": "Closest approach"
+        },
+        {
+          "kind": "distance-range",
+          "label": "Within 100K km",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 100000
+          }
+        },
+        {
+          "kind": "distance-range",
+          "label": "Within 150K km",
+          "observer": "Cassini",
+          "target": "Saturn",
+          "start": 141912064.184,
+          "end": 141955264.184,
+          "step": 60,
+          "params": {
+            "relation": "<",
+            "distanceKm": 150000
+          }
+        }
+      ],
+      "profiles": [
+        {
+          "quantity": "range",
+          "label": "Cassini\u2013Saturn distance",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        },
+        {
+          "quantity": "range-rate",
+          "label": "Closing / opening rate",
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Saturn"
+          },
+          "abcorr": "NONE"
+        }
+      ],
+      "timelineHeight": 310,
+      "untrack": true
+    },
+    {
+      "id": "measurements",
+      "catalog": "europa-clipper",
+      "output": "mission-measurements.png",
+      "utc": "2031-03-07T02:59:51.823Z",
+      "et": 983890861.0077376,
+      "tracked": "Europa",
+      "selected": null,
+      "camera": {
+        "position": [
+          -16673,
+          7541,
+          10092
+        ],
+        "target": [
+          -3673,
+          1541,
+          92
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "fov": 36
+      },
+      "trajectory": null,
+      "sensor": null,
+      "panel": "measure",
+      "measurement": {
+        "id": "clipper-europa-range",
+        "kind": "distance",
+        "source": {
+          "kind": "entity",
+          "bodyName": "Europa Clipper"
+        },
+        "target": {
+          "kind": "entity",
+          "bodyName": "Europa"
+        },
+        "color": "#82aabd",
+        "visible": true
+      },
+      "untrack": true
+    },
+    {
+      "id": "tour",
+      "catalog": "earth-moon-tour",
+      "output": "mission-tour.png",
+      "utc": "2015-10-31T23:50:00Z",
+      "et": 499607468.1825094,
+      "tracked": "Moon",
+      "selected": null,
+      "camera": {
+        "position": [
+          5000,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "up": [
+          0,
+          0,
+          1
+        ],
+        "fov": 60
+      },
+      "frame": "body-fixed",
+      "trajectory": null,
+      "sensor": null,
+      "panel": "script"
+    }
+  ]
+}

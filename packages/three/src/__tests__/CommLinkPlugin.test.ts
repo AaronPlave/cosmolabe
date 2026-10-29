@@ -53,6 +53,20 @@ describe('CommLink strategies', () => {
     plugin.onBeforeRender(21, ctx);
     expect(line(scene).visible).toBe(false);
   });
+  it('ignores mutation of the host array after supply and types candidates separately', () => {
+    const { plugin, ctx, scene } = fixture();
+    const mine = [{ ...windows[0] }];
+    plugin.setContactWindows(supplied(mine));
+    mine[0].endEt = 1000;
+    mine.push({ spacecraft: 'SC', station: 'station', startEt: 0, endEt: 5 });
+    plugin.onBeforeRender(30, ctx);
+    expect(scene.children).toHaveLength(1);
+    expect(line(scene).visible).toBe(false);
+    plugin.setContactWindows(undefined);
+    const d = plugin.data;
+    if (d.authority === 'exploratory') expect(d.value.candidateWindows).toHaveLength(1);
+    else throw new Error('expected exploratory');
+  });
   it('keeps an empty schedule empty and restores fallback only when removed', () => {
     const { plugin, ctx, scene } = fixture();
     plugin.setContactWindows(supplied([]));

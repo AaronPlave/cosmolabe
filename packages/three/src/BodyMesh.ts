@@ -1,20 +1,39 @@
 import * as THREE from 'three';
+import type { SurfaceAppearanceSettings } from './SurfaceAppearance.js';
+import type { ScreenRect } from './EventCallout.js';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { SunVisual, SOLAR_LAYER } from './SunVisual.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { TDSLoader } from 'three/examples/jsm/loaders/TDSLoader.js';
 import { DDSLoader } from 'three/examples/jsm/loaders/DDSLoader.js';
 import { parseCmod, type CmodTextureResolver } from './CmodLoader.js';
 import type { AssetLoadTracker } from './AssetLoadTracker.js';
 import { TerrainManager, type TerrainConfig, type TerrainDebugMode, type TerrainPerformanceMetrics } from './TerrainManager.js';
-import type { BodyFixedCartesian, BodyFixedPosition, TerrainSample, TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import { geodeticToBodyFixed, type BodyFixedCartesian, type BodyFixedPosition, type TerrainDatum, type TerrainSample, type TerrainSampler, type TerrainSamplerDiagnostics } from './TerrainSampler.js';
+import type { CubeCoverage } from './surface/CubeSphereGrids.js';
+import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
+import type { ImageryLayerInfo, ImageryLatitudeConvention } from './ImageryLayers.js';
+import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
+
+/**
+ * Which surface a Globe with a streamed surface is drawing:
+ * - `static` — far away; the static `baseMap` sphere.
+ * - `preloading` — sphere shown, tiles streaming behind it.
+ * - `waiting` — close enough to swap, but the first tiles are still arriving.
+ * - `streamed` — streamed imagery/terrain tiles.
+ * - `fallback` — the stream failed to load; the static sphere stays.
+ */
+export type SurfaceTransitionState = 'static' | 'preloading' | 'waiting' | 'streamed' | 'fallback';
 import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type ShadowUniforms } from './EclipseShadow.js';
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, SpiceRotation, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -34,6 +53,21 @@ function isDDSMagic(buffer: ArrayBuffer): boolean {
   if (buffer.byteLength < 4) return false;
   const h = new Uint8Array(buffer, 0, 4);
   return h[0] === 0x44 && h[1] === 0x44 && h[2] === 0x53 && h[3] === 0x20;
+}
+
+/**
+ * Make a DDS globe map sample north-up. A DDS stores its top (north) row
+ * first and is uploaded as-is, because `CompressedTexture` ignores `flipY`,
+ * so on the sphere (v = 0 at the south pole) it would show upside-down where
+ * the same map as a JPG/PNG is correct. Flipping v in the texture transform
+ * costs nothing and leaves the compressed mip chain untouched.
+ *
+ * Globe maps only: .cmod mesh models load their DDS through CmodLoader with
+ * UVs authored for the unflipped texture.
+ */
+function flipGlobeDDS(texture: THREE.CompressedTexture): void {
+  texture.repeat.y = -1;
+  texture.offset.y = 1;
 }
 
 const _tmpQ = new THREE.Quaternion();
@@ -77,6 +111,7 @@ export class BodyMesh extends THREE.Object3D {
   private axesVisible = false;
   /** Lat/lon grid overlay */
   private gridLines: THREE.Group | null = null;
+  private imageryFootprint: THREE.Group | null = null;
   private gridVisible = false;
   /** Scene scale factor (km → scene units). Set each frame by updatePosition. */
   scaleFactor = 1;
@@ -86,8 +121,8 @@ export class BodyMesh extends THREE.Object3D {
   private terrainVisible = false;
   /** Surface tile overlays (local-frame tilesets positioned on the globe) */
   private surfaceOverlays: SurfaceTileOverlay[] = [];
-  /** Frame counter for throttling terrain elevation sampling */
-  private terrainSampleFrame = 0;
+  private _surfaceState: SurfaceTransitionState = 'static';
+  private loggedStreamFallback = false;
   /**
    * Initial-asset tracker, set by UniverseRenderer right after construction.
    * Every model/texture load this mesh starts registers with it, so the viewer
@@ -116,6 +151,23 @@ export class BodyMesh extends THREE.Object3D {
    */
   readonly ellipsoidRatios: [number, number, number] = [1, 1, 1];
 
+  /** The user's show/hide choice (`UniverseRenderer.setBodyVisible`). */
+  private _userVisible = true;
+  /** Whether the body is in the scene at the current time: inside its
+   *  existence window with a position to draw at. Set by the renderer each frame. */
+  private _present = true;
+
+  /** The user's show/hide choice, independent of whether the body is present. */
+  get userVisible(): boolean { return this._userVisible; }
+  set userVisible(v: boolean) { this._userVisible = v; this.visible = v && this._present; }
+  /** Whether the body is in the scene now. Drawn only when present and user-visible. */
+  get present(): boolean { return this._present; }
+  set present(v: boolean) {
+    if (v === this._present) return;
+    this._present = v;
+    this.visible = v && this._userVisible;
+  }
+
   /**
    * The body-fixed frame as rendered: the rotation taking body-fixed axes
    * (SPICE convention — Z the pole, X the prime meridian) to world axes.
@@ -131,6 +183,34 @@ export class BodyMesh extends THREE.Object3D {
 
   get hasModel(): boolean { return this.modelContainer !== null; }
   get isModelVisible(): boolean { return this.modelContainer?.visible ?? false; }
+
+  /** Visible authoritative meshes, including the active TimeSwitched entry. */
+  getDskMeshes(): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    if (this.visible && this.isModelVisible) this.modelContainer!.traverseVisible((object) => {
+      if (isMesh(object) && object.userData.dskSurface) meshes.push(object);
+    });
+    return meshes;
+  }
+
+  private readonly dskRaycaster = new THREE.Raycaster();
+  private readonly dskRayDirection = new THREE.Vector3();
+
+  /** Null means no rendered DSK; otherwise test the actual plates, not a sphere. */
+  dskOccludes(origin: THREE.Vector3, point: THREE.Vector3): boolean | null {
+    const meshes = this.getDskMeshes();
+    if (!meshes.length) return null;
+    const direction = this.dskRayDirection.copy(point).sub(origin);
+    const distance = direction.length();
+    if (distance === 0) return false;
+    this.updateWorldMatrix(true, true);
+    const caster = this.dskRaycaster;
+    caster.set(origin, direction.divideScalar(distance));
+    caster.near = 0;
+    caster.far = distance * (1 - 1e-7);
+    caster.firstHitOnly = true;
+    return caster.intersectObjects(meshes, false).length > 0;
+  }
   get hasShadowReceiving(): boolean { return this.shadowEnabled; }
   /** True when `displayRadius` reflects real geometry rather than a classification fallback. */
   get hasMeasuredRadius(): boolean { return this._hasMeasuredRadius; }
@@ -238,6 +318,7 @@ export class BodyMesh extends THREE.Object3D {
     url: string,
     sourcePath?: string,
     modelResolver?: ModelResolver,
+    geometry: Record<string, unknown> = this.body.geometryData ?? {},
   ): Promise<THREE.Object3D> {
     if (ext === 'glb' || ext === 'gltf') {
       const loader = new GLTFLoader();
@@ -272,18 +353,74 @@ export class BodyMesh extends THREE.Object3D {
       if (!parsed) throw new Error(`Failed to parse .cmod (${url})`);
       return parsed;
     }
+    if (ext === '3ds') {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+      const buf = await resp.arrayBuffer();
+      const manager = this.textureManagerFor(sourcePath, modelResolver);
+      const object = new TDSLoader(manager).parse(buf, '');
+      object.traverse((child) => {
+        if (!isMesh(child)) return;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (!(material instanceof THREE.MeshPhongMaterial)) continue;
+          if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+          // Legacy 3DS has only a bump slot. Some packages supply a tangent
+          // normal map there; the catalog must explicitly identify it.
+          if (geometry.bumpMapType === 'normal' && material.bumpMap) {
+            material.normalMap = material.bumpMap;
+            material.bumpMap = null;
+          }
+        }
+      });
+      return object;
+    }
     throw new Error(`Unsupported model format: .${ext}`);
   }
 
   /**
-   * Load a 3D model (GLTF/GLB/OBJ) to replace the placeholder sphere.
+   * A LoadingManager for a legacy model's material textures (.3ds): each map
+   * name resolves relative to the model file through the catalog's resolver —
+   * which is what lets a dropped model find its dropped textures — and each
+   * one is registered with the asset tracker as it starts, like a .cmod's.
+   */
+  private textureManagerFor(sourcePath?: string, modelResolver?: ModelResolver): THREE.LoadingManager {
+    const manager = new THREE.LoadingManager();
+    const dir = sourcePath ? sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) : '';
+    manager.setURLModifier((name) => {
+      // 3DS files written on Windows carry backslash paths.
+      const rel = name.replace(/\\/g, '/');
+      return (modelResolver && sourcePath ? modelResolver(dir + rel) : undefined) ?? rel;
+    });
+    const assets = this.assets;
+    if (!assets) return manager;
+    const settle = new Map<string, { ok: () => void; fail: (e: Error) => void }>();
+    const { itemStart, itemEnd, itemError } = manager;
+    manager.itemStart = (url: string) => {
+      itemStart.call(manager, url);
+      const p = new Promise<void>((ok, fail) => settle.set(url, { ok, fail }));
+      assets.track({ kind: 'texture', owner: this.body.name, role: `3ds:${url.split('/').pop()}`, url }, p);
+    };
+    // A failed image reports itemError and then itemEnd; the promise keeps the first.
+    manager.itemError = (url: string) => {
+      itemError.call(manager, url);
+      settle.get(url)?.fail(new Error(`texture failed to load: ${url}`));
+    };
+    manager.itemEnd = (url: string) => {
+      itemEnd.call(manager, url);
+      settle.get(url)?.ok();
+    };
+    return manager;
+  }
+
+  /**
+   * Load a 3D model (GLTF/GLB, OBJ, CMOD, or legacy 3DS) to replace the placeholder sphere.
    * Applies size scaling, mesh offset, and mesh rotation from the geometry spec.
    */
   async loadModel(url: string, scaleFactor: number, sourcePath?: string, modelResolver?: ModelResolver): Promise<void> {
     if (this.loadedModel) return;
     this.loadedModel = true;
 
-    const geo = this.body.geometryData ?? {};
     // Use sourcePath for extension detection (blob URLs have no extension)
     const extSource = sourcePath ?? url;
     const ext = extSource.split('.').pop()?.toLowerCase() ?? '';
@@ -300,6 +437,159 @@ export class BodyMesh extends THREE.Object3D {
       console.warn(`[Cosmolabe] Failed to load model for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
       return;
     }
+
+    this.installModel(object, scaleFactor, false);
+  }
+
+  /**
+   * Load a SPICE DSK shape model as this body's surface.
+   *
+   * Unlike an art model, a DSK is authoritative: its vertices are already km
+   * in the body-fixed frame, centred on the body, so `size`, `meshRotation`
+   * and `meshOffset` do not apply and are ignored. The body's rotation model
+   * places it, which is why a Dsk body needs one naming the same frame the DSK
+   * does; a mismatch is reported rather than silently drawn in the wrong
+   * orientation.
+   */
+  async loadDsk(url: string, scaleFactor: number, provider: DskShapeProvider, sourcePath?: string): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+    const load = this.buildDskObject(url, provider, sourcePath, this.body.geometryData ?? {});
+    this.assets?.track({ kind: 'model', owner: this.body.name, role: 'model:dsk', url }, load);
+    let object: THREE.Object3D;
+    try {
+      object = await load;
+    } catch (e) {
+      console.warn(`[Cosmolabe] Failed to load DSK for ${this.body.name}: ${e instanceof Error ? e.message : e}`);
+      return;
+    }
+    this.installModel(object, scaleFactor, true);
+  }
+
+  /** Fetch, read and mesh one DSK; `geo` is the geometry spec it came from (for `color`). */
+  private async buildDskObject(
+    url: string,
+    provider: DskShapeProvider,
+    sourcePath: string | undefined,
+    geo: Record<string, unknown>,
+  ): Promise<THREE.Object3D> {
+    const name = (sourcePath ?? url).split(/[?#]/)[0]!.split('/').pop()!.replace(/\.gz$/i, '') || 'shape.bds';
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    const bytes = await gunzipIfNeeded(new Uint8Array(await resp.arrayBuffer()));
+    const shape = provider.readDsk(name, bytes);
+    this.checkDskFrame(name, shape.centerId, shape.frame);
+    const material = new THREE.MeshStandardMaterial({ color: this.dskColor(geo), roughness: 1, metalness: 0 });
+    const mesh = new THREE.Mesh(dskToBufferGeometry(shape), material);
+    // Accelerate this authoritative surface only; preserve native plate/index
+    // order for probe normals and provenance. Other scene meshes are untouched.
+    mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, { indirect: true });
+    mesh.geometry.addEventListener('dispose', () => { mesh.geometry.boundsTree = undefined; });
+    mesh.raycast = acceleratedRaycast;
+    mesh.userData.dskSurface = true;
+    mesh.name = `${this.body.name} DSK`;
+    const group = new THREE.Group();
+    group.add(mesh);
+    return group;
+  }
+
+  /** The TimeSwitched entries, when the body's geometry is one; see `applyTimeSwitch`. */
+  private timeSwitch: { startEt: number; endEt: number; object: THREE.Object3D }[] | null = null;
+
+  /**
+   * Load a `TimeSwitched` geometry: one shape per time window, drawn only
+   * inside its window (Cosmographia's `sequence`). Rosetta is the case this is
+   * for: its bus with Philae attached until separation, the bare bus after.
+   *
+   * Each entry is a `Dsk` or a `Mesh`. A Dsk entry is body-fixed km as it
+   * stands; a Mesh entry carries its own `size`, `meshRotation` and
+   * `meshOffset`, applied to that entry alone. The whole set is installed as
+   * one model, so sizing, picking and labels see the union of the shapes.
+   * An entry that fails to load is reported and left out; the rest still draw.
+   */
+  async loadTimeSwitched(
+    entries: readonly TimeSwitchedEntry[],
+    scaleFactor: number,
+    provider: DskShapeProvider | null,
+    modelResolver?: ModelResolver,
+  ): Promise<void> {
+    if (this.loadedModel) return;
+    this.loadedModel = true;
+    const loads = entries.map(async (entry) => {
+      const geo = entry.geometry;
+      const source = typeof geo.source === 'string' ? geo.source : undefined;
+      const url = source ? modelResolver?.(source) : undefined;
+      const type = geo.type;
+      const role = `timeSwitched:${type}`;
+      if (!source || !url) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url: source ?? '' }, 'TimeSwitched entry source did not resolve to a URL');
+        return null;
+      }
+      if (type === 'Dsk' && !provider) {
+        this.assets?.fail({ kind: 'model', owner: this.body.name, role, url }, 'reading a DSK needs a SPICE engine, and this scene has none');
+        return null;
+      }
+      const load = type === 'Dsk'
+        ? this.buildDskObject(url, provider!, source, geo)
+        : type === 'Mesh'
+          ? this.fetchModel(source.split('.').pop()?.toLowerCase() ?? '', url, source, modelResolver, geo).then((o) => alignMeshEntry(o, geo))
+          : Promise.reject(new Error(`TimeSwitched entries must be Dsk or Mesh, not ${String(type)}`));
+      this.assets?.track({ kind: 'model', owner: this.body.name, role, url }, load);
+      try {
+        return { startEt: entry.startEt, endEt: entry.endEt, object: await load };
+      } catch (e) {
+        console.warn(`[Cosmolabe] ${this.body.name}: TimeSwitched entry ${source} failed: ${e instanceof Error ? e.message : e}`);
+        return null;
+      }
+    });
+    const loaded = (await Promise.all(loads)).filter((x): x is NonNullable<typeof x> => x !== null);
+    if (loaded.length === 0) return;
+    const group = new THREE.Group();
+    for (const l of loaded) group.add(l.object);
+    this.timeSwitch = loaded;
+    this.installModel(group, scaleFactor, true);
+    if (this.lastEt !== undefined) this.applyTimeSwitch(this.lastEt);
+  }
+
+  private lastEt: number | undefined;
+
+  /** Show only the TimeSwitched entry whose window holds `et` (start inclusive, end exclusive). */
+  private applyTimeSwitch(et: number): void {
+    if (!this.timeSwitch) return;
+    for (const e of this.timeSwitch) e.object.visible = et >= e.startEt && et < e.endEt;
+  }
+
+  private dskColor(geo: Record<string, unknown>): THREE.ColorRepresentation {
+    const c = geo.color ?? this.body.geometryData?.color;
+    if (Array.isArray(c) && c.length >= 3) return new THREE.Color(c[0] as number, c[1] as number, c[2] as number);
+    if (typeof c === 'string') return c;
+    return DEFAULT_BODY_COLORS[this.body.classification ?? ''] ?? 0xcccccc;
+  }
+
+  /** Refuse known incompatible coordinates; a NAIF structure origin is distinct from its spacecraft CoM. */
+  private checkDskFrame(name: string, centerId: number, frame: string): void {
+    const naifId = this.body.naifId;
+    if (naifId != null && centerId !== naifId) {
+      throw new Error(`DSK ${name} describes NAIF body ${centerId}, but it is drawn on ${this.body.name} (${naifId}); use the DSK origin's trajectory`);
+    }
+    const rotation = this.body.rotation;
+    if (!rotation) {
+      console.warn(`[Cosmolabe] ${this.body.name} has a DSK surface but no rotationModel; the shape will not turn with the body`);
+      return;
+    }
+    if (frame && rotation instanceof SpiceRotation && rotation.bodyFixedFrame.toUpperCase() !== frame.toUpperCase()) {
+      throw new Error(`DSK ${name} is in frame ${frame}, but ${this.body.name} rotates into ${rotation.bodyFixedFrame}`);
+    }
+  }
+
+  /**
+   * Put a parsed model in place of the placeholder sphere: sizing, the model
+   * render layer, shadows and the log-depth strip. `bodyFixedKm` marks geometry
+   * that is already km in the body-fixed frame (a DSK), which skips the
+   * catalog's size and mesh-alignment fields.
+   */
+  private installModel(object: THREE.Object3D, scaleFactor: number, bodyFixedKm: boolean): void {
+    const geo: Record<string, unknown> = bodyFixedKm ? {} : (this.body.geometryData ?? {});
 
     // Store mesh rotation for composition with SPICE attitude (Cosmographia quaternion: [w, x, y, z])
     const meshRotation = geo.meshRotation as number[] | undefined;
@@ -349,17 +639,21 @@ export class BodyMesh extends THREE.Object3D {
       );
     }
 
-    // Multi-pass rendering: models are rendered in a separate pass (layer 1) with
-    // cleared depth buffer and tight near/far, so standard hardware depth interpolation
-    // handles intra-model face sorting with full precision. No log depth override needed.
+    // Art models use layer 1 with tight standard depth. Physical DSK meshes
+    // share layer 0 and logarithmic depth with globes and trajectories.
     const emissiveModel = this.body.classification === 'star' || this.body.geometryData?.emissive === true;
     // Three.js shadow-map casting flag, read from the catalog. Used by the
     // sun DirectionalLight to render this mesh's silhouette into the shadow
     // map, which the parent body's terrain shader then samples. Independent
     // of the eclipse-shadow analytical system.
     const castShadowFlag = this.body.geometryData?.castShadow === true;
+    let hasArtModel = false;
     object.traverse((child) => {
-      child.layers.set(1);
+      const dskSurface = isMesh(child) && child.userData.dskSurface === true;
+      if (isMesh(child) && !dskSurface) hasArtModel = true;
+      // Physical DSKs share globe/trajectory depth. Art models retain their
+      // separate tight-depth pass; drawing DSKs there paints over foregrounds.
+      child.layers.set(dskSurface ? 0 : 1);
       if (emissiveModel) child.layers.enable(BLOOM_LAYER);
       if (castShadowFlag && isMesh(child)) child.castShadow = true;
 
@@ -373,21 +667,24 @@ export class BodyMesh extends THREE.Object3D {
         const receiveShadow = this.shadowEnabled;
         const su = this.shadowUniforms;
         for (const mat of mats) {
-          // Strip log depth chunks — model uses standard hardware depth.
+          // Only art models strip logarithmic depth for the tight model pass.
           // Also inject eclipse shadow uniforms when shadow receiving is enabled.
           mat.onBeforeCompile = (shader: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> }) => {
-            shader.vertexShader = shader.vertexShader
-              .replace('#include <logdepthbuf_pars_vertex>', '')
-              .replace('#include <logdepthbuf_vertex>', '');
-            shader.fragmentShader = shader.fragmentShader
-              .replace('#include <logdepthbuf_pars_fragment>', '')
-              .replace('#include <logdepthbuf_fragment>', '');
+            if (!dskSurface) {
+              shader.vertexShader = shader.vertexShader
+                .replace('#include <logdepthbuf_pars_vertex>', '')
+                .replace('#include <logdepthbuf_vertex>', '');
+              shader.fragmentShader = shader.fragmentShader
+                .replace('#include <logdepthbuf_pars_fragment>', '')
+                .replace('#include <logdepthbuf_fragment>', '');
+            }
             if (receiveShadow) injectShadowIntoShader(shader, su);
           };
-          mat.customProgramCacheKey = () => receiveShadow ? 'model_nologdepth_shadow_v1' : 'model_nologdepth';
+          mat.customProgramCacheKey = () => `${dskSurface ? 'dsk_logdepth' : 'model_nologdepth'}${receiveShadow ? '_shadow_v1' : ''}`;
         }
       }
     });
+    object.layers.set(hasArtModel ? 1 : 0);
 
     // Replace placeholder sphere with loaded model
     this.mesh.visible = false;
@@ -576,13 +873,23 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
+  /**
+   * Length of this body's axes, in km: twice the effective display radius,
+   * so they clear the surface. The effective radius is the loaded model's
+   * when there is one. Shared by these axes and the analytical body axes
+   * (`SpatialRelationshipLayer`), so both agree on one size.
+   */
+  axesLengthKm(): number {
+    return this.displayRadius * 2;
+  }
+
   /** Show or hide body-fixed orientation axes (red=X/prime meridian, green=Y, blue=Z/pole). */
   showAxes(show: boolean): void {
     this.axesVisible = show;
     if (show && !this.axesHelper) {
-      // Size = 2x display radius so axes extend well beyond the body surface
-      const size = this.displayRadius * 2 * this.scaleFactor;
-      this.axesHelper = new THREE.AxesHelper(size);
+      // Unit axes, scaled each frame: a model loaded later changes the display radius.
+      this.axesHelper = new THREE.AxesHelper(1);
+      this.axesHelper.scale.setScalar(this.axesLengthKm() * this.scaleFactor);
       this.axesHelper.renderOrder = 999;
       (this.axesHelper.material as THREE.Material).depthTest = false;
       this.add(this.axesHelper);
@@ -734,11 +1041,14 @@ export class BodyMesh extends THREE.Object3D {
   /** Update position from absolute coordinates (km) and apply rotation. */
   updatePosition(absolutePos: [number, number, number], et: number, scaleFactor: number): void {
     this.scaleFactor = scaleFactor;
+    this.lastEt = et;
+    this.applyTimeSwitch(et);
     this.position.set(
       absolutePos[0] * scaleFactor,
       absolutePos[1] * scaleFactor,
       absolutePos[2] * scaleFactor,
     );
+    this.axesHelper?.scale.setScalar(this.axesLengthKm() * scaleFactor);
 
     // Apply rotation if available (try/catch: CK-based rotations may not cover all times)
     try {
@@ -944,9 +1254,34 @@ export class BodyMesh extends THREE.Object3D {
   /** Whether this body has streaming terrain active */
   get hasTerrain(): boolean { return this.terrainManager !== null; }
 
+  get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.terrainManager?.surfaceAppearance ?? null; }
+  get surfaceContourIntervalKm(): number | null { return this.terrainManager?.surfaceContourIntervalKm ?? null; }
+  get surfaceAppearanceDatum() { return this.terrainManager?.surfaceAppearanceDatum ?? null; }
+  get surfaceAppearanceStatus() { return this.terrainManager?.surfaceAppearanceStatus ?? null; }
+  setSurfaceAppearance(settings: SurfaceAppearanceSettings): void { this.terrainManager?.setSurfaceAppearance(settings); }
+  /** Decoded CPU terrain for physical-surface queries, or null without streamed terrain. */
+  get terrainSampler(): TerrainSampler | null { return this.terrainManager?.sampler ?? null; }
+
+  /**
+   * Revision of the CPU terrain `sampleTerrain` answers from — the cube grids
+   * when configured, the tile sampler otherwise — or null without terrain.
+   * Not `terrainSampler.revision`, which cube grids never move.
+   */
+  get terrainRevision(): number | null { return this.terrainManager?.cpuRevision ?? null; }
+
   /** Get the terrain tile group for raycasting (null if no terrain or not visible) */
   get terrainTileGroup(): THREE.Object3D | null {
     return this.terrainManager?.group ?? null;
+  }
+
+  /** Draw every selected terrain tile until the next update (before rendering with a non-main camera). */
+  showCulledTerrainTiles(): void {
+    this.terrainManager?.showCulledTiles();
+  }
+
+  /** Restore the main camera's terrain draw cull (after `showCulledTerrainTiles`). */
+  recullTerrainTiles(): void {
+    this.terrainManager?.recullToMainView();
   }
 
   /** Toggle debug tile bounds on terrain */
@@ -994,12 +1329,42 @@ export class BodyMesh extends THREE.Object3D {
 
   /** Current CPU terrain cache state for diagnostics and UI. */
   get terrainDiagnostics(): TerrainSamplerDiagnostics | null {
-    return this.terrainManager?.sampler.diagnostics ?? null;
+    return this.terrainManager?.cpuDiagnostics ?? null;
+  }
+
+  /** The terrain product's declared datum, or null when this body has no streamed terrain. */
+  get terrainDatum(): TerrainDatum | null {
+    return this.terrainManager?.sampler.datum ?? null;
   }
 
   /** Configured terrain source identifier for diagnostics and UI. */
   get terrainSourceId(): string | null {
-    return this.terrainManager?.sampler.source.id ?? null;
+    return this.terrainManager?.cpuSource.id ?? null;
+  }
+
+  /** Experimental cube-sphere CPU coverage at a point (#149); null when the terrain has no cube grids. */
+  terrainCubeCoverage(latDeg: number, lonDeg: number): CubeCoverage | null {
+    return this.terrainManager?.cubeCoverage(latDeg, lonDeg) ?? null;
+  }
+
+  /** Experimental cube-sphere CPU grid residency (#149); null when the terrain has no cube grids. */
+  get terrainCubeStats(): TerrainManager['cubeStats'] {
+    return this.terrainManager?.cubeStats ?? null;
+  }
+
+  /** Experimental cube-face imagery residency/requests/blocks (#149); null when the terrain has no cube imagery. */
+  get terrainCubeImageryStats(): TerrainManager['cubeImageryStats'] {
+    return this.terrainManager?.cubeImageryStats ?? null;
+  }
+
+  /** #148 ray query against CPU terrain in body-fixed km; null when this terrain has no Cartesian CPU surface. */
+  intersectTerrainRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection | null {
+    return this.terrainManager?.intersectSurfaceRay(ray, options) ?? null;
+  }
+
+  /** Visual/physical loading agreement, separate from scientific terrain samples. */
+  terrainNavigationSurface(point: BodyFixedCartesian): ReturnType<TerrainManager['navigationSurface']> {
+    return this.terrainManager?.navigationSurface(point) ?? null;
   }
 
   /**
@@ -1062,76 +1427,344 @@ export class BodyMesh extends THREE.Object3D {
 
   /**
    * Per-frame terrain update. Handles tile LOD streaming and sphere↔tiles transition.
+   *
+   * The static sphere (the Globe's `baseMap`) is what shows from far away, and
+   * it stays up until the streamed surface can replace it cleanly: inside the
+   * show zone the tiles keep streaming behind it until `isReadyToShow`, so the
+   * swap never reveals an untextured or half-loaded globe. A stream that
+   * cannot load at all (`hasStreamFailed`) leaves the sphere up for good.
+   *
    * @param camera Scene camera
    * @param renderer WebGL renderer
    * @param screenPixels How many pixels the body subtends on screen
    */
-  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
-    if (!this.terrainManager) return;
+  updateTerrain(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number, labelObstacles: readonly ScreenRect[] | null = []): void {
+    const tm = this.terrainManager;
+    if (!tm) return;
+
+    if (tm.hasStreamFailed()) {
+      if (this._surfaceState !== 'fallback') {
+        if (!this.loggedStreamFallback) {
+          this.loggedStreamFallback = true;
+          console.warn(`[Cosmolabe] Streamed surface for ${this.body.name} failed to load; showing the static map.`);
+        }
+        this.showStaticSurface();
+        this._surfaceState = 'fallback';
+      }
+      return;
+    }
 
     // Two thresholds: pre-load starts fetching tiles while sphere is still showing,
     // so by the time we swap, higher-LOD tiles are already cached → less pop-in.
     // Defaults 40 / 80 are tunable per-body via TerrainConfig.preloadAtPixels/showAtPixels.
-    const TERRAIN_PRELOAD_PX = this.terrainManager.preloadAtPixels;
-    const TERRAIN_SHOW_PX = this.terrainManager.showAtPixels;
-
-    if (screenPixels >= TERRAIN_SHOW_PX) {
-      // Show terrain tiles, hide the placeholder sphere entirely. We used to
-      // keep the sphere shrunk 0.5% behind tiles as a "fill the gaps while
-      // tiles stream in" fallback, but with hierarchical 3D Tiles assets
-      // (e.g. Cesium Mars) whose root doesn't always cover the whole globe,
-      // the sphere bleeds through with mismatched shading + different LOD
-      // texture, producing a patchwork that looks worse than the brief blank
-      // gaps during initial tile load.
-      if (!this.terrainVisible) {
-        this.terrainManager.group.visible = true;
-        this.terrainVisible = true;
-      }
-      this.mesh.visible = false;
-
-      // Scale grid lines above terrain surface (not shrunk with the mesh).
-      // 0.5% above terrain clears typical topography while staying close to surface.
-      if (this.gridLines && this.gridVisible) {
-        const gridScale = this.scaleFactor * 1.005;
-        this.gridLines.scale.set(
-          gridScale * this.ellipsoidRatios[0],
-          gridScale * this.ellipsoidRatios[1],
-          gridScale * this.ellipsoidRatios[2],
-        );
-      }
-
-      // Apply the same rotation as the static mesh so terrain aligns with body orientation
-      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
-      // Apply scene scale factor to the terrain group
-      this.terrainManager.group.scale.setScalar(this.scaleFactor);
-
-      // Force world matrix update before tile LOD computation.
-      // setCamera() uses the group's world matrix to transform the camera into tile space.
-      // Without this, it uses stale matrices from the previous frame's render pass,
-      // causing incorrect LOD selection after panning/zooming.
-      this.terrainManager.group.updateMatrixWorld(true);
-
-      // Update tile LOD — pass body center position so the coverage camera
-      // can ensure tiles load even when the main camera faces away.
-      this.terrainManager.update(camera, renderer, this.position);
-    } else if (screenPixels >= TERRAIN_PRELOAD_PX) {
-      // Pre-load zone: update tile LOD (fetches tiles) but keep sphere visible.
-      // Terrain group stays hidden — we're just warming the cache.
-      if (this.terrainVisible) {
-        this.terrainManager.group.visible = false;
-        this.terrainVisible = false;
-        this.mesh.visible = true;
-      }
-      this.terrainManager.group.quaternion.copy(this.mesh.quaternion);
-      this.terrainManager.group.scale.setScalar(this.scaleFactor);
-      this.terrainManager.group.updateMatrixWorld(true);
-      this.terrainManager.update(camera, renderer, this.position);
-    } else if (this.terrainVisible) {
+    if (screenPixels < tm.preloadAtPixels) {
       // Camera is far — hide terrain, show static sphere
-      this.terrainManager.group.visible = false;
-      this.terrainVisible = false;
-      this.mesh.visible = true;
+      this.showStaticSurface();
+      tm.resetShowWait();
+      this._surfaceState = 'static';
+      return;
     }
+
+    // Apply the same rotation as the static mesh so terrain aligns with body
+    // orientation, and the scene scale factor. Force the world matrix update
+    // before tile LOD computation: setCamera() uses the group's world matrix to
+    // transform the camera into tile space, and stale matrices from the
+    // previous frame's render pass select the wrong LOD after panning/zooming.
+    tm.group.quaternion.copy(this.mesh.quaternion);
+    tm.group.scale.setScalar(this.scaleFactor);
+    tm.group.updateMatrixWorld(true);
+    // Update tile LOD — pass body center position so the coverage camera
+    // can ensure tiles load even when the main camera faces away.
+    tm.update(camera, renderer, this.position, labelObstacles);
+
+    if (screenPixels < tm.showAtPixels) {
+      // Pre-load zone: tiles fetch while the sphere stays visible.
+      this.showStaticSurface();
+      tm.resetShowWait();
+      this._surfaceState = 'preloading';
+      return;
+    }
+
+    if (!this.terrainVisible && !tm.isReadyToShow()) {
+      // Show zone, but the first tiles are still arriving: keep the sphere.
+      this._surfaceState = 'waiting';
+      return;
+    }
+
+    // Show terrain tiles, hide the placeholder sphere entirely. We used to
+    // keep the sphere shrunk 0.5% behind tiles as a "fill the gaps while
+    // tiles stream in" fallback, but with hierarchical 3D Tiles assets
+    // (e.g. Cesium Mars) whose root doesn't always cover the whole globe,
+    // the sphere bleeds through with mismatched shading + different LOD
+    // texture, producing a patchwork that looks worse than the brief blank
+    // gaps during initial tile load.
+    if (!this.terrainVisible) {
+      tm.group.visible = true;
+      this.terrainVisible = true;
+    }
+    this.mesh.visible = false;
+    this._surfaceState = 'streamed';
+
+    // Scale grid lines above terrain surface (not shrunk with the mesh).
+    // 0.5% above terrain clears typical topography while staying close to surface.
+    if (this.gridLines && this.gridVisible) {
+      const gridScale = this.scaleFactor * 1.005;
+      this.gridLines.scale.set(
+        gridScale * this.ellipsoidRatios[0],
+        gridScale * this.ellipsoidRatios[1],
+        gridScale * this.ellipsoidRatios[2],
+      );
+    }
+  }
+
+  /** Defer contour layout until the renderer has its final post-selection camera. */
+  updateTerrainLabels(camera: THREE.Camera, renderer: THREE.WebGLRenderer, labelObstacles: readonly ScreenRect[]): void {
+    if (this.terrainVisible) this.terrainManager?.updateContourLabels(camera, renderer, labelObstacles);
+  }
+
+  private showStaticSurface(): void {
+    if (!this.terrainVisible) return;
+    this.terrainManager!.group.visible = false;
+    this.terrainVisible = false;
+    this.mesh.visible = true;
+  }
+
+  /** Which surface the body is drawing, for diagnostics. Null without a streamed surface. */
+  get surfaceTransitionState(): SurfaceTransitionState | null {
+    return this.terrainManager ? this._surfaceState : null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Imagery layers (#123) — see TerrainManager for the semantics
+  // ---------------------------------------------------------------------------
+
+  /** This body's streamed imagery stack, bottom → top; empty without one. */
+  get imageryLayers(): ImageryLayerInfo[] {
+    return this.terrainManager?.imageryLayers ?? [];
+  }
+
+  setImageryLayerVisible(id: string, visible: boolean): boolean {
+    return this.terrainManager?.setImageryLayerVisible(id, visible) ?? false;
+  }
+
+  setImageryLayerOpacity(id: string, opacity: number): boolean {
+    return this.terrainManager?.setImageryLayerOpacity(id, opacity) ?? false;
+  }
+
+  moveImageryLayer(id: string, toIndex: number): boolean {
+    return this.terrainManager?.moveImageryLayer(id, toIndex) ?? false;
+  }
+
+  /** Whether the streamed surface is imagery on the ellipsoid (no physical terrain). */
+  get isImageryOnlySurface(): boolean {
+    return this.terrainManager?.imageryOnly ?? false;
+  }
+
+  /** Per-terrain-tile imagery composite resolution in px, or null without a streamed surface. */
+  get overlayResolution(): number | null {
+    return this.terrainManager?.overlayResolution ?? null;
+  }
+
+  setOverlayResolution(px: number): void {
+    this.terrainManager?.setOverlayResolution(px);
+  }
+
+  /**
+   * A geodetic position on the streamed surface's ellipsoid (the one imagery
+   * tiles lie on), as an offset from the body centre in km, in the mesh frame
+   * (apply `mesh.quaternion` for world axes). Null without a streamed surface.
+   */
+  geodeticOffsetKm(latDeg: number, lonDeg: number, heightKm: number, out: THREE.Vector3): THREE.Vector3 | null {
+    const datum = this.terrainDatum;
+    if (!datum) return null;
+    const p = geodeticToBodyFixed({ latDeg, lonDeg, heightKm }, datum);
+    // Body-fixed is Z-up; the sphere's geometry space is Y-up with -Z toward +90° lon.
+    return out.set(p.xKm, p.zKm, -p.yKm);
+  }
+
+  /** One coordinate/visible-surface resolver shared by imagery highlighting and navigation. */
+  private imageryProjection(latitudeConvention: ImageryLatitudeConvention) {
+    const datum = this.terrainDatum;
+    if (!datum) return null;
+    // Cube imagery is registered to body-centred directions; other imagery
+    // uses geodetic latitude. Never reinterpret a cube footprint as geodetic.
+    const planetocentric = latitudeConvention === 'planetocentric';
+    const shape = datum.referenceShape;
+    const radii = shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : shape.radiiKm;
+    const reachKm = Math.max(...radii) * 2;
+    const at = (latDeg: number, lonDeg: number) => {
+      if (!planetocentric) {
+        const p = geodeticToBodyFixed({ latDeg, lonDeg }, datum);
+        return new THREE.Vector3(p.xKm, p.zKm, -p.yKm);
+      }
+      const lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
+      const d = new THREE.Vector3(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
+      const radius = 1 / Math.hypot(d.x / radii[0], d.y / radii[2], d.z / radii[1]);
+      return d.multiplyScalar(radius);
+    };
+    const frame = new THREE.Matrix4(), inverse = new THREE.Matrix4();
+    const caster = new THREE.Raycaster(), meshes: THREE.Object3D[] = [];
+    caster.firstHitOnly = true;
+    const origin = new THREE.Vector3(), direction = new THREE.Vector3();
+    if (this.terrainTileGroup) frame.copy(this.terrainTileGroup.matrixWorld);
+    else frame.copy(this.mesh.matrixWorld).scale(new THREE.Vector3(...this.ellipsoidRatios.map(r => 1 / r)));
+    inverse.copy(frame).invert();
+    this.terrainTileGroup?.traverse(o => {
+      if (!isMesh(o) || o.name.startsWith('cube-imagery-block')) return;
+      // #272 hides the original when clipped imagery blocks draw its same
+      // surface. Reuse the shared picking contract for that original only.
+      for (let parent: THREE.Object3D | null = o; parent; parent = parent.parent) {
+        if (!parent.visible && !isDrawnCubeImagerySource(parent)) return;
+      }
+      meshes.push(o);
+    });
+    const normal = (point: THREE.Vector3) => planetocentric ? point.clone().normalize()
+      : new THREE.Vector3(point.x / radii[0] ** 2, point.y / radii[2] ** 2, point.z / radii[1] ** 2).normalize();
+    const project = (point: THREE.Vector3) => {
+      direction.copy(normal(point));
+      origin.copy(point).addScaledVector(direction, reachKm).applyMatrix4(frame);
+      direction.negate().transformDirection(frame);
+      caster.set(origin, direction);
+      const hit = caster.intersectObjects(meshes, false)[0];
+      return hit ? hit.point.clone().applyMatrix4(inverse) : point.clone();
+    };
+    // Body/camera motion changes world matrices but not a footprint's local
+    // drape. Only selected geometry, draw ranges and tile-local transforms do.
+    const revision = meshes.map(mesh => {
+      const m = mesh as THREE.Mesh;
+      const transforms: string[] = [];
+      for (let parent: THREE.Object3D | null = m; parent && parent !== this.terrainTileGroup; parent = parent.parent) {
+        transforms.push(parent.uuid, parent.matrix.elements.join(','));
+      }
+      const position = m.geometry.getAttribute('position');
+      const positionVersion = position instanceof THREE.InterleavedBufferAttribute ? position.data.version : position?.version;
+      return [m.uuid, m.geometry.uuid, positionVersion, m.geometry.index?.version,
+        m.geometry.drawRange.start, m.geometry.drawRange.count, ...transforms].join(':');
+    }).join('|');
+    return { at, project, normal, revision };
+  }
+
+  /** Overhead imagery view in unscaled mesh-frame km, centred on the same surface as its outline. */
+  imageryRegionView(bounds: readonly [number, number, number, number], aspect: number, fovDeg: number, latitudeConvention: ImageryLatitudeConvention = 'geodetic') {
+    const projection = this.imageryProjection(latitudeConvention);
+    if (!projection) return null;
+    const [w, s, e0, n] = bounds, e = e0 < w ? e0 + 360 : e0;
+    const lat = (s + n) / 2, lon = (w + e) / 2, rad = Math.PI / 180;
+    const reference = projection.at(lat, lon), normal = projection.normal(reference);
+    const target = projection.project(reference);
+    const heightKm = (n - s) * rad * this.displayRadius;
+    const widthKm = (e - w) * rad * this.displayRadius * Math.cos(lat * rad);
+    const rangeKm = 1.2 * Math.max(heightKm, widthKm / aspect) / (2 * Math.tan(fovDeg * rad / 2));
+    const up = new THREE.Vector3(-Math.sin(lat * rad) * Math.cos(lon * rad), Math.cos(lat * rad), Math.sin(lat * rad) * Math.sin(lon * rad));
+    return { position: target.clone().addScaledVector(normal, rangeKm), target, up };
+  }
+
+  /**
+   * Outline an imagery lat/lon box `[west, south, east, north]` (degrees) on
+   * the surface, with a dot at its centre that stays visible from afar; null
+   * clears it. Drawn over the surface so terrain never hides it, and faint
+   * where it lies past the horizon, so a region on the far side still reads
+   * as there but behind.
+   */
+  showImageryFootprint(bounds: readonly [number, number, number, number] | null, latitudeConvention: ImageryLatitudeConvention = 'geodetic'): void {
+    if (this.imageryFootprint) {
+      this.remove(this.imageryFootprint);
+      this.imageryFootprint.traverse((o) => {
+        if (o instanceof THREE.Line || o instanceof THREE.Points) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+      this.imageryFootprint = null;
+    }
+    const datum = this.terrainDatum;
+    if (!bounds || !datum) return;
+    const [w, s, e0, n] = bounds;
+    const e = e0 < w ? e0 + 360 : e0;
+    const projection = this.imageryProjection(latitudeConvention)!;
+    const at = projection.at;
+    const steps = 32;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i < steps; i++) pts.push(at(s, w + (e - w) * i / steps));
+    for (let i = 0; i < steps; i++) pts.push(at(s + (n - s) * i / steps, e));
+    for (let i = 0; i < steps; i++) pts.push(at(n, e - (e - w) * i / steps));
+    for (let i = 0; i < steps; i++) pts.push(at(n - (n - s) * i / steps, w));
+    const color = new THREE.Color(0xffcc33);
+    const style = { vertexColors: true, depthTest: false, depthWrite: false, transparent: true };
+    const withAlpha = (points: THREE.Vector3[]) => {
+      const g = new THREE.BufferGeometry().setFromPoints(points);
+      const rgba = new Float32Array(points.length * 4);
+      for (let i = 0; i < points.length; i++) color.toArray(rgba, i * 4);
+      return g.setAttribute('color', new THREE.BufferAttribute(rgba, 4));
+    };
+    const outline = new THREE.LineLoop(withAlpha(pts), new THREE.LineBasicMaterial(style));
+    const dot = new THREE.Points(
+      withAlpha([at((s + n) / 2, (w + e) / 2)]),
+      new THREE.PointsMaterial({ ...style, size: 7, sizeAttenuation: false }),
+    );
+    const group = new THREE.Group();
+    const centre = new THREE.Vector3(), v = new THREE.Vector3(), toCamera = new THREE.Vector3();
+    const reference = [pts, [at((s + n) / 2, (w + e) / 2)]];
+    const frame = new THREE.Matrix4();
+    let updatedAt = -Infinity;
+    let drapedRevision: string | null = null;
+    let pending: { projection: NonNullable<ReturnType<BodyMesh['imageryProjection']>>; next: number; positions: Float32Array } | null = null;
+    // Keep the center responsive; finish the detailed outline in small batches
+    // instead of doing 128 triangle casts in one animation frame.
+    outline.visible = false;
+    const refresh = () => {
+      if (performance.now() - updatedAt >= 250) {
+        updatedAt = performance.now();
+        const current = this.imageryProjection(latitudeConvention)!;
+        if (current.revision !== drapedRevision) {
+          drapedRevision = current.revision;
+          const center = current.project(reference[1][0]);
+          const position = dot.geometry.getAttribute('position') as THREE.BufferAttribute;
+          position.setXYZ(0, center.x, center.y, center.z);
+          position.needsUpdate = true;
+          pending = { projection: current, next: 0, positions: new Float32Array(pts.length * 3) };
+        }
+      }
+      const deadline = performance.now() + 2;
+      while (pending && performance.now() < deadline) {
+        const point = pending.projection.project(pts[pending.next]);
+        point.toArray(pending.positions, pending.next * 3);
+        pending.next++;
+        if (pending.next === pts.length) {
+          // Publish the whole outline together; never show partly updated edges.
+          const position = outline.geometry.getAttribute('position') as THREE.BufferAttribute;
+          position.array.set(pending.positions);
+          position.needsUpdate = true;
+          outline.visible = true;
+          pending = null;
+        }
+      }
+    };
+    for (const o of [outline, dot]) {
+      o.renderOrder = 999;
+      o.frustumCulled = false;
+      o.onBeforeRender = (_r, _s, camera) => {
+        // Use the unflattened terrain frame: the positions already include
+        // the physical ellipsoid shape and the displayed terrain relief.
+        if (this.terrainTileGroup) frame.copy(this.terrainTileGroup.matrixWorld);
+        else frame.copy(this.mesh.matrixWorld).scale(new THREE.Vector3(...this.ellipsoidRatios.map(r => 1 / r)));
+        o.matrixWorld.copy(frame);
+        if (o === dot) refresh();
+        centre.setFromMatrixPosition(o.matrixWorld);
+        const position = o.geometry.getAttribute('position');
+        const rgba = o.geometry.getAttribute('color') as THREE.BufferAttribute;
+        for (let i = 0; i < position.count; i++) {
+          v.fromBufferAttribute(position, i).applyMatrix4(o.matrixWorld);
+          toCamera.subVectors(camera.position, v);
+          // ponytail: sphere horizon (normal ≈ radial); flattening and relief shift it slightly.
+          rgba.setW(i, toCamera.dot(v.sub(centre)) > 0 ? 1 : 0.25);
+        }
+        rgba.needsUpdate = true;
+      };
+      group.add(o);
+    }
+    this.imageryFootprint = group;
+    this.add(group);
   }
 
   // ---------------------------------------------------------------------------
@@ -1150,8 +1783,13 @@ export class BodyMesh extends THREE.Object3D {
    * The overlay group is NOT added to this BodyMesh — the caller (UniverseRenderer)
    * adds it to a separate scene for camera-relative rendering.
    */
-  addSurfaceTiles(config: SurfaceTileConfig, renderer: THREE.WebGLRenderer): SurfaceTileOverlay {
-    const overlay = new SurfaceTileOverlay(config, this.displayRadius, renderer);
+  addSurfaceTiles(config: SurfaceTileConfig): SurfaceTileOverlay {
+    const rotation = this.body.rotation;
+    if (!rotation?.bodyFixedFrame
+        || rotation.bodyFixedFrame.toUpperCase() !== config.registration.bodyFixedFrame.toUpperCase()) {
+      throw new Error(`Site mesh ${config.name}: requires matching explicit body-fixed rotation ${config.registration.bodyFixedFrame}`);
+    }
+    const overlay = new SurfaceTileOverlay(config);
     this.surfaceOverlays.push(overlay);
     overlay.group.visible = false;
     return overlay;
@@ -1168,54 +1806,16 @@ export class BodyMesh extends THREE.Object3D {
    */
   updateSurfaceTiles(camera: THREE.Camera, renderer: THREE.WebGLRenderer, screenPixels: number): void {
     if (this.surfaceOverlays.length === 0) return;
-    this.terrainSampleFrame++;
 
     // Show surface tiles earlier than terrain — start loading tiles when the body
     // is at least 20 px on screen so they're ready by the time the user zooms in.
     const visible = screenPixels >= 20;
     for (const overlay of this.surfaceOverlays) {
-      overlay.group.visible = visible;
-      if (!visible) continue;
+      overlay.group.visible = visible && overlay.visibleFrom(camera.position, this.position, this.mesh.quaternion, this.scaleFactor);
+      if (!overlay.group.visible) continue;
 
-      // Terrain-following: snap tile altitude to sit slightly INSIDE the global terrain.
-      // Since the CRR render pass clears depth first (tileScene renders on top of
-      // main scene), being slightly inside eliminates the visible floating gap.
-      // The -0.005 km (-5m) inset ensures overlap even when the global terrain
-      // is at a slightly different height than the sampled elevation.
-      if (this.terrainSampleFrame % 5 === 0) {
-        const terrainSample = this.sampleTerrainElevation(overlay.lat, overlay.lon);
-        if (terrainSample != null) {
-          overlay.terrainAdjustKm = terrainSample.elevationKm - overlay.altitudeOffset - 0.005;
-        }
-      }
-
-      // Set full world transform for LOD computation (no parent provides position).
-      // Apply the terrain radial adjustment here too, so TilesRenderer's frustum
-      // culling and SSE computation use the adjusted position — not the configured
-      // altitude which may be km below the visible terrain at coarse LOD.
+      // One fixed body transform for streaming, CRR, eviction and recovery.
       overlay.group.position.copy(this.position);
-      if (overlay.terrainAdjustKm !== 0) {
-        const ecefLen = overlay.ecefPositionKm.length();
-        if (ecefLen > 0) {
-          const adjustScene = overlay.terrainAdjustKm * this.scaleFactor;
-          // Radial direction: ECEF position normalized, rotated to world frame
-          const rx = overlay.ecefPositionKm.x / ecefLen;
-          const ry = overlay.ecefPositionKm.y / ecefLen;
-          const rz = overlay.ecefPositionKm.z / ecefLen;
-          // Apply body quaternion to get world-frame direction (inline to avoid allocation)
-          const q = this.mesh.quaternion;
-          const ix = q.w * rx + q.y * rz - q.z * ry;
-          const iy = q.w * ry + q.z * rx - q.x * rz;
-          const iz = q.w * rz + q.x * ry - q.y * rx;
-          const iw = -q.x * rx - q.y * ry - q.z * rz;
-          const wx = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y;
-          const wy = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z;
-          const wz = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x;
-          overlay.group.position.x += wx * adjustScene;
-          overlay.group.position.y += wy * adjustScene;
-          overlay.group.position.z += wz * adjustScene;
-        }
-      }
       overlay.group.quaternion.copy(this.mesh.quaternion);
       overlay.group.scale.setScalar(this.scaleFactor);
       overlay.group.updateMatrixWorld(true);
@@ -1224,9 +1824,10 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
-  /** Restore overlay group transforms to parented mode after CRR render pass. */
+  /** Restore fixed world transforms after CRR, including for visual occlusion. */
   updateSurfaceTileTransforms(): void {
     for (const overlay of this.surfaceOverlays) {
+      overlay.group.position.copy(this.position);
       overlay.group.quaternion.copy(this.mesh.quaternion);
       overlay.group.scale.setScalar(this.scaleFactor);
       overlay.group.updateMatrixWorld(true);
@@ -1374,13 +1975,15 @@ export class BodyMesh extends THREE.Object3D {
         const resp = await fetch(url);
         const buf = await resp.arrayBuffer();
         const loader = new DDSLoader();
-        const texData = loader.parse(buf, false);
+        const texData = loader.parse(buf, true);
         const tex = new THREE.CompressedTexture(
           texData.mipmaps, texData.width, texData.height,
           texData.format as THREE.CompressedPixelFormat,
         );
         tex.minFilter = texData.mipmaps.length === 1 ? THREE.LinearFilter : THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
+        // North-up, so the stitched render target below is too.
+        flipGlobeDDS(tex);
         tex.needsUpdate = true;
         return tex;
       };
@@ -1392,7 +1995,12 @@ export class BodyMesh extends THREE.Object3D {
       // Determine tile dimensions from the compressed texture
       const w = tex0.image.width;
       const h = tex0.image.height;
-      const rt = new THREE.WebGLRenderTarget(w * 2, h);
+      // Generate the chain from the complete stitched image, including across
+      // the tile boundary. Input DDS mipmaps do not transfer to this target.
+      const rt = new THREE.WebGLRenderTarget(w * 2, h, {
+        generateMipmaps: true,
+        minFilter: THREE.LinearMipmapLinearFilter,
+      });
       const cam = new THREE.OrthographicCamera(0, 2, 1, 0, -1, 1);
       const scene = new THREE.Scene();
 
@@ -1499,9 +2107,12 @@ export class BodyMesh extends THREE.Object3D {
     return this.parseDDSBuffer(buffer);
   }
 
+  /** Parse a DDS globe map (base/normal/displacement/bump), oriented north-up. */
   private parseDDSBuffer(buffer: ArrayBuffer): THREE.CompressedTexture {
     const loader = new DDSLoader();
-    const texData = loader.parse(buffer, false);
+    // Retain authored minification levels: base-level-only DDS sampling aliases
+    // detailed imagery into grain on distant bodies and narrow-FOV instruments.
+    const texData = loader.parse(buffer, true);
     const texture = new THREE.CompressedTexture(
       texData.mipmaps,
       texData.width,
@@ -1512,6 +2123,7 @@ export class BodyMesh extends THREE.Object3D {
       ? THREE.LinearFilter
       : THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
+    flipGlobeDDS(texture);
     texture.needsUpdate = true;
     return texture;
   }
@@ -1590,6 +2202,7 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   dispose(): void {
+    this.showImageryFootprint(null);
     for (const overlay of this.surfaceOverlays) overlay.dispose();
     this.surfaceOverlays.length = 0;
     this.terrainManager?.dispose();
@@ -1624,4 +2237,33 @@ export class BodyMesh extends THREE.Object3D {
       });
     }
   }
+}
+
+/** One entry of a `TimeSwitched` geometry, its window already in ET seconds. */
+export interface TimeSwitchedEntry {
+  startEt: number;
+  endEt: number;
+  geometry: Record<string, unknown>;
+}
+
+/**
+ * Place a Mesh entry of a TimeSwitched geometry in the body frame: `size`
+ * (diameter, km) scales its longest side, `meshRotation` ([w, x, y, z]) turns
+ * it, `meshOffset` moves it, all on the entry's own object — the set is
+ * installed as body-fixed km, so nothing is applied to it as a whole.
+ */
+function alignMeshEntry(object: THREE.Object3D, geo: Record<string, unknown>): THREE.Object3D {
+  const box = new THREE.Box3().setFromObject(object);
+  const extent = box.getSize(new THREE.Vector3());
+  const maxExtent = Math.max(extent.x, extent.y, extent.z);
+  const size = typeof geo.size === 'number' ? geo.size : 0;
+  const scale = size > 0 && maxExtent > 0 ? size / maxExtent : 1;
+  const holder = new THREE.Group();
+  holder.add(object);
+  holder.scale.setScalar(scale);
+  const r = geo.meshRotation as number[] | undefined;
+  if (r && r.length >= 4) holder.quaternion.set(r[1]!, r[2]!, r[3]!, r[0]!);
+  const o = geo.meshOffset as number[] | undefined;
+  if (o && o.length >= 3) object.position.set(o[0]!, o[1]!, o[2]!);
+  return holder;
 }

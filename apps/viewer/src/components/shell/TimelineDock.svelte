@@ -31,6 +31,9 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import TrajectoryTimeline from './TrajectoryTimeline.svelte';
+  import { trajectoryIntervalSeries } from '../../lib/trajectory-timeline';
+  import { getUniverse } from '../../lib/loader';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -40,7 +43,7 @@
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
-  import { analysisContext, visibleTimelineEvents } from '../../lib/analysis.svelte';
+  import { allTimelineEvents, visibleTimelineEvents } from '../../lib/analysis.svelte';
   import {
     activeEventsAtTime, eventCalloutLines, eventContainsTime, eventTimelineFractions,
   } from '../../lib/event-query';
@@ -121,6 +124,10 @@
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
+  const trajectoryActivities = $derived.by(() => {
+    void vs.bodies;
+    return trajectoryIntervalSeries(getUniverse()?.getAllBodies() ?? []);
+  });
 
   // ── Transport overview ──
   //
@@ -138,7 +145,7 @@
       const span = eventTimelineFractions(event, range);
       return span ? [{ event, span }] : [];
     });
-    const families = eventLanes.map((q) => q.id).filter((id) => drawn.some((d) => d.event.queryId === id));
+    const families = [...new Set(drawn.map(d => d.event.queryId))];
     return drawn.map(({ event, span }) => ({
       id: eventKey(event),
       queryId: event.queryId,
@@ -357,7 +364,7 @@
   // selection is global, and `visible` is about timeline presentation only.
   // Hiding a lane keeps its selected event (and its inspector); disabling
   // the search clears it (`setConfiguredQueryEnabled`).
-  const selectedEvent = $derived(selectedEventOf(analysisContext().eventResults));
+  const selectedEvent = $derived(selectedEventOf(allTimelineEvents()));
 
   // ── Selected-event inspector ──
   //
@@ -759,6 +766,12 @@
     {/if}
   </div>
 
+  {#if !expanded}
+    {#each trajectoryActivities as series (series.body)}
+      <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+    {/each}
+  {/if}
+
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all
          drawn on the track's extent and window. Fits its rows, up to a third
@@ -768,6 +781,9 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
+      {#each trajectoryActivities as series (series.body)}
+        <TrajectoryTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+      {/each}
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}

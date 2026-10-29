@@ -32,10 +32,15 @@ apps/viewer/test-catalogs/kernels/europa-clipper/ref_trj_scpse.bsp
 apps/viewer/test-catalogs/kernels/msl/mar099s.bsp
 apps/viewer/test-catalogs/kernels/psyche/
 apps/viewer/test-catalogs/kernels/voyager/
+apps/viewer/test-catalogs/kernels/rosetta/
+# Archive downloads the Rosetta set is rebuilt from — scripts/fetch-rosetta-kernels.sh
+.cache/
 
 # Self-hosted Mars terrain — see scripts/build-mars-terrain/
 # Source GeoTIFFs (~11 GB) and generated quantized-mesh tiles (~1-3 GB).
 apps/viewer/test-catalogs/data/mars-terrain-fused/
+apps/viewer/test-catalogs/data/mars-terrain-cube-*/
+apps/viewer/test-catalogs/data/mars-imagery-cube*/
 # Retired CTB pyramid (pre-#50); delete the directory if it is still on disk.
 apps/viewer/test-catalogs/data/mars-terrain/
 scripts/build-mars-terrain/data/
@@ -46,7 +51,46 @@ scripts/build-mars-terrain/data/
 # Self-hosted Moon terrain — see scripts/build-moon-terrain/ (~9 GB sources, generated pyramid).
 apps/viewer/test-catalogs/data/moon-terrain-fused/
 apps/viewer/test-catalogs/data/moon-terrain-polar/
+apps/viewer/test-catalogs/data/moon-terrain-cube
+apps/viewer/test-catalogs/data/moon-terrain-cube-*/
+apps/viewer/test-catalogs/data/moon-imagery-cube-*
+# Validation and capture output of scripts/{validate,capture}-cube-{terrain,imagery}.mjs (#149)
+work/surface-build/
+work/ingenuity-246/
+work/curiosity-247/
+work/moonfall-jank/
+work/cube-terrain/
+work/cube-imagery/
+work/cube-surface-appearance/
+work/issue-183/
 scripts/build-moon-terrain/data/
+scripts/build-globe-textures/data/
+scripts/build-globe-textures/.venv/
 
 # Third-party Cosmographia catalog data — see scripts/fetch-cosmographia-data.sh
 .cosmographia/
+
+# Original Rosetta texture maps (~42 MB), fetched by fetch-rosetta-models.sh
+apps/viewer/test-catalogs/models/rosetta/*.png
+apps/viewer/test-catalogs/models/rosetta/*.part
+
+# Geographic smoke and benchmark output (#198–#200): curated captures live in
+# docs/validation/geographic-*, raw runs here.
+/work/geographic/
+
+# Places acceptance output (#191): keep raw runs outside reviewed documentation.
+/work/issue-191-places/
+/docs/validation/issue-191-places/raw/
+/docs/validation/issue-191-places/**/*.webm
+/docs/validation/issue-191-places/**/*.mp4
+/docs/validation/issue-191-places/**/*-metrics.json
+/docs/validation/issue-191-places/**/metrics.json
+/docs/validation/issue-191-places/**/metal-motion.json
+/docs/validation/issue-191-places/**/swiftshader-motion.json
+/docs/validation/issue-191-places/**/mars-moon-motion.json
+/docs/validation/issue-191-places/**/diagnosis.json
+/docs/validation/issue-191-places/**/original-reference-diagnostics.json
+
+# Local immutable #246 candidate products; published only after explicit authorization.
+apps/viewer/test-catalogs/data/ingenuity-cube/
+apps/viewer/test-catalogs/data/curiosity-cube/

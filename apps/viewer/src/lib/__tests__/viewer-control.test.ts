@@ -7,12 +7,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST } from '@cosmolabe/control';
-import type { Universe } from '@cosmolabe/core';
+import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe } from '@cosmolabe/core';
+import { placeCoordinates, selectPlace } from '../places';
+import * as placeActions from '../places';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { createViewerControl } from '../viewer-control';
 import {
   DISPLAY_OPTIONS,
+  releaseSurfaceTarget, dismissGeographicContext,
   bindRenderer,
   selectBody,
   unbindRenderer,
@@ -89,6 +92,8 @@ function makeFakeRenderer(objects: string[]) {
 
   let tracked: FakeBodyMesh | null = null;
   let lookAt: FakeBodyMesh | null = null;
+  /** A flight `flyTo` started; it lands only when a test calls `land`. */
+  let flight: { destination: FakeBodyMesh; path: string } | null = null;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
   const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
     ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
@@ -104,7 +109,7 @@ function makeFakeRenderer(objects: string[]) {
     // This control-layer fake has no asynchronous assets, but it must expose
     // the same subscription surface so binding it follows the production path.
     events: {
-      on: () => () => {},
+      on: vi.fn((_event: string, _listener: (payload: unknown) => void) => () => {}),
     },
     timeController: {
       get et() {
@@ -154,15 +159,39 @@ function makeFakeRenderer(objects: string[]) {
       get trackedBody() {
         return tracked;
       },
+      get focusBody() {
+        return flight?.destination ?? tracked;
+      },
+      get flight() {
+        return flight ? { ...flight, phase: 'approach' } : null;
+      },
+      /** Land the flight in progress, as the next frames would. */
+      land: () => {
+        if (flight) tracked = flight.destination;
+        flight = null;
+      },
       get lookAtBody() {
         return lookAt;
       },
       track: (bm: FakeBodyMesh | null) => {
         tracked = bm;
       },
-      trackBody: (bm: FakeBodyMesh) => {
-        log(`trackBody(${bm.body.name})`);
+      focus: (bm: FakeBodyMesh) => {
+        log(`focus(${bm.body.name})`);
+        flight = null;
         tracked = bm;
+      },
+      frame: (bm: FakeBodyMesh) => {
+        log(`frame(${bm.body.name})`);
+        flight = null;
+        tracked = bm;
+      },
+      stopFlight: () => {
+        log('stopFlight');
+        if (!flight) return false;
+        tracked = flight.destination;
+        flight = null;
+        return true;
       },
       stopTracking: () => {
         log('stopTracking');
@@ -176,7 +205,11 @@ function makeFakeRenderer(objects: string[]) {
       clearLookAt: () => {
         lookAt = null;
       },
-      flyTo: (bm: FakeBodyMesh) => log(`flyTo(${bm.body.name})`),
+      flyTo: (bm: FakeBodyMesh, opts: { path: string; duration?: number }) => {
+        log(`flyTo(${bm.body.name}, ${opts.path}, ${opts.duration})`);
+        tracked = null;
+        flight = { destination: bm, path: opts.path };
+      },
       cancelAnimation: () => log('cancelAnimation'),
       syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
       dolly: (distance: number, duration?: number) => {
@@ -211,7 +244,10 @@ function makeFakeRenderer(objects: string[]) {
     },
     getBodyMesh: (name: string) => meshes.get(name),
     /** What the next frame would do to a body; tests that need it replace this. */
-    refreshBodyPose: (_name: string) => true,
+    refreshBodyPose: (name: string) => {
+      log(`refreshBodyPose(${name})`);
+      return true;
+    },
     getBodyNames: () => [...meshes.keys()],
     setBodyVisible: (name: string, v: boolean) => log(`setBodyVisible(${name}, ${v})`),
     setTrajectoryVisible: (name: string, v: boolean) => log(`setTrajectoryVisible(${name}, ${v})`),
@@ -223,6 +259,11 @@ function makeFakeRenderer(objects: string[]) {
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),
     setSensorLabelsVisible: (v: boolean) => log(`setSensorLabelsVisible(${v})`),
     setLightingMode: (m: string) => log(`setLightingMode(${m})`),
+    // Point Probe: bound on every scene, not a script verb.
+    placeNames: { selectedRef: null as string | null },
+    geographicVectors: { setSelected: vi.fn(), setSourceEnabled: () => {} },
+    setPointProbeActive: () => {},
+    setProbePin: () => {},
     getContext: () => ({ canvas: { toDataURL: () => 'data:image/png;base64,AAA' }, renderFrame: () => log('renderFrame') }),
     getPlugins: () => [],
   };
@@ -246,6 +287,7 @@ function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
   const all = [...objects, ...catalogOnly];
   const universe = {
+    events: { on: () => () => {} },
     getTimeRange: () => null,
     getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
   } as unknown as Universe;
@@ -411,7 +453,7 @@ describe('setFrame', () => {
     control.gotoObject('Cassini');
     renderer.calls.length = 0;
     expect(control.setFrame('body-fixed', 'Titan')).toBe(true);
-    expect(renderer.calls).toEqual(['trackBody(Titan)', 'setModeForBody(body-fixed, Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)', 'setModeForBody(body-fixed, Titan)']);
   });
 
   it('refuses an unknown object without switching mode', () => {
@@ -432,20 +474,216 @@ describe('gotoObject', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan');
-    expect(renderer.calls).toEqual(['trackBody(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
   });
 
-  it('flies when given a duration', () => {
+  it('flies directly when given a duration', () => {
     const control = createViewerControl();
     renderer.calls.length = 0;
     control.gotoObject('Titan', { seconds: 2 });
-    expect(renderer.calls).toEqual(['flyTo(Titan)']);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'flyTo(Titan, direct, 2)']);
     // flyTo defers the real tracking; the HUD has to know now.
     expect(vs.trackedBodyName).toBe('Titan');
   });
 
   it('returns false for an object the scene does not have', () => {
     expect(createViewerControl().gotoObject('Titam')).toBe(false);
+  });
+});
+
+// ── The navigation vocabulary (docs/navigation.md) ──
+//
+// Each verb is one call on the controller, and none implies another: selecting
+// never moves the camera, and moving it never selects.
+
+/** The renderer calls that move or re-anchor the camera. */
+const cameraCalls = () =>
+  renderer.calls.filter((c) => /^(focus|frame|flyTo|stopFlight|stopTracking|setModeForBody)\(?/.test(c));
+
+describe('navigation verbs', () => {
+  it('select changes the selection and never the camera', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.select('Titan')).toBe(true);
+    expect(control.getSelected()).toBe('Titan');
+    expect(cameraCalls()).toEqual([]);
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('track focuses without framing, and does not select', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.track('Titan')).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'focus(Titan)']);
+    expect(control.getTracked()).toBe('Titan');
+    expect(vs.trackedBodyName).toBe('Titan');
+    expect(control.getSelected()).toBeNull();
+  });
+
+  it('routes geographic double-click to shared Fly and clears place selection on another body', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site',placeKind:'nomenclature'},geometry:{type:'Point',coordinates:[-120.12345678,-30.12345678]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    vs.places=new PlaceIndex([layer]);const place=vs.places.places[0];
+    const fly=vi.spyOn(placeActions,'navigateToPlace').mockReturnValue(true);
+    const doubleClick=renderer.events.on.mock.calls.find(([event])=>event==='geographic:dblclick')![1];
+    doubleClick({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
+    expect(fly).toHaveBeenCalledExactlyOnceWith(place,'fly',{source:'viewport-dblclick'});
+    doubleClick({layerId:place.layer.id,featureId:'stale',bodyName:place.layer.body});
+    // A click on a named place is Places' selection alone: Surface layers lets go of the point.
+    const click=renderer.events.on.mock.calls.find(([event])=>event==='geographic:click')![1];
+    click({layerId:place.layer.id,featureId:place.feature.id,bodyName:place.layer.body});
+    expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.geographicVectors.setSelected).toHaveBeenLastCalledWith(null);
+    expect(fly).toHaveBeenCalledTimes(1);fly.mockRestore();
+    selectPlace(place);const control=createViewerControl();control.track('Titan');
+    expect(vs.selectedPlaceRef).toBe(place.ref);expect(renderer.placeNames.selectedRef).toBe(place.ref);
+    expect(parseCoordinatePair(placeCoordinates(place))).toMatchObject({ok:true,latDeg:-30.12345678,lonDeg:-120.12345678});
+    control.track('Saturn');expect(vs.selectedPlaceRef).toBeNull();expect(renderer.placeNames.selectedRef).toBeNull();
+  });
+
+  it('keeps label hiding searchable but excludes disabled sources and reconciles selection/target', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);const place=vs.places.places[0];
+    Object.assign(renderer.placeNames,{hiddenLayers:new Set<string>()});
+    placeActions.showPlaceDataset(layer.id,false);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    Object.assign(renderer.cameraController,{releaseSurface:vi.fn(()=>true)});
+    placeActions.setPlaceSourceEnabled([layer.id],false);
+    expect(placeActions.searchPlaces('Site')).toEqual([]);expect(placeActions.searchPlaces('Other')).toHaveLength(1);
+    expect(vs.selectedPlaceRef).toBeNull();expect(vs.surfaceTarget).toBeNull();
+    placeActions.selectPlace(place);expect(vs.selectedPlaceRef).toBeNull();
+    expect(placeActions.navigateToPlace(place,'jump')).toBe(false);
+    placeActions.setPlaceSourceEnabled([layer.id],true);
+    expect(placeActions.searchPlaces('Site')).toHaveLength(1);expect(vs.hiddenPlaceLayers).toContain(layer.id);
+    unbindRenderer();expect(vs.excludedPlaceLayers).toEqual([]);
+  });
+
+  it('distinguishes excluded sources from hidden labels and body-wide label visibility', () => {
+    const definition={id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetocentric' as const,longitudeDirection:'east' as const,longitudeDomain:'-180..180' as const,referenceShape:{kind:'sphere' as const,radiusKm:2575}}};
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Site'},geometry:{type:'Point',coordinates:[0,0]}}]}),definition,{kind:'local-file',identity:'sites.json'});
+    const second={...layer,id:'second',features:layer.features.map(f=>({...f,id:'b',properties:{name:'Other'}}))};
+    vs.places=new PlaceIndex([layer,second]);vs.placeBodies=['Titan'];
+    expect(placeActions.placeSourceStatus()).toBe('');
+    vs.hiddenPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(2);
+    vs.excludedPlaceLayers=[layer.id,second.id];
+    expect(placeActions.placeSourceStatus()).toBe('No name sources included');expect(placeActions.searchPlaces('')).toHaveLength(0);
+    vs.excludedPlaceLayers=[layer.id];
+    expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');expect(placeActions.searchPlaces('')).toHaveLength(1);
+    vs.hiddenPlaceLayers=[layer.id];expect(placeActions.placeSourceStatus()).toBe('');
+    vs.placeBodies=[];expect(placeActions.placeSourceStatus()).toBe('Geographic labels hidden; names remain searchable');
+    vs.excludedPlaceLayers=[];vs.placeBodies=['Titan'];vs.hiddenPlaceLayers=[];
+    expect(placeActions.placeSourceStatus()).toBe('');expect(placeActions.searchPlaces('')).toHaveLength(2);
+  });
+
+  it.each([false,true])('releases an active named target, preserving independent inspection=%s', independent => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Target'},geometry:{type:'Point',coordinates:[0,0]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'sphere',radiusKm:2575}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];vs.places=new PlaceIndex([layer]);
+    selectPlace(place);
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}},place:{ref:place.ref,name:place.name}};
+    if(independent) {vs.selectedPlaceRef='independent';renderer.placeNames.selectedRef='independent';}
+    else {selectPlace(null);expect(renderer.placeNames.selectedRef).toBe(place.ref);}
+    const release=vi.fn(()=>true);Object.assign(renderer.cameraController,{releaseSurface:release});
+    const before={position:{...renderer.camera.position},time:vs.et,tracked:vs.trackedBodyName};
+    expect(releaseSurfaceTarget()).toBe(true);expect(release).toHaveBeenCalledOnce();expect(vs.surfaceTarget).toBeNull();
+    expect(renderer.camera.position).toEqual(before.position);expect(vs.et).toBe(before.time);expect(vs.trackedBodyName).toBe(before.tracked);
+    expect(vs.selectedPlaceRef).toBe(independent?'independent':null);expect(renderer.placeNames.selectedRef).toBe(independent?'independent':null);
+    if(independent) {expect(dismissGeographicContext()).toBe(true);expect(vs.selectedPlaceRef).toBeNull();}
+    expect(dismissGeographicContext()).toBe(false);
+  });
+  it('clears target presentation and place inspection when the scene unbinds', () => {
+    vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}}};
+    vs.selectedPlaceRef='old';unbindRenderer();expect(vs.surfaceTarget).toBeNull();expect(vs.selectedPlaceRef).toBeNull();
+  });
+
+  it('converts copied oblate-place latitude to the coordinate input convention', () => {
+    const layer=parseGeographicGeoJson(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',id:'a',properties:{name:'Oblate site'},geometry:{type:'Point',coordinates:[77,30]}}]}),
+      {id:'sites',name:'Sites',body:'Titan',source:'sites.json',coordinates:{latitude:'planetographic',longitudeDirection:'east',longitudeDomain:'-180..180',referenceShape:{kind:'ellipsoid',radiiKm:[2,2,1]}}},{kind:'local-file',identity:'sites.json'});
+    const place=new PlaceIndex([layer]).places[0];
+    const copied=parseCoordinatePair(placeCoordinates(place),{order:'lon-lat',direction:'west'});
+    if(!copied.ok)throw new Error(copied.error);
+    expect(copied.latDeg).toBeLessThan(30);
+    const target=resolveGeographicTarget({bodyName:'Titan',latDeg:copied.latDeg,lonDeg:copied.lonDeg,latitude:'planetocentric',longitudeDirection:'west'},
+      {bodyName:'Titan',shape:'oblate',datum:{...layer.datum,origin:'body-shape'}});
+    expect(target.latGraphicDeg).toBeCloseTo(30,6);expect(target.lonEastDeg).toBeCloseTo(77,6);
+  });
+
+  it('frameObject frames what is tracked when not told what, and refuses with nothing tracked', () => {
+    const control = createViewerControl();
+    expect(control.frameObject()).toBe(false);
+    control.track('Titan');
+    renderer.calls.length = 0;
+    expect(control.frameObject()).toBe(true);
+    expect(renderer.calls).toEqual(['refreshBodyPose(Titan)', 'frame(Titan)']);
+    expect(control.frameObject('Titam')).toBe(false);
+  });
+
+  it('jumpTo cuts to the pose a flight would land on', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.jumpTo('Enceladus')).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Enceladus)']);
+    expect(control.getFlight()).toBeNull();
+  });
+
+  it('flyTo takes the direct path unless told otherwise, and reports the flight', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan')).toBe(true);
+    expect(control.flyTo('Enceladus', { path: 'overview', seconds: 3 })).toBe(true);
+    expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)', 'flyTo(Enceladus, overview, 3)']);
+    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'overview' });
+    expect(vs.flight).toEqual({ target: 'Enceladus', path: 'overview' });
+    // The HUD names the destination for the length of the flight.
+    expect(vs.trackedBodyName).toBe('Enceladus');
+    // Not tracked yet: that happens when it lands.
+    expect(control.getTracked()).toBeNull();
+  });
+
+  it('flyTo of no duration is a jump, and a negative one is refused', () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    expect(control.flyTo('Titan', { seconds: 0 })).toBe(true);
+    expect(cameraCalls()).toEqual(['frame(Titan)']);
+    expect(control.flyTo('Titan', { seconds: -1 })).toBe(false);
+  });
+
+  it('stopFlight ends the flight tracking its destination', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    control.stopFlight();
+    expect(control.getFlight()).toBeNull();
+    expect(vs.flight).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+    // With nothing flying it does nothing.
+    renderer.calls.length = 0;
+    control.stopFlight();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('reads a landing off the controller at once, not on the next animation frame', () => {
+    const control = createViewerControl();
+    control.flyTo('Titan');
+    (renderer.cameraController as unknown as { land(): void }).land();
+    expect(control.getFlight()).toBeNull();
+    expect(control.getTracked()).toBe('Titan');
+  });
+
+  it('runs as text', async () => {
+    const control = createViewerControl();
+    renderer.calls.length = 0;
+    await execute(parse('track Titan\nframeObject\nflyTo Enceladus direct 2\nstopFlight\njumpTo Saturn'), control);
+    expect(cameraCalls()).toEqual([
+      'focus(Titan)',
+      'frame(Titan)',
+      'flyTo(Enceladus, direct, 2)',
+      'stopFlight',
+      'frame(Saturn)',
+    ]);
   });
 });
 

@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "dingo-gap",
+      "properties": {
+        "name": "Dingo Gap overlay anchor",
+        "placeRef": "mars:mission:msl-sites/dingo-gap",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "aliases": [
+          "Curiosity Dingo Gap"
+        ],
+        "sourceFields": {
+          "origin": "PLACES localized site 26 drive 184; matches the retained Landform local frame. Estimated visual registration; not a rover landing point.",
+          "sceneOverlay": "Dingo Gap (approximate visual reconstruction)",
+          "accuracy": "Absolute body-fixed accuracy unknown; operational relative camera checks do not certify absolute accuracy."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          137.407262581,
+          -4.626550593
+        ]
+      }
+    }
+  ]
+}

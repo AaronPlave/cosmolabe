@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Date: Sat, 24 Oct 2026 13:19:06 GMT
+Server: Apache
+ETag: 20mrda96rkrd0
+Content-Length: 92426
+Access-Control-Allow-Origin: *
+Cache-Control: max-age=2592000
+Content-Type: image/png
+

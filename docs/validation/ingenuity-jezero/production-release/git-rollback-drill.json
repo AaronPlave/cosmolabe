@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "baselineCommit": "0bf7018bb03ab6aa6a53c424692f9d44f75c36cf",
+  "baselineTree": "eb92b16fe898880b06e22db57ebca38778e9290b",
+  "candidateTree": "43f8ee36d24928fef49cba17c4a139f8077a8c9b",
+  "restoredTree": "eb92b16fe898880b06e22db57ebca38778e9290b",
+  "method": "Reverse the release merge first-parent diff in a temporary Git index; byte-exact whole repository tree restoration. No production change."
+}

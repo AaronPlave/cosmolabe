@@ -1,0 +1,2534 @@
+[
+  {
+    "name": "nac",
+    "catalog": "test-catalogs/experiments/moon-terrain-cube-imagery-nac",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 4,
+      "settled": 4,
+      "loaded": 4,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 1722.5
+    },
+    "views": {
+      "close": {
+        "before": {
+          "ids": [
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/3.glb",
+            "nz/3/3/4.glb",
+            "nz/3/3/5.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/4.glb",
+            "nz/3/4/5.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb"
+          ],
+          "sourceVertices": 381225,
+          "sampled": 0,
+          "styled": 0,
+          "maxHeightErrorKm": 0,
+          "terrain": {
+            "update": {
+              "count": 223,
+              "lastMs": 0.19999998807907104,
+              "meanMs": 0.14833333641290664,
+              "maxMs": 0.30000001192092896
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 33,
+              "visible": 14,
+              "drawn": 7,
+              "inCache": 85,
+              "cpu": 144
+            },
+            "network": {
+              "requests": 85,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 13588440,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 19860372,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-nac-6db766f8beebcace",
+            "ready": true,
+            "textures": 150,
+            "pinnedTextures": 10,
+            "textureBytes": 55756800,
+            "maxTextureBytes": 167772160,
+            "requests": 150,
+            "bytes": 6242243,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 192.00000002980232,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 1697232,
+            "tiles": 7,
+            "splitTiles": 4,
+            "blocks": 208,
+            "displayedLevels": {
+              "2": 20,
+              "3": 28,
+              "5": 15,
+              "6": 10,
+              "7": 26,
+              "8": 34,
+              "9": 48,
+              "10": 27
+            },
+            "wantedLevels": {
+              "2": 3,
+              "3": 12,
+              "5": 9,
+              "6": 25,
+              "7": 29,
+              "8": 48,
+              "9": 55,
+              "10": 27
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 201,
+            "updateMs": 0.7000000178813934
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 18,
+            "requests": 144,
+            "bytes": 2433600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 290
+        },
+        "normal": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2,
+            "p95": 2.5
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 0.675875,
+            "p95": 0.857374
+          },
+          "gpuTimerAvailable": true
+        },
+        "hillshade": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.7000000178813934,
+            "p95": 2.0999999940395355
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.10000002384185791
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 0.701124,
+            "p95": 0.850125
+          },
+          "gpuTimerAvailable": true
+        },
+        "lightChangedPixels": 621484,
+        "elevation": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.9000000059604645,
+            "p95": 2.2000000178813934
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.09999999403953552
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 0.743458,
+            "p95": 0.915
+          },
+          "gpuTimerAvailable": true
+        },
+        "after": {
+          "ids": [
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/3.glb",
+            "nz/3/3/4.glb",
+            "nz/3/3/5.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/4.glb",
+            "nz/3/4/5.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb"
+          ],
+          "sourceVertices": 381225,
+          "sampled": 84,
+          "styled": 7,
+          "maxHeightErrorKm": 2.0898937691526953e-07,
+          "terrain": {
+            "update": {
+              "count": 765,
+              "lastMs": 0.09999999403953552,
+              "meanMs": 0.1349999984105428,
+              "maxMs": 0.30000001192092896
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 33,
+              "visible": 14,
+              "drawn": 7,
+              "inCache": 85,
+              "cpu": 144
+            },
+            "network": {
+              "requests": 85,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 13588440,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 21142592,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-nac-6db766f8beebcace",
+            "ready": true,
+            "textures": 150,
+            "pinnedTextures": 10,
+            "textureBytes": 55756800,
+            "maxTextureBytes": 167772160,
+            "requests": 150,
+            "bytes": 6242243,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 359.09999999403954,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 2351552,
+            "tiles": 7,
+            "splitTiles": 4,
+            "blocks": 208,
+            "displayedLevels": {
+              "2": 20,
+              "3": 28,
+              "5": 15,
+              "6": 10,
+              "7": 26,
+              "8": 34,
+              "9": 48,
+              "10": 27
+            },
+            "wantedLevels": {
+              "2": 3,
+              "3": 12,
+              "5": 9,
+              "6": 25,
+              "7": 29,
+              "8": 48,
+              "9": 55,
+              "10": 27
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 201,
+            "updateMs": 0.5999999940395355
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 18,
+            "requests": 144,
+            "bytes": 2433600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 290
+        },
+        "debugRestorePixels": 0,
+        "restoredPixelDifference": 0,
+        "restored": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.5999999940395355,
+            "p95": 2
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 0.771874,
+            "p95": 0.890499
+          },
+          "gpuTimerAvailable": true
+        },
+        "physicalUnchanged": true,
+        "activation": [
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 6.199999988079071,
+            "maxTileMs": 6.199999988079071
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 5.700000017881393,
+            "maxTileMs": 5.5999999940395355
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.899999976158142,
+            "maxTileMs": 2.5999999940395355
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 5.9000000059604645,
+            "maxTileMs": 5.800000011920929
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 5.699999988079071,
+            "maxTileMs": 2.899999976158142
+          },
+          {
+            "meshes": 7,
+            "vertices": 31395,
+            "elapsedMs": 0.7999999821186066,
+            "maxTileMs": 0.29999998211860657
+          }
+        ]
+      },
+      "far": {
+        "before": {
+          "ids": [
+            "nx/1/1/0.glb",
+            "nx/1/1/1.glb",
+            "nx/2/0/0.glb",
+            "nx/2/0/1.glb",
+            "nx/2/0/2.glb",
+            "nx/2/0/3.glb",
+            "nx/2/1/0.glb",
+            "nx/2/1/1.glb",
+            "nx/2/1/2.glb",
+            "nx/2/1/3.glb",
+            "ny/1/0/1.glb",
+            "ny/1/1/1.glb",
+            "ny/2/0/0.glb",
+            "ny/2/0/1.glb",
+            "ny/2/1/0.glb",
+            "ny/2/1/1.glb",
+            "ny/2/2/0.glb",
+            "ny/2/2/1.glb",
+            "ny/2/3/0.glb",
+            "ny/2/3/1.glb",
+            "nz/2/0/3.glb",
+            "nz/2/3/0.glb",
+            "nz/2/3/1.glb",
+            "nz/2/3/2.glb",
+            "nz/2/3/3.glb",
+            "nz/3/0/0.glb",
+            "nz/3/0/1.glb",
+            "nz/3/0/2.glb",
+            "nz/3/0/3.glb",
+            "nz/3/0/4.glb",
+            "nz/3/0/5.glb",
+            "nz/3/1/0.glb",
+            "nz/3/1/1.glb",
+            "nz/3/1/2.glb",
+            "nz/3/1/3.glb",
+            "nz/3/1/4.glb",
+            "nz/3/1/5.glb",
+            "nz/3/2/0.glb",
+            "nz/3/2/1.glb",
+            "nz/3/2/2.glb",
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/2/6.glb",
+            "nz/3/2/7.glb",
+            "nz/3/3/0.glb",
+            "nz/3/3/1.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/3.glb",
+            "nz/3/3/4.glb",
+            "nz/3/3/5.glb",
+            "nz/3/3/6.glb",
+            "nz/3/3/7.glb",
+            "nz/3/4/0.glb",
+            "nz/3/4/1.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/4.glb",
+            "nz/3/4/5.glb",
+            "nz/3/4/6.glb",
+            "nz/3/4/7.glb",
+            "nz/3/5/0.glb",
+            "nz/3/5/1.glb",
+            "nz/3/5/2.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/3/5/6.glb",
+            "nz/3/5/7.glb",
+            "px/1/0/0.glb",
+            "px/1/0/1.glb",
+            "px/2/2/0.glb",
+            "px/2/2/1.glb",
+            "px/2/2/2.glb",
+            "px/2/2/3.glb",
+            "px/2/3/0.glb",
+            "px/2/3/1.glb",
+            "px/2/3/2.glb",
+            "px/2/3/3.glb",
+            "py/1/0/0.glb",
+            "py/1/1/0.glb",
+            "py/2/0/2.glb",
+            "py/2/0/3.glb",
+            "py/2/1/2.glb",
+            "py/2/1/3.glb",
+            "py/2/2/2.glb",
+            "py/2/2/3.glb",
+            "py/2/3/2.glb",
+            "py/2/3/3.glb",
+            "pz/1/0/0.glb",
+            "pz/1/0/1.glb",
+            "pz/1/1/0.glb",
+            "pz/1/1/1.glb"
+          ],
+          "sourceVertices": 713115,
+          "sampled": 0,
+          "styled": 0,
+          "maxHeightErrorKm": 0,
+          "terrain": {
+            "update": {
+              "count": 1266,
+              "lastMs": 0.5,
+              "meanMs": 0.4741666669646899,
+              "maxMs": 1.4000000059604645
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 93,
+              "visible": 93,
+              "drawn": 27,
+              "inCache": 159,
+              "cpu": 147
+            },
+            "network": {
+              "requests": 159,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 25418376,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 35364564,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-nac-6db766f8beebcace",
+            "ready": true,
+            "textures": 165,
+            "pinnedTextures": 10,
+            "textureBytes": 61332480,
+            "maxTextureBytes": 167772160,
+            "requests": 165,
+            "bytes": 6720741,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 474.2000000178814,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 1388808,
+            "tiles": 27,
+            "splitTiles": 4,
+            "blocks": 51,
+            "displayedLevels": {
+              "0": 7,
+              "1": 8,
+              "2": 8,
+              "3": 12,
+              "4": 2,
+              "5": 14
+            },
+            "wantedLevels": {
+              "0": 7,
+              "1": 8,
+              "2": 8,
+              "3": 12,
+              "4": 2,
+              "5": 14
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 5,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 24,
+            "updateMs": 0.4000000059604645
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 21,
+            "requests": 147,
+            "bytes": 2484300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 187
+        },
+        "normal": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.300000011920929,
+            "p95": 1.9000000059604645
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.179499,
+            "p95": 1.236333
+          },
+          "gpuTimerAvailable": true
+        },
+        "hillshade": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.5,
+            "p95": 2
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.10000002384185791
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.098874,
+            "p95": 1.135833
+          },
+          "gpuTimerAvailable": true
+        },
+        "lightChangedPixels": 442568,
+        "elevation": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.7000000178813934,
+            "p95": 3.199999988079071
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.09999999403953552
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.141416,
+            "p95": 1.196791
+          },
+          "gpuTimerAvailable": true
+        },
+        "after": {
+          "ids": [
+            "nx/1/1/0.glb",
+            "nx/1/1/1.glb",
+            "nx/2/0/0.glb",
+            "nx/2/0/1.glb",
+            "nx/2/0/2.glb",
+            "nx/2/0/3.glb",
+            "nx/2/1/0.glb",
+            "nx/2/1/1.glb",
+            "nx/2/1/2.glb",
+            "nx/2/1/3.glb",
+            "ny/1/0/1.glb",
+            "ny/1/1/1.glb",
+            "ny/2/0/0.glb",
+            "ny/2/0/1.glb",
+            "ny/2/1/0.glb",
+            "ny/2/1/1.glb",
+            "ny/2/2/0.glb",
+            "ny/2/2/1.glb",
+            "ny/2/3/0.glb",
+            "ny/2/3/1.glb",
+            "nz/2/0/3.glb",
+            "nz/2/3/0.glb",
+            "nz/2/3/1.glb",
+            "nz/2/3/2.glb",
+            "nz/2/3/3.glb",
+            "nz/3/0/0.glb",
+            "nz/3/0/1.glb",
+            "nz/3/0/2.glb",
+            "nz/3/0/3.glb",
+            "nz/3/0/4.glb",
+            "nz/3/0/5.glb",
+            "nz/3/1/0.glb",
+            "nz/3/1/1.glb",
+            "nz/3/1/2.glb",
+            "nz/3/1/3.glb",
+            "nz/3/1/4.glb",
+            "nz/3/1/5.glb",
+            "nz/3/2/0.glb",
+            "nz/3/2/1.glb",
+            "nz/3/2/2.glb",
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/2/6.glb",
+            "nz/3/2/7.glb",
+            "nz/3/3/0.glb",
+            "nz/3/3/1.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/3.glb",
+            "nz/3/3/4.glb",
+            "nz/3/3/5.glb",
+            "nz/3/3/6.glb",
+            "nz/3/3/7.glb",
+            "nz/3/4/0.glb",
+            "nz/3/4/1.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/4.glb",
+            "nz/3/4/5.glb",
+            "nz/3/4/6.glb",
+            "nz/3/4/7.glb",
+            "nz/3/5/0.glb",
+            "nz/3/5/1.glb",
+            "nz/3/5/2.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/3/5/6.glb",
+            "nz/3/5/7.glb",
+            "px/1/0/0.glb",
+            "px/1/0/1.glb",
+            "px/2/2/0.glb",
+            "px/2/2/1.glb",
+            "px/2/2/2.glb",
+            "px/2/2/3.glb",
+            "px/2/3/0.glb",
+            "px/2/3/1.glb",
+            "px/2/3/2.glb",
+            "px/2/3/3.glb",
+            "py/1/0/0.glb",
+            "py/1/1/0.glb",
+            "py/2/0/2.glb",
+            "py/2/0/3.glb",
+            "py/2/1/2.glb",
+            "py/2/1/3.glb",
+            "py/2/2/2.glb",
+            "py/2/2/3.glb",
+            "py/2/3/2.glb",
+            "py/2/3/3.glb",
+            "pz/1/0/0.glb",
+            "pz/1/0/1.glb",
+            "pz/1/1/0.glb",
+            "pz/1/1/1.glb"
+          ],
+          "sourceVertices": 713115,
+          "sampled": 324,
+          "styled": 27,
+          "maxHeightErrorKm": 4.2371834751975257e-07,
+          "terrain": {
+            "update": {
+              "count": 1812,
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.5274999998509884,
+              "maxMs": 1.199999988079071
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 93,
+              "visible": 93,
+              "drawn": 27,
+              "inCache": 159,
+              "cpu": 147
+            },
+            "network": {
+              "requests": 159,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 25418376,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 38294464,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-nac-6db766f8beebcace",
+            "ready": true,
+            "textures": 165,
+            "pinnedTextures": 10,
+            "textureBytes": 61332480,
+            "maxTextureBytes": 167772160,
+            "requests": 165,
+            "bytes": 6720741,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 515.200000077486,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 1896808,
+            "tiles": 27,
+            "splitTiles": 4,
+            "blocks": 51,
+            "displayedLevels": {
+              "0": 7,
+              "1": 8,
+              "2": 8,
+              "3": 12,
+              "4": 2,
+              "5": 14
+            },
+            "wantedLevels": {
+              "0": 7,
+              "1": 8,
+              "2": 8,
+              "3": 12,
+              "4": 2,
+              "5": 14
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 5,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 24,
+            "updateMs": 0.30000001192092896
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 21,
+            "requests": 147,
+            "bytes": 2484300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 187
+        },
+        "debugRestorePixels": 0,
+        "restoredPixelDifference": 0,
+        "restored": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.0999999940395355,
+            "p95": 1.300000011920929
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.168541,
+            "p95": 1.203458
+          },
+          "gpuTimerAvailable": true
+        },
+        "physicalUnchanged": true,
+        "activation": [
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 5.199999988079071,
+            "maxTileMs": 2.899999976158142
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.699999988079071,
+            "maxTileMs": 3.5
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.299999982118607,
+            "maxTileMs": 3.199999988079071
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 7,
+            "maxTileMs": 3.899999976158142
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.299999982118607,
+            "maxTileMs": 3.199999988079071
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.300000011920929,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.299999982118607,
+            "maxTileMs": 1.800000011920929
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.200000017881393,
+            "maxTileMs": 1.800000011920929
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.299999982118607,
+            "maxTileMs": 1.800000011920929
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 4.899999976158142,
+            "maxTileMs": 1.699999988079071
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 3.4000000059604645,
+            "maxTileMs": 1.7000000178813934
+          },
+          {
+            "meshes": 27,
+            "vertices": 121095,
+            "elapsedMs": 2.199999988079071,
+            "maxTileMs": 0.30000001192092896
+          }
+        ]
+      }
+    },
+    "errors": [],
+    "pick": {
+      "x": 200,
+      "y": 350,
+      "height": 0.7790424530183578
+    },
+    "navigation": {
+      "diagnostics": {
+        "maxNormalDifference": 0,
+        "missing": 0,
+        "active": 7,
+        "beforeActive": 7,
+        "cameraDifference": 0
+      },
+      "imageryBefore": {
+        "version": "cube-imagery-nac-6db766f8beebcace",
+        "ready": true,
+        "textures": 165,
+        "pinnedTextures": 10,
+        "textureBytes": 61332480,
+        "maxTextureBytes": 167772160,
+        "requests": 165,
+        "bytes": 6720741,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 607.8000000715256,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 2220688,
+        "tiles": 7,
+        "splitTiles": 4,
+        "blocks": 208,
+        "displayedLevels": {
+          "2": 3,
+          "3": 12,
+          "4": 2,
+          "5": 46,
+          "6": 10,
+          "7": 26,
+          "8": 34,
+          "9": 48,
+          "10": 27
+        },
+        "wantedLevels": {
+          "2": 3,
+          "3": 12,
+          "5": 9,
+          "6": 25,
+          "7": 29,
+          "8": 48,
+          "9": 55,
+          "10": 27
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 201,
+        "updateMs": 0.5999999940395355
+      },
+      "imageryAfter": {
+        "version": "cube-imagery-nac-6db766f8beebcace",
+        "ready": true,
+        "textures": 165,
+        "pinnedTextures": 10,
+        "textureBytes": 61332480,
+        "maxTextureBytes": 167772160,
+        "requests": 165,
+        "bytes": 6720741,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 664.9000000953674,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 2220688,
+        "tiles": 7,
+        "splitTiles": 4,
+        "blocks": 208,
+        "displayedLevels": {
+          "2": 3,
+          "3": 12,
+          "4": 2,
+          "5": 46,
+          "6": 10,
+          "7": 26,
+          "8": 34,
+          "9": 48,
+          "10": 27
+        },
+        "wantedLevels": {
+          "2": 3,
+          "3": 12,
+          "5": 9,
+          "6": 25,
+          "7": 29,
+          "8": 48,
+          "9": 55,
+          "10": 27
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 201,
+        "updateMs": 0.5999999940395355
+      },
+      "sameTiles": true,
+      "changedPixels": 0
+    },
+    "mobile": {
+      "viewport": 390,
+      "documentWidth": 390,
+      "sectionWidth": 346,
+      "sectionLeft": 19.5,
+      "panelScroll": 338,
+      "dockScroll": 0,
+      "scrolling": {
+        "bodyScroll": 463,
+        "dockScroll": 0
+      }
+    }
+  },
+  {
+    "name": "moonfall",
+    "catalog": "test-catalogs/moonfall-shackleton",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "assets": {
+      "total": 8,
+      "settled": 8,
+      "loaded": 8,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 1917.5
+    },
+    "views": {
+      "close": {
+        "before": {
+          "ids": [
+            "nz/10/514/516.glb",
+            "nz/10/514/517.glb",
+            "nz/10/515/516.glb",
+            "nz/10/515/517.glb",
+            "nz/10/516/516.glb",
+            "nz/10/516/517.glb",
+            "nz/10/516/518.glb",
+            "nz/10/516/519.glb",
+            "nz/10/517/516.glb",
+            "nz/10/517/517.glb",
+            "nz/10/517/518.glb",
+            "nz/10/517/519.glb",
+            "nz/10/518/516.glb",
+            "nz/10/518/517.glb",
+            "nz/10/518/518.glb",
+            "nz/10/518/519.glb",
+            "nz/10/519/516.glb",
+            "nz/10/519/517.glb",
+            "nz/10/519/518.glb",
+            "nz/10/519/519.glb",
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/5.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/5.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/4/6/6.glb",
+            "nz/4/6/7.glb",
+            "nz/4/6/8.glb",
+            "nz/4/6/9.glb",
+            "nz/4/7/6.glb",
+            "nz/4/7/9.glb",
+            "nz/4/8/6.glb",
+            "nz/4/8/9.glb",
+            "nz/4/9/6.glb",
+            "nz/4/9/7.glb",
+            "nz/4/9/8.glb",
+            "nz/4/9/9.glb",
+            "nz/5/14/14.glb",
+            "nz/5/14/15.glb",
+            "nz/5/14/16.glb",
+            "nz/5/14/17.glb",
+            "nz/5/15/14.glb",
+            "nz/5/15/17.glb",
+            "nz/5/16/14.glb",
+            "nz/5/16/17.glb",
+            "nz/5/17/14.glb",
+            "nz/5/17/15.glb",
+            "nz/5/17/16.glb",
+            "nz/5/17/17.glb",
+            "nz/6/30/30.glb",
+            "nz/6/30/31.glb",
+            "nz/6/30/32.glb",
+            "nz/6/30/33.glb",
+            "nz/6/31/30.glb",
+            "nz/6/31/33.glb",
+            "nz/6/32/30.glb",
+            "nz/6/32/33.glb",
+            "nz/6/33/30.glb",
+            "nz/6/33/31.glb",
+            "nz/6/33/33.glb",
+            "nz/7/62/62.glb",
+            "nz/7/62/63.glb",
+            "nz/7/62/64.glb",
+            "nz/7/62/65.glb",
+            "nz/7/63/62.glb",
+            "nz/7/63/63.glb",
+            "nz/7/64/62.glb",
+            "nz/7/65/62.glb",
+            "nz/7/65/65.glb",
+            "nz/7/66/64.glb",
+            "nz/7/66/65.glb",
+            "nz/7/67/64.glb",
+            "nz/7/67/65.glb",
+            "nz/8/126/128.glb",
+            "nz/8/126/129.glb",
+            "nz/8/126/130.glb",
+            "nz/8/126/131.glb",
+            "nz/8/127/128.glb",
+            "nz/8/127/129.glb",
+            "nz/8/127/130.glb",
+            "nz/8/127/131.glb",
+            "nz/8/128/126.glb",
+            "nz/8/128/127.glb",
+            "nz/8/128/131.glb",
+            "nz/8/129/126.glb",
+            "nz/8/129/127.glb",
+            "nz/8/129/131.glb",
+            "nz/8/130/126.glb",
+            "nz/8/130/127.glb",
+            "nz/8/130/128.glb",
+            "nz/8/131/126.glb",
+            "nz/8/131/127.glb",
+            "nz/8/131/128.glb",
+            "nz/8/131/129.glb",
+            "nz/9/256/256.glb",
+            "nz/9/256/257.glb",
+            "nz/9/256/258.glb",
+            "nz/9/256/259.glb",
+            "nz/9/256/260.glb",
+            "nz/9/256/261.glb",
+            "nz/9/257/256.glb",
+            "nz/9/257/257.glb",
+            "nz/9/257/259.glb",
+            "nz/9/257/260.glb",
+            "nz/9/257/261.glb",
+            "nz/9/258/256.glb",
+            "nz/9/258/257.glb",
+            "nz/9/258/260.glb",
+            "nz/9/258/261.glb",
+            "nz/9/259/256.glb",
+            "nz/9/259/257.glb",
+            "nz/9/259/260.glb",
+            "nz/9/259/261.glb",
+            "nz/9/260/258.glb",
+            "nz/9/260/259.glb",
+            "nz/9/261/258.glb",
+            "nz/9/261/259.glb"
+          ],
+          "sourceVertices": 923910,
+          "sampled": 0,
+          "styled": 0,
+          "maxHeightErrorKm": 0,
+          "terrain": {
+            "update": {
+              "count": 240,
+              "lastMs": 0.4000000059604645,
+              "meanMs": 0.4158333326379458,
+              "maxMs": 0.5
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 141,
+              "visible": 122,
+              "drawn": 48,
+              "inCache": 206,
+              "cpu": 144
+            },
+            "network": {
+              "requests": 206,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 32931984,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 52691748,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 146,
+            "pinnedTextures": 30,
+            "textureBytes": 54269952,
+            "maxTextureBytes": 167772160,
+            "requests": 146,
+            "bytes": 3048322,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 268.9999999701977,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 8672844,
+            "tiles": 48,
+            "splitTiles": 27,
+            "blocks": 135,
+            "displayedLevels": {
+              "1": 2,
+              "3": 16,
+              "5": 1,
+              "6": 7,
+              "7": 22,
+              "8": 25,
+              "9": 26,
+              "10": 36
+            },
+            "wantedLevels": {
+              "3": 3,
+              "4": 3,
+              "5": 6,
+              "6": 14,
+              "7": 22,
+              "8": 25,
+              "9": 26,
+              "10": 36
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 87,
+            "updateMs": 0.4000000059604645
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 18,
+            "requests": 144,
+            "bytes": 2433600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 320
+        },
+        "normal": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2.0999999940395355,
+            "p95": 2.300000011920929
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 2.792958,
+            "p95": 2.866124
+          },
+          "gpuTimerAvailable": true
+        },
+        "hillshade": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2.2999999821186066,
+            "p95": 2.5999999940395355
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.09999999403953552
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 2.594999,
+            "p95": 2.868875
+          },
+          "gpuTimerAvailable": true
+        },
+        "lightChangedPixels": 774249,
+        "elevation": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2.199999988079071,
+            "p95": 2.5
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.10000002384185791
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 2.404375,
+            "p95": 2.565708
+          },
+          "gpuTimerAvailable": true
+        },
+        "after": {
+          "ids": [
+            "nz/10/514/516.glb",
+            "nz/10/514/517.glb",
+            "nz/10/515/516.glb",
+            "nz/10/515/517.glb",
+            "nz/10/516/516.glb",
+            "nz/10/516/517.glb",
+            "nz/10/516/518.glb",
+            "nz/10/516/519.glb",
+            "nz/10/517/516.glb",
+            "nz/10/517/517.glb",
+            "nz/10/517/518.glb",
+            "nz/10/517/519.glb",
+            "nz/10/518/516.glb",
+            "nz/10/518/517.glb",
+            "nz/10/518/518.glb",
+            "nz/10/518/519.glb",
+            "nz/10/519/516.glb",
+            "nz/10/519/517.glb",
+            "nz/10/519/518.glb",
+            "nz/10/519/519.glb",
+            "nz/3/2/3.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/5.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/5.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/4/6/6.glb",
+            "nz/4/6/7.glb",
+            "nz/4/6/8.glb",
+            "nz/4/6/9.glb",
+            "nz/4/7/6.glb",
+            "nz/4/7/9.glb",
+            "nz/4/8/6.glb",
+            "nz/4/8/9.glb",
+            "nz/4/9/6.glb",
+            "nz/4/9/7.glb",
+            "nz/4/9/8.glb",
+            "nz/4/9/9.glb",
+            "nz/5/14/14.glb",
+            "nz/5/14/15.glb",
+            "nz/5/14/16.glb",
+            "nz/5/14/17.glb",
+            "nz/5/15/14.glb",
+            "nz/5/15/17.glb",
+            "nz/5/16/14.glb",
+            "nz/5/16/17.glb",
+            "nz/5/17/14.glb",
+            "nz/5/17/15.glb",
+            "nz/5/17/16.glb",
+            "nz/5/17/17.glb",
+            "nz/6/30/30.glb",
+            "nz/6/30/31.glb",
+            "nz/6/30/32.glb",
+            "nz/6/30/33.glb",
+            "nz/6/31/30.glb",
+            "nz/6/31/33.glb",
+            "nz/6/32/30.glb",
+            "nz/6/32/33.glb",
+            "nz/6/33/30.glb",
+            "nz/6/33/31.glb",
+            "nz/6/33/33.glb",
+            "nz/7/62/62.glb",
+            "nz/7/62/63.glb",
+            "nz/7/62/64.glb",
+            "nz/7/62/65.glb",
+            "nz/7/63/62.glb",
+            "nz/7/63/63.glb",
+            "nz/7/64/62.glb",
+            "nz/7/65/62.glb",
+            "nz/7/65/65.glb",
+            "nz/7/66/64.glb",
+            "nz/7/66/65.glb",
+            "nz/7/67/64.glb",
+            "nz/7/67/65.glb",
+            "nz/8/126/128.glb",
+            "nz/8/126/129.glb",
+            "nz/8/126/130.glb",
+            "nz/8/126/131.glb",
+            "nz/8/127/128.glb",
+            "nz/8/127/129.glb",
+            "nz/8/127/130.glb",
+            "nz/8/127/131.glb",
+            "nz/8/128/126.glb",
+            "nz/8/128/127.glb",
+            "nz/8/128/131.glb",
+            "nz/8/129/126.glb",
+            "nz/8/129/127.glb",
+            "nz/8/129/131.glb",
+            "nz/8/130/126.glb",
+            "nz/8/130/127.glb",
+            "nz/8/130/128.glb",
+            "nz/8/131/126.glb",
+            "nz/8/131/127.glb",
+            "nz/8/131/128.glb",
+            "nz/8/131/129.glb",
+            "nz/9/256/256.glb",
+            "nz/9/256/257.glb",
+            "nz/9/256/258.glb",
+            "nz/9/256/259.glb",
+            "nz/9/256/260.glb",
+            "nz/9/256/261.glb",
+            "nz/9/257/256.glb",
+            "nz/9/257/257.glb",
+            "nz/9/257/259.glb",
+            "nz/9/257/260.glb",
+            "nz/9/257/261.glb",
+            "nz/9/258/256.glb",
+            "nz/9/258/257.glb",
+            "nz/9/258/260.glb",
+            "nz/9/258/261.glb",
+            "nz/9/259/256.glb",
+            "nz/9/259/257.glb",
+            "nz/9/259/260.glb",
+            "nz/9/259/261.glb",
+            "nz/9/260/258.glb",
+            "nz/9/260/259.glb",
+            "nz/9/261/258.glb",
+            "nz/9/261/259.glb"
+          ],
+          "sourceVertices": 923910,
+          "sampled": 576,
+          "styled": 48,
+          "maxHeightErrorKm": 2.1327059585019015e-07,
+          "terrain": {
+            "update": {
+              "count": 794,
+              "lastMs": 0.5,
+              "meanMs": 0.41083333268761635,
+              "maxMs": 0.5
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 141,
+              "visible": 122,
+              "drawn": 48,
+              "inCache": 206,
+              "cpu": 144
+            },
+            "network": {
+              "requests": 206,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 32931984,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 60099308,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 146,
+            "pinnedTextures": 30,
+            "textureBytes": 54269952,
+            "maxTextureBytes": 167772160,
+            "requests": 146,
+            "bytes": 3048322,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 513.2000001072884,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 11774804,
+            "tiles": 48,
+            "splitTiles": 27,
+            "blocks": 135,
+            "displayedLevels": {
+              "1": 2,
+              "3": 16,
+              "5": 1,
+              "6": 7,
+              "7": 22,
+              "8": 25,
+              "9": 26,
+              "10": 36
+            },
+            "wantedLevels": {
+              "3": 3,
+              "4": 3,
+              "5": 6,
+              "6": 14,
+              "7": 22,
+              "8": 25,
+              "9": 26,
+              "10": 36
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 10,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 87,
+            "updateMs": 0.4000000059604645
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 18,
+            "requests": 144,
+            "bytes": 2433600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 320
+        },
+        "debugRestorePixels": 0,
+        "restoredPixelDifference": 0,
+        "restored": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2,
+            "p95": 2.199999988079071
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 2.864,
+            "p95": 2.975958
+          },
+          "gpuTimerAvailable": true
+        },
+        "physicalUnchanged": true,
+        "activation": [
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 6.200000017881393,
+            "maxTileMs": 6.100000023841858
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 7.5999999940395355,
+            "maxTileMs": 7.5
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 7.0999999940395355,
+            "maxTileMs": 7
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.800000011920929,
+            "maxTileMs": 3.4000000059604645
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.799999982118607,
+            "maxTileMs": 3.5
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 5.0999999940395355,
+            "maxTileMs": 3.2999999821186066
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5999999940395355,
+            "maxTileMs": 2.0999999940395355
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.9000000059604645,
+            "maxTileMs": 2.0999999940395355
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.699999988079071,
+            "maxTileMs": 2.0999999940395355
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5,
+            "maxTileMs": 2
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.4000000059604645,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.4000000059604645,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5999999940395355,
+            "maxTileMs": 2
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4,
+            "maxTileMs": 2.0999999940395355
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.700000017881393,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.0999999940395355,
+            "maxTileMs": 1.7000000178813934
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.0999999940395355,
+            "maxTileMs": 1.7999999821186066
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5,
+            "maxTileMs": 1.800000011920929
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.300000011920929,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 1.699999988079071,
+            "maxTileMs": 1.699999988079071
+          },
+          {
+            "meshes": 48,
+            "vertices": 215280,
+            "elapsedMs": 3.800000011920929,
+            "maxTileMs": 0.5
+          }
+        ]
+      },
+      "far": {
+        "before": {
+          "ids": [
+            "nx/1/1/0.glb",
+            "nx/1/1/1.glb",
+            "nx/2/0/0.glb",
+            "nx/2/0/1.glb",
+            "nx/2/0/2.glb",
+            "nx/2/0/3.glb",
+            "nx/2/1/0.glb",
+            "nx/2/1/1.glb",
+            "nx/2/1/2.glb",
+            "nx/2/1/3.glb",
+            "ny/1/0/1.glb",
+            "ny/1/1/1.glb",
+            "ny/2/0/0.glb",
+            "ny/2/0/1.glb",
+            "ny/2/1/0.glb",
+            "ny/2/1/1.glb",
+            "ny/2/2/0.glb",
+            "ny/2/2/1.glb",
+            "ny/2/3/0.glb",
+            "ny/2/3/1.glb",
+            "nz/2/0/3.glb",
+            "nz/2/3/0.glb",
+            "nz/2/3/1.glb",
+            "nz/2/3/2.glb",
+            "nz/2/3/3.glb",
+            "nz/3/0/0.glb",
+            "nz/3/0/1.glb",
+            "nz/3/0/2.glb",
+            "nz/3/0/3.glb",
+            "nz/3/0/4.glb",
+            "nz/3/0/5.glb",
+            "nz/3/1/0.glb",
+            "nz/3/1/1.glb",
+            "nz/3/1/2.glb",
+            "nz/3/1/3.glb",
+            "nz/3/1/4.glb",
+            "nz/3/1/5.glb",
+            "nz/3/2/0.glb",
+            "nz/3/2/1.glb",
+            "nz/3/2/2.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/2/6.glb",
+            "nz/3/2/7.glb",
+            "nz/3/3/0.glb",
+            "nz/3/3/1.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/6.glb",
+            "nz/3/3/7.glb",
+            "nz/3/4/0.glb",
+            "nz/3/4/1.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/5.glb",
+            "nz/3/4/6.glb",
+            "nz/3/4/7.glb",
+            "nz/3/5/0.glb",
+            "nz/3/5/1.glb",
+            "nz/3/5/2.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/3/5/6.glb",
+            "nz/3/5/7.glb",
+            "nz/4/4/6.glb",
+            "nz/4/4/7.glb",
+            "nz/4/5/6.glb",
+            "nz/4/5/7.glb",
+            "nz/4/6/10.glb",
+            "nz/4/6/11.glb",
+            "nz/4/6/6.glb",
+            "nz/4/6/7.glb",
+            "nz/4/6/8.glb",
+            "nz/4/6/9.glb",
+            "nz/4/7/10.glb",
+            "nz/4/7/11.glb",
+            "nz/4/7/6.glb",
+            "nz/4/7/7.glb",
+            "nz/4/7/8.glb",
+            "nz/4/7/9.glb",
+            "nz/4/8/8.glb",
+            "nz/4/8/9.glb",
+            "nz/4/9/8.glb",
+            "nz/4/9/9.glb",
+            "px/1/0/0.glb",
+            "px/1/0/1.glb",
+            "px/2/2/0.glb",
+            "px/2/2/1.glb",
+            "px/2/2/2.glb",
+            "px/2/2/3.glb",
+            "px/2/3/0.glb",
+            "px/2/3/1.glb",
+            "px/2/3/2.glb",
+            "px/2/3/3.glb",
+            "py/1/0/0.glb",
+            "py/1/1/0.glb",
+            "py/2/0/2.glb",
+            "py/2/0/3.glb",
+            "py/2/1/2.glb",
+            "py/2/1/3.glb",
+            "py/2/2/2.glb",
+            "py/2/2/3.glb",
+            "py/2/3/2.glb",
+            "py/2/3/3.glb",
+            "pz/1/0/0.glb",
+            "pz/1/0/1.glb",
+            "pz/1/1/0.glb",
+            "pz/1/1/1.glb"
+          ],
+          "sourceVertices": 1291680,
+          "sampled": 0,
+          "styled": 0,
+          "maxHeightErrorKm": 0,
+          "terrain": {
+            "update": {
+              "count": 1294,
+              "lastMs": 0.30000001192092896,
+              "meanMs": 0.3216666636367639,
+              "maxMs": 0.5
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 108,
+              "visible": 108,
+              "drawn": 34,
+              "inCache": 288,
+              "cpu": 147
+            },
+            "network": {
+              "requests": 288,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 46040832,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 70188564,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 279,
+            "pinnedTextures": 30,
+            "textureBytes": 103707648,
+            "maxTextureBytes": 167772160,
+            "requests": 279,
+            "bytes": 6559303,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 719.7000000178814,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 8647572,
+            "tiles": 34,
+            "splitTiles": 27,
+            "blocks": 118,
+            "displayedLevels": {
+              "2": 12,
+              "3": 39,
+              "4": 35,
+              "5": 32
+            },
+            "wantedLevels": {
+              "2": 12,
+              "3": 39,
+              "4": 35,
+              "5": 32
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 5,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 84,
+            "updateMs": 0.4000000059604645
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 21,
+            "requests": 147,
+            "bytes": 2484300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 399
+        },
+        "normal": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.9000000059604645,
+            "p95": 2.100000023841858
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.964249,
+            "p95": 2.026625
+          },
+          "gpuTimerAvailable": true
+        },
+        "hillshade": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.800000011920929,
+            "p95": 2.5
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.09999999403953552
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.818541,
+            "p95": 1.867541
+          },
+          "gpuTimerAvailable": true
+        },
+        "lightChangedPixels": 511857,
+        "elevation": {
+          "cpuMs": {
+            "n": 60,
+            "median": 2,
+            "p95": 2.4000000059604645
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0.09999999403953552
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.741875,
+            "p95": 2.960999
+          },
+          "gpuTimerAvailable": true
+        },
+        "after": {
+          "ids": [
+            "nx/1/1/0.glb",
+            "nx/1/1/1.glb",
+            "nx/2/0/0.glb",
+            "nx/2/0/1.glb",
+            "nx/2/0/2.glb",
+            "nx/2/0/3.glb",
+            "nx/2/1/0.glb",
+            "nx/2/1/1.glb",
+            "nx/2/1/2.glb",
+            "nx/2/1/3.glb",
+            "ny/1/0/1.glb",
+            "ny/1/1/1.glb",
+            "ny/2/0/0.glb",
+            "ny/2/0/1.glb",
+            "ny/2/1/0.glb",
+            "ny/2/1/1.glb",
+            "ny/2/2/0.glb",
+            "ny/2/2/1.glb",
+            "ny/2/3/0.glb",
+            "ny/2/3/1.glb",
+            "nz/2/0/3.glb",
+            "nz/2/3/0.glb",
+            "nz/2/3/1.glb",
+            "nz/2/3/2.glb",
+            "nz/2/3/3.glb",
+            "nz/3/0/0.glb",
+            "nz/3/0/1.glb",
+            "nz/3/0/2.glb",
+            "nz/3/0/3.glb",
+            "nz/3/0/4.glb",
+            "nz/3/0/5.glb",
+            "nz/3/1/0.glb",
+            "nz/3/1/1.glb",
+            "nz/3/1/2.glb",
+            "nz/3/1/3.glb",
+            "nz/3/1/4.glb",
+            "nz/3/1/5.glb",
+            "nz/3/2/0.glb",
+            "nz/3/2/1.glb",
+            "nz/3/2/2.glb",
+            "nz/3/2/4.glb",
+            "nz/3/2/5.glb",
+            "nz/3/2/6.glb",
+            "nz/3/2/7.glb",
+            "nz/3/3/0.glb",
+            "nz/3/3/1.glb",
+            "nz/3/3/2.glb",
+            "nz/3/3/6.glb",
+            "nz/3/3/7.glb",
+            "nz/3/4/0.glb",
+            "nz/3/4/1.glb",
+            "nz/3/4/2.glb",
+            "nz/3/4/3.glb",
+            "nz/3/4/5.glb",
+            "nz/3/4/6.glb",
+            "nz/3/4/7.glb",
+            "nz/3/5/0.glb",
+            "nz/3/5/1.glb",
+            "nz/3/5/2.glb",
+            "nz/3/5/3.glb",
+            "nz/3/5/4.glb",
+            "nz/3/5/5.glb",
+            "nz/3/5/6.glb",
+            "nz/3/5/7.glb",
+            "nz/4/4/6.glb",
+            "nz/4/4/7.glb",
+            "nz/4/5/6.glb",
+            "nz/4/5/7.glb",
+            "nz/4/6/10.glb",
+            "nz/4/6/11.glb",
+            "nz/4/6/6.glb",
+            "nz/4/6/7.glb",
+            "nz/4/6/8.glb",
+            "nz/4/6/9.glb",
+            "nz/4/7/10.glb",
+            "nz/4/7/11.glb",
+            "nz/4/7/6.glb",
+            "nz/4/7/7.glb",
+            "nz/4/7/8.glb",
+            "nz/4/7/9.glb",
+            "nz/4/8/8.glb",
+            "nz/4/8/9.glb",
+            "nz/4/9/8.glb",
+            "nz/4/9/9.glb",
+            "px/1/0/0.glb",
+            "px/1/0/1.glb",
+            "px/2/2/0.glb",
+            "px/2/2/1.glb",
+            "px/2/2/2.glb",
+            "px/2/2/3.glb",
+            "px/2/3/0.glb",
+            "px/2/3/1.glb",
+            "px/2/3/2.glb",
+            "px/2/3/3.glb",
+            "py/1/0/0.glb",
+            "py/1/1/0.glb",
+            "py/2/0/2.glb",
+            "py/2/0/3.glb",
+            "py/2/1/2.glb",
+            "py/2/1/3.glb",
+            "py/2/2/2.glb",
+            "py/2/2/3.glb",
+            "py/2/3/2.glb",
+            "py/2/3/3.glb",
+            "pz/1/0/0.glb",
+            "pz/1/0/1.glb",
+            "pz/1/1/0.glb",
+            "pz/1/1/1.glb"
+          ],
+          "sourceVertices": 1291680,
+          "sampled": 408,
+          "styled": 34,
+          "maxHeightErrorKm": 4.2371834751975257e-07,
+          "terrain": {
+            "update": {
+              "count": 1861,
+              "lastMs": 0.29999998211860657,
+              "meanMs": 0.3174999977151553,
+              "maxMs": 0.4000000059604645
+            },
+            "parse": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "cpuDecode": {
+              "count": 0,
+              "lastMs": 0,
+              "meanMs": 0,
+              "maxMs": 0
+            },
+            "sample": {
+              "count": 0,
+              "lastMicros": 0,
+              "meanMicros": 0
+            },
+            "tiles": {
+              "active": 108,
+              "visible": 108,
+              "drawn": 34,
+              "inCache": 288,
+              "cpu": 147
+            },
+            "network": {
+              "requests": 288,
+              "queued": 0,
+              "downloading": 0,
+              "parsing": 0,
+              "failed": 0
+            },
+            "memory": {
+              "cacheBytes": 46040832,
+              "maxCacheBytes": 536870912,
+              "geometryBytes": 76328964,
+              "textureBytes": 0
+            },
+            "imagery": {
+              "layers": 0,
+              "activeOverlays": 0,
+              "overlayResolution": 256,
+              "requests": 0,
+              "failed": 0
+            }
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 279,
+            "pinnedTextures": 30,
+            "textureBytes": 103707648,
+            "maxTextureBytes": 167772160,
+            "requests": 279,
+            "bytes": 6559303,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 918.6000000834465,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "blockGeometryBytes": 11738172,
+            "tiles": 34,
+            "splitTiles": 27,
+            "blocks": 118,
+            "displayedLevels": {
+              "2": 12,
+              "3": 39,
+              "4": 35,
+              "5": 32
+            },
+            "wantedLevels": {
+              "2": 12,
+              "3": 39,
+              "4": 35,
+              "5": 32
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "maxDisplayedLevel": 5,
+            "queued": 0,
+            "budgetLimited": false,
+            "extraDraws": 84,
+            "updateMs": 0.4000000059604645
+          },
+          "grids": {
+            "residentTiles": 126,
+            "detailTiles": 21,
+            "requests": 147,
+            "bytes": 2484300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "styleMeshes": 399
+        },
+        "debugRestorePixels": 0,
+        "restoredPixelDifference": 0,
+        "restored": {
+          "cpuMs": {
+            "n": 60,
+            "median": 1.800000011920929,
+            "p95": 2.0999999940395355
+          },
+          "styleCpuMs": {
+            "n": 60,
+            "median": 0,
+            "p95": 0
+          },
+          "gpuMs": {
+            "n": 60,
+            "median": 1.973166,
+            "p95": 2.032749
+          },
+          "gpuTimerAvailable": true
+        },
+        "physicalUnchanged": true,
+        "activation": [
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 5.9000000059604645,
+            "maxTileMs": 5.700000017881393
+          },
+          {
+            "meshes": 1,
+            "vertices": 4485,
+            "elapsedMs": 4.199999988079071,
+            "maxTileMs": 4.0999999940395355
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.699999988079071,
+            "maxTileMs": 3.399999976158142
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 6.9000000059604645,
+            "maxTileMs": 3.7000000178813934
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 7.0999999940395355,
+            "maxTileMs": 3.699999988079071
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.100000023841858,
+            "maxTileMs": 2.300000011920929
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5999999940395355,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.4000000059604645,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.199999988079071,
+            "maxTileMs": 2.2999999821186066
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 4.100000023841858,
+            "maxTileMs": 2.2000000178813934
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.4000000059604645,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5,
+            "maxTileMs": 1.899999976158142
+          },
+          {
+            "meshes": 3,
+            "vertices": 13455,
+            "elapsedMs": 5.5,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 2,
+            "vertices": 8970,
+            "elapsedMs": 3.7000000178813934,
+            "maxTileMs": 1.9000000059604645
+          },
+          {
+            "meshes": 34,
+            "vertices": 152490,
+            "elapsedMs": 2.7000000178813934,
+            "maxTileMs": 0.20000001788139343
+          }
+        ]
+      }
+    },
+    "errors": [],
+    "pick": {
+      "x": 200,
+      "y": 350,
+      "height": 1.1425172898907392
+    },
+    "navigation": {
+      "diagnostics": {
+        "maxNormalDifference": 0,
+        "missing": 0,
+        "active": 48,
+        "beforeActive": 48,
+        "cameraDifference": 0
+      },
+      "imageryBefore": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 279,
+        "pinnedTextures": 30,
+        "textureBytes": 103707648,
+        "maxTextureBytes": 167772160,
+        "requests": 279,
+        "bytes": 6559303,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 1368.2999999821186,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 20223560,
+        "tiles": 48,
+        "splitTiles": 27,
+        "blocks": 135,
+        "displayedLevels": {
+          "1": 2,
+          "3": 2,
+          "4": 5,
+          "5": 10,
+          "6": 7,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "wantedLevels": {
+          "3": 3,
+          "4": 3,
+          "5": 6,
+          "6": 14,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 87,
+        "updateMs": 0.5
+      },
+      "imageryAfter": {
+        "version": "cube-imagery-composite-3f34a19541af7710",
+        "ready": true,
+        "textures": 279,
+        "pinnedTextures": 30,
+        "textureBytes": 103707648,
+        "maxTextureBytes": 167772160,
+        "requests": 279,
+        "bytes": 6559303,
+        "failures": 0,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 1453.0999999940395,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "blockGeometryBytes": 11154412,
+        "tiles": 48,
+        "splitTiles": 27,
+        "blocks": 135,
+        "displayedLevels": {
+          "1": 2,
+          "3": 2,
+          "4": 5,
+          "5": 10,
+          "6": 7,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "wantedLevels": {
+          "3": 3,
+          "4": 3,
+          "5": 6,
+          "6": 14,
+          "7": 22,
+          "8": 25,
+          "9": 26,
+          "10": 36
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "maxDisplayedLevel": 10,
+        "queued": 0,
+        "budgetLimited": false,
+        "extraDraws": 87,
+        "updateMs": 0.5
+      },
+      "sameTiles": true,
+      "changedPixels": 0
+    },
+    "mobile": {
+      "viewport": 390,
+      "documentWidth": 390,
+      "sectionWidth": 346,
+      "sectionLeft": 19.5,
+      "panelScroll": 338,
+      "dockScroll": 0,
+      "scrolling": {
+        "bodyScroll": 463,
+        "dockScroll": 0
+      }
+    }
+  }
+]

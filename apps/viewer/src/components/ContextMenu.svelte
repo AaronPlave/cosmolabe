@@ -1,42 +1,54 @@
 <script lang="ts">
-  import { trackBody, lookAtBody, flyToTracked, getRenderer } from '../lib/viewer-state.svelte';
-  import { Eye, Navigation, Focus, RotateCcw } from 'lucide-svelte';
+  // Every action here is one of the shared navigation verbs (docs/navigation.md):
+  // the menu chooses which, and does not re-derive what any of them means.
+  import { selectBody, trackBody, frameBody, flyToBody, lookAtBody, resetCamera, navigateToSurfacePoint } from '../lib/viewer-state.svelte';
+  import { surfaceNavigable, type SurfacePoint } from '@cosmolabe/three';
+  import { Eye, Navigation, Focus, Maximize, MousePointerClick, RotateCcw, Route, ZoomIn, Copy } from 'lucide-svelte';
+  import { copySurfacePointCoordinates } from '../lib/surface-coordinates';
 
   interface Props {
     x: number;
     y: number;
     bodyName: string | null;
+    /** The surface point under the click, when the scene hit found one. */
+    surfacePoint?: SurfacePoint | null;
     onClose: () => void;
   }
 
-  let { x, y, bodyName, onClose }: Props = $props();
+  let { x, y, bodyName, surfacePoint = null, onClose }: Props = $props();
 
-  function handleTrack() {
-    if (bodyName) trackBody(bodyName);
+  /**
+   * Navigate to the clicked point: camera only — no selection, time or mode
+   * change. Zoom comes a step closer each time; Fly to here lands at the same
+   * framing however often it is used.
+   */
+  function toPoint(verb: 'zoom' | 'frame', animate: boolean) {
+    return () => {
+      if (surfacePoint) navigateToSurfacePoint(surfacePoint, { animate, from: 'click', verb });
+      onClose();
+    };
+  }
+
+  function copyPoint() {
+    if (surfacePoint) void copySurfacePointCoordinates(surfacePoint);
     onClose();
   }
 
-  function handleLookAt() {
-    if (bodyName) lookAtBody(bodyName);
-    onClose();
-  }
-
-  function handleFlyTo() {
-    if (bodyName) {
-      trackBody(bodyName);
-      flyToTracked();
-    }
-    onClose();
+  /** Run `action` on the menu's body, then close. */
+  function act(action: (name: string) => unknown) {
+    return () => {
+      if (bodyName) action(bodyName);
+      onClose();
+    };
   }
 
   function handleResetCamera() {
-    const r = getRenderer();
-    if (r) r.cameraController.resetToFreeOrbit();
+    resetCamera();
     onClose();
   }
 
   // Clamp position to viewport
-  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 180)}px; top: ${Math.min(y, window.innerHeight - 200)}px;`);
+  let menuStyle = $derived(`left: ${Math.min(x, window.innerWidth - 200)}px; top: ${Math.min(y, window.innerHeight - (surfacePoint && surfaceNavigable(surfacePoint) ? 360 : 290))}px;`);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -45,14 +57,36 @@
   <div class="absolute bg-black/90 backdrop-blur-xl border border-border rounded-lg py-1 min-w-40 shadow-2xl animate-fade-in" style={menuStyle} onclick={(e) => e.stopPropagation()}>
     {#if bodyName}
       <div class="px-3 py-1 text-[11px] text-text-muted uppercase tracking-wider">{bodyName}</div>
-      <button class="ctx-item" onclick={handleTrack}>
+      <button class="ctx-item" onclick={act(selectBody)} title="Show its details; the camera stays put">
+        <MousePointerClick size={13} /> Select
+      </button>
+      <button class="ctx-item" onclick={act(trackBody)} title="Orbit and follow it without moving the camera">
         <Focus size={13} /> Track
       </button>
-      <button class="ctx-item" onclick={handleLookAt}>
+      <button class="ctx-item" onclick={act(frameBody)} title="Cut to a view that fits it">
+        <Maximize size={13} /> Frame
+      </button>
+      <button class="ctx-item" onclick={act((name) => flyToBody(name))} title="Fly straight there">
+        <Navigation size={13} /> Fly to
+      </button>
+      <button class="ctx-item" onclick={act((name) => flyToBody(name, { path: 'overview' }))} title="Pull back to show where it is from here, then fly there">
+        <Route size={13} /> Fly via overview
+      </button>
+      <button class="ctx-item" onclick={act(lookAtBody)} title="Aim at it while orbiting what is tracked">
         <Eye size={13} /> Look at
       </button>
-      <button class="ctx-item" onclick={handleFlyTo}>
-        <Navigation size={13} /> Fly to
+      <div class="h-px bg-border my-1"></div>
+    {/if}
+    {#if surfacePoint && surfaceNavigable(surfacePoint)}
+      <!-- Actions on the point clicked; its full readout is the Point Probe's. -->
+      <button class="ctx-item" onclick={toPoint('zoom', false)} title="Move a step closer along this line of sight and orbit about this point">
+        <ZoomIn size={13} /> Zoom to here
+      </button>
+      <button class="ctx-item" onclick={toPoint('frame', true)} title="Fly to a local view of this point and orbit about it">
+        <Navigation size={13} /> Fly to here
+      </button>
+      <button class="ctx-item" onclick={copyPoint} title="Copy latitude, longitude (planetocentric, east-positive) — pastes into Navigate">
+        <Copy size={13} /> Copy coordinates
       </button>
       <div class="h-px bg-border my-1"></div>
     {/if}

@@ -24,6 +24,13 @@ export interface InstrumentFovProvider {
 }
 
 /**
+ * Boundary room to ask getfov for. SPICE's customary 20 is too few for some
+ * real IKs (LRO LAMP's slit has 66 corners), and too little room is an error,
+ * not a truncation.
+ */
+export const FOV_MAX_BOUNDS = 1000;
+
+/**
  * Narrow an injected engine to the FOV capability, or null if it has none.
  * Returning null rather than throwing matches how the call sites already treat
  * a missing IK: no FOV geometry is a degraded scene, not an error.

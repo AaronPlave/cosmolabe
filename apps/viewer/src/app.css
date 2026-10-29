@@ -1,6 +1,7 @@
 @import "@fontsource-variable/martian-mono";
 @import "@fontsource-variable/public-sans";
-@import "tailwindcss";
+/* Limit utility discovery to UI source, excluding large optional terrain/catalog assets. */
+@import "tailwindcss" source("./");
 
 /* ── Design tokens ── */
 @theme {
@@ -280,6 +281,7 @@
 @layer components {
   [data-ev-kind] { --ev: var(--color-event-accent); }
   [data-ev-kind='closest-approach'] { --ev: #72b7d8; }
+  [data-ev-kind='mission-activity'] { --ev: #b69bd3; }
   [data-ev-kind='distance-range'] { --ev: #71b896; }
   [data-ev-kind='occultation'] { --ev: #8c72d8; }
   [data-ev-state='partial'] { --ev: #e0a84c; }

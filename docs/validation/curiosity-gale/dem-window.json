@@ -1,0 +1,28 @@
+{
+  "kind": "native-grid-window",
+  "sourceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+  "sourceBytes": 3868256546,
+  "sourceEtag": "746836824e520f8f0a7fb3987bdef0ff-462",
+  "sourceLastModified": "2022-11-09T15:50:28Z",
+  "sourceSize": [
+    32980,
+    57440
+  ],
+  "sourceGeoTransform": [
+    8127993.492786024,
+    1,
+    0,
+    -244781.075189438,
+    0,
+    -1
+  ],
+  "sourceWindow": [
+    16580,
+    29256,
+    400,
+    400
+  ],
+  "resampling": "none; original native sample centres and RasterPixelIsPoint tag retained",
+  "nativeSourceAtSite": null,
+  "caveat": "No per-pixel source index was found; valid 1m grid data does not establish native HiRISE stereo fidelity."
+}

@@ -1,0 +1,2064 @@
+{
+  "kind": "estimated-ingenuity-reconstruction",
+  "version": 1,
+  "inputs": {
+    "paths": {
+      "file": "m20_heli_flight_path.json",
+      "bytes": 2303889,
+      "sha256": "f0b19df6290a4d26c6618188d8986774b01c509e3d98841e410e8168f868240a"
+    },
+    "waypoints": {
+      "file": "m20_heli_waypoints.json",
+      "bytes": 65499,
+      "sha256": "457b536b6851259d2dfd1ee75c076ca95f4ad7f5f1cbd49c880564c3cf5d787b"
+    },
+    "officialLog": {
+      "file": "official-flight-log.json",
+      "bytes": 11910,
+      "sha256": "64c8d451723faddb6bbe915fca0c844cb87071d719d874f8ffd81cef88067126"
+    },
+    "terrain": {
+      "file": "fused.tif",
+      "bytes": 480068839,
+      "sha256": "37b3fccc8e89854ba8cbd186bc21b1b2717c39ec1d9dc1918ee4b93ba86236c6"
+    },
+    "areoidLabel": {
+      "file": "MEGA90N000EB.LBL",
+      "bytes": 3760,
+      "sha256": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+    },
+    "areoidImage": {
+      "file": "MEGA90N000EB.IMG",
+      "bytes": 33177600,
+      "sha256": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+    }
+  },
+  "policy": "Terrain chosen independently. Observed horizontal vertices and landing locations preserved; interior times and radial AGL explicitly estimated.",
+  "coordinateEvidence": "PDS Mars 2020 Camera SIS v3.7 section 20.11: HELI_M to HELI_G to SITE(3), positive-down Z, orbital EQC standard parallel 18.4663 degrees; direct map coordinates do not require an invented SF3 rotation.",
+  "clockPolicy": "Original mission epochs retained. PDS SIS documents J2000 nominal SCLK epoch and possible clock drift. No calibrated MMGIS clock-to-ET solution is asserted.",
+  "limitations": [
+    "No complete public 3D time series established; NAIF archive explicitly excludes Ingenuity kernels.",
+    "Terrain-relative cruise is an estimated visualization profile, not the onboard guidance law.",
+    "Summary distances and speeds can conflict with mapped paths; observations are not rescaled to force agreement.",
+    "Zero-distance/zero-speed summaries do not erase the nonzero observed tracks, including Flights 1, 71 and 72.",
+    "Absolute map frame, datum uncertainty and PCK realization remain uncertified."
+  ],
+  "flights": [
+    {
+      "flight": 1,
+      "pathLabel": 1,
+      "samples": 1183,
+      "eventDurationS": 39.10000002384186,
+      "published": {
+        "flight": 1,
+        "sol": 58,
+        "distanceM": 0.0,
+        "maxAltitudeM": 3.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 39.1
+      },
+      "pathDistanceM": 2.3178499401917056,
+      "modeledMaxGroundspeedMS": 0.0761148672836649,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 3.0,
+      "horizontalDurationS": 33.10000002384186,
+      "durationMinusPublishedS": 2.384185648907078e-08,
+      "pathMinusPublishedDistanceM": 2.3178499401917056,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.0761148672836649,
+      "endpointTerrainMinusObservedM": [
+        -0.004498570676332747,
+        -0.003986554834682465
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 3.0
+    },
+    {
+      "flight": 2,
+      "pathLabel": 2,
+      "samples": 1568,
+      "eventDurationS": 51.800000071525574,
+      "published": {
+        "flight": 2,
+        "sol": 61,
+        "distanceM": 4.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 0.5,
+        "durationS": 51.9
+      },
+      "pathDistanceM": 6.285020234377086,
+      "modeledMaxGroundspeedMS": 0.16343406031887214,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 41.800000071525574,
+      "durationMinusPublishedS": -0.09999992847442485,
+      "pathMinusPublishedDistanceM": 2.285020234377086,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.33656593968112786,
+      "endpointTerrainMinusObservedM": [
+        -0.003986554834682465,
+        -0.00046660374573548324
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 3,
+      "pathLabel": 3,
+      "samples": 2406,
+      "eventDurationS": 80.29999995231628,
+      "published": {
+        "flight": 3,
+        "sol": 64,
+        "distanceM": 100.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 2.0,
+        "durationS": 80.3
+      },
+      "pathDistanceM": 102.42315352045897,
+      "modeledMaxGroundspeedMS": 1.583634634020834,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 70.29999995231628,
+      "durationMinusPublishedS": -4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 2.4231535204589676,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.41636536597916596,
+      "endpointTerrainMinusObservedM": [
+        -0.00046660374573548324,
+        -0.004382011848974798
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 4,
+      "pathLabel": 4,
+      "samples": 3519,
+      "eventDurationS": 116.89999997615814,
+      "published": {
+        "flight": 4,
+        "sol": 69,
+        "distanceM": 266.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 3.5,
+        "durationS": 116.9
+      },
+      "pathDistanceM": 271.1175178280851,
+      "modeledMaxGroundspeedMS": 2.7567161293422573,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 106.89999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 5.117517828085113,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.7432838706577427,
+      "endpointTerrainMinusObservedM": [
+        -0.004382011848974798,
+        -0.0033635246231824567
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 5,
+      "pathLabel": 5,
+      "samples": 3279,
+      "eventDurationS": 108.20000004768372,
+      "published": {
+        "flight": 5,
+        "sol": 76,
+        "distanceM": 129.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 2.0,
+        "durationS": 108.2
+      },
+      "pathDistanceM": 134.68357414948807,
+      "modeledMaxGroundspeedMS": 1.6598094015167337,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 88.20000004768372,
+      "durationMinusPublishedS": 4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 5.6835741494880665,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.34019059848326627,
+      "endpointTerrainMinusObservedM": [
+        -0.0033635246231824567,
+        -0.0026719916058937088
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 6,
+      "pathLabel": 6,
+      "samples": 4199,
+      "eventDurationS": 139.89999997615814,
+      "published": {
+        "flight": 6,
+        "sol": 91,
+        "distanceM": 215.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 139.9
+      },
+      "pathDistanceM": 517.0742507720857,
+      "modeledMaxGroundspeedMS": 4.000558998742671,
+      "modeledMaxVerticalSpeedMS": 3.141592653589793,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 129.89999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 302.07425077208575,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.0005589987426706244,
+      "endpointTerrainMinusObservedM": [
+        -0.0026719916058937088,
+        -0.0024646290839882568
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 7,
+      "pathLabel": 7,
+      "samples": 1954,
+      "eventDurationS": 62.800000071525574,
+      "published": {
+        "flight": 7,
+        "sol": 107,
+        "distanceM": 106.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 62.8
+      },
+      "pathDistanceM": 112.7107279187953,
+      "modeledMaxGroundspeedMS": 2.862421976087917,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 42.800000071525574,
+      "durationMinusPublishedS": 7.152557657263969e-08,
+      "pathMinusPublishedDistanceM": 6.7107279187953,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.137578023912083,
+      "endpointTerrainMinusObservedM": [
+        -0.0024646290839882568,
+        -0.0018122600858987425
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 8,
+      "pathLabel": 8,
+      "samples": 2391,
+      "eventDurationS": 77.39999997615814,
+      "published": {
+        "flight": 8,
+        "sol": 120,
+        "distanceM": 160.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 77.4
+      },
+      "pathDistanceM": 168.24121972434355,
+      "modeledMaxGroundspeedMS": 3.185904025795803,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 57.39999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 8.241219724343551,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.8140959742041969,
+      "endpointTerrainMinusObservedM": [
+        -0.0018122600858987425,
+        0.004041399903144338
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 9,
+      "pathLabel": 9,
+      "samples": 5056,
+      "eventDurationS": 166.40000009536743,
+      "published": {
+        "flight": 9,
+        "sol": 133,
+        "distanceM": 625.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 5.0,
+        "durationS": 166.4
+      },
+      "pathDistanceM": 656.4831918938897,
+      "modeledMaxGroundspeedMS": 4.87410304901881,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 146.40000009536743,
+      "durationMinusPublishedS": 9.536742595628311e-08,
+      "pathMinusPublishedDistanceM": 31.48319189388974,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.1258969509811898,
+      "endpointTerrainMinusObservedM": [
+        0.004041399903144338,
+        0.00152523719407327
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 10,
+      "pathLabel": 10,
+      "samples": 5026,
+      "eventDurationS": 165.40000009536743,
+      "published": {
+        "flight": 10,
+        "sol": 152,
+        "distanceM": 233.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.0,
+        "durationS": 165.4
+      },
+      "pathDistanceM": 245.55564546292868,
+      "modeledMaxGroundspeedMS": 1.8876118112148186,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 141.40000009536743,
+      "durationMinusPublishedS": 9.536742595628311e-08,
+      "pathMinusPublishedDistanceM": 12.55564546292868,
+      "modeledMinusPublishedMaxGroundspeedMS": -3.1123881887851814,
+      "endpointTerrainMinusObservedM": [
+        0.00152523719407327,
+        -0.0007898388566900394
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 11,
+      "pathLabel": 11,
+      "samples": 3994,
+      "eventDurationS": 130.90000009536743,
+      "published": {
+        "flight": 11,
+        "sol": 163,
+        "distanceM": 383.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.0,
+        "durationS": 130.9
+      },
+      "pathDistanceM": 432.1263184354568,
+      "modeledMaxGroundspeedMS": 4.393849575486528,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 106.90000009536743,
+      "durationMinusPublishedS": 9.536742595628311e-08,
+      "pathMinusPublishedDistanceM": 49.126318435456824,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.6061504245134719,
+      "endpointTerrainMinusObservedM": [
+        -0.0007898388566900394,
+        0.003672185358027491
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 12,
+      "pathLabel": 13,
+      "samples": 5148,
+      "eventDurationS": 169.5,
+      "published": {
+        "flight": 12,
+        "sol": 174,
+        "distanceM": 450.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.3,
+        "durationS": 169.5
+      },
+      "pathDistanceM": 469.2915487682836,
+      "modeledMaxGroundspeedMS": 3.412036853048448,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 149.5,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 19.291548768283576,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.8879631469515519,
+      "endpointTerrainMinusObservedM": [
+        0.003672185358027491,
+        0.0016122749675560044
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 13,
+      "pathLabel": 12,
+      "samples": 4877,
+      "eventDurationS": 160.5,
+      "published": {
+        "flight": 13,
+        "sol": 193,
+        "distanceM": 210.0,
+        "maxAltitudeM": 8.0,
+        "maxGroundspeedMS": 3.3,
+        "durationS": 160.5
+      },
+      "pathDistanceM": 226.93444713990252,
+      "modeledMaxGroundspeedMS": 1.7070441337438131,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 8.0,
+      "horizontalDurationS": 144.5,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 16.934447139902517,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.5929558662561867,
+      "endpointTerrainMinusObservedM": [
+        0.0016122749675560044,
+        0.004586213703532849
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 8.0
+    },
+    {
+      "flight": 14,
+      "pathLabel": 14,
+      "samples": 717,
+      "eventDurationS": 23.0,
+      "published": {
+        "flight": 14,
+        "sol": 241,
+        "distanceM": 2.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 0.5,
+        "durationS": 23.0
+      },
+      "pathDistanceM": 4.230900198980777,
+      "modeledMaxGroundspeedMS": 0.3537541972391954,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 13.0,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 2.230900198980777,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.14624580276080462,
+      "endpointTerrainMinusObservedM": [
+        0.004586213703532849,
+        -0.000504175119658612
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 15,
+      "pathLabel": 15,
+      "samples": 3928,
+      "eventDurationS": 128.90000009536743,
+      "published": {
+        "flight": 15,
+        "sol": 254,
+        "distanceM": 407.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.0,
+        "durationS": 128.8
+      },
+      "pathDistanceM": 450.1587422180314,
+      "modeledMaxGroundspeedMS": 4.664470736195756,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 104.90000009536743,
+      "durationMinusPublishedS": 0.10000009536742027,
+      "pathMinusPublishedDistanceM": 43.15874221803142,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.3355292638042444,
+      "endpointTerrainMinusObservedM": [
+        -0.000504175119658612,
+        -0.00297184904502501
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 16,
+      "pathLabel": 16,
+      "samples": 3255,
+      "eventDurationS": 107.89999997615814,
+      "published": {
+        "flight": 16,
+        "sol": 268,
+        "distanceM": 116.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 1.5,
+        "durationS": 107.9
+      },
+      "pathDistanceM": 125.89463491745978,
+      "modeledMaxGroundspeedMS": 1.485941696016187,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 87.89999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 9.894634917459783,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.014058303983812914,
+      "endpointTerrainMinusObservedM": [
+        -0.00297184904502501,
+        0.005118204916470859
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 17,
+      "pathLabel": 17,
+      "samples": 3443,
+      "eventDurationS": 116.79999995231628,
+      "published": {
+        "flight": 17,
+        "sol": 282,
+        "distanceM": 187.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 2.5,
+        "durationS": 116.8
+      },
+      "pathDistanceM": 207.59132160311066,
+      "modeledMaxGroundspeedMS": 2.331020051488616,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 96.79999995231628,
+      "durationMinusPublishedS": -4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 20.591321603110657,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.16897994851138387,
+      "endpointTerrainMinusObservedM": [
+        0.005118204916470859,
+        -0.0009750896642799489
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 18,
+      "pathLabel": 18,
+      "samples": 207,
+      "eventDurationS": 124.20000004768372,
+      "published": {
+        "flight": 18,
+        "sol": 292,
+        "distanceM": 230.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 2.5,
+        "durationS": 124.3
+      },
+      "pathDistanceM": 234.76232913597724,
+      "modeledMaxGroundspeedMS": 2.4463597064628644,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 104.20000004768372,
+      "durationMinusPublishedS": -0.09999995231628134,
+      "pathMinusPublishedDistanceM": 4.7623291359772395,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.05364029353713562,
+      "endpointTerrainMinusObservedM": [
+        -0.0009750896642799489,
+        0.0020617201630557247
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 19,
+      "pathLabel": 19,
+      "samples": 180,
+      "eventDurationS": 99.79999995231628,
+      "published": {
+        "flight": 19,
+        "sol": 345,
+        "distanceM": 63.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 1.0,
+        "durationS": 99.8
+      },
+      "pathDistanceM": 66.77888727864001,
+      "modeledMaxGroundspeedMS": 0.9095958281375053,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 79.79999995231628,
+      "durationMinusPublishedS": -4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 3.7788872786400134,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.09040417186249472,
+      "endpointTerrainMinusObservedM": [
+        0.0020617201630557247,
+        0.0022504008911710116
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 20,
+      "pathLabel": 20,
+      "samples": 210,
+      "eventDurationS": 130.29999995231628,
+      "published": {
+        "flight": 20,
+        "sol": 362,
+        "distanceM": 391.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.4,
+        "durationS": 130.3
+      },
+      "pathDistanceM": 401.86203685420816,
+      "modeledMaxGroundspeedMS": 3.96016828637251,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 110.29999995231628,
+      "durationMinusPublishedS": -4.768372718899627e-08,
+      "pathMinusPublishedDistanceM": 10.862036854208156,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.4398317136274903,
+      "endpointTerrainMinusObservedM": [
+        0.0022504008911710116,
+        -0.009397940956660022
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 21,
+      "pathLabel": 21,
+      "samples": 222,
+      "eventDurationS": 129.20000004768372,
+      "published": {
+        "flight": 21,
+        "sol": 375,
+        "distanceM": 370.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.85,
+        "durationS": 129.2
+      },
+      "pathDistanceM": 381.1600793318943,
+      "modeledMaxGroundspeedMS": 3.7722899701781967,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 109.20000004768372,
+      "durationMinusPublishedS": 4.768372718899627e-08,
+      "pathMinusPublishedDistanceM": 11.16007933189428,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.07771002982180342,
+      "endpointTerrainMinusObservedM": [
+        -0.009397940956660022,
+        0.009361682599319465
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 22,
+      "pathLabel": 22,
+      "samples": 183,
+      "eventDurationS": 101.39999997615814,
+      "published": {
+        "flight": 22,
+        "sol": 384,
+        "distanceM": 68.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 1.0,
+        "durationS": 101.4
+      },
+      "pathDistanceM": 71.37875775138035,
+      "modeledMaxGroundspeedMS": 0.9531401262189804,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 81.39999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 3.3787577513803484,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.046859873781019634,
+      "endpointTerrainMinusObservedM": [
+        0.009361682599319465,
+        -0.0026402701937513484
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 23,
+      "pathLabel": 23,
+      "samples": 211,
+      "eventDurationS": 129.10000002384186,
+      "published": {
+        "flight": 23,
+        "sol": 388,
+        "distanceM": 358.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 129.1
+      },
+      "pathDistanceM": 363.66455901701937,
+      "modeledMaxGroundspeedMS": 3.6231674066228323,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 109.10000002384186,
+      "durationMinusPublishedS": 2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 5.664559017019371,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.3768325933771677,
+      "endpointTerrainMinusObservedM": [
+        -0.0026402701937513484,
+        0.005958891385489551
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 24,
+      "pathLabel": 24,
+      "samples": 166,
+      "eventDurationS": 69.5,
+      "published": {
+        "flight": 24,
+        "sol": 398,
+        "distanceM": 47.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 1.45,
+        "durationS": 69.5
+      },
+      "pathDistanceM": 52.66151708375058,
+      "modeledMaxGroundspeedMS": 1.1563793826032187,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 49.5,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 5.6615170837505815,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.29362061739678125,
+      "endpointTerrainMinusObservedM": [
+        0.005958891385489551,
+        -0.0005952360738774587
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 25,
+      "pathLabel": 25,
+      "samples": 238,
+      "eventDurationS": 161.19999992847443,
+      "published": {
+        "flight": 25,
+        "sol": 403,
+        "distanceM": 704.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 5.5,
+        "durationS": 161.3
+      },
+      "pathDistanceM": 715.3482255095352,
+      "modeledMaxGroundspeedMS": 5.407398181733229,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 141.19999992847443,
+      "durationMinusPublishedS": -0.1000000715255851,
+      "pathMinusPublishedDistanceM": 11.348225509535155,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.09260181826677094,
+      "endpointTerrainMinusObservedM": [
+        -0.0005952360738774587,
+        -0.005789094361261959
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 26,
+      "pathLabel": 26,
+      "samples": 224,
+      "eventDurationS": 159.0,
+      "published": {
+        "flight": 26,
+        "sol": 414,
+        "distanceM": 360.0,
+        "maxAltitudeM": 8.0,
+        "maxGroundspeedMS": 3.8,
+        "durationS": 159.0
+      },
+      "pathDistanceM": 369.7582154368825,
+      "modeledMaxGroundspeedMS": 2.810567158991202,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 8.0,
+      "horizontalDurationS": 143.0,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 9.758215436882494,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.989432841008798,
+      "endpointTerrainMinusObservedM": [
+        -0.005789094361261959,
+        0.0018039575461443746
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 8.0
+    },
+    {
+      "flight": 27,
+      "pathLabel": 27,
+      "samples": 233,
+      "eventDurationS": 152.90000009536743,
+      "published": {
+        "flight": 27,
+        "sol": 418,
+        "distanceM": 307.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 152.9
+      },
+      "pathDistanceM": 318.59975775978364,
+      "modeledMaxGroundspeedMS": 2.6057493173288213,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 132.90000009536743,
+      "durationMinusPublishedS": 9.536742595628311e-08,
+      "pathMinusPublishedDistanceM": 11.599757759783643,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.3942506826711787,
+      "endpointTerrainMinusObservedM": [
+        0.0018039575461443746,
+        0.0019748685631384433
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 28,
+      "pathLabel": 28,
+      "samples": 226,
+      "eventDurationS": 152.39999997615814,
+      "published": {
+        "flight": 28,
+        "sol": 423,
+        "distanceM": 418.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.6,
+        "durationS": 152.4
+      },
+      "pathDistanceM": 431.846066552092,
+      "modeledMaxGroundspeedMS": 3.526834671204789,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 132.39999997615814,
+      "durationMinusPublishedS": -2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 13.846066552091997,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.07316532879521098,
+      "endpointTerrainMinusObservedM": [
+        0.0019748685631384433,
+        -0.005648101117458282
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 29,
+      "pathLabel": 29,
+      "samples": 143,
+      "eventDurationS": 66.5,
+      "published": {
+        "flight": 29,
+        "sol": 465,
+        "distanceM": 179.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 5.5,
+        "durationS": 66.6
+      },
+      "pathDistanceM": 184.95435611920632,
+      "modeledMaxGroundspeedMS": 4.3233837335017835,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 46.5,
+      "durationMinusPublishedS": -0.09999999999999432,
+      "pathMinusPublishedDistanceM": 5.954356119206324,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.1766162664982165,
+      "endpointTerrainMinusObservedM": [
+        -0.005648101117458282,
+        0.0038831973524793284
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 30,
+      "pathLabel": 30,
+      "samples": 73,
+      "eventDurationS": 33.299999952316284,
+      "published": {
+        "flight": 30,
+        "sol": 533,
+        "distanceM": 2.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 0.5,
+        "durationS": 33.3
+      },
+      "pathDistanceM": 3.021644043158615,
+      "modeledMaxGroundspeedMS": 0.14096118909042937,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 23.299999952316284,
+      "durationMinusPublishedS": -4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 1.0216440431586151,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.3590388109095706,
+      "endpointTerrainMinusObservedM": [
+        0.0038831973524793284,
+        -0.0002636280573824479
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 31,
+      "pathLabel": 31,
+      "samples": 135,
+      "eventDurationS": 55.60000002384186,
+      "published": {
+        "flight": 31,
+        "sol": 550,
+        "distanceM": 97.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.75,
+        "durationS": 55.6
+      },
+      "pathDistanceM": 99.61798273091627,
+      "modeledMaxGroundspeedMS": 3.041584717397429,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 35.60000002384186,
+      "durationMinusPublishedS": 2.384185648907078e-08,
+      "pathMinusPublishedDistanceM": 2.6179827309162675,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.7084152826025711,
+      "endpointTerrainMinusObservedM": [
+        -0.0002636280573824479,
+        0.0016424396972070099
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 32,
+      "pathLabel": 32,
+      "samples": 135,
+      "eventDurationS": 55.299999952316284,
+      "published": {
+        "flight": 32,
+        "sol": 561,
+        "distanceM": 94.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.75,
+        "durationS": 55.3
+      },
+      "pathDistanceM": 97.72199088191513,
+      "modeledMaxGroundspeedMS": 3.0090525623204614,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 35.299999952316284,
+      "durationMinusPublishedS": -4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 3.721990881915133,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.7409474376795386,
+      "endpointTerrainMinusObservedM": [
+        0.0016424396972070099,
+        0.002668130649453815
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 33,
+      "pathLabel": 33,
+      "samples": 135,
+      "eventDurationS": 55.199999928474426,
+      "published": {
+        "flight": 33,
+        "sol": 567,
+        "distanceM": 111.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.75,
+        "durationS": 55.2
+      },
+      "pathDistanceM": 115.45149234725793,
+      "modeledMaxGroundspeedMS": 3.565078204726181,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 35.199999928474426,
+      "durationMinusPublishedS": -7.152557657263969e-08,
+      "pathMinusPublishedDistanceM": 4.4514923472579255,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.184921795273819,
+      "endpointTerrainMinusObservedM": [
+        0.002668130649453815,
+        -0.0011156327177559433
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 34,
+      "pathLabel": 34,
+      "samples": 52,
+      "eventDurationS": 18.299999952316284,
+      "published": {
+        "flight": 34,
+        "sol": 625,
+        "distanceM": 0.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 18.3
+      },
+      "pathDistanceM": 1.7500799238148521,
+      "modeledMaxGroundspeedMS": 0.18562263775487248,
+      "modeledMaxVerticalSpeedMS": 1.950815115359997,
+      "climbDurationS": 4.025999989509582,
+      "horizontalDurationS": 10.24799997329712,
+      "durationMinusPublishedS": -4.7683716530855236e-08,
+      "pathMinusPublishedDistanceM": 1.7500799238148521,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.18562263775487248,
+      "endpointTerrainMinusObservedM": [
+        -0.0011156327177559433,
+        -0.0019892944587809325
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 35,
+      "pathLabel": 35,
+      "samples": 145,
+      "eventDurationS": 52.0,
+      "published": {
+        "flight": 35,
+        "sol": 635,
+        "distanceM": 15.0,
+        "maxAltitudeM": 14.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 52.0
+      },
+      "pathDistanceM": 18.705051398963615,
+      "modeledMaxGroundspeedMS": 0.6981997804797097,
+      "modeledMaxVerticalSpeedMS": 1.9223031971266218,
+      "climbDurationS": 11.44,
+      "horizontalDurationS": 29.12,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 3.705051398963615,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.3018002195202905,
+      "endpointTerrainMinusObservedM": [
+        -0.0019892944587809325,
+        -0.003030528285762557
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 14.0
+    },
+    {
+      "flight": 36,
+      "pathLabel": 36,
+      "samples": 140,
+      "eventDurationS": 60.5,
+      "published": {
+        "flight": 36,
+        "sol": 642,
+        "distanceM": 110.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 5.5,
+        "durationS": 60.5
+      },
+      "pathDistanceM": 111.8595625556441,
+      "modeledMaxGroundspeedMS": 3.002135334289965,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 40.5,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 1.8595625556441036,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.497864665710035,
+      "endpointTerrainMinusObservedM": [
+        -0.003030528285762557,
+        0.0005248526558716549
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 37,
+      "pathLabel": 37,
+      "samples": 134,
+      "eventDurationS": 55.200000047683716,
+      "published": {
+        "flight": 37,
+        "sol": 649,
+        "distanceM": 62.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 55.2
+      },
+      "pathDistanceM": 65.37379419545715,
+      "modeledMaxGroundspeedMS": 2.0187065867989893,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 35.200000047683716,
+      "durationMinusPublishedS": 4.768371297814156e-08,
+      "pathMinusPublishedDistanceM": 3.373794195457151,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.9812934132010107,
+      "endpointTerrainMinusObservedM": [
+        0.0005248526558716549,
+        0.00921170536412319
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 38,
+      "pathLabel": 38,
+      "samples": 168,
+      "eventDurationS": 74.20000004768372,
+      "published": {
+        "flight": 38,
+        "sol": 667,
+        "distanceM": 111.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.5,
+        "durationS": 74.3
+      },
+      "pathDistanceM": 118.1878420901071,
+      "modeledMaxGroundspeedMS": 2.3702037940423666,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 54.200000047683716,
+      "durationMinusPublishedS": -0.09999995231628134,
+      "pathMinusPublishedDistanceM": 7.187842090107097,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.1297962059576334,
+      "endpointTerrainMinusObservedM": [
+        0.00921170536412319,
+        0.00409567967926705
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 39,
+      "pathLabel": 39,
+      "samples": 168,
+      "eventDurationS": 78.79999995231628,
+      "published": {
+        "flight": 39,
+        "sol": 673,
+        "distanceM": 140.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 78.7
+      },
+      "pathDistanceM": 145.79203771619066,
+      "modeledMaxGroundspeedMS": 2.6950613323428785,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 58.799999952316284,
+      "durationMinusPublishedS": 0.09999995231628134,
+      "pathMinusPublishedDistanceM": 5.792037716190663,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.3049386676571215,
+      "endpointTerrainMinusObservedM": [
+        0.00409567967926705,
+        0.005091925046599499
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 40,
+      "pathLabel": 40,
+      "samples": 165,
+      "eventDurationS": 91.60000002384186,
+      "published": {
+        "flight": 40,
+        "sol": 681,
+        "distanceM": 178.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.2,
+        "durationS": 91.6
+      },
+      "pathDistanceM": 184.39606413657347,
+      "modeledMaxGroundspeedMS": 2.799308721082888,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 71.60000002384186,
+      "durationMinusPublishedS": 2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 6.396064136573472,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.4006912789171122,
+      "endpointTerrainMinusObservedM": [
+        0.005091925046599499,
+        -0.0017498692950539407
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 41,
+      "pathLabel": 41,
+      "samples": 186,
+      "eventDurationS": 109.0,
+      "published": {
+        "flight": 41,
+        "sol": 689,
+        "distanceM": 183.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 109.1
+      },
+      "pathDistanceM": 187.9003598707387,
+      "modeledMaxGroundspeedMS": 2.294826085377854,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 89.0,
+      "durationMinusPublishedS": -0.09999999999999432,
+      "pathMinusPublishedDistanceM": 4.900359870738697,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.7051739146221458,
+      "endpointTerrainMinusObservedM": [
+        -0.0017498692950539407,
+        0.013938572493771062
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 42,
+      "pathLabel": 42,
+      "samples": 216,
+      "eventDurationS": 137.10000002384186,
+      "published": {
+        "flight": 42,
+        "sol": 697,
+        "distanceM": 248.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 137.2
+      },
+      "pathDistanceM": 257.332706715578,
+      "modeledMaxGroundspeedMS": 2.388637606868752,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 117.10000002384186,
+      "durationMinusPublishedS": -0.09999997615813072,
+      "pathMinusPublishedDistanceM": 9.332706715578013,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.6113623931312482,
+      "endpointTerrainMinusObservedM": [
+        0.013938572493771062,
+        0.0016755340016061382
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 43,
+      "pathLabel": 43,
+      "samples": 242,
+      "eventDurationS": 146.0,
+      "published": {
+        "flight": 43,
+        "sol": 708,
+        "distanceM": 390.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 146.0
+      },
+      "pathDistanceM": 397.7614407107778,
+      "modeledMaxGroundspeedMS": 3.5438474760404293,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 122.0,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 7.7614407107777765,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.45615252395957073,
+      "endpointTerrainMinusObservedM": [
+        0.0016755340016061382,
+        -0.0012560240684251767
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 44,
+      "pathLabel": 44,
+      "samples": 236,
+      "eventDurationS": 141.19999992847443,
+      "published": {
+        "flight": 44,
+        "sol": 711,
+        "distanceM": 334.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 3.5,
+        "durationS": 141.3
+      },
+      "pathDistanceM": 348.65089402644395,
+      "modeledMaxGroundspeedMS": 3.2335184582209977,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 117.19999992847443,
+      "durationMinusPublishedS": -0.1000000715255851,
+      "pathMinusPublishedDistanceM": 14.65089402644395,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.2664815417790023,
+      "endpointTerrainMinusObservedM": [
+        -0.0012560240684251767,
+        -0.0025976942179113394
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 45,
+      "pathLabel": 45,
+      "samples": 242,
+      "eventDurationS": 144.60000002384186,
+      "published": {
+        "flight": 45,
+        "sol": 714,
+        "distanceM": 496.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 6.0,
+        "durationS": 144.5
+      },
+      "pathDistanceM": 510.3209888481128,
+      "modeledMaxGroundspeedMS": 4.599475347422539,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 120.60000002384186,
+      "durationMinusPublishedS": 0.10000002384185791,
+      "pathMinusPublishedDistanceM": 14.32098884811279,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.4005246525774613,
+      "endpointTerrainMinusObservedM": [
+        -0.0025976942179113394,
+        -0.006730817204697814
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 46,
+      "pathLabel": 46,
+      "samples": 212,
+      "eventDurationS": 135.80000007152557,
+      "published": {
+        "flight": 46,
+        "sol": 717,
+        "distanceM": 445.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.3,
+        "durationS": 135.9
+      },
+      "pathDistanceM": 453.2678972619226,
+      "modeledMaxGroundspeedMS": 4.406820185229235,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 111.80000007152557,
+      "durationMinusPublishedS": -0.09999992847443195,
+      "pathMinusPublishedDistanceM": 8.267897261922599,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.8931798147707646,
+      "endpointTerrainMinusObservedM": [
+        -0.006730817204697814,
+        0.0046476942748086
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 47,
+      "pathLabel": 47,
+      "samples": 229,
+      "eventDurationS": 146.10000002384186,
+      "published": {
+        "flight": 47,
+        "sol": 729,
+        "distanceM": 440.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.3,
+        "durationS": 146.1
+      },
+      "pathDistanceM": 448.6462340373169,
+      "modeledMaxGroundspeedMS": 3.9939307939831212,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 122.10000002384186,
+      "durationMinusPublishedS": 2.3841863594498136e-08,
+      "pathMinusPublishedDistanceM": 8.646234037316901,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.3060692060168786,
+      "endpointTerrainMinusObservedM": [
+        0.0046476942748086,
+        0.00041973298948505544
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 48,
+      "pathLabel": 48,
+      "samples": 246,
+      "eventDurationS": 149.9060000181198,
+      "published": {
+        "flight": 48,
+        "sol": 741,
+        "distanceM": 398.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 4.65,
+        "durationS": 149.9
+      },
+      "pathDistanceM": 413.08248925885664,
+      "modeledMaxGroundspeedMS": 3.5661740159446738,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 125.90600001811981,
+      "durationMinusPublishedS": 0.006000018119806327,
+      "pathMinusPublishedDistanceM": 15.08248925885664,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.0838259840553266,
+      "endpointTerrainMinusObservedM": [
+        0.00041973298948505544,
+        -0.002939497215720621
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 49,
+      "pathLabel": 49,
+      "samples": 267,
+      "eventDurationS": 142.71000003814697,
+      "published": {
+        "flight": 49,
+        "sol": 752,
+        "distanceM": 282.0,
+        "maxAltitudeM": 16.0,
+        "maxGroundspeedMS": 6.5,
+        "durationS": 142.7
+      },
+      "pathDistanceM": 288.7786968005342,
+      "modeledMaxGroundspeedMS": 2.835244221104793,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 16.0,
+      "horizontalDurationS": 110.71000003814697,
+      "durationMinusPublishedS": 0.010000038146984025,
+      "pathMinusPublishedDistanceM": 6.778696800534192,
+      "modeledMinusPublishedMaxGroundspeedMS": -3.664755778895207,
+      "endpointTerrainMinusObservedM": [
+        -0.002939497215720621,
+        0.0011327251881994016
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 16.0
+    },
+    {
+      "flight": 50,
+      "pathLabel": 50,
+      "samples": 290,
+      "eventDurationS": 145.65399992465973,
+      "published": {
+        "flight": 50,
+        "sol": 763,
+        "distanceM": 322.0,
+        "maxAltitudeM": 18.0,
+        "maxGroundspeedMS": 4.6,
+        "durationS": 145.7
+      },
+      "pathDistanceM": 337.36744372092335,
+      "modeledMaxGroundspeedMS": 3.3441893905089537,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 18.0,
+      "horizontalDurationS": 109.65399992465973,
+      "durationMinusPublishedS": -0.04600007534025963,
+      "pathMinusPublishedDistanceM": 15.367443720923347,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.255810609491046,
+      "endpointTerrainMinusObservedM": [
+        0.0011327251881994016,
+        -0.006459921935856983
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 18.0
+    },
+    {
+      "flight": 51,
+      "pathLabel": 51,
+      "samples": 234,
+      "eventDurationS": 136.89399993419647,
+      "published": {
+        "flight": 51,
+        "sol": 772,
+        "distanceM": 188.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 4.0,
+        "durationS": 136.9
+      },
+      "pathDistanceM": 196.9066099734656,
+      "modeledMaxGroundspeedMS": 1.8958396726925673,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 112.89399993419647,
+      "durationMinusPublishedS": -0.006000065803533516,
+      "pathMinusPublishedDistanceM": 8.906609973465606,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.104160327307433,
+      "endpointTerrainMinusObservedM": [
+        -0.006459921935856983,
+        -0.005421010846930585
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 52,
+      "pathLabel": 52,
+      "samples": 241,
+      "eventDurationS": 145.0,
+      "published": {
+        "flight": 52,
+        "sol": 776,
+        "distanceM": 363.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 3.7,
+        "durationS": 145.0
+      },
+      "pathDistanceM": 375.3495868981704,
+      "modeledMaxGroundspeedMS": 3.371807284388882,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 121.0,
+      "durationMinusPublishedS": 0.0,
+      "pathMinusPublishedDistanceM": 12.3495868981704,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.32819271561111796,
+      "endpointTerrainMinusObservedM": [
+        -0.005421010846930585,
+        -0.005696644539511908
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 53,
+      "pathLabel": 53,
+      "samples": 114,
+      "eventDurationS": 74.85899996757507,
+      "published": {
+        "flight": 53,
+        "sol": 860,
+        "distanceM": 143.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 2.5,
+        "durationS": 74.9
+      },
+      "pathDistanceM": 143.89715775958624,
+      "modeledMaxGroundspeedMS": 2.411538169948669,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 64.85899996757507,
+      "durationMinusPublishedS": -0.04100003242493244,
+      "pathMinusPublishedDistanceM": 0.8971577595862357,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.0884618300513309,
+      "endpointTerrainMinusObservedM": [
+        -0.005696644539511908,
+        0.004052460522871115
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 54,
+      "pathLabel": 54,
+      "samples": 63,
+      "eventDurationS": 24.378000020980835,
+      "published": {
+        "flight": 54,
+        "sol": 872,
+        "distanceM": 0.0,
+        "maxAltitudeM": 5.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 24.4
+      },
+      "pathDistanceM": 1.536204633322288,
+      "modeledMaxGroundspeedMS": 0.11613490349693444,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 5.0,
+      "horizontalDurationS": 14.378000020980835,
+      "durationMinusPublishedS": -0.021999979019163618,
+      "pathMinusPublishedDistanceM": 1.536204633322288,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.11613490349693444,
+      "endpointTerrainMinusObservedM": [
+        0.004052460522871115,
+        0.005066610206540645
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 5.0
+    },
+    {
+      "flight": 55,
+      "pathLabel": 55,
+      "samples": 222,
+      "eventDurationS": 142.97000002861023,
+      "published": {
+        "flight": 55,
+        "sol": 881,
+        "distanceM": 264.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 4.7,
+        "durationS": 142.9
+      },
+      "pathDistanceM": 270.51083990014797,
+      "modeledMaxGroundspeedMS": 2.3910996304967527,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 122.97000002861023,
+      "durationMinusPublishedS": 0.07000002861022381,
+      "pathMinusPublishedDistanceM": 6.510839900147971,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.3089003695032475,
+      "endpointTerrainMinusObservedM": [
+        0.005066610206540645,
+        -0.004835001501305669
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 56,
+      "pathLabel": 56,
+      "samples": 237,
+      "eventDurationS": 140.93999993801117,
+      "published": {
+        "flight": 56,
+        "sol": 894,
+        "distanceM": 410.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.3,
+        "durationS": 140.9
+      },
+      "pathDistanceM": 436.3761016638949,
+      "modeledMaxGroundspeedMS": 4.056112962939132,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 116.93999993801117,
+      "durationMinusPublishedS": 0.03999993801116375,
+      "pathMinusPublishedDistanceM": 26.37610166389487,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.2438870370608681,
+      "endpointTerrainMinusObservedM": [
+        -0.004835001501305669,
+        0.013903993241001444
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 57,
+      "pathLabel": 57,
+      "samples": 203,
+      "eventDurationS": 128.58599996566772,
+      "published": {
+        "flight": 57,
+        "sol": 902,
+        "distanceM": 217.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 128.6
+      },
+      "pathDistanceM": 226.2288556515667,
+      "modeledMaxGroundspeedMS": 2.2645730585323953,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 108.58599996566772,
+      "durationMinusPublishedS": -0.014000034332269706,
+      "pathMinusPublishedDistanceM": 9.228855651566704,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.7354269414676047,
+      "endpointTerrainMinusObservedM": [
+        0.013903993241001444,
+        0.0009883031498247874
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 58,
+      "pathLabel": 58,
+      "samples": 187,
+      "eventDurationS": 106.77499997615814,
+      "published": {
+        "flight": 58,
+        "sol": 910,
+        "distanceM": 174.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 106.8
+      },
+      "pathDistanceM": 179.90809324908525,
+      "modeledMaxGroundspeedMS": 2.2535554632610055,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 86.77499997615814,
+      "durationMinusPublishedS": -0.025000023841855068,
+      "pathMinusPublishedDistanceM": 5.908093249085255,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.7464445367389945,
+      "endpointTerrainMinusObservedM": [
+        0.0009883031498247874,
+        5.8174926380161196e-05
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 59,
+      "pathLabel": 59,
+      "samples": 261,
+      "eventDurationS": 142.5939999818802,
+      "published": {
+        "flight": 59,
+        "sol": 915,
+        "distanceM": 0.0,
+        "maxAltitudeM": 20.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 142.6
+      },
+      "pathDistanceM": 9.368444153834378,
+      "modeledMaxGroundspeedMS": 0.09925620868040635,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 20.0,
+      "horizontalDurationS": 102.59399998188019,
+      "durationMinusPublishedS": -0.006000018119806327,
+      "pathMinusPublishedDistanceM": 9.368444153834378,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.09925620868040635,
+      "endpointTerrainMinusObservedM": [
+        5.8174926380161196e-05,
+        -0.006348777571929531
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 20.0
+    },
+    {
+      "flight": 60,
+      "pathLabel": 60,
+      "samples": 255,
+      "eventDurationS": 132.836000084877,
+      "published": {
+        "flight": 60,
+        "sol": 924,
+        "distanceM": 340.0,
+        "maxAltitudeM": 16.0,
+        "maxGroundspeedMS": 8.0,
+        "durationS": 132.8
+      },
+      "pathDistanceM": 361.8951281063024,
+      "modeledMaxGroundspeedMS": 3.9010300820109456,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 16.0,
+      "horizontalDurationS": 100.83600008487701,
+      "durationMinusPublishedS": 0.03600008487700279,
+      "pathMinusPublishedDistanceM": 21.895128106302423,
+      "modeledMinusPublishedMaxGroundspeedMS": -4.098969917989054,
+      "endpointTerrainMinusObservedM": [
+        -0.006348777571929531,
+        -5.0473825922381366e-05
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 16.0
+    },
+    {
+      "flight": 61,
+      "pathLabel": 61,
+      "samples": 320,
+      "eventDurationS": 129.45500004291534,
+      "published": {
+        "flight": 61,
+        "sol": 933,
+        "distanceM": 0.0,
+        "maxAltitudeM": 24.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 129.5
+      },
+      "pathDistanceM": 7.136085183765406,
+      "modeledMaxGroundspeedMS": 0.0952257605560511,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 24.0,
+      "horizontalDurationS": 81.45500004291534,
+      "durationMinusPublishedS": -0.04499995708465576,
+      "pathMinusPublishedDistanceM": 7.136085183765406,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.0952257605560511,
+      "endpointTerrainMinusObservedM": [
+        -5.0473825922381366e-05,
+        -0.00020357324910946772
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 24.0
+    },
+    {
+      "flight": 62,
+      "pathLabel": 62,
+      "samples": 265,
+      "eventDurationS": 121.07000005245209,
+      "published": {
+        "flight": 62,
+        "sol": 940,
+        "distanceM": 268.0,
+        "maxAltitudeM": 18.0,
+        "maxGroundspeedMS": 10.0,
+        "durationS": 121.1
+      },
+      "pathDistanceM": 293.03717204301876,
+      "modeledMaxGroundspeedMS": 3.744194957890678,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 18.0,
+      "horizontalDurationS": 85.07000005245209,
+      "durationMinusPublishedS": -0.029999947547906913,
+      "pathMinusPublishedDistanceM": 25.037172043018757,
+      "modeledMinusPublishedMaxGroundspeedMS": -6.255805042109322,
+      "endpointTerrainMinusObservedM": [
+        -0.00020357324910946772,
+        0.003539460396495997
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 18.0
+    },
+    {
+      "flight": 63,
+      "pathLabel": 63,
+      "samples": 239,
+      "eventDurationS": 142.62199997901917,
+      "published": {
+        "flight": 63,
+        "sol": 947,
+        "distanceM": 579.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 6.3,
+        "durationS": 142.6
+      },
+      "pathDistanceM": 599.723757538233,
+      "modeledMaxGroundspeedMS": 5.495385759921239,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 118.62199997901917,
+      "durationMinusPublishedS": 0.021999979019170723,
+      "pathMinusPublishedDistanceM": 20.72375753823303,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.8046142400787613,
+      "endpointTerrainMinusObservedM": [
+        0.003539460396495997,
+        -0.0022966737128626846
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 64,
+      "pathLabel": 64,
+      "samples": 241,
+      "eventDurationS": 139.08399999141693,
+      "published": {
+        "flight": 64,
+        "sol": 954,
+        "distanceM": 411.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.8,
+        "durationS": 139.1
+      },
+      "pathDistanceM": 440.05383588975167,
+      "modeledMaxGroundspeedMS": 4.156263137120365,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 115.08399999141693,
+      "durationMinusPublishedS": -0.016000008583063163,
+      "pathMinusPublishedDistanceM": 29.053835889751667,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.643736862879635,
+      "endpointTerrainMinusObservedM": [
+        -0.0022966737128626846,
+        -0.0023522102351307694
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 65,
+      "pathLabel": 65,
+      "samples": 127,
+      "eventDurationS": 48.00099992752075,
+      "published": {
+        "flight": 65,
+        "sol": 960,
+        "distanceM": 7.0,
+        "maxAltitudeM": 10.0,
+        "maxGroundspeedMS": 1.0,
+        "durationS": 48.0
+      },
+      "pathDistanceM": 14.436523933100782,
+      "modeledMaxGroundspeedMS": 0.5604040527461376,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 10.0,
+      "horizontalDurationS": 28.000999927520752,
+      "durationMinusPublishedS": 0.0009999275207519531,
+      "pathMinusPublishedDistanceM": 7.436523933100782,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.4395959472538624,
+      "endpointTerrainMinusObservedM": [
+        -0.0023522102351307694,
+        0.00022764957338949898
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 10.0
+    },
+    {
+      "flight": 66,
+      "pathLabel": 66,
+      "samples": 54,
+      "eventDurationS": 23.02900004386902,
+      "published": {
+        "flight": 66,
+        "sol": 961,
+        "distanceM": 1.0,
+        "maxAltitudeM": 3.0,
+        "maxGroundspeedMS": 1.0,
+        "durationS": 23.0
+      },
+      "pathDistanceM": 2.7211304915789922,
+      "modeledMaxGroundspeedMS": 0.17368903204565295,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 3.0,
+      "horizontalDurationS": 17.02900004386902,
+      "durationMinusPublishedS": 0.029000043869018555,
+      "pathMinusPublishedDistanceM": 1.7211304915789922,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.826310967954347,
+      "endpointTerrainMinusObservedM": [
+        0.00022764957338949898,
+        -0.005731648434903036
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 3.0
+    },
+    {
+      "flight": 67,
+      "pathLabel": 67,
+      "samples": 230,
+      "eventDurationS": 135.9300000667572,
+      "published": {
+        "flight": 67,
+        "sol": 990,
+        "distanceM": 393.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 5.3,
+        "durationS": 135.9
+      },
+      "pathDistanceM": 414.8072020184915,
+      "modeledMaxGroundspeedMS": 4.028208641378079,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 111.9300000667572,
+      "durationMinusPublishedS": 0.030000066757196464,
+      "pathMinusPublishedDistanceM": 21.807202018491523,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.271791358621921,
+      "endpointTerrainMinusObservedM": [
+        -0.005731648434903036,
+        0.005245305113476206
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 68,
+      "pathLabel": 68,
+      "samples": 261,
+      "eventDurationS": 135.13499999046326,
+      "published": {
+        "flight": 68,
+        "sol": 1003,
+        "distanceM": 702.0,
+        "maxAltitudeM": 16.0,
+        "maxGroundspeedMS": 10.0,
+        "durationS": 131.1
+      },
+      "pathDistanceM": 724.7931610893128,
+      "modeledMaxGroundspeedMS": 7.63871288535218,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 16.0,
+      "horizontalDurationS": 103.13499999046326,
+      "durationMinusPublishedS": 4.0349999904632625,
+      "pathMinusPublishedDistanceM": 22.793161089312775,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.36128711464782,
+      "endpointTerrainMinusObservedM": [
+        0.005245305113476206,
+        -0.003695287071423081
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 16.0
+    },
+    {
+      "flight": 69,
+      "pathLabel": 69,
+      "samples": 260,
+      "eventDurationS": 135.41100001335144,
+      "published": {
+        "flight": 69,
+        "sol": 1007,
+        "distanceM": 705.0,
+        "maxAltitudeM": 16.0,
+        "maxGroundspeedMS": 10.0,
+        "durationS": 135.4
+      },
+      "pathDistanceM": 722.160319305677,
+      "modeledMaxGroundspeedMS": 7.590651562301615,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 16.0,
+      "horizontalDurationS": 103.41100001335144,
+      "durationMinusPublishedS": 0.011000013351434745,
+      "pathMinusPublishedDistanceM": 17.160319305677035,
+      "modeledMinusPublishedMaxGroundspeedMS": -2.4093484376983847,
+      "endpointTerrainMinusObservedM": [
+        -0.003695287071423081,
+        0.0036417277128748538
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 16.0
+    },
+    {
+      "flight": 70,
+      "pathLabel": 70,
+      "samples": 201,
+      "eventDurationS": 132.89600002765656,
+      "published": {
+        "flight": 70,
+        "sol": 1009,
+        "distanceM": 260.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 3.0,
+        "durationS": 132.9
+      },
+      "pathDistanceM": 286.25110917965577,
+      "modeledMaxGroundspeedMS": 2.857244617790049,
+      "modeledMaxVerticalSpeedMS": 1.5707963267948966,
+      "climbDurationS": 12.0,
+      "horizontalDurationS": 108.89600002765656,
+      "durationMinusPublishedS": -0.0039999723434505086,
+      "pathMinusPublishedDistanceM": 26.25110917965577,
+      "modeledMinusPublishedMaxGroundspeedMS": -0.142755382209951,
+      "endpointTerrainMinusObservedM": [
+        0.0036417277128748538,
+        -0.02983567434739598
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 71,
+      "pathLabel": 71,
+      "samples": 98,
+      "eventDurationS": 34.96399998664856,
+      "published": {
+        "flight": 71,
+        "sol": 1024,
+        "distanceM": 0.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 7.0,
+        "durationS": 35.0
+      },
+      "pathDistanceM": 93.86101875183279,
+      "modeledMaxGroundspeedMS": 5.2106067520644785,
+      "modeledMaxVerticalSpeedMS": 2.4505148059740276,
+      "climbDurationS": 7.692079997062683,
+      "horizontalDurationS": 19.579839992523194,
+      "durationMinusPublishedS": -0.03600001335144043,
+      "pathMinusPublishedDistanceM": 93.86101875183279,
+      "modeledMinusPublishedMaxGroundspeedMS": -1.7893932479355215,
+      "endpointTerrainMinusObservedM": [
+        -0.02983567434739598,
+        0.0012879996670562832
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    },
+    {
+      "flight": 72,
+      "pathLabel": 72,
+      "samples": 89,
+      "eventDurationS": 32.19799995422363,
+      "published": {
+        "flight": 72,
+        "sol": 1035,
+        "distanceM": 0.0,
+        "maxAltitudeM": 12.0,
+        "maxGroundspeedMS": 0.0,
+        "durationS": 32.0
+      },
+      "pathDistanceM": 6.935796559288001,
+      "modeledMaxGroundspeedMS": 0.4181110025851257,
+      "modeledMaxVerticalSpeedMS": 2.6610286280256603,
+      "climbDurationS": 7.083559989929199,
+      "horizontalDurationS": 18.030879974365234,
+      "durationMinusPublishedS": 0.1979999542236328,
+      "pathMinusPublishedDistanceM": 6.935796559288001,
+      "modeledMinusPublishedMaxGroundspeedMS": 0.4181110025851257,
+      "endpointTerrainMinusObservedM": [
+        0.0012879996670562832,
+        0.004236756140016951
+      ],
+      "minimumEstimatedAglM": 0.0,
+      "maximumEstimatedAglM": 12.0
+    }
+  ]
+}

@@ -3,9 +3,13 @@ export type {
   ViewerControl,
   ViewerSnapshotState,
   CircleDirection,
+  CoordinateNavigationOptions,
+  FlightPath,
+  SurfaceView,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,
+  ScriptFlight,
   ScriptImage,
   ScriptTime,
   ScriptVec3,
@@ -34,7 +38,7 @@ export {
 export type { ScriptProblem, ScriptProblemKind } from './errors.js';
 
 // The vocabulary
-export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, LAYERS, verbUsage } from './verbs.js';
+export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, FLIGHT_PATHS, SURFACE_VIEWS, LAYERS, verbUsage } from './verbs.js';
 export type { ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
 export { suggest } from './suggest.js';
 

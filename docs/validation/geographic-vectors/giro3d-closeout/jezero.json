@@ -1,0 +1,385 @@
+{
+  "results": [
+    {
+      "catalog": "geographic-vectors-jezero-terrain",
+      "visible": false,
+      "features": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "frameMs": {
+        "samples": 5,
+        "median": 16.699999999999818,
+        "p95": 16.800000000000182,
+        "max": 16.800000000000182
+      },
+      "renderCpuMs": {
+        "samples": 16,
+        "median": 0.7999999821186066,
+        "p95": 1,
+        "max": 1
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "vectorMetrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "diagnostics": [],
+      "resolution": [
+        3840,
+        2160
+      ],
+      "terrain": {
+        "update": {
+          "count": 204,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.22166666736205418,
+          "maxMs": 0.30000001192092896
+        },
+        "parse": {
+          "count": 94,
+          "lastMs": 0.29999998211860657,
+          "meanMs": 0.5319148932999753,
+          "maxMs": 3.600000023841858
+        },
+        "cpuDecode": {
+          "count": 86,
+          "lastMs": 0.10000002384185791,
+          "meanMs": 0.10813953502233638,
+          "maxMs": 1.199999988079071
+        },
+        "sample": {
+          "count": 46,
+          "lastMicros": 0,
+          "meanMicros": 10.869565865267878
+        },
+        "tiles": {
+          "active": 71,
+          "visible": 68,
+          "drawn": 68,
+          "inCache": 94,
+          "cpu": 86
+        },
+        "network": {
+          "requests": 94,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 4831660,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 4831660,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "catalog": "geographic-vectors-jezero-terrain",
+      "visible": true,
+      "features": 15,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "frameMs": {
+        "samples": 5,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000728,
+        "max": 16.700000000000728
+      },
+      "renderCpuMs": {
+        "samples": 16,
+        "median": 1,
+        "p95": 2,
+        "max": 2
+      },
+      "pickCpuMs": {
+        "samples": 2,
+        "median": 0.09999999403953552,
+        "p95": 0.09999999403953552,
+        "max": 0.09999999403953552
+      },
+      "vectorMetrics": {
+        "drawCalls": 68,
+        "drawPages": 1,
+        "batches": 1,
+        "surfaceMeshes": 68,
+        "offsetVertices": 0,
+        "textureBytes": 39008
+      },
+      "diagnostics": [],
+      "resolution": [
+        3840,
+        2160
+      ],
+      "terrain": {
+        "update": {
+          "count": 221,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.21749999995032945,
+          "maxMs": 0.4000000059604645
+        },
+        "parse": {
+          "count": 94,
+          "lastMs": 0.29999998211860657,
+          "meanMs": 0.5319148932999753,
+          "maxMs": 3.600000023841858
+        },
+        "cpuDecode": {
+          "count": 86,
+          "lastMs": 0.10000002384185791,
+          "meanMs": 0.10813953502233638,
+          "maxMs": 1.199999988079071
+        },
+        "sample": {
+          "count": 52,
+          "lastMicros": 0,
+          "meanMicros": 11.538461996958805
+        },
+        "tiles": {
+          "active": 71,
+          "visible": 68,
+          "drawn": 68,
+          "inCache": 94,
+          "cpu": 86
+        },
+        "network": {
+          "requests": 94,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 4831660,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 4831660,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "catalog": "geographic-vectors-jezero-dense",
+      "visible": false,
+      "features": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "frameMs": {
+        "samples": 5,
+        "median": 16.600000000000364,
+        "p95": 16.800000000000182,
+        "max": 16.800000000000182
+      },
+      "renderCpuMs": {
+        "samples": 16,
+        "median": 0.7999999821186066,
+        "p95": 0.9000000059604645,
+        "max": 0.9000000059604645
+      },
+      "pickCpuMs": {
+        "samples": 0,
+        "median": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "vectorMetrics": {
+        "drawCalls": 0,
+        "drawPages": 0,
+        "batches": 0,
+        "surfaceMeshes": 0,
+        "offsetVertices": 0,
+        "textureBytes": 0
+      },
+      "diagnostics": [],
+      "resolution": [
+        3840,
+        2160
+      ],
+      "terrain": {
+        "update": {
+          "count": 204,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.1899999996026357,
+          "maxMs": 0.30000001192092896
+        },
+        "parse": {
+          "count": 94,
+          "lastMs": 0.4000000059604645,
+          "meanMs": 0.45638297910385944,
+          "maxMs": 2.699999988079071
+        },
+        "cpuDecode": {
+          "count": 86,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.10232558014780976,
+          "maxMs": 1.2999999821186066
+        },
+        "sample": {
+          "count": 46,
+          "lastMicros": 0,
+          "meanMicros": 13.043478779170824
+        },
+        "tiles": {
+          "active": 71,
+          "visible": 68,
+          "drawn": 68,
+          "inCache": 94,
+          "cpu": 86
+        },
+        "network": {
+          "requests": 94,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 4831660,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 4831660,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "catalog": "geographic-vectors-jezero-dense",
+      "visible": true,
+      "features": 1601,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "frameMs": {
+        "samples": 5,
+        "median": 16.699999999999818,
+        "p95": 16.700000000000273,
+        "max": 16.700000000000273
+      },
+      "renderCpuMs": {
+        "samples": 16,
+        "median": 2,
+        "p95": 2.899999976158142,
+        "max": 2.899999976158142
+      },
+      "pickCpuMs": {
+        "samples": 2,
+        "median": 0.3999999761581421,
+        "p95": 0.3999999761581421,
+        "max": 0.3999999761581421
+      },
+      "vectorMetrics": {
+        "drawCalls": 612,
+        "drawPages": 9,
+        "batches": 1,
+        "surfaceMeshes": 68,
+        "offsetVertices": 0,
+        "textureBytes": 2637824
+      },
+      "diagnostics": [],
+      "resolution": [
+        3840,
+        2160
+      ],
+      "terrain": {
+        "update": {
+          "count": 221,
+          "lastMs": 0.19999998807907104,
+          "meanMs": 0.18749999950329463,
+          "maxMs": 0.30000001192092896
+        },
+        "parse": {
+          "count": 94,
+          "lastMs": 0.4000000059604645,
+          "meanMs": 0.45638297910385944,
+          "maxMs": 2.699999988079071
+        },
+        "cpuDecode": {
+          "count": 86,
+          "lastMs": 0.09999999403953552,
+          "meanMs": 0.10232558014780976,
+          "maxMs": 1.2999999821186066
+        },
+        "sample": {
+          "count": 52,
+          "lastMicros": 0,
+          "meanMicros": 11.538461996958805
+        },
+        "tiles": {
+          "active": 71,
+          "visible": 68,
+          "drawn": 68,
+          "inCache": 94,
+          "cpu": 86
+        },
+        "network": {
+          "requests": 94,
+          "queued": 0,
+          "downloading": 0,
+          "parsing": 0,
+          "failed": 0
+        },
+        "memory": {
+          "cacheBytes": 4831660,
+          "maxCacheBytes": 536870912,
+          "geometryBytes": 4831660,
+          "textureBytes": 0
+        },
+        "imagery": {
+          "layers": 0,
+          "activeOverlays": 0,
+          "overlayResolution": 256,
+          "requests": 0,
+          "failed": 0
+        }
+      },
+      "cyanPixels": 276945,
+      "zooms": [
+        {
+          "name": "Jezero regional",
+          "median": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "features": 1601,
+          "diagnostics": []
+        },
+        {
+          "name": "Jezero orbit",
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "features": 1601,
+          "diagnostics": []
+        },
+        {
+          "name": "Jezero close",
+          "median": 33.29999999999927,
+          "p95": 33.400000000001455,
+          "features": 1601,
+          "diagnostics": []
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

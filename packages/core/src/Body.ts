@@ -11,6 +11,13 @@ export type LegacyTrajectoryFrame = 'ecliptic' | 'equatorial' | 'body-fixed';
 
 /** Per-body trajectory plot configuration from Cosmographia's `trajectoryPlot` JSON field */
 export interface TrajectoryPlotConfig {
+  /** Plot reference frame; default is inertial. BodyFixed keeps surface paths
+   * registered to the centre's current orientation, not historical rotation. */
+  frame?: string;
+  /** Maximum initial cache sampling interval in seconds; a rendering policy. */
+  sampleInterval?: number;
+  /** Opt into timeline navigation of sampled composite arcs, using this label. */
+  timelineLabel?: string;
   /** Trail duration in seconds */
   duration?: number;
   /** Lead duration in seconds (plot ahead of current time) */
@@ -29,6 +36,8 @@ export interface TrajectoryPlotConfig {
 
 export interface BodyProperties {
   name: string;
+  /** Human-readable source/model qualifications, shown in the inspector. */
+  description?: string;
   naifId?: number;
   trajectory: Trajectory;
   rotation?: RotationModel;
@@ -51,6 +60,11 @@ export interface BodyProperties {
    *  frame (`Trajectory.frame`, e.g. TLE → TEME) overrides this. Defaults to
    *  ECLIPJ2000. */
   trajectoryFrame?: string;
+  /** Existence window, ET seconds: before `existsFrom` and after `existsUntil`
+   *  the body is not in the scene (Cosmographia's item `startTime`/`endTime`).
+   *  Either bound may be omitted; with neither, the body always exists. */
+  existsFrom?: number;
+  existsUntil?: number;
 }
 
 function canonicalFrame(name: string): string {
@@ -73,6 +87,7 @@ export type BodyChangeCallback = (body: Body, field: BodyChangeField) => void;
 
 export class Body {
   readonly name: string;
+  readonly description?: string;
   readonly naifId?: number;
   private _trajectory: Trajectory;
   private _rotation?: RotationModel;
@@ -89,6 +104,9 @@ export class Body {
   /** The frame the body's own properties declared, canonicalized; undefined
    *  when none was given. `frame` is what to use. */
   readonly declaredFrame?: string;
+  /** Existence window bounds (ET seconds); see `existsAt`. */
+  readonly existsFrom?: number;
+  readonly existsUntil?: number;
   readonly children: Body[] = [];
 
   /** Called when trajectory or rotation is changed at runtime. Set by Universe. */
@@ -96,6 +114,7 @@ export class Body {
 
   constructor(props: BodyProperties) {
     this.name = props.name;
+    this.description = props.description;
     this.naifId = props.naifId;
     this._trajectory = props.trajectory;
     this._rotation = props.rotation;
@@ -112,6 +131,17 @@ export class Body {
     this.declaredFrame = props.trajectoryFrame !== undefined
       ? canonicalFrame(props.trajectoryFrame)
       : undefined;
+    this.existsFrom = props.existsFrom;
+    this.existsUntil = props.existsUntil;
+  }
+
+  /** Whether `et` falls inside the body's own existence window (bounds
+   *  inclusive). Says nothing about its parent or its data coverage:
+   *  `Universe.isPresentAt` answers the whole question. */
+  existsAt(et: number): boolean {
+    if (this.existsFrom !== undefined && et < this.existsFrom) return false;
+    if (this.existsUntil !== undefined && et > this.existsUntil) return false;
+    return true;
   }
 
   /** Frame `stateAt(et).position` is expressed in, by name. The trajectory's

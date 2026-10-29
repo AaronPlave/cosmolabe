@@ -1,0 +1,180 @@
+{
+  "viewerUrl": "https://data.aaronplave.com/previews/pr-287/48334d7134f9177c3974f26e7a1b95e4f476181690e0dbd0f1330a62946aac0e/index.html?catalog=test-catalogs/experiments/mars-surface-build-pilot",
+  "viewerOrigin": "https://data.aaronplave.com",
+  "testMode": false,
+  "requestInterception": false,
+  "before": {
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "ellipsoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "status": {
+      "state": "ready",
+      "message": ""
+    },
+    "sourceBuffers": 234,
+    "grids": 22,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "physicalPick": "hit"
+  },
+  "styled": {
+    "debugMode": "none",
+    "checkedVertices": 297,
+    "maxNormalHeightErrorKm": 3.0419414542848244e-7,
+    "maxNormalVsRadialOffsetKm": 9.961836795257568,
+    "derivedMeshes": 20,
+    "tintPick": {
+      "bodyName": "Mars",
+      "heightKm": -2.235144019134629
+    },
+    "physicalPick": "hit",
+    "settings": {
+      "hillshade": true,
+      "baseColor": "elevation",
+      "azimuthDeg": 315,
+      "elevationDeg": 45,
+      "contrast": 1,
+      "imageryAmount": 0.25,
+      "palette": "terrain",
+      "contours": true,
+      "contourOpacity": 0.35,
+      "contourDensity": 1,
+      "contourIntervalKm": 0,
+      "contourLabels": false,
+      "contourColor": "#f2e6c9",
+      "minKm": -10,
+      "maxKm": 15
+    },
+    "imagery": {
+      "version": "cube-imagery-raster-15f11ffd9fa48dcc",
+      "ready": true,
+      "textures": 31,
+      "pinnedTextures": 12,
+      "textureBytes": 11176523,
+      "maxTextureBytes": 167772160,
+      "requests": 31,
+      "bytes": 165238,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 75.50000005960464,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 985088,
+      "tiles": 9,
+      "splitTiles": 2,
+      "blocks": 27,
+      "displayedLevels": {
+        "0": 3,
+        "2": 1,
+        "5": 1,
+        "9": 2,
+        "10": 3,
+        "11": 6,
+        "12": 6,
+        "13": 3,
+        "14": 2
+      },
+      "wantedLevels": {
+        "0": 3,
+        "2": 1,
+        "5": 1,
+        "9": 2,
+        "10": 3,
+        "11": 6,
+        "12": 6,
+        "13": 3,
+        "14": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 14,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 18,
+      "updateMs": 0.30000001192092896
+    }
+  },
+  "coloredPixels": 635947,
+  "invariant": {
+    "unchangedPhysicalBuffers": true,
+    "unchangedCpuGrids": true,
+    "gridRequestsBefore": 22,
+    "gridRequestsAfter": 22,
+    "status": {
+      "state": "ready",
+      "message": ""
+    },
+    "imagery": {
+      "version": "cube-imagery-raster-15f11ffd9fa48dcc",
+      "ready": true,
+      "textures": 31,
+      "pinnedTextures": 12,
+      "textureBytes": 11176523,
+      "maxTextureBytes": 167772160,
+      "requests": 45,
+      "bytes": 285168,
+      "failures": 0,
+      "aborted": 0,
+      "evicted": 0,
+      "blockBuildMs": 106.80000001192093,
+      "inFlight": 0,
+      "failedTiles": 0,
+      "blockGeometryBytes": 985088,
+      "tiles": 9,
+      "splitTiles": 2,
+      "blocks": 27,
+      "displayedLevels": {
+        "0": 3,
+        "2": 1,
+        "5": 1,
+        "9": 2,
+        "10": 3,
+        "11": 6,
+        "12": 6,
+        "13": 3,
+        "14": 2
+      },
+      "wantedLevels": {
+        "0": 3,
+        "2": 1,
+        "5": 1,
+        "9": 2,
+        "10": 3,
+        "11": 6,
+        "12": 6,
+        "13": 3,
+        "14": 2
+      },
+      "fallbackBlocks": 0,
+      "failedBlocks": 0,
+      "untexturedBlocks": 0,
+      "baseUncoveredBlocks": 0,
+      "maxDisplayedLevel": 14,
+      "queued": 0,
+      "budgetLimited": false,
+      "extraDraws": 18,
+      "updateMs": 0.30000001192092896
+    },
+    "physicalPick": "hit"
+  },
+  "compact": {
+    "x": 235.5,
+    "y": 560.46875,
+    "width": 130,
+    "height": 28
+  },
+  "initialRequests": 135,
+  "finalRequests": 149,
+  "errors": []
+}

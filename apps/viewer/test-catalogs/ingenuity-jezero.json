@@ -1,6 +1,14 @@
 {
   "name": "Ingenuity at Jezero",
-  "version": "1.1",
+  "defaultGeographicNames": [
+    "Mars"
+  ],
+  "require": [
+    "places/mars.json",
+    "places/ingenuity-sites.json"
+  ],
+  "version": "1.2",
+  "description": "Ingenuity positions are estimated from observed 2D NASA/MMGIS paths and landing locations, with the official flight log constraining estimated altitude/time profiles. They are not complete 3D telemetry. Source, datum, clock, and frame uncertainty: data/ingenuity/reconstruction.json. Cube terrain and four independent imagery products are prepared locally; production publication requires authorization.",
   "defaultTime": "2021-07-05T09:00:08Z",
   "defaultViewpoint": "Jezero Overhead",
   "items": [
@@ -31,69 +39,159 @@
     {
       "name": "Sun",
       "class": "star",
-      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
-      "geometry": { "type": "Globe", "radius": 695000 },
-      "label": { "color": [1.0, 0.9, 0.3] }
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      },
+      "label": {
+        "color": [
+          1.0,
+          0.9,
+          0.3
+        ]
+      }
     },
     {
       "name": "Earth",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "EMB" },
-      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
-      "label": { "color": [0.4, 0.6, 1.0] }
+      "trajectory": {
+        "type": "Builtin",
+        "name": "EMB"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 6378,
+        "atmosphere": "Earth"
+      },
+      "label": {
+        "color": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      }
     },
     {
       "name": "Mars",
       "class": "planet",
       "center": "Sun",
-      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "trajectory": {
+        "type": "Builtin",
+        "name": "Mars"
+      },
       "bodyFrame": "EquatorJ2000",
-      "rotationModel": { "type": "Builtin" },
+      "rotationModel": {
+        "type": "Builtin"
+      },
       "geometry": {
         "type": "Globe",
-        "radii": [3396.19, 3396.19, 3376.2],
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
         "baseMap": "textures/mars.dds",
         "terrain": {
-          "type": "quantized-mesh",
-          "url": "data/mars-terrain-fused/",
-          "referenceRadiusOffsetKm": 0,
-          "datum": { "verticalDatum": "areoid", "heightConvention": "geodetic-normal" },
-          "sourceMetadata": { "id": "mars-molahrsc-200m+jezero-hirise-1m-residual (scripts/build-mars-terrain/fused.sh)" },
+          "type": "3dtiles",
+          "url": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/tileset-measured.json",
+          "datum": {
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "sourceMetadata": {
+            "id": "terrain-3846907d293e9e5d0b0243ce",
+            "version": "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395"
+          },
           "errorTarget": 3,
           "fadeDurationMs": 0,
-          "skirtScale": 0.1,
-          "imagery": [
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-              "levels": 8
+          "cubeSphere": {
+            "cpuGrids": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/cpu-grids.json",
+            "residentLevel": 2,
+            "nearSurface": {
+              "radiusM": 500,
+              "maxErrorM": 0.5,
+              "altitudeM": 5000
             },
-            {
-              "url": "https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}",
-              "levels": 14,
-              "dimension": 512,
-              "minZoom": 5
-            },
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0/1.0.0/default/default028mm/{z}/{y}/{x}.png",
-              "levels": 13,
-              "bounds": [77.16, 18.21, 77.70, 18.72],
-              "minZoom": 5
-            },
-            {
-              "url": "https://trek.nasa.gov/tiles/Mars/EQ/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
-              "levels": 17,
-              "bounds": [77.22, 18.31, 77.58, 18.67],
-              "minZoom": 9
+            "imagery": {
+              "maxTextureBytes": 1006632960,
+              "maxConcurrentRequests": 6,
+              "maxBlocksPerTile": 64
             }
-          ]
+          }
         },
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global \u00b7 Viking",
+            "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
+            "resolutionMeters": 325.60563825058347,
+            "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "type": "cube",
+            "url": "data/ingenuity-cube/imagery-04513d4681559e949e39e30f/imagery.json"
+          },
+          {
+            "id": "ctx-global",
+            "name": "Global \u00b7 CTX",
+            "description": "Murray Lab CTX V01 global mosaic; nominal original 5 m, available service grid 5.0876 m at equator; original response gaps remain transparent",
+            "resolutionMeters": 5.087588097665367,
+            "attribution": "Caltech Murray Lab / Esri",
+            "type": "cube",
+            "url": "data/ingenuity-cube/imagery-11f675fe48a13579126bb3cd/imagery.json"
+          },
+          {
+            "id": "jezero-ctx",
+            "name": "Jezero \u00b7 CTX",
+            "description": "Mars 2020 Jezero CTX orthomosaic",
+            "resolutionMeters": 6,
+            "attribution": "NASA/USGS Mars 2020 TRN CTX soc_008",
+            "bounds": [
+              77.16,
+              18.21,
+              77.7,
+              18.72
+            ],
+            "type": "cube",
+            "url": "data/ingenuity-cube/imagery-ab90c8bd749d673d3f786918/imagery.json"
+          },
+          {
+            "id": "jezero-hirise",
+            "name": "Jezero \u00b7 HiRISE",
+            "description": "Mars 2020 Jezero HiRISE orthomosaic",
+            "resolutionMeters": 0.25,
+            "attribution": "NASA/USGS Mars 2020 TRN HiRISE soc_006",
+            "bounds": [
+              77.22,
+              18.31,
+              77.58,
+              18.67
+            ],
+            "type": "cube",
+            "url": "data/ingenuity-cube/imagery-4992e13935cc9898d6522634/imagery.json"
+          }
+        ],
         "atmosphere": "Mars"
       },
-      "label": { "color": [1.0, 0.5, 0.3] },
+      "label": {
+        "color": [
+          1.0,
+          0.5,
+          0.3
+        ]
+      },
       "items": [
         {
           "name": "Ingenuity",
+          "trajectoryPlot": { "duration": "300s", "frame": "BodyFixed", "sampleInterval": "0.05s", "timelineLabel": "Flight" },
+          "description": "Estimated flight reconstruction, not 3D telemetry. Horizontal paths and landings come from NASA/MMGIS observations; altitude and interior timing are modeled using NASA flight summaries and unchanged terrain. Absolute frame, height and clock accuracy remain uncertain.",
           "class": "spacecraft",
           "naifId": -266,
           "trajectoryFrame": "BodyFixed",
@@ -171,17 +269,34 @@
             {"startTime":"2024-01-06T18:17:57.800Z","endTime":"2024-01-19T01:00:22.029Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_71.xyzv"}},
             {"startTime":"2024-01-19T01:00:22.029Z","endTime":"2025-01-18T01:00:54.227Z","trajectory":{"type":"InterpolatedStates","source":"data/ingenuity/flight_72.xyzv"}}
           ],
-          "rotationModel": { "type": "SurfaceUp" },
+          "rotationModel": {
+            "type": "SurfaceUp"
+          },
           "geometry": {
             "type": "Mesh",
             "source": "models/Ingenuity.glb",
             "size": 0.0012,
-            "radii": [0.0006, 0.0006, 0.0006],
+            "radii": [
+              0.0006,
+              0.0006,
+              0.0006
+            ],
             "surfaceLock": "aboveTerrain",
-            "meshRotation": [0.7071, 0, 0, -0.7071],
+            "meshRotation": [
+              0.7071,
+              0,
+              0,
+              -0.7071
+            ],
             "castShadow": true
           },
-          "label": { "color": [0.9, 0.7, 1.0] }
+          "label": {
+            "color": [
+              0.9,
+              0.7,
+              1.0
+            ]
+          }
         }
       ]
     }

@@ -30,7 +30,11 @@ export type PluginData<T> = HostData<T> | ExploratoryData<T>;
 /** The host integration's explicit trust boundary, not a plugin capability.
  * Hosts own adapters and pass their outputs to plugins. Authority describes
  * where a value was supplied, independently of planned/reconstructed status.
- * This is a TypeScript API boundary, not a sandbox against casts or hostile JS.
+ * Trust model: the type proves a value passed through a HostDataAdapter, not that
+ * a real host created it. HostDataAdapter is exported, so any code that can import
+ * @cosmolabe/core can construct one; keeping adapters out of plugin code is an
+ * architectural convention of the integration. This is not a sandbox against
+ * casts or hostile JS.
  */
 export class HostDataAdapter {
   constructor(readonly id: string) {

@@ -3,8 +3,30 @@ export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeC
 export { Universe } from './Universe.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
-export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, ViewpointDefinition, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
+// Viewpoints — the catalog `Viewpoint` item, its semantic camera relationships
+// (look-at, placement and up directions, frames, epoch), resolution at an
+// epoch, and the portable JSON form a shareable view state composes.
+export {
+  resolveViewpoint,
+  parseViewpoint,
+  validateViewpoint,
+  viewpointToJson,
+  viewpointBodies,
+  presetViewpoint,
+  ViewpointError,
+} from './viewpoint.js';
+export type {
+  ViewpointDefinition,
+  ViewDirection,
+  ViewAxis,
+  ViewPreset,
+  ResolvedViewpoint,
+  ViewpointScene,
+} from './viewpoint.js';
 export { loadCatalogFromUrl } from './catalog/CatalogResolver.js';
+export { validateCatalog } from './catalog/CatalogSchema.js';
+export type { CatalogDiagnostic, CatalogValidationOptions } from './catalog/CatalogSchema.js';
 export type { ResolvedCatalog, ResolvedCatalogGraph, ResolvedKernel, CatalogFetcher } from './catalog/CatalogResolver.js';
 
 // Built-in catalogs (Sun, Earth system, planets, asteroids, …) for programmatic
@@ -47,11 +69,14 @@ export { parseXyzv } from './trajectories/XyzvParser.js';
 export type { Quaternion, RotationModel, InertialFrameName } from './rotations/RotationModel.js';
 export { DEFAULT_INERTIAL_FRAME } from './rotations/RotationModel.js';
 export { UniformRotation } from './rotations/UniformRotation.js';
+export { IauMoonRotation } from './rotations/IauMoonRotation.js';
 export { SpiceRotation } from './rotations/SpiceRotation.js';
 export { TrajectoryNadirRotation } from './rotations/TrajectoryNadirRotation.js';
 export { FixedRotation } from './rotations/FixedRotation.js';
 export { FixedEulerRotation } from './rotations/FixedEulerRotation.js';
 export { InterpolatedRotation, parseQFile } from './rotations/InterpolatedRotation.js';
+export { CompositeRotation } from './rotations/CompositeRotation.js';
+export type { RotationArc } from './rotations/CompositeRotation.js';
 export type { OrientationRecord } from './rotations/InterpolatedRotation.js';
 
 // Kinematics — frame-aware sub-point and body-fixed velocity geometry, plus
@@ -81,10 +106,9 @@ export type { BodyLookup } from './kinematics.js';
 
 // The SPICE surface core still calls — transitional, and deliberately narrow:
 // only what core's own call sites use, not the heritage adapter's full surface.
-// core never constructs an engine; it takes one by injection, and both
-// @cosmolabe/frames (createHeritageSpice, the runtime path) and
-// @cosmolabe/spice (the reference implementation used in tests) satisfy this
-// structurally. It shrinks as call sites migrate to the M-0002 contracts.
+// core takes an engine by injection. @cosmolabe/frames' createHeritageSpice
+// satisfies this structurally, pinned by spice-injection-conformance.test.ts.
+// It shrinks as call sites migrate to the M-0002 contracts.
 // See src/spice-injection.ts.
 export type {
   AberrationCorrection,
@@ -156,9 +180,21 @@ export {
   endpointLabel,
   resolveSpatialEndpoint,
   resolveSpatialRelationship,
+  resolveReferenceVector,
+  resolveFrameAxes,
+  frameAvailability,
+  resolveVelocity,
+  defaultVelocityCenter,
+  relationshipVectors,
+  referenceVectorLabel,
+  referenceRelationship,
   formatSpatialDistance,
+  formatSpatialSpeed,
 } from './geometry/spatial-relationships.js';
-export type { SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship } from './geometry/spatial-relationships.js';
+export type {
+  SpatialEndpoint, SpatialRelationship, ResolvedSpatialRelationship,
+  ReferenceVector, ResolvedReferenceVector, ReferenceRequest, FrameAxis, SpatialResolutionCache,
+} from './geometry/spatial-relationships.js';
 
 // Geometry/event finder — the shared query + result model every geometry
 // search is expressed in, the SPICE GF boundary it runs against, and the
@@ -192,3 +228,9 @@ export {
 
 export * from './plugins/PluginData.js';
 export { hasLineOfSight } from './plugins/contact-geometry.js';
+
+// Planetary geographic vector data and shared physical coordinate primitives.
+export * from './geographic/index.js';
+export * from './surface-plan/index.js';
+
+export * from './geometry/surface-point.js';

@@ -29,8 +29,8 @@ export function viewLink(state: ViewerViewState, pageUrl: string): string {
   const payload = JSON.stringify({ ...base, ...(state.events ? { events: validateEventLinkState(state.events) } : {}),
     ...(state.profiles ? { profiles: validateProfileLinkState(state.profiles) } : {}),
     ...(state.measurements ? { measurements: validateMeasurementLinkState(state.measurements) } : {}) });
-  if (payload.length > 8192) throw new ViewStateError('View link is too large; share fewer measurements, event searches, or profiles.');
+  if (payload.length > 8192) throw new ViewStateError('View link is too large; share fewer reference geometry items, event searches, or profiles.');
   url.searchParams.set('view', payload);
-  if (url.href.length > 8192) throw new ViewStateError('View link is too large for an ordinary URL; share fewer measurements, event searches, or profiles.');
+  if (url.href.length > 8192) throw new ViewStateError('View link is too large for an ordinary URL; share fewer reference geometry items, event searches, or profiles.');
   return url.href;
 }

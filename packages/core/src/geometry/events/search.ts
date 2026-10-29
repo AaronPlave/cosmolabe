@@ -19,6 +19,8 @@ import {
 export interface EventSearchOptions {
   registry: EventKindRegistry;
   provider: GeometryFinderProvider;
+  /** Whole-search progress, available only when the provider reports it. */
+  onProgress?: (fraction: number) => void;
 }
 
 /**
@@ -49,10 +51,12 @@ export function eventGeometry<P>(
 export class EventSearch {
   private readonly registry: EventKindRegistry;
   private readonly provider: GeometryFinderProvider;
+  private readonly onProgress?: (fraction: number) => void;
 
   constructor(options: EventSearchOptions) {
     this.registry = options.registry;
     this.provider = options.provider;
+    this.onProgress = options.onProgress;
   }
 
   /** Kinds available to search, for building a query-configuration UI. */
@@ -85,7 +89,32 @@ export class EventSearch {
 
     let events: GeometryEvent[];
     try {
-      events = await (kind as unknown as EventKind<P>).run(resolved as ResolvedEventQuery<P>, ctx);
+      const planned = (kind as unknown as EventKind<P>).plannedCalls?.(resolved) ?? 1;
+      let call = 0;
+      let furthest = 0;
+      let reported = false;
+      const track = <T extends (...args: any[]) => any>(fn: T): T =>
+        ((...args: any[]) => {
+          const index = call++;
+          return fn.call(this.provider, ...args, (fraction: number) => {
+            // Refinement calls beyond the plan have no known cost. They must
+            // not reset the bar or claim completion before `run` returns.
+            if (index >= planned || !Number.isFinite(fraction)) return;
+            reported = true;
+            furthest = Math.max(furthest, (index + Math.max(0, Math.min(1, fraction))) / planned);
+            if (furthest < 1) this.onProgress?.(furthest);
+          });
+        }) as T;
+      const provider = this.onProgress ? {
+        ...(this.provider.range ? { range: this.provider.range.bind(this.provider) } : {}),
+        ...(this.provider.altitude ? { altitude: this.provider.altitude.bind(this.provider) } : {}),
+        gfdist: track(this.provider.gfdist),
+        gfsep: track(this.provider.gfsep),
+        gfoclt: track(this.provider.gfoclt),
+        gfposc: track(this.provider.gfposc),
+      } : this.provider;
+      events = await (kind as unknown as EventKind<P>).run(resolved, { ...ctx, provider });
+      if (reported) this.onProgress?.(1);
     } catch (cause) {
       return this.fault(query, {
         code: 'provider-error',

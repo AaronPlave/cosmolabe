@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "airfield-0",
+      "properties": {
+        "name": "Wright Brothers Field",
+        "placeRef": "mars:mission:ingenuity-sites/airfield-0",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "sourceFields": {
+          "origin": "NASA/JPL MMGIS Ingenuity waypoint; mission flight site, not official nomenclature.",
+          "Flight": 0,
+          "Earth_Date": "April 4, 2021",
+          "sourceFile": "data/ingenuity/m20_heli_waypoints.json",
+          "height": "Source Elev_Geoid is not used as ellipsoid height; surface anchor follows scene terrain."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.45101915,
+          18.44486301
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airfield-5",
+      "properties": {
+        "name": "Airfield B",
+        "placeRef": "mars:mission:ingenuity-sites/airfield-5",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "sourceFields": {
+          "origin": "NASA/JPL MMGIS Ingenuity waypoint; mission flight site, not official nomenclature.",
+          "Flight": 5,
+          "Earth_Date": "May 7, 2021",
+          "sourceFile": "data/ingenuity/m20_heli_waypoints.json",
+          "height": "Source Elev_Geoid is not used as ellipsoid height; surface anchor follows scene terrain."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4513883,
+          18.44266513
+        ]
+      }
+    }
+  ]
+}
