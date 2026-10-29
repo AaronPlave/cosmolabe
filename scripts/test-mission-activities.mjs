@@ -72,6 +72,47 @@ try {
       await page.screenshot({path:`${out}/flight-44-details.png`});
       await flightInspector.getByRole('button',{name:'Less',exact:true}).click();
       const selectedId = await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id);
+      // Real desktop pointer hover previews other records without committing
+      // selection/time/camera; only the exact inspector identity is redundant.
+      const viewerUrl=await liveModule('viewer-state.svelte.ts');
+      const eventUrl=await liveModule('event-finder.svelte.ts');
+      await page.evaluate(async url=>{
+        const {setScrubberWindow}=await import(url);
+        const flights=window.cosmo.listActivities().filter(a=>['Flight 44','Flight 45','Flight 46'].includes(a.name));
+        setScrubberWindow(Math.min(...flights.map(a=>a.start))-60,Math.max(...flights.map(a=>a.end))+60);
+      },viewerUrl);
+      await page.waitForTimeout(500);
+      const snapshot=()=>page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()}));
+      const beforeHover=await snapshot();
+      const callout=page.locator('.event-callout');
+      for(const name of ['Flight 45','Flight 46','Flight 45']) {
+        await page.getByRole('button',{name:`Go to ${name}`,exact:true}).hover();
+        await callout.getByText(`Ingenuity ${name}`,{exact:true}).waitFor();
+        assert.ok((await callout.innerText()).includes('2023'));
+        assert.ok(await callout.locator('.callout-line').count()>0);
+        assert.deepEqual(await snapshot(),beforeHover);
+      }
+      await page.screenshot({path:`${out}/flight-44-selected-flight-45-hover.png`});
+      await page.getByRole('button',{name:'Go to Flight 44',exact:true}).hover();
+      await callout.waitFor({state:'hidden'});
+      assert.deepEqual(await snapshot(),beforeHover);
+      // Same ID in another query is not the selected event's identity.
+      await page.evaluate(async url=>{
+        const {ef}=await import(url); ef.selectedQueryId='different-query';
+      },eventUrl);
+      await callout.getByText('Ingenuity Flight 44',{exact:true}).waitFor();
+      await page.evaluate(id=>window.cosmo.selectActivity(id),selectedId);
+      await callout.waitFor({state:'hidden'});
+      await page.mouse.move(10,10);
+      const focused=page.getByRole('button',{name:'Go to Flight 45',exact:true});
+      await focused.focus();
+      assert.ok(await page.evaluate(async url=>{
+        const {ef}=await import(url);
+        return ef.previewId===window.cosmo.listActivities().find(a=>a.name==='Flight 45').id;
+      },eventUrl),'Desktop keyboard focus retains activity preview');
+      assert.deepEqual(await snapshot(),beforeHover);
+      await focused.evaluate(node=>node.blur());
+      results.desktopHover={selected:'Flight 44',previewed:['Flight 45','Flight 46','Flight 45'],sameIdentitySuppressed:true,differentQueryVisible:true,keyboardPreview:true,selectionTimeCameraUnchanged:true};
       await chooser.click();
       assert.equal(await menu.locator('.picker-result[aria-pressed="true"]').count(),1);
       await page.waitForFunction(()=>document.activeElement?.matches('.activity-picker input'));
@@ -133,6 +174,15 @@ try {
       assert.ok(cleanup.timeUnchanged && cleanup.targetUnchanged);
       assert.ok(await page.locator('[data-tl-row^="lane:event-query"]').count());
       assert.ok(await page.locator('[data-tl-row^="profile:"]').count());
+      await page.evaluate(async url=>{
+        const {setScrubberWindow}=await import(url); setScrubberWindow(672089480,672089600);
+      },stateUrl);
+      const beforeGeometry=await page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()}));
+      await page.getByRole('group',{name:'Fixture approach events',exact:true}).getByRole('button',{name:'Synthetic closest approach',exact:true}).hover();
+      await page.locator('.event-callout .callout-title').getByText('Closest approach · Rover',{exact:true}).waitFor();
+      assert.deepEqual(await page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()})),beforeGeometry);
+      await page.mouse.move(10,10);
+      results.geometryHover={visibleWithActivitySelected:true,selectionTimeCameraUnchanged:true};
     }
     assert.equal(await page.locator('.activity-tools').count(),0);
     const triggerWidth = await chooser.evaluate(node=>node.getBoundingClientRect().width);
@@ -266,6 +316,16 @@ try {
     const selected=await page.evaluate(()=>window.cosmo.getSelectedActivity());
     const mark=page.getByRole('button',{name:`Go to ${selected.name}`,exact:true});
     await mark.scrollIntoViewIfNeeded();
+    // Seed another activity's stale preview: touch must clear it rather than
+    // relying on suppression of every activity while one is selected.
+    const timelineUrl=await liveModule('timeline.svelte.ts');
+    const activityUrl=await liveModule('mission-activities.ts');
+    await page.evaluate(async ({timelineUrl,activityUrl})=>{
+      const {setTimelineHover,eventKey}=await import(timelineUrl),{activityEvent}=await import(activityUrl);
+      const other=window.cosmo.listActivities().find(a=>a.id!==window.cosmo.getSelectedActivity().id);
+      setTimelineHover(other.start,eventKey(activityEvent(other)),{x:180,y:680});
+    },{timelineUrl,activityUrl});
+    await page.locator('.event-callout').waitFor();
     await mark.tap();
     const inspector=page.getByRole('region',{name:'Selected event',exact:true});
     await inspector.waitFor();
