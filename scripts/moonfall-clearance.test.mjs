@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { Universe, resolveViewpoint } from '../packages/core/dist/index.js';
 import { hoppers } from './data/moonfall-sorties.mjs';
 import { bakeFlight, trajectory, terrainSource, validateFlight, sha256, segmentSteps } from './lib/moonfall-clearance.mjs';
 
@@ -13,6 +14,23 @@ const actual = catalog.items.find(i => i.name === 'Moon').items;
 const grids = process.env.MOONFALL_GRIDS ?? resolve(dataset.localDir, 'cpu-grids.json');
 
 describe('MoonFall synthetic flight clearance', () => {
+  it('places the named surface views above the Moon and aims at their region across epochs', () => {
+    const u = new Universe();
+    u.loadCatalog(catalog);
+    for (const [name, heightKm] of [['Shackleton Overview', 60], ['PSR Floor View', 20]]) {
+      const def = u.viewpoints.find(v => v.name === name);
+      for (const et of [u.time, u.time + 12 * 86400]) {
+        const pose = resolveViewpoint(u, def, et);
+        expect(Math.hypot(...pose.eye) - 1737.4).toBeCloseTo(heightKm, 8);
+        expect(Math.hypot(...pose.target)).toBeCloseTo(1737.4, 8);
+        const lat = def.latitude * Math.PI / 180, lon = def.longitude * Math.PI / 180;
+        const direction = [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)];
+        const expected = u.toWorldFrame(direction, 'BodyFixed', 'Moon', et);
+        expect(Math.hypot(...pose.target.map((v, i) => v / 1737.4 - expected[i]))).toBeLessThan(1e-10);
+        expect(Math.hypot(...pose.eye.map((v, i) => v - pose.target[i]))).toBeCloseTo(heightKm, 8);
+      }
+    }
+  });
   it('binds the 12 clearance diagnostics to the actual catalog, authored routes and terrain revision', () => {
     expect(report.revision).toBe(dataset.build);
     expect(report.authoredSha256).toBe(sha256(hoppers));

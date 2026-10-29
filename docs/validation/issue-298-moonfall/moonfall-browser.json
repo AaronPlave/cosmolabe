@@ -9,10 +9,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 165,
-          "lastMs": 0.5,
-          "meanMs": 0.30833333134651186,
-          "maxMs": 1.300000011920929
+          "count": 507,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.3241666679581006,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -35,34 +35,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 246,
-          "cpu": 197
+          "inCache": 214,
+          "cpu": 251
         },
         "network": {
-          "requests": 246,
+          "requests": 214,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 39326544,
+          "cacheBytes": 34210896,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 52566264,
+          "geometryBytes": 45728376,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 234,
+            "textures": 311,
             "pinnedTextures": 30,
-            "textureBytes": 86980608,
+            "textureBytes": 115602432,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 234,
-            "bytes": 4596506,
+            "requests": 311,
+            "bytes": 6253788,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -72,7 +72,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 104,
+            "blocks": 122,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -80,8 +80,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 33,
-              "9": 43
+              "8": 27,
+              "9": 67
             },
             "wantedLevels": {
               "4": 11,
@@ -97,19 +97,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.699999988079071,
+            "updateMs": 1.5,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 181.9000000357628,
+            "uploadMs": 242.19999986886978,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 234,
+          "requests": 311,
           "failed": 0
         }
       },
@@ -211,7 +211,7 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 156926
+      "litPixels": 156950
     },
     {
       "key": "hopper-origin-0",
@@ -221,9 +221,9 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 249,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.31249999602635703,
+          "count": 590,
+          "lastMs": 0.40000003576278687,
+          "meanMs": 0.2758333310484886,
           "maxMs": 0.5
         },
         "parse": {
@@ -247,34 +247,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 246,
-          "cpu": 235
+          "inCache": 214,
+          "cpu": 291
         },
         "network": {
-          "requests": 246,
+          "requests": 214,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 39326544,
+          "cacheBytes": 34210896,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 52566264,
+          "geometryBytes": 45728376,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 277,
+            "textures": 373,
             "pinnedTextures": 30,
-            "textureBytes": 102964224,
+            "textureBytes": 138648576,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 277,
-            "bytes": 5772284,
+            "requests": 373,
+            "bytes": 7860252,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -284,7 +284,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 104,
+            "blocks": 122,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -292,8 +292,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 33,
-              "9": 43
+              "8": 27,
+              "9": 67
             },
             "wantedLevels": {
               "4": 11,
@@ -309,19 +309,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5,
+            "updateMs": 1.300000011920929,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 216.5999999642372,
+            "uploadMs": 280.1999998688698,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 277,
+          "requests": 373,
           "failed": 0
         }
       },
@@ -423,7 +423,7 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 156926
+      "litPixels": 156950
     },
     {
       "key": "close-flight-0",
@@ -433,9 +433,9 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 320,
-          "lastMs": 0.19999998807907104,
-          "meanMs": 0.3099999974171321,
+          "count": 660,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.2999999985098839,
           "maxMs": 1
         },
         "parse": {
@@ -459,34 +459,34 @@
           "active": 141,
           "visible": 122,
           "drawn": 52,
-          "inCache": 334,
-          "cpu": 264
+          "inCache": 298,
+          "cpu": 320
         },
         "network": {
-          "requests": 334,
+          "requests": 298,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 53394576,
+          "cacheBytes": 47639472,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 71370456,
+          "geometryBytes": 63677832,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 454,
+            "textures": 511,
             "pinnedTextures": 30,
-            "textureBytes": 168757248,
+            "textureBytes": 189944832,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 454,
-            "bytes": 9444089,
+            "requests": 511,
+            "bytes": 10591029,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -523,19 +523,19 @@
             "maxDisplayedLevel": 10,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.899999976158142,
+            "updateMs": 2,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 355.5999998450279,
+            "uploadMs": 387.2999997138977,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 454,
+          "requests": 511,
           "failed": 0
         }
       },
@@ -647,10 +647,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 484,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.2291666676600774,
-          "maxMs": 0.5999999642372131
+          "count": 823,
+          "lastMs": 0.40000003576278687,
+          "meanMs": 0.21249999950329462,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -673,34 +673,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 346,
-          "cpu": 268
+          "inCache": 310,
+          "cpu": 324
         },
         "network": {
-          "requests": 346,
+          "requests": 310,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 55312944,
+          "cacheBytes": 49557840,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 73934664,
+          "geometryBytes": 66242040,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 475,
+            "textures": 530,
             "pinnedTextures": 30,
-            "textureBytes": 176563200,
+            "textureBytes": 197007360,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 475,
-            "bytes": 9839727,
+            "requests": 530,
+            "bytes": 10934574,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -710,7 +710,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 116,
+            "blocks": 128,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -718,8 +718,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 29,
-              "9": 59
+              "8": 25,
+              "9": 75
             },
             "wantedLevels": {
               "4": 11,
@@ -735,19 +735,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5999999642372131,
+            "updateMs": 1.5,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 373.59999990463257,
+            "uploadMs": 402.09999990463257,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 475,
+          "requests": 530,
           "failed": 0
         }
       },
@@ -849,7 +849,7 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 253017
+      "litPixels": 253011
     },
     {
       "key": "hopper-origin-2",
@@ -859,10 +859,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 567,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.32166666984558107,
-          "maxMs": 0.5
+          "count": 907,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.2908333331346512,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -885,34 +885,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 346,
-          "cpu": 274
+          "inCache": 310,
+          "cpu": 326
         },
         "network": {
-          "requests": 346,
+          "requests": 310,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 55312944,
+          "cacheBytes": 49557840,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 73934664,
+          "geometryBytes": 66242040,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 501,
+            "textures": 530,
             "pinnedTextures": 30,
-            "textureBytes": 186227712,
+            "textureBytes": 197007360,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 501,
-            "bytes": 10453810,
+            "requests": 530,
+            "bytes": 10934574,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -922,7 +922,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 116,
+            "blocks": 128,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -930,8 +930,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 29,
-              "9": 59
+              "8": 25,
+              "9": 75
             },
             "wantedLevels": {
               "4": 11,
@@ -947,19 +947,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.300000011920929,
+            "updateMs": 1.5,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 394.9999997019768,
+            "uploadMs": 402.09999990463257,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 501,
+          "requests": 530,
           "failed": 0
         }
       },
@@ -1061,7 +1061,7 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 253017
+      "litPixels": 253011
     },
     {
       "key": "close-flight-2",
@@ -1071,10 +1071,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 638,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.3275000020861626,
-          "maxMs": 0.800000011920929
+          "count": 978,
+          "lastMs": 0.20000004768371582,
+          "meanMs": 0.3191666652758916,
+          "maxMs": 1
         },
         "parse": {
           "count": 0,
@@ -1097,34 +1097,34 @@
           "active": 162,
           "visible": 143,
           "drawn": 57,
-          "inCache": 422,
-          "cpu": 279
+          "inCache": 390,
+          "cpu": 331
         },
         "network": {
-          "requests": 422,
+          "requests": 390,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 67462608,
+          "cacheBytes": 62346960,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 90174648,
+          "geometryBytes": 83336760,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 575,
+            "textures": 604,
             "pinnedTextures": 30,
-            "textureBytes": 213734400,
+            "textureBytes": 224514048,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 575,
-            "bytes": 11363754,
+            "requests": 604,
+            "bytes": 11832650,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1164,19 +1164,19 @@
             "maxDisplayedLevel": 11,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 2.099999964237213,
+            "updateMs": 2.100000023841858,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 454.8999996185303,
+            "uploadMs": 462.1999999284744,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 575,
+          "requests": 604,
           "failed": 0
         }
       },
@@ -1288,10 +1288,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 798,
+          "count": 1138,
           "lastMs": 0.3999999761581421,
-          "meanMs": 0.21999999632438025,
-          "maxMs": 0.699999988079071
+          "meanMs": 0.19916666448116302,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -1314,34 +1314,34 @@
           "active": 153,
           "visible": 153,
           "drawn": 22,
-          "inCache": 438,
-          "cpu": 281
+          "inCache": 402,
+          "cpu": 333
         },
         "network": {
-          "requests": 438,
+          "requests": 402,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 70020432,
+          "cacheBytes": 64265328,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 93593592,
+          "geometryBytes": 85900968,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 580,
+            "textures": 609,
             "pinnedTextures": 30,
-            "textureBytes": 215592960,
+            "textureBytes": 226372608,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 580,
-            "bytes": 11458124,
+            "requests": 609,
+            "bytes": 11927020,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1351,7 +1351,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 116,
+            "blocks": 128,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -1359,8 +1359,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 29,
-              "9": 59
+              "8": 25,
+              "9": 75
             },
             "wantedLevels": {
               "4": 11,
@@ -1376,19 +1376,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.699999988079071,
+            "updateMs": 1.800000011920929,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 458.599999666214,
+            "uploadMs": 466.29999989271164,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 580,
+          "requests": 609,
           "failed": 0
         }
       },
@@ -1490,7 +1490,7 @@
           "markerErrorM": 0.0000046801786702408864
         }
       ],
-      "litPixels": 422397
+      "litPixels": 422419
     },
     {
       "key": "hopper-origin-4",
@@ -1500,10 +1500,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 884,
-          "lastMs": 0.30000001192092896,
-          "meanMs": 0.2899999996026357,
-          "maxMs": 0.5
+          "count": 1222,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.2758333350221316,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -1526,34 +1526,34 @@
           "active": 153,
           "visible": 153,
           "drawn": 22,
-          "inCache": 438,
-          "cpu": 283
+          "inCache": 402,
+          "cpu": 335
         },
         "network": {
-          "requests": 438,
+          "requests": 402,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 70020432,
+          "cacheBytes": 64265328,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 93593592,
+          "geometryBytes": 85900968,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 580,
+            "textures": 610,
             "pinnedTextures": 30,
-            "textureBytes": 215592960,
+            "textureBytes": 226744320,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 580,
-            "bytes": 11458124,
+            "requests": 610,
+            "bytes": 11950213,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1563,7 +1563,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 116,
+            "blocks": 128,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -1571,8 +1571,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 29,
-              "9": 59
+              "8": 25,
+              "9": 75
             },
             "wantedLevels": {
               "4": 11,
@@ -1593,14 +1593,14 @@
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 458.599999666214,
+            "uploadMs": 467.29999989271164,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 580,
+          "requests": 610,
           "failed": 0
         }
       },
@@ -1702,7 +1702,7 @@
           "markerErrorM": 0.000004680178036958906
         }
       ],
-      "litPixels": 422397
+      "litPixels": 422419
     },
     {
       "key": "close-flight-4",
@@ -1712,10 +1712,10 @@
       "origin": "Polaris-D",
       "terrain": {
         "update": {
-          "count": 956,
-          "lastMs": 0.19999998807907104,
-          "meanMs": 0.26166666448116305,
-          "maxMs": 0.5
+          "count": 1293,
+          "lastMs": 0.09999996423721313,
+          "meanMs": 0.2466666688521703,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -1738,34 +1738,34 @@
           "active": 93,
           "visible": 74,
           "drawn": 32,
-          "inCache": 454,
-          "cpu": 285
+          "inCache": 418,
+          "cpu": 337
         },
         "network": {
-          "requests": 454,
+          "requests": 418,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 72578256,
+          "cacheBytes": 66823152,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 97012536,
+          "geometryBytes": 89319912,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 619,
+            "textures": 649,
             "pinnedTextures": 30,
-            "textureBytes": 230089728,
+            "textureBytes": 241241088,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 619,
-            "bytes": 11949796,
+            "requests": 649,
+            "bytes": 12441885,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1802,19 +1802,19 @@
             "maxDisplayedLevel": 10,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.399999976158142,
+            "updateMs": 1.5,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 481.69999980926514,
+            "uploadMs": 494.39999997615814,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 619,
+          "requests": 649,
           "failed": 0
         }
       },
@@ -1926,10 +1926,10 @@
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1056,
-          "lastMs": 0.20000004768371582,
-          "meanMs": 0.23916666706403097,
-          "maxMs": 0.6000000238418579
+          "count": 1392,
+          "lastMs": 0.3999999761581421,
+          "meanMs": 0.2291666661699613,
+          "maxMs": 0.5
         },
         "parse": {
           "count": 0,
@@ -1952,34 +1952,34 @@
           "active": 153,
           "visible": 153,
           "drawn": 22,
-          "inCache": 462,
-          "cpu": 286
+          "inCache": 426,
+          "cpu": 338
         },
         "network": {
-          "requests": 462,
+          "requests": 426,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 73857168,
+          "cacheBytes": 68102064,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 98722008,
+          "geometryBytes": 91029384,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 640,
+            "textures": 670,
             "pinnedTextures": 30,
-            "textureBytes": 237895680,
+            "textureBytes": 249047040,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 640,
-            "bytes": 12295437,
+            "requests": 670,
+            "bytes": 12787526,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -1989,7 +1989,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 119,
+            "blocks": 131,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -1997,8 +1997,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 30,
-              "9": 61
+              "8": 26,
+              "9": 77
             },
             "wantedLevels": {
               "4": 11,
@@ -2014,19 +2014,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.399999976158142,
+            "updateMs": 1.600000023841858,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 496.0999998450279,
+            "uploadMs": 507.9000000357628,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 640,
+          "requests": 670,
           "failed": 0
         }
       },
@@ -2128,20 +2128,20 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 165239
+      "litPixels": 165238
     },
     {
       "key": "playback-1",
-      "et": 913759420.3893561,
+      "et": 913759420.3806562,
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "glError": 0,
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1198,
-          "lastMs": 0.2999999523162842,
-          "meanMs": 0.3308333332339923,
-          "maxMs": 0.5
+          "count": 1535,
+          "lastMs": 0.30000001192092896,
+          "meanMs": 0.3166666661699613,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -2164,34 +2164,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 466,
-          "cpu": 289
+          "inCache": 430,
+          "cpu": 341
         },
         "network": {
-          "requests": 466,
+          "requests": 430,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 74496624,
+          "cacheBytes": 68741520,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 99576744,
+          "geometryBytes": 91884120,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 670,
+            "textures": 684,
             "pinnedTextures": 30,
-            "textureBytes": 249047040,
+            "textureBytes": 254251008,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 670,
-            "bytes": 12912693,
+            "requests": 684,
+            "bytes": 13155494,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -2201,7 +2201,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 119,
+            "blocks": 125,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -2209,8 +2209,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 30,
-              "9": 61
+              "8": 28,
+              "9": 69
             },
             "wantedLevels": {
               "4": 11,
@@ -2226,19 +2226,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.9000000357627869,
+            "updateMs": 1.600000023841858,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 513.9999997615814,
+            "uploadMs": 516.6999999880791,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 670,
+          "requests": 684,
           "failed": 0
         }
       },
@@ -2249,7 +2249,7 @@
           "vertices": 499,
           "cachePoints": 1511,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000010038208363306526
+          "markerErrorM": 0.000016975446999801617
         },
         {
           "id": "Polaris-A__arc2",
@@ -2273,7 +2273,7 @@
           "vertices": 511,
           "cachePoints": 1790,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000006042490424779342
+          "markerErrorM": 0.000014874980836939507
         },
         {
           "id": "Polaris-B__arc2",
@@ -2297,7 +2297,7 @@
           "vertices": 561,
           "cachePoints": 1887,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000014295171051265623
+          "markerErrorM": 0.000019675019552373132
         },
         {
           "id": "Polaris-C__arc2",
@@ -2321,7 +2321,7 @@
           "vertices": 488,
           "cachePoints": 2619,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000017723199339331296
+          "markerErrorM": 0.00000611858124020525
         },
         {
           "id": "Polaris-D__arc2",
@@ -2340,20 +2340,20 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 156440
+      "litPixels": 156437
     },
     {
       "key": "playback-1000",
-      "et": 913759679.383456,
+      "et": 913759667.2834562,
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "glError": 0,
       "origin": "Moon",
       "terrain": {
         "update": {
-          "count": 1284,
-          "lastMs": 0.40000003576278687,
-          "meanMs": 0.32500000049670535,
-          "maxMs": 0.5
+          "count": 1625,
+          "lastMs": 0.2999999523162842,
+          "meanMs": 0.30833333283662795,
+          "maxMs": 0.40000003576278687
         },
         "parse": {
           "count": 0,
@@ -2376,34 +2376,34 @@
           "active": 150,
           "visible": 150,
           "drawn": 22,
-          "inCache": 466,
-          "cpu": 289
+          "inCache": 430,
+          "cpu": 341
         },
         "network": {
-          "requests": 466,
+          "requests": 430,
           "queued": 0,
           "downloading": 0,
           "parsing": 0,
           "failed": 0
         },
         "memory": {
-          "cacheBytes": 74496624,
+          "cacheBytes": 68741520,
           "maxCacheBytes": 536870912,
-          "geometryBytes": 99576744,
+          "geometryBytes": 91884120,
           "textureBytes": 388096
         },
         "imagery": {
           "cube": {
             "version": "cube-imagery-composite-3f34a19541af7710",
             "ready": true,
-            "textures": 670,
+            "textures": 684,
             "pinnedTextures": 30,
-            "textureBytes": 249047040,
+            "textureBytes": 254251008,
             "inFlight": 0,
             "failedTiles": 0,
             "maxTextureBytes": 536870912,
-            "requests": 670,
-            "bytes": 12912693,
+            "requests": 684,
+            "bytes": 13155494,
             "failures": 0,
             "aborted": 0,
             "evicted": 0,
@@ -2413,7 +2413,7 @@
             "queued": 0,
             "tiles": 22,
             "splitTiles": 0,
-            "blocks": 119,
+            "blocks": 125,
             "extraDraws": 0,
             "displayedLevels": {
               "2": 1,
@@ -2421,8 +2421,8 @@
               "4": 7,
               "5": 9,
               "7": 4,
-              "8": 30,
-              "9": 61
+              "8": 28,
+              "9": 69
             },
             "wantedLevels": {
               "4": 11,
@@ -2438,19 +2438,19 @@
             "maxDisplayedLevel": 9,
             "committedGroups": 0,
             "waitingGroups": 0,
-            "updateMs": 1.5999999642372131,
+            "updateMs": 1.5,
             "blockGeometryBytes": 0,
             "transitionTextureBytes": 1486848,
             "protectedOverBudgetBytes": 0,
             "gpuAllocatedBytes": 538255360,
-            "uploadMs": 513.9999997615814,
+            "uploadMs": 516.6999999880791,
             "gpuError": null,
             "inheritedGlErrors": []
           },
           "layers": 0,
           "activeOverlays": 1,
           "overlayResolution": 256,
-          "requests": 670,
+          "requests": 684,
           "failed": 0
         }
       },
@@ -2458,10 +2458,10 @@
         {
           "id": "Polaris-A__arc0",
           "visible": true,
-          "vertices": 1438,
+          "vertices": 1390,
           "cachePoints": 1511,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000004371728634565119
+          "markerErrorM": 0.00002439332252637311
         },
         {
           "id": "Polaris-A__arc2",
@@ -2482,10 +2482,10 @@
         {
           "id": "Polaris-B__arc0",
           "visible": true,
-          "vertices": 1498,
+          "vertices": 1460,
           "cachePoints": 1790,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.000009883087000463572
+          "markerErrorM": 0.000009380611513383496
         },
         {
           "id": "Polaris-B__arc2",
@@ -2506,10 +2506,10 @@
         {
           "id": "Polaris-C__arc0",
           "visible": true,
-          "vertices": 1564,
+          "vertices": 1519,
           "cachePoints": 1887,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.0000068208301385211885
+          "markerErrorM": 0.000012860918900004641
         },
         {
           "id": "Polaris-C__arc2",
@@ -2530,10 +2530,10 @@
         {
           "id": "Polaris-D__arc0",
           "visible": true,
-          "vertices": 1336,
+          "vertices": 1291,
           "cachePoints": 2619,
           "frame": "IAU_MOON",
-          "markerErrorM": 0.0000019767648650225038
+          "markerErrorM": 0.00002889288544419401
         },
         {
           "id": "Polaris-D__arc2",
@@ -2552,8 +2552,38 @@
           "markerErrorM": null
         }
       ],
-      "litPixels": 156987
+      "litPixels": 156957
     }
   ],
-  "errors": []
+  "errors": [],
+  "viewpoints": [
+    {
+      "day": 0,
+      "name": "Shackleton Overview",
+      "heightKm": 59.99999999999977,
+      "targetRadiusKm": 1737.4,
+      "rangeKm": 59.99999999999987
+    },
+    {
+      "day": 0,
+      "name": "PSR Floor View",
+      "heightKm": 19.999999999999773,
+      "targetRadiusKm": 1737.3999999999999,
+      "rangeKm": 20.00000000000007
+    },
+    {
+      "day": 12,
+      "name": "Shackleton Overview",
+      "heightKm": 60,
+      "targetRadiusKm": 1737.3999999999999,
+      "rangeKm": 60.00000000000009
+    },
+    {
+      "day": 12,
+      "name": "PSR Floor View",
+      "heightKm": 19.999999999999773,
+      "targetRadiusKm": 1737.4,
+      "rangeKm": 19.999999999999737
+    }
+  ]
 }

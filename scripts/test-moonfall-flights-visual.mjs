@@ -21,8 +21,42 @@ try {
   await page.evaluate(async () => {
     await window.renderer.waitForInitialAssets();
     window.cosmo.setPlaying(false);
-    window.cosmo.untrack();
   });
+  // Exercise the authored default and the actual Viewpoint dropdown before
+  // the close-flight harness takes over the camera. A hand-placed test camera
+  // cannot catch a broken catalog preset.
+  await page.getByRole('button', { name: 'Surface layers', exact: true }).click();
+  await page.locator('[aria-label="Moon surface layers"]').waitFor();
+  assert.equal(await page.getByText('Loading the scene…', { exact: true }).count(), 0);
+  await page.screenshot({ path: `${out}/catalog-default.png` });
+  await page.getByRole('button', { name: 'Display', exact: true }).click();
+  const preset = page.locator('select').filter({ has: page.locator('option[value="PSR Floor View"]') });
+  report.viewpoints = [];
+  for (const day of [0, 12]) {
+    await page.evaluate(day => {
+      const r = window.renderer;
+      r.timeController.setTime(r.universe.viewpoints[0].epoch ?? r.timeController.et + day * 86400);
+    }, day);
+    for (const [name, heightKm] of [['Shackleton Overview', 60], ['PSR Floor View', 20]]) {
+      await preset.selectOption('');
+      await preset.selectOption(name);
+      await page.waitForTimeout(1200);
+      const pose = await page.evaluate(() => {
+        const r = window.renderer, moon = r.getBodyMesh('Moon');
+        return { heightKm: r.camera.position.distanceTo(moon.position) / r.scaleFactor - 1737.4,
+          targetRadiusKm: r.cameraController.controls.target.distanceTo(moon.position) / r.scaleFactor,
+          rangeKm: r.camera.position.distanceTo(r.cameraController.controls.target) / r.scaleFactor };
+      });
+      assert.ok(Math.abs(pose.heightKm - heightKm) < .001, `${name} is below or far above its region`);
+      assert.ok(Math.abs(pose.targetRadiusKm - 1737.4) < .001, `${name} does not target the surface`);
+      assert.ok(Math.abs(pose.rangeKm - heightKm) < .001, `${name} is aimed away from its region`);
+      report.viewpoints.push({ day, name, ...pose });
+      await page.screenshot({ path: `${out}/preset-${day}-${name.replaceAll(' ', '-')}.png` });
+    }
+  }
+  await page.getByRole('button', { name: 'Close Display', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Surface layers', exact: true }).click();
+  await page.evaluate(() => window.cosmo.untrack());
   const snapshot = async (key, close = false) => {
     await page.evaluate(close => {
       const r = window.renderer; r.renderFrame();

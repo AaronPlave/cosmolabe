@@ -16,9 +16,20 @@
       "name": "Shackleton Overview",
       "type": "Viewpoint",
       "center": "Moon",
-      "distance": 60,
+      "frame": "BodyFixed",
+      "distance": 1797.4,
       "latitude": -89.6,
-      "longitude": 0
+      "longitude": 0,
+      "target": [
+        12.129241641678526,
+        0,
+        -1737.357660787553
+      ],
+      "up": [
+        0.9999756307053947,
+        0,
+        0.006981260297961624
+      ]
     },
     {
       "name": "Polaris-A Close-up",
@@ -32,9 +43,20 @@
       "name": "PSR Floor View",
       "type": "Viewpoint",
       "center": "Moon",
-      "distance": 20,
+      "frame": "BodyFixed",
+      "distance": 1757.4,
       "latitude": -89.7,
-      "longitude": -10
+      "longitude": -10,
+      "target": [
+        8.95876024345546,
+        -1.579671144619534,
+        -1737.3761841506794
+      ],
+      "up": [
+        0.9847942535111975,
+        -0.1736457973406761,
+        0.005235963831419759
+      ]
     },
     {
       "name": "Sun",

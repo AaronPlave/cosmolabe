@@ -241,6 +241,19 @@ report.terrainInputsSha256 = terrainDigest(source);
 report.terrainInputs = Object.fromEntries([...source.clearanceInputs].sort(([a], [b]) => a.localeCompare(b)));
 source.dispose();
 
+// Viewpoint distance is measured from the body's centre, not its surface.
+// Aim at the regional datum point rather than the lunar centre so these are
+// surface views, with an explicit north-up direction in the Moon's axes.
+function surfaceView(name, latitude, longitude, heightKm) {
+  const lat = latitude * Math.PI / 180, lon = longitude * Math.PI / 180;
+  return {
+    name, type: 'Viewpoint', center: 'Moon', frame: 'BodyFixed',
+    distance: 1737.4 + heightKm, latitude, longitude,
+    target: [1737.4 * Math.cos(lat) * Math.cos(lon), 1737.4 * Math.cos(lat) * Math.sin(lon), 1737.4 * Math.sin(lat)],
+    up: [-Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat)],
+  };
+}
+
 const catalog = {
   activities: moonfallActivities(),
   name: MISSION.catalogName,
@@ -252,14 +265,7 @@ const catalog = {
   require: ['base/naif.json', 'base/lunar-surface.json', 'places/moon.json', 'places/moonfall-sites.json'],
   defaultGeographicNames: ['Moon'],
   items: [
-    {
-      name: 'Shackleton Overview',
-      type: 'Viewpoint',
-      center: 'Moon',
-      distance: 60,
-      latitude: -89.6,
-      longitude: 0,
-    },
+    surfaceView('Shackleton Overview', -89.6, 0, 60),
     {
       name: 'Polaris-A Close-up',
       type: 'Viewpoint',
@@ -268,14 +274,7 @@ const catalog = {
       latitude: 25,
       longitude: 90,
     },
-    {
-      name: 'PSR Floor View',
-      type: 'Viewpoint',
-      center: 'Moon',
-      distance: 20,
-      latitude: -89.7,
-      longitude: -10,
-    },
+    surfaceView('PSR Floor View', -89.7, -10, 20),
     {
       name: 'Sun',
       class: 'star',

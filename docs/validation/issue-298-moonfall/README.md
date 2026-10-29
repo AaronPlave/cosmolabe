@@ -1,5 +1,11 @@
 # MoonFall flight registration and clearance (#298)
 
+The Shackleton Overview and PSR Floor View presets place the camera 60 km
+and 20 km above the lunar reference sphere, respectively. `distance` measures
+from the lunar centre, so their former 60 km / 20 km values put the camera
+inside the Moon. Both now use explicit body-fixed surface targets and north-up
+directions. Their authored latitudes/longitudes are retained; #238 is separate.
+
 The four synthetic demonstration hoppers use anchored `BodyFixed` plots. A
 composite arc whose source frame is body-fixed now defaults to an anchored
 plot in that exact source frame; inertial arcs retain historical-epoch world
@@ -89,6 +95,22 @@ The Ingenuity flight-12 event check passes with path/event-anchor agreement,
 visible above-ground curves and zero changed pixels for the deliberately
 below-ground camera (physical terrain occlusion). Other GPU platforms and
 mobile devices were not tested for this change.
+
+Follow-up verification (2026-10-29) used the reported
+`http://localhost:5174/?catalog=test-catalogs/moonfall-shackleton` URL.
+The actual Viewpoint dropdown applies both presets at the initial epoch and
+twelve days later: camera heights/ranges are 60 km and 20 km, with targets on
+the 1737.4 km datum sphere. The twelve flight/origin/playback phases still pass
+on Apple M4 Max / ANGLE Metal with no page or GL errors. The new preset
+regression and full local clearance replay pass (4 tests); viewer TypeScript
+and Svelte checks pass with no errors or warnings. Surface Layers opens and
+lists the Moon layers in fresh loads and after selecting MoonFall again in
+the catalog picker. The reported stuck existing session was not reproduced;
+these results do not claim a fix for it. GitHub review submissions, inline
+comments and conversation comments were empty when checked.
+
+![Shackleton catalog preset and Surface Layers](shackleton-preset.png)
+![PSR catalog preset](psr-preset.png)
 
 ![Flight overview](overview.png)
 ![Close flight and terrain](close-flight.png)
