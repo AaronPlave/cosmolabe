@@ -62,6 +62,20 @@ describe('DE421 lunar surface placement', () => {
     expect(u.frames.get(LUNAR_SURFACE_FRAME)!.kind).toBe('body-fixed');
   });
 
+  it('classifies a declared non-IAU lunar SPICE frame as body-fixed, including after catalog changes', () => {
+    const u = new Universe(spice);
+    // An unknown SPICE name must not be classified from its spelling alone.
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('inertial');
+    u.loadCatalog(catalog);
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('body-fixed');
+    expect(u.frames.get('IAU_MOON')?.kind).toBe('body-fixed');
+    expect(u.frames.get('ECLIPJ2000')?.kind).toBe('inertial');
+    // Replacing the body's rotation target invalidates an earlier classification.
+    u.loadCatalog({ items: [{ name: 'Moon', trajectory: { type: 'FixedPoint', position: [0, 0, 0] },
+      rotationModel: { type: 'Builtin', name: 'IAU_MOON' } }] });
+    expect(u.frames.get(LUNAR_SURFACE_FRAME)?.kind).toBe('inertial');
+  });
+
   it('reports surface coordinates and co-rotating speeds in the selected realization', () => {
     const u = new Universe(spice); u.loadCatalog(catalog);
     const at = (name: string) => u.getBody(name);
