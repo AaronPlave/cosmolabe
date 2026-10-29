@@ -235,6 +235,7 @@ export * from './surface-plan/index.js';
 
 export * from './geometry/surface-point.js';
 
+export * from './MissionActivity.js';
 export { surfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
 export type { SurfaceTrajectoryProvenance, SurfaceTrajectoryAvailability, SurfaceTrajectoryDiagnostic } from './geometry/surface-trajectory.js';
 export { LUNAR_SURFACE_FRAME, lunarProductFrame } from './geographic/lunar-frame.js';

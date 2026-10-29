@@ -1,3 +1,4 @@
+import { MissionActivityStore } from './MissionActivity.js';
 import { surfaceTrajectoryAvailability, type SurfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
 import type { TerrainDatum } from './geographic/coordinates.js';
 import type { SpiceInstance } from './spice-injection.js';
@@ -34,6 +35,7 @@ export interface UniverseOptions {
 }
 
 export class Universe {
+  readonly activities = new MissionActivityStore();
   readonly geographicLayers = new GeographicLayerStore();
   private geographicCatalogOwners = new WeakMap<CatalogJson, string>();
   private nextGeographicCatalogOwner = 0;
@@ -112,6 +114,13 @@ export class Universe {
     const loader = new CatalogLoader(loaderOpts);
     const result = loader.load(json);
 
+    let geographicOwner = options?.source ?? json.name ?? this.geographicCatalogOwners.get(json);
+    if (geographicOwner === undefined) {
+      geographicOwner = `anonymous-catalog:${++this.nextGeographicCatalogOwner}`;
+      this.geographicCatalogOwners.set(json, geographicOwner);
+    }
+    this.activities.replace(geographicOwner, result.activities, json.activities !== undefined);
+
     for (const body of result.bodies) {
       // If a body with this name already exists (e.g. brought in by a `require`d
       // catalog and now being overridden), splice it out of its previous parent's
@@ -143,11 +152,6 @@ export class Universe {
       this._defaultViewpoint = result.defaultViewpoint;
     }
 
-    let geographicOwner = options?.source ?? json.name ?? this.geographicCatalogOwners.get(json);
-    if (geographicOwner === undefined) {
-      geographicOwner = `anonymous-catalog:${++this.nextGeographicCatalogOwner}`;
-      this.geographicCatalogOwners.set(json, geographicOwner);
-    }
     const geographicLoads = options?.geographicLayers ?? geographicLayersFromFiles(json, this.resolveFile, options?.source, geographicOwner);
     this.geographicLayers.replaceCatalog(geographicOwner, geographicLoads);
     for (const load of geographicLoads) {
@@ -242,6 +246,7 @@ export class Universe {
         spans.push([s, e]);
       }
     }
+    for (const activity of this.activities.list()) spans.push([activity.start, activity.end]);
     if (spans.length === 0) return undefined;
 
     // Separate narrow (mission-specific) from wide (planetary ephemeris) spans.
@@ -435,6 +440,7 @@ export class Universe {
       plugin.dispose?.();
     }
     this.plugins = [];
+    this.activities.clear();
     this.bodies.clear();
     this.geographicLayers.clear();
     this.geographicCatalogOwners = new WeakMap();

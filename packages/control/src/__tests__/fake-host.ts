@@ -31,6 +31,12 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
+  listActivities() { return []; }
+  getActivity(_id: string) { return undefined; }
+  selectActivity(_id: string) { return false; }
+  seekActivity(_id: string, _edge?: 'start' | 'end') { return false; }
+  navigateActivity(_direction: 'previous' | 'next') { return false; }
+
   /** Every call, as `verb(arg, arg)`, in the order it arrived. */
   readonly calls: string[] = [];
 

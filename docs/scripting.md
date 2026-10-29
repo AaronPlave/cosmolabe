@@ -524,3 +524,28 @@ order for reasons the harness's own comments record:
    flip and does not belong in the set.
 
 `wait` is rejected in a scene script, naming the line.
+
+## Mission activities
+
+`ViewerControl` exposes optional activity capabilities on the native viewer:
+
+```js
+const flights = cosmo.listActivities({ vehicle: 'Ingenuity', kind: 'flight' });
+const activity = cosmo.getActivity('ingenuity:flight:1'); // undefined for stale/unknown IDs
+cosmo.selectActivity(activity.id); // shared selection only; no seek/camera move
+cosmo.seekActivity(activity.id, 'start'); // seek only; both edges of an instant use its epoch
+cosmo.navigateActivity('next', { vehicle: 'Ingenuity', kind: 'flight' }); // select only
+cosmo.getSelectedActivity();
+```
+
+Records expose stable ID/name, vehicle/body, kind, actual supplied ET bounds, instant/interval status and provenance (including estimated/bounded timing and limitations). Reads follow the current catalog, and return detached copies. Unknown IDs and exhausted/filter-empty navigation return false; unavailable data never seeks a fallback epoch. Unloading clears records and activity selection. Trajectories can be invisible, absent, analytic or SPICE-backed.
+
+The same operations are available as text verbs, with stable-ID completion and generated console help:
+
+```text
+selectActivity ingenuity:flight:1
+seekActivity ingenuity:flight:1 end
+navigateActivity next Ingenuity flight
+```
+
+Order is start/end/ID; within a filter the selected record anchors previous/next. Without a selection in that filter, navigation uses the current clock (next starts strictly after now; previous starts at/before now). It does not wrap. Selection is independent of seeking and camera movement. UI clicks compose pause, selection and seek using these same operations. See [mission activity schema and source limitations](mission-activities.md).

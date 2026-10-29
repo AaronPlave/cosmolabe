@@ -80,6 +80,7 @@ import {
 import { matchSharedEvent, validateEventLinkState, type EventLinkState, type SharedEventQuery } from './event-link-state';
 import { ViewStateError } from '@cosmolabe/control';
 import { faultMessage } from './event-query';
+import { getActivity, selectActivity, seekActivity } from './activity-control';
 import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -516,7 +517,7 @@ export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>
   return ef.selectedId == null ? undefined : events.find(isSelectedEvent);
 }
 
-function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
+export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
   ef.selectedId = event?.id ?? null;
   ef.selectedQueryId = event?.queryId ?? null;
 }
@@ -1155,10 +1156,20 @@ export function cancelSearch() {
  * exist yet.
  */
 export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
+  // Overview marks and shared inspectors use the same operations as scripts.
+  // Stale activity projections never seek a fallback epoch.
+  if (event.kind === 'mission-activity') {
+    const activity = getActivity(event.id);
+    if (!activity || !selectActivity(activity.id)) return;
+    if (anchor === 'start' || anchor === 'end') seekActivity(activity.id, anchor);
+    else setTime(typeof anchor === 'number' ? Math.max(activity.start, Math.min(anchor, activity.end)) : (activity.start + activity.end) / 2);
+    return;
+  }
+
   // Selecting inspects a result; it does not change which search the form
   // is editing. Editing is its own action (`openConfiguredQuery`, a lane
   // label). The selection is shown wherever it is, by the global inspector.
-  setSelection(event);
+  selectEventForInspection(event);
   const focus = focusForEvent(event, typeof anchor === 'number' ? 'start' : anchor);
   if (typeof anchor === 'number') focus.et = Math.max(eventStart(event), Math.min(anchor, eventEnd(event)));
   applyEventFocus(focus, {
@@ -1166,6 +1177,14 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
     selectBody,
     highlightBodies,
   });
+  syncEventResultsInScene();
+  syncOccultationGeometryAtTime();
+}
+
+/** Shared inspection path; never seeks or moves the camera. */
+export function selectEventForInspection(event: GeometryEvent) {
+  setSelection(event);
+  highlightBodies(event.kind === 'mission-activity' ? [] : focusForEvent(event).bodies);
   syncEventResultsInScene();
   syncOccultationGeometryAtTime();
 }

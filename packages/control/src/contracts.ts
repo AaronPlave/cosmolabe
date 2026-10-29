@@ -122,7 +122,28 @@ export type SurfaceView = 'overhead' | 'oblique' | 'surface';
  * design may require a global, and no method may reach for one — an embedded
  * app, a test, or a future integration holds an instance directly.
  */
+/** Renderer-independent activity projection; all bounds are shared-clock ET. */
+export interface ScriptActivity {
+  readonly enabled?: boolean;
+  readonly id: string; readonly name: string; readonly kind: string;
+  readonly vehicle: string; readonly body: string;
+  readonly start: number; readonly end: number;
+  readonly temporality: 'instant' | 'interval';
+  readonly provenance: { readonly source: string; readonly version: string; readonly authority: string; readonly timing: string; readonly limitations: string; readonly uncertaintySeconds?: number };
+}
+export interface ScriptActivityFilter { vehicle?: string; kind?: string }
+
 export interface ViewerControl {
+  listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
+  getActivity?(id: string): ScriptActivity | undefined;
+  getSelectedActivity?(): ScriptActivity | undefined;
+  /** Selection changes neither the clock nor the camera. */
+  selectActivity?(id: string): boolean;
+  /** Both edges of an instant seek its single epoch; does not move the camera. */
+  seekActivity?(id: string, edge?: 'start' | 'end'): boolean;
+  /** Select only. Filter applies before deterministic start/end/ID ordering. */
+  navigateActivity?(direction: 'previous' | 'next', filter?: ScriptActivityFilter): boolean;
+
   // ── Write: scene setup ──
   //
   // Select, Track (focus), Frame, Fly and Jump are the navigation vocabulary

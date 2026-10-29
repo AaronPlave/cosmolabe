@@ -1,0 +1,575 @@
+{
+  "cases": [
+    {
+      "catalog": "ingenuity-jezero",
+      "count": 72,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 59.5,
+        "pageScroll": 0
+      },
+      "desktopLayouts": [
+        {
+          "width": 1440,
+          "pageWidth": 1440,
+          "lanes": [
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 1100,
+          "pageWidth": 1100,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 900,
+          "pageWidth": 900,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "catalog": "moonfall-shackleton",
+      "count": 24,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      },
+      "desktopLayouts": [
+        {
+          "width": 1440,
+          "pageWidth": 1440,
+          "lanes": [
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 1100,
+          "pageWidth": 1100,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 900,
+          "pageWidth": 900,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "catalog": "msl-dingo-gap",
+      "count": 2,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 80.5,
+        "pageScroll": 0
+      },
+      "desktopLayouts": [
+        {
+          "width": 1440,
+          "pageWidth": 1440,
+          "lanes": [
+            {
+              "rowHeight": 50,
+              "navHeight": 28.5,
+              "plotHeight": 46,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 1100,
+          "pageWidth": 1100,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 46,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 900,
+          "pageWidth": 900,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 46,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "catalog": "fixtures/mission-activities",
+      "count": 4,
+      "gpu": {
+        "vendor": "WebKit",
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "antialias": true
+      },
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      },
+      "desktopLayouts": [
+        {
+          "width": 1440,
+          "pageWidth": 1440,
+          "lanes": [
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 32.5,
+              "navHeight": 28.5,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 1100,
+          "pageWidth": 1100,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        },
+        {
+          "width": 900,
+          "pageWidth": 900,
+          "lanes": [
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            },
+            {
+              "rowHeight": 52,
+              "navHeight": 48,
+              "plotHeight": 25,
+              "pickerWidth": 120,
+              "centerError": 0,
+              "leftError": 0,
+              "widthError": 0,
+              "controlsFit": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "httpErrors": [],
+  "abortedRequests": 17,
+  "otherRequestFailures": [],
+  "performance": {
+    "records": 10000,
+    "meanMs": 16.60999999990066,
+    "p95Ms": 17.80000001192093,
+    "marks": 4,
+    "options": 1
+  }
+}

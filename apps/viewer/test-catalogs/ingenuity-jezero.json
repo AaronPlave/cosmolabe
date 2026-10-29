@@ -190,7 +190,7 @@
       "items": [
         {
           "name": "Ingenuity",
-          "trajectoryPlot": { "duration": "300s", "frame": "BodyFixed", "sampleInterval": "0.05s", "timelineLabel": "Flight" },
+          "trajectoryPlot": { "duration": "300s", "frame": "BodyFixed", "sampleInterval": "0.05s" },
           "description": "Estimated flight reconstruction, not 3D telemetry. Horizontal paths and landings come from NASA/MMGIS observations; altitude and interior timing are modeled using NASA flight summaries and unchanged terrain. Absolute frame, height and clock accuracy remain uncertain.",
           "class": "spacecraft",
           "naifId": -266,
@@ -299,6 +299,1808 @@
           }
         }
       ]
+    }
+  ],
+  "activities": [
+    {
+      "version": 1,
+      "id": "ingenuity:flight:1",
+      "name": "Flight 1",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 672089519.3,
+      "end": 672089558.4,
+      "site": "Wright Brothers Field",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_01.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:2",
+      "name": "Flight 2",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 672355850.3,
+      "end": 672355902.1,
+      "site": "Wright Brothers Field",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_02.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:3",
+      "name": "Flight 3",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 672622174.1,
+      "end": 672622254.4,
+      "site": "Wright Brothers Field",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_03.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:4",
+      "name": "Flight 4",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 673066047.7,
+      "end": 673066164.6,
+      "site": "Wright Brothers Field",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_04.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:5",
+      "name": "Flight 5",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 673687471,
+      "end": 673687579.2,
+      "site": "Airfield B",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_05.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:6",
+      "name": "Flight 6",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 675019097.7,
+      "end": 675019237.6,
+      "site": "Airfield C",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_06.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:7",
+      "name": "Flight 7",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 676439486.8,
+      "end": 676439549.6,
+      "site": "Airfield D",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_07.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:8",
+      "name": "Flight 8",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 677593534.6,
+      "end": 677593612,
+      "site": "Airfield E",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_08.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:9",
+      "name": "Flight 9",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 678747608.3,
+      "end": 678747774.7,
+      "site": "Airfield F",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_09.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:10",
+      "name": "Flight 10",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 680432530.8,
+      "end": 680432696.2,
+      "site": "Airfield G",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_10.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:11",
+      "name": "Flight 11",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 681410895.3,
+      "end": 681411026.2,
+      "site": "Airfield H",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_11.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:12",
+      "name": "Flight 12",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 682390499.7,
+      "end": 682390669.2,
+      "site": "Airfield H",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_12.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:13",
+      "name": "Flight 13",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 684072284.1,
+      "end": 684072444.6,
+      "site": "Airfield H",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_13.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:14",
+      "name": "Flight 14",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 688335309.3,
+      "end": 688335332.3,
+      "site": "Airfield H",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_14.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:15",
+      "name": "Flight 15",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 689487530.3,
+      "end": 689487659.2,
+      "site": "Airfield F",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_15.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:16",
+      "name": "Flight 16",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 690732221.2,
+      "end": 690732329.1,
+      "site": "Airfield J",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_16.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:17",
+      "name": "Flight 17",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 691978766.6,
+      "end": 691978883.4,
+      "site": "Airfield K",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_17.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:18",
+      "name": "Flight 18",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 692860878.9,
+      "end": 692861003.1,
+      "site": "Airfield L",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_18.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:19",
+      "name": "Flight 19",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 697565969.7,
+      "end": 697566069.5,
+      "site": "Airfield E",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_19.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:20",
+      "name": "Flight 20",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 699067706.6,
+      "end": 699067836.9,
+      "site": "Airfield M",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_20.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:21",
+      "name": "Flight 21",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 700221776.5,
+      "end": 700221905.7,
+      "site": "Airfield N",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_21.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:22",
+      "name": "Flight 22",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 701020744.7,
+      "end": 701020846.1,
+      "site": "Airfield N",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_22.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:23",
+      "name": "Flight 23",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 701375843.3,
+      "end": 701375972.4,
+      "site": "Airfield P",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_23.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:24",
+      "name": "Flight 24",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 702261741.3,
+      "end": 702261810.8,
+      "site": "Airfield P",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_24.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:25",
+      "name": "Flight 25",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 702707478.2,
+      "end": 702707639.4,
+      "site": "Airfield Q",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_25.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:26",
+      "name": "Flight 26",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 703689840.1,
+      "end": 703689999.1,
+      "site": "Airfield R",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_26.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:27",
+      "name": "Flight 27",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 704044936.3,
+      "end": 704045089.2,
+      "site": "Airfield S",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_27.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:28",
+      "name": "Flight 28",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 704489736.2,
+      "end": 704489888.6,
+      "site": "Airfield T",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_28.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:29",
+      "name": "Flight 29",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 708231530.8,
+      "end": 708231597.3,
+      "site": "Airfield U",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_29.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:30",
+      "name": "Flight 30",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 714270670.5,
+      "end": 714270703.8,
+      "site": "Airfield U",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_30.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:31",
+      "name": "Flight 31",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 715778608.3,
+      "end": 715778663.9,
+      "site": "Airfield V",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_31.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:32",
+      "name": "Flight 32",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 716755125.1,
+      "end": 716755180.4,
+      "site": "Airfield W",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_32.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:33",
+      "name": "Flight 33",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 717289624.6,
+      "end": 717289679.8,
+      "site": "Airfield X",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_33.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:34",
+      "name": "Flight 34",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 722439881.1,
+      "end": 722439899.4,
+      "site": "Airfield X",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_34.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:35",
+      "name": "Flight 35",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 723327427.6,
+      "end": 723327479.6,
+      "site": "Airfield X",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_35.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:36",
+      "name": "Flight 36",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 723948539.9,
+      "end": 723948600.4,
+      "site": "Airfield X",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_36.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:37",
+      "name": "Flight 37",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 724569964,
+      "end": 724570019.2,
+      "site": "Airfield Y",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_37.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:38",
+      "name": "Flight 38",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 726167906.8,
+      "end": 726167981,
+      "site": "Airfield Z",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_38.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:39",
+      "name": "Flight 39",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 726702920.7,
+      "end": 726702999.5,
+      "site": "Airfield Z",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_39.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:40",
+      "name": "Flight 40",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 727411984.3,
+      "end": 727412075.9,
+      "site": "Airfield Beta",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_40.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:41",
+      "name": "Flight 41",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 728119071,
+      "end": 728119180,
+      "site": "Airfield Beta",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_41.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:42",
+      "name": "Flight 42",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 728829662.5,
+      "end": 728829799.6,
+      "site": "Airfield Gamma",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_42.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:43",
+      "name": "Flight 43",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 729805931.3,
+      "end": 729806077.3,
+      "site": "Airfield Epsilon",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_43.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:44",
+      "name": "Flight 44",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 730072379.1,
+      "end": 730072520.3,
+      "site": "Airfield Zeta",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_44.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:45",
+      "name": "Flight 45",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 730342461.3,
+      "end": 730342605.9,
+      "site": "Airfield Eta",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_45.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:46",
+      "name": "Flight 46",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 730605087.8,
+      "end": 730605223.6,
+      "site": "Airfield Theta",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_46.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:47",
+      "name": "Flight 47",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 731670382,
+      "end": 731670528.1,
+      "site": "Airfield Iota",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_47.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:48",
+      "name": "Flight 48",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 732732409.096,
+      "end": 732732559.002,
+      "site": "Airfield Kappa",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_48.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:49",
+      "name": "Flight 49",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 733708437.347,
+      "end": 733708580.057,
+      "site": "Airfield Lambda",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_49.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:50",
+      "name": "Flight 50",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 734684956.549,
+      "end": 734685102.203,
+      "site": "Airfield Mu",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_50.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:51",
+      "name": "Flight 51",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 735484935.615,
+      "end": 735485072.509,
+      "site": "Airfield Nu",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_51.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:52",
+      "name": "Flight 52",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 735839954.155,
+      "end": 735840099.155,
+      "site": "Airfield Xi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_52.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:53",
+      "name": "Flight 53",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 743642557.12,
+      "end": 743642631.979,
+      "site": "Airfield Omicron",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_53.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:54",
+      "name": "Flight 54",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 744361844.475,
+      "end": 744361868.853,
+      "site": "Airfield Omicron",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_54.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:55",
+      "name": "Flight 55",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 745152956.809,
+      "end": 745153099.779,
+      "site": "Airfield Pi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_55.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:56",
+      "name": "Flight 56",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 746299630.069,
+      "end": 746299771.009,
+      "site": "Airfield Rho",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_56.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:57",
+      "name": "Flight 57",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 747017223.645,
+      "end": 747017352.231,
+      "site": "Airfield Rho",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_57.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:58",
+      "name": "Flight 58",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 747720820.036,
+      "end": 747720926.811,
+      "site": "Airfield Sigma",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_58.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:59",
+      "name": "Flight 59",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 748163897.709,
+      "end": 748164040.303,
+      "site": "Airfield Sigma",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_59.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:60",
+      "name": "Flight 60",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 748962868.04,
+      "end": 748963000.876,
+      "site": "Airfield Tau",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_60.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:61",
+      "name": "Flight 61",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 749765537.397,
+      "end": 749765666.852,
+      "site": "Airfield Tau",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_61.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:62",
+      "name": "Flight 62",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 750380659.897,
+      "end": 750380780.967,
+      "site": "Airfield Tau",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_62.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:63",
+      "name": "Flight 63",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 751002831.535,
+      "end": 751002974.157,
+      "site": "Airfield Upsilon",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_63.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:64",
+      "name": "Flight 64",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 751711673.557,
+      "end": 751711812.641,
+      "site": "Airfield Phi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_64.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:65",
+      "name": "Flight 65",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 752245538.271,
+      "end": 752245586.272,
+      "site": "Airfield Phi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_65.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:66",
+      "name": "Flight 66",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 752333090.638,
+      "end": 752333113.667,
+      "site": "Airfield Phi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_66.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:67",
+      "name": "Flight 67",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 754819212.221,
+      "end": 754819348.151,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_67.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:68",
+      "name": "Flight 68",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 755972851.725,
+      "end": 755972986.86,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_68.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:69",
+      "name": "Flight 69",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 756327948.73,
+      "end": 756328084.141,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_69.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:70",
+      "name": "Flight 70",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 756505495.263,
+      "end": 756505628.159,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_70.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:71",
+      "name": "Flight 71",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 757837146.984,
+      "end": 757837181.948,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_71.xyzv"
+      }
+    },
+    {
+      "version": 1,
+      "id": "ingenuity:flight:72",
+      "name": "Flight 72",
+      "kind": "flight",
+      "vehicle": "Ingenuity",
+      "body": "Mars",
+      "mission": "Mars 2020",
+      "temporality": "interval",
+      "timeSystem": "ET",
+      "start": 758898091.213,
+      "end": 758898123.411,
+      "site": "Airfield Chi",
+      "provenance": {
+        "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+        "version": "pinned-MMGIS-flights-index-v1",
+        "authority": "estimated",
+        "timing": "estimated",
+        "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+      },
+      "references": {
+        "trajectory": "Ingenuity",
+        "sourceSegment": "data/ingenuity/flight_72.xyzv"
+      }
     }
   ]
 }

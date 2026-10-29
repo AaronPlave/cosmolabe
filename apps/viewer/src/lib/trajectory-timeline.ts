@@ -1,3 +1,4 @@
+/** @deprecated Migration-only arc adapter. Runtime activities come from catalog metadata. */
 import { CompositeTrajectory, InterpolatedStatesTrajectory, type Body, type IntervalEvent } from '@cosmolabe/core';
 
 export interface TrajectoryInterval {

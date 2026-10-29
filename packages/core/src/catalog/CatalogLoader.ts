@@ -1,3 +1,4 @@
+import { parseMissionActivities, type MissionActivity, type MissionActivitySpec } from '../MissionActivity.js';
 import { validateSurfaceTrajectoryProvenance, type SurfaceTrajectoryProvenance } from '../geometry/surface-trajectory.js';
 import type { SpiceInstance, Vec3 } from '../spice-injection.js';
 import type { GeographicCoordinates, GeographicLayerDefinition } from '../geographic/model.js';
@@ -73,6 +74,7 @@ export interface SpkImportSpec {
 
 // Cosmographia catalog JSON schema types
 export interface CatalogJson {
+  activities?: MissionActivitySpec[];
   /** Planetary GeoJSON conventions, inherited only by this catalog's layers. */
   geographicCoordinates?: GeographicCoordinates;
   geographicLayers?: GeographicLayerDefinition[];
@@ -333,6 +335,7 @@ export interface LabelSpec {
 export type { ViewpointDefinition } from '../viewpoint.js';
 
 export interface LoadedCatalog {
+  activities: MissionActivity[];
   bodies: Body[];
   viewpoints: ViewpointDefinition[];
   name?: string;
@@ -829,6 +832,7 @@ export class CatalogLoader {
 
     const kernels = collectKernelRefs(json);
     return {
+      activities: parseMissionActivities(json.activities === undefined ? [] : json.activities, t => this.parseEpoch(t) ?? NaN),
       bodies,
       viewpoints,
       name: json.name,

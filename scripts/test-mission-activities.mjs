@@ -1,0 +1,363 @@
+/** Native timeline acceptance, including local-first Vite dataset fallback. */
+import assert from 'node:assert/strict';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { chromium } from 'playwright';
+const base = process.argv[2] ?? 'http://127.0.0.1:5193/';
+const out = process.argv[3] ?? 'work/issue-293';
+await mkdir(out, { recursive: true });
+const browser = await chromium.launch({ headless:true,
+  ...(process.platform === 'darwin' ? { executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
+  args:[process.platform === 'darwin' ? '--use-angle=metal' : '--use-angle=swiftshader', '--enable-gpu', '--ignore-gpu-blocklist'] });
+let page = await browser.newPage({ viewport:{width:1440,height:900} });
+page.setDefaultTimeout(30000);
+const results = { cases:[], errors:[], failedRequests:[], httpErrors:[] };
+page.on('pageerror', e => results.errors.push(e.message));
+page.on('response', r => { if (r.status() >= 400) results.httpErrors.push({url:r.url(),status:r.status()}); });
+page.on('requestfailed', r=>results.failedRequests.push({url:r.url(),error:r.failure()?.errorText}));
+const fixture = JSON.parse(await readFile('apps/viewer/test-catalogs/fixtures/mission-activities.json','utf8'));
+const stress = { name:'Activity stress fixture', defaultTime:fixture.defaultTime, items:fixture.items,
+  activities:Array.from({length:10000}, (_,i)=>({...fixture.activities[0], id:`stress:${i}`, name:`Stress flight ${i}`, start:672089519.3+i*2, end:672089529.3+i*2})) };
+
+await page.route('**/test-catalogs/activity-stress.json', route => route.fulfill({json:stress}));
+const overlap = {...stress, name:'Coincident activities',activities:stress.activities.slice(0,7).map((a,i)=>({...a,id:`overlap:${i}`,name:`Overlap ${i}`,start:672089519.3,end:672089579.3}))};
+await page.route('**/test-catalogs/activity-overlap.json', route=>route.fulfill({json:overlap}));
+async function liveModule(name) {
+  return page.evaluate(async name=>{
+    const url=performance.getEntriesByType('resource').map(r=>r.name).find(url=>new URL(url).pathname.endsWith('/src/lib/'+name));
+    if(!url)throw new Error('Live module unavailable: '+name);
+    return url;
+  },name);
+}
+async function load(catalog, count) {
+  if (page.url()==='about:blank') await page.goto(`${base}?catalog=test-catalogs/${catalog}`, { waitUntil:'domcontentloaded' });
+  else {
+    const loaderUrl = await liveModule('loader.ts');
+    await page.evaluate(async ({catalog,loaderUrl})=>{
+      const loader=await import(loaderUrl);
+      const canvas=window.renderer.renderer.domElement;
+      await loader.loadCatalogUrl(canvas,new URL(`test-catalogs/${catalog}.json`,location.href).href,catalog);
+    },{catalog,loaderUrl});
+  }
+  await page.waitForFunction(n=>window.cosmo?.listActivities?.().length === n, count, {timeout:120000});
+  await page.evaluate(()=>window.cosmo.setPlaying(false));
+}
+async function expanded() {
+  await page.waitForFunction(()=>document.querySelector('[aria-label="Expand timeline"]') || document.querySelector('[aria-label="Collapse timeline"]'));
+  const button = page.getByRole('button',{name:'Expand timeline',exact:true});
+  if (await button.count()) await button.click();
+  await page.getByRole('button',{name:'Collapse timeline',exact:true}).waitFor();
+}
+try {
+  for (const [catalog, count] of [['ingenuity-jezero',72],['moonfall-shackleton',24],['msl-dingo-gap',2],['fixtures/mission-activities',4]]) {
+    console.log('Loading',catalog);
+    await load(catalog,count);
+    await expanded();
+    const state = await page.evaluate(()=>({ids:window.cosmo.listActivities().map(a=>a.id),gpu:(()=>{const gl=window.renderer.renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return {vendor:gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),antialias:gl.getContextAttributes().antialias};})()}));
+    await page.evaluate(()=>window.cosmo.setLayer('trajectories',false));
+    assert.equal(await page.evaluate(()=>window.cosmo.listActivities().length),count);
+    await expanded();
+    const chooser = page.locator('.picker-trigger').first();
+    await chooser.click();
+    const menu = page.getByRole('dialog',{name:/^Choose /});
+    if (catalog === 'ingenuity-jezero') {
+      const search = menu.getByRole('searchbox');
+      await search.fill('Flight 44');
+      await page.getByRole('status').filter({hasText:'1 activity'}).waitFor();
+      assert.equal(await menu.locator('.picker-result').count(),1);
+      assert.ok(await menu.innerText().then(t=>t.includes('Flight 44')));
+      await page.screenshot({path:`${out}/flight-44-search.png`});
+      await menu.locator('.picker-result').click();
+      const flightInspector = page.getByRole('region',{name:'Selected event',exact:true});
+      await flightInspector.getByRole('button',{name:'Details',exact:true}).click();
+      await page.screenshot({path:`${out}/flight-44-details.png`});
+      await flightInspector.getByRole('button',{name:'Less',exact:true}).click();
+      const selectedId = await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id);
+      // Real desktop pointer hover previews other records without committing
+      // selection/time/camera; only the exact inspector identity is redundant.
+      const viewerUrl=await liveModule('viewer-state.svelte.ts');
+      const eventUrl=await liveModule('event-finder.svelte.ts');
+      await page.evaluate(async url=>{
+        const {setScrubberWindow}=await import(url);
+        const flights=window.cosmo.listActivities().filter(a=>['Flight 44','Flight 45','Flight 46'].includes(a.name));
+        setScrubberWindow(Math.min(...flights.map(a=>a.start))-60,Math.max(...flights.map(a=>a.end))+60);
+      },viewerUrl);
+      await page.waitForTimeout(500);
+      const snapshot=()=>page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()}));
+      const beforeHover=await snapshot();
+      const callout=page.locator('.event-callout');
+      for(const name of ['Flight 45','Flight 46','Flight 45']) {
+        await page.getByRole('button',{name:`Go to ${name}`,exact:true}).hover();
+        await callout.getByText(`Ingenuity ${name}`,{exact:true}).waitFor();
+        assert.ok((await callout.innerText()).includes('2023'));
+        assert.ok(await callout.locator('.callout-line').count()>0);
+        assert.deepEqual(await snapshot(),beforeHover);
+      }
+      await page.screenshot({path:`${out}/flight-44-selected-flight-45-hover.png`});
+      await page.getByRole('button',{name:'Go to Flight 44',exact:true}).hover();
+      await callout.waitFor({state:'hidden'});
+      assert.deepEqual(await snapshot(),beforeHover);
+      // Same ID in another query is not the selected event's identity.
+      await page.evaluate(async url=>{
+        const {ef}=await import(url); ef.selectedQueryId='different-query';
+      },eventUrl);
+      await callout.getByText('Ingenuity Flight 44',{exact:true}).waitFor();
+      await page.evaluate(id=>window.cosmo.selectActivity(id),selectedId);
+      await callout.waitFor({state:'hidden'});
+      await page.mouse.move(10,10);
+      const focused=page.getByRole('button',{name:'Go to Flight 45',exact:true});
+      await focused.focus();
+      assert.ok(await page.evaluate(async url=>{
+        const {ef}=await import(url);
+        return ef.previewId===window.cosmo.listActivities().find(a=>a.name==='Flight 45').id;
+      },eventUrl),'Desktop keyboard focus retains activity preview');
+      assert.deepEqual(await snapshot(),beforeHover);
+      await focused.evaluate(node=>node.blur());
+      results.desktopHover={selected:'Flight 44',previewed:['Flight 45','Flight 46','Flight 45'],sameIdentitySuppressed:true,differentQueryVisible:true,keyboardPreview:true,selectionTimeCameraUnchanged:true};
+      await chooser.click();
+      assert.equal(await menu.locator('.picker-result[aria-pressed="true"]').count(),1);
+      await page.waitForFunction(()=>document.activeElement?.matches('.activity-picker input'));
+      await page.keyboard.press('Escape');
+      await menu.waitFor({state:'hidden'});
+      assert.ok(await chooser.evaluate(node=>node===document.activeElement));
+      assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),selectedId);
+      await chooser.click();
+      await search.fill('no-such-activity');
+      await menu.getByText('No activities found').waitFor();
+      assert.equal(await menu.locator('.picker-result').count(),0);
+      await search.fill('');
+    }
+    const id = await menu.locator('.picker-result:not([disabled])').first().getAttribute('data-activity-id');
+    await menu.locator('.picker-result:not([disabled])').first().click();
+    assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
+    const selected = await page.evaluate(()=>window.cosmo.getSelectedActivity());
+    assert.equal(await page.evaluate(()=>window.cosmo.getTime()),selected.start);
+    await expanded();
+    console.log('After select', await page.locator('.picker-trigger').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))));
+    const nextButton = page.getByRole('button',{name:/^Next (activity|flight|hop|drive|descent|landing)$/}).first();
+    if (await nextButton.isEnabled()) {
+      await nextButton.click();
+      assert.notEqual(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
+      const stateUrl = await liveModule('viewer-state.svelte.ts');
+      assert.ok(await page.evaluate(async url => {
+        const {vs} = await import(url), a = window.cosmo.getSelectedActivity();
+        return vs.scrubMin <= a.start && vs.scrubMax >= a.end && vs.scrubMax - vs.scrubMin <= Math.max(60, a.end-a.start)*2;
+      }, stateUrl), 'Navigation fits the new activity');
+      await page.getByRole('button',{name:/^Previous (activity|flight|hop|drive|descent|landing)$/}).first().click();
+      assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),id);
+    }
+    await page.evaluate(()=>{const a=window.cosmo.getSelectedActivity(); window.cosmo.seekActivity(a.id,'end');});
+    assert.equal(await page.evaluate(()=>window.cosmo.getTime()),selected.end);
+    await page.getByRole('button',{name:`Fit activity ${selected.name}`,exact:true}).click();
+    const lane = page.getByRole('button',{name:`Go to ${selected.name}`,exact:true});
+    await lane.scrollIntoViewIfNeeded();
+    await lane.click();
+    assert.equal(await page.evaluate(()=>window.cosmo.getTime()),selected.start);
+    if(catalog==='fixtures/mission-activities') {
+      const analysisUrl=await liveModule('analysis.svelte.ts');
+      await page.evaluate(async analysisUrl=>{
+        const a=await import(analysisUrl);
+        const q=a.createConfiguredEventQuery({kind:'closest-approach',bodies:{observer:'Aircraft',target:'Rover'}},'Fixture approach');
+        a.setEventResults(q.id,[{id:'fixture:event',queryId:q.id,kind:'closest-approach',temporality:'instant',et:672089540,label:'Synthetic closest approach',bodies:{observer:'Aircraft',target:'Rover'}}]);
+        a.createConfiguredProfile({quantity:'range',bodies:{observer:'Aircraft',target:'Rover'}},'Fixture range');
+      },analysisUrl);
+      const eventUrl = await liveModule('event-finder.svelte.ts');
+      const stateUrl = await liveModule('viewer-state.svelte.ts');
+      const cleanup = await page.evaluate(async ({eventUrl,stateUrl,id}) => {
+        const ef = await import(eventUrl), {vs} = await import(stateUrl);
+        ef.selectEvent({id:'fixture:event',queryId:'fixture-query',kind:'closest-approach',temporality:'instant',et:672089540,label:'Synthetic closest approach',bodies:{observer:'Aircraft',target:'Rover'}});
+        const before = [...vs.highlightedBodies], time = window.cosmo.getTime(), target = vs.selectedBodyName;
+        window.cosmo.selectActivity(id);
+        return {before,after:[...vs.highlightedBodies],timeUnchanged:time===window.cosmo.getTime(),targetUnchanged:target===vs.selectedBodyName};
+      },{eventUrl,stateUrl,id});
+      assert.ok(cleanup.before.length>0);
+      assert.deepEqual(cleanup.after,[]);
+      assert.ok(cleanup.timeUnchanged && cleanup.targetUnchanged);
+      assert.ok(await page.locator('[data-tl-row^="lane:event-query"]').count());
+      assert.ok(await page.locator('[data-tl-row^="profile:"]').count());
+      await page.evaluate(async url=>{
+        const {setScrubberWindow}=await import(url); setScrubberWindow(672089480,672089600);
+      },stateUrl);
+      const beforeGeometry=await page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()}));
+      await page.getByRole('group',{name:'Fixture approach events',exact:true}).getByRole('button',{name:'Synthetic closest approach',exact:true}).hover();
+      await page.locator('.event-callout .callout-title').getByText('Closest approach · Rover',{exact:true}).waitFor();
+      assert.deepEqual(await page.evaluate(()=>({selected:window.cosmo.getSelectedActivity()?.id,time:window.cosmo.getTime(),camera:window.cosmo.getCamera()})),beforeGeometry);
+      await page.mouse.move(10,10);
+      results.geometryHover={visibleWithActivitySelected:true,selectionTimeCameraUnchanged:true};
+    }
+    assert.equal(await page.locator('.activity-tools').count(),0);
+    const triggerWidth = await chooser.evaluate(node=>node.getBoundingClientRect().width);
+    assert.ok(triggerWidth<=180);
+    const inspector = page.getByRole('region',{name:'Selected event',exact:true});
+    await inspector.getByRole('button',{name:'Details',exact:true}).click();
+    assert.ok(!(await inspector.innerText()).includes('ET seconds'));
+    assert.ok((await inspector.innerText()).includes(selected.provenance.limitations));
+    assert.equal(await inspector.locator('details').count(),0);
+    await inspector.getByRole('button',{name:'Less',exact:true}).click();
+    assert.equal(await page.locator('.activity-facts').count(),0);
+    if(catalog==='msl-dingo-gap') {
+      assert.ok(await page.locator('.activity-mark.bounded').count());
+      assert.ok(await page.getByRole('region',{name:'Selected event',exact:true}).innerText().then(t=>t.includes('duration unknown')));
+    }
+    await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-desktop.png`});
+    const desktopLayouts = [];
+    for(const width of [1440,1100,900]) {
+      await page.setViewportSize({width,height:900});
+      await page.waitForTimeout(150);
+      const layout = await page.evaluate(()=>{
+        const track=document.querySelector('.transport-axis .track').getBoundingClientRect();
+        return {width:innerWidth,pageWidth:document.documentElement.scrollWidth,lanes:[...document.querySelectorAll('.activity-lane.wide')].map(row=>{
+          const nav=row.querySelector('.activity-navigation').getBoundingClientRect(),plot=row.querySelector('.activity-axis').getBoundingClientRect(),r=row.getBoundingClientRect();
+          const picker=row.querySelector('.picker-trigger').getBoundingClientRect();
+          return {rowHeight:r.height,navHeight:nav.height,plotHeight:plot.height,pickerWidth:picker.width,centerError:Math.abs((nav.top+nav.bottom-plot.top-plot.bottom)/2),leftError:Math.abs(plot.left-track.left),widthError:Math.abs(plot.width-track.width),controlsFit:[...row.querySelectorAll('.activity-navigation > button')].every(el=>el.getBoundingClientRect().right<=plot.left+1)};
+        })};
+      });
+      assert.ok(layout.pageWidth<=width);
+      assert.ok(layout.lanes.length);
+      for(const lane of layout.lanes) {
+        assert.ok(lane.centerError<1 && lane.leftError<1 && lane.widthError<1,JSON.stringify(lane));
+        assert.ok(lane.controlsFit && lane.pickerWidth>=80,JSON.stringify(lane));
+        assert.ok(lane.rowHeight<=Math.max(lane.navHeight,lane.plotHeight)+5,JSON.stringify(lane));
+        if(width===1440)assert.ok(lane.navHeight<32, 'Single desktop navigation row');
+      }
+      desktopLayouts.push(layout);
+      if(width!==1440)await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-${width}.png`});
+    }
+
+    await page.setViewportSize({width:390,height:844});
+    await page.waitForTimeout(350); // Responsive shell replaces the dock after resize.
+    await page.locator('.picker-trigger').first().scrollIntoViewIfNeeded();
+    await page.locator('.picker-trigger').first().click();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    if(catalog==='ingenuity-jezero') {
+      await page.locator('.picker-trigger').first().click();
+      const phoneMenu = page.getByRole('dialog',{name:/^Choose /});
+      await phoneMenu.getByRole('searchbox').fill('Flight 44');
+      await phoneMenu.getByText('1 activity',{exact:true}).waitFor();
+      await page.screenshot({path:`${out}/flight-44-search-390.png`});
+      await phoneMenu.getByRole('searchbox').press('Enter');
+      assert.ok(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.name==='Flight 44'));
+    }
+    await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-390.png`});
+    const geometry = await page.evaluate(()=>({
+      pageWidth:document.documentElement.scrollWidth, viewport:innerWidth,
+      region:document.querySelector('.lane-region')?.getBoundingClientRect().height,
+      pageScroll:document.documentElement.scrollTop,
+    }));
+    assert.ok(geometry.pageWidth<=geometry.viewport);
+    await page.getByRole('button',{name:'Collapse timeline',exact:true}).click();
+    assert.equal(await page.locator('.picker-trigger[aria-label="Choose activity"]').count(),1);
+    await page.screenshot({path:`${out}/${catalog.split('/').at(-1)}-compact-390.png`});
+    if(catalog==='fixtures/mission-activities') {
+      await page.evaluate(()=>{window.cosmo.setTimeRate(10);window.cosmo.setPlaying(true);});
+      results.baseline = await page.evaluate(async()=>{
+        const times=[];let last=performance.now();
+        for(let i=0;i<120;i++){await new Promise(requestAnimationFrame);const now=performance.now();times.push(now-last);last=now;}
+        times.sort((a,b)=>a-b);window.cosmo.setPlaying(false);
+        return {records:4,meanMs:times.reduce((a,b)=>a+b,0)/times.length,p95Ms:times[Math.floor(times.length*.95)]};
+      });
+    }
+    results.cases.push({catalog,count,ids:state.ids,gpu:state.gpu,geometry,desktopLayouts});
+    await page.setViewportSize({width:1440,height:900});
+  }
+  await page.setViewportSize({width:1440,height:900});
+  await load('activity-overlap',7);
+  await expanded();
+  assert.equal(await page.locator('.activity-mark').count(),4);
+  for(let i=3;i<7;i++) {
+    await page.getByRole('button',{name:'Choose among 4 overlapping activities',exact:true}).click();
+    const menu=page.getByRole('dialog',{name:'Choose flight',exact:true});
+    assert.equal(await menu.locator('.picker-result').count(),4);
+    await menu.locator(`[data-activity-id="overlap:${i}"]`).click();
+    assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),`overlap:${i}`);
+  }
+  await page.screenshot({path:`${out}/overlap-desktop.png`});
+  await load('activity-stress',10000);
+  await expanded();
+  const aggregate = page.getByRole('button',{name:/^Zoom into \d+ activities$/}).first();
+  assert.ok(await aggregate.count());
+  const stateUrl = await liveModule('viewer-state.svelte.ts');
+  const beforeBin = await page.evaluate(async url=>{const {vs}=await import(url);return {span:vs.scrubMax-vs.scrubMin,time:vs.et,id:window.cosmo.getSelectedActivity()?.id??null};},stateUrl);
+  await aggregate.click();
+  const afterBin = await page.evaluate(async url=>{const {vs}=await import(url);return {span:vs.scrubMax-vs.scrubMin,time:vs.et,id:window.cosmo.getSelectedActivity()?.id??null};},stateUrl);
+  assert.ok(afterBin.span < beforeBin.span);
+  assert.equal(afterBin.time,beforeBin.time);
+  assert.equal(afterBin.id,beforeBin.id);
+  await page.getByRole('button',{name:'Choose flight',exact:true}).click();
+  await page.getByRole('searchbox',{name:'Search Aircraft flight'}).fill('Stress flight 9999');
+  await page.locator('.picker-result[data-activity-id="stress:9999"]').click();
+  assert.equal(await page.evaluate(()=>window.cosmo.getSelectedActivity()?.id),'stress:9999');
+  await page.evaluate(()=>{window.cosmo.seekActivity('stress:0');window.cosmo.setTimeRate(10);window.cosmo.setPlaying(true);});
+  results.performance = await page.evaluate(async()=>{
+    const samples=[];let last=performance.now();
+    for(let i=0;i<120;i++) {await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}
+    samples.sort((a,b)=>a-b);window.cosmo.setPlaying(false);
+    return {records:window.cosmo.listActivities().length,meanMs:samples.reduce((a,b)=>a+b,0)/samples.length,p95Ms:samples[Math.floor(samples.length*.95)],marks:document.querySelectorAll('.activity-mark').length,options:document.querySelectorAll('.picker-result').length};
+  });
+  assert.ok(results.performance.marks<=200);
+  assert.ok(results.performance.options<=202);
+  await page.screenshot({path:`${out}/stress-desktop.png`});
+  assert.equal(results.errors.length,0,results.errors.join('\n'));
+  const assetErrors=results.httpErrors.filter(r=>/\/test-catalogs\/(data|kernels)\//.test(new URL(r.url).pathname));
+  assert.deepEqual(assetErrors,[], 'Managed assets must load through the native Vite fallback');
+  const desktopPage=page;
+  const touchContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:1});
+  page=await touchContext.newPage();
+  page.setDefaultTimeout(30000);
+  page.on('pageerror', e=>results.errors.push(e.message));
+  page.on('response', r=>{if(r.status()>=400)results.httpErrors.push({url:r.url(),status:r.status()});});
+  results.touch=[];
+  for(const [catalog,count] of [['ingenuity-jezero',72],['msl-dingo-gap',2]]) {
+    await load(catalog,count);
+    await expanded();
+    assert.ok(await page.evaluate(()=>navigator.maxTouchPoints>0 && !matchMedia('(hover: hover)').matches));
+    await page.locator('.picker-trigger').first().tap();
+    await page.getByRole('dialog',{name:/^Choose /}).locator('.picker-result:not([disabled])').first().tap();
+    const selected=await page.evaluate(()=>window.cosmo.getSelectedActivity());
+    const mark=page.getByRole('button',{name:`Go to ${selected.name}`,exact:true});
+    await mark.scrollIntoViewIfNeeded();
+    // Seed another activity's stale preview: touch must clear it rather than
+    // relying on suppression of every activity while one is selected.
+    const timelineUrl=await liveModule('timeline.svelte.ts');
+    const activityUrl=await liveModule('mission-activities.ts');
+    await page.evaluate(async ({timelineUrl,activityUrl})=>{
+      const {setTimelineHover,eventKey}=await import(timelineUrl),{activityEvent}=await import(activityUrl);
+      const other=window.cosmo.listActivities().find(a=>a.id!==window.cosmo.getSelectedActivity().id);
+      setTimelineHover(other.start,eventKey(activityEvent(other)),{x:180,y:680});
+    },{timelineUrl,activityUrl});
+    await page.locator('.event-callout').waitFor();
+    await mark.tap();
+    const inspector=page.getByRole('region',{name:'Selected event',exact:true});
+    await inspector.waitFor();
+    assert.equal(await page.locator('.event-callout').count(),0);
+    const stateUrl=await liveModule('event-finder.svelte.ts');
+    assert.equal(await page.evaluate(async url=>(await import(url)).ef.previewId,stateUrl),null);
+    const geometry=await page.evaluate(()=>{
+      const i=document.querySelector('[aria-label="Selected event"]').getBoundingClientRect();
+      const t=document.querySelector('[data-tl-row="transport"]').getBoundingClientRect();
+      return {inspectorBottom:i.bottom,transportTop:t.top,pageWidth:document.documentElement.scrollWidth};
+    });
+    assert.ok(geometry.inspectorBottom<=geometry.transportTop && geometry.pageWidth<=390,JSON.stringify(geometry));
+    await page.screenshot({path:`${out}/${catalog}-touch-390.png`});
+    await inspector.getByRole('button',{name:'Details',exact:true}).tap();
+    assert.ok((await inspector.innerText()).includes(selected.provenance.limitations));
+    assert.equal(await inspector.locator('details').count(),0);
+    await inspector.getByRole('button',{name:'Less',exact:true}).tap();
+    await page.getByRole('button',{name:'Play',exact:true}).tap();
+    assert.ok(await page.evaluate(()=>window.cosmo.isPlaying()));
+    await page.getByRole('button',{name:'Pause',exact:true}).tap();
+    results.touch.push({catalog,geometry,hasTouch:true,hover:false});
+  }
+  assert.deepEqual(results.errors,[]);
+  assert.deepEqual(results.httpErrors,[]);
+  await touchContext.close();
+  page=desktopPage;
+  console.log('Mission activity browser acceptance passed');
+} catch (error) {
+  await page.screenshot({path:`${out}/failure.png`});
+  console.log(await page.locator('body').innerText());
+  throw error;
+} finally {
+  await writeFile(`${out}/browser.json`,JSON.stringify(results,null,2)+'\n');
+  await browser.close();
+}

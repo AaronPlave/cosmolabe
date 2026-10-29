@@ -186,6 +186,7 @@ function coerce(spec: VerbSpec, param: VerbParam, token: Token): Coerced {
     // Object and viewpoint names are passed **verbatim**: `Universe.getBody` is
     // an exact-match lookup on a `Map`, and folding case here would invent a
     // resolver that exists nowhere else in the system.
+    case 'activity':
     case 'object':
     case 'viewpoint':
     case 'text':

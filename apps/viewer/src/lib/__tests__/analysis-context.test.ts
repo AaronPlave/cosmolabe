@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { InstantEvent } from '@cosmolabe/core';
-import { Body, Universe, CompositeTrajectory, InterpolatedStatesTrajectory } from '@cosmolabe/core';
+import { Universe } from '@cosmolabe/core';
 import {
   analysis,
   analysisContext,
@@ -64,14 +64,8 @@ describe('viewer analysis state', () => {
 
   it('registers the new catalog activities after scene-reset listeners, and clears them on the next catalog', () => {
     const universe = new Universe();
-    universe.addBody(new Body({ name: 'Rover', trajectoryPlot: { timelineLabel: 'Drive' },
-      trajectory: new CompositeTrajectory([{ startTime: 100, endTime: 1000,
-        trajectory: new InterpolatedStatesTrajectory([
-          { et: 100, position: [1, 0, 0], velocity: [0, 0, 0] },
-          { et: 120, position: [1, 1, 0], velocity: [0, 0, 0] },
-        ]),
-      }]),
-    }));
+    universe.loadCatalog({ name: 'activity fixture', activities: [{ version: 1, id: 'rover-drive', name: 'Drive 1', kind: 'drive', vehicle: 'Rover', body: 'Mars', temporality: 'interval', timeSystem: 'ET', start: 100, end: 120,
+      provenance: { source: 'fixture', version: '1', authority: 'authored', timing: 'exact', limitations: 'Synthetic fixture' } }] });
     const unsubscribe = onViewerEvent('load', () => resetAnalysis());
     try {
       syncBodies(universe);

@@ -1,6 +1,8 @@
 // The port
 export type {
   ViewerControl,
+  ScriptActivity,
+  ScriptActivityFilter,
   ViewerSnapshotState,
   CircleDirection,
   CoordinateNavigationOptions,

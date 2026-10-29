@@ -1314,5 +1314,487 @@
         }
       ]
     }
+  ],
+  "activities": [
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:hop:1",
+      "name": "PSR floor sample run",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-15T10:00:00Z",
+      "end": "2028-12-15T10:07:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:landing:1",
+      "name": "Landing after PSR floor sample run",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-15T10:07:10.000Z",
+      "end": "2028-12-15T10:07:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:hop:2",
+      "name": "PSR transect — west half",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-17T22:00:00Z",
+      "end": "2028-12-17T22:09:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:landing:2",
+      "name": "Landing after PSR transect — west half",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-17T22:09:00.000Z",
+      "end": "2028-12-17T22:09:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:hop:3",
+      "name": "Ridge climb to rim peak",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-22T14:00:00Z",
+      "end": "2028-12-22T14:08:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-A",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-A:landing:3",
+      "name": "Landing after Ridge climb to rim peak",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-22T14:08:10.000Z",
+      "end": "2028-12-22T14:08:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:hop:1",
+      "name": "Rim traverse east",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-15T10:00:00Z",
+      "end": "2028-12-15T10:08:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:landing:1",
+      "name": "Landing after Rim traverse east",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-15T10:08:10.000Z",
+      "end": "2028-12-15T10:08:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:hop:2",
+      "name": "Sun-illuminated peak sampling",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-19T06:00:00Z",
+      "end": "2028-12-19T06:07:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:landing:2",
+      "name": "Landing after Sun-illuminated peak sampling",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-19T06:07:10.000Z",
+      "end": "2028-12-19T06:07:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:hop:3",
+      "name": "Long hop to neighboring rim site",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-26T11:00:00Z",
+      "end": "2028-12-26T11:07:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-B",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-B:landing:3",
+      "name": "Landing after Long hop to neighboring rim site",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-26T11:07:00.000Z",
+      "end": "2028-12-26T11:07:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:hop:1",
+      "name": "Crater inner-wall transect",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-15T10:00:00Z",
+      "end": "2028-12-15T10:08:20.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:landing:1",
+      "name": "Landing after Crater inner-wall transect",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-15T10:08:20.000Z",
+      "end": "2028-12-15T10:08:20.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:hop:2",
+      "name": "PSR floor exploration",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-20T15:00:00Z",
+      "end": "2028-12-20T15:08:30.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:landing:2",
+      "name": "Landing after PSR floor exploration",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-20T15:08:30.000Z",
+      "end": "2028-12-20T15:08:30.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:hop:3",
+      "name": "Rim south-arc survey",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-25T02:00:00Z",
+      "end": "2028-12-25T02:10:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-C",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-C:landing:3",
+      "name": "Landing after Rim south-arc survey",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-25T02:10:10.000Z",
+      "end": "2028-12-25T02:10:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:hop:1",
+      "name": "Connector hop to de Gerlache",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-15T10:00:00Z",
+      "end": "2028-12-15T10:13:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:landing:1",
+      "name": "Landing after Connector hop to de Gerlache",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-15T10:13:00.000Z",
+      "end": "2028-12-15T10:13:00.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:hop:2",
+      "name": "PSR oblique entry",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-21T07:30:00Z",
+      "end": "2028-12-21T07:39:20.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:landing:2",
+      "name": "Landing after PSR oblique entry",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-21T07:39:20.000Z",
+      "end": "2028-12-21T07:39:20.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:hop:3",
+      "name": "Long traverse to Sverdrup",
+      "kind": "hop",
+      "temporality": "interval",
+      "start": "2028-12-27T18:00:00Z",
+      "end": "2028-12-27T18:15:10.000Z"
+    },
+    {
+      "version": 1,
+      "vehicle": "Polaris-D",
+      "body": "Moon",
+      "mission": "MoonFall demonstration",
+      "timeSystem": "UTC",
+      "provenance": {
+        "source": "scripts/moonfall-schedule.mjs",
+        "version": "authored-sorties-v1",
+        "authority": "authored",
+        "timing": "exact",
+        "limitations": "Authored catalog demonstration; not mission-provided operational plans, observations or predicted flight operations. UTC epochs from the existing demo; no coordinates or lunar frames changed."
+      },
+      "id": "moonfall:Polaris-D:landing:3",
+      "name": "Landing after Long traverse to Sverdrup",
+      "kind": "landing",
+      "temporality": "instant",
+      "start": "2028-12-27T18:15:10.000Z",
+      "end": "2028-12-27T18:15:10.000Z"
+    }
   ]
 }
