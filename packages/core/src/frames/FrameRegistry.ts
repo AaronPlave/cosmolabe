@@ -85,6 +85,8 @@ export interface FrameRegistryOptions {
   /** Rotation model of a body, by the name part of an `IAU_<BODY>` frame
    *  (upper-case, spaces as underscores). `Universe` supplies this. */
   bodyRotation?: (normalizedBodyName: string) => RotationModel | undefined;
+  /** Whether a non-IAU SPICE frame is an exact target of a loaded body's rotation model. */
+  isBodyFixedFrame?: (frameName: string) => boolean;
 }
 
 /** Name of the pseudo-frame for "fixed to the body this position is relative to". */
@@ -220,6 +222,7 @@ export class FrameRegistry {
   private readonly spiceUnknown = new Set<string>();
   private readonly spice?: SpiceInstance;
   private readonly bodyRotation?: (normalizedBodyName: string) => RotationModel | undefined;
+  private readonly isBodyFixedFrame?: (frameName: string) => boolean;
   /** Recursion guard: body-fixed frames whose rotation is stated in another
    *  body-fixed frame resolve recursively, and a cycle must not hang. */
   private depth = 0;
@@ -227,6 +230,7 @@ export class FrameRegistry {
   constructor(options: FrameRegistryOptions = {}) {
     this.spice = options.spice;
     this.bodyRotation = options.bodyRotation;
+    this.isBodyFixedFrame = options.isBodyFixedFrame;
     for (const def of BUILTIN_FRAMES) this.register(def);
   }
 
@@ -278,6 +282,13 @@ export class FrameRegistry {
   /** Forget cached SPICE failures (call after furnishing kernels). */
   invalidate(): void {
     this.spiceUnknown.clear();
+    this.invalidateBodyFrameClassification();
+  }
+
+  /** The catalog can add, replace or remove a body's declared rotation target.
+   * Reclassify synthesized SPICE frames without discarding known SPICE failures. */
+  invalidateBodyFrameClassification(): void {
+    this.synthesized.clear();
     this.staticCache.clear();
   }
 
@@ -438,7 +449,11 @@ export class FrameRegistry {
   private spiceDefinition(name: string): FrameDefinition {
     return {
       name,
-      kind: 'inertial',
+      // SPICE CK/PCK frames are not all inertial: a body's *declared* target
+      // (e.g. MOON_ME_DE421) is body-fixed even though it lacks an IAU_ prefix.
+      // Unknown SPICE frames retain the conservative inertial default; names
+      // alone never establish that a frame rotates with a particular body.
+      kind: this.isBodyFixedFrame?.(name) ? 'body-fixed' : 'inertial',
       spiceName: name,
       toICRF: (et, registry) => registry.spiceToJ2000(name, et),
     };
