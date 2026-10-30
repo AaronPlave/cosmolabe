@@ -22,7 +22,7 @@ Use the existing Cosmolabe Project (or configure an auto-add Project for this re
 | Ready to Start | Table | `is:issue is:open -is:blocked` | Priority first; show assignee, status, parent |
 | Keystones | Table | `is:issue is:open is:blocking` | Priority / manual downstream reach |
 | Blocked | Table | `is:issue is:open is:blocked` | Group by status or initiative |
-| Initiatives | Table | `is:issue is:open` | Use hierarchy/parent field and group by initiative |
+| Initiatives | Table | `is:issue is:open` (optionally `has:parent-issue` to hide unparented items) | Group by **Parent issue**, or enable **Show hierarchy** to see nested initiatives and their sub-issues |
 
 Project view filters vary by Projects UI; use the linked repository searches as the working fallback when a Project filter isn't accepted. The repository GitHub integration does not currently expose creating or configuring user-owned Projects views, so **these views must be saved in the GitHub UI**. Do not mistake the suggested configuration for a created Project.
 
@@ -61,7 +61,7 @@ Reviewed all **103** open issues, including the October surface-data, Jezero, mi
 - #312 blocked by #311 — external agent/MCP adapter consumes shared typed tool facade.
 - #313 blocked by #311 — voice consumes the same tool facade; **not** blocked by MCP #312.
 
-Independent or optionally coordinated work deliberately remains unblocked: #309 imagery-only publishing, #250 initial graphical planner (later science controls may wait), #294 flight mosaics/source investigation, #306 historical flight geometry, #296 plugin demo and #297's broader scripting gaps. No artificial parent/sub-issue links were added to unrelated reusable foundational issues.
+Independent or optionally coordinated work deliberately remains unblocked: #309 imagery-only publishing, #250 initial graphical planner (later science controls may wait), #294 flight mosaics/source investigation, #306 historical flight geometry, #296 plugin demo and #297's broader scripting gaps. The 2026-10-30 initial dependency pass did not add parent/sub-issue links; the dedicated hierarchy audit below addresses that separately.
 
 Older manifest entries can mention now-closed issues: the sync job skips closed targets and closed blockers, so historical links aren't re-created. Native issue dependencies still retain their history; closing the blocking issue resolves the remaining work's active blocker.
 
@@ -72,3 +72,28 @@ Older manifest entries can mention now-closed issues: the sync job skips closed 
 3. When working through an integration that cannot directly write native relationship endpoints, update `.github/issue-relationships.json` in the same change. The `Issue dependency graph` workflow validates on PR and applies native links on merge. Never claim a relationship was applied just because it appears in prose or a PR diff.
 4. Verify the blocked/ready state after merging, periodically review open blockers against completed issues, and keep issue priority/Project status independent of blocking.
 5. GitHub Projects membership and saved view/status/priority fields are **not writable through this repository integration**. Use the Project UI for those fields; do not claim that the manifest configures Projects views.
+
+## 2026-10-30 initiative hierarchy audit
+
+The Projects `Initiatives` view is grouped by GitHub's native **Parent issue**. Dependency links do not populate this field. Before this pass, it showed only a few historic root issues and a large `No Parent issue` bucket.
+
+Eight tracking-only initiative issues were created (these do **not** demand new implementation PRs or change child issue ownership):
+
+| Parent tracker | Workstream | Existing issues grouped under it |
+| --- | --- | --- |
+| #315 | AI and agent-driven visualization | #311, #312, #313 |
+| #316 | Surface data, science layers and publishing | #250, #285, #286, #307, #308, #309 |
+| #317 | Jezero mission content | #294, #295, #306 |
+| #318 | Instrument/observation systems | #28, #175, #192–#195, #280, #282 |
+| #319 | Planetary geographic data/places | #201, #266, #267, #290 |
+| #320 | Navigation, views and capture | #116, #220–#224 |
+| #321 | Spatial guides, measures and analysis | #157–#160, #176, #177, #216, #217, #254, #259 |
+| #322 | Solar/airless physical lighting | #204–#207, #243 |
+
+Existing initiatives were expanded without replacing any existing parent: #14 adopts #297; #47 adopts #238, #239, #240, #256, #257; #107 adopts #234/#235; #134 adopts #219; #182 adopts #264. No new `Blocked by` links were created in this hierarchy pass—parenthood is grouping only. Some issues intentionally remain top-level because they are independent, cross-cutting or research/maintenance work. Parent tracking issues themselves also naturally have no parent.
+
+**To use the saved Projects view:** in `Cosmolabe Management → Initiatives`, keep `is:issue is:open`, group by `Parent issue`, and expand groups. To hide standalone issues from this specific grouped workstream view, add `has:parent-issue` if accepted by the Project's field filter. Alternatively enable GitHub's newer `Show hierarchy` mode in the view menu to see parent issues with nested children; filter/group semantics differ. Neither change is applied through the repository connector. The `Ready to Start` and `Blocked` views should keep independent issues and should not filter on initiative membership.
+
+**Verification:** The native parent links are written by `Issue dependency graph` CI after the manifest PR merges. Inspect the project's Parent issue groups and sample child sidebars after the sync completes. Do not equate a committed manifest with already-synchronized GitHub relationships. Make sure the new initiative parent issues are included in the Project; auto-add is configured outside this repository integration.
+
+GitHub Projects documentation: [parent and sub-issue progress fields](https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-parent-issue-and-sub-issue-progress-fields), [filter Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects), [hierarchy view](https://github.blog/changelog/2026-03-19-hierarchy-view-in-github-projects-is-now-generally-available/).
