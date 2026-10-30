@@ -2,6 +2,16 @@
 
 This refresh integrates main `097f92ab` (including #305). Regional border ticks remain opt-in. This is implementation and diagnostic evidence, **not merge approval**.
 
+## Polar lunar rulers
+
+Shackleton's missing surface ticks came from the general 84° discovery bounds/85° anchor exclusion, reinforced by a shader fade over the last 8° approaching either pole. These blanket limits are removed. Actual pixel spacing still suppresses congested meridians (including the singular pole), and auto longitude spacing may use 30° when meridians converge. Fixed polar ruler rings use a half-step phase from each pole; changing the view never slides a geographic site. Current geometry/ownership, visibility and annotation budgets remain authoritative.
+
+The real `Shackleton Overview` and `PSR Floor View` presets now retain both surface coordinate axes in all 45 sampled stationary frames (three captions in each view, previously zero). Apollo's three tested presets retain identical surface captions before/after, including its existing sparse Hadley Rille view. The optional frame remains separately enabled and freshly certified; measured maximum alignment is below 0.02 CSS pixels in this comparison. These are sampled observations, not target counts or source accuracy claims.
+
+- [Shackleton before](lunar-poles/shackleton-overview-before.png), [Shackleton after](lunar-poles/shackleton-overview-surface.png), [PSR Floor after](lunar-poles/psr-floor-view-surface.png), [both-demo comparison](lunar-poles/comparison.json).
+- Reproduce with `GRID_EXPECT_POLAR=1 node scripts/graticule-lunar-validation.mjs` (default host `127.0.0.1:5188`, output `/tmp/grid-lunar`; both are configurable). Chrome used Apple M4 Max / ANGLE Metal, actual cube terrain/imagery and the original catalog lighting, frames and camera definitions.
+- 126 focused tests in seven suites pass. New north/south polar regressions require both axes, bounded discovery and fixed sites through a small pan. Existing close-zoom, material composition, cube imagery, Surface Appearance, terrain lifecycle and rendered-query tests pass. Package build, test typecheck, changed-file ESLint, script syntax and diff checks pass.
+
 ## Close-zoom tick correction
 
 The reported drift is reproducible near 16.67°N, 0.18°E on Earth. Globe captions were projected from the ideal ellipsoid, while grid lines are evaluated on the actual triangle facets. The close-zoom regression failed with a 9.78 CSS-pixel offset before the fix. Globe captions now intersect their prescribed geographic normal/radial ray with the rendered globe triangles. A private, indirect BVH avoids changing picking, vertex/index buffers or geographic sites, and is rebuilt when the globe geometry changes. Foreign-body occlusion uses the registered point. Displaced globes still withhold unsupported captions.

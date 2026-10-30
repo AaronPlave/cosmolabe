@@ -1,0 +1,755 @@
+{
+  "baselineHead": "e366f50abb806e8038e2e1fc6dcd15f4d823897c",
+  "baseline": {
+    "passed": true,
+    "views": [
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": false,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          1,
+          10
+        ],
+        "candidates": 0,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.10000002384185791,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.230376539624368e-05,
+          3.982906216692683e-07,
+          -0.001796902054314002
+        ],
+        "fov": 60,
+        "visibleTiles": 126
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": true,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          1,
+          10
+        ],
+        "candidates": 0,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 5,
+        "maxTicks": 5,
+        "maxQueries": 8,
+        "maxAlignmentPx": 0.0029722979356816663,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 7.799999952316284,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.230376539624368e-05,
+          3.982906216692683e-07,
+          -0.001796902054314002
+        ],
+        "fov": 60,
+        "visibleTiles": 126
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": false,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          0.2,
+          10
+        ],
+        "candidates": 0,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.10000002384185791,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.09322492220802e-05,
+          -3.167704994646886e-06,
+          -0.001756920395640818
+        ],
+        "fov": 60,
+        "visibleTiles": 156
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": true,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          0.2,
+          10
+        ],
+        "candidates": 0,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 8,
+        "maxTicks": 8,
+        "maxQueries": 8,
+        "maxAlignmentPx": 0.0067251889756096295,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 8.199999928474426,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.09322492220802e-05,
+          -3.167704994646886e-06,
+          -0.001756920395640818
+        ],
+        "fov": 60,
+        "visibleTiles": 156
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          10,
+          10
+        ],
+        "candidates": 12,
+        "annotations": [
+          {
+            "id": "Moon:10:10:latitude:30.000000:5.000000",
+            "tier": "10:10",
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 5,
+            "text": "30\u00b0N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:10:10:latitude:20.000000:5.000000",
+            "tier": "10:10",
+            "axis": "latitude",
+            "latDeg": 20,
+            "lonDeg": 5,
+            "text": "20\u00b0N",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 2,
+        "maxLabels": 2,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.5,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.001124205215376826,
+          0.0015406295385767238,
+          0.0008789899081243278
+        ],
+        "fov": 60,
+        "visibleTiles": 194
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          10,
+          10
+        ],
+        "candidates": 12,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 4,
+        "maxTicks": 4,
+        "maxQueries": 6,
+        "maxAlignmentPx": 0.014790366185826296,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.8999999761581421,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.001124205215376826,
+          0.0015406295385767238,
+          0.0008789899081243278
+        ],
+        "fov": 60,
+        "visibleTiles": 194
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          1,
+          1
+        ],
+        "candidates": 3,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.10000002384185791,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009497882931928495,
+          0.0013030011415282967,
+          0.0007421018954899458
+        ],
+        "fov": 60,
+        "visibleTiles": 242
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          1,
+          1
+        ],
+        "candidates": 3,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 4,
+        "maxTicks": 4,
+        "maxQueries": 6,
+        "maxAlignmentPx": 0.014578672452938072,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.7999999523162842,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009497882931928495,
+          0.0013030011415282967,
+          0.0007421018954899458
+        ],
+        "fov": 60,
+        "visibleTiles": 242
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          0.02,
+          0.02
+        ],
+        "candidates": 8,
+        "annotations": [
+          {
+            "id": "Moon:0.02:0.02:latitude:26.100000:3.690000",
+            "tier": "0.02:0.02",
+            "axis": "latitude",
+            "latDeg": 26.1,
+            "lonDeg": 3.69,
+            "text": "26.10\u00b0N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.02:0.02:longitude:26.090000:3.660000",
+            "tier": "0.02:0.02",
+            "axis": "longitude",
+            "latDeg": 26.09,
+            "lonDeg": 3.66,
+            "text": "3.66\u00b0E",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 2,
+        "maxLabels": 2,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45,
+        "updateP95Ms": 0.6000000238418579,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009315526885804553,
+          0.0012764363974184464,
+          0.0007283678409594595
+        ],
+        "fov": 60,
+        "visibleTiles": 129
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          0.02,
+          0.02
+        ],
+        "candidates": 8,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 8,
+        "maxTicks": 8,
+        "maxQueries": 8,
+        "maxAlignmentPx": 2.212988468367506e-06,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 1.100000023841858,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009315526885804553,
+          0.0012764363974184464,
+          0.0007283678409594595
+        ],
+        "fov": 60,
+        "visibleTiles": 129
+      }
+    ],
+    "errors": []
+  },
+  "updated": {
+    "passed": true,
+    "views": [
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": false,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          1,
+          30
+        ],
+        "candidates": 15,
+        "annotations": [
+          {
+            "id": "Moon:1:30:longitude:-89.500000:0.000000",
+            "tier": "1:30",
+            "axis": "longitude",
+            "latDeg": -89.5,
+            "lonDeg": 0,
+            "text": "0\u00b0E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:1:30:latitude:-89.000000:5.000000",
+            "tier": "1:30",
+            "axis": "latitude",
+            "latDeg": -89,
+            "lonDeg": 5,
+            "text": "89\u00b0S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:1:30:longitude:-89.500000:-120.000000",
+            "tier": "1:30",
+            "axis": "longitude",
+            "latDeg": -89.5,
+            "lonDeg": -120,
+            "text": "120\u00b0W",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 3,
+        "maxLabels": 3,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45,
+        "updateP95Ms": 4.5,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.230376539624368e-05,
+          3.982906216692683e-07,
+          -0.001796902054314002
+        ],
+        "fov": 60,
+        "visibleTiles": 126
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": true,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          1,
+          30
+        ],
+        "candidates": 15,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 5,
+        "maxTicks": 5,
+        "maxQueries": 8,
+        "maxAlignmentPx": 0.012805973979591512,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 7.899999976158142,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.230376539624368e-05,
+          3.982906216692683e-07,
+          -0.001796902054314002
+        ],
+        "fov": 60,
+        "visibleTiles": 126
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": false,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          0.2,
+          30
+        ],
+        "candidates": 16,
+        "annotations": [
+          {
+            "id": "Moon:0.2:30:longitude:-89.900000:0.000000",
+            "tier": "0.2:30",
+            "axis": "longitude",
+            "latDeg": -89.9,
+            "lonDeg": 0,
+            "text": "0\u00b0E",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:30:latitude:-89.400000:5.000000",
+            "tier": "0.2:30",
+            "axis": "latitude",
+            "latDeg": -89.4,
+            "lonDeg": 5,
+            "text": "89.4\u00b0S",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.2:30:latitude:-89.600000:5.000000",
+            "tier": "0.2:30",
+            "axis": "latitude",
+            "latDeg": -89.6,
+            "lonDeg": 5,
+            "text": "89.6\u00b0S",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 3,
+        "maxLabels": 3,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45,
+        "updateP95Ms": 4.899999976158142,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.09322492220802e-05,
+          -3.167704994646886e-06,
+          -0.001756920395640818
+        ],
+        "fov": 60,
+        "visibleTiles": 156
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": true,
+        "frame": "MOON_ME_DE421",
+        "available": true,
+        "steps": [
+          0.2,
+          30
+        ],
+        "candidates": 16,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 6,
+        "maxTicks": 6,
+        "maxQueries": 8,
+        "maxAlignmentPx": 0.018813788574167472,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 8.899999976158142,
+        "imagery": true,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -4.09322492220802e-05,
+          -3.167704994646886e-06,
+          -0.001756920395640818
+        ],
+        "fov": 60,
+        "visibleTiles": 156
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          10,
+          10
+        ],
+        "candidates": 12,
+        "annotations": [
+          {
+            "id": "Moon:10:10:latitude:30.000000:5.000000",
+            "tier": "10:10",
+            "axis": "latitude",
+            "latDeg": 30,
+            "lonDeg": 5,
+            "text": "30\u00b0N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:10:10:latitude:20.000000:5.000000",
+            "tier": "10:10",
+            "axis": "latitude",
+            "latDeg": 20,
+            "lonDeg": 5,
+            "text": "20\u00b0N",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 2,
+        "maxLabels": 2,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.5,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.001124205215376826,
+          0.0015406295385767238,
+          0.0008789899081243278
+        ],
+        "fov": 60,
+        "visibleTiles": 194
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          10,
+          10
+        ],
+        "candidates": 12,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 4,
+        "maxTicks": 4,
+        "maxQueries": 6,
+        "maxAlignmentPx": 0.014790366185826296,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 1,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.001124205215376826,
+          0.0015406295385767238,
+          0.0008789899081243278
+        ],
+        "fov": 60,
+        "visibleTiles": 194
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          1,
+          1
+        ],
+        "candidates": 3,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.10000002384185791,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009497882931928495,
+          0.0013030011415282967,
+          0.0007421018954899458
+        ],
+        "fov": 60,
+        "visibleTiles": 242
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          1,
+          1
+        ],
+        "candidates": 3,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 4,
+        "maxTicks": 4,
+        "maxQueries": 6,
+        "maxAlignmentPx": 0.014578672452938072,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 0.8999999761581421,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009497882931928495,
+          0.0013030011415282967,
+          0.0007421018954899458
+        ],
+        "fov": 60,
+        "visibleTiles": 242
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": false,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          0.02,
+          0.02
+        ],
+        "candidates": 8,
+        "annotations": [
+          {
+            "id": "Moon:0.02:0.02:latitude:26.100000:3.690000",
+            "tier": "0.02:0.02",
+            "axis": "latitude",
+            "latDeg": 26.1,
+            "lonDeg": 3.69,
+            "text": "26.10\u00b0N",
+            "opacity": 0.72
+          },
+          {
+            "id": "Moon:0.02:0.02:longitude:26.090000:3.660000",
+            "tier": "0.02:0.02",
+            "axis": "longitude",
+            "latDeg": 26.09,
+            "lonDeg": 3.66,
+            "text": "3.66\u00b0E",
+            "opacity": 0.72
+          }
+        ],
+        "minLabels": 2,
+        "maxLabels": 2,
+        "minTicks": 0,
+        "maxTicks": 0,
+        "maxQueries": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45,
+        "updateP95Ms": 0.6000000238418579,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009315526885804553,
+          0.0012764363974184464,
+          0.0007283678409594595
+        ],
+        "fov": 60,
+        "visibleTiles": 129
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": true,
+        "frame": "IAU_MOON",
+        "available": true,
+        "steps": [
+          0.02,
+          0.02
+        ],
+        "candidates": 8,
+        "annotations": [],
+        "minLabels": 0,
+        "maxLabels": 0,
+        "minTicks": 8,
+        "maxTicks": 8,
+        "maxQueries": 8,
+        "maxAlignmentPx": 0.015966953503499203,
+        "bothSurfaceAxesFrames": 0,
+        "updateP95Ms": 1,
+        "imagery": null,
+        "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+        "cameraSceneUnits": [
+          -0.0009315526885804553,
+          0.0012764363974184464,
+          0.0007283678409594595
+        ],
+        "fov": 60,
+        "visibleTiles": 129
+      }
+    ],
+    "errors": []
+  },
+  "notes": [
+    "Actual catalog viewpoints; source frames remain MOON_ME_DE421 for Shackleton and IAU_MOON for Apollo.",
+    "Shackleton has both surface axes in all 45 sampled stationary frames in each preset. Counts are observations, not quotas.",
+    "Apollo surface annotations are identical before and after in all three tested presets. Hadley Rille has no surface captions in either run; its border remains available.",
+    "Frame alignment remains below 0.2 CSS pixels, with no increase in the eight-query cap. Numerical frame errors certify geometry registration, not GPU raster accuracy.",
+    "Visible tile counts include imagery-managed tiles; they are not claims of measured physical terrain for Apollo.",
+    "Long playback and additional devices remain outside this short hardware-Chrome comparison."
+  ]
+}

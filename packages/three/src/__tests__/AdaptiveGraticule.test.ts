@@ -116,6 +116,36 @@ describe('adaptive graticule', () => {
     bm.dispose();
   });
 
+  it.each([-89.6, 89.6])('keeps readable fixed geographic rulers over polar terrain at %s degrees', latitude => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const bm = new BodyMesh(new Body({ name: 'Polar terrain', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } }));
+    bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const terrain = new THREE.Group(), surface = bm.mesh.clone(); terrain.add(surface); bm.add(terrain); bm.mesh.visible = false;
+    vi.spyOn(bm, 'terrainTileGroup', 'get').mockReturnValue(terrain);
+    const lat = latitude * Math.PI / 180, radial = new THREE.Vector3(Math.cos(lat), 0, Math.sin(lat));
+    const camera = new THREE.PerspectiveCamera(45, 1, .001, 1000);
+    camera.position.copy(radial).multiplyScalar(103.5); camera.up.set(-Math.sin(lat), 0, Math.cos(lat)); camera.lookAt(radial.clone().multiplyScalar(100));
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    bm.showGrid(true, true, normalizeGridSettings());
+    for (let i = 0; i < 60; i++) { now += 16; bm.updateGrid(camera, { width: 1000, height: 1000 }, manager); }
+    const metrics = bm.gridMetrics!;
+    expect(metrics.labels).toBeGreaterThan(0);
+    expect(metrics.annotations.every(a => Math.abs(a.latDeg) > 85 && Math.abs(a.latDeg) < 90)).toBe(true);
+    expect(new Set(metrics.annotations.map(a => a.axis)).size).toBe(2);
+    expect(metrics.candidates).toBeLessThanOrEqual(96);
+    const sites = new Map(metrics.annotations.map(a => [a.id, [a.latDeg, a.lonDeg]]));
+    const z = new THREE.Vector3(0, 0, 1);
+    camera.position.applyAxisAngle(z, 0.0001); camera.up.applyAxisAngle(z, 0.0001);
+    camera.lookAt(radial.clone().multiplyScalar(100).applyAxisAngle(z, 0.0001));
+    for (let i = 0; i < 30; i++) { now += 16; bm.updateGrid(camera, { width: 1000, height: 1000 }, manager); }
+    const retained = bm.gridMetrics!.annotations.filter(a => sites.has(a.id));
+    expect(retained.length).toBeGreaterThan(0);
+    for (const a of retained) expect([a.latDeg, a.lonDeg]).toEqual(sites.get(a.id));
+    bm.dispose();
+  });
+
   it('withholds grid geometry and captions during unavailable attitude and recovers fixed sites', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -609,7 +639,7 @@ describe('adaptive graticule', () => {
       expect(bm.gridMetrics!.candidates).toBeLessThanOrEqual(384);
       for (const a of bm.gridMetrics!.anchors) {
         expect(a.lon).toBeGreaterThanOrEqual(-180); expect(a.lon).toBeLessThan(180);
-        expect(Math.abs(a.lat)).toBeLessThan(85);
+        expect(Math.abs(a.lat)).toBeLessThan(90);
         if (anchors.has(a.id)) expect([a.lat, a.lon]).toEqual(anchors.get(a.id)); else anchors.set(a.id, [a.lat, a.lon]);
       }
     }

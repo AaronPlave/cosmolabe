@@ -51,9 +51,11 @@ float gridLine(float angle, float stepSize, float derivative, vec2 congestion, f
   return (1.0 - smoothstep(widthDeg * max(0.0, widthPx * 0.5 - 0.4), widthDeg * (widthPx * 0.5 + 0.4), distanceDeg))
     * smoothstep(congestion.x, congestion.y, stepSize / widthDeg);
 }
+// Longitude convergence is governed by its pixel footprint, like latitude.
+// A latitude-only fade erases readable close-up meridians near either pole.
 float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion, float widthPx) {
   return max(gridLine(angles.x, steps.x, deriv.x, congestion, widthPx),
-    gridLine(angles.y, steps.y, deriv.y, congestion, widthPx) * smoothstep(2.0, 8.0, 90.0 - abs(angles.x)));
+    gridLine(angles.y, steps.y, deriv.y, congestion, widthPx));
 }
 vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hierarchy) {
   vec2 majorCongestion = vec2(${GRID_PRESENTATION.congestion.join(', ')});
@@ -66,7 +68,7 @@ vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hi
   opacity = max(opacity, minor * uGridMinor * mix(0.065, 0.055, hierarchy));
   float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
   float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y)))
-    * smoothstep(2.0, 8.0, 90.0 - abs(angles.x));
+    * smoothstep(majorCongestion.x, majorCongestion.y, stepSize.y / deriv.y);
   vec3 color = mix(vec3(0.36, 0.46, 0.58), vec3(0.72, 0.52, 0.29), equator);
   color = mix(color, vec3(0.68, 0.38, 0.35), prime);
   return vec4(color, max(opacity, max(equator, prime) * 0.35));
@@ -113,7 +115,7 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
   const key = previousKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v7';
+  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v8';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);

@@ -43,7 +43,8 @@ export function annotationPattern(latStep: number, lonStep: number) {
     meridianStride: lonStep === 30 ? 360 : Math.min(360, lonStep * 8),
     parallelStride: latStep === 30 ? 360 : Math.min(180, latStep * 8),
     meridianOffset: lonStep === 30 ? 5 : lonStep * 0.5,
-    parallelOffset: latStep === 30 ? 3 : latStep * 0.5 };
+    parallelOffset: latStep === 30 ? 3 : latStep * 0.5,
+    polarParallelOffset: 90 - latStep * 0.5 };
 }
 function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
   const pattern = annotationPattern(latStep, lonStep);
@@ -52,7 +53,8 @@ function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
   const onCarrier = (value: number, stride: number, offset: number) =>
     Math.abs((value - offset) / stride - Math.round((value - offset) / stride)) < 1e-5;
   return anchor.axis === 'latitude' ? onInteger(row) && onCarrier(anchor.lon, pattern.meridianStride, pattern.meridianOffset)
-    : onInteger(column) && onCarrier(anchor.lat, pattern.parallelStride, pattern.parallelOffset);
+    : onInteger(column) && (onCarrier(anchor.lat, pattern.parallelStride, pattern.parallelOffset)
+      || Math.abs(anchor.lat) > 85 && onCarrier(anchor.lat, pattern.parallelStride, Math.sign(anchor.lat) * pattern.polarParallelOffset));
 }
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
@@ -215,9 +217,9 @@ export class AdaptiveGraticule {
     const regionalTarget = Math.min(500, Math.min(width, height) * 0.5);
     const closeBlend = THREE.MathUtils.clamp((viewportDiameters - 6) / 12, 0, 1);
     const targetPx = THREE.MathUtils.lerp(regionalTarget, 180, closeBlend);
-    const regionalStep = (scales: number[], oldStep: number) => Math.min(10, scales.length ? chooseGridStep(median(scales), oldStep, targetPx) : oldStep);
+    const regionalStep = (scales: number[], oldStep: number, max = 10) => Math.min(max, scales.length ? chooseGridStep(median(scales), oldStep, targetPx) : oldStep);
     const latStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(latScale, previous.x);
-    const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(lonScale, previous.y);
+    const lonStep = !automatic ? this.settings!.spacingDeg : globeScale ? 30 : regionalStep(lonScale, previous.y, 30);
     const detail = (step: number) => step / 5;
     const detailLat = detail(latStep), detailLon = detail(lonStep), hierarchy = automatic ? 1 : 0;
     if (latStep !== previous.x || lonStep !== previous.y || detailLat !== this.uniforms.uGridDetailStep.value.x
@@ -235,7 +237,8 @@ export class AdaptiveGraticule {
     const add = (axis: Anchor['axis'], lat: number, lon: number) => {
       lat = Number(lat.toFixed(6)) || 0;
       lon = Number(wrapLongitude(Number(lon.toFixed(6))).toFixed(6)) || 0;
-      if (Math.abs(lat) >= 85) return;
+      // Longitude is singular only at the pole itself, not throughout a cap.
+      if (Math.abs(lat) >= 90) return;
       const id = `${this.bm.body.name}:${tier}:${axis}:${lat.toFixed(6)}:${lon.toFixed(6)}`;
       discovered.set(id, { id, tier, axis, lat, lon });
     };
@@ -247,10 +250,14 @@ export class AdaptiveGraticule {
     // changes; switching bands retires its entire sequence in one step.
     const carrier = (center: number, stride: number, offset: number, previous: number | null) => {
       const nearest = (Math.round((center - offset) / stride) * stride + offset);
-      return previous !== null && Math.abs(center - previous) < stride * 0.75 ? previous : nearest;
+      return previous !== null && Math.abs((previous - offset) / stride - Math.round((previous - offset) / stride)) < 1e-5
+        && Math.abs(center - previous) < stride * 0.75 ? previous : nearest;
     };
     this.latitudeCarrier = carrier(foot.lonDeg, pattern.meridianStride, pattern.meridianOffset, this.latitudeCarrier);
-    this.longitudeCarrier = carrier(foot.latDeg, pattern.parallelStride, pattern.parallelOffset, this.longitudeCarrier);
+    // Polar ruler rings retain a fixed half-step phase from each pole.
+    // Equator-phased bands can otherwise all fall outside a polar viewport.
+    const parallelOffset = Math.abs(foot.latDeg) > 85 ? Math.sign(foot.latDeg) * pattern.polarParallelOffset : pattern.parallelOffset;
+    this.longitudeCarrier = carrier(foot.latDeg, pattern.parallelStride, parallelOffset, this.longitudeCarrier);
     // Enumerate a bounded contiguous subset of the prescribed block indices.
     // Bounds may exclude sites, but never change the pattern stride or phase.
     const values = (lo: number, hi: number, stride: number, phase: number, limit: number) => {
@@ -264,8 +271,8 @@ export class AdaptiveGraticule {
     if (samples.length) {
       const latitudes = samples.map(p => p.latDeg);
       const longitudes = samples.map(p => foot.lonDeg + wrapLongitude(p.lonDeg - foot.lonDeg));
-      const south = Math.max(-84, Math.min(...latitudes) - latStep * 2);
-      const north = Math.min(84, Math.max(...latitudes) + latStep * 2);
+      const south = Math.max(-90, Math.min(...latitudes) - latStep * 2);
+      const north = Math.min(90, Math.max(...latitudes) + latStep * 2);
       const west = Math.max(foot.lonDeg - 180, Math.min(...longitudes) - lonStep * 2);
       const east = Math.min(foot.lonDeg + 180, Math.max(...longitudes) + lonStep * 2);
       for (const lat of values(south, north, pattern.latitudeStride * pattern.labelStride, 0, 24))
