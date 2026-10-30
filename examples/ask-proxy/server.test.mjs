@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createProxy, fromAnthropicMessage, rateLimiter, toAnthropicRequest } from './server.mjs';
 
-const LIMITS = { model: 'claude-opus-5-5', maxTokens: 16000 };
+const LIMITS = { model: 'claude-sonnet-5-5', maxTokens: 4096 };
 const thinking = { type: 'thinking', thinking: '', signature: 'sig' };
 const textBlock = { type: 'text', text: 'Going.', citations: null };
 const WIRE = {
@@ -18,8 +18,8 @@ const WIRE = {
 describe('wire → Anthropic', () => {
   it('builds the body itself: its model, its cap, client tools only', () => {
     const { body } = toAnthropicRequest(WIRE, LIMITS);
-    expect(body.model).toBe('claude-opus-5-5');
-    expect(body.max_tokens).toBe(16000);
+    expect(body.model).toBe('claude-sonnet-5-5');
+    expect(body.max_tokens).toBe(4096);
     expect(body.fallbacks).toBe('default');
     expect(body.tools).toEqual([{ name: 'flyTo', description: 'Fly.', input_schema: WIRE.tools[0].inputSchema }]);
     // Provider blocks and raw blocks go back exactly as the model sent them.
@@ -28,7 +28,7 @@ describe('wire → Anthropic', () => {
   });
 
   it('ignores client attempts to choose model or tokens, and refuses malformed input', () => {
-    expect(toAnthropicRequest({ ...WIRE, model: 'other', max_tokens: 1e6 }, LIMITS).body.model).toBe('claude-opus-5-5');
+    expect(toAnthropicRequest({ ...WIRE, model: 'other', max_tokens: 1e6 }, LIMITS).body.model).toBe('claude-sonnet-5-5');
     expect(toAnthropicRequest({ ...WIRE, version: 2 }, LIMITS).error).toContain('wire version');
     expect(toAnthropicRequest({ ...WIRE, tools: [{ type: 'web_search_20260209', name: 'web_search' }] }, LIMITS).error).toContain('inputSchema');
     expect(toAnthropicRequest({ ...WIRE, messages: [{ role: 'user', content: [{ type: 'provider', block: {} }] }] }, LIMITS).error).toContain('assistant');
@@ -69,8 +69,8 @@ describe('ask proxy server', () => {
   let server;
   afterEach(() => server?.close());
 
-  async function start(fetchImpl) {
-    server = createProxy({ apiKey: 'secret', origins: ['http://viewer.test'], perMinute: 10, fetchImpl, ...LIMITS });
+  async function start(fetchImpl, extra = {}) {
+    server = createProxy({ apiKey: 'secret', origins: ['http://viewer.test'], perMinute: 10, fetchImpl, ...LIMITS, ...extra });
     await new Promise((r) => server.listen(0, r));
     return `http://127.0.0.1:${server.address().port}/`;
   }
@@ -95,6 +95,32 @@ describe('ask proxy server', () => {
     const res = await post(url, WIRE);
     expect(res.status).toBe(502);
     expect((await res.json()).error.message).toBe('model service 401: invalid x-api-key');
+  });
+
+  it('accounts for the tokens it spends and stops at its budget', async () => {
+    const usage = [];
+    let calls = 0;
+    const url = await start(async () => {
+      calls++;
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Hi.' }], stop_reason: 'end_turn', usage: { input_tokens: 700, output_tokens: 300 } }), { status: 200 });
+    }, { tokenBudget: 1500, onUsage: (u) => usage.push(u) });
+    expect((await post(url, WIRE)).status).toBe(200);
+    expect((await post(url, WIRE)).status).toBe(200);
+    // 2000 spent against a 1500 budget: the next request is not sent upstream.
+    const refused = await post(url, WIRE);
+    expect(refused.status).toBe(429);
+    expect((await refused.json()).error.message).toContain('token budget');
+    expect(calls).toBe(2);
+    expect(usage).toEqual([
+      { model: 'claude-sonnet-5-5', inputTokens: 700, outputTokens: 300, spent: 1000, stop: 'end_turn' },
+      { model: 'claude-sonnet-5-5', inputTokens: 700, outputTokens: 300, spent: 2000, stop: 'end_turn' },
+    ]);
+  });
+
+  it('bounds what a client may send: tools and system prompt', () => {
+    const manyTools = Array.from({ length: 65 }, (_, i) => ({ ...WIRE.tools[0], name: `t${i}` }));
+    expect(toAnthropicRequest({ ...WIRE, tools: manyTools }, LIMITS).error).toMatch(/at most 64/);
+    expect(toAnthropicRequest({ ...WIRE, system: 'x'.repeat(20_001) }, LIMITS).error).toMatch(/at most 20000/);
   });
 
   it('refuses other origins and bad requests without calling upstream', async () => {

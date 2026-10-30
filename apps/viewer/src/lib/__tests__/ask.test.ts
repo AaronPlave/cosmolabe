@@ -10,6 +10,10 @@ import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, clos
 import { resetStores } from '../session.svelte';
 import { emit } from '../viewer-state.svelte';
 
+// A load binds a renderer and bumps the scene id; the conversation only needs the id.
+const scene = vi.hoisted(() => ({ id: 0 }));
+vi.mock('../viewer-state.svelte', async (importOriginal) => ({ ...(await importOriginal<typeof import('../viewer-state.svelte')>()), sceneId: () => scene.id }));
+
 describe('resolveAskDeployment', () => {
   const page = 'https://viewer.test/app/';
   it('is off unless an endpoint is configured', () => {
@@ -145,15 +149,34 @@ describe('the Ask session', () => {
     expect(ask.turns[0].status).toBe('cancelled');
   });
 
-  it('starts over after MAX_TURNS requests rather than trimming history', async () => {
+  it('the model starts over after MAX_TURNS requests, rather than trimming history, and the panel keeps them and says so', async () => {
     const transport = new MockTransport(() => textReply('ok'));
     setHostAskTransport(transport);
     for (let i = 0; i < MAX_TURNS; i++) await submitAsk(`request ${i}`);
     expect(transport.requests.at(-1)!.messages).toHaveLength(MAX_TURNS * 2 - 1);
+    expect(ask.turns.every((t) => t.fresh === null)).toBe(true);
     await submitAsk('one more');
-    expect(ask.turns).toHaveLength(1);
-    expect(ask.notice).toContain('started over');
+    // Sent alone: nothing earlier is replayed, so nothing is half-trimmed.
     expect(transport.requests.at(-1)!.messages).toHaveLength(1);
+    // Shown with the rest, behind a note saying why the model does not remember them.
+    expect(ask.turns).toHaveLength(MAX_TURNS + 1);
+    expect(ask.turns.at(-1)!.fresh).toContain(`${MAX_TURNS} requests`);
+    expect(ask.turns.slice(0, -1).every((t) => t.fresh === null)).toBe(true);
+    // The new conversation counts from one again.
+    await submitAsk('and another');
+    expect(transport.requests.at(-1)!.messages).toHaveLength(3);
+    expect(ask.turns.at(-1)!.fresh).toBeNull();
+  });
+
+  it('a new scene starts a new conversation for the model and keeps what the panel showed', async () => {
+    const transport = new MockTransport(() => textReply('ok'));
+    setHostAskTransport(transport);
+    await submitAsk('first');
+    scene.id++; // a catalog load binds a new scene
+    await submitAsk('second');
+    expect(transport.requests.at(-1)!.messages).toHaveLength(1);
+    expect(ask.turns).toHaveLength(2);
+    expect(ask.turns[1].fresh).toContain('new scene');
   });
 
   it('clears the conversation', async () => {

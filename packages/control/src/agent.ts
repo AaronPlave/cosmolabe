@@ -41,6 +41,8 @@ import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
 import { VERBS, type VerbParam, type VerbSpec } from './verbs.js';
 
+type FlightEnd = ScriptEventMap['flightEnd'];
+
 /** The JSON Schema subset the tools are described in. */
 export interface AgentJsonSchema {
   readonly type?: 'object' | 'string' | 'number' | 'boolean' | 'array' | readonly ('string' | 'number')[];
@@ -541,21 +543,29 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getImagery };
 
-  /** Wait for the flight a call started to end, unless the task or scene goes first. */
-  function awaitFlight(task: TaskImpl): Promise<ScriptEventMap['flightEnd'] | 'ended'> {
+  /**
+   * Wait for the end of flight `id`, the one a call started, unless the task or
+   * scene goes first. Any other flight's end is not this wait's business: a
+   * host, a person or a newer request flying the camera must not resolve it.
+   * `seen` holds the ends already told since before the call ran, so one that
+   * arrived while the call was still returning is not missed.
+   */
+  function awaitFlight(task: TaskImpl, id: number, seen: ReadonlyMap<number, FlightEnd>): Promise<FlightEnd | 'ended'> {
     return new Promise((done) => {
       const offs: (() => void)[] = [];
-      const finish = (v: ScriptEventMap['flightEnd'] | 'ended') => {
+      const finish = (v: FlightEnd | 'ended') => {
         for (const off of offs) off();
         task.signal.removeEventListener('abort', onAbort);
         done(v);
       };
       const onAbort = () => finish('ended');
-      offs.push(host.on('flightEnd', (e) => finish(e)));
+      offs.push(host.on('flightEnd', (e) => { if (e.id === id) finish(e); }));
       // A scene replaced mid-flight disposes the camera without a flightEnd.
       offs.push(host.on('load', () => finish('ended')));
       task.signal.addEventListener('abort', onAbort);
-      if (task.signal.aborted || !host.getFlight()) finish('ended');
+      const already = seen.get(id);
+      if (already) finish(already);
+      else if (task.signal.aborted) finish('ended');
     });
   }
 
@@ -565,6 +575,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     readonly scene = sceneId();
     ended: AgentErrorCode | null = null;
     cameraTaken = false;
+    /** The flight this task started and has not seen end; the only one its Stop may stop. */
+    ownFlight: number | null = null;
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -575,9 +587,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
     cancel() {
       if (this.ended) return;
-      // A flight this task is waiting on is its own work: stopping the task
-      // stops it. Nothing else this task did is undone.
-      if (host.getFlight()) attempt(() => host.stopFlight());
+      // A flight this task started is its own work: stopping the task stops it,
+      // where it is. One a person or a host started since is theirs, and so is
+      // any flight when this task has none: Stop then ends the request only.
+      // Nothing else this task did is undone.
+      if (this.ownFlight !== null && attempt(() => host.getFlight())?.id === this.ownFlight) attempt(() => host.stopFlight());
+      this.ownFlight = null;
       this.end('cancelled');
     }
 
@@ -626,30 +641,53 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       while (values.length && values[values.length - 1] === undefined) values.pop();
       const text = statementText(spec, values);
       const statement: Statement = { line: 1, verb: name, args: values, text };
-      try {
-        await execute({ statements: [statement], source: text }, host, { signal: this.signal });
-      } catch (err) {
-        if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
-        const p = err.problems[0];
-        const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended === 'superseded' ? 'superseded' : 'cancelled')
-          : p.kind === 'unknown-target' ? 'refused'
-            : 'failed';
-        return { ok: false, code, error: p.message };
-      }
 
-      if (def.effect === 'camera' && name !== 'stopFlight' && host.getFlight()) {
-        const end = await awaitFlight(this);
-        if (end === 'ended') {
-          const code = this.ended ?? 'stale';
-          return { ok: false, code, error: code === 'stale' ? 'the scene changed during the flight' : `the flight was left where it was: this request was ${code}` };
+      // A camera call that starts a flight owns that flight, by id. Ends are
+      // collected from before the call, so one told while it is still
+      // returning is not lost.
+      const flies = def.effect === 'camera' && name !== 'stopFlight';
+      const seen = new Map<number, FlightEnd>();
+      const offSeen = flies ? host.on('flightEnd', (e) => seen.set(e.id, e)) : () => {};
+      let own: number | null = null;
+      try {
+        const before = flies ? attempt(() => host.getFlight())?.id : undefined;
+        const running = execute({ statements: [statement], source: text }, host, { signal: this.signal });
+        // `execute` invokes the statement before its first await, so the call
+        // has already run: a flight playing now that was not before is this
+        // call's, and not one another command started meanwhile.
+        const after = flies ? attempt(() => host.getFlight()) : null;
+        if (after && after.id !== before) {
+          own = after.id;
+          this.ownFlight = own;
         }
-        if (end.outcome === 'interrupted') {
-          return { ok: false, code: 'interrupted', error: `the person took over the camera before it reached ${end.target ?? 'the destination'}; leaving the view to them` };
+        try {
+          await running;
+        } catch (err) {
+          if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
+          const p = err.problems[0];
+          const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended === 'superseded' ? 'superseded' : 'cancelled')
+            : p.kind === 'unknown-target' ? 'refused'
+              : 'failed';
+          return { ok: false, code, error: p.message };
         }
-        if (end.outcome === 'stopped') return { ok: false, code: 'failed', error: `the flight to ${end.target ?? 'the destination'} was stopped by another camera command` };
-        return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.` };
+
+        if (own !== null) {
+          const end = await awaitFlight(this, own, seen);
+          if (end === 'ended') {
+            const code = this.ended ?? 'stale';
+            return { ok: false, code, error: code === 'stale' ? 'the scene changed during the flight' : `the flight was left where it was: this request was ${code}` };
+          }
+          if (end.outcome === 'interrupted') {
+            return { ok: false, code: 'interrupted', error: `the person took over the camera before it reached ${end.target ?? 'the destination'}; leaving the view to them` };
+          }
+          if (end.outcome === 'stopped') return { ok: false, code: 'failed', error: `the flight to ${end.target ?? 'the destination'} was stopped by another camera command` };
+          return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.` };
+        }
+        return { ok: true, summary: `${text}: done.` };
+      } finally {
+        offSeen();
+        if (this.ownFlight === own) this.ownFlight = null;
       }
-      return { ok: true, summary: `${text}: done.` };
     }
   }
 

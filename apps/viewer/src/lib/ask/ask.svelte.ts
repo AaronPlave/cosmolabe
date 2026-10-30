@@ -3,11 +3,14 @@
  * viewer through `AgentTools`, and what the panel shows of it.
  *
  * Scoped to the scene. A catalog load stops a running request (its tools
- * refuse a scene they were not planned for) and starts the conversation over,
- * so nothing said about one catalog's objects is applied to the next. Bounded:
- * a conversation holds `MAX_TURNS` requests, then starts over — history is
- * never trimmed in place, because a provider validates a replayed
- * conversation against what it sent.
+ * refuse a scene they were not planned for) and the next request starts a new
+ * conversation, so nothing said about one catalog's objects is applied to the
+ * next. Bounded: a conversation holds `MAX_TURNS` requests, then the next one
+ * starts a new conversation — history is never trimmed in place, because a
+ * provider validates a replayed conversation against what it sent. What the
+ * person sees is not reset by either: earlier requests stay in the panel, and
+ * the first request of a new conversation says why the model starts without
+ * them.
  *
  * Where the model is reached: a transport an embedding host supplies, or the
  * deployment's (`askDeployment`). With neither, `askAvailable()` is false and
@@ -38,17 +41,20 @@ export type AskStatus = 'running' | AgentOutcome['kind'];
 export interface AskTurn {
   readonly id: number;
   readonly prompt: string;
+  /** Set on the first request of a conversation the model started over: why it does not remember the ones above. */
+  readonly fresh: string | null;
   steps: AskStep[];
   reply: string;
   status: AskStatus;
   error: string | null;
 }
 
+/** Requests the panel keeps showing; older ones scroll away for good. */
+const MAX_SHOWN = 50;
+
 export const ask = $state({
   turns: [] as AskTurn[],
   running: false,
-  /** A line about the conversation itself: it started over, and why. */
-  notice: null as string | null,
 });
 resettable(ask);
 
@@ -92,18 +98,20 @@ const agentTools = () => (tools ??= createAgentTools(getCosmo(), { formatTime: e
 
 let history: AgentMessage[] = [];
 let historyScene = -1;
+/** Requests in the conversation the model currently remembers. */
+let conversationTurns = 0;
 let task: AgentTask | null = null;
 let running: Promise<unknown> | null = null;
 let turnSeq = 0;
 /** Bumped whenever the conversation is replaced, so a run that ends late cannot write into the new one. */
 let conversation = 0;
 
-function startOver(notice: string | null) {
+/** The model forgets what was said; what the panel shows stays. */
+function startOver() {
   conversation++;
   history = [];
   historyScene = sceneId();
-  ask.turns = [];
-  ask.notice = notice;
+  conversationTurns = 0;
 }
 
 /**
@@ -121,12 +129,20 @@ export async function submitAsk(prompt: string): Promise<void> {
   await running; // its messages are complete once it settles
   if (task !== mine) return; // superseded again while waiting
 
-  if (historyScene !== sceneId()) startOver(history.length ? 'A new scene loaded, so the conversation started over.' : null);
-  else if (ask.turns.length >= MAX_TURNS) startOver(`The conversation reached ${MAX_TURNS} requests and started over.`);
+  let fresh: string | null = null;
+  if (historyScene !== sceneId()) {
+    if (ask.turns.length > 0) fresh = 'A new scene loaded, so the model starts without the requests above.';
+    startOver();
+  } else if (conversationTurns >= MAX_TURNS) {
+    fresh = `The model remembers ${MAX_TURNS} requests at a time, so it starts without the ones above.`;
+    startOver();
+  }
 
   const mineConversation = conversation;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, steps: [], reply: '', status: 'running', error: null };
+  conversationTurns++;
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', status: 'running', error: null };
   ask.turns.push(turn);
+  if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
   ask.running = true;
 
@@ -170,7 +186,8 @@ export function stopAsk() {
 /** Forget the conversation. */
 export function clearAsk() {
   stopAsk();
-  startOver(null);
+  startOver();
+  ask.turns = [];
 }
 
 // A scene replaced under a running request ends it: its tools already refuse

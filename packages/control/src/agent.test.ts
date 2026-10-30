@@ -16,7 +16,7 @@ function land(host: FakeViewer, outcome: 'arrived' | 'stopped' | 'interrupted') 
   const flight = host.flight!;
   host.flight = null;
   if (outcome === 'arrived') host.tracked = flight.target;
-  host.emit('flightEnd', { target: flight.target, path: flight.path, outcome });
+  host.emit('flightEnd', { id: flight.id, target: flight.target, path: flight.path, outcome });
 }
 
 const FLIGHT_5: ScriptActivity = {
@@ -187,6 +187,80 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     tools.cancel();
     expect(fail(await pending)).toMatchObject({ code: 'cancelled' });
     expect(host.calls).toContain('stopFlight()');
+  });
+
+  it('waits for its own flight, not for another command\'s end', async () => {
+    const host = new FakeViewer();
+    const task = createAgentTools(host).begin();
+    const pending = task.call('flyTo', { object: 'Titan' });
+    await tick();
+    const own = host.flight!.id;
+    // A host's flight ends (a different id): it is not this wait's end.
+    host.emit('flightEnd', { id: own + 100, target: 'Saturn', path: 'direct', outcome: 'arrived' });
+    await tick();
+    let settled = false;
+    void pending.then(() => { settled = true; });
+    await tick();
+    expect(settled).toBe(false);
+    land(host, 'arrived');
+    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.' });
+  });
+
+  it('reports its flight stopped when another command replaces it, and does not wait on the replacement', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const task = tools.begin();
+    const pending = task.call('flyTo', { object: 'Titan' });
+    await tick();
+    const own = host.flight!;
+    // A host starts its own flight; the agent's ends as stopped.
+    host.flyTo('Saturn');
+    host.emit('flightEnd', { id: own.id, target: own.target, path: own.path, outcome: 'stopped' });
+    expect(fail(await pending)).toMatchObject({ code: 'failed', error: expect.stringContaining('stopped by another camera command') });
+  });
+
+  it('does not wait on a flight it did not start', async () => {
+    const host = new FakeViewer();
+    host.flyTo('Saturn'); // the host's own flight, already playing
+    const task = createAgentTools(host).begin();
+    // jumpTo starts no flight; the one playing is not this call's.
+    expect(await task.call('jumpTo', { object: 'Titan' })).toMatchObject({ ok: true, summary: 'jumpTo Titan: done.' });
+  });
+
+  it('Stop ends the request only when no flight is its own', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const task = tools.begin();
+    // The model is still thinking when the host starts a flight.
+    host.flyTo('Saturn');
+    const flight = host.flight!.id;
+    tools.cancel();
+    expect(host.calls).not.toContain('stopFlight()');
+    expect(host.flight?.id).toBe(flight);
+    expect(fail(await task.call('select', { object: 'Titan' }))).toMatchObject({ code: 'cancelled' });
+  });
+
+  it('Stop does not stop a flight a host started after the task\'s own had ended', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const task = tools.begin();
+    const pending = task.call('flyTo', { object: 'Titan' });
+    await tick();
+    land(host, 'arrived');
+    await pending;
+    host.flyTo('Saturn');
+    tools.cancel();
+    expect(host.calls).not.toContain('stopFlight()');
+    expect(host.flight?.target).toBe('Saturn');
+  });
+
+  it('refuses a place ref in a scene that replaced the one it was read from, even when the new scene reuses the ref', async () => {
+    const host = new FakeViewer();
+    const task = createAgentTools(host).begin();
+    const place = host.places[0];
+    host.scene = { id: 2, catalog: 'Other', ready: true }; // same layer and feature ids, a different catalog
+    expect(fail(await task.call('gotoPlace', { place: place.ref }))).toMatchObject({ code: 'stale' });
+    expect(host.calls.filter((c) => c.startsWith('gotoPlace'))).toEqual([]);
   });
 
   it('refuses to act on a scene loaded after the task began', async () => {

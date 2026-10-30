@@ -64,11 +64,11 @@ Every call resolves to `{ ok: true, summary, data? }` or `{ ok: false, code, err
 
 Calls belong to a **task**. `begin()` starts one per request, and `call(name, input)` is a one-call task.
 
-- **Observed completion.** A camera tool that starts a flight returns when the flight ends (`flightEnd`), and reports `arrived`, `interrupted` or `stopped`.
+- **Observed completion.** A camera tool that starts a flight owns that flight, by its id (`getFlight().id`, which `flightEnd` reports back). It returns when that flight ends, and reports `arrived`, `interrupted` or `stopped`. The end of any other flight, started by a host, a person or another request, does not resolve it, and a camera tool that starts no flight (`jumpTo`) waits for none.
 - **One scene, several drivers.** People, a host and an agent all control the same viewer state. A new task supersedes the running one: its flight wait ends, and its later calls return `superseded`. The flight itself continues unless the newer task moves the camera, as a newer command from a person would.
 - **Manual takeover wins.** When a person's drag, zoom or key interrupts a flight, the task's remaining camera tools return `interrupted` instead of re-asserting the view. Its other tools still run. Nothing is retried.
-- **Scene guards.** A task holds the `getScene().id` it began with. Once a catalog loads or reloads, every call returns `stale`, and a pending flight wait ends.
-- **Cancel** (`task.cancel()`, `tools.cancel()`) stops a flight the task is waiting on, where it is. Nothing else is undone.
+- **Scene guards.** A task holds the `getScene().id` it began with. Once a catalog loads or reloads, every call returns `stale` before anything runs, and a pending flight wait ends. This check is the adapter's, made on every call, so a place ref or layer id that a new catalog happens to reuse can never act on the new scene. Direct `ViewerControl` callers get the same guard from the `scene` option of the actions that take such an ID (see `docs/scripting.md`).
+- **Cancel** (`task.cancel()`, `tools.cancel()`) stops the flight the task started, where it is, if that flight is still the one playing. A flight a person or host started since, or one the task never started, is left alone: Stop then only ends the request. Nothing else is undone.
 
 Host clock and selection ownership is unchanged. Agent writes go through `ViewerControl` like any other viewer-side write, so a host mirroring `time` sees them with `cause: 'viewer'`, and its own `cause: 'host'` echoes stay filterable as before.
 
@@ -94,7 +94,7 @@ non-2xx           { error: { message } }
 
 `AGENT_WIRE_VERSION` in `@cosmolabe/control` is the version. Content blocks are `text`, `tool_use`, `tool_result` and `provider`. A `text` or `tool_use` block may carry `raw`, the provider's own form of the block. The server that translated a block is the one that reads `raw` and `provider` back, so the viewer never interprets them. The transport checks the version and the shape of every reply before the loop acts on it. Tests use mock transports.
 
-The provider is chosen on the server. The server holds the key, picks the model and translates the wire format to the provider's API. Switching providers or models is a server change. The viewer doesn't change.
+The provider is chosen on the server. The server holds the key, picks the model and translates the wire format to the provider's API. Switching providers or models is a server change. The viewer doesn't change. The example proxy translates to the Anthropic Messages API and to the OpenAI Responses API.
 
 ## Ask Cosmolabe in the viewer
 
@@ -104,27 +104,46 @@ The prompt exists only when a model proxy is configured. Otherwise the standalon
 | --- | --- |
 | `VITE_ASK_ENDPOINT` | A model proxy speaking the wire format. Relative URLs resolve against the page. |
 
-No key or model setting ever goes into the bundle, development included. `examples/ask-proxy/server.mjs` is a zero-dependency proxy for the Anthropic Messages API, written to be adapted:
+No key or model setting ever goes into the bundle, development included. `examples/ask-proxy/server.mjs` is a zero-dependency proxy, written to be adapted. **It is for development and trusted hosts only.**
 
 ```bash
 ANTHROPIC_API_KEY=… ALLOW_ORIGIN=http://localhost:5173 node examples/ask-proxy/server.mjs
 ```
 
 ```bash
+ASK_PROVIDER=openai OPENAI_API_KEY=… ALLOW_ORIGIN=http://localhost:5173 node examples/ask-proxy/server.mjs
+```
+
+```bash
 VITE_ASK_ENDPOINT=http://localhost:8787 npm run dev
 ```
+
+| Variable | Meaning |
+| --- | --- |
+| `ASK_PROVIDER` | `anthropic` (default) or `openai`. |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | The key for the chosen provider. |
+| `ALLOW_ORIGIN` | Comma-separated origins allowed to call. Required. |
+| `ASK_MODEL` | Default `claude-sonnet-5-5` or `gpt-5.1`. |
+| `MAX_TOKENS` | Cap per reply. Default 4096. |
+| `ASK_REASONING_EFFORT` | OpenAI only: `reasoning.effort`, when set. |
+| `RATE_PER_MINUTE` | Requests per client address. Default 20. |
+| `TOKEN_BUDGET` | Input plus output tokens the process spends before it answers 429. Default 2,000,000; 0 for none. |
 
 The proxy:
 
 - accepts only `POST /` from the allowed origins
-- builds the provider request itself, so a client cannot choose the model (`ASK_MODEL`, default `claude-opus-5-5`), raise the token cap (`MAX_TOKENS`), or add server tools or MCP servers
-- sends only the client tools the viewer defined, and enables the API's server-side refusal fallback
+- builds the provider request itself, so a client cannot choose the model, raise the token cap, or add provider tools (web search, code interpreter) or MCP servers, and it sends only the client function tools the viewer defined
+- bounds the request: at most 200 messages, 64 tools and a 20,000-character system prompt
+- keeps the conversation at the viewer. Anthropic requests carry the model's own blocks back verbatim and enable the API's server-side refusal fallback. OpenAI requests are stateless (`store: false`) and carry the model's own output items back, with encrypted reasoning, so nothing is kept at the provider
 - replaces the provider's error bodies with a one-line message, and reports a rejected key as a 502 from the proxy rather than as the viewer's credentials problem
-- rate-limits each client address (`RATE_PER_MINUTE`)
+- ends the upstream call when the viewer goes away (Stop, or closing the panel)
+- logs a usage line per request and stops at its token budget
 
-Put real authentication and quotas in front of it before exposing it.
+This is not a public service. Origin allowlisting and an address rate limit are not authentication: a non-browser client can send any `Origin`, the client supplies the system prompt, messages and tools, and whoever reaches the endpoint spends the key's budget on arbitrary inference. Before exposing it, put caller authentication, per-user quotas and cost ceilings in front of it, and enforce the tool and prompt policy on the server rather than trusting the request.
 
-The panel is a normal shell panel: dock, float, minimize, close. Each request shows every step the viewer ran, as the equivalent verb line with a check or a cross. A failed step shows the viewer's own refusal, and a successful read shows its data one click away. The model's short reply comes after the steps.
+Both translations are tested against scripted upstreams (`examples/ask-proxy/*.test.mjs`): multi-turn tool use, replay of the provider's own blocks, errors and cancellation. They have not been run against the live APIs from CI; check a real key against the demos before relying on either.
+
+The panel is a normal shell panel: dock, float, minimize, close. Each request shows the model's short reply and a one-line count of what the viewer did, such as "3 actions, 1 refused". Opening it lists every action as the equivalent verb line with a check or a cross, the viewer's own result or refusal, and, for a read, its data one more click away.
 
 - **Stop** ends the request and leaves a flight where it is.
 - **Closing the panel** stops the request. Minimizing does not.
@@ -132,9 +151,10 @@ The panel is a normal shell panel: dock, float, minimize, close. Each request sh
 
 Conversation scope:
 
-- A conversation holds 12 requests, then starts over, with a note in the panel.
-- A catalog load stops a running request and starts the next request in a fresh conversation, so nothing about one catalog's objects is applied to another.
-- Clear forgets the conversation.
+- The model remembers 12 requests, then the next request starts a new conversation. The panel keeps showing the earlier requests, with a divider saying why the model starts without them.
+- A catalog load stops a running request, and the next request starts a new conversation (also marked by a divider), so nothing about one catalog's objects is applied to another.
+- The panel shows the last 50 requests.
+- Clear forgets the conversation and empties the panel.
 - Nothing is stored. A reload forgets the conversation.
 
 ## In an embed
