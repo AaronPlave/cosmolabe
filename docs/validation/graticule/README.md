@@ -2,6 +2,18 @@
 
 This refresh integrates main `097f92ab` (including #305). Regional border ticks remain opt-in. This is implementation and diagnostic evidence, **not merge approval**.
 
+## Close-range Mars line precision
+
+The reported Ingenuity/Jezero permalink reproduces stippled, fuzzy graticule lines with the previous shader (`30017019`). Interpolating full planet-sized positions and evaluating absolute angles in GPU float precision quantizes the line location and its screen derivatives at close range.
+
+The shader now interpolates camera-relative offsets. It evaluates latitude/longitude differences around a CPU double-precision camera reference and adds a separately reduced lattice phase for each current/previous major/detail spacing. The ellipsoid correction uses stable differences of `N*sin(latitude)`; longitude derivatives still use a unit vector across the seam. Horizon direction also uses the local offset. This preserves the geographic lattice, existing widths/opacity/congestion, material identity, and physical geometry. Reference conversion is cached for stationary cameras.
+
+- Hardware Chrome / Apple M4 Max / ANGLE Metal: the exact saved camera and ET show stippling [before](mars-precision/before.png) and continuous lines [after](mars-precision/after.png), with the same 137 active terrain tiles and matching grid steps. Both captures wait for physical terrain/imagery readiness and reapply the exact saved pose; no geometry or catalog substitution is used.
+- Independent GPU float-target readback checks 4,096 points on each of three small planar patches against the canonical CPU coordinate converter: Mars ellipsoid, southern lunar pole, and Earth near the longitude seam. All pass the 2 cm numerical-error threshold. These patches test shader arithmetic; this is not a terrain accuracy or registration claim.
+- Actual Apollo and Shackleton presets pass the existing lunar browser regression in both surface-caption and border-tick modes, with no page/shader errors.
+- 127 focused tests in six suites pass at the normal timeout, including a new sub-metre Mars phase/density-change regression, material/fade/eviction checks, graticule layouts, terrain lifecycle, imagery and Surface Appearance. Package build, test typecheck, changed-file ESLint and diff-check pass.
+- Reproduce with `GRID_BASELINE=/tmp/graticule-before.ts node scripts/graticule-mars-precision-validation.mjs`, after saving `git show 30017019:packages/three/src/GraticuleShader.ts` to that baseline file. Without `GRID_BASELINE`, it tests the current shader only. [Results](mars-precision/report.json).
+
 ## Caption distribution, contrast and opacity
 
 Regional surface captions now have neighboring fixed ruler bands, with two-step band spacing and the existing caption strides. Admission and the bounded terrain-query schedule favor both coordinate axes and screen separation, with a preference for visible incumbents. Geographic sites stay fixed. Candidate discovery remains bounded to 96; terrain still has eight queries and at most three captions per body/update. Unsupported or blocked sites are withheld, with a short negative-only cooldown so they cannot starve discovery of another site. Positive geometry certification is still required every frame.

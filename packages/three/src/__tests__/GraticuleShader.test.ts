@@ -40,7 +40,7 @@ describe('graticule surface materials', () => {
       expect(mesh.material).toBe(material);
       expect(material.defines!.FEATURE_FADE).toBe(1);
       expect(shader.uniforms.fadeIn.value).toBe(0.25);
-      expect(shader.vertexShader).toContain('uGridViewToBody * modelViewMatrix');
+      expect(shader.vertexShader).toContain('mat3(uGridViewToBody) * (modelViewMatrix');
       expect(shader.fragmentShader).toContain('mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible * uGridOpacity)');
       plugin._fadeMaterialManager.setFade(scene, 1, 0);
       expect(shader.uniforms.fadeIn.value).toBe(1);
@@ -101,5 +101,37 @@ it('attaches by the Three mesh capability flag across module boundaries', () => 
   expect(mesh.isMesh).toBe(true);
   applyGraticuleToScene(mesh, makeGraticuleUniforms(coordinates), new THREE.Matrix4());
   expect(compile(mesh.material).uniforms.uGridOpacity).toBeDefined();
+  mesh.geometry.dispose(); mesh.material.dispose();
+});
+
+it('preserves sub-metre Mars lattice phase when the camera or density changes', async () => {
+  const { surfacePositionToBodyFixed } = await import('@cosmolabe/core');
+  const mars = bodySurfaceCoordinates(new Body({ name: 'Mars', trajectory: new FixedPointTrajectory([0, 0, 0]),
+    radii: [3396.19, 3396.19, 3376.2], geometryType: 'Globe' }))!;
+  const uniforms = makeGraticuleUniforms(mars);
+  uniforms.uGridStep.value.set(0.005, 0.001);
+  uniforms.uGridDetailStep.value.set(0.001, 0.0002);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  const scene = new THREE.Scene(); scene.add(mesh);
+  const camera = new THREE.PerspectiveCamera();
+  applyGraticuleToScene(mesh, uniforms, new THREE.Matrix4());
+  const shader = compile(mesh.material);
+  for (const latitude of [18.6360001, 18.6360011]) {
+    const longitude = 77.4480001;
+    const p = surfacePositionToBodyFixed({ latDeg: latitude, lonDeg: longitude, heightKm: -2.5 }, mars);
+    camera.position.set(p.xKm, p.yKm, p.zKm); camera.updateMatrixWorld(true);
+    mesh.material.onBeforeRender(renderer, scene, camera, mesh.geometry, mesh, new THREE.Group());
+    const phase = shader.uniforms.uGridPhase.value as THREE.Vector2;
+    expect(phase.x).toBeCloseTo(latitude % 0.005, 11);
+    expect(phase.y).toBeCloseTo(longitude % 0.001, 11);
+    // A full absolute longitude rounded to GPU float loses this phase.
+    expect(Math.abs(phase.y - Math.fround(longitude) % 0.001)).toBeGreaterThan(1e-6);
+    // Density transitions must refresh all four phases even at a stationary pose.
+    uniforms.uGridPreviousStep.value.set(0.01, 0.005);
+    uniforms.uGridDetailStep.value.set(0.0002, 0.0002);
+    mesh.material.onBeforeRender(renderer, scene, camera, mesh.geometry, mesh, new THREE.Group());
+    expect(shader.uniforms.uGridPreviousPhase.value.y).toBeCloseTo(longitude % 0.005, 11);
+    expect(shader.uniforms.uGridDetailPhase.value.x).toBeCloseTo(latitude % 0.0002, 11);
+  }
   mesh.geometry.dispose(); mesh.material.dispose();
 });

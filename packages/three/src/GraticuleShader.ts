@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { SurfaceCoordinates } from '@cosmolabe/core';
+import { bodyFixedToSurfacePosition, type SurfaceCoordinates } from '@cosmolabe/core';
 
 // Shared presentation thresholds for surface lines and fixed-site labels.
 export const GRID_AUTO_STEPS = [30, 10, 5, 1, 0.2, 0.1, 0.02, 0.01, 0.005, 0.001] as const;
@@ -34,14 +34,16 @@ type Shader = { vertexShader: string; fragmentShader: string; uniforms: Record<s
 /** Rendered-mesh registration: no shell, no additional terrain residency. */
 export function injectGraticule(shader: Shader, uniforms: GraticuleUniforms): void {
   Object.assign(shader.uniforms, uniforms);
-  shader.vertexShader = `uniform mat4 uGridViewToBody;\nvarying vec3 vGridBody;\n` + shader.vertexShader;
+  shader.vertexShader = `uniform mat4 uGridViewToBody;\nvarying vec3 vGridOffset;\n` + shader.vertexShader;
   // modelViewMatrix is uploaded by Three.js for every object, including objects
-  // sharing a material. Both transforms are composed on the CPU before upload.
-  shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vGridBody = (uGridViewToBody * modelViewMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+  // sharing a material. Keep the body origin out of the interpolated varying.
+  shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vGridOffset = mat3(uGridViewToBody) * (modelViewMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
   shader.fragmentShader = `
-varying vec3 vGridBody;
+varying vec3 vGridOffset;
 uniform mat4 uGridViewToBody;
-uniform vec3 uGridShape;
+uniform vec3 uGridShape, uGridOrigin;
+uniform vec4 uGridReference;
+uniform vec2 uGridOriginAngles, uGridPhase, uGridPreviousPhase, uGridDetailPhase, uGridPreviousDetailPhase;
 uniform vec2 uGridStep, uGridPreviousStep, uGridDetailStep, uGridPreviousDetailStep;
 uniform float uGridHierarchy, uGridPreviousHierarchy;
 uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio, uGridOpacity;
@@ -58,15 +60,16 @@ float axisLine(vec2 angles, vec2 deriv, vec2 steps, vec2 congestion, float width
   return max(gridLine(angles.x, steps.x, deriv.x, congestion, widthPx),
     gridLine(angles.y, steps.y, deriv.y, congestion, widthPx));
 }
-vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hierarchy) {
+vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, vec2 phase, vec2 detailPhase, float hierarchy) {
   vec2 majorCongestion = vec2(${GRID_PRESENTATION.congestion.join(', ')});
   vec2 detailCongestion = vec2(${GRID_PRESENTATION.detailCongestion.join(', ')});
-  float major = axisLine(angles, deriv, stepSize, majorCongestion, 1.2);
+  float major = axisLine(angles + phase, deriv, stepSize, majorCongestion, 1.2);
   float opacity = major * mix(0.22, 0.17, hierarchy);
   // Fifth-step lines give every major cell the same quiet subdivision. They
   // carry no coordinate labels; the major lines remain the readable ruler.
-  float minor = axisLine(angles, deriv, detailStep, detailCongestion, 0.6);
+  float minor = axisLine(angles + detailPhase, deriv, detailStep, detailCongestion, 0.6);
   opacity = max(opacity, minor * uGridMinor * mix(0.065, 0.055, hierarchy));
+  angles += uGridOriginAngles;
   float equator = 1.0 - smoothstep(deriv.x * 0.25, deriv.x * 0.85, abs(angles.x));
   float prime = (1.0 - smoothstep(deriv.y * 0.25, deriv.y * 0.85, abs(angles.y)))
     * smoothstep(majorCongestion.x, majorCongestion.y, stepSize.y / deriv.y);
@@ -78,27 +81,42 @@ vec4 gridColor(vec2 angles, vec2 deriv, vec2 stepSize, vec2 detailStep, float hi
 ` + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
 if (uGridVisible > 0.0) {
-  vec3 p = vGridBody;
-  float rxy = length(p.xy);
-  float lat = atan(p.z, max(rxy, 0.0000001));
+  // Interpolate camera-relative offsets, never planet-sized coordinates.
+  // Compute angular differences before adding the CPU-reduced lattice phase.
+  vec3 p = uGridOrigin + vGridOffset;
+  float r0 = length(uGridOrigin.xy);
+  vec2 east = r0 > 0.0 ? uGridOrigin.xy / r0 : vec2(1.0, 0.0);
+  float along = dot(vGridOffset.xy, east);
+  float across = dot(vGridOffset.xy, vec2(-east.y, east.x));
+  float r = length(vec2(r0 + along, across));
+  float dr = (2.0 * r0 * along + dot(vGridOffset.xy, vGridOffset.xy)) / max(r + r0, 0.0000001);
+  float sin0 = uGridReference.x, cos0 = uGridReference.y;
+  float north = vGridOffset.z * cos0 - dr * sin0;
+  float radial = uGridReference.z + dr * cos0 + vGridOffset.z * sin0;
+  float deltaLat = atan(north, radial);
   if (uGridShape.z > 0.5) {
     float e2 = 1.0 - pow(uGridShape.y / uGridShape.x, 2.0);
-    lat = atan(p.z, max(rxy * (1.0 - e2), 0.0000001));
+    float root0 = sqrt(1.0 - e2 * sin0 * sin0);
     for (int i = 0; i < 8; i++) {
-      float n = uGridShape.x / sqrt(1.0 - e2 * sin(lat) * sin(lat));
-      lat = atan(p.z + e2 * n * sin(lat), max(rxy, 0.0000001));
+      // Stable differences of N*sin(latitude) around the CPU reference.
+      float halfSin = sin(deltaLat * 0.5);
+      float ds = -2.0 * sin0 * halfSin * halfSin + cos0 * sin(deltaLat);
+      float sine = sin0 + ds;
+      float root = sqrt(1.0 - e2 * sine * sine);
+      float n = uGridShape.x / root;
+      float dn = uGridReference.w * e2 * ds * (2.0 * sin0 + ds) / (root * (root0 + root));
+      float correction = e2 * (dn * sin0 + n * ds);
+      deltaLat = atan(north + correction * cos0, radial + correction * sin0);
     }
   }
-  float lon = atan(p.y, p.x);
-  vec2 angles = vec2(lat, lon) * 57.29577951308232;
-  // Differentiate the longitude unit vector, not atan across its +/-180 seam.
-  vec2 unitLon = vec2(cos(lon), sin(lon));
+  float deltaLon = atan(across, r0 + along);
+  vec2 angles = vec2(deltaLat, deltaLon) * 57.29577951308232;
+  vec2 unitLon = vec2(cos(deltaLon), sin(deltaLon));
   vec2 deriv = vec2(fwidth(angles.x), (length(dFdx(unitLon)) + length(dFdy(unitLon))) * 57.29577951308232);
   deriv = max(deriv * uGridPixelRatio, vec2(0.0000001));
-  vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep, uGridPreviousDetailStep, uGridPreviousHierarchy), gridColor(angles, deriv, uGridStep, uGridDetailStep, uGridHierarchy), uGridBlend);
+  vec4 grid = mix(gridColor(angles, deriv, uGridPreviousStep, uGridPreviousDetailStep, uGridPreviousPhase, uGridPreviousDetailPhase, uGridPreviousHierarchy), gridColor(angles, deriv, uGridStep, uGridDetailStep, uGridPhase, uGridDetailPhase, uGridHierarchy), uGridBlend);
   vec3 bodyNormal = normalize(p / vec3(uGridShape.x * uGridShape.x, uGridShape.x * uGridShape.x, uGridShape.y * uGridShape.y));
-  vec3 eye = (uGridViewToBody * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-  float horizon = smoothstep(${GRID_PRESENTATION.horizon[0]}, ${GRID_PRESENTATION.horizon[1]}, dot(bodyNormal, normalize(eye - p)));
+  float horizon = smoothstep(${GRID_PRESENTATION.horizon[0]}, ${GRID_PRESENTATION.horizon[1]}, dot(bodyNormal, normalize(-vGridOffset)));
   outgoingLight = mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible * uGridOpacity);
 }
 #include <opaque_fragment>`);
@@ -110,17 +128,45 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   if (graticuleMaterials.has(material)) return;
   graticuleMaterials.add(material);
   material.userData.graticule = true;
-  const localUniforms = { ...uniforms, uGridViewToBody: { value: new THREE.Matrix4() } };
+  const localUniforms = { ...uniforms, uGridViewToBody: { value: new THREE.Matrix4() },
+    uGridOrigin: { value: new THREE.Vector3() }, uGridReference: { value: new THREE.Vector4() },
+    uGridOriginAngles: { value: new THREE.Vector2() },
+    uGridPhase: { value: new THREE.Vector2() }, uGridPreviousPhase: { value: new THREE.Vector2() },
+    uGridDetailPhase: { value: new THREE.Vector2() }, uGridPreviousDetailPhase: { value: new THREE.Vector2() },
+  };
   const compile = material.onBeforeCompile.bind(material);
   const previousKey = material.customProgramCacheKey.bind(material);
   const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
   const key = previousKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v9';
+  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v10';
+  const shape = uniforms.uGridShape.value;
+  const coordinates: SurfaceCoordinates = {
+    frame: '', latitudeType: shape.z > 0.5 ? 'geodetic' : 'planetocentric', positiveLongitude: 'east', longitudeDomain: 'signed',
+    datum: { referenceShape: { kind: 'ellipsoid', radiiKm: [shape.x, shape.x, shape.y] }, verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' },
+  };
+  const previousOrigin = new THREE.Vector3(NaN, NaN, NaN);
+  const setPhase = (phase: THREE.Vector2, step: THREE.Vector2, lat: number, lon: number) => phase.set(lat % step.x, lon % step.y);
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);
     localUniforms.uGridViewToBody.value.multiplyMatrices(bodyFromWorld, camera.matrixWorld);
+    const origin = localUniforms.uGridOrigin.value.setFromMatrixPosition(localUniforms.uGridViewToBody.value);
+    let { x: latDeg, y: lonDeg } = localUniforms.uGridOriginAngles.value;
+    if (!origin.equals(previousOrigin)) {
+      previousOrigin.copy(origin);
+      const position = bodyFixedToSurfacePosition({ xKm: origin.x, yKm: origin.y, zKm: origin.z }, coordinates);
+      latDeg = position.latDeg; lonDeg = position.lonDeg;
+      const lat = latDeg * Math.PI / 180, sin = Math.sin(lat), cos = Math.cos(lat);
+      const e2 = shape.z > 0.5 ? 1 - (shape.y / shape.x) ** 2 : 0;
+      const n = shape.x / Math.sqrt(1 - e2 * sin * sin);
+      localUniforms.uGridReference.value.set(sin, cos, Math.hypot(origin.x, origin.y) * cos + origin.z * sin + e2 * n * sin * sin, n);
+      localUniforms.uGridOriginAngles.value.set(latDeg, lonDeg);
+    }
+    setPhase(localUniforms.uGridPhase.value, uniforms.uGridStep.value, latDeg, lonDeg);
+    setPhase(localUniforms.uGridPreviousPhase.value, uniforms.uGridPreviousStep.value, latDeg, lonDeg);
+    setPhase(localUniforms.uGridDetailPhase.value, uniforms.uGridDetailStep.value, latDeg, lonDeg);
+    setPhase(localUniforms.uGridPreviousDetailPhase.value, uniforms.uGridPreviousDetailStep.value, latDeg, lonDeg);
   };
   material.needsUpdate = true;
 }

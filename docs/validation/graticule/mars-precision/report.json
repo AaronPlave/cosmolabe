@@ -1,0 +1,431 @@
+{
+  "passed": true,
+  "errors": [],
+  "captures": [
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "metrics": {
+        "latitudeStep": 0.001,
+        "longitudeStep": 0.001,
+        "labels": 2
+      },
+      "network": {
+        "requests": 194,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 127,
+        "pinnedTextures": 6,
+        "textureBytes": 704522625,
+        "inFlight": 0,
+        "failedTiles": 0,
+        "maxTextureBytes": 1006632960,
+        "requests": 128,
+        "bytes": 114299628,
+        "failures": 0,
+        "aborted": 1,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 48,
+        "splitTiles": 0,
+        "blocks": 146,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 8,
+          "1": 6,
+          "2": 22,
+          "3": 16,
+          "4": 14,
+          "5": 2,
+          "6": 11,
+          "7": 8,
+          "8": 4,
+          "9": 11,
+          "10": 7,
+          "11": 8,
+          "12": 3,
+          "13": 6,
+          "14": 8
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 2,
+          "2": 16,
+          "3": 2,
+          "4": 4,
+          "5": 1,
+          "6": 7,
+          "7": 6,
+          "8": 2,
+          "9": 7,
+          "10": 9,
+          "11": 9,
+          "12": 7,
+          "13": 3,
+          "14": 7
+        },
+        "fallbackBlocks": 0,
+        "failedBlocks": 0,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 14,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.399999976158142,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 381.39999997615814,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      },
+      "camera": [
+        0.0031717942747424032,
+        -0.0011136413974233118,
+        -0.00045271284260603624
+      ],
+      "visibleTiles": 137,
+      "programs": [
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": "gunmetal"
+        },
+        {
+          "name": "chopper_sp"
+        },
+        {
+          "name": "foil_silver"
+        },
+        {
+          "name": "carbon fiber"
+        },
+        {
+          "name": "binoculars"
+        },
+        {
+          "name": "blades"
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        }
+      ],
+      "shaderModules": [
+        "http://127.0.0.1:5188/@fs/Users/aplave/code/cosmolabe-dupe-1/packages/three/src/GraticuleShader.ts?t=1793387762416"
+      ],
+      "kind": "before"
+    },
+    {
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "metrics": {
+        "latitudeStep": 0.001,
+        "longitudeStep": 0.001,
+        "labels": 2
+      },
+      "network": {
+        "requests": 194,
+        "queued": 0,
+        "downloading": 0,
+        "parsing": 0,
+        "failed": 0
+      },
+      "imagery": {
+        "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+        "ready": true,
+        "textures": 129,
+        "pinnedTextures": 6,
+        "textureBytes": 715794987,
+        "inFlight": 0,
+        "failedTiles": 3,
+        "maxTextureBytes": 1006632960,
+        "requests": 132,
+        "bytes": 112439330,
+        "failures": 3,
+        "aborted": 0,
+        "evicted": 0,
+        "blockBuildMs": 0,
+        "count": 0,
+        "budgetLimited": false,
+        "queued": 0,
+        "tiles": 48,
+        "splitTiles": 0,
+        "blocks": 146,
+        "extraDraws": 0,
+        "displayedLevels": {
+          "0": 9,
+          "1": 6,
+          "2": 21,
+          "3": 16,
+          "4": 14,
+          "5": 2,
+          "6": 11,
+          "7": 8,
+          "8": 4,
+          "9": 11,
+          "10": 7,
+          "11": 8,
+          "12": 3,
+          "13": 6,
+          "14": 8
+        },
+        "wantedLevels": {
+          "0": 4,
+          "1": 2,
+          "2": 16,
+          "3": 2,
+          "4": 4,
+          "5": 1,
+          "6": 7,
+          "7": 6,
+          "8": 2,
+          "9": 7,
+          "10": 9,
+          "11": 9,
+          "12": 7,
+          "13": 3,
+          "14": 7
+        },
+        "fallbackBlocks": 1,
+        "failedBlocks": 1,
+        "untexturedBlocks": 0,
+        "baseUncoveredBlocks": 0,
+        "maxDisplayedLevel": 14,
+        "committedGroups": 0,
+        "waitingGroups": 0,
+        "updateMs": 1.5,
+        "blockGeometryBytes": 0,
+        "transitionTextureBytes": 22544724,
+        "protectedOverBudgetBytes": 0,
+        "gpuAllocatedBytes": 1025801326,
+        "uploadMs": 371.0000009536743,
+        "gpuError": null,
+        "inheritedGlErrors": []
+      },
+      "camera": [
+        0.0031717942747424032,
+        -0.0011136413974233118,
+        -0.00045271284260603624
+      ],
+      "visibleTiles": 137,
+      "programs": [
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": "gunmetal"
+        },
+        {
+          "name": "chopper_sp"
+        },
+        {
+          "name": "foil_silver"
+        },
+        {
+          "name": "carbon fiber"
+        },
+        {
+          "name": "binoculars"
+        },
+        {
+          "name": "blades"
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        },
+        {
+          "name": ""
+        }
+      ],
+      "shaderModules": [
+        "http://127.0.0.1:5188/@fs/Users/aplave/code/cosmolabe-dupe-1/packages/three/src/GraticuleShader.ts?t=1793387762416"
+      ],
+      "kind": "after"
+    }
+  ],
+  "gpuPrecision": [
+    {
+      "name": "Mars",
+      "samples": 4096,
+      "maxErrorM": 2.8795302885773643e-05
+    },
+    {
+      "name": "Moon",
+      "samples": 4096,
+      "maxErrorM": 2.0494807093111603e-05
+    },
+    {
+      "name": "Earth",
+      "samples": 4096,
+      "maxErrorM": 2.0850413154413224e-05
+    }
+  ],
+  "baseline": "30017019725521302ea6f22e942079b87e3cd0c2",
+  "sourceSha256": "2fd051876338419d99e6d07cce852c521b33c7d68cfcf9bc0f77d3f2493659e1",
+  "limits": "GPU coordinate checks use independent planar patches and the canonical CPU converter. They establish numerical shader precision, not terrain source accuracy or geographic registration. Paired scene captures use the actual streamed Mars terrain at the reported camera pose.",
+  "lunarRegression": {
+    "passed": true,
+    "errors": [],
+    "views": [
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": false,
+        "minLabels": 3,
+        "maxTicks": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "Shackleton Overview",
+        "coordinateFrame": true,
+        "minLabels": 0,
+        "maxTicks": 5,
+        "maxAlignmentPx": 0.012805973979591512,
+        "bothSurfaceAxesFrames": 0
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": false,
+        "minLabels": 3,
+        "maxTicks": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "name": "PSR Floor View",
+        "coordinateFrame": true,
+        "minLabels": 0,
+        "maxTicks": 6,
+        "maxAlignmentPx": 0.007826472684115878,
+        "bothSurfaceAxesFrames": 0
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": false,
+        "minLabels": 3,
+        "maxTicks": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley regional",
+        "coordinateFrame": true,
+        "minLabels": 0,
+        "maxTicks": 4,
+        "maxAlignmentPx": 0.014790366185826296,
+        "bothSurfaceAxesFrames": 0
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": false,
+        "minLabels": 1,
+        "maxTicks": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 0
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Hadley Rille",
+        "coordinateFrame": true,
+        "minLabels": 0,
+        "maxTicks": 4,
+        "maxAlignmentPx": 0.014578672452938072,
+        "bothSurfaceAxesFrames": 0
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": false,
+        "minLabels": 3,
+        "maxTicks": 0,
+        "maxAlignmentPx": 0,
+        "bothSurfaceAxesFrames": 45
+      },
+      {
+        "catalog": "moon-imagery-apollo15",
+        "name": "Apollo 15 landing site",
+        "coordinateFrame": true,
+        "minLabels": 0,
+        "maxTicks": 8,
+        "maxAlignmentPx": 0.015966953503499203,
+        "bothSurfaceAxesFrames": 0
+      }
+    ]
+  },
+  "validation": {
+    "focusedTests": 127,
+    "suites": 6,
+    "normalTimeout": true,
+    "packageBuild": true,
+    "testTypecheck": true,
+    "changedFileEslint": true,
+    "diffCheck": true
+  }
+}
