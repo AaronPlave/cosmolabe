@@ -83,6 +83,7 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     const grid = state.grid;
     lines.push(`setGridScope ${grid.scope}${grid.scope === 'bodies' ? ` ${quote(grid.bodies.join(','))}` : ''}`);
     lines.push(`setGridDensity ${grid.density} ${num(grid.spacingDeg)}`);
+    lines.push(`setGridOpacity ${num(grid.opacity ?? 1)}`);
     lines.push(`setGridLabels ${grid.labels ? 'on' : 'off'}`);
     lines.push(`setGridMinorLines ${grid.minorLines ? 'on' : 'off'}`);
     lines.push(`setGridCoordinateFrame ${grid.coordinateFrame ? 'on' : 'off'}`);

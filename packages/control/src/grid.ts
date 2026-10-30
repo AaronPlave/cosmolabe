@@ -5,6 +5,8 @@ export interface GridSettings {
   scope: 'tracked' | 'bodies' | 'all';
   bodies: string[];
   labels: boolean;
+  /** Overall grid overlay opacity, including coordinate captions, from 0 to 1. */
+  opacity: number;
   density: 'auto' | 'manual';
   spacingDeg: number;
   minorLines: boolean;
@@ -12,7 +14,7 @@ export interface GridSettings {
   perBody: Record<string, { visible?: boolean; labels?: boolean }>;
 }
 export const DEFAULT_GRID_SETTINGS: GridSettings = {
-  scope: 'tracked', bodies: [], labels: true, density: 'auto', spacingDeg: 30, minorLines: false, coordinateFrame: false, perBody: {},
+  scope: 'tracked', bodies: [], labels: true, opacity: 1, density: 'auto', spacingDeg: 30, minorLines: false, coordinateFrame: false, perBody: {},
 };
 export function normalizeGridSettings(value: Partial<GridSettings> = {}): GridSettings {
   const perBody: GridSettings['perBody'] = {};
@@ -24,6 +26,7 @@ export function normalizeGridSettings(value: Partial<GridSettings> = {}): GridSe
     scope: ['tracked', 'bodies', 'all'].includes(value.scope ?? '') ? value.scope! : 'tracked',
     bodies: Array.isArray(value.bodies) ? [...new Set(value.bodies.filter(b => typeof b === 'string'))] : [],
     labels: typeof value.labels === 'boolean' ? value.labels : true,
+    opacity: Number.isFinite(value.opacity) ? Math.max(0, Math.min(1, value.opacity!)) : 1,
     density: value.density === 'manual' ? 'manual' : 'auto',
     spacingDeg: Number.isFinite(value.spacingDeg) ? ANGULAR_GRID_STEPS.reduce((best, step) => Math.abs(step - value.spacingDeg!) < Math.abs(best - value.spacingDeg!) ? step : best, 30 as number) : 30,
     minorLines: value.minorLines === true, coordinateFrame: value.coordinateFrame === true, perBody,

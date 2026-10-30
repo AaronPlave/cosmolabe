@@ -178,7 +178,7 @@ try {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.evaluate(async () => { const shell = await window.gridImport('/src/lib/shell.svelte.ts'); shell.openTool('display'); });
       await page.waitForTimeout(500);
-      const frameToggle = page.getByRole('checkbox', { name: 'Regional coordinate frame', exact: true });
+      const frameToggle = page.getByRole('checkbox', { name: 'Labels at viewport border', exact: true });
       await frameToggle.uncheck(); await frameToggle.check();
       await page.getByRole('combobox', { name: 'Grid density', exact: true }).selectOption('manual');
       await page.getByLabel('Grid angular spacing', { exact: true }).selectOption('5');

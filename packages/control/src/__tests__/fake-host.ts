@@ -224,6 +224,7 @@ export class FakeViewer implements ViewerControl {
   setGridDensity(density: GridSettings['density'], spacingDeg?: number): boolean {
     this.grid = normalizeGridSettings({ ...this.grid, density, spacingDeg }); return true;
   }
+  setGridOpacity(opacity: number): boolean { this.grid = normalizeGridSettings({ ...this.grid, opacity }); return true; }
   setGridLabels(labels: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, labels }); return true; }
   setGridMinorLines(minorLines: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, minorLines }); return true; }
   setGridCoordinateFrame(coordinateFrame: boolean): boolean { this.grid = normalizeGridSettings({ ...this.grid, coordinateFrame }); return true; }

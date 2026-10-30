@@ -99,6 +99,14 @@
         <Checkbox checked={vs.grid.labels} onCheckedChange={() => setGridSettings({ labels: !vs.grid.labels })} class="h-3.5 w-3.5" />
         <span>Coordinate labels</span>
       </label>
+      <label class="ui-body flex items-center gap-2">
+        <span>Opacity</span>
+        <input aria-label="Grid opacity" aria-describedby="grid-opacity-help" type="range" class="fov-slider flex-1 min-w-0"
+          min="0" max="100" step="1" value={Math.round(vs.grid.opacity * 100)}
+          oninput={e => setGridSettings({ opacity: Number(e.currentTarget.value) / 100 })} />
+        <span class="ui-readout min-w-8 text-right">{Math.round(vs.grid.opacity * 100)}%</span>
+      </label>
+      <p id="grid-opacity-help" class="ui-meta text-text-secondary">Fades grid lines and coordinate labels together.</p>
       <label class="ui-body flex items-center justify-between gap-2">
         <span>Target</span>
         <select aria-label="Grid target" class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
@@ -137,9 +145,9 @@
       {/if}
       <label class="ui-body flex items-center gap-2">
         <Checkbox checked={vs.grid.coordinateFrame} onCheckedChange={() => setGridSettings({ coordinateFrame: !vs.grid.coordinateFrame })} class="h-3.5 w-3.5" />
-        <span>Regional coordinate frame</span>
+        <span>Labels at viewport border</span>
       </label>
-      <p class="ui-meta text-text-secondary">Border ticks label major lines in overhead views. Turn off for fixed surface labels.</p>
+      <p class="ui-meta text-text-secondary">In close overhead views, labels move to ticks where grid lines cross the screen border. Turn off for labels at fixed geographic sites on the surface. Zoomed-out views keep surface labels.</p>
       <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
         <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
       </details>

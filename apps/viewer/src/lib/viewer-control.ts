@@ -266,6 +266,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (density === 'manual' && spacingDeg === undefined) return false;
       setGridSettings({ density, ...(spacingDeg === undefined ? {} : { spacingDeg }) }, { persist: false }); return true;
     },
+    setGridOpacity: opacity => {
+      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
+      setGridSettings({ opacity }, { persist: false }); return true;
+    },
     setGridLabels: labels => { setGridSettings({ labels }, { persist: false }); return true; },
     setGridMinorLines: minorLines => { setGridSettings({ minorLines }, { persist: false }); return true; },
     setGridCoordinateFrame: coordinateFrame => { setGridSettings({ coordinateFrame }, { persist: false }); return true; },

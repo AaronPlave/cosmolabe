@@ -25,6 +25,7 @@ export function makeGraticuleUniforms(coordinates: SurfaceCoordinates) {
     uGridBlend: { value: 1 },
     uGridVisible: { value: 0 },
     uGridMinor: { value: 0 },
+    uGridOpacity: { value: 1 },
     uGridPixelRatio: { value: 1 },
   };
 }
@@ -43,7 +44,7 @@ uniform mat4 uGridViewToBody;
 uniform vec3 uGridShape;
 uniform vec2 uGridStep, uGridPreviousStep, uGridDetailStep, uGridPreviousDetailStep;
 uniform float uGridHierarchy, uGridPreviousHierarchy;
-uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio;
+uniform float uGridBlend, uGridVisible, uGridMinor, uGridPixelRatio, uGridOpacity;
 float gridLine(float angle, float stepSize, float derivative, vec2 congestion, float widthPx) {
   float distanceDeg = abs(mod(angle + stepSize * 0.5, stepSize) - stepSize * 0.5);
   float widthDeg = max(derivative, 0.0000001);
@@ -98,7 +99,7 @@ if (uGridVisible > 0.0) {
   vec3 bodyNormal = normalize(p / vec3(uGridShape.x * uGridShape.x, uGridShape.x * uGridShape.x, uGridShape.y * uGridShape.y));
   vec3 eye = (uGridViewToBody * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   float horizon = smoothstep(${GRID_PRESENTATION.horizon[0]}, ${GRID_PRESENTATION.horizon[1]}, dot(bodyNormal, normalize(eye - p)));
-  outgoingLight = mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible);
+  outgoingLight = mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible * uGridOpacity);
 }
 #include <opaque_fragment>`);
 }
@@ -115,7 +116,7 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
   const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
   const key = previousKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v8';
+  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v9';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);
@@ -127,8 +128,11 @@ export function applyGraticuleMaterial(material: THREE.Material, uniforms: Grati
 /** Preserve material identity for tile eviction and fade-plugin registration. */
 export function applyGraticuleToScene(scene: THREE.Object3D, uniforms: GraticuleUniforms, transform: THREE.Matrix4): void {
   scene.traverse(child => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    // Loader meshes may originate from another Three module instance. The
+    // documented capability flag is stable across that boundary.
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const material of materials) {
       applyGraticuleMaterial(material, uniforms, transform);
     }

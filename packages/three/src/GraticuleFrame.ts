@@ -151,8 +151,8 @@ export class GraticuleFrame {
         }
         const ctx = e.canvas.getContext('2d')!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.font = '12px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-        ctx.strokeStyle = '#101725'; ctx.lineWidth = 1; ctx.strokeText(text, x - x0, y - y0); ctx.fillStyle = '#bac8d8'; ctx.fillText(text, x - x0, y - y0);
-        ctx.strokeStyle = '#91a4b9'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(tick.x - x0, tick.y - y0);
+        ctx.strokeStyle = '#101725'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeText(text, x - x0, y - y0); ctx.fillStyle = '#d4dfec'; ctx.fillText(text, x - x0, y - y0);
+        ctx.strokeStyle = '#c4d3e5'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(tick.x - x0, tick.y - y0);
         ctx.lineTo(tick.x - x0 + (tick.edge === 0 ? 6 : tick.edge === 1 ? -6 : 0), tick.y - y0 + (tick.edge === 2 ? 6 : tick.edge === 3 ? -6 : 0)); ctx.stroke();
         e.sprite.material.map!.needsUpdate = true; e.drawingKey = drawingKey; this.textureUploads++;
       }

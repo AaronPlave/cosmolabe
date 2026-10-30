@@ -349,6 +349,22 @@ describe('every verb is wired', () => {
   });
 });
 
+it('validates scripted grid opacity and preserves saved display preferences', () => {
+  const previous = vs.grid, setItem = vi.fn();
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem });
+  try {
+    const control = createViewerControl();
+    expect(control.setGridOpacity!(0.37)).toBe(true);
+    expect(vs.grid.opacity).toBe(0.37);
+    expect(control.snapshot()).toContain('setGridOpacity 0.37');
+    for (const value of [-1, 2, Infinity, NaN]) expect(control.setGridOpacity!(value)).toBe(false);
+    expect(vs.grid.opacity).toBe(0.37);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(control.setGridOpacity!(0)).toBe(true);
+    expect(vs.grid.opacity).toBe(0);
+  } finally { vs.grid = previous; }
+});
+
 describe('circleCenter', () => {
   // Right and left swing about the view's up vector, up and down about its
   // right axis; the sign is the way the camera moves on screen.

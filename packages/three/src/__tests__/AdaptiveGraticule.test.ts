@@ -10,7 +10,7 @@ import { TerrainSampler } from '../TerrainSampler.js';
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('adaptive graticule', () => {
-  it('labels one fixed latitude and one fixed longitude ruler', () => {
+  it('offers neighboring fixed rulers and retains both axes', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Regional rulers', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
@@ -30,24 +30,24 @@ describe('adaptive graticule', () => {
     expect(new Set(annotations.map(a => a.lonDeg)).size).toBeGreaterThan(1);
     expect(new Set(annotations.map(a => a.axis))).toEqual(new Set(['latitude', 'longitude']));
     expect(annotations.length).toBeLessThanOrEqual(24);
-    expect(new Set(annotations.filter(a => a.axis === 'latitude').map(a => a.lonDeg)).size).toBe(1);
-    expect(new Set(annotations.filter(a => a.axis === 'longitude').map(a => a.latDeg)).size).toBe(1);
+    expect(new Set(annotations.filter(a => a.axis === 'latitude').map(a => a.lonDeg)).size).toBeGreaterThan(1);
+    expect(new Set(annotations.filter(a => a.axis === 'longitude').map(a => a.latDeg)).size).toBeGreaterThan(1);
     for (const a of annotations) {
       expect(a.text).not.toContain('·');
       if (a.axis === 'latitude') {
         expect(a.latDeg).toBeCloseTo(Math.round(a.latDeg));
-        expect((a.lonDeg - 0.5) / 8).toBeCloseTo(Math.round((a.lonDeg - 0.5) / 8));
+        expect((a.lonDeg - 0.5) / 2).toBeCloseTo(Math.round((a.lonDeg - 0.5) / 2));
         expect(a.text).toMatch(/[NS]$/);
       } else {
-        expect((a.latDeg - 0.5) / 8).toBeCloseTo(Math.round((a.latDeg - 0.5) / 8));
+        expect((a.latDeg - 0.5) / 2).toBeCloseTo(Math.round((a.latDeg - 0.5) / 2));
         expect(a.lonDeg).toBeCloseTo(Math.round(a.lonDeg));
         expect(a.text).toMatch(/[EW]$/);
       }
     }
     expect(annotationPattern(1, 1)).toMatchObject({ latitudeStride: 1, longitudeStride: 1 });
     expect(annotationPattern(0.1, 0.1)).toMatchObject({ latitudeStride: 0.1, longitudeStride: 0.1 });
-    expect(annotationPattern(0.02, 0.02).meridianStride).toBe(0.16);
-    expect(annotationPattern(0.001, 0.001).parallelStride).toBe(0.008);
+    expect(annotationPattern(0.02, 0.02).meridianStride).toBe(0.04);
+    expect(annotationPattern(0.001, 0.001).parallelStride).toBe(0.002);
     // UniverseRenderer passes every body as an occluder. A distant body must
     // not put this smooth globe on the old six-label raycast path.
     const otherBody = new Body({ name: 'Distant occluder', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [1, 1, 1], geometryType: 'Globe' });
@@ -133,7 +133,7 @@ describe('adaptive graticule', () => {
     const metrics = bm.gridMetrics!;
     expect(metrics.labels).toBeGreaterThan(0);
     expect(metrics.annotations.every(a => Math.abs(a.latDeg) > 85 && Math.abs(a.latDeg) < 90)).toBe(true);
-    expect(new Set(metrics.annotations.map(a => a.axis)).size).toBe(2);
+    expect(new Set(metrics.annotations.map(a => a.axis)).size, JSON.stringify(metrics.annotations)).toBe(2);
     expect(metrics.candidates).toBeLessThanOrEqual(96);
     const sites = new Map(metrics.annotations.map(a => [a.id, [a.latDeg, a.lonDeg]]));
     const z = new THREE.Vector3(0, 0, 1);
@@ -143,6 +143,32 @@ describe('adaptive graticule', () => {
     const retained = bm.gridMetrics!.annotations.filter(a => sites.has(a.id));
     expect(retained.length).toBeGreaterThan(0);
     for (const a of retained) expect([a.latDeg, a.lonDeg]).toEqual(sites.get(a.id));
+    bm.dispose();
+  });
+
+  it.each([false, true])('fades the complete grid overlay and restores it without texture churn (border=%s)', coordinateFrame => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ setTransform() {}, scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const bm = new BodyMesh(new Body({ name: 'Opacity', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } }));
+    bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, .001, 1000); camera.position.set(105, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(100, 0, 0);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    const settle = (opacity: number, frames = 40) => {
+      bm.showGrid(true, true, normalizeGridSettings({ coordinateFrame, opacity }));
+      for (let i = 0; i < frames; i++) { now += 16; bm.updateGrid(camera, { width: 1000, height: 1000 }, manager); }
+    };
+    settle(1);
+    const grid = (bm as unknown as { graticule: { group: THREE.Group; uniforms: { uGridOpacity: { value: number } } } }).graticule;
+    const sprites = () => grid.group.children.filter(s => s.visible) as THREE.Sprite[];
+    expect(sprites().length).toBeGreaterThan(0);
+    const full = sprites().map(s => s.material.opacity), uploads = bm.gridMetrics!.frameTextureUploads;
+    settle(0.4, 1);
+    expect(grid.uniforms.uGridOpacity.value).toBe(0.4);
+    expect(sprites().map(s => s.material.opacity)).toEqual(full.map(a => a * 0.4));
+    expect(bm.gridMetrics!.frameTextureUploads).toBe(uploads);
+    settle(0, 1); expect(sprites()).toHaveLength(0); expect(bm.gridMetrics!.frameQueries).toBe(0);
+    settle(1); expect(sprites().length).toBeGreaterThan(0);
     bm.dispose();
   });
 
@@ -169,7 +195,7 @@ describe('adaptive graticule', () => {
     bm.dispose();
   });
 
-  it('switches whole fixed ruler bands without drawing both carriers together', () => {
+  it('keeps neighboring ruler sites fixed through pans and restoration', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
     const body = new Body({ name: 'Band switch', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
@@ -184,18 +210,19 @@ describe('adaptive graticule', () => {
       camera.lookAt(100 * Math.cos(angle), 100 * Math.sin(angle), 0);
       for (let i = 0; i < 40; i++) { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); }
       const labels = bm.gridMetrics!.annotations.filter(a => a.axis === 'latitude');
-      expect(new Set(labels.map(a => a.lonDeg)).size).toBeLessThanOrEqual(1);
+      expect(new Set(labels.map(a => a.lonDeg)).size).toBeLessThanOrEqual(3);
+      for (const a of labels) expect((a.lonDeg - 0.5) / 2).toBeCloseTo(Math.round((a.lonDeg - 0.5) / 2), 5);
       return labels;
     };
     const first = pose(0);
     expect(first.length).toBeGreaterThan(0);
-    expect(new Set(first.map(a => a.lonDeg))).toEqual(new Set([0.5]));
+    expect(new Set(first.map(a => a.lonDeg)).size).toBeGreaterThan(1);
     const second = pose(7);
     expect(second.length).toBeGreaterThan(0);
-    expect(new Set(second.map(a => a.lonDeg))).toEqual(new Set([8.5]));
+    expect(new Set(second.map(a => a.lonDeg)).size).toBeGreaterThan(1);
     expect(second.some(a => first.some(b => a.id === b.id))).toBe(false);
     const restored = pose(0);
-    expect(new Set(restored.map(a => a.lonDeg))).toEqual(new Set([0.5]));
+    expect(new Set(restored.map(a => a.lonDeg))).toEqual(new Set(first.map(a => a.lonDeg)));
     bm.dispose();
   });
 
@@ -218,9 +245,9 @@ describe('adaptive graticule', () => {
           const row = a.lat / pattern.latitudeStride, column = a.lon / pattern.longitudeStride;
           if (a.axis === 'latitude') {
             expect(row).toBeCloseTo(Math.round(row), 5);
-            expect((column - 0.5) / 8).toBeCloseTo(Math.round((column - 0.5) / 8), 5);
+            expect((column - 0.5) / 2).toBeCloseTo(Math.round((column - 0.5) / 2), 5);
           } else {
-            expect((row - 0.5) / 8).toBeCloseTo(Math.round((row - 0.5) / 8), 5);
+            expect((row - 0.5) / 2).toBeCloseTo(Math.round((row - 0.5) / 2), 5);
             expect(column).toBeCloseTo(Math.round(column), 5);
           }
           if (sites.has(a.id)) expect([a.lat, a.lon]).toEqual(sites.get(a.id)); else sites.set(a.id, [a.lat, a.lon]);

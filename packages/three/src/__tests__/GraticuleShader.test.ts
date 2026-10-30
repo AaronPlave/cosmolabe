@@ -41,7 +41,7 @@ describe('graticule surface materials', () => {
       expect(material.defines!.FEATURE_FADE).toBe(1);
       expect(shader.uniforms.fadeIn.value).toBe(0.25);
       expect(shader.vertexShader).toContain('uGridViewToBody * modelViewMatrix');
-      expect(shader.fragmentShader).toContain('mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible)');
+      expect(shader.fragmentShader).toContain('mix(outgoingLight, grid.rgb, grid.a * horizon * uGridVisible * uGridOpacity)');
       plugin._fadeMaterialManager.setFade(scene, 1, 0);
       expect(shader.uniforms.fadeIn.value).toBe(1);
       expect(material.defines!.FEATURE_FADE).toBe(0);
@@ -91,4 +91,15 @@ it('does not mistake copied userData for a live shader hook on a material clone'
   applyGraticuleToScene(second, uniforms, new THREE.Matrix4());
   expect(compile(clone).fragmentShader).toContain('uGridVisible');
   original.dispose(); clone.dispose(); first.geometry.dispose();
+});
+
+// Streamed loaders can use a distinct Three module instance in the viewer.
+it('attaches by the Three mesh capability flag across module boundaries', () => {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  Object.setPrototypeOf(mesh, THREE.Object3D.prototype);
+  expect(mesh instanceof THREE.Mesh).toBe(false);
+  expect(mesh.isMesh).toBe(true);
+  applyGraticuleToScene(mesh, makeGraticuleUniforms(coordinates), new THREE.Matrix4());
+  expect(compile(mesh.material).uniforms.uGridOpacity).toBeDefined();
+  mesh.geometry.dispose(); mesh.material.dispose();
 });

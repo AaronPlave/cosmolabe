@@ -275,6 +275,7 @@ export interface ViewerControl {
   setGridScope?(scope: GridSettings['scope'], bodies?: string): boolean;
   setGridDensity?(density: GridSettings['density'], spacingDeg?: number): boolean;
   setGridLabels?(visible: boolean): boolean;
+  setGridOpacity?(opacity: number): boolean;
   setGridMinorLines?(visible: boolean): boolean;
   setGridCoordinateFrame?(visible: boolean): boolean;
   /** Set the vertical field of view, in degrees. */

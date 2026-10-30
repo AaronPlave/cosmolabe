@@ -35,13 +35,14 @@ const LABEL_HEIGHT = 24;
 const LABEL_FONT_SIZE = 14;
 const DEG = Math.PI / 180;
 const siteId = (anchor: Anchor) => `${anchor.axis}:${anchor.lat.toFixed(6)}:${anchor.lon.toFixed(6)}`;
-/** Fixed geographic ruler bands, with captions between crossings. */
+/** Fixed geographic ruler bands, with captions between crossings. Regional
+ * views offer neighboring bands so admission can preserve both axes and spread. */
 export function annotationPattern(latStep: number, lonStep: number) {
   const step = Math.max(latStep, lonStep);
   return { latitudeStride: latStep, longitudeStride: lonStep,
     labelStride: step <= 0.02 ? 3 : step <= 1 ? 2 : 1,
-    meridianStride: lonStep === 30 ? 360 : Math.min(360, lonStep * 8),
-    parallelStride: latStep === 30 ? 360 : Math.min(180, latStep * 8),
+    meridianStride: latStep === 30 && lonStep === 30 ? 360 : Math.min(360, lonStep * 2),
+    parallelStride: latStep === 30 ? 360 : Math.min(180, latStep * 2),
     meridianOffset: lonStep === 30 ? 5 : lonStep * 0.5,
     parallelOffset: latStep === 30 ? 3 : latStep * 0.5,
     polarParallelOffset: 90 - latStep * 0.5 };
@@ -55,6 +56,26 @@ function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
   return anchor.axis === 'latitude' ? onInteger(row) && onCarrier(anchor.lon, pattern.meridianStride, pattern.meridianOffset)
     : onInteger(column) && (onCarrier(anchor.lat, pattern.parallelStride, pattern.parallelOffset)
       || Math.abs(anchor.lat) > 85 && onCarrier(anchor.lat, pattern.parallelStride, Math.sign(anchor.lat) * pattern.polarParallelOffset));
+}
+
+/** Choose among fixed sites. Missing axes get first opportunity; thereafter
+ * screen separation and incumbent preference keep captions useful and stable.
+ * This ranks admission/query work only; it never edits geographic coordinates. */
+function spreadCandidates<T extends { anchor: Anchor }>(items: readonly T[], limit: number,
+  position: (item: T) => { x: number; y: number }, incumbent: (item: T) => boolean): T[] {
+  const pending = items.map(item => ({ item, point: position(item), incumbent: incumbent(item), separation: Infinity }));
+  const chosen: T[] = [], axes = new Set<Anchor['axis']>();
+  while (pending.length && chosen.length < limit) {
+    const score = (row: typeof pending[number]) => {
+      const spread = chosen.length ? row.separation : 0.4 * (1 - Math.min(1, Math.hypot(row.point.x, row.point.y) / Math.SQRT2));
+      return (axes.has(row.item.anchor.axis) ? 0 : 2) + spread + (row.incumbent ? 0.35 : 0);
+    };
+    let best = 0;
+    for (let i = 1; i < pending.length; i++) if (score(pending[i]) > score(pending[best]) + 1e-9) best = i;
+    const [selected] = pending.splice(best, 1); chosen.push(selected.item); axes.add(selected.item.anchor.axis);
+    for (const row of pending) row.separation = Math.min(row.separation, Math.hypot(row.point.x - selected.point.x, row.point.y - selected.point.y));
+  }
+  return chosen;
 }
 
 /** Constant-cost surface shader plus a bounded pool of line-associated annotations. */
@@ -83,6 +104,8 @@ export class AdaptiveGraticule {
   private transition = 1;
   private globeScale = true;
   private latitudeCarrier: number | null = null;
+  private latitudeCarriers: number[] = [];
+  private longitudeCarriers: number[] = [];
   private longitudeCarrier: number | null = null;
   private carrierTier = '';
   private settings: GridSettings | null = null;
@@ -112,13 +135,14 @@ export class AdaptiveGraticule {
     if (origin) this.bodyFromWorld.multiply(new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z));
   }
   configure(visible: boolean, labels: boolean, settings?: GridSettings): void {
+    this.uniforms.uGridOpacity.value = settings?.opacity ?? 1;
     this.visible = visible;
     this.labelVisible = labels;
     if (settings !== this.settings) { this.settings = settings ?? null; this.lastPlan = -Infinity; }
     this.uniforms.uGridVisible.value = visible && !this.bm.hasModel ? 1 : 0;
     this.uniforms.uGridMinor.value = settings?.density === 'manual' ? (settings.minorLines ? 1 : 0) : 1;
-    if (!visible || !labels) this.frame?.hide();
-    if (!visible || !labels) for (const label of this.labels.values()) label.sprite.visible = false;
+    if (!visible || !labels || this.uniforms.uGridOpacity.value === 0) this.frame?.hide();
+    if (!visible || !labels || this.uniforms.uGridOpacity.value === 0) for (const label of this.labels.values()) label.sprite.visible = false;
   }
   private point(lat: number, lon: number, heightKm = 0): THREE.Vector3 {
     const p = surfacePositionToBodyFixed({ latDeg: lat, lonDeg: lon, heightKm }, this.coordinates);
@@ -258,6 +282,9 @@ export class AdaptiveGraticule {
     // Equator-phased bands can otherwise all fall outside a polar viewport.
     const parallelOffset = Math.abs(foot.latDeg) > 85 ? Math.sign(foot.latDeg) * pattern.polarParallelOffset : pattern.parallelOffset;
     this.longitudeCarrier = carrier(foot.latDeg, pattern.parallelStride, parallelOffset, this.longitudeCarrier);
+    const neighbors = (primary: number, stride: number) => globeScale ? [primary] : [primary, primary - stride, primary + stride];
+    this.latitudeCarriers = neighbors(this.latitudeCarrier, pattern.meridianStride);
+    this.longitudeCarriers = neighbors(this.longitudeCarrier, pattern.parallelStride);
     // Enumerate a bounded contiguous subset of the prescribed block indices.
     // Bounds may exclude sites, but never change the pattern stride or phase.
     const values = (lo: number, hi: number, stride: number, phase: number, limit: number) => {
@@ -276,15 +303,15 @@ export class AdaptiveGraticule {
       const west = Math.max(foot.lonDeg - 180, Math.min(...longitudes) - lonStep * 2);
       const east = Math.min(foot.lonDeg + 180, Math.max(...longitudes) + lonStep * 2);
       for (const lat of values(south, north, pattern.latitudeStride * pattern.labelStride, 0, 24))
-        if (this.latitudeCarrier >= west && this.latitudeCarrier <= east) add('latitude', lat, this.latitudeCarrier);
+        for (const band of this.latitudeCarriers) if (band >= west && band <= east) add('latitude', lat, band);
       for (const lon of values(west, east, pattern.longitudeStride * pattern.labelStride, 0, 24))
-        if (this.longitudeCarrier >= south && this.longitudeCarrier <= north) add('longitude', this.longitudeCarrier, lon);
+        for (const band of this.longitudeCarriers) if (band >= south && band <= north) add('longitude', band, lon);
     }
     // Retain only shared active sites or sites still fading from the immediately
     // previous pattern. A surviving line alone does not preserve an old site.
     for (const label of this.labels.values()) if (label.sprite.visible && label.anchor.tier === tier
-      && (label.anchor.axis === 'latitude' ? Math.abs(wrapLongitude(label.anchor.lon - this.latitudeCarrier!)) < 1e-5
-        : Math.abs(label.anchor.lat - this.longitudeCarrier!) < 1e-5) && this.lineWeight(label.anchor) > 0) {
+      && (label.anchor.axis === 'latitude' ? this.latitudeCarriers.some(band => Math.abs(wrapLongitude(label.anchor.lon - band)) < 1e-5)
+        : this.longitudeCarriers.some(band => Math.abs(label.anchor.lat - band) < 1e-5)) && this.lineWeight(label.anchor) > 0) {
       for (const [id, candidate] of discovered) if (siteId(candidate) === siteId(label.anchor)) discovered.delete(id);
       discovered.set(label.anchor.id, label.anchor);
     }
@@ -326,7 +353,7 @@ export class AdaptiveGraticule {
     const hide = (label: Label | undefined) => {
       if (label) { label.sprite.visible = false; label.sprite.material.opacity = 0; }
     };
-    if (!this.visible || !this.bm.visible || !this.bm.attitudeAvailable || this.bm.hasModel) {
+    if (!this.visible || !this.bm.visible || !this.bm.attitudeAvailable || this.bm.hasModel || this.uniforms.uGridOpacity.value === 0) {
       for (const label of this.labels.values()) hide(label);
       this.uniforms.uGridVisible.value = 0; this.persistence.clear(); this.eligibility.clear(); return;
     }
@@ -367,10 +394,11 @@ export class AdaptiveGraticule {
         const result = queryBudget.run(cast)?.value;
         if (!result || result.bm !== this.bm || result.renderedSkirt || result.annotationBlocker) return null;
         const intersection = result.intersection;
-        if (!(intersection.object instanceof THREE.Mesh) || !intersection.face) return null;
-        const mesh = intersection.object, matrix = mesh.matrixWorld.clone();
-        if (mesh instanceof THREE.InstancedMesh && intersection.instanceId !== undefined) {
-          const instance = new THREE.Matrix4(); mesh.getMatrixAt(intersection.instanceId, instance); matrix.multiply(instance);
+        const mesh = intersection.object as THREE.Mesh;
+        if (!mesh.isMesh || !intersection.face) return null;
+        const matrix = mesh.matrixWorld.clone();
+        if ((mesh as THREE.InstancedMesh).isInstancedMesh && intersection.instanceId !== undefined) {
+          const instance = new THREE.Matrix4(); (mesh as THREE.InstancedMesh).getMatrixAt(intersection.instanceId, instance); matrix.multiply(instance);
         }
         matrix.premultiply(this.bodyFromWorld);
         const vertex = (index: number) => mesh.getVertexPosition(index, new THREE.Vector3()).applyMatrix4(matrix);
@@ -422,6 +450,7 @@ export class AdaptiveGraticule {
       const depth = Math.max(camera.near * 2, 1), pixel = 2 / camera.projectionMatrix.elements[5] / height / this.bm.scaleFactor;
       for (const element of this.frame.elements) {
         if (!element.sprite.visible) continue;
+        element.sprite.material.opacity = this.uniforms.uGridOpacity.value;
         const direction = new THREE.Vector3(element.x / width * 2 - 1, 1 - element.y / height * 2, 0).unproject(camera).sub(camera.position).normalize();
         const z = direction.clone().transformDirection(camera.matrixWorldInverse).z;
         element.sprite.position.copy(camera.position).addScaledVector(direction, depth / -z).applyMatrix4(this.bodyFromWorld);
@@ -500,13 +529,18 @@ export class AdaptiveGraticule {
     for (const key of this.cachedHits.keys()) if (!keys.has(key)) this.cachedHits.delete(key);
     for (const key of this.eligibility.keys()) if (!keys.has(key)) this.eligibility.delete(key);
     if (registeredTerrain) {
-      const ordered = [...available].sort((a, b) => {
-        const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
-        return visible(b.anchor) - visible(a.anchor)
-          || Number(this.eligibility.has(b.anchor.id)) - Number(this.eligibility.has(a.anchor.id))
-          || (this.cachedHits.get(a.anchor.id)?.time ?? -1) - (this.cachedHits.get(b.anchor.id)?.time ?? -1);
+      // Do not let a far-edge discovery site consume an axis opportunity when
+      // it cannot meet the same entry margins used for caption admission.
+      const queryable = available.filter(item => {
+        const cached = this.cachedHits.get(item.anchor.id);
+        // A blocked/skirt site gets a short negative cooldown so another fixed
+        // site on that axis can be discovered. No positive survives a frame.
+        if (cached?.point === null && now - cached.time < 150) return false;
+        return this.labels.get(item.anchor.id)?.sprite.visible
+          || Math.abs(item.view.x) <= 0.9 && Math.abs(item.view.y) <= 0.88 && item.incidence >= 0.28;
       });
-      const pending = ordered;
+      const pending = spreadCandidates(queryable, 4, item => item.view,
+        item => this.labels.get(item.anchor.id)?.sprite.visible === true || this.eligibility.has(item.anchor.id));
       let queries = 0;
       for (const { anchor } of pending) {
         if (queries + 2 > 8) break;
@@ -536,7 +570,7 @@ export class AdaptiveGraticule {
       }
     }
     const active = new Set<string>();
-    const ready: Array<{ anchor: Anchor; fixed: THREE.Vector3; text: string; labelWidth: number; offsetX: number; offsetY: number;
+    let ready: Array<{ anchor: Anchor; fixed: THREE.Vector3; text: string; labelWidth: number; offsetX: number; offsetY: number;
       rect: { x0: number; x1: number; y0: number; y1: number }; eligible: boolean; strength: number }> = [];
     const limit = registeredTerrain ? MAX_TERRAIN_LABELS : MAX_LABELS;
     for (const { anchor, p, view, incidence, strength } of available) {
@@ -607,6 +641,8 @@ export class AdaptiveGraticule {
       if (!label?.sprite.visible && (!eligible || now - this.eligibility.get(anchor.id)! < ENTRY_DWELL_MS)) continue;
       ready.push({ anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength });
     }
+    ready = spreadCandidates(ready, limit, item => ({ x: (item.rect.x0 + item.rect.x1) / width - 1,
+      y: (item.rect.y0 + item.rect.y1) / height - 1 }), item => this.labels.get(item.anchor.id)?.sprite.visible === true);
     const unsafe = new Set([...this.persistence.states.keys()].filter(id => !ready.some(r => r.anchor.id === id)));
     // No cached positive survives omitted current-frame certification. Persistence
     // arbitrates collisions/fades only; it cannot extend geometry validity.
@@ -632,7 +668,7 @@ export class AdaptiveGraticule {
       label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + (offsetY + 3) / (LABEL_HEIGHT + 6));
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
       label.sprite.scale.set(labelWidth * unitsPerPixel, (LABEL_HEIGHT + 6) * unitsPerPixel, 1);
-      label.sprite.material.opacity = 0.72 * strength * accepted.get(anchor.id)!.opacity;
+      label.sprite.material.opacity = 0.9 * strength * accepted.get(anchor.id)!.opacity * this.uniforms.uGridOpacity.value;
       label.sprite.visible = label.sprite.material.opacity > 0;
       if (label.sprite.visible) active.add(anchor.id);
     }
@@ -644,10 +680,10 @@ export class AdaptiveGraticule {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr * 2, dpr * 2);
     ctx.font = `${LABEL_FONT_SIZE}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 1; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
-    ctx.fillStyle = '#b8c8da';
+    ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
+    ctx.fillStyle = '#d4dfec';
     ctx.fillText(text, width / 2, LABEL_HEIGHT / 2);
-    ctx.strokeStyle = '#91a4b9'; ctx.lineWidth = 0.9; ctx.beginPath();
+    ctx.strokeStyle = '#c4d3e5'; ctx.lineWidth = 1.3; ctx.beginPath();
     ctx.moveTo(width / 2, LABEL_HEIGHT - 3); ctx.lineTo(width / 2, LABEL_HEIGHT + 5.5); ctx.stroke();
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), toneMapped: false, transparent: true,
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of

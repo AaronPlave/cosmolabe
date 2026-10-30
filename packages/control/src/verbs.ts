@@ -456,8 +456,12 @@ export const VERB_LIST: readonly VerbSpec[] = [
     help: 'Show coordinate labels independently of grid lines.', invoke: (host, a) => host.setGridLabels?.(bool(a[0])),
   },
   {
+    name: 'setGridOpacity', params: [{ name: 'opacity', type: 'number' }], category: 'Display', method: 'setGridOpacity',
+    help: 'Grid lines and coordinate-caption opacity, from 0 to 1.', invoke: (host, a) => host.setGridOpacity?.(num(a[0])),
+  },
+  {
     name: 'setGridCoordinateFrame', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridCoordinateFrame',
-    help: 'Show regional coordinate-frame ticks at major-line intersections.', invoke: (host, a) => host.setGridCoordinateFrame?.(bool(a[0])),
+    help: 'Place coordinate labels at viewport-border crossings in close overhead views; zoomed-out views retain surface labels.', invoke: (host, a) => host.setGridCoordinateFrame?.(bool(a[0])),
   },
   {
     name: 'setGridMinorLines', params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
