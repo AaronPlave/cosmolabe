@@ -34,7 +34,7 @@ Project view filters vary by Projects UI; use the linked repository searches as 
 - `--apply` adds the missing native GitHub links (requires `GITHUB_TOKEN` with Issues write permission).
 - The `Issue dependency graph` workflow validates changes on PRs and applies the additive backfill after the manifest/workflow/script is merged to `main`. It can also be dispatched manually, with apply off by default.
 - Existing links are preserved. Existing parents are never replaced. Closed blockers and closed targets are not given new blocking links. A rerun doesn't duplicate links.
-- This is a *one-time audited backfill and occasional explicit corrections*, not a cron job that guesses dependencies from free-text issue bodies. Future issues should get native relationships at creation time.
+- The manifest is the audited historical backfill and explicit corrections. New issues use the separate event-driven declaration workflow below; no automation guesses prerequisites from arbitrary issue mentions.
 
 ## Rules of thumb
 
@@ -69,7 +69,7 @@ Older manifest entries can mention now-closed issues: the sync job skips closed 
 
 1. Check the issue's full scope and any existing PR before declaring a blocker. Only **hard, open prerequisites** receive native `Blocked by`; a mention of `#123`, `related`, `uses`, or an optional future capability is not itself a blocker.
 2. If you have access to GitHub's native issue relationship controls, create `Blocked by` and `Sub-issue` relationships immediately in the issue sidebar (or via the GitHub REST dependency/sub-issue API). Do not confuse parentage with sequencing.
-3. When working through an integration that cannot directly write native relationship endpoints, update `.github/issue-relationships.json` in the same change. The `Issue dependency graph` workflow validates on PR and applies native links on merge. Never claim a relationship was applied just because it appears in prose or a PR diff.
+3. For new issues created by tools/agents without native relationship APIs, include the exact Issue relationships section below. The New issue relationship hygiene workflow creates native links; do not add routine new issue relationships to the historical manifest. For old issues tracked by the manifest, update that manifest when correcting links. Always verify native links.
 4. Verify the blocked/ready state after merging, periodically review open blockers against completed issues, and keep issue priority/Project status independent of blocking.
 5. GitHub Projects membership and saved view/status/priority fields are **not writable through this repository integration**. Use the Project UI for those fields; do not claim that the manifest configures Projects views.
 
@@ -97,3 +97,23 @@ Existing initiatives were expanded without replacing any existing parent: #14 ad
 **Verification:** The native parent links are written by `Issue dependency graph` CI after the manifest PR merges. Inspect the project's Parent issue groups and sample child sidebars after the sync completes. Do not equate a committed manifest with already-synchronized GitHub relationships. Make sure the new initiative parent issues are included in the Project; auto-add is configured outside this repository integration.
 
 GitHub Projects documentation: [parent and sub-issue progress fields](https://docs.github.com/en/issues/planning-and-tracking-with-projects/understanding-fields/about-parent-issue-and-sub-issue-progress-fields), [filter Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects), [hierarchy view](https://github.blog/changelog/2026-03-19-hierarchy-view-in-github-projects-is-now-generally-available/).
+
+
+## Automatic relationship capture for newly created issues (#324 onward)
+
+The separate New issue relationship hygiene workflow processes explicit issue-body declarations from manually created, agent-created and API-created issues:
+
+    ## Issue relationships
+    - Parent issue: #316
+    - Blocked by: #307, #285
+    - Related (not blockers): #250
+
+These issue numbers are examples only. Use one actual parent issue number or **None**, and actual hard open blocker numbers or **None**. Never leave either field blank. A root initiative is **Parent issue: None**. Related work does not establish a dependency; a parent does not block its children.
+
+On issue opened/edited/reopened, the automation checks the fields and adds the native GitHub parent/sub-issue and Blocked by relationships. It **does not infer** edges from prose, a list of related issues, or the issue title. If declarations are missing/invalid, the bot comments once with a specific fix request. This captures agent/tool-created issues that bypass the templates.
+
+Security and change policy: only issues authored by a repository OWNER, MEMBER or COLLABORATOR can automatically apply relationships. External submissions receive a maintainer-review note. Links are **additive and idempotent**; the workflow never silently removes old dependencies or replaces an existing parent. Use the GitHub issue sidebar to delete/reparent a native link, and also edit the legacy relationship manifest if that historical issue appears there. Closed prerequisites are skipped rather than added as active blockers.
+
+A **weekly audit** and manual workflow dispatch re-checks new open issues after the initial #323 hierarchy backfill, including issues created by GitHub Actions that do not fire the normal issue-opened event. The historical manifest and its separate workflow remain responsible for issues #323 and below. The new parser has regression tests in CI.
+
+For code-writing agents, root AGENTS.md and CLAUDE.md repeat this contract. Include the section when **opening** an issue, not in a later comment or just the PR handoff. GitHub Projects auto-add and saved-view configuration are independent of native relationship sync.

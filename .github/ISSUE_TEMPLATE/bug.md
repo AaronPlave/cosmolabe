@@ -30,9 +30,11 @@ labels: bug
 
 ## Issue relationships
 
-<!-- Use native GitHub "Blocked by" only for genuine prerequisites. When the available integration cannot set it, update .github/issue-relationships.json. Related/parallel work is not automatically a blocker. -->
+<!-- Complete both fields before submitting. Native GitHub links are added automatically.
+Parent issue: one parent initiative #N, or None if independent/an initiative itself.
+Blocked by: only hard OPEN implementation prerequisites (#N, #M), or None.
+Do not put related-but-parallel issues in Blocked by. See docs/issue-dependencies.md. -->
 
-- Hard blockers (or None):
-- Parent initiative / related issues:
-
-<!-- See docs/issue-dependencies.md. -->
+- Parent issue:
+- Blocked by:
+- Related (not blockers):
