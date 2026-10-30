@@ -49,6 +49,12 @@ export type FlightPath = 'direct' | 'overview';
 
 /** A camera flight in progress, as `getFlight` reports it. */
 export interface ScriptFlight {
+  /**
+   * Names the flight from its start to its end: `flightEnd` reports the same
+   * id, so a caller can tell its own flight's end from another command's. An
+   * overview keeps its id through its pull-back and approach.
+   */
+  readonly id: number;
   /** The object the flight lands on; null for a flight to a viewpoint. */
   readonly target: string | null;
   readonly path: FlightPath;
@@ -119,9 +125,15 @@ export interface ScriptEventMap {
    * A camera flight ended. `outcome` says how: it `arrived`; it was `stopped`
    * by `stopFlight` or another camera command (a cut, a reset, a newer
    * flight); or the person's own navigation — a drag, a wheel zoom, a pinch,
-   * a movement key — `interrupted` it where it was.
+   * a movement key — `interrupted` it where it was. `id` is the ended
+   * flight's `ScriptFlight.id`.
+   *
+   * Told once the command that ended the flight has finished, and an `arrived`
+   * once the camera holds its landing (tracking and origin applied), so a
+   * listener sees the camera as the flight left it and may issue another
+   * camera command.
    */
-  flightEnd: { target: string | null; path: FlightPath; outcome: FlightOutcome };
+  flightEnd: { id: number; target: string | null; path: FlightPath; outcome: FlightOutcome };
 }
 
 /** How a camera flight ended; see `ScriptEventMap.flightEnd`. */
@@ -192,6 +204,14 @@ export interface ScriptObjectState {
  * catalog. Place refs, imagery layer IDs and activity IDs are scoped to the
  * scene they were read from: a caller holding one across a load compares `id`
  * rather than letting it resolve against a different catalog's records.
+ *
+ * The actions that take one of those IDs (`gotoPlace`, `selectActivity`,
+ * `seekActivity`, `setImageryVisible`, `setImageryOpacity`) accept the scene
+ * the caller read it from, as `scene`, and throw instead of acting when the
+ * viewer has since bound another. A caller that issues commands later than it
+ * read them, such as an agent's queued tool call, passes it: two catalogs can
+ * reuse a ref, and the older command would otherwise act on the newer scene's
+ * record of that name.
  */
 export interface ScriptScene {
   readonly id: number;
@@ -246,6 +266,18 @@ export interface ScriptImageryLayer {
   readonly bounds: readonly [number, number, number, number] | null;
   /** Native ground resolution in m/px as the provider advertises it; null when unstated. */
   readonly resolutionMeters: number | null;
+  /**
+   * Which product the layer is, as the catalog names it, apart from its
+   * display name and who serves it. The endpoint is reduced to scheme, host
+   * and path: a signed URL's query, credentials and fragment never appear.
+   */
+  readonly source: {
+    readonly type: string;
+    readonly endpoint: string;
+    /** The service's layer identifier; null when the catalog gives none. */
+    readonly layer: string | null;
+    readonly tileMatrixSet: string | null;
+  };
   /** Request outcome so far this session: none yet, all good, some tiles failed, or the source failed. */
   readonly status: 'idle' | 'ok' | 'partial' | 'failed';
   /**
@@ -285,9 +317,9 @@ export interface ViewerControl {
   getActivity?(id: string): ScriptActivity | undefined;
   getSelectedActivity?(): ScriptActivity | undefined;
   /** Selection changes neither the clock nor the camera. */
-  selectActivity?(id: string): boolean;
+  selectActivity?(id: string, opts?: { scene?: number }): boolean;
   /** Both edges of an instant seek its single epoch; does not move the camera. */
-  seekActivity?(id: string, edge?: 'start' | 'end'): boolean;
+  seekActivity?(id: string, edge?: 'start' | 'end', opts?: { scene?: number }): boolean;
   /** Select only. Filter applies before deterministic start/end/ID ordering. */
   navigateActivity?(direction: 'previous' | 'next', filter?: ScriptActivityFilter): boolean;
 
@@ -538,9 +570,9 @@ export interface ViewerControl {
    * Fly to (default) or cut to a place, by the coordinate navigation
    * `gotoCoordinates` uses, framed by the place's extent, and select it.
    * False for no such ref; throws, with the reason, when the place exists but
-   * cannot be navigated to.
+   * cannot be navigated to, or when `scene` names a scene no longer bound.
    */
-  gotoPlace?(ref: string, opts?: { animate?: boolean; view?: SurfaceView }): boolean;
+  gotoPlace?(ref: string, opts?: { animate?: boolean; view?: SurfaceView; scene?: number }): boolean;
 
   // ── Imagery (#123) ──
 
@@ -550,9 +582,9 @@ export interface ViewerControl {
    */
   getImagery?(body: string): ScriptImagery | undefined;
   /** False for no such object or layer, or for turning off a non-optional base. */
-  setImageryVisible?(body: string, layer: string, visible: boolean): boolean;
+  setImageryVisible?(body: string, layer: string, visible: boolean, opts?: { scene?: number }): boolean;
   /** Opacity 0–1. False for no such object or layer, or an opacity out of range. */
-  setImageryOpacity?(body: string, layer: string, opacity: number): boolean;
+  setImageryOpacity?(body: string, layer: string, opacity: number, opts?: { scene?: number }): boolean;
 
   /** Subscribe to an event. Returns a disposer. */
   on<K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void): () => void;

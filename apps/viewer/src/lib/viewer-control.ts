@@ -158,7 +158,7 @@ function scriptImagery(bm: BodyMesh): ScriptImagery {
       id: l.id, name: l.name, attribution: l.attribution, description: l.description,
       role: l.role, optional: l.optional, visible: l.visible, opacity: l.opacity,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
-      resolutionMeters: l.resolutionMeters, status: l.status,
+      resolutionMeters: l.resolutionMeters, source: { ...l.source }, status: l.status,
       view: l.view ? { ...l.view, minZoom: l.minZoom } : null,
     })),
   };
@@ -217,12 +217,26 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     };
   };
 
+  /** Refuse a command read from a scene that is no longer the one bound (`ScriptScene`). */
+  const inScene = (expected: number | undefined) => {
+    if (expected !== undefined && expected !== sceneId()) {
+      throw new Error(`the scene changed since this was read (scene ${expected}, now ${sceneId()})`);
+    }
+  };
+
   return {
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
-    selectActivity, navigateActivity,
-    seekActivity: (id, edge) => (deps.host ? asHostTimeChange(() => seekActivity(id, edge)) : seekActivity(id, edge)),
+    selectActivity: (id, opts) => {
+      inScene(opts?.scene);
+      return selectActivity(id);
+    },
+    navigateActivity,
+    seekActivity: (id, edge, opts) => {
+      inScene(opts?.scene);
+      return deps.host ? asHostTimeChange(() => seekActivity(id, edge)) : seekActivity(id, edge);
+    },
     // ── Write: scene setup ──
     gotoObject: (name, opts) =>
       gotoObject(name, { animate: opts?.seconds !== undefined, duration: opts?.seconds }),
@@ -426,7 +440,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       // animation frame, and a host polling for a landing must not see a
       // flight that has already ended.
       const flight = getRenderer()?.cameraController.flight;
-      return flight ? { target: flight.destination?.body.name ?? null, path: flight.path } : null;
+      return flight ? { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path } : null;
     },
     getCamera: camera,
     getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
@@ -454,6 +468,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       return place ? scriptPlace(place) : undefined;
     },
     gotoPlace: (ref, opts) => {
+      inScene(opts?.scene);
       const place = placeByRef(ref);
       if (!place) return false;
       const result = navigateToPlaceForControl(place, { animate: opts?.animate ?? true, view: opts?.view });
@@ -466,7 +481,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       const bm = getRenderer()?.getBodyMesh(name);
       return bm ? scriptImagery(bm) : { body: name, surface: null, imageryOnly: false, layers: [] };
     },
-    setImageryVisible: (name, layer, visible) => {
+    setImageryVisible: (name, layer, visible, opts) => {
+      inScene(opts?.scene);
       const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
       const info = bm?.imageryLayers.find((l) => l.id === layer);
       if (!bm || !info) return false;
@@ -474,7 +490,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (!visible && !info.optional) return false;
       return bm.setImageryLayerVisible(layer, visible) || info.visible === visible;
     },
-    setImageryOpacity: (name, layer, opacity) => {
+    setImageryOpacity: (name, layer, opacity, opts) => {
+      inScene(opts?.scene);
       if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
       const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
       if (!bm?.imageryLayers.some((l) => l.id === layer)) return false;

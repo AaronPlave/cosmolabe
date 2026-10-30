@@ -366,7 +366,7 @@ cosmo.getRate();
 cosmo.isPlaying();
 cosmo.getSelected();      // string | null
 cosmo.getTracked();
-cosmo.getFlight();        // { target, path } while a flight plays, else null
+cosmo.getFlight();        // { id, target, path } while a flight plays, else null
 cosmo.getCamera();        // { position (km), up, fov }
 cosmo.listObjects();
 cosmo.listViewpoints();
@@ -379,12 +379,19 @@ cosmo.getScene();         // { id, catalog, ready } — id changes with every sc
 
 const off = cosmo.on('select', ({ name }) => …);
 // also 'time' ({ et, cause }), 'playback', 'load', 'ready', 'activities', 'activitySelect',
-// 'flightEnd' ({ target, path, outcome: 'arrived' | 'stopped' | 'interrupted' })
+// 'flightEnd' ({ id, target, path, outcome: 'arrived' | 'stopped' | 'interrupted' })
 off();
 ```
 
 `flightEnd` fires once per flight, after the camera is released: an overview's
-pull-back is not an ending. `interrupted` means the person's own navigation
+pull-back is not an ending. `id` is the `getFlight().id` the flight had, and it
+stays the same through an overview's two phases, so a caller that started a
+flight can tell its end from another command's. The notification is told once
+the command that ended the flight has finished, and an `arrived` once the
+camera holds its landing (origin and tracking applied, which the renderer
+defers to its next frame), so a listener sees the camera as the flight left it
+and may start another flight from the callback. A landing that a later command
+took back before it was applied is `stopped`. `interrupted` means the person's own navigation
 took the camera — the signal for automation to stop re-asserting a move rather
 than retry it. `stopped` is `stopFlight` or any other camera command (a cut, a
 reset, a newer flight).
@@ -393,6 +400,15 @@ Place refs, imagery layer IDs and activity IDs belong to the scene they were
 read from. `getScene().id` changes with every scene bound, a reload of the same
 catalog included, so a host holding an ID across a load can tell it is stale
 instead of having it resolve against another catalog's records.
+
+The actions that take such an ID (`gotoPlace`, `selectActivity`, `seekActivity`,
+`setImageryVisible`, `setImageryOpacity`) also take the scene it was read from,
+as `{ scene: getScene().id }` in their options, and throw rather than act when
+another scene has been bound since. Two catalogs can reuse a layer and feature
+ID, so without it a command issued later than it was read would act on the new
+scene's record of that name. Scripts run against the scene they were typed in
+and do not pass it; a caller that queues commands (the agent adapter, an
+embedding host) does.
 
 Time notifications say who moved the clock (`host`, `viewer` or `playback`) and
 coalesce playback to a few a second; see [embedding](embedding.md#control-and-notifications).
@@ -621,12 +637,12 @@ A body's **imagery** is its streamed imagery stack (#123), bottom to top:
 const mars = cosmo.getImagery('Mars');
 // { body, surface: 'static' | 'preloading' | 'waiting' | 'streamed' | 'fallback' | null,
 //   imageryOnly, layers: [{ id, name, attribution, description, role, optional, visible,
-//   opacity, bounds, resolutionMeters, status, view }] }
+//   opacity, bounds, resolutionMeters, source, status, view }] }
 cosmo.setImageryVisible('Mars', 'hirise', true);
 cosmo.setImageryOpacity('Mars', 'hirise', 0.6);
 ```
 
-The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
+The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `source` is the catalog's own identity for the product — `{ type, endpoint, layer, tileMatrixSet }` — apart from the display name and `attribution`; the endpoint is reduced to scheme, host and path, so a signed URL's query and any credentials never appear. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
 
 ## Mission activities
 
