@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
-import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
+import { attachPointerInput, keyEventInScope, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 import { bodyFixedToGeodeticRad, geodeticToBodyFixedKm, type Ellipsoid } from '../surfaceNavigation.js';
 
@@ -133,6 +133,7 @@ export class SurfaceMode implements ICameraMode {
     if (canvas && !this.handlers) {
       this.handlers = {
         keydown: (e: KeyboardEvent) => {
+          if (!keyEventInScope(e, canvas)) return;
           const tag = (e.target as HTMLElement)?.tagName;
           if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
           this.keys.add(e.code);

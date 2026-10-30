@@ -10,7 +10,9 @@ import type { UniverseRenderer } from '@cosmolabe/three';
 import { cancelAppearancePick } from './surface-appearance-pick.svelte';
 import { getCurrentRenderer, getUniverse } from './loader';
 import { excludeFromProbe, setProbeActive, vs } from './viewer-state.svelte';
+import { workspaceNode } from './workspace.svelte';
 import { definitionEndpoints, validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
+import { resettable } from './session.svelte';
 export type { MeasurementDefinition } from './measurement-link-state';
 
 export type Slot = 'source' | 'target' | 'vertex';
@@ -47,6 +49,7 @@ export const measurements = $state({
   selectedId: null as string | null,
   hoveredId: null as string | null,
 });
+resettable(measurements);
 
 export function cloneEndpoint(endpoint: SpatialEndpoint): SpatialEndpoint {
   if (endpoint.kind === 'surface-point') return surfacePointEndpoint(endpoint.point, endpoint.label);
@@ -188,7 +191,7 @@ export function restoreSharedMeasurements(input: MeasurementLinkState | undefine
 }
 export function openMeasurementEditor(id: string): void {
   selectMeasurement(id); openTool('measure');
-  requestAnimationFrame(() => document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
+  requestAnimationFrame(() => workspaceNode().querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
 }
 export function hoverMeasurement(id: string | null): void {
   if (measurements.hoveredId === id) return;

@@ -23,6 +23,7 @@
   import { openTool } from '../../lib/shell.svelte';
   import { ChevronDown, ChevronUp, X } from 'lucide-svelte';
   import EventDetails from '../EventDetails.svelte';
+  import { layerRoot, workspaceSize } from '../../lib/workspace.svelte';
 
   interface Props {
     event: GeometryEvent;
@@ -51,7 +52,7 @@
   const bare = (et: number) => etToUtcString(et).replace(' UTC', '');
   const left = $derived.by(() => {
     const half = (width || 280) / 2;
-    return Math.max(half + 8, Math.min(window.innerWidth - half - 8, x));
+    return Math.max(half + 8, Math.min(workspaceSize().width - half - 8, x));
   });
 
   function edit() {
@@ -60,7 +61,7 @@
   }
 
   function portal(node: HTMLElement) {
-    document.body.appendChild(node);
+    layerRoot().appendChild(node);
     return { destroy: () => node.remove() };
   }
 </script>
@@ -137,7 +138,7 @@
     z-index: calc(var(--tl-z-callout) - 1);
     width: max-content;
     min-width: 220px;
-    max-width: min(420px, calc(100vw - 16px));
+    max-width: min(420px, calc(100cqw - 16px));
     padding: 7px 9px 5px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 5px;

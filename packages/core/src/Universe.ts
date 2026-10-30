@@ -1,4 +1,5 @@
 import { MissionActivityStore } from './MissionActivity.js';
+import { StateUnavailableError, type StateAvailability, type UnavailableReason } from './availability.js';
 import { surfaceTrajectoryAvailability, type SurfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
 import type { TerrainDatum } from './geographic/coordinates.js';
 import type { SpiceInstance } from './spice-injection.js';
@@ -16,6 +17,7 @@ import {
   normalizeFrameKey,
 } from './frames/FrameRegistry.js';
 import { EventBus } from './events/EventBus.js';
+import { mat3Mul, mat3ToQuat, mat3Transpose, mat3Vec, quatToMat3 } from './frames/mat3.js';
 import type { UniverseEventMap } from './events/EventTypes.js';
 import { StateStore } from './state/StateStore.js';
 import type { UniverseState } from './state/StateTypes.js';
@@ -338,8 +340,98 @@ export class Universe {
     const b = typeof body === 'string' ? this.getBody(body) : body;
     const rotation = b?.rotation;
     if (!rotation) return undefined;
-    const q = rotation.rotationAt(et);
+    let q: Quaternion;
+    try {
+      q = rotation.rotationAt(et);
+    } catch (err) {
+      if (err instanceof StateUnavailableError) return undefined;
+      throw err;
+    }
     return composeBodyToWorldQuat(q, rotation.sourceFrame, WORLD_FRAME, et, this.frames);
+  }
+
+  /**
+   * A body's state as an external system states it: position relative to
+   * `center` (default: its active parent) and attitude, both in `frame`
+   * (default ECLIPJ2000). `attitude` is the scalar-first quaternion that
+   * transforms vector coordinates from `frame` to the body frame
+   * (v_body = q ⊗ v_frame ⊗ q*), the convention `RotationModel` uses. A part
+   * that cannot be evaluated is null, with the reason in `availability`.
+   */
+  stateIn(bodyName: string, et: number, opts: { frame?: string; center?: string } = {}): {
+    position: Vec3 | null;
+    attitude: Quaternion | null;
+    availability: { position: StateAvailability; attitude?: StateAvailability };
+  } {
+    const frame = opts.frame ?? WORLD_FRAME;
+    const own = this.stateAvailability(bodyName, et);
+    const body = this.getBody(bodyName);
+    const center = opts.center ?? body?.activeParentAt(et);
+    // A requested frame or centre that cannot be evaluated is reported as the
+    // reason, never as available-but-null.
+    const refused = (a: StateAvailability, reason: UnavailableReason, message: string): StateAvailability =>
+      ({ ...a, available: false, reason, message });
+    let worldToFrame: ReturnType<FrameRegistry['rotation']>;
+    try { worldToFrame = this.frames.rotation(WORLD_FRAME, frame, et); } catch { worldToFrame = undefined; }
+    const noFrame = `Frame ${frame} cannot be resolved at this epoch.`;
+    let position: Vec3 | null = null;
+    let positionAvailability = own.position;
+    if (own.position.available) {
+      const p = this.absolutePositionOf(bodyName, et);
+      const c = center ? this.absolutePositionOf(center, et) : [0, 0, 0];
+      if (center && !this.getBody(center)) positionAvailability = refused(own.position, 'unbound', `No body named ${center} to measure from.`);
+      else if (!c.every(Number.isFinite)) positionAvailability = refused(own.position, 'dependency', `The position of ${center} is unavailable at this epoch.`);
+      else if (!worldToFrame) positionAvailability = refused(own.position, 'error', noFrame);
+      else {
+        const v = mat3Vec(worldToFrame, [p[0] - c[0], p[1] - c[1], p[2] - c[2]]);
+        if (v.every(Number.isFinite)) position = v;
+        else positionAvailability = refused(own.position, 'error', 'The position is not finite in the requested frame.');
+      }
+    }
+    let attitude: Quaternion | null = null;
+    let attitudeAvailability = own.attitude;
+    if (own.attitude?.available) {
+      const bodyToWorld = this.bodyToWorldQuat(bodyName, et);
+      if (!bodyToWorld) attitudeAvailability = refused(own.attitude, 'dependency', `The frame ${body?.rotation?.sourceFrame ?? 'of this attitude'} cannot be related to the scene at this epoch.`);
+      else if (!worldToFrame) attitudeAvailability = refused(own.attitude, 'error', noFrame);
+      else {
+        // v_frame = M · R_bw · v_body, so frame → body is its transpose.
+        attitude = mat3ToQuat(mat3Transpose(mat3Mul(worldToFrame, quatToMat3(bodyToWorld))));
+      }
+    }
+    return { position, attitude, availability: { position: positionAvailability, attitude: attitudeAvailability } };
+  }
+
+  /**
+   * Whether a body's position and attitude can be evaluated at `et`, and why
+   * not — the one answer the renderer, inspector and host reads share.
+   * Coverage-aware models (`availabilityAt`) give their own reasons; for the
+   * rest, a NaN position or a throwing rotation is reported as unavailable.
+   * A body whose own state is fine but whose parent chain is not reports
+   * `dependency`. `attitude` is undefined for a body with no rotation model.
+   */
+  stateAvailability(bodyName: string, et: number): { position: StateAvailability; attitude?: StateAvailability } {
+    const body = this.getBody(bodyName);
+    if (!body) return { position: { available: false, reason: 'unbound', message: `No body named ${bodyName}.` } };
+    let position = body.trajectory.availabilityAt?.(et)
+      ?? (isNaN(body.stateAt(et).position[0]) ? { available: false, message: 'Ephemeris unavailable at this epoch.' } : { available: true });
+    if (position.available && isNaN(this.absolutePositionOf(bodyName, et)[0])) {
+      position = { ...position, available: false, reason: 'dependency', message: `${body.name}'s own state is available, but a body or frame it is placed relative to is not.` };
+    }
+    const rotation = body.rotation;
+    let attitude: StateAvailability | undefined;
+    if (rotation) {
+      attitude = rotation.availabilityAt?.(et);
+      if (!attitude) {
+        try {
+          const q = rotation.rotationAt(et);
+          attitude = q.every(Number.isFinite) ? { available: true } : { available: false, message: 'Rotation model returned a non-finite attitude.' };
+        } catch (err) {
+          attitude = { available: false, reason: err instanceof StateUnavailableError ? err.availability.reason : 'error', message: err instanceof Error ? err.message : String(err) };
+        }
+      }
+    }
+    return { position, attitude };
   }
 
   /** A body's position relative to its active parent, in the scene frame. */

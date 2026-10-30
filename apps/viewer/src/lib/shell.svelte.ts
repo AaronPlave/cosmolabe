@@ -24,6 +24,7 @@
  */
 import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
+import { resettable } from './session.svelte';
 
 /**
  * What a rail icon is. Taken from a concrete icon rather than written as
@@ -232,6 +233,7 @@ export const shell = $state({
    */
   sheetHeight: 0,
 });
+resettable(shell);
 
 // ── Open / close ──
 

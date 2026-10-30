@@ -412,7 +412,7 @@ export class CameraController {
     // Disable right-click pan — we use right-click for free look instead
     this.controls.noPan = true;
 
-    this.keyboard = new KeyboardControls(keyboardConfig);
+    this.keyboard = new KeyboardControls(keyboardConfig, domElement);
     this._lastFrameMs = performance.now();
 
     // Initialize camera modes

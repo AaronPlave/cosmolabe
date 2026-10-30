@@ -367,9 +367,16 @@ cosmo.listObjects();
 cosmo.listViewpoints();
 cosmo.getCamera();        // { position, target, up, fov } — all in km
 
-const off = cosmo.on('select', ({ name }) => …);   // also 'time' and 'load'
+cosmo.getObjectState('SC-1', { frame: 'J2000', center: 'Earth' }); // position, attitude, availability
+cosmo.getTimelineWindow();  // { start, end } ET; setTimelineWindow(start, end) navigates it
+
+const off = cosmo.on('select', ({ name }) => …);
+// also 'time' ({ et, cause }), 'playback', 'load', 'ready', 'activities', 'activitySelect'
 off();
 ```
+
+Time notifications say who moved the clock (`host`, `viewer` or `playback`) and
+coalesce playback to a few a second; see [embedding](embedding.md#control-and-notifications).
 
 A write-only port would make host control half a feature: an app embedding the
 viewer could push state at it but never build UI around it, and a palette could

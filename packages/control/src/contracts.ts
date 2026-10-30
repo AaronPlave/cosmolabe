@@ -87,14 +87,33 @@ export interface ScriptCamera {
   readonly fov: number;
 }
 
-/** Events a host can observe. */
+/**
+ * Events a host can observe.
+ *
+ * Subscriptions belong to the viewer, not to a scene: they keep firing across
+ * catalog loads, and end only with their disposer (or the viewer's disposal).
+ */
 export interface ScriptEventMap {
   /** The selected object changed. `name` is null when the selection cleared. */
   select: { name: string | null };
-  /** Scene time moved. */
-  time: { et: number };
-  /** A scene finished loading; `objects` is the new object list. */
+  /**
+   * Scene time moved. Seeks are delivered at once; continuous playback is
+   * coalesced to a few notifications a second, the last always carrying the
+   * clock's current value. `cause` tells a host's own `setTime` (`host`)
+   * from the viewer's scrubber, keys and scripts (`viewer`) and from the
+   * running clock (`playback`), so a host mirroring time can ignore its echo.
+   */
+  time: { et: number; cause?: 'host' | 'viewer' | 'playback' };
+  /** A scene's object list is up; its models and textures may still be loading. */
   load: { objects: readonly string[] };
+  /** The scene's initial models, textures and trails settled: it is presentable. */
+  ready: { objects: readonly string[] };
+  /** Playback started, stopped or changed rate. */
+  playback: { playing: boolean; rate: number };
+  /** The scene's mission activities changed: a catalog load or a host update. */
+  activities: { count: number };
+  /** The selected mission activity changed; null when none is selected. */
+  activitySelect: { id: string | null };
 }
 
 export type ScriptEventName = keyof ScriptEventMap;
@@ -132,6 +151,28 @@ export interface ScriptActivity {
   readonly provenance: { readonly source: string; readonly version: string; readonly authority: string; readonly timing: string; readonly limitations: string; readonly uncertaintySeconds?: number };
 }
 export interface ScriptActivityFilter { vehicle?: string; kind?: string }
+
+/** Whether part of an object's state exists at an epoch, and why not (core's `StateAvailability`). */
+export interface ScriptAvailability {
+  readonly available: boolean;
+  readonly reason?: string;
+  readonly message?: string;
+  readonly sourceId?: string;
+  readonly classification?: string;
+}
+
+/** An object's state as an external system states it; see `getObjectState`. */
+export interface ScriptObjectState {
+  readonly et: number;
+  readonly frame: string;
+  readonly center: string | null;
+  /** km, relative to `center`, in `frame`; null when unavailable. */
+  readonly position: ScriptVec3 | null;
+  /** Scalar-first quaternion taking vector coordinates from `frame` to the body frame (v_body = q v_frame q*); null when unavailable. */
+  readonly attitude: readonly [number, number, number, number] | null;
+  readonly positionAvailability: ScriptAvailability;
+  readonly attitudeAvailability?: ScriptAvailability;
+}
 
 export interface ViewerControl {
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
@@ -313,6 +354,19 @@ export interface ViewerControl {
   record?(on: boolean): boolean;
 
   // ── Read ──
+
+  /**
+   * An object's position and attitude at `time` (default: now), in `frame`
+   * (default `ECLIPJ2000`) relative to `center` (default: its parent). The
+   * same evaluation the scene draws: where the viewer shows nothing, this
+   * reports unavailable with the reason rather than a value. Undefined for
+   * no such object.
+   */
+  getObjectState?(name: string, opts?: { time?: ScriptTime; frame?: string; center?: string }): ScriptObjectState | undefined;
+  /** The timeline's visible window, ET. */
+  getTimelineWindow?(): { start: number; end: number };
+  /** Show [start, end] on the timeline, growing its range if needed. Moves neither the clock nor the scene. */
+  setTimelineWindow?(start: ScriptTime, end: ScriptTime): boolean;
 
   /** Current scene time, in seconds past J2000. */
   getTime(): number;

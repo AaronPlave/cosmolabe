@@ -54,7 +54,7 @@
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const buttons = [...picker.querySelectorAll<HTMLButtonElement>('.picker-result:not(:disabled)')];
-      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const index = buttons.indexOf((picker.getRootNode() as Document | ShadowRoot).activeElement as HTMLButtonElement);
       const target = index < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1) : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[target]?.focus();
     } else if (event.key === 'Escape') {
@@ -128,7 +128,7 @@
 <style>
   .activity-navigation { display:flex; align-items:center; gap:4px; padding:3px 8px; min-width:0; font-size:11px; }
   .vehicle { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .picker-trigger { width:180px; max-width:42vw; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:6px; background:var(--color-surface-2, #171b20); border-radius:4px; padding:4px 6px; }
+  .picker-trigger { width:180px; max-width:42cqw; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:6px; background:var(--color-surface-2, #171b20); border-radius:4px; padding:4px 6px; }
   .picker-trigger span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .activity-picker { position:fixed; top:auto; right:auto; margin:0; width:min(320px, calc(100vw - 16px)); max-height:min(340px, 55vh); overflow:hidden; padding:8px; border:1px solid var(--color-chrome-border); border-radius:6px; background:var(--color-surface-1); color:var(--color-text-primary); box-shadow:0 4px 18px #0008; font-size:12px; }
   .activity-picker input { width:100%; padding:6px; background:var(--color-surface-2, #171b20); color:inherit; border-radius:4px; }

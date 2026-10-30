@@ -33,7 +33,7 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, SpiceRotation, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { composeBodyToWorldQuat, SpiceRotation, StateUnavailableError, type Body, type FrameRegistry } from '@cosmolabe/core';
 import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
@@ -139,6 +139,12 @@ export class BodyMesh extends THREE.Object3D {
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Suppress repeated rotation-failure warnings after first occurrence */
   private _rotationFailed = false;
+  /**
+   * False while a coverage-aware rotation model reports no attitude at the
+   * current epoch. The renderer then draws the position marker rather than a
+   * model frozen in its last orientation.
+   */
+  attitudeAvailable = true;
   /** Shared uniform values — patched into every compiled shader by reference */
   private readonly shadowUniforms: ShadowUniforms = makeShadowUniforms();
   /** Ring-on-body shadow uniforms — only used when this body has rings. */
@@ -1082,7 +1088,15 @@ export class BodyMesh extends THREE.Object3D {
       }
       if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = this._userVisible && this._present;
       this._rotationFailed = false;
+      if (!this.attitudeAvailable && this.axesHelper) this.axesHelper.visible = this.axesVisible;
+      this.attitudeAvailable = true;
     } catch (err) {
+      if (err instanceof StateUnavailableError) {
+        // Known absence, with its reason on the model: no warning, no held attitude.
+        this.attitudeAvailable = false;
+        if (this.axesHelper) this.axesHelper.visible = false;
+        return;
+      }
       // Explicit lunar orientation cannot use a stale or identity attitude.
       if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = false;
       if (!this._rotationFailed) {

@@ -183,6 +183,8 @@ export default defineConfig({
       // and stalls the dev server. The tiles are static; HMR isn't useful for
       // them. Same goes for the multi-GB source GeoTIFFs in scripts/.
       ignored: [
+        // The embeddable build's output (npm run build:embed) is not app source.
+        '**/dist-embed/**',
         '**/test-catalogs/data/mars-terrain-fused/**',
         // Retired pre-#50 pyramid; existing checkouts may still hold its ~700k files.
         '**/test-catalogs/data/mars-terrain/**',

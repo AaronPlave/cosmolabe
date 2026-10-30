@@ -32,6 +32,7 @@ import {
   focusForEvent,
   resolveEventQuery,
   SpiceTrajectory,
+  MissionStateTrajectory,
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
@@ -81,7 +82,9 @@ import { matchSharedEvent, validateEventLinkState, type EventLinkState, type Sha
 import { ViewStateError } from '@cosmolabe/control';
 import { faultMessage } from './event-query';
 import { getActivity, selectActivity, seekActivity } from './activity-control';
-import { etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { emit, etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
+import { resettable } from './session.svelte';
+import { activityEvent } from './mission-activities';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -275,6 +278,15 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
 export function currentSearchUnavailable(): EventSearchFault | null {
   const spice = getSpice();
   const form = ef.form;
+  // Searches run on SPICE kernels; a host-supplied state is not in them, and
+  // is not quietly replaced by whatever the kernels hold under that name.
+  const external = Object.values(form?.bodies ?? {}).find((name) => name && getUniverse()?.getBody(name)?.trajectory instanceof MissionStateTrajectory);
+  if (external) {
+    return {
+      code: 'unavailable',
+      message: `${external}'s state comes from a host mission-state source. Event searches run on SPICE kernels and cannot use it.`,
+    };
+  }
   ensureCoverageCurrent();
   const coverage = ef.coverage;
   if (spice && vs.kernelCount > 0 && form && coverage?.exact && coverage.status !== 'unknown') {
@@ -485,6 +497,7 @@ export const ef = $state({
   /** The search correction used for the current coverage assessment. */
   coverageAbcorr: null as string | null,
 });
+resettable(ef);
 
 /** Guards against an earlier search landing after a later one. */
 let inFlight = 0;
@@ -518,9 +531,27 @@ export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>
 }
 
 export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
+  const before = selectedActivityId();
   ef.selectedId = event?.id ?? null;
   ef.selectedQueryId = event?.queryId ?? null;
+  const after = selectedActivityId();
+  if (after !== before) emit('activitySelect', after);
 }
+
+/** The selected mission activity's ID, when the selection is one. */
+function selectedActivityId(): string | null {
+  return ef.selectedQueryId?.startsWith('activity:') ? ef.selectedId : null;
+}
+
+// An activity whose record went (its source was replaced or removed) is no
+// longer selected — even if a record with the same ID arrives later, which is
+// a different record and must be selected deliberately.
+onViewerEvent('activities', () => {
+  const id = selectedActivityId();
+  if (id === null) return;
+  const still = vs.activities.some((a) => a.id === id && activityEvent(a).queryId === ef.selectedQueryId);
+  if (!still) setSelection(null);
+});
 
 /** Drops the selection if it belongs to query `id`: its results are going. */
 function dropSelectionIn(id: string | null): boolean {

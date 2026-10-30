@@ -265,6 +265,6 @@
     .target-narrow { display: inline; }
   }
 
-  .named-target { display: block; max-width: min(240px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .named-target { display: block; max-width: min(240px, 42cqw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 </style>

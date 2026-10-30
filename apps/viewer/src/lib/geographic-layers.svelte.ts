@@ -26,6 +26,7 @@ import { flyOverSurface, getRenderer, onViewerEvent, vs } from './viewer-state.s
 import { getUniverse } from './loader';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
 import { selectPlace, viewportPlace } from './places';
+import { resettable } from './session.svelte';
 
 export const geo = $state({
   /** Bumped by anything that changes what the panel shows: loads, visibility, filters. */
@@ -55,6 +56,7 @@ export const geo = $state({
   /** Bumped when the list should scroll the selection into view. */
   reveal: 0,
 });
+resettable(geo);
 
 // ── What the panel shows ──
 
