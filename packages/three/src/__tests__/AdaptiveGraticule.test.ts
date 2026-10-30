@@ -760,3 +760,55 @@ it('keeps the rolled 28.65-degree regional view readable and aligned through tes
   expect(bm.gridMetrics!.frameTicks.every(t => t.alignmentPx! <= 0.2)).toBe(true);
   bm.dispose();
 });
+
+it('preserves captions beside tiny off-axis bodies and queries each potentially occluded anchor once', () => {
+  vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  const makeBody = (name: string, radius: number, position: [number, number, number]) => {
+    const body = new Body({ name, trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [radius, radius, radius], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const mesh = new BodyMesh(body); mesh.updatePosition(position, 0, 1); mesh.applyMeshScale(1); return mesh;
+  };
+  const bm = makeBody('Review globe', 100, [0, 0, 0]);
+  const neighbors = Array.from({ length: 4 }, (_, i) => makeBody(`Off-axis ${i}`, 0.001, [110, 10 + i, 0]));
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000);
+  camera.position.set(110, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(100, 0, 0); camera.updateMatrixWorld(true);
+  const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+  bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 1 }));
+  const queriedRays: string[] = [];
+  const original = THREE.Raycaster.prototype.intersectObjects;
+  vi.spyOn(THREE.Raycaster.prototype, 'intersectObjects').mockImplementation(function (this: THREE.Raycaster, ...args) {
+    queriedRays.push([...this.ray.origin.toArray(), ...this.ray.direction.toArray(), this.far].join(':'));
+    return original.apply(this, args);
+  });
+  const settle = (others: BodyMesh[]) => {
+    for (let i = 0; i < 40; i++) {
+      queriedRays.length = 0; now += 16;
+      bm.updateGrid(camera, { width: 800, height: 800 }, manager, [bm, ...others]);
+      expect(queriedRays.length).toBeLessThanOrEqual(8);
+      expect(new Set(queriedRays).size).toBe(queriedRays.length);
+    }
+  };
+  settle([]);
+  const ids = () => bm.gridMetrics!.annotations.map(a => a.id).sort();
+  const baseline = ids(); expect(baseline.length).toBeGreaterThan(8);
+  settle(neighbors); expect(ids()).toEqual(baseline); expect(queriedRays).toHaveLength(0);
+  const chosen = bm.gridMetrics!.annotations[0];
+  const p = surfacePositionToBodyFixed({ latDeg: chosen.latDeg, lonDeg: chosen.lonDeg }, bm.surfaceCoordinates!);
+  const foreground = camera.position.clone().lerp(new THREE.Vector3(p.xKm, p.yKm, p.zKm), 0.5);
+  neighbors[0].updatePosition(foreground.toArray() as [number, number, number], 0, 1);
+  settle(neighbors);
+  expect(ids()).not.toContain(chosen.id);
+  expect(queriedRays.length).toBeGreaterThan(0);
+  neighbors[0].updatePosition([110, 10, 0], 0, 1);
+  settle(neighbors); expect(ids()).toEqual(baseline);
+  // Complex surfaces keep conservative bounds, even when their actual meshes
+  // miss the ray. One shared query per anchor must suffice for all four bounds.
+  for (const neighbor of neighbors) vi.spyOn(neighbor, 'getSurfaceOverlays').mockReturnValue([
+    { group: new THREE.Group() } as ReturnType<BodyMesh['getSurfaceOverlays']>[number],
+  ]);
+  settle(neighbors);
+  expect(queriedRays).toHaveLength(8);
+  expect(bm.gridMetrics!.labels).toBeLessThanOrEqual(8); // Deferred sites stay hidden.
+  for (const body of [bm, ...neighbors]) body.dispose();
+});

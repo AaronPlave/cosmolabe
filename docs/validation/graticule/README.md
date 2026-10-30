@@ -2,6 +2,16 @@
 
 This refresh integrates main `097f92ab` (including #305). Regional border ticks remain opt-in. This is implementation and diagnostic evidence, **not merge approval**.
 
+## Review follow-up: foreign occlusion query budget
+
+[Review comment 6532170070](https://github.com/AaronPlave/cosmolabe/pull/163#issuecomment-6532170070) correctly identified repeated whole-scene queries for the same caption ray. The analytic-globe path now tests all foreign bounds first, then performs at most one shared scene query for an anchor. A deferred result is handled separately from a confirmed clear ray and remains hidden. The eight-query cap is unchanged.
+
+Simple, undisplaced globe meshes use their actual transformed geometry bounds, so tiny off-axis bodies do not inherit a 30 km terrain allowance and consume the entire budget. Terrain, DSKs, overlays, child meshes and displaced/model geometry retain the conservative bound. This is an occlusion scheduling/broad-phase fix; caption placement, ruler bands and opacity are unchanged.
+
+The new actual `BodyMesh.updateGrid` regression fails against `f53d781c` (eight queries cover only two distinct rays), then passes with this fix. It preserves the complete baseline caption set with four unrelated nearby globes, hides a caption behind a genuine foreground globe, restores it after that globe moves away, and verifies unique rays plus the eight-query cap when four complex-surface bounds overlap. Budget-deferred captions remain hidden. All 47 tests in the four graticule/rendered-query suites pass at the normal timeout, as do package build, test typecheck, changed-file ESLint and diff-check. The preceding shader head's CI run 41114291663 passed; follow-up-head CI is checked separately.
+
+Continuous visual review of repeated/replaced caption values, sustained simultaneous visible Places/3D event callout/measurement/probe/contours, and extended mixed-LOD/local-mesh transitions remain open acceptance. This focused regression does not establish those visual behaviors; keep the PR draft.
+
 ## Close-range Mars line precision
 
 The reported Ingenuity/Jezero permalink reproduces stippled, fuzzy graticule lines with the previous shader (`30017019`). Interpolating full planet-sized positions and evaluating absolute angles in GPU float precision quantizes the line location and its screen derivatives at close range.

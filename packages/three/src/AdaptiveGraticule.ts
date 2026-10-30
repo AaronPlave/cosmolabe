@@ -472,8 +472,23 @@ export class AdaptiveGraticule {
     if (dpr !== this.dpr) { this.clearLabels(); this.dpr = dpr; }
     // Only conservative body bounds are private to the analytic-globe fast path.
     // All actual mesh discovery and nearest-hit decisions use the shared adapter.
-    const foreignOccluders = occluders.filter(body => body !== this.bm && body.visible).map(body =>
-      new THREE.Sphere(body.getWorldPosition(new THREE.Vector3()), (body.displayRadius * 1.01 + 30) * body.scaleFactor));
+    const foreignOccluders = occluders.filter(body => body !== this.bm && body.visible).map(body => {
+      // An ordinary globe needs only its actual rendered mesh bound. Applying
+      // the terrain relief allowance to tiny bodies makes unrelated off-axis
+      // objects consume the annotation query budget.
+      const materials = Array.isArray(body.mesh.material) ? body.mesh.material : [body.mesh.material];
+      const displaced = materials.some(material => {
+        const surface = material as THREE.MeshStandardMaterial;
+        return surface.displacementMap && (surface.displacementScale !== 0 || surface.displacementBias !== 0);
+      });
+      if (body.body.geometryType === 'Globe' && !body.terrainTileGroup && !body.getDskMeshes().length && !body.getSurfaceOverlays().length
+        && !body.body.geometryData?.displacementMap && !displaced && !body.mesh.children.length) {
+        body.mesh.updateWorldMatrix(true, false);
+        if (!body.mesh.geometry.boundingSphere) body.mesh.geometry.computeBoundingSphere();
+        if (body.mesh.geometry.boundingSphere) return body.mesh.geometry.boundingSphere.clone().applyMatrix4(body.mesh.matrixWorld);
+      }
+      return new THREE.Sphere(body.getWorldPosition(new THREE.Vector3()), (body.displayRadius * 1.01 + 30) * body.scaleFactor);
+    });
     const registeredTerrain = !this.bm.mesh.visible || !!this.bm.body.geometryData?.displacementMap || this.bm.getSurfaceOverlays().some(o => o.group.visible);
     const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; strength: number }> = [];
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
@@ -604,17 +619,21 @@ export class AdaptiveGraticule {
         const distance = camera.position.distanceTo(rendered);
         const direction = rendered.sub(camera.position).normalize();
         const ray = new THREE.Ray(camera.position, direction);
-        let obscured = false;
-        for (const occluder of foreignOccluders) {
+        const needsOcclusionCheck = foreignOccluders.some(occluder => {
           const bound = ray.intersectSphere(occluder, new THREE.Vector3());
-          if (!occluder.containsPoint(camera.position) && (!bound || camera.position.distanceTo(bound) >= distance - this.bm.scaleFactor * 0.001)) continue;
+          return occluder.containsPoint(camera.position)
+            || (bound !== null && camera.position.distanceTo(bound) < distance - this.bm.scaleFactor * 0.001);
+        });
+        if (needsOcclusionCheck) {
+          // Each cast already checks every body. Share its result across all
+          // overlapping foreign bounds, with at most one query per anchor.
           this.raycaster.set(camera.position, direction);
           this.raycaster.far = distance - this.bm.scaleFactor * 0.001;
-          obscured = cast() !== null;
+          const occlusion = cast();
           this.raycaster.far = Infinity;
-          if (obscured) break;
+          if (occlusion === undefined) { hide(label); continue; } // Unverified, never clear.
+          if (occlusion !== null) { reject(); continue; }
         }
-        if (obscured) { reject(); continue; }
       }
       const projected = fixed.clone().applyMatrix4(this.toWorld).project(camera);
       const text = anchor.axis === 'latitude'
