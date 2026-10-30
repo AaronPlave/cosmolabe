@@ -652,3 +652,7 @@ navigateActivity next Ingenuity flight
 ```
 
 Order is start/end/ID; within a filter the selected record anchors previous/next. Without a selection in that filter, navigation uses the current clock (next starts strictly after now; previous starts at/before now). It does not wrap. Selection is independent of seeking and camera movement. UI clicks compose pause, selection and seek using these same operations. See [mission activity schema and source limitations](mission-activities.md).
+
+## Agent tools
+
+The verbs are also the write half of the agent tools (`createAgentTools`), which a language-model agent and the Ask Cosmolabe prompt call through the same `execute`. Refusals there are the messages above, word for word. See [agent tools](agent-tools.md).

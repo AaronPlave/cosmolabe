@@ -30,6 +30,7 @@
     "build:embed": "vite build -c vite.embed.config.ts && rollup -c rollup.dts.config.mjs"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.12.4",

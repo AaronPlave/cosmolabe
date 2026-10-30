@@ -38,4 +38,6 @@ export type {
 export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,
   ScriptScene, ScriptPlace, ScriptImagery, ScriptImageryLayer, ScriptFlight, FlightOutcome, FlightPath, SurfaceView,
+  AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema,
+  AgentTransport, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
 } from '@cosmolabe/control';

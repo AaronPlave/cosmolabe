@@ -21,11 +21,12 @@ export default defineConfig({
           include: ['packages/*/src/**/*.test.ts'],
         },
       },
-      // Node tooling under scripts/ (data publishing, issue #137).
+      // Node tooling under scripts/ (data publishing, issue #137), and the
+      // example model proxy for the Ask prompt (#311).
       {
         test: {
           name: 'scripts',
-          include: ['scripts/**/*.test.mjs'],
+          include: ['scripts/**/*.test.mjs', 'examples/ask-proxy/**/*.test.mjs'],
         },
       },
       // The viewer brings its own config so the Svelte plugin is imported from

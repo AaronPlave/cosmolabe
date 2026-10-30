@@ -5,7 +5,7 @@ import {
   watchLayout, isToolId, isMinimized, minimizePanel, toggleMinimized,
   isFloating, setFloat, dockPanel, floatOf, reclampFloats, activateSheet,
   raisePanel, panelZIndex, setPanelMounted, isPanelVisible, topVisiblePanel,
-  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, type PanelKey,
+  FLOAT_Z_BASE, isExpanded, toggleExpanded, expandedPanel, enableTool, type PanelKey,
 } from '../shell.svelte';
 
 /**
@@ -207,6 +207,7 @@ describe('dock layout', () => {
   });
 
   it('sends each panel to exactly one dock, so two can never share a slot', () => {
+    enableTool('ask');
     for (const tool of TOOLS) openTool(tool.id);
     const left = openToolsWith('panel', 'left').map((t) => t.id);
     const right = openToolsWith('panel', 'right').map((t) => t.id);

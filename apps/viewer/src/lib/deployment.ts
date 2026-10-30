@@ -113,3 +113,41 @@ export function catalogSourceDeployment(): CatalogSourceDeployment {
     new URL(import.meta.env.BASE_URL, location.href).href,
   );
 }
+
+/**
+ * Whether the deployment offers the Ask prompt (#311), and through what.
+ *
+ * - `VITE_ASK_ENDPOINT` — a server that holds the model key and forwards
+ *   Anthropic Messages requests (`examples/ask-proxy`). The browser never sees
+ *   a key. Relative URLs resolve against the page.
+ * - `VITE_ASK_BYOK=true` — development only: the person pastes their own key,
+ *   held in memory for the session and sent straight to the provider. Never
+ *   set this on a deployment others use.
+ * - `VITE_ASK_MODEL` — the model; defaults to `DEFAULT_ASK_MODEL`.
+ *
+ * Neither set: no prompt, and the viewer is exactly the static app it was.
+ */
+export type AskDeployment =
+  | { mode: 'off' }
+  | { mode: 'proxy'; endpoint: string; model: string }
+  | { mode: 'byok'; model: string };
+
+export interface AskEnv {
+  VITE_ASK_ENDPOINT?: string;
+  VITE_ASK_BYOK?: string;
+  VITE_ASK_MODEL?: string;
+}
+
+export const DEFAULT_ASK_MODEL = 'claude-opus-5-5';
+
+export function resolveAskDeployment(env: AskEnv, pageUrl: string): AskDeployment {
+  const model = env.VITE_ASK_MODEL?.trim() || DEFAULT_ASK_MODEL;
+  const endpoint = env.VITE_ASK_ENDPOINT?.trim();
+  if (endpoint) return { mode: 'proxy', endpoint: new URL(endpoint, pageUrl).href, model };
+  if (env.VITE_ASK_BYOK === 'true') return { mode: 'byok', model };
+  return { mode: 'off' };
+}
+
+export function askDeployment(): AskDeployment {
+  return resolveAskDeployment(import.meta.env as AskEnv, typeof location === 'undefined' ? 'http://localhost/' : location.href);
+}

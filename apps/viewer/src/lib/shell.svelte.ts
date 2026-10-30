@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture, MessageCircleQuestionMark } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 import { resettable } from './session.svelte';
 
@@ -42,7 +42,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -81,6 +81,11 @@ export interface ToolDef {
   width: number;
   /** Single-key shortcut, where one already existed. */
   shortcut?: string;
+  /**
+   * Offered only when something enables it (`enableTool`): the Ask prompt
+   * exists only where a deployment or host configured a model.
+   */
+  optional?: boolean;
 }
 
 /**
@@ -106,6 +111,10 @@ export const TOOLS: readonly ToolDef[] = [
   // Backtick: the universal console idiom, unclaimed, and not a letter, so it
   // cannot collide with a renderer control or #15's keymap. The app's input
   // guard runs first, so a backtick typed into a text field stays a backtick.
+  // Natural-language control (#311), only where a model is configured. No
+  // shortcut: Cmd/Ctrl-K stays the command palette and backtick the Script
+  // tool, which remains the deterministic way to author the same actions.
+  { id: 'ask', label: 'Ask Cosmolabe', icon: MessageCircleQuestionMark, presentation: 'panel', dock: 'right', width: 360, optional: true },
   { id: 'script',  label: 'Script',   icon: Terminal, presentation: 'panel',  dock: 'right', width: 380, shortcut: '`' },
   { id: 'display', label: 'Display',  icon: Settings, presentation: 'panel',  dock: 'right', width: 240 },
   { id: 'debug',   label: 'Diagnostics', icon: Bug,   presentation: 'panel',  dock: 'right', width: 260 },
@@ -232,8 +241,26 @@ export const shell = $state({
    * floating over the scene (the Draw bar) sit above it rather than over it.
    */
   sheetHeight: 0,
+
+  /** Optional tools switched on for this session; see `ToolDef.optional`. */
+  enabledTools: [] as ToolId[],
 });
 resettable(shell);
+
+/** Offer an optional tool. */
+export function enableTool(id: ToolId) {
+  if (!shell.enabledTools.includes(id)) shell.enabledTools.push(id);
+}
+
+/** Whether the rail, palette and shortcuts offer `id`. */
+export function isToolAvailable(id: ToolId): boolean {
+  return !toolDef(id).optional || shell.enabledTools.includes(id);
+}
+
+/** The tools this session offers, in table order. */
+export function availableTools(): ToolDef[] {
+  return TOOLS.filter((t) => isToolAvailable(t.id));
+}
 
 // ── Open / close ──
 
@@ -243,6 +270,7 @@ export function isToolOpen(id: ToolId): boolean {
 
 /** Opens `id`, or raises it to the top of the stack if already open. */
 export function openTool(id: ToolId) {
+  if (!isToolAvailable(id)) return;
   closeToolSilently(id);
   shell.openTools.push(id);
   shell.panels[id].minimized = false;
