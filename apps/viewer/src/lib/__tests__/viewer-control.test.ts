@@ -267,6 +267,7 @@ function makeFakeRenderer(objects: string[]) {
     setLabelVisible: (name: string, v: boolean) => log(`setLabelVisible(${name}, ${v})`),
     setTrajectoriesVisible: (v: boolean) => log(`setTrajectoriesVisible(${v})`),
     setLabelsVisible: (v: boolean) => log(`setLabelsVisible(${v})`),
+    setGridSettings: () => {},
     showBodyGrid: (v: boolean) => log(`showBodyGrid(${v})`),
     showBodyAxes: (v: boolean) => log(`showBodyAxes(${v})`),
     setSensorsVisible: (v: boolean) => log(`setSensorsVisible(${v})`),
@@ -346,6 +347,22 @@ describe('every verb is wired', () => {
       expect(typeof control[spec.method], `${spec.name} → ${String(spec.method)}`).toBe('function');
     }
   });
+});
+
+it('validates scripted grid opacity and preserves saved display preferences', () => {
+  const previous = vs.grid, setItem = vi.fn();
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem });
+  try {
+    const control = createViewerControl();
+    expect(control.setGridOpacity!(0.37)).toBe(true);
+    expect(vs.grid.opacity).toBe(0.37);
+    expect(control.snapshot()).toContain('setGridOpacity 0.37');
+    for (const value of [-1, 2, Infinity, NaN]) expect(control.setGridOpacity!(value)).toBe(false);
+    expect(vs.grid.opacity).toBe(0.37);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(control.setGridOpacity!(0)).toBe(true);
+    expect(vs.grid.opacity).toBe(0);
+  } finally { vs.grid = previous; }
 });
 
 describe('circleCenter', () => {

@@ -233,6 +233,7 @@ export {
   etFromDate,
 } from './time.js';
 
+export * from './surface-coordinates.js';
 export * from './plugins/PluginData.js';
 export { hasLineOfSight } from './plugins/contact-geometry.js';
 

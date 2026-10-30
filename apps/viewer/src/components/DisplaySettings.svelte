@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+  import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
+  import { vs, setGridSettings, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
@@ -89,6 +91,67 @@
     {/each}
     <GeographicNames />
 
+    <Separator class="my-1" />
+
+    <div class="px-3 py-1 space-y-2">
+      <div class="ui-section-label">Surface grid</div>
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.labels} onCheckedChange={() => setGridSettings({ labels: !vs.grid.labels })} class="h-3.5 w-3.5" />
+        <span>Coordinate labels</span>
+      </label>
+      <label class="ui-body flex items-center gap-2">
+        <span>Opacity</span>
+        <input aria-label="Grid opacity" aria-describedby="grid-opacity-help" type="range" class="fov-slider flex-1 min-w-0"
+          min="0" max="100" step="1" value={Math.round(vs.grid.opacity * 100)}
+          oninput={e => setGridSettings({ opacity: Number(e.currentTarget.value) / 100 })} />
+        <span class="ui-readout min-w-8 text-right">{Math.round(vs.grid.opacity * 100)}%</span>
+      </label>
+      <p id="grid-opacity-help" class="ui-meta text-text-secondary">Fades grid lines and coordinate labels together.</p>
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Target</span>
+        <select aria-label="Grid target" class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
+          onchange={e => setGridSettings({ scope: e.currentTarget.value as 'tracked' | 'bodies' | 'all', perBody: {} })}>
+          <option value="tracked">Tracked body</option><option value="bodies">Chosen bodies</option><option value="all">All eligible bodies</option>
+        </select>
+      </label>
+      {#if vs.grid.scope === 'bodies'}
+        <label class="ui-body block">Body names
+          <input class="ui-control w-full bg-surface-3 rounded px-1" aria-label="Grid body names" placeholder="Earth, Moon"
+            value={vs.grid.bodies.join(', ')} onchange={e => setGridSettings({ bodies: e.currentTarget.value.split(',').map(s => s.trim()).filter(Boolean) })} />
+        </label>
+      {/if}
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Density</span>
+        <select aria-label="Grid density" class="ui-control bg-surface-3 rounded" value={vs.grid.density}
+          onchange={e => setGridSettings({ density: e.currentTarget.value as 'auto' | 'manual' })}>
+          <option value="auto">Auto</option><option value="manual">Manual</option>
+        </select>
+      </label>
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center justify-between gap-2">Spacing (degrees)
+          <select aria-label="Grid angular spacing" class="ui-control w-18 bg-surface-3 rounded"
+            value={vs.grid.spacingDeg} onchange={e => setGridSettings({ spacingDeg: Number(e.currentTarget.value) })}>
+            {#each ANGULAR_GRID_STEPS as step}<option value={step}>{step}°</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center gap-2">
+          <Checkbox checked={vs.grid.minorLines} onCheckedChange={() => setGridSettings({ minorLines: !vs.grid.minorLines })} class="h-3.5 w-3.5" />
+          <span>Minor lines</span>
+        </label>
+      {:else}
+        <p class="ui-meta text-text-secondary">Major lines carry labels; lighter lines divide each cell.</p>
+      {/if}
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.coordinateFrame} onCheckedChange={() => setGridSettings({ coordinateFrame: !vs.grid.coordinateFrame })} class="h-3.5 w-3.5" />
+        <span>Labels at viewport border</span>
+      </label>
+      <p class="ui-meta text-text-secondary">In close overhead views, labels move to ticks where grid lines cross the screen border. Turn off for labels at fixed geographic sites on the surface. Zoomed-out views keep surface labels.</p>
+      <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
+        <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
+      </details>
+    </div>
     <Separator class="my-1" />
 
     <!-- Lighting -->

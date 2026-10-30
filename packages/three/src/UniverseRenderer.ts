@@ -1,7 +1,8 @@
+import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
 import { ContourOcclusion } from './ContourOcclusion.js';
-import { surfaceTintHeightAtHit } from './SurfaceAppearance.js';
-import { isDrawnCubeImagerySource } from './CubeImageryLayer.js';
+import { castRenderedSurfaces, type SurfaceRayHit } from './RenderedSurfaceQuery.js';
+export { surfaceNormalWorld } from './RenderedSurfaceQuery.js';
 import { ModelSurfaceDepth } from './ModelSurfaceDepth.js';
 import { TrajectoryPlotFrame } from './TrajectoryPlotFrame.js';
 import {
@@ -22,6 +23,8 @@ import {
   type BodyFixedPosition,
   type TerrainDatum,
   geodeticToBodyFixed,
+  bodyFixedToSurfacePosition,
+  isSupportedGeodeticDatum,
 } from '@cosmolabe/core';
 import { BodyMesh } from './BodyMesh.js';
 import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
@@ -48,7 +51,7 @@ import { EventMarkers, eventAnchorOpacityAtSphere, eventMarkerColor, pickEventMa
 import { EventCallout, type CalloutObstacles, type ScreenRect } from './EventCallout.js';
 import { geographicStatusPosition, geographicStatusText } from './geographic/GeographicStatus.js';
 import { PointProbeOverlay } from './PointProbe.js';
-import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfaceHitSource, type SurfacePoint } from './SceneHit.js';
+import { pointerResolution, resolveSceneHit, resolveSurfaceAltitude, type HitLayer, type PickIntent, type PointerResolution, type SceneHit, type SurfaceDatum, type SurfacePoint } from './SceneHit.js';
 import { OccultationGeometry } from './OccultationGeometry.js';
 import { AtmosphereMesh, resolveAtmosphereParams } from './AtmosphereMesh.js';
 import { makeAerialPerspectiveUniforms, type AerialPerspectiveUniforms } from './AerialPerspective.js';
@@ -82,33 +85,6 @@ const _clampTmpVec2 = /* @__PURE__ */ new THREE.Vector3();
 const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
-
-/**
- * World-space unit normal of the surface a ray hit, or null when the hit has
- * no face. The triangle's own: vertex normals are shading normals (terrain
- * blends them toward the sphere for lighting) and understate the slope.
- * Transformed by the normal matrix (inverse transpose), not as a direction:
- * an oblate or triaxial globe is a non-uniformly scaled sphere, and scaling
- * a normal like a direction tilts it the wrong way.
- */
-const _normalMatrix = new THREE.Matrix3();
-export function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | null {
-  if (!hit.face) return null;
-  return hit.face.normal.clone().applyMatrix3(_normalMatrix.getNormalMatrix(hit.object.matrixWorld)).normalize();
-}
-
-/** The surface seen along a ray (`_castSurfaces`), in scene coordinates. */
-interface SurfaceRayHit {
-  worldPoint: THREE.Vector3;
-  /** From the ray's origin, scene units. */
-  distance: number;
-  bm: BodyMesh;
-  source: SurfaceHitSource;
-  normal: THREE.Vector3 | null;
-  /** On a cube-sphere skirt (#149): the wall under a mixed-LOD gap, not the surface. */
-  renderedSkirt: boolean;
-  tintHeightKm?: number;
-}
 
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
 export interface SurfacePickResult {
@@ -1253,6 +1229,11 @@ export class UniverseRenderer {
       ...(this.eventCalloutRect ? [this.eventCalloutRect] : []),
       ...(this._screenOccluders?.() ?? []),
     ];
+    this.syncBodyGrids();
+    this.labelManager?.beginContextAnnotations(contourLabelObstacles);
+    const gridViewport = { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight };
+    for (const bm of bodyMeshArr) bm.updateGrid(this.camera, gridViewport, this.labelManager, bodyMeshArr);
+    contourLabelObstacles.push(...(this.labelManager?.getContextAnnotationRects() ?? []));
     this.placeNames.update(this.camera, this.bodyMeshes, this.scaleFactor,
       this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight,
       contourLabelObstacles, world => {
@@ -1407,7 +1388,9 @@ export class UniverseRenderer {
         this.siteForegroundDepth.clipDistance.value = foregroundLimit;
         this.siteForegroundDepth.update(foreground, savedPos, Infinity, savedPos);
         this.renderer.render(this.siteForegroundDepth.scene, this.camera);
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(savedPos);
         this.renderer.render(this.tileScene, this.camera);
+        for (const bm of this.bodyMeshes.values()) bm.setGridCameraRelativeOrigin(null);
         this.geographicVectors.render(this.renderer, this.camera, this.bodyMeshes.values(), true, savedPos);
         if (this.bloomEffect?.enabled) this.sunGlareEffect?.captureOccluders(this.tileScene, savedPos);
 
@@ -2459,19 +2442,43 @@ export class UniverseRenderer {
     }
   }
 
-  /** Toggle lat/lon grid lines on bodies (excludes spacecraft, instruments, barycenters).
-   *  Equator is highlighted in yellow, prime meridian in red.
-   *  Works with triaxial ellipsoids. */
+  private _gridVisible = false;
+  private _gridSettings: GridSettings = normalizeGridSettings(DEFAULT_GRID_SETTINGS);
+
+  get gridSettings(): GridSettings { return normalizeGridSettings(this._gridSettings); }
+  setGridSettings(settings: Partial<GridSettings>): void {
+    this._gridSettings = normalizeGridSettings({ ...this._gridSettings, ...settings });
+    this.syncBodyGrids();
+  }
+
+  /** Existing optional-body path is retained and stored before catalog loading. */
   showBodyGrid(show: boolean, bodyName?: string): void {
-    const excluded = new Set(['spacecraft', 'instrument', 'barycenter']);
     if (bodyName) {
-      const bm = this.bodyMeshes.get(bodyName);
-      if (bm && !excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-    } else {
-      for (const bm of this.bodyMeshes.values()) {
-        if (!excluded.has(bm.body.classification ?? '')) bm.showGrid(show);
-      }
+      this._gridSettings = normalizeGridSettings({ ...this._gridSettings, perBody: {
+        ...this._gridSettings.perBody, [bodyName]: { ...this._gridSettings.perBody[bodyName], visible: show },
+      } });
+      if (show) this._gridVisible = true;
+    } else this._gridVisible = show;
+    this.syncBodyGrids();
+  }
+
+  showBodyGridLabels(show: boolean, bodyName?: string): void {
+    this.setGridSettings(bodyName ? { perBody: { ...this._gridSettings.perBody,
+      [bodyName]: { ...this._gridSettings.perBody[bodyName], labels: show } } } : { labels: show });
+  }
+
+  private syncBodyGrids(): void {
+    const tracked = (this.cameraController.trackedBody ?? this.cameraController.originBody)?.body.name ?? null;
+    for (const [name, bm] of this.bodyMeshes) {
+      const state = gridBodyState(this._gridSettings, this._gridVisible, name, tracked);
+      bm.showGrid(state.visible, state.labels, this._gridSettings);
+      bm.setGridAnnotationScene(this._markerScene);
     }
+  }
+
+  /** Host measurements/probe callouts share the renderer's annotation reservations. */
+  setAnnotationReservedRects(rects: readonly { x0: number; y0: number; x1: number; y1: number }[], source = 'host'): void {
+    this.labelManager?.setReservedRects(rects, source);
   }
 
   /**
@@ -3088,76 +3095,7 @@ export class UniverseRenderer {
    * Visual composition and model occlusion use separate rendering passes.
    */
   private _castSurfaces(): SurfaceRayHit | null {
-    const raycaster = this._surfaceRaycaster;
-
-    // Broad phase. Terrain tiles and surface overlays can be hundreds of
-    // meshes, and this runs at hover rate while probing; a body whose
-    // true-scale surface the ray cannot reach skips them all. The globe mesh
-    // is one object (and may be enlarged to a minimum on-screen size), so it
-    // is always left to the raycaster's own bounding test.
-    const reachable = new Set<BodyMesh>();
-    const center = new THREE.Vector3();
-    const reach = new THREE.Sphere();
-    for (const bm of this.bodyMeshes.values()) {
-      if (!bm.visible || (!bm.terrainTileGroup && bm.getSurfaceOverlays().length === 0)) continue;
-      bm.getWorldPosition(center);
-      // Room for relief above the datum (Olympus Mons is ~22 km) and overlay offsets.
-      const radiusKm = bm.displayRadius * 1.01 + 30;
-      if (raycaster.ray.intersectsSphere(reach.set(center, radiusKm * this.scaleFactor))) reachable.add(bm);
-    }
-
-    // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
-    // ignores ancestor visibility, so a hidden body is skipped here.
-    const mainTargets: THREE.Object3D[] = [];
-    for (const bm of this.bodyMeshes.values()) {
-      if (!bm.visible) continue;
-      if (bm.mesh.visible) mainTargets.push(bm.mesh);
-      mainTargets.push(...bm.getDskMeshes());
-      const tg = bm.terrainTileGroup;
-      if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
-    }
-    const visible = (hit: THREE.Intersection) => {
-      for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible && !isDrawnCubeImagerySource(object)) return false;
-      return true;
-    };
-    // Three raycasts cached hidden meshes too. A point pick must follow the
-    // currently visible LOD rather than a nearer, inactive cached tile.
-    const mainHits = raycaster.intersectObjects(mainTargets, true).filter(visible);
-
-    // Pick the closest hit
-    let bestWorldPoint: THREE.Vector3 | null = null;
-    let bestBm: BodyMesh | null = null;
-    let bestDist = Infinity;
-    let tintHeightKm: number | undefined;
-    let renderedSkirt = false;
-    let source: SurfaceHitSource = 'ellipsoid';
-    let bestNormal: THREE.Vector3 | null = null;
-
-    if (mainHits.length > 0) {
-      const hit = mainHits[0];
-      if (hit.distance < bestDist) {
-        bestDist = hit.distance;
-        bestWorldPoint = hit.point.clone();
-        tintHeightKm = surfaceTintHeightAtHit(hit);
-        const surfaceTriangles = (hit.object as THREE.Mesh).geometry?.userData?.surfaceTriangles;
-        renderedSkirt = typeof surfaceTriangles === 'number' && hit.faceIndex != null && hit.faceIndex >= surfaceTriangles;
-        bestNormal = surfaceNormalWorld(hit);
-        if (hit.object.userData.dskSurface) source = 'dsk';
-        for (const bm of this.bodyMeshes.values()) {
-          let obj: THREE.Object3D | null = hit.object;
-          const terrain = bm.terrainTileGroup;
-          while (obj) {
-            if (terrain && obj === terrain) source = 'terrain';
-            if (obj === bm) { bestBm = bm; break; }
-            obj = obj.parent;
-          }
-          if (bestBm) break;
-        }
-      }
-    }
-
-    if (!bestWorldPoint || !bestBm) return null;
-    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm };
+    return castRenderedSurfaces(this._surfaceRaycaster, [...this.bodyMeshes.values()], this.scaleFactor);
   }
 
   /**
@@ -3218,7 +3156,8 @@ export class UniverseRenderer {
     const r = Math.sqrt(ecefX * ecefX + ecefY * ecefY + ecefZ * ecefZ);
     if (r < 1e-10) return null;
 
-    const terrainPosition = isDsk ? null : bm.terrainBodyFixedToGeodetic({ xKm: ecefX, yKm: ecefY, zKm: ecefZ });
+    const coordinates = isDsk ? null : bm.surfaceCoordinates;
+    const terrainPosition = coordinates ? bodyFixedToSurfacePosition({ xKm: ecefX, yKm: ecefY, zKm: ecefZ }, coordinates) : null;
     const latDeg = terrainPosition?.latDeg ?? (Math.asin(Math.max(-1, Math.min(1, ecefZ / r))) * (180 / Math.PI));
     const lonDeg = terrainPosition?.lonDeg ?? (Math.atan2(ecefY, ecefX) * (180 / Math.PI));
     // The rendered intersection is the point. Decoded CPU terrain at the
@@ -3234,16 +3173,16 @@ export class UniverseRenderer {
       const radii = bm.body.radii;
       // Equal radii are a sphere, whatever field they came in.
       const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-      // The hit height is measured against the terrain datum when the body has
-      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
-      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum
+      // The hit uses the grid/probe coordinate reference. A decoded terrain
+      // sample keeps its independent physical datum and provenance below.
+      const hitDatum: SurfaceDatum = terrainPosition && terrainDatum && isSupportedGeodeticDatum(terrainDatum)
         ? { ...terrainDatum, origin: 'terrain' }
         : {
             referenceShape: radii && oblate
               ? { kind: 'ellipsoid', radiiKm: [radii[0], radii[1], radii[2]] }
               : { kind: 'sphere', radiusKm: radii ? radii[0] : bm.displayRadius },
             verticalDatum: oblate ? 'ellipsoid' : 'reference-sphere',
-            heightConvention: 'radial',
+            heightConvention: coordinates?.datum.heightConvention ?? 'radial',
             origin: 'body-shape',
           };
       hit.heightKm = hitHeightKm;
@@ -3263,7 +3202,7 @@ export class UniverseRenderer {
       source: ray.source,
       latDeg,
       lonDeg,
-      latitudeKind: terrainPosition ? 'geodetic' : 'planetocentric',
+      latitudeKind: coordinates?.latitudeType ?? 'planetocentric',
       resolution,
       hit,
       ...resolveSurfaceAltitude(ray.source, hit, sample),

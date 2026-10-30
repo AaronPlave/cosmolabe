@@ -100,3 +100,6 @@ apps/viewer/test-catalogs/data/curiosity-cube/
 
 # The embeddable workspace build (npm run build:embed)
 dist-embed/
+
+# Generated graticule browser captures and detailed diagnostics (PR #163).
+/work/graticule/

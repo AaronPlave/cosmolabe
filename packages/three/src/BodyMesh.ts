@@ -31,9 +31,14 @@ import { injectShadowIntoShader, makeShadowUniforms, MAX_SHADOW_OCCLUDERS, type 
 import { injectAerialPerspectiveIntoShader, type AerialPerspectiveUniforms } from './AerialPerspective.js';
 import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUniforms } from './RingShadow.js';
 import { BLOOM_LAYER } from './BloomEffect.js';
-import { isLine, isMesh, isSprite } from './internal/three-typeguards.js';
+import { isMesh } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { composeBodyToWorldQuat, SpiceRotation, StateUnavailableError, type Body, type FrameRegistry } from '@cosmolabe/core';
+import { bodySurfaceCoordinates, isSupportedGeodeticDatum, composeBodyToWorldQuat, SpiceRotation, StateUnavailableError, type Body, type FrameRegistry, type SurfaceCoordinates } from '@cosmolabe/core';
+
+import { AdaptiveGraticule } from './AdaptiveGraticule.js';
+import type { GridSettings } from '@cosmolabe/control';
+import type { LabelManager } from './LabelManager.js';
+
 import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
@@ -111,8 +116,11 @@ export class BodyMesh extends THREE.Object3D {
   private axesHelper: THREE.AxesHelper | null = null;
   private axesVisible = false;
   /** Lat/lon grid overlay */
-  private gridLines: THREE.Group | null = null;
+  private graticule: AdaptiveGraticule | null = null;
+  private gridLabelsVisible = true;
+  private gridCoordinateKey = '';
   private imageryFootprint: THREE.Group | null = null;
+
   private gridVisible = false;
   /** Scene scale factor (km → scene units). Set each frame by updatePosition. */
   scaleFactor = 1;
@@ -910,144 +918,47 @@ export class BodyMesh extends THREE.Object3D {
     }
   }
 
-  /** Show or hide lat/lon grid lines on the body surface.
-   *  Grid spacing is 30° with equator (yellow) and prime meridian (red) highlighted.
-   *  Works with triaxial ellipsoids via the same scale as the placeholder mesh. */
-  showGrid(show: boolean): void {
+  /** Canonical physical coordinates shared by grid, probe and coordinate entry. */
+  get surfaceCoordinates(): SurfaceCoordinates | null {
+    const coordinates = bodySurfaceCoordinates(this.body);
+    if (!coordinates) return null;
+    const datum = this.terrainDatum;
+    return { ...coordinates, frame: this.bodyFixedFrame, ...(datum && isSupportedGeodeticDatum(datum) ? { datum, latitudeType: 'geodetic' as const } : {}) };
+  }
+
+  showGrid(show: boolean, labels = this.gridLabelsVisible, settings?: GridSettings): void {
     this.gridVisible = show;
-    if (show && !this.gridLines) {
-      this.gridLines = this.createGridLines();
-      this.gridLines.renderOrder = 1;
-      this.add(this.gridLines);
-    }
-    if (this.gridLines) {
-      this.gridLines.visible = show;
-    }
-  }
-
-  private createGridLines(): THREE.Group {
-    const group = new THREE.Group();
-    // Slight offset above surface to prevent z-fighting
-    const radius = this.displayRadius * 1.002;
-    const segs = 72; // points per line (5° per segment)
-
-    const gridMat = new THREE.LineBasicMaterial({
-      color: 0x88aaff, transparent: true, opacity: 0.3, depthTest: true, depthWrite: false,
-    });
-    const equatorMat = new THREE.LineBasicMaterial({
-      color: 0xffaa44, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false,
-    });
-    const primeMeridianMat = new THREE.LineBasicMaterial({
-      color: 0xff4444, transparent: true, opacity: 0.5, depthTest: true, depthWrite: false,
-    });
-
-    // Helper: generate a latitude ring at the given angle (degrees)
-    const makeLatLine = (latDeg: number, mat: THREE.LineBasicMaterial) => {
-      const latRad = latDeg * Math.PI / 180;
-      const cosLat = Math.cos(latRad);
-      const sinLat = Math.sin(latRad);
-      const pts: THREE.Vector3[] = [];
-      for (let i = 0; i <= segs; i++) {
-        const lon = (i / segs) * 2 * Math.PI;
-        // Geometry space: Y = pole (matches SphereGeometry)
-        pts.push(new THREE.Vector3(
-          radius * cosLat * Math.cos(lon),
-          radius * sinLat,
-          radius * cosLat * Math.sin(lon),
-        ));
+    this.gridLabelsVisible = labels;
+    const coordinates = this.surfaceCoordinates;
+    if (show && coordinates && this.body.geometryType === 'Globe' && !this.graticule) {
+      this.graticule = new AdaptiveGraticule(this, coordinates);
+      this.terrainManager?.enableGraticule(this.graticule.uniforms, this.graticule.bodyFromWorld);
+      for (const overlay of this.surfaceOverlays) {
+        this.graticule.attachSurfaceOverlay(overlay.group);
+        overlay.tiles.addEventListener('load-model', event => {
+          const scene = (event as unknown as { scene?: THREE.Object3D }).scene;
+          if (scene) this.graticule?.attachSurfaceOverlay(scene);
+          this.graticule?.invalidateSurface();
+        });
+        overlay.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
       }
-      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
-    };
-
-    // Helper: generate a longitude meridian at the given angle (degrees)
-    const makeLonLine = (lonDeg: number, mat: THREE.LineBasicMaterial) => {
-      const lonRad = lonDeg * Math.PI / 180;
-      const cosLon = Math.cos(lonRad);
-      const sinLon = Math.sin(lonRad);
-      const pts: THREE.Vector3[] = [];
-      for (let i = 0; i <= segs; i++) {
-        const lat = (i / segs) * Math.PI - Math.PI / 2;
-        pts.push(new THREE.Vector3(
-          radius * Math.cos(lat) * cosLon,
-          radius * Math.sin(lat),
-          radius * Math.cos(lat) * sinLon,
-        ));
-      }
-      group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
-    };
-
-    // Latitude lines every 30° (excluding poles)
-    for (let lat = -60; lat <= 60; lat += 30) {
-      makeLatLine(lat, lat === 0 ? equatorMat : gridMat);
     }
-
-    // Longitude lines every 30°
-    for (let lon = 0; lon < 360; lon += 30) {
-      makeLonLine(lon, lon === 0 ? primeMeridianMat : gridMat);
+    if (this.graticule && coordinates) {
+      const key = JSON.stringify(coordinates);
+      if (key !== this.gridCoordinateKey) { this.gridCoordinateKey = key; this.graticule.setCoordinates(coordinates); }
     }
-
-    // --- Labels ---
-    const labelR = this.displayRadius * 1.015;
-    const labelSize = this.displayRadius * 0.06;
-    const latLabelLon = 5 * Math.PI / 180; // offset from PM so labels don't overlap the line
-    const lonLabelLat = 3 * Math.PI / 180; // offset above equator
-
-    // Latitude labels (placed near prime meridian)
-    const latLabels: [number, string, string][] = [
-      [60, '60°N', '#88aaff'], [30, '30°N', '#88aaff'],
-      [0, 'Eq', '#ffaa44'],
-      [-30, '30°S', '#88aaff'], [-60, '60°S', '#88aaff'],
-    ];
-    for (const [latDeg, text, color] of latLabels) {
-      const latRad = latDeg * Math.PI / 180;
-      const sprite = this.makeTextSprite(text, color);
-      sprite.position.set(
-        labelR * Math.cos(latRad) * Math.cos(latLabelLon),
-        labelR * Math.sin(latRad),
-        labelR * Math.cos(latRad) * Math.sin(latLabelLon),
-      );
-      sprite.scale.set(labelSize, labelSize * 0.5, 1);
-      group.add(sprite);
-    }
-
-    // Longitude labels (placed just above equator)
-    for (let lon = 0; lon < 360; lon += 30) {
-      const lonRad = lon * Math.PI / 180;
-      const text = lon === 0 ? '0°' : `${lon}°`;
-      const color = lon === 0 ? '#ff4444' : '#88aaff';
-      const sprite = this.makeTextSprite(text, color);
-      sprite.position.set(
-        labelR * Math.cos(lonLabelLat) * Math.cos(lonRad),
-        labelR * Math.sin(lonLabelLat),
-        labelR * Math.cos(lonLabelLat) * Math.sin(lonRad),
-      );
-      sprite.scale.set(labelSize, labelSize * 0.5, 1);
-      group.add(sprite);
-    }
-
-    return group;
+    this.graticule?.configure(show, labels, settings);
   }
 
-  /** Create a camera-facing text sprite for grid labels */
-  private makeTextSprite(text: string, color: string): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.font = 'bold 28px monospace';
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, 64, 32);
-    const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: true,
-      sizeAttenuation: true,
-    });
-    return new THREE.Sprite(material);
+  updateGrid(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, labels: LabelManager | null, occluders?: readonly BodyMesh[]): void {
+    this.graticule?.update(camera, viewport, labels, occluders);
   }
+
+  setGridCameraRelativeOrigin(origin: THREE.Vector3 | null): void { this.graticule?.setCameraRelativeOrigin(origin); }
+
+  setGridAnnotationScene(scene: THREE.Scene): void { this.graticule?.setAnnotationScene(scene); }
+
+  get gridMetrics() { return this.graticule?.metrics ?? null; }
 
   /** Update position from absolute coordinates (km) and apply rotation. */
   updatePosition(absolutePos: [number, number, number], et: number, scaleFactor: number): void {
@@ -1081,9 +992,6 @@ export class BodyMesh extends THREE.Object3D {
         if (this.axesHelper) {
           // Axes show the body frame oriented in world space.
           this.axesHelper.quaternion.copy(bodyToWorld);
-        }
-        if (this.gridLines && this.gridVisible) {
-          this.gridLines.quaternion.copy(target.quaternion);
         }
       }
       if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = this._userVisible && this._present;
@@ -1263,15 +1171,6 @@ export class BodyMesh extends THREE.Object3D {
       factor * this.ellipsoidRatios[1],
       factor * this.ellipsoidRatios[2],
     );
-    // When terrain is active, grid lines are scaled separately in updateTerrain()
-    // to stay above the terrain surface (the mesh is shrunk 0.5% below terrain).
-    if (this.gridLines && this.gridVisible && !this.terrainVisible) {
-      this.gridLines.scale.set(
-        factor * this.ellipsoidRatios[0],
-        factor * this.ellipsoidRatios[1],
-        factor * this.ellipsoidRatios[2],
-      );
-    }
   }
 
   /** Whether this body has streaming terrain active */
@@ -1330,6 +1229,11 @@ export class BodyMesh extends THREE.Object3D {
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
   sampleTerrain(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     return this.terrainManager?.sample(latDeg, lonDeg, deriveNormal) ?? null;
+  }
+
+  /** Read-only planning query; unlike analytical sampling, never refines CPU grids. */
+  sampleResidentTerrain(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.terrainManager?.sampleResident(latDeg, lonDeg) ?? null;
   }
 
   sampleTerrainBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
@@ -1436,6 +1340,14 @@ export class BodyMesh extends THREE.Object3D {
       throw new Error(`Terrain frame ${config.frame} does not match ${this.body.name} attitude ${frame}`);
     }
     this.terrainManager = new TerrainManager({ ...config, frame: config.frame ?? ((frame?.startsWith('MOON_') || frame === 'IAU_MOON') ? frame : undefined), bodyId: this.body.name }, bodyRadii, renderer);
+    this.terrainManager.tiles.addEventListener('load-model', () => this.graticule?.invalidateSurface());
+    this.terrainManager.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
+    if (this.graticule) {
+      const coordinates = this.surfaceCoordinates;
+      if (coordinates) this.graticule.setCoordinates(coordinates);
+      this.terrainManager.enableGraticule(this.graticule.uniforms, this.graticule.bodyFromWorld);
+    }
+
     if (this.shadowEnabled) this.terrainManager.enableShadowReceiving(this.shadowUniforms);
     this.add(this.terrainManager.group);
     // Terrain starts hidden; updateTerrain will show it based on camera distance
@@ -1536,17 +1448,6 @@ export class BodyMesh extends THREE.Object3D {
     }
     this.mesh.visible = false;
     this._surfaceState = 'streamed';
-
-    // Scale grid lines above terrain surface (not shrunk with the mesh).
-    // 0.5% above terrain clears typical topography while staying close to surface.
-    if (this.gridLines && this.gridVisible) {
-      const gridScale = this.scaleFactor * 1.005;
-      this.gridLines.scale.set(
-        gridScale * this.ellipsoidRatios[0],
-        gridScale * this.ellipsoidRatios[1],
-        gridScale * this.ellipsoidRatios[2],
-      );
-    }
   }
 
   /** Defer contour layout until the renderer has its final post-selection camera. */
@@ -1823,6 +1724,14 @@ export class BodyMesh extends THREE.Object3D {
     }
     const overlay = new SurfaceTileOverlay(config);
     this.surfaceOverlays.push(overlay);
+    if (this.graticule) {
+      overlay.tiles.addEventListener('load-model', event => {
+        const scene = (event as unknown as { scene?: THREE.Object3D }).scene;
+        if (scene) this.graticule?.attachSurfaceOverlay(scene);
+        this.graticule?.invalidateSurface();
+      });
+      overlay.tiles.addEventListener('dispose-model', () => this.graticule?.invalidateSurface());
+    }
     overlay.group.visible = false;
     return overlay;
   }
@@ -2244,18 +2153,7 @@ export class BodyMesh extends THREE.Object3D {
       this.axesHelper.geometry.dispose();
       (this.axesHelper.material as THREE.Material).dispose();
     }
-    if (this.gridLines) {
-      this.gridLines.traverse((child) => {
-        if (isLine(child)) {
-          child.geometry.dispose();
-          (child.material as THREE.Material).dispose();
-        }
-        if (isSprite(child)) {
-          child.material.map?.dispose();
-          child.material.dispose();
-        }
-      });
-    }
+    this.graticule?.dispose();
     if (this.modelContainer) {
       this.modelContainer.traverse((child) => {
         if (isMesh(child)) {

@@ -532,6 +532,48 @@ order for reasons the harness's own comments record:
 
 `wait` is rejected in a scene script, naming the line.
 
+### Surface graticule
+
+`G` and `setLayer grid on|off` toggle the master grid switch. Free-look retains the
+scene-origin body's grid until another body becomes the focus. The default target
+is the tracked body. Pinned targets remain pinned when tracking or selection
+changes. These operations share Display settings and are included in snapshots;
+scripts do not overwrite local display preferences.
+
+```text
+setGridScope bodies "Earth,Moon"
+setGridDensity auto
+setGridLabels on
+setGridOpacity 0.7
+setGridCoordinateFrame off
+setGridMinorLines off
+setLayer grid on
+showBodyGrid Moon off
+showBodyGridLabels Earth off
+```
+
+Use `setGridScope tracked` or `setGridScope all` for the other scopes.
+`setGridDensity manual 0.1` selects a supported nice angular step between 30°
+and 0.001°; arbitrary values are snapped to the nearest supported step. A
+per-body `showBodyGrid ... on` enables the master layer; a later
+`setLayer grid off` hides every grid while preserving configuration.
+Setting a new scope clears per-body overrides.
+
+`setGridOpacity 0.7` fades grid lines and coordinate labels together (0 to 1;
+1 retains the authored line style). Display exposes the same value as a percentage.
+“Labels at viewport border” (`setGridCoordinateFrame on`) replaces surface captions
+with ticks at the viewport border in close overhead views. It does not change the
+coordinate system or the surface lines. Zoomed-out views keep surface captions;
+at low angles some border ticks are withheld when the surface cannot be certified.
+
+Grid/probe/surface-navigation coordinates use east-positive body-fixed longitude,
+with E/W labels and a canonical −180° inclusive to +180° exclusive domain.
+Spheres and rotational ellipsoids use geodetic latitude. Triaxial globe reference
+surfaces explicitly use planetocentric latitude; geodetic conversion on a
+triaxial ellipsoid is unavailable. Mesh-body grids are unavailable.
+Lines follow rendered geometry (including terrain and its current LOD); CPU
+terrain samples remain authoritative for analytical elevation. This is separate
+from the legacy `FixedSpherical` trajectory's declared radial position.
 ## Mission activities
 
 `ViewerControl` exposes optional activity capabilities on the native viewer:

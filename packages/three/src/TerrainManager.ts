@@ -1,4 +1,6 @@
+import { applyGraticuleToScene, type GraticuleUniforms } from './GraticuleShader.js';
 import { lunarProductFrame } from '@cosmolabe/core';
+
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { TerrainContourLabels } from './TerrainContourLabels.js';
@@ -1090,6 +1092,7 @@ export class TerrainManager {
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
       if (this.cubeConfigured) this.attachSurfaceStyle(event.scene);
+      this.applyGraticule(event.scene);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
       this.cubeScenes.delete(event.scene);
@@ -1498,6 +1501,11 @@ export class TerrainManager {
     // Cube grids carry no derived normals; `normal` stays absent rather than invented.
     if (this.cubeConfigured) return this.cube?.source.sample(latDeg, lonDeg) ?? null;
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
+  }
+
+  /** Annotation planning reads resident coverage without changing CPU residency. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
@@ -2464,6 +2472,21 @@ export class TerrainManager {
   /**
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
+  private graticuleUniforms: GraticuleUniforms | null = null;
+  private gridBodyFromWorld: THREE.Matrix4 | null = null;
+
+  enableGraticule(uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
+    this.graticuleUniforms = uniforms;
+    this.gridBodyFromWorld = bodyFromWorld;
+    this.applyGraticule(this.group);
+  }
+
+  private applyGraticule(scene: THREE.Object3D): void {
+    const uniforms = this.graticuleUniforms, transform = this.gridBodyFromWorld;
+    if (!uniforms || !transform) return;
+    applyGraticuleToScene(scene, uniforms, transform);
+  }
+
   /** Enable eclipse shadow receiving on all current and future terrain tiles. */
   enableShadowReceiving(uniforms: ShadowUniforms): void {
     this.shadowUniforms = uniforms;
@@ -2609,6 +2632,7 @@ export class TerrainManager {
         }
       }
     });
+
 
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);

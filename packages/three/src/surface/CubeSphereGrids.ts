@@ -193,6 +193,13 @@ export class CubeSphereGridSource {
     return this.sampler.sample(latDeg, lonDeg);
   }
 
+  /** Read only already resident physical grids; annotations must not request detail. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    if (!this.manifest.geometry) return this.sampler.sample(latDeg, lonDeg);
+    this.querySurface ??= new CubeGridSurface(this, '', 'body-fixed');
+    return this.querySurface.sampleElevation(latDeg, lonDeg, false);
+  }
+
   /** Load the product's tile chain at a point, down to its deepest level. */
   request(latDeg: number, lonDeg: number): Promise<void> {
     return this.requestCoordinate(this.sampler.faceCoordinate(latDeg, lonDeg));
@@ -364,7 +371,7 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
   /** Forget a derived mesh when its grid changes or leaves. */
   invalidate(id: string): void { this.meshes.delete(id); }
 
-  sampleElevation(latDeg: number, lonDeg: number): TerrainSample | null {
+  sampleElevation(latDeg: number, lonDeg: number, requestCoverage = true): TerrainSample | null {
     if (!this.source.manifest.geometry) return this.source.sampler.sample(latDeg, lonDeg);
     // Validate coordinates and canonicalize poles/longitude before constructing a
     // normal ray. Intersect the Cartesian lattice, including its chord sag;
@@ -387,7 +394,7 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     }
     const direction: SurfaceVector = [(zero.xKm - above.xKm) / extent, (zero.yKm - above.yKm) / extent, (zero.zKm - above.zKm) / extent];
     const ray: SurfaceRay = { origin: above, direction, nearKm: 0, farKm: 2 * extent };
-    void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
+    if (requestCoverage) void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
     const hit = this.intersectRay(ray, { maxMeshErrorKm: 0 });
     if (hit.kind !== 'hit') return null;
     return { position: { latDeg, lonDeg: wrapLon(lonDeg) }, elevationKm: extent - hit.distanceKm,
