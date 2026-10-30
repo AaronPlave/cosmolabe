@@ -57,10 +57,14 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
   if (!(container instanceof HTMLElement)) throw new TypeError('mountCosmolabe needs a container element');
   let viewer!: CosmolabeViewer;
   active = { dispose: async () => {} } as CosmolabeViewer; // claimed while mounting
+  // What a mount that fails part-way must release, newest first.
+  const undo: (() => unknown)[] = [];
 
   try {
-    // Sources first: an invalid one fails the mount before the page is touched.
+    // Sources first: an invalid one fails the mount before the page is touched
+    // (an earlier valid source's subscription is released by `undo`).
     const manager = new MissionStateManager();
+    undo.push(() => manager.dispose());
     for (const source of options.missionState ?? []) manager.addSource(source);
     const shadow = container.shadowRoot ?? container.attachShadow({ mode: 'open' });
     shadow.replaceChildren();
@@ -111,6 +115,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 
     // Data is fetched around the playhead, wherever the clock goes.
     const offFocus = onViewerEvent('time', (et) => manager.focus(et));
+    undo.push(offFocus);
     // Sources whose coverage grows (a live feed) grow the navigable timeline.
     const offCoverage = manager.onChange(({ sourceId }) => {
       if (!getRenderer()) return;
@@ -119,10 +124,12 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
         if (extent) extendTimelineBase(extent.start, extent.end);
       }
     });
+    undo.push(offCoverage);
 
     workspace.embedded = true;
     workspace.ui = { ...EMBED_DEFAULT_UI, ...options.ui };
     const app = mount(App, { target }) as unknown as AppExports;
+    undo.push(() => unmount(app as unknown as Record<string, never>));
 
     let disposed = false;
     const live = () => {
@@ -230,6 +237,9 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     return viewer;
   } catch (err) {
     // A mount that failed part-way leaves nothing behind.
+    for (const release of undo.reverse()) {
+      try { void release(); } catch (cleanupErr) { console.warn('[Cosmolabe] cleanup after a failed mount:', cleanupErr); }
+    }
     setSceneHooks({});
     workspace.embedded = false;
     workspace.ui = { ...ALL_UI };

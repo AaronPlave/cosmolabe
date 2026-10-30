@@ -332,6 +332,22 @@ describe('coverage semantics', () => {
     expect(at(1290)).toMatchObject({ available: true, authority: 'exploratory' });
   });
 
+  it('never lets predicted data reopen a window the observed source answered empty', () => {
+    const { u, sink } = live({ position: { ...J2000_POS, maxSampleSpacing: 60 } });
+    const planned = () => adapter.supply({ window: { start: 0, end: 30 }, samples: [0, 30].map((t) => ({ t, ...orbit(t) })) }, prov('planned'));
+    const at = (et: number) => u.stateAvailability('SC-1', et).position;
+    sink.push('position', planned());
+    expect(at(15)).toMatchObject({ available: true, classification: 'planned' });
+    sink.push('position', adapter.supply({ window: { start: 10, end: 20 }, samples: [] }, prov('authoritative')));
+    expect(at(15)).toMatchObject({ available: false, reason: 'gap' });
+    sink.push('position', planned()); // the same prediction again
+    for (const et of [5, 15, 25]) {
+      expect(at(et)).toMatchObject({ available: false, reason: 'gap' });
+      expect(isNaN(u.getBody('SC-1')!.stateAt(et).position[0])).toBe(true);
+    }
+    expect(at(0)).toMatchObject({ available: true, classification: 'planned' }); // the samples themselves stand
+  });
+
   it('long live runs with seeks across evicted coverage stay bounded and correct', async () => {
     const MAX = 120;
     const requests: CoverageInterval[] = [];

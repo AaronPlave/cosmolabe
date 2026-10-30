@@ -136,6 +136,27 @@ try {
   const bareListeners = await inPage(() => window.__probe.listeners());
 
   console.log('Mount and lifecycle');
+  await check('a mount that fails on a later source releases the earlier one, and a retry mounts clean', async () => {
+    const r = await inPage(async () => {
+      const { mountCosmolabe } = window.host;
+      let unsubscribed = 0;
+      const valid = {
+        id: 'probe', position: { timeScale: 'TDB', frame: 'J2000', center: 'Earth', positionUnits: 'km', velocityUnits: 'km/s', maxSampleSpacing: 60 },
+        subscribe: () => () => { unsubscribed++; },
+      };
+      const invalid = { id: 'bad', position: { ...valid.position, maxSampleSpacing: -1 } };
+      let error = null;
+      try { await mountCosmolabe(document.getElementById('viewer'), { missionState: [valid, invalid] }); } catch (e) { error = e.message; }
+      const leftovers = { shadow: document.getElementById('viewer').shadowRoot?.childElementCount ?? 0, style: !!document.querySelector('style[data-cosmolabe]') };
+      const retry = await mountCosmolabe(document.getElementById('viewer'), { missionState: [valid] });
+      await retry.dispose();
+      return { error, unsubscribed, leftovers };
+    });
+    assert(/maxSampleSpacing/.test(r.error ?? ''), `mount did not reject: ${r.error}`);
+    // Once for the failed mount, once for the retry's dispose.
+    assert(r.unsubscribed === 2, `unsubscribe ran ${r.unsubscribed} times`);
+    assert(r.leftovers.shadow === 0 && !r.leftovers.style, JSON.stringify(r.leftovers));
+  });
   await check('mounts the complete workspace and reports ready', async () => {
     await inPage(() => window.host.mount());
     const ready = await inPage(() => window.host.seen.ready?.[0]?.objects ?? []);

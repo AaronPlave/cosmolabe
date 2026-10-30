@@ -604,7 +604,9 @@ export class MissionStateManager {
     ch.times = times; ch.values = values; ch.meta = metas;
     ch.loaded = union(ch.loaded, window);
     // An empty answer is the source saying "nothing here": a hard break.
-    ch.segments = parsed.length ? union(ch.segments, window) : replace.reduce((segs, r) => segs.flatMap((x) => subtract([x], r)), ch.segments);
+    // Only the intervals this batch may speak for: predicted data can neither
+    // reopen nor close what observed data said (an observed empty answer stays a break).
+    ch.segments = replace.reduce((segs, r) => (parsed.length ? union(segs, r) : segs.flatMap((x) => subtract([x], r))), ch.segments);
     if (!planned) ch.observed = union(ch.observed, window);
     if (ch.failure && ch.failure.window.start >= window.start && ch.failure.window.end <= window.end) ch.failure = undefined;
     this.evict(entry, ch);

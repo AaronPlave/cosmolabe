@@ -190,6 +190,7 @@ and out-of-order deliveries apply by time. Batches are validated atomically.
 Two samples are interpolated between only when (1) they are within
 `maxSampleSpacing`, (2) one contiguous run of answered windows spans both — never
 across a window nobody served, and an answer with no samples is an explicit break
+and predicted data can neither reopen nor close what observed data said there
 — and (3) they share authority (host / exploratory) and classification, so
 observed and planned state, or host and exploratory data, are never blended.
 
