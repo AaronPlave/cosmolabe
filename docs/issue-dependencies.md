@@ -68,7 +68,7 @@ Older manifest entries can mention now-closed issues: the sync job skips closed 
 ### When opening or updating an issue
 
 1. Check the issue's full scope and any existing PR before declaring a blocker. Only **hard, open prerequisites** receive native `Blocked by`; a mention of `#123`, `related`, `uses`, or an optional future capability is not itself a blocker.
-2. If you can use GitHub UI or CLI, create native `Blocked by` and `Sub-issue` relationships immediately. Example: `gh issue edit 308 --add-blocked-by 285`. Do not confuse parentage with sequencing.
+2. If you have access to GitHub's native issue relationship controls, create `Blocked by` and `Sub-issue` relationships immediately in the issue sidebar (or via the GitHub REST dependency/sub-issue API). Do not confuse parentage with sequencing.
 3. When working through an integration that cannot directly write native relationship endpoints, update `.github/issue-relationships.json` in the same change. The `Issue dependency graph` workflow validates on PR and applies native links on merge. Never claim a relationship was applied just because it appears in prose or a PR diff.
 4. Verify the blocked/ready state after merging, periodically review open blockers against completed issues, and keep issue priority/Project status independent of blocking.
 5. GitHub Projects membership and saved view/status/priority fields are **not writable through this repository integration**. Use the Project UI for those fields; do not claim that the manifest configures Projects views.
