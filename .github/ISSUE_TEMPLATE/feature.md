@@ -28,10 +28,11 @@ labels: enhancement
 
 ## Issue relationships
 
-<!-- Hard prerequisites: which OPEN issues MUST finish before implementation can safely start? Use GitHub's native "Blocked by" relationship, not only text here. If none, write "None". For automation without direct GitHub dependency API access, update .github/issue-relationships.json. -->
+<!-- Complete both fields before submitting. Native GitHub links are added automatically.
+Parent issue: one parent initiative #N, or None if independent/an initiative itself.
+Blocked by: only hard OPEN implementation prerequisites (#N, #M), or None.
+Do not put related-but-parallel issues in Blocked by. See docs/issue-dependencies.md. -->
 
-- Hard blockers:
-- Parent initiative / sub-issue, if any:
-- Related or parallel work (not blockers):
-
-<!-- See docs/issue-dependencies.md. Priority is independent of blocker links. -->
+- Parent issue:
+- Blocked by:
+- Related (not blockers):
