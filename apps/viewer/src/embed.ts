@@ -28,6 +28,7 @@ import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
 import { createViewerControl } from './lib/viewer-control';
 import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent } from './lib/viewer-state.svelte';
 import { disposeAsk, setHostAskTransport } from './lib/ask/ask.svelte';
+import { createHttpTransport } from './lib/ask/http-transport';
 import { resetStores } from './lib/session.svelte';
 import { splitShadowCss } from './lib/embed-css';
 
@@ -259,6 +260,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 }
 
 export { ActivityConflictError };
+export { createHttpTransport };
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';
@@ -266,3 +268,4 @@ export type * from './embed-types';
 
 // The published declarations (`embed-types.ts`) must describe this function.
 mountCosmolabe satisfies typeof Declared.mountCosmolabe;
+createHttpTransport satisfies typeof Declared.createHttpTransport;

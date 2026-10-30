@@ -21,7 +21,7 @@ import { getCosmo } from '../loader';
 import { etToUtcString, onViewerEvent, sceneId } from '../viewer-state.svelte';
 import { resettable } from '../session.svelte';
 import { onToolClose } from '../shell.svelte';
-import { createAnthropicTransport } from './anthropic-transport';
+import { createHttpTransport } from './http-transport';
 
 /** Requests per conversation before it starts over. */
 export const MAX_TURNS = 12;
@@ -49,8 +49,6 @@ export const ask = $state({
   running: false,
   /** A line about the conversation itself: it started over, and why. */
   notice: null as string | null,
-  /** BYOK only: whether a key is held (the key itself is not state). */
-  hasKey: false,
 });
 resettable(ask);
 
@@ -77,30 +75,13 @@ export function askAvailable(): boolean {
   return hostTransport !== null || config().mode !== 'off';
 }
 
-/** Development mode: the person must paste a key first. */
-export function askNeedsKey(): boolean {
-  return !hostTransport && config().mode === 'byok';
-}
-
-/** In memory for this session only: never stored, never in a URL. */
-let byokKey = '';
-
-export function setAskKey(key: string) {
-  byokKey = key.trim();
-  ask.hasKey = byokKey !== '';
-  transport = null;
-}
-
 let transport: AgentTransport | null = null;
 
 function currentTransport(): AgentTransport | null {
   if (hostTransport) return hostTransport;
   const c = config();
   if (c.mode === 'off') return null;
-  if (c.mode === 'byok' && !byokKey) return null;
-  transport ??= c.mode === 'proxy'
-    ? createAnthropicTransport({ model: c.model, baseURL: c.endpoint })
-    : createAnthropicTransport({ model: c.model, apiKey: byokKey });
+  transport ??= createHttpTransport(c.endpoint);
   return transport;
 }
 
@@ -206,7 +187,6 @@ export function disposeAsk() {
   transport = null;
   hostTransport = null;
   embedded = false;
-  byokKey = '';
   conversation++;
   history = [];
   historyScene = -1;

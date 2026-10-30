@@ -1,59 +1,55 @@
 // The Ask prompt (#311) without a browser or a model: deployment config, the
-// Anthropic request/response mapping, the session's conversation handling,
-// and the shell offering the tool only where a model is configured.
-import { afterEach, describe, expect, it } from 'vitest';
+// HTTP wire transport, the session's conversation handling, and the shell
+// offering the tool only where a model is configured.
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentRequest, AgentResponse, AgentTransport, ScriptCancelSignal } from '@cosmolabe/control';
-import { resolveAskDeployment, DEFAULT_ASK_MODEL } from '../deployment';
-import { fromAnthropicMessage, toAnthropicRequest } from '../ask/anthropic-transport';
-import { ask, askAvailable, askNeedsKey, clearAsk, disposeAsk, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
+import { resolveAskDeployment } from '../deployment';
+import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
+import { ask, askAvailable, clearAsk, disposeAsk, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import { emit } from '../viewer-state.svelte';
 
 describe('resolveAskDeployment', () => {
   const page = 'https://viewer.test/app/';
-  it('is off unless configured', () => {
+  it('is off unless an endpoint is configured', () => {
     expect(resolveAskDeployment({}, page)).toEqual({ mode: 'off' });
-    expect(resolveAskDeployment({ VITE_ASK_BYOK: 'yes' }, page)).toEqual({ mode: 'off' });
+    expect(resolveAskDeployment({ VITE_ASK_ENDPOINT: '  ' }, page)).toEqual({ mode: 'off' });
   });
-  it('prefers a proxy, resolving it against the page', () => {
-    expect(resolveAskDeployment({ VITE_ASK_ENDPOINT: '/ask', VITE_ASK_BYOK: 'true' }, page)).toEqual({ mode: 'proxy', endpoint: 'https://viewer.test/ask', model: DEFAULT_ASK_MODEL });
-  });
-  it('offers BYOK only when asked for', () => {
-    expect(resolveAskDeployment({ VITE_ASK_BYOK: 'true', VITE_ASK_MODEL: 'claude-sonnet-5-5' }, page)).toEqual({ mode: 'byok', model: 'claude-sonnet-5-5' });
+  it('resolves the endpoint against the page', () => {
+    expect(resolveAskDeployment({ VITE_ASK_ENDPOINT: '/ask' }, page)).toEqual({ mode: 'proxy', endpoint: 'https://viewer.test/ask' });
   });
 });
 
-describe('Anthropic mapping', () => {
-  it('sends tools as input_schema, results as tool_result, and provider blocks verbatim', () => {
-    const thinking = { type: 'thinking', thinking: '', signature: 'sig' };
-    const body = toAnthropicRequest({
-      system: 'sys',
-      tools: [{ name: 'flyTo', description: 'd', effect: 'camera', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } }],
-      messages: [
-        { role: 'user', content: [{ type: 'text', text: 'go' }] },
-        { role: 'assistant', content: [{ type: 'provider', block: thinking }, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }] },
-        { role: 'user', content: [{ type: 'tool_result', toolUseId: 't1', content: '{"summary":"ok"}', isError: false }] },
-      ],
-    }, { model: 'claude-opus-5-5' });
-    expect(body.tools[0]).toEqual({ name: 'flyTo', description: 'd', input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false } });
-    expect(body.messages[1].content).toEqual([thinking, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }]);
-    expect(body.messages[2].content).toEqual([{ type: 'tool_result', tool_use_id: 't1', content: '{"summary":"ok"}', is_error: false }]);
-    expect(body.fallbacks).toBe('default');
-    expect('api_key' in body).toBe(false);
+const never: ScriptCancelSignal = { aborted: false, addEventListener: () => {}, removeEventListener: () => {} };
+const REQUEST: AgentRequest = { system: 's', tools: [], messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] };
+
+describe('the HTTP wire transport', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('posts the request with its version and returns the checked reply', async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(init.body as string) });
+      return new Response(JSON.stringify({ version: 1, stop: 'end', content: [{ type: 'provider', block: { type: 'thinking' } }, { type: 'text', text: 'Hi.' }] }));
+    });
+    const reply = await createHttpTransport('https://proxy.test/').send(REQUEST, never);
+    expect(calls[0]).toEqual({ url: 'https://proxy.test/', body: { version: 1, ...REQUEST } });
+    expect(reply).toEqual({ stop: 'end', content: [{ type: 'provider', block: { type: 'thinking' } }, { type: 'text', text: 'Hi.' }] });
   });
 
-  it('keeps every reply block for replay and maps stop reasons', () => {
-    const text = { type: 'text', text: 'Done.', citations: null };
-    const reply = fromAnthropicMessage({ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '', signature: 's' }, text] as never });
-    expect(reply.stop).toBe('end');
-    expect(reply.content[0]).toEqual({ type: 'provider', block: { type: 'thinking', thinking: '', signature: 's' } });
-    expect(reply.content[1]).toEqual({ type: 'text', text: 'Done.', raw: text });
-    // The raw block goes back, not a rebuilt one.
-    const back = toAnthropicRequest({ system: '', tools: [], messages: [{ role: 'assistant', content: reply.content }] }, { model: 'm' });
-    expect((back.messages[0].content as unknown[])[1]).toBe(text);
-    expect(fromAnthropicMessage({ stop_reason: 'refusal', content: [] }).stop).toBe('refusal');
-    expect(fromAnthropicMessage({ stop_reason: 'pause_turn', content: [] }).stop).toBe('other');
+  it("says what the proxy said when it fails", async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { message: 'too many requests' } }), { status: 429 }));
+    await expect(createHttpTransport('https://proxy.test/').send(REQUEST, never)).rejects.toThrow('the model proxy answered 429: too many requests');
+    vi.stubGlobal('fetch', async () => { throw new TypeError('Failed to fetch'); });
+    await expect(createHttpTransport('https://proxy.test/').send(REQUEST, never)).rejects.toThrow('could not reach the model proxy');
+  });
+
+  it('refuses replies it cannot trust', () => {
+    expect(() => parseWireResponse({ version: 2, stop: 'end', content: [] })).toThrow('wire version 2');
+    expect(() => parseWireResponse({ version: 1, stop: 'later', content: [] })).toThrow('malformed reply');
+    expect(() => parseWireResponse({ version: 1, stop: 'end', content: [{ type: 'tool_use', name: 'x' }] })).toThrow('malformed content block');
+    expect(() => parseWireResponse({ version: 1, stop: 'end', content: [{ type: 'script' }] })).toThrow('malformed content block');
   });
 });
 
@@ -93,7 +89,6 @@ describe('the Ask session', () => {
 
   it('is unavailable with no deployment or host transport', () => {
     expect(askAvailable()).toBe(false);
-    expect(askNeedsKey()).toBe(false);
   });
 
   it('runs a request through a host transport, showing steps and the reply', async () => {

@@ -84,19 +84,27 @@ interface AgentTransport {
 }
 ```
 
-The viewer ships one real transport: the Anthropic Messages API through the official SDK (`apps/viewer/src/lib/ask/anthropic-transport.ts`). The SDK loads with the first request. Tests use mock transports.
+The browser has no provider code. The viewer's one built-in transport, `createHttpTransport(endpoint)`, POSTs the request above as JSON in Cosmolabe's own **wire format** and expects the response back:
+
+```text
+POST <endpoint>   { version: 1, system, messages, tools }
+200               { version: 1, content, stop }
+non-2xx           { error: { message } }
+```
+
+`AGENT_WIRE_VERSION` in `@cosmolabe/control` is the version. Content blocks are `text`, `tool_use`, `tool_result` and `provider`. A `text` or `tool_use` block may carry `raw`, the provider's own form of the block. The server that translated a block is the one that reads `raw` and `provider` back, so the viewer never interprets them. The transport checks the version and the shape of every reply before the loop acts on it. Tests use mock transports.
+
+The provider is chosen on the server. The server holds the key, picks the model and translates the wire format to the provider's API. Switching providers or models is a server change. The viewer doesn't change.
 
 ## Ask Cosmolabe in the viewer
 
-The prompt exists only when a model is configured. Otherwise the standalone viewer is exactly the static app it was: no rail button, no palette entry, no SDK download.
+The prompt exists only when a model proxy is configured. Otherwise the standalone viewer is exactly the static app it was: no rail button, no palette entry.
 
 | Variable | Meaning |
 | --- | --- |
-| `VITE_ASK_ENDPOINT` | A server that holds the key and forwards Messages requests. Relative URLs resolve against the page. |
-| `VITE_ASK_BYOK=true` | **Development only.** The panel asks for an Anthropic key, keeps it in memory for the tab, and sends it from the browser. Never enable this on a deployment other people use. |
-| `VITE_ASK_MODEL` | The model. Defaults to `claude-opus-5-5`. |
+| `VITE_ASK_ENDPOINT` | A model proxy speaking the wire format. Relative URLs resolve against the page. |
 
-A permanent key never goes into the bundle. `examples/ask-proxy/server.mjs` is a zero-dependency proxy to adapt:
+No key or model setting ever goes into the bundle, development included. `examples/ask-proxy/server.mjs` is a zero-dependency proxy for the Anthropic Messages API, written to be adapted:
 
 ```bash
 ANTHROPIC_API_KEY=… ALLOW_ORIGIN=http://localhost:5173 node examples/ask-proxy/server.mjs
@@ -108,11 +116,11 @@ VITE_ASK_ENDPOINT=http://localhost:8787 npm run dev
 
 The proxy:
 
-- accepts only `POST /v1/messages` from the allowed origins
-- allows only the configured models, and caps `max_tokens`
-- refuses server tools, MCP servers and unknown fields, so the key is not spent on work the viewer never asked for
-- forwards only the fallback beta
-- rate-limits each client address
+- accepts only `POST /` from the allowed origins
+- builds the provider request itself, so a client cannot choose the model (`ASK_MODEL`, default `claude-opus-5-5`), raise the token cap (`MAX_TOKENS`), or add server tools or MCP servers
+- sends only the client tools the viewer defined, and enables the API's server-side refusal fallback
+- replaces the provider's error bodies with a one-line message, and reports a rejected key as a 502 from the proxy rather than as the viewer's credentials problem
+- rate-limits each client address (`RATE_PER_MINUTE`)
 
 Put real authentication and quotas in front of it before exposing it.
 
@@ -127,7 +135,7 @@ Conversation scope:
 - A conversation holds 12 requests, then starts over, with a note in the panel.
 - A catalog load stops a running request and starts the next request in a fresh conversation, so nothing about one catalog's objects is applied to another.
 - Clear forgets the conversation.
-- Nothing is stored. A reload forgets everything, including a BYOK key.
+- Nothing is stored. A reload forgets the conversation.
 
 ## In an embed
 
@@ -140,7 +148,7 @@ const found = await task.call('resolve', { query: 'imaging window', kinds: ['act
 ```
 
 - `viewer.agentTools` is always present, bound to `viewer.control`, and dies with `dispose()`. A host that runs its own agent can turn its model's tool calls into `task.call(name, input)` and send back the results it gets. `agentTools.list()` already has the shape MCP and the providers' tool-use APIs expect.
-- `ask.transport` adds the panel to the embedded workspace. Omit it and there is no prompt: an embed never picks up a deployment's `VITE_ASK_*` settings.
+- `ask.transport` adds the panel to the embedded workspace. `createHttpTransport(endpoint)`, exported by the package, is the viewer's own wire-format transport, for a host that runs a proxy like the example. Omit it and there is no prompt: an embed never picks up a deployment's `VITE_ASK_*` settings.
 - `examples/embed-host` has a host-owned agent (a fixed plan, not a model) that resolves an activity, seeks it, flies to the spacecraft and reports a refused layer.
 
 ## Trust

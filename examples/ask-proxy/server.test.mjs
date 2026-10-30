@@ -1,26 +1,61 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { checkRequest, createProxy, forwardedBetas, rateLimiter } from './server.mjs';
+import { createProxy, fromAnthropicMessage, rateLimiter, toAnthropicRequest } from './server.mjs';
 
-const LIMITS = { models: ['claude-opus-5-5'], maxTokens: 16000 };
-const BODY = { model: 'claude-opus-5-5', max_tokens: 64000, messages: [{ role: 'user', content: 'hi' }], tools: [{ name: 'flyTo', description: 'd', input_schema: { type: 'object' } }] };
+const LIMITS = { model: 'claude-opus-5-5', maxTokens: 16000 };
+const thinking = { type: 'thinking', thinking: '', signature: 'sig' };
+const textBlock = { type: 'text', text: 'Going.', citations: null };
+const WIRE = {
+  version: 1,
+  system: 'sys',
+  tools: [{ name: 'flyTo', description: 'Fly.', effect: 'camera', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } }],
+  messages: [
+    { role: 'user', content: [{ type: 'text', text: 'go' }] },
+    { role: 'assistant', content: [{ type: 'provider', block: thinking }, { type: 'text', text: 'Going.', raw: textBlock }, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }] },
+    { role: 'user', content: [{ type: 'tool_result', toolUseId: 't1', content: '{"summary":"arrived"}', isError: false }] },
+  ],
+};
 
-describe('ask proxy policy', () => {
-  it('caps max_tokens and passes a viewer request', () => {
-    expect(checkRequest(BODY, LIMITS)).toEqual({ body: { ...BODY, max_tokens: 16000 } });
+describe('wire → Anthropic', () => {
+  it('builds the body itself: its model, its cap, client tools only', () => {
+    const { body } = toAnthropicRequest(WIRE, LIMITS);
+    expect(body.model).toBe('claude-opus-5-5');
+    expect(body.max_tokens).toBe(16000);
+    expect(body.fallbacks).toBe('default');
+    expect(body.tools).toEqual([{ name: 'flyTo', description: 'Fly.', input_schema: WIRE.tools[0].inputSchema }]);
+    // Provider blocks and raw blocks go back exactly as the model sent them.
+    expect(body.messages[1].content).toEqual([thinking, textBlock, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }]);
+    expect(body.messages[2].content).toEqual([{ type: 'tool_result', tool_use_id: 't1', content: '{"summary":"arrived"}', is_error: false }]);
   });
 
-  it('refuses other models, server tools, MCP servers and unknown fields', () => {
-    expect(checkRequest({ ...BODY, model: 'other' }, LIMITS).error).toContain('model');
-    expect(checkRequest({ ...BODY, tools: [{ type: 'web_search_20260209', name: 'web_search' }] }, LIMITS).error).toContain('client tools');
-    expect(checkRequest({ ...BODY, mcp_servers: [] }, LIMITS).error).toContain('"mcp_servers"');
-    expect(checkRequest([], LIMITS).error).toBeTruthy();
+  it('ignores client attempts to choose model or tokens, and refuses malformed input', () => {
+    expect(toAnthropicRequest({ ...WIRE, model: 'other', max_tokens: 1e6 }, LIMITS).body.model).toBe('claude-opus-5-5');
+    expect(toAnthropicRequest({ ...WIRE, version: 2 }, LIMITS).error).toContain('wire version');
+    expect(toAnthropicRequest({ ...WIRE, tools: [{ type: 'web_search_20260209', name: 'web_search' }] }, LIMITS).error).toContain('inputSchema');
+    expect(toAnthropicRequest({ ...WIRE, messages: [{ role: 'user', content: [{ type: 'provider', block: {} }] }] }, LIMITS).error).toContain('assistant');
+    expect(toAnthropicRequest({ ...WIRE, messages: [{ role: 'system', content: [] }] }, LIMITS).error).toBeTruthy();
+    expect(toAnthropicRequest([], LIMITS).error).toBeTruthy();
   });
+});
 
-  it('forwards only allowed betas', () => {
-    expect(forwardedBetas('server-side-fallback-2026-07-01, mcp-client-2025-11-20')).toEqual(['server-side-fallback-2026-07-01']);
-    expect(forwardedBetas(undefined)).toEqual([]);
+describe('Anthropic → wire', () => {
+  it('keeps every block for replay and maps stop reasons', () => {
+    const reply = fromAnthropicMessage({ stop_reason: 'tool_use', content: [thinking, textBlock, { type: 'tool_use', id: 'a', name: 'select', input: {} }] });
+    expect(reply).toEqual({
+      version: 1,
+      stop: 'tool_use',
+      content: [
+        { type: 'provider', block: thinking },
+        { type: 'text', text: 'Going.', raw: textBlock },
+        { type: 'tool_use', id: 'a', name: 'select', input: {}, raw: { type: 'tool_use', id: 'a', name: 'select', input: {} } },
+      ],
+    });
+    expect(fromAnthropicMessage({ stop_reason: 'end_turn', content: [] }).stop).toBe('end');
+    expect(fromAnthropicMessage({ stop_reason: 'refusal', content: [] }).stop).toBe('refusal');
+    expect(fromAnthropicMessage({ stop_reason: 'pause_turn', content: [] }).stop).toBe('other');
   });
+});
 
+describe('rate limit', () => {
   it('limits requests per minute', () => {
     let t = 0;
     const allow = rateLimiter(2, () => t);
@@ -37,28 +72,36 @@ describe('ask proxy server', () => {
   async function start(fetchImpl) {
     server = createProxy({ apiKey: 'secret', origins: ['http://viewer.test'], perMinute: 10, fetchImpl, ...LIMITS });
     await new Promise((r) => server.listen(0, r));
-    return `http://127.0.0.1:${server.address().port}/v1/messages`;
+    return `http://127.0.0.1:${server.address().port}/`;
   }
+  const post = (url, body, origin = 'http://viewer.test') => fetch(url, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
-  it('forwards with the server-held key and answers with CORS for the allowed origin', async () => {
+  it('answers in the wire format, with the server-held key upstream', async () => {
     const seen = [];
     const url = await start(async (u, init) => {
       seen.push(init);
-      return new Response(JSON.stringify({ content: [], stop_reason: 'end_turn' }), { status: 200 });
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Hi.' }], stop_reason: 'end_turn' }), { status: 200 });
     });
-    const res = await fetch(url, { method: 'POST', headers: { origin: 'http://viewer.test', 'x-api-key': 'held-by-proxy', 'anthropic-beta': 'server-side-fallback-2026-07-01' }, body: JSON.stringify(BODY) });
+    const res = await post(url, WIRE);
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe('http://viewer.test');
+    expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }] });
     expect(seen[0].headers['x-api-key']).toBe('secret');
     expect(seen[0].headers['anthropic-beta']).toBe('server-side-fallback-2026-07-01');
-    expect(JSON.parse(seen[0].body).max_tokens).toBe(16000);
   });
 
-  it('refuses other origins without calling upstream', async () => {
+  it('reports an upstream failure without its credentials problem looking like the viewer\'s', async () => {
+    const url = await start(async () => new Response(JSON.stringify({ error: { message: 'invalid x-api-key' } }), { status: 401 }));
+    const res = await post(url, WIRE);
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.message).toBe('model service 401: invalid x-api-key');
+  });
+
+  it('refuses other origins and bad requests without calling upstream', async () => {
     let called = false;
     const url = await start(async () => { called = true; return new Response('{}'); });
-    const res = await fetch(url, { method: 'POST', headers: { origin: 'http://evil.test' }, body: JSON.stringify(BODY) });
-    expect(res.status).toBe(403);
+    expect((await post(url, WIRE, 'http://evil.test')).status).toBe(403);
+    expect((await post(url, { ...WIRE, version: 0 })).status).toBe(400);
     expect(called).toBe(false);
   });
 });

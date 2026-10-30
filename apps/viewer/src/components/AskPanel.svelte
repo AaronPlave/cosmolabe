@@ -9,10 +9,10 @@
    * Offered only where a model is configured (`askAvailable`).
    */
   import { tick } from 'svelte';
-  import { Check, X, Loader2, Square, CornerDownLeft, KeyRound, Trash2, Ban } from 'lucide-svelte';
+  import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, askNeedsKey, setAskKey, MAX_TURNS, type AskStep, type AskStatus,
+    ask, submitAsk, stopAsk, clearAsk, MAX_TURNS, type AskStep, type AskStatus,
   } from '../lib/ask/ask.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -23,11 +23,7 @@
   let { onClose }: Props = $props();
 
   let prompt = $state('');
-  let keyDraft = $state('');
   let transcript = $state<HTMLElement | null>(null);
-  let input = $state<HTMLTextAreaElement | null>(null);
-
-  const needsKey = $derived(askNeedsKey() && !ask.hasKey);
 
   // Follow the newest step as it lands.
   $effect(() => {
@@ -55,13 +51,6 @@
   // reaches the shell, which dismisses the panel.
   function containKeys(e: KeyboardEvent) {
     if (e.key !== 'Escape') e.stopPropagation();
-  }
-
-  function useKey(e: SubmitEvent) {
-    e.preventDefault();
-    setAskKey(keyDraft);
-    keyDraft = '';
-    void tick().then(() => input?.focus());
   }
 
   /** `flyTo Titan` — the step as the equivalent script line, roughly. */
@@ -109,24 +98,6 @@
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="flex flex-col gap-2" onkeydown={containKeys}>
-    {#if needsKey}
-      <form class="flex flex-col gap-1.5" onsubmit={useKey}>
-        <label class="ui-label" for="ask-key">Anthropic API key</label>
-        <div class="flex items-center gap-1.5">
-          <input
-            id="ask-key"
-            type="password"
-            autocomplete="off"
-            bind:value={keyDraft}
-            class="ui-control min-w-0 flex-1 rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
-          />
-          <button type="submit" class="ask-btn" disabled={keyDraft.trim() === ''}><KeyRound size={12} /> Use</button>
-        </div>
-        <p class="ui-helper whitespace-normal text-warning">
-          Development mode. The key stays in this tab's memory until reload and is sent straight to Anthropic. Do not enable this on a deployment other people use.
-        </p>
-      </form>
-    {:else}
       {#if ask.notice}
         <p class="ui-helper whitespace-normal" role="status">{ask.notice}</p>
       {/if}
@@ -186,7 +157,6 @@
 
       <div class="flex items-end gap-1.5">
         <textarea
-          bind:this={input}
           bind:value={prompt}
           onkeydown={onKeydown}
           rows="2"
@@ -207,7 +177,6 @@
       <p class="ui-helper whitespace-normal text-text-faint">
         A model interprets the request; the viewer's catalog and data remain the source of truth. Up to {MAX_TURNS} requests per conversation, cleared when a new scene loads.
       </p>
-    {/if}
   </div>
 </InstrumentPanel>
 

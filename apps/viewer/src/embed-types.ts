@@ -26,6 +26,13 @@ export declare class ActivityConflictError extends Error {
   constructor(conflicts: readonly ActivityConflict[]);
 }
 
+/**
+ * The viewer's own Ask transport: the agent request, POSTed as JSON to a model
+ * proxy speaking the agent wire format (`AGENT_WIRE_VERSION`, as
+ * `examples/ask-proxy` does). For `mountCosmolabe(el, { ask: { transport } })`.
+ */
+export declare function createHttpTransport(endpoint: string): import('@cosmolabe/control').AgentTransport;
+
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';

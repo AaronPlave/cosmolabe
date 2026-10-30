@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 /**
- * A minimal model proxy for the viewer's Ask prompt (#311).
+ * A minimal model proxy for the viewer's Ask prompt (#311), and the only part
+ * of the prompt that knows a model provider.
  *
- * The viewer must never hold a permanent API key, so a deployment that offers
- * the prompt points `VITE_ASK_ENDPOINT` at a server like this one: it holds
- * the key, accepts Anthropic Messages requests from the viewer's origin only,
- * narrows them to what the prompt needs, and forwards them.
+ * The viewer posts the agent loop's request in Cosmolabe's own wire format
+ * (`AGENT_WIRE_VERSION` in `@cosmolabe/control`: `{ version, system,
+ * messages, tools }`) and expects `{ version, content, stop }` back. This
+ * proxy holds the key, picks the model, and translates both ways to the
+ * Anthropic Messages API. Serving another provider means another translation
+ * here; the viewer does not change.
  *
  * Zero dependencies — Node 20+. An example to adapt, not a hardened service:
  * put your own authentication, quotas and logging in front of it before
@@ -17,42 +20,93 @@
  *   ANTHROPIC_API_KEY  required
  *   ALLOW_ORIGIN       required; comma-separated origins allowed to call
  *   PORT               default 8787
- *   ASK_MODELS         comma-separated models clients may request; default claude-opus-5-5
- *   MAX_TOKENS         cap on max_tokens; default 16000
+ *   ASK_MODEL          default claude-opus-5-5
+ *   MAX_TOKENS         default 16000
  *   RATE_PER_MINUTE    requests per client address per minute; default 20
  */
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
 const UPSTREAM = 'https://api.anthropic.com/v1/messages';
+const WIRE_VERSION = 1;
 const MAX_BODY_BYTES = 2_000_000;
-const ALLOWED_BETAS = new Set(['server-side-fallback-2026-07-01']);
+const MAX_MESSAGES = 200;
 
-/**
- * Narrow a client's request body to what the prompt needs, or say why not.
- * Only the client tools the viewer defines are allowed: a server tool (web
- * search, code execution) or an MCP server would spend this key on work the
- * viewer never asked for.
- */
-export function checkRequest(body, { models, maxTokens }) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'body must be a JSON object' };
-  const allowed = new Set(['model', 'max_tokens', 'system', 'messages', 'tools', 'fallbacks', 'tool_choice', 'output_config', 'thinking', 'metadata']);
-  for (const key of Object.keys(body)) if (!allowed.has(key)) return { error: `field ${JSON.stringify(key)} is not allowed through this proxy` };
-  if (!models.includes(body.model)) return { error: `model must be one of ${models.join(', ')}` };
-  if (!Array.isArray(body.messages) || body.messages.length === 0) return { error: 'messages must be a non-empty array' };
-  for (const tool of body.tools ?? []) {
-    if (!tool || typeof tool !== 'object' || 'type' in tool || typeof tool.name !== 'string' || typeof tool.input_schema !== 'object') {
-      return { error: 'only client tools (name, description, input_schema) are allowed' };
-    }
+const fail = (error) => ({ error });
+
+/** One wire content block as an Anthropic block, or an error string. */
+function toAnthropicBlock(c, role) {
+  if (!c || typeof c !== 'object') return 'content blocks must be objects';
+  switch (c.type) {
+    case 'text':
+      if (typeof c.text !== 'string') return 'text blocks need text';
+      return role === 'assistant' && c.raw ? c.raw : { type: 'text', text: c.text };
+    case 'tool_use':
+      if (role !== 'assistant') return 'tool_use belongs to the assistant';
+      return c.raw ?? { type: 'tool_use', id: c.id, name: c.name, input: c.input };
+    case 'tool_result':
+      if (role !== 'user' || typeof c.toolUseId !== 'string' || typeof c.content !== 'string') return 'malformed tool_result';
+      return { type: 'tool_result', tool_use_id: c.toolUseId, content: c.content, is_error: c.isError === true };
+    case 'provider':
+      // The model's own blocks (its thinking, say), carried back on its turns.
+      if (role !== 'assistant' || !c.block || typeof c.block !== 'object') return 'provider blocks belong to the assistant';
+      return c.block;
+    default:
+      return `unknown content block ${JSON.stringify(c.type)}`;
   }
-  if (body.fallbacks !== undefined && body.fallbacks !== 'default') return { error: 'fallbacks must be "default"' };
-  const max = Number.isInteger(body.max_tokens) && body.max_tokens > 0 ? Math.min(body.max_tokens, maxTokens) : maxTokens;
-  return { body: { ...body, max_tokens: max } };
 }
 
-/** The `anthropic-beta` values this proxy forwards. */
-export function forwardedBetas(header) {
-  return String(header ?? '').split(',').map((s) => s.trim()).filter((b) => ALLOWED_BETAS.has(b));
+/**
+ * The viewer's wire request as an Anthropic Messages body, or `{ error }`.
+ * The proxy builds the body itself, so a client cannot choose the model, add
+ * server tools or MCP servers, or raise the token cap.
+ */
+export function toAnthropicRequest(wire, { model, maxTokens }) {
+  if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return fail('body must be a JSON object');
+  if (wire.version !== WIRE_VERSION) return fail(`wire version must be ${WIRE_VERSION}`);
+  if (typeof wire.system !== 'string') return fail('system must be a string');
+  if (!Array.isArray(wire.messages) || wire.messages.length === 0 || wire.messages.length > MAX_MESSAGES) return fail(`messages must be 1 to ${MAX_MESSAGES} entries`);
+  if (!Array.isArray(wire.tools)) return fail('tools must be an array');
+  const tools = [];
+  for (const t of wire.tools) {
+    if (!t || typeof t.name !== 'string' || typeof t.description !== 'string' || !t.inputSchema || typeof t.inputSchema !== 'object') return fail('each tool needs name, description and inputSchema');
+    tools.push({ name: t.name, description: t.description, input_schema: t.inputSchema });
+  }
+  const messages = [];
+  for (const m of wire.messages) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || !Array.isArray(m.content)) return fail('each message needs a role and content');
+    const content = [];
+    for (const c of m.content) {
+      const block = toAnthropicBlock(c, m.role);
+      if (typeof block === 'string') return fail(block);
+      content.push(block);
+    }
+    messages.push({ role: m.role, content });
+  }
+  return {
+    body: {
+      model,
+      max_tokens: maxTokens,
+      system: wire.system,
+      messages,
+      tools,
+      // A declined request is retried on the model the API picks for that
+      // category, inside the same call (with the beta header below).
+      fallbacks: 'default',
+    },
+  };
+}
+
+const STOPS = { end_turn: 'end', stop_sequence: 'end', tool_use: 'tool_use', max_tokens: 'max_tokens', refusal: 'refusal' };
+
+/** An Anthropic reply in the wire format. Every block is kept for replay. */
+export function fromAnthropicMessage(message) {
+  const content = (message.content ?? []).map((block) => {
+    if (block.type === 'text') return { type: 'text', text: block.text, raw: block };
+    if (block.type === 'tool_use') return { type: 'tool_use', id: block.id, name: block.name, input: block.input, raw: block };
+    return { type: 'provider', block };
+  });
+  return { version: WIRE_VERSION, content, stop: STOPS[message.stop_reason] ?? 'other' };
 }
 
 /** A fixed-window counter per client address. */
@@ -86,7 +140,7 @@ function readBody(req) {
   });
 }
 
-export function createProxy({ apiKey, origins, models, maxTokens, perMinute, fetchImpl = fetch }) {
+export function createProxy({ apiKey, origins, model, maxTokens, perMinute, fetchImpl = fetch }) {
   const allow = rateLimiter(perMinute);
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -94,8 +148,7 @@ export function createProxy({ apiKey, origins, models, maxTokens, perMinute, fet
       ? {
         'access-control-allow-origin': origin,
         'access-control-allow-methods': 'POST, OPTIONS',
-        // The SDK sends its own telemetry and version headers; none is forwarded.
-        'access-control-allow-headers': req.headers['access-control-request-headers'] ?? 'content-type',
+        'access-control-allow-headers': 'content-type',
         'access-control-max-age': '600',
         vary: 'origin',
       }
@@ -104,14 +157,14 @@ export function createProxy({ apiKey, origins, models, maxTokens, perMinute, fet
       res.writeHead(status, { 'content-type': 'application/json', ...(cors ?? {}) });
       res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
     };
-    const fail = (status, message) => send(status, { type: 'error', error: { type: 'proxy_error', message } });
+    const fail = (status, message) => send(status, { error: { message } });
 
     if (!cors) return fail(403, 'origin not allowed');
     if (req.method === 'OPTIONS') {
       res.writeHead(204, cors);
       return res.end();
     }
-    if (req.method !== 'POST' || new URL(req.url, 'http://x').pathname !== '/v1/messages') return fail(404, 'only POST /v1/messages');
+    if (req.method !== 'POST' || new URL(req.url, 'http://x').pathname !== '/') return fail(404, 'only POST /');
     if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests');
 
     let parsed;
@@ -120,25 +173,32 @@ export function createProxy({ apiKey, origins, models, maxTokens, perMinute, fet
     } catch (err) {
       return fail(400, err instanceof Error ? err.message : 'invalid JSON');
     }
-    const checked = checkRequest(parsed, { models, maxTokens });
-    if (checked.error) return fail(400, checked.error);
+    const request = toAnthropicRequest(parsed, { model, maxTokens });
+    if (request.error) return fail(400, request.error);
 
-    const betas = forwardedBetas(req.headers['anthropic-beta']);
+    let upstream;
     try {
-      const upstream = await fetchImpl(UPSTREAM, {
+      upstream = await fetchImpl(UPSTREAM, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
-          ...(betas.length ? { 'anthropic-beta': betas.join(',') } : {}),
+          'anthropic-beta': 'server-side-fallback-2026-07-01',
         },
-        body: JSON.stringify(checked.body),
+        body: JSON.stringify(request.body),
       });
-      send(upstream.status, await upstream.text());
     } catch {
-      fail(502, 'could not reach the model service');
+      return fail(502, 'could not reach the model service');
     }
+    const reply = await upstream.json().catch(() => null);
+    if (!upstream.ok) {
+      // The provider's message, not its body: nothing else of it is the viewer's business.
+      const message = reply?.error?.message ?? 'no detail';
+      return fail(upstream.status === 401 || upstream.status === 403 ? 502 : upstream.status, `model service ${upstream.status}: ${message}`);
+    }
+    if (!reply || !Array.isArray(reply.content)) return fail(502, 'the model service sent a malformed reply');
+    send(200, fromAnthropicMessage(reply));
   });
 }
 
@@ -153,8 +213,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   createProxy({
     apiKey,
     origins,
-    models: (process.env.ASK_MODELS ?? 'claude-opus-5-5').split(',').map((s) => s.trim()),
+    model: process.env.ASK_MODEL ?? 'claude-opus-5-5',
     maxTokens: Number(process.env.MAX_TOKENS ?? 16000),
     perMinute: Number(process.env.RATE_PER_MINUTE ?? 20),
-  }).listen(port, () => console.log(`ask proxy on http://localhost:${port} for ${origins.join(', ')}`));
+  }).listen(port, () => console.log(`ask proxy on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`));
 }

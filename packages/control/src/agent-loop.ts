@@ -16,7 +16,7 @@ import type { ScriptCancelSignal } from './contracts.js';
 import type { AgentTask, AgentToolDef, AgentToolResult, AgentTools } from './agent.js';
 
 export type AgentContent =
-  // `raw`: the provider's own block, for a transport to send back verbatim.
+  // `raw`: the provider's own block, for whatever translated it to send back verbatim.
   | { readonly type: 'text'; readonly text: string; readonly raw?: unknown }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown; readonly raw?: unknown }
   | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
@@ -41,6 +41,16 @@ export interface AgentResponse {
   readonly content: readonly AgentContent[];
   readonly stop: AgentStop;
 }
+
+/**
+ * The HTTP wire format (version 1): an `AgentRequest` POSTed as JSON, an
+ * `AgentResponse` back. It is what the viewer's built-in transport speaks, so
+ * a server — `examples/ask-proxy` — is the only part that knows a provider.
+ * A failure is a non-2xx status with `{ error: { message } }`.
+ */
+export const AGENT_WIRE_VERSION = 1;
+export interface AgentWireRequest extends AgentRequest { readonly version: typeof AGENT_WIRE_VERSION }
+export interface AgentWireResponse extends AgentResponse { readonly version: typeof AGENT_WIRE_VERSION }
 
 /** A model behind some API. Rejects on transport failure; aborts with `signal`. */
 export interface AgentTransport {
