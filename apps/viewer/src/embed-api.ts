@@ -64,6 +64,12 @@ export interface HostActivities {
   owners(): string[];
 }
 
+/** A host owner whose activities could not be shown in a newly loaded scene. */
+export interface ActivityConflict {
+  readonly owner: string;
+  readonly message: string;
+}
+
 export interface CosmolabeViewer {
   /** The viewer's control port, with every optional capability implemented. */
   readonly control: Required<ViewerControl>;
@@ -72,10 +78,11 @@ export interface CosmolabeViewer {
   /**
    * Load a catalog (URL, or data), replacing the scene. Resolves when the
    * scene's initial assets have settled; rejects — leaving the previous scene
-   * up — when it cannot load.
+   * up — when it cannot load. Rejects with `ActivityConflictError` when the
+   * scene loaded but host activities clash with its records.
    */
   loadCatalog(catalog: string | URL | CatalogInput): Promise<void>;
-  /** Release everything. Idempotent. */
+  /** Release everything. Idempotent. Every handle from this mount (control, missionState, activities) throws afterwards. */
   dispose(): Promise<void>;
 }
 

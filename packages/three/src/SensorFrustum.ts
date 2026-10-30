@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Body } from '@cosmolabe/core';
+import { MissionStateRotation, mat3Mul, quatToMat3, type Body, type Universe } from '@cosmolabe/core';
 import type { PositionResolver } from './TrajectoryLine.js';
 import {
   fovBaseParams, fovBoundaryDirection, rectangularFov,
@@ -55,8 +55,79 @@ const _m4 = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
 const _v = new THREE.Vector3();
 
+/**
+ * A sensor's declared mounting on its spacecraft — `geometry.mounting:
+ * { "boresight": [x, y, z], "up": [x, y, z] }`, both in the spacecraft body
+ * frame — as the instrument → body rotation (row-major; instrument +X right,
+ * +Y up, +Z boresight, as SPICE). Used where the spacecraft's attitude is
+ * host-supplied and SPICE cannot point the instrument.
+ */
+export function parseSensorMounting(spec: unknown): { matrix?: number[]; error?: string } {
+  if (spec === undefined) return {};
+  const m = spec as { boresight?: unknown; up?: unknown };
+  const vec = (v: unknown) => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && Number.isFinite(x)) ? v as number[] : null;
+  const z = vec(m?.boresight), u = vec(m?.up);
+  if (!z || !u) return { error: 'geometry.mounting needs boresight and up, each three finite numbers in the spacecraft body frame' };
+  const nz = Math.hypot(z[0], z[1], z[2]);
+  if (nz === 0) return { error: 'geometry.mounting.boresight is zero' };
+  const Z = z.map((x) => x / nz);
+  const d = u[0] * Z[0] + u[1] * Z[1] + u[2] * Z[2];
+  const y = [u[0] - d * Z[0], u[1] - d * Z[1], u[2] - d * Z[2]];
+  const ny = Math.hypot(y[0], y[1], y[2]);
+  if (ny < 1e-9 * Math.hypot(u[0], u[1], u[2]) || ny === 0) return { error: 'geometry.mounting.up is parallel to the boresight' };
+  const Y = y.map((x) => x / ny);
+  const X = [Y[1] * Z[2] - Y[2] * Z[1], Y[2] * Z[0] - Y[0] * Z[2], Y[0] * Z[1] - Y[1] * Z[0]];
+  // Columns are the instrument axes in body coordinates.
+  return { matrix: [X[0], Y[0], Z[0], X[1], Y[1], Z[1], X[2], Y[2], Z[2]] };
+}
+
+/**
+ * Instrument → scene (ECLIPJ2000) rotation for a sensor, row-major, and its
+ * source. A sensor on a spacecraft whose attitude the host supplies is pointed
+ * by that attitude and the catalog `mounting` — SPICE knows nothing of a host
+ * attitude — and without a mounting it has no truthful pointing: `unavailable`
+ * says why. Otherwise SPICE (instrument frame), else the frustum aims at its
+ * target.
+ */
+export function sensorPointing(
+  universe: Universe,
+  sf: Pick<SensorFrustum, 'body' | 'mounting' | 'mountingError' | 'spiceFovFrame' | 'spiceInertialFrame'>,
+  et: number,
+  spiceInst: Universe['spiceInstance'],
+): { rotation?: number[]; from: 'spice' | 'attitude' | 'target'; unavailable?: string } {
+  const own = sf.body.rotation;
+  const parent = sf.body.parentName ? universe.getBody(sf.body.parentName) : undefined;
+  // The sensor's own attitude if it has one, else its spacecraft's.
+  const carrier = own ? (own instanceof MissionStateRotation ? sf.body : undefined)
+    : parent?.rotation instanceof MissionStateRotation ? parent : undefined;
+  if (carrier) {
+    if (!sf.mounting) {
+      return { from: 'attitude', unavailable: sf.mountingError
+        ? `${sf.body.name}: ${sf.mountingError}.`
+        : `${carrier.name}'s attitude is host-supplied and ${sf.body.name} declares no mounting on it (geometry.mounting), so its pointing is unknown.` };
+    }
+    const q = universe.bodyToWorldQuat(carrier, et);
+    if (!q) return { from: 'attitude', unavailable: `${carrier.name}'s attitude is unavailable at this time.` };
+    return { from: 'attitude', rotation: mat3Mul(quatToMat3(q), sf.mounting as Parameters<typeof mat3Mul>[1]) };
+  }
+  // SPICE pointing through the cached FOV frame (enrichSensorFromSpice), in
+  // the inertial frame that matches scene positions.
+  if (sf.spiceFovFrame && spiceInst) {
+    try {
+      return { from: 'spice', rotation: spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[] };
+    } catch { /* no CK coverage at this time: aim at the target */ }
+  }
+  return { from: 'target' };
+}
+
 export class SensorFrustum extends THREE.Object3D {
   readonly body: Body;
+  /** Instrument → spacecraft body rotation from the catalog's `mounting`, if declared. */
+  readonly mounting: number[] | undefined;
+  /** Why a declared `mounting` was rejected. */
+  readonly mountingError: string | undefined;
+  /** Why the sensor cannot be pointed at the last update (and is not drawn), or null. */
+  pointingUnavailable: string | null = null;
   readonly targetName: string | undefined;
   /** NAIF instrument ID for SPICE-based orientation (e.g. -82360 for Cassini ISS NAC) */
   readonly spiceId: number | undefined;
@@ -110,6 +181,7 @@ export class SensorFrustum extends THREE.Object3D {
     this.hFov = (hFovDeg * Math.PI) / 180;
     this.vFov = (vFovDeg * Math.PI) / 180;
     this.targetName = geo?.target as string | undefined;
+    ({ matrix: this.mounting, error: this.mountingError } = parseSensorMounting(geo?.mounting));
     this.spiceId = geo?.spiceId as number | undefined;
     this.shape = (geo?.shape as string) === 'rectangular' ? 'rectangular' : 'elliptical';
     const tanH = Math.tan(this.hFov / 2), tanV = Math.tan(this.vFov / 2);

@@ -28,7 +28,7 @@
     isToolOpen, openTool, setLayout, COMPACT_MAX_WIDTH,
   } from './lib/shell.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
-  import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer } from './lib/loader';
+  import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer, isSessionDisposed } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
   import { queueScript, fetchScript } from './lib/script-demo.svelte';
   import { restoreView } from './lib/view-link';
@@ -582,7 +582,9 @@
       await loadCatalogUrl(canvas, entryUrl, name, fetcher);
       await getCurrentRenderer()?.waitForInitialAssets();
     } catch (err) {
-      if (loadToken === loadGeneration) catalogs.loadError = `Couldn't load ${name}: ${err instanceof Error ? err.message : String(err)}`;
+      // A load whose session was disposed has no screen to report to (a later
+      // session's stores are not its own).
+      if (loadToken === loadGeneration && !isSessionDisposed(err)) catalogs.loadError = `Couldn't load ${name}: ${err instanceof Error ? err.message : String(err)}`;
       throw err;
     } finally {
       if (loadToken === loadGeneration) loadInFlight = false;

@@ -170,6 +170,14 @@ describe('attitude conventions', () => {
     const sign = Math.sign(read.attitude![0] * refToBody[0]);
     for (let k = 0; k < 4; k++) expect(sign * read.attitude![k]).toBeCloseTo(refToBody[k], 12);
     expect(u.stateIn('SC-1', 900, { frame: 'J2000' })).toMatchObject({ position: null, attitude: null });
+    // A requested frame or centre that cannot be evaluated is a reason, never available-but-null.
+    expect(u.stateIn('SC-1', 300, { frame: 'NO_SUCH_FRAME' })).toMatchObject({
+      position: null, attitude: null,
+      availability: { position: { available: false, reason: 'error' }, attitude: { available: false, reason: 'error' } },
+    });
+    expect(u.stateIn('SC-1', 300, { center: 'Vulcan' })).toMatchObject({
+      position: null, availability: { position: { available: false, reason: 'unbound' }, attitude: { available: true } },
+    });
   });
 
   it('slerps between samples', () => {
@@ -290,6 +298,89 @@ describe('coverage semantics', () => {
     expect(() => sink.push('position', { value: batch } as never)).toThrow(/PluginData/);
   });
 
+  it('never interpolates across a window nobody served, or one served empty', () => {
+    const { u, sink } = live();
+    // Separately answered windows; the samples either side of the hole are 120 s apart, within maxSampleSpacing.
+    sink.push('position', adapter.supply(positionBatch(0, 600), prov()));
+    sink.push('position', adapter.supply(positionBatch(720, 1200), prov()));
+    const at = (et: number) => u.stateAvailability('SC-1', et).position;
+    expect(at(660)).toMatchObject({ available: false, reason: 'pending' });
+    expect(isNaN(u.getBody('SC-1')!.stateAt(660).position[0])).toBe(true);
+    // The source answers the hole: nothing there. A real gap, not a blend.
+    sink.push('position', adapter.supply({ window: { start: 610, end: 710 }, samples: [] }, prov()));
+    expect(at(660)).toMatchObject({ available: false, reason: 'gap', message: expect.stringMatching(/served no data/) });
+    expect(isNaN(u.getBody('SC-1')!.stateAt(660).position[0])).toBe(true);
+    expect(u.stateAvailability('SC-1', 300).position.coverage).toEqual([{ start: 0, end: 600 }]);
+    // Served properly: abutting windows interpolate as one.
+    sink.push('position', adapter.supply(positionBatch(600, 720), prov()));
+    expect(at(660).available).toBe(true);
+    expect(at(630)).toMatchObject({ available: true, coverage: [{ start: 0, end: 1200 }] });
+    expect(u.getBody('SC-1')!.stateAt(630).position[0]).toBeCloseTo(orbit(630).position[0], 2);
+  });
+
+  it('never blends across an authority or observed/planned boundary', () => {
+    const { u, sink } = live();
+    sink.push('position', adapter.supply(positionBatch(0, 600), prov('authoritative')));
+    sink.push('position', adapter.supply(positionBatch(600, 1200, 60, () => ({ position: [9, 9, 9], velocity: [0, 0, 0] })), prov('planned')));
+    const at = (et: number) => u.stateAvailability('SC-1', et).position;
+    expect(at(600).classification).toBe('authoritative'); // the shared instant stays observed
+    expect(u.getBody('SC-1')!.stateAt(600).position[0]).toBeCloseTo(orbit(600).position[0], 6);
+    expect(at(630)).toMatchObject({ available: false, reason: 'gap', message: expect.stringMatching(/not blended/) });
+    expect(at(690)).toMatchObject({ available: true, classification: 'planned' });
+    sink.push('position', exploratoryData(positionBatch(1200, 1800, 60, () => ({ position: [9, 9, 9], velocity: [0, 0, 0] })), prov('planned')));
+    expect(at(1170)).toMatchObject({ available: false, reason: 'gap' }); // host → exploratory
+    expect(at(1290)).toMatchObject({ available: true, authority: 'exploratory' });
+  });
+
+  it('long live runs with seeks across evicted coverage stay bounded and correct', async () => {
+    const MAX = 120;
+    const requests: CoverageInterval[] = [];
+    let open = 0, maxOpen = 0;
+    const m = new MissionStateManager();
+    const u = scene(m);
+    let sink!: MissionStateSink;
+    m.addSource({
+      id: 'sc1', position: J2000_POS, maxSamples: MAX, prefetch: { behind: 1200, ahead: 600 },
+      request: async (_c, w) => {
+        requests.push(w);
+        maxOpen = Math.max(maxOpen, ++open);
+        await flush();
+        open--;
+        return adapter.supply({ window: w, samples: positionBatch(Math.ceil(w.start / 60) * 60, w.end).samples }, prov());
+      },
+      subscribe: (s) => { sink = s; return () => {}; },
+    });
+    const check = (et: number) => {
+      const s = m.status('sc1')!.position!;
+      expect(s.samples).toBeLessThanOrEqual(MAX);
+      expect(s.loaded.length).toBeLessThanOrEqual(3);
+      expect(s.evaluable.length).toBeLessThanOrEqual(3);
+      const p = u.getBody('SC-1')!.stateAt(et).position;
+      expect(Math.hypot(p[0] - orbit(et).position[0], p[1] - orbit(et).position[1], p[2] - orbit(et).position[2])).toBeLessThan(1e-3);
+    };
+    let edge = 0;
+    for (let step = 1; step <= 2000; step++) {
+      // A minute of live data per step, following the playhead.
+      sink.push('position', adapter.supply(positionBatch(edge, edge + 60), prov()));
+      edge += 60;
+      m.focus(edge - 30);
+      await flush(); // a frame
+      if (step % 250 === 0) {
+        // Back into coverage long since evicted, and forward again.
+        const back = edge * 0.37 + 15;
+        m.focus(back);
+        await flush(); await flush();
+        check(back);
+        m.focus(edge - 30);
+        await flush(); await flush();
+      }
+      if (step % 50 === 0) check(edge - 30);
+    }
+    expect(maxOpen).toBeLessThanOrEqual(2);
+    // Chunked: one ahead-request per half prefetch window of playback, plus a few per seek.
+    expect(requests.length).toBeLessThanOrEqual((2000 * 60) / 300 + 8 * 3);
+  });
+
   it('bounds retention, evicting farthest from the playhead', () => {
     const { m, sink } = live({ maxSamples: 20 });
     m.focus(60 * 50);
@@ -370,6 +461,47 @@ describe('request orchestration', () => {
     m.focus(10_000);
     await flush();
     expect(u.stateAvailability('SC-1', 10_000).position.available).toBe(true);
+  });
+
+  it('backs off from a source that answers less than it was asked', async () => {
+    const clock = { now: 0 };
+    // Answers only the first half of each window it is asked for.
+    const { source, requests } = requestingSource((_c, w) => positionBatch(w.start, (w.start + w.end) / 2));
+    const m = new MissionStateManager({ now: () => clock.now });
+    scene(m);
+    m.addSource(source);
+    m.focus(10_000);
+    await flush();
+    for (let k = 0; k < 20; k++) m.focus(10_000 + k);
+    expect(m.status('sc1')!.position!.error).toBeUndefined();
+    expect(requests).toHaveLength(1);
+    clock.now = 5000;
+    m.focus(10_000);
+    expect(requests).toHaveLength(2);
+  });
+
+  it('keeps the previous source working when the replacement cannot subscribe', () => {
+    const m = new MissionStateManager();
+    const u = scene(m);
+    let sink!: MissionStateSink;
+    const unsubscribe = vi.fn();
+    m.addSource({ id: 'sc1', position: J2000_POS, subscribe: (s) => { sink = s; return unsubscribe; } });
+    sink.push('position', adapter.supply(positionBatch(0, 600), prov()));
+    expect(() => m.replaceSource({ id: 'sc1', position: J2000_POS, subscribe: () => { throw new Error('link refused'); } })).toThrow(/link refused/);
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(u.stateAvailability('SC-1', 300).position.available).toBe(true);
+    sink.push('position', adapter.supply(positionBatch(600, 1200), prov())); // the old feed still lands
+    expect(u.stateAvailability('SC-1', 900).position.available).toBe(true);
+    expect(() => m.addSource({ id: 'sc2', position: J2000_POS, subscribe: () => { throw new Error('nope'); } })).toThrow(/nope/);
+    expect(m.sourceIds()).toEqual(['sc1']);
+  });
+
+  it('rejects non-finite or out-of-range retention and prefetch bounds', () => {
+    const m = new MissionStateManager();
+    for (const extra of [{ maxSamples: -1 }, { maxSamples: 1.5 }, { maxSamples: Infinity }, { prefetch: { behind: -10 } }, { prefetch: { ahead: NaN } }, { staleAfterMs: -1 }]) {
+      expect(() => m.addSource({ id: 'sc1', position: J2000_POS, ...extra })).toThrow(/must be/);
+    }
+    expect(m.sourceIds()).toEqual([]);
   });
 
   it('invalidates only the bound body\'s trail, coalesced, and stops everything on dispose', async () => {

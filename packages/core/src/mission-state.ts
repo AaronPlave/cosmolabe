@@ -244,6 +244,12 @@ class Channel {
   values: number[][] = [];
   meta: SampleMeta[] = [];
   loaded: CoverageInterval[] = [];
+  /**
+   * Where interpolation is valid: the union of answered windows, minus windows
+   * answered explicitly empty. Two samples are blended only when one interval
+   * here spans both — never across a window nobody served.
+   */
+  segments: CoverageInterval[] = [];
   /** Windows answered by non-`planned` data, which predicted data never overwrites. */
   observed: CoverageInterval[] = [];
   inflight = new Set<{ window: CoverageInterval; controller: AbortController }>();
@@ -318,10 +324,7 @@ export class MissionStateManager {
     this.assertLive();
     const old = this.entries.get(source?.id);
     if (!old) throw new Error(`no mission-state source "${source?.id}" to replace`);
-    // Validate the newcomer before letting go of the old one.
-    this.prepare(source, this.generation + 1);
-    this.release(old);
-    this.install(source);
+    this.install(source, old);
   }
 
   removeSource(id: string): boolean {
@@ -411,12 +414,11 @@ export class MissionStateManager {
     }
     const i = this.bracket(ch, et);
     if (i >= 0) {
-      // Between two samples, the later one's provenance; predicted if either end is.
+      // Between two samples, the later one's provenance (both share authority and classification).
       const meta = ch.meta[ch.times[i] === et ? i : i + 1];
-      const planned = ch.meta[i].classification === 'planned' || meta.classification === 'planned';
       return {
         available: true, sourceId: id, coverage: [runAround(ch, i)],
-        classification: planned ? 'planned' : meta.classification, authority: meta.authority, provenance: meta.provenance,
+        classification: meta.classification, authority: meta.authority, provenance: meta.provenance,
       };
     }
     const reason = this.unavailableReason(entry, ch, et);
@@ -458,7 +460,7 @@ export class MissionStateManager {
     const i = floorIndex(ch.times, et);
     if (i < 0) return -1;
     if (ch.times[i] === et) return i;
-    return i + 1 < ch.times.length && ch.times[i + 1] - ch.times[i] <= ch.convention.maxSampleSpacing ? i : -1;
+    return linked(ch, i) ? i : -1;
   }
 
   private unavailableReason(entry: SourceEntry, ch: Channel, et: number): { reason: UnavailableReason; message: string } {
@@ -485,6 +487,12 @@ export class MissionStateManager {
     }
     if (!ch.declared && et < first) return { reason: 'before-coverage', message: 'Before the first sample the source holds.' };
     if (!ch.declared && et > last) return afterLast();
+    const i = floorIndex(ch.times, et);
+    if (i >= 0 && i + 1 < ch.times.length && ch.times[i + 1] - ch.times[i] <= ch.convention.maxSampleSpacing) {
+      return compatible(ch.meta[i], ch.meta[i + 1])
+        ? { reason: 'gap', message: 'The source served no data between the samples on either side.' }
+        : { reason: 'gap', message: 'The samples on either side differ in authority or classification (e.g. observed and planned); they are not blended.' };
+    }
     return { reason: 'gap', message: `No samples within ${ch.convention.maxSampleSpacing} s of this epoch.` };
   }
 
@@ -504,15 +512,15 @@ export class MissionStateManager {
         ch.inflight.delete(req);
       }
     }
-    const held = [...ch.loaded, ...[...ch.inflight].map((r) => r.window)];
+    // A window that just failed counts as held until its retry is due.
+    const backoff = ch.failure && this.now() - ch.failure.at < RETRY_AFTER_MS ? [ch.failure.window] : [];
+    const held = [...ch.loaded, ...[...ch.inflight].map((r) => r.window), ...backoff];
     // Hysteresis: refill only once the inner half of the window is uncovered,
     // so steady playback asks for chunks rather than a sliver per frame.
     const inner = bound({ start: et - behind / 2, end: et + ahead / 2 });
     if (inner.every((iv) => covers(held, iv))) return;
     let missing = want;
     for (const h of held) missing = missing.flatMap((m) => subtract([m], h));
-    const failure = ch.failure;
-    if (failure && this.now() - failure.at < RETRY_AFTER_MS) missing = missing.flatMap((m) => subtract([m], failure.window));
     for (const window of missing) if (window.end > window.start) this.fetch(entry, ch, window);
   }
 
@@ -533,6 +541,9 @@ export class MissionStateManager {
         ch.inflight.delete(req);
         try {
           this.ingest(entry, ch, batch);
+          // An answer narrower than the request leaves a hole; back off rather
+          // than re-requesting it every frame.
+          if (!covers(ch.loaded, window)) throw new Error('the answer did not cover the requested window');
         } catch (err) {
           this.fail(entry, ch, window, err);
         }
@@ -574,8 +585,10 @@ export class MissionStateManager {
     const planned = meta.classification === 'planned';
     // Predicted data never overwrites observed data; everything else, latest wins.
     const replace = planned ? ch.observed.reduce<CoverageInterval[]>((rest, o) => rest.flatMap((r) => subtract([r], o)), [window]) : [window];
-    const keep = (t: number) => !within(replace, t);
-    const incoming = parsed.filter((p) => !planned || within(replace, p.t));
+    // Observed instants, boundaries included, are shielded from predicted data.
+    const shielded = (t: number) => planned && within(ch.observed, t);
+    const keep = (t: number) => !within([window], t) || shielded(t);
+    const incoming = parsed.filter((p) => !shielded(p.t));
     const times: number[] = [], values: number[][] = [], metas: SampleMeta[] = [];
     let a = 0, b = 0;
     while (a < ch.times.length || b < incoming.length) {
@@ -590,6 +603,8 @@ export class MissionStateManager {
     }
     ch.times = times; ch.values = values; ch.meta = metas;
     ch.loaded = union(ch.loaded, window);
+    // An empty answer is the source saying "nothing here": a hard break.
+    ch.segments = parsed.length ? union(ch.segments, window) : replace.reduce((segs, r) => segs.flatMap((x) => subtract([x], r)), ch.segments);
     if (!planned) ch.observed = union(ch.observed, window);
     if (ch.failure && ch.failure.window.start >= window.start && ch.failure.window.end <= window.end) ch.failure = undefined;
     this.evict(entry, ch);
@@ -618,6 +633,7 @@ export class MissionStateManager {
     const keepTo = hi < ch.times.length ? ch.times[hi - 1] : Infinity;
     ch.times = ch.times.slice(lo, hi); ch.values = ch.values.slice(lo, hi); ch.meta = ch.meta.slice(lo, hi);
     ch.loaded = clip(ch.loaded, { start: keepFrom, end: keepTo });
+    ch.segments = clip(ch.segments, { start: keepFrom, end: keepTo });
     ch.observed = clip(ch.observed, { start: keepFrom, end: keepTo });
   }
 
@@ -625,6 +641,15 @@ export class MissionStateManager {
     if (!source.position && !source.attitude) throw new Error(`mission-state source "${source.id}" declares neither position nor attitude`);
     if (source.request !== undefined && typeof source.request !== 'function') throw new Error(`source ${source.id}.request must be a function`);
     if (source.subscribe !== undefined && typeof source.subscribe !== 'function') throw new Error(`source ${source.id}.subscribe must be a function`);
+    const bound = (value: unknown, what: string, min: number, integer = false) => {
+      if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < min || (integer && !Number.isInteger(value)))) {
+        throw new Error(`source ${source.id}.${what} must be ${integer ? 'an integer' : 'a finite number'} >= ${min}; got ${JSON.stringify(value)}`);
+      }
+    };
+    bound(source.maxSamples, 'maxSamples', 2, true);
+    bound(source.prefetch?.behind, 'prefetch.behind', 0);
+    bound(source.prefetch?.ahead, 'prefetch.ahead', 0);
+    bound(source.staleAfterMs, 'staleAfterMs', 0);
     const entry = new SourceEntry(source, generation);
     if (source.position) entry.channels.position = new Channel('position', validatePosition(source.position, source.id));
     if (source.attitude) entry.channels.attitude = new Channel('attitude', validateAttitude(source.attitude, source.id));
@@ -639,7 +664,8 @@ export class MissionStateManager {
     return entry;
   }
 
-  private install(source: MissionStateSource): void {
+  /** Install `source`; the entry it replaces is released only once the newcomer is validated and subscribed. */
+  private install(source: MissionStateSource, replacing?: SourceEntry): void {
     const entry = this.prepare(source, ++this.generation);
     this.entries.set(source.id, entry);
     this.validateBinding(entry);
@@ -670,8 +696,15 @@ export class MissionStateManager {
           this.emit({ sourceId: source.id, channel });
         },
       };
-      entry.unsubscribe = source.subscribe(sink);
+      try {
+        entry.unsubscribe = source.subscribe(sink);
+      } catch (err) {
+        // The previous source (if any) keeps working, untouched.
+        if (replacing) this.entries.set(source.id, replacing); else this.entries.delete(source.id);
+        throw err;
+      }
     }
+    if (replacing) this.release(replacing);
     this.invalidateBodies(source.id);
     this.emit({ sourceId: source.id });
     if (this.focusEt !== null) this.focus(this.focusEt);
@@ -753,12 +786,26 @@ function normalizeQuaternion(s: AttitudeSample, what: string, c: AttitudeConvent
   return c.direction === 'reference-to-body' ? q : [q[0], -q[1], -q[2], -q[3]];
 }
 
+/** Interpolation may blend the same authority and classification only. */
+const compatible = (a: SampleMeta, b: SampleMeta) => a.authority === b.authority && a.classification === b.classification;
+
+/**
+ * Whether samples `i` and `i + 1` may be interpolated between: close enough,
+ * inside one served segment, and of compatible provenance.
+ */
+function linked(ch: Channel, i: number): boolean {
+  if (i < 0 || i + 1 >= ch.times.length) return false;
+  const a = ch.times[i], b = ch.times[i + 1];
+  return b - a <= ch.convention.maxSampleSpacing
+    && ch.segments.some((s) => s.start <= a && b <= s.end)
+    && compatible(ch.meta[i], ch.meta[i + 1]);
+}
+
 /** The contiguous evaluable run containing sample `i`. */
 function runAround(ch: Channel, i: number): CoverageInterval {
-  const gap = ch.convention.maxSampleSpacing;
   let a = i, b = i;
-  while (a > 0 && ch.times[a] - ch.times[a - 1] <= gap) a--;
-  while (b + 1 < ch.times.length && ch.times[b + 1] - ch.times[b] <= gap) b++;
+  while (linked(ch, a - 1)) a--;
+  while (linked(ch, b)) b++;
   return { start: ch.times[a], end: ch.times[b] };
 }
 

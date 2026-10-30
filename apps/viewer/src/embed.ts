@@ -21,7 +21,7 @@ import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import starsUrl from '../public/stars.bin?url';
 import { MissionStateManager, parseMissionActivities, type CatalogJson, type MissionActivity } from '@cosmolabe/core';
 import type { ViewerControl } from '@cosmolabe/control';
-import type { CosmolabeViewer, MountOptions, WorkspaceUi } from './embed-api';
+import type { ActivityConflict, CosmolabeViewer, MountOptions, WorkspaceUi } from './embed-api';
 import type * as Declared from './embed-types';
 import { workspace, ALL_UI } from './lib/workspace.svelte';
 import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
@@ -33,6 +33,15 @@ import { splitShadowCss } from './lib/embed-css';
 interface AppExports {
   loadForHost(entryUrl: string, name: string, fetcher?: (url: string) => Promise<CatalogJson>): Promise<void>;
 }
+
+/** `loadCatalog` loaded the scene, but some host owners' activities clash with its records and are not shown in it. */
+class ActivityConflictError extends Error {
+  override readonly name = 'ActivityConflictError';
+  constructor(readonly conflicts: readonly ActivityConflict[]) {
+    super(`Host activities not shown in this scene: ${conflicts.map((c) => `${c.owner} (${c.message})`).join('; ')}`);
+  }
+}
+ActivityConflictError satisfies typeof Declared.ActivityConflictError;
 
 const EMBED_DEFAULT_UI: WorkspaceUi = { ...ALL_UI, catalogBrowser: false, homeScreen: false };
 const HOST_OWNER = (owner: string) => `host:${owner}`;
@@ -72,13 +81,18 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     const assetBase = options.assetBaseUrl ? new URL(options.assetBaseUrl, document.baseURI) : null;
     const hostActivities = new Map<string, readonly MissionActivity[]>();
 
-    const applyHostActivities = (u = getSceneUniverse()) => {
-      if (!u) return;
+    // Owners whose records clash with the scene just bound: each owner is all
+    // in or all out (the store's atomic replace), and `loadCatalog` rejects
+    // naming them rather than resolving with records silently missing.
+    let conflicts: ActivityConflict[] = [];
+    const applyHostActivities = (u: NonNullable<ReturnType<typeof getSceneUniverse>>) => {
+      conflicts = [];
       for (const [owner, records] of hostActivities) {
         try {
           u.activities.replace(HOST_OWNER(owner), records);
         } catch (err) {
-          console.error(`[Cosmolabe] host activities "${owner}" could not be shown in this scene:`, err);
+          conflicts.push({ owner, message: err instanceof Error ? err.message : String(err) });
+          console.warn(`[Cosmolabe] host activities "${owner}" could not be shown in this scene:`, err);
         }
       }
     };
@@ -110,9 +124,20 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
     workspace.ui = { ...EMBED_DEFAULT_UI, ...options.ui };
     const app = mount(App, { target }) as unknown as AppExports;
 
+    let disposed = false;
+    const live = () => {
+      if (disposed) throw new Error('This Cosmolabe workspace has been disposed');
+    };
+    // Every handle this mount gives out dies with it: the viewer's state is
+    // module-wide, so an old handle left alive would drive the next mount.
+    const guarded = <T extends object>(api: T): T =>
+      Object.fromEntries(Object.entries(api).map(([k, v]) => [k, typeof v === 'function'
+        ? (...args: unknown[]) => { live(); return (v as (...a: unknown[]) => unknown)(...args); }
+        : v])) as T;
+
     const baseControl = createViewerControl({ getSpice, host: true });
     const subscriptions = new Set<() => void>();
-    const control: Required<ViewerControl> = {
+    const control: Required<ViewerControl> = guarded({
       ...baseControl,
       on: (event, cb) => {
         const off = baseControl.on(event, cb);
@@ -123,26 +148,20 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
         subscriptions.add(dispose);
         return dispose;
       },
-    };
-
-    let disposed = false;
-    const live = () => {
-      if (disposed) throw new Error('This Cosmolabe workspace has been disposed');
-    };
+    });
 
     viewer = {
       control,
-      missionState: {
-        addSource: (s) => { live(); manager.addSource(s); },
-        replaceSource: (s) => { live(); manager.replaceSource(s); },
+      missionState: guarded({
+        addSource: (s) => manager.addSource(s),
+        replaceSource: (s) => manager.replaceSource(s),
         removeSource: (id) => manager.removeSource(id),
         sourceIds: () => manager.sourceIds(),
         status: (id) => manager.status(id),
         onChange: (listener) => manager.onChange(listener),
-      },
-      activities: {
+      }),
+      activities: guarded({
         replace: (owner, specs) => {
-          live();
           if (typeof owner !== 'string' || !owner.trim()) throw new Error('activity owner is required');
           const records = parseMissionActivities(specs);
           // Into the scene first: a clash with another owner's ID throws
@@ -157,12 +176,18 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
           return true;
         },
         owners: () => [...hostActivities.keys()],
-      },
+      }),
       loadCatalog: async (catalog) => {
         live();
+        const load = async (entry: string, name: string, fetcher?: (url: string) => Promise<CatalogJson>) => {
+          conflicts = [];
+          await app.loadForHost(entry, name, fetcher);
+          live();
+          if (conflicts.length) throw new ActivityConflictError(conflicts);
+        };
         if (typeof catalog === 'string' || catalog instanceof URL) {
           const url = new URL(catalog, document.baseURI).href;
-          return app.loadForHost(url, decodeURIComponent(url.split('/').pop() ?? url).replace(/\.json$/i, ''));
+          return load(url, decodeURIComponent(url.split('/').pop() ?? url).replace(/\.json$/i, ''));
         }
         if (!catalog || typeof catalog.json !== 'object') throw new TypeError('loadCatalog takes a URL or { json, baseUrl? }');
         // A catalog given as data still resolves its `require`s and relative
@@ -175,7 +200,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
           if (!res.ok) throw new Error(`Failed to fetch catalog: ${url} (${res.status})`);
           return res.json() as Promise<CatalogJson>;
         };
-        return app.loadForHost(entry, catalog.name ?? json.name ?? 'Catalog', fetcher);
+        return load(entry, catalog.name ?? json.name ?? 'Catalog', fetcher);
       },
       dispose: async () => {
         if (disposed) return;
@@ -215,6 +240,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
   }
 }
 
+export { ActivityConflictError };
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';

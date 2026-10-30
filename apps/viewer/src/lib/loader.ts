@@ -284,11 +284,15 @@ async function fetchWithProgress(
 
 // ── Kernel pipeline ──
 
-async function ensureSpice(): Promise<HeritageSpice> {
+async function ensureSpice(signal?: AbortSignal): Promise<HeritageSpice> {
   if (!spice) {
     setLoadingState({ label: 'Initializing SPICE...' });
     const wasmUrl = hooks.cspiceWasmUrl ?? cspiceWasmUrl;
-    spice = await createHeritageSpice({ locateFile: () => wasmUrl });
+    const created = await createHeritageSpice({ locateFile: () => wasmUrl });
+    // A load abandoned meanwhile must not install its instance into whatever
+    // session or scene came after it.
+    signal?.throwIfAborted();
+    spice ??= created;
   }
   return spice;
 }
@@ -370,7 +374,7 @@ async function plannedFromGraph(graph: ResolvedCatalogGraph): Promise<PlannedKer
  */
 async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?: AbortSignal): Promise<void> {
   teardownScene();
-  const s = await ensureSpice();
+  const s = await ensureSpice(signal);
 
   const plan = furnishOrder(
     userKernelSources.map((source): PlannedKernel => ({ source })),
@@ -395,15 +399,18 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?
       detail: `${i + 1} / ${plan.length} kernels`,
     });
     try {
-      await furnishPlanned(s, k, (loaded) => {
+      await furnishPlanned(s, k, signal, (loaded) => {
+        if (signal?.aborted) return;
         setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
           // Real transferred bytes of the sized set — the nominal weights above
           // spread the bar but are never shown as if they were measured.
           detail: `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}`,
         });
       });
+      signal?.throwIfAborted();
       furnished.push({ source: k.source, name, coverage: measureCoverage(s, name) });
     } catch (err) {
+      signal?.throwIfAborted();
       console.warn(`[Cosmolabe] Failed to load ${name}:`, err);
       dropUserKernel(k.source);
     }
@@ -451,12 +458,14 @@ function teardownScene(): void {
 async function furnishPlanned(
   s: HeritageSpice,
   k: PlannedKernel,
+  signal: AbortSignal | undefined,
   onProgress: (loaded: number) => void,
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
     const buffer = await source.file.arrayBuffer();
     await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    signal?.throwIfAborted();
     rememberKernelFrames(buffer);
     return;
   }
@@ -465,6 +474,7 @@ async function furnishPlanned(
   // declared.
   const buffer = await fetchWithProgress(source.url, k.size ? onProgress : undefined);
   await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  signal?.throwIfAborted();
   rememberKernelFrames(buffer);
 }
 
@@ -877,13 +887,18 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
     if (geographicImport === geographicController) endLoad();
-    // A session disposed mid-load: whatever this load built is nobody's.
-    if (geographicController.signal.reason === SESSION_DISPOSED) teardownScene();
+    // A session disposed mid-load: `disposeSession` already released what it
+    // had built, and every step above stops at its next await without
+    // touching the module's scene state — which may be a later session's by
+    // now. Nothing to clean up here; say why it stopped.
+    if (geographicController.signal.reason === SESSION_DISPOSED) throw SESSION_DISPOSED;
     throw err;
   }
 }
 
 const SESSION_DISPOSED = new Error('The viewer was disposed');
+/** True for the rejection of a load whose session was disposed under it. */
+export const isSessionDisposed = (err: unknown): boolean => err === SESSION_DISPOSED;
 
 /**
  * Release everything the viewer session holds — scene, workers, SPICE, the

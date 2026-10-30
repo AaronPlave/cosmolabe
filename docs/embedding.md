@@ -67,6 +67,9 @@ await viewer.dispose();
 
 - `loadCatalog` resolves once the scene's initial models, textures and trails
   have settled, and rejects — leaving the previous scene up — when it cannot load.
+  When the scene loaded but a host owner's activities clash with its records, it
+  rejects with `ActivityConflictError` (`conflicts: { owner, message }[]`); see
+  [Activities](#activities).
 - `ui` turns off major features: `timeline`, `toolRail`, `analysisPanels` (tool
   panels, inspector, probe), `catalogBrowser`, `homeScreen`, `shortcuts`. The
   catalog browser and home screen default off when embedded.
@@ -74,7 +77,10 @@ await viewer.dispose();
   second concurrent `mountCosmolabe` rejects. `dispose()` releases the renderer
   and its WebGL context, workers, SPICE, sources, subscriptions, panels,
   selection, activities and timeline state, and aborts in-flight loads; a later
-  mount starts clean.
+  mount starts clean. Every handle a mount returned (`control`, `missionState`,
+  `activities`, `loadCatalog`) throws once it is disposed, so a handle kept by
+  mistake can never drive the next mount, and a load still in flight at
+  disposal rejects without touching the next mount's scene.
 - The workspace fills the container and follows it with a `ResizeObserver`
   (canvas, device-pixel ratio, floating panels, compact layout below 768 px).
 
@@ -113,7 +119,11 @@ catalog loads and end with their disposer or the viewer's disposal.
 Reads added for hosts: `getObjectState(name, { time, frame, center })` returns
 position (km) and attitude (scalar-first quaternion, v_body = q ⊗ v_frame ⊗ q*)
 in any frame the scene can resolve, with availability and reasons — the same
-evaluation the scene draws. `getTimelineWindow()` / `setTimelineWindow(start,
+evaluation the scene draws. A requested frame or centre that cannot be evaluated
+is reported as unavailable with its reason (`error`, `unbound`, `dependency`),
+never as available with a null value. Velocity is not part of the readout yet:
+in a rotating frame it needs the frame's rate, which the frame registry does
+not provide. `getTimelineWindow()` / `setTimelineWindow(start,
 end)` navigate the timeline without touching the clock or the scene.
 
 ## External mission state
@@ -166,6 +176,9 @@ error, never a default:
 | `direction` | `reference-to-body`: v_body = q ⊗ v_ref ⊗ q* (SPICE C-matrix sense; CCSDS AEM `A2B` with A the reference). `body-to-reference` is its conjugate. Quaternions more than 1e-3 from unit length are rejected. |
 | `maxSampleSpacing` | Widest spacing interpolated across (Hermite for position, SLERP for attitude); wider is a gap. |
 
+`maxSamples` (integer ≥ 2), `prefetch.behind` / `prefetch.ahead` and
+`staleAfterMs` (finite, ≥ 0) are validated; anything else rejects the source.
+
 Batches cross the #179 boundary as `PluginData`: `HostDataAdapter.supply` for
 host data, `exploratoryData` for host-side computations. Provenance
 `classification: 'planned'` marks predicted state; predicted samples never
@@ -173,6 +186,12 @@ overwrite observed ones, and the inspector labels which is shown. A batch's
 `window` is the interval it is complete for: inside it, missing samples are a real
 gap; a later batch replaces what an earlier one said about its window, so late
 and out-of-order deliveries apply by time. Batches are validated atomically.
+
+Two samples are interpolated between only when (1) they are within
+`maxSampleSpacing`, (2) one contiguous run of answered windows spans both — never
+across a window nobody served, and an answer with no samples is an explicit break
+— and (3) they share authority (host / exploratory) and classification, so
+observed and planned state, or host and exploratory data, are never blended.
 
 ### Coverage: never a held state
 
@@ -184,7 +203,7 @@ through `Universe.stateAvailability`:
 | --- | --- |
 | `pending` | Inside declared coverage, being fetched; or after the last sample of a connected live feed that is current |
 | `before-coverage` / `after-coverage` | Outside what the source serves |
-| `gap` | Loaded, but no samples within `maxSampleSpacing` |
+| `gap` | Loaded, but no samples within `maxSampleSpacing`, a window answered empty, or a provenance boundary |
 | `stale` | After the last live sample; the feed has been silent longer than `staleAfterMs` |
 | `disconnected` | After the last live sample; the host reported the link down |
 | `unbound` | The catalog names a source the host has not supplied |
@@ -196,6 +215,26 @@ without attitude (position valid) the model is replaced by its position marker,
 body axes and sensors are hidden, and body-locked camera modes have no frame. The
 inspector's **State** section gives the reason.
 
+### Sensors on host-supplied attitude
+
+SPICE knows nothing of a host attitude, so a sensor on a spacecraft whose
+`rotationModel` is `MissionState` is pointed by that attitude and a mounting the
+catalog declares, in the spacecraft body frame (instrument +Z is the boresight,
++Y up, as in SPICE):
+
+```json
+{ "name": "SC-1 Imager", "center": "SC-1",
+  "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+  "geometry": { "type": "Sensor", "horizontalFov": 10, "verticalFov": 8,
+                "mounting": { "boresight": [0, 0, 1], "up": [0, 1, 0] } } }
+```
+
+Without a mounting (or with an invalid one) such a sensor has no truthful
+pointing: it is not drawn, and the instrument view shows **No pointing** with
+the reason instead of an image — it is never aimed at its target as a stand-in.
+SPICE frame kernels that relate an instrument frame to the host's `bodyFrame`
+are not used for this yet.
+
 ### Orchestration
 
 `stateAt`/`rotationAt` never do I/O: they read a bounded cache that the viewer
@@ -204,8 +243,11 @@ half of that window is uncovered, so playback asks for chunks; requests that no
 longer overlap the wanted window are aborted on seek; answers for aborted
 requests or replaced sources are discarded, whatever the backend does with the
 signal; retention evicts the samples farthest from the playhead and forgets that
-they were loaded. New data invalidates only the bound bodies' trails, coalesced.
-The playback range is the timeline's: it starts from declared coverage (or the
+they were loaded. An answer narrower than its request, or a failed one, is
+backed off for 2 s rather than re-requested every frame. `replaceSource`
+validates and subscribes the newcomer before releasing the old source: if its
+`subscribe` throws, the old source keeps working. New data invalidates only the
+bound bodies' trails, coalesced. The playback range is the timeline's: it starts from declared coverage (or the
 loaded data) and grows as live coverage extends or the host seeks beyond it
 (`setTimelineWindow` navigates it explicitly) — the scene is never rebuilt.
 
@@ -223,7 +265,11 @@ viewer.activities.remove('mission-plan');
 Host activities use the existing store, lanes, inspector and navigation. Each
 owner's records replace that owner's previous ones atomically, persist across
 catalog loads, never touch catalog-owned records, and may not reuse another
-owner's IDs. A selected activity whose record disappears is deselected; a later
+owner's IDs. `replace` throws on a clash with the scene up; owners registered
+before a `loadCatalog` whose catalog then holds the same IDs are not shown in
+that scene — each owner is all in or all out — and the load rejects with
+`ActivityConflictError` naming them. Their records stay registered;
+`activities.replace` or `remove` resolves the clash. A selected activity whose record disappears is deselected; a later
 record with the same ID is not reselected.
 
 ### Analysis tools

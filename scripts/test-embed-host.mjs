@@ -40,7 +40,13 @@ await new Promise((resolve, reject) => {
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const problems = [];
-page.on('console', (m) => { if (m.type() === 'error') problems.push(`console.error: ${m.text()}`); });
+// A request the test aborts on purpose is logged by the browser; that one is expected.
+let expectedAborts = 0;
+page.on('console', (m) => {
+  if (m.type() !== 'error') return;
+  if (expectedAborts > 0 && /net::ERR_FAILED/.test(m.text())) { expectedAborts--; return; }
+  problems.push(`console.error: ${m.text()}`);
+});
 page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
 
 // Count what the page attaches to window/document, the workers it starts and
@@ -439,6 +445,24 @@ try {
     });
     assert(err < 1e-3, `SC-1 after scene switch: ${err} km`);
   });
+  await check('host activities clashing with a newly loaded catalog reject the load, naming the owner', async () => {
+    const r = await inPage(async () => {
+      const { viewer, sceneCatalog } = window.host;
+      await viewer.loadCatalog({ json: { ...sceneCatalog(true), activities: [] }, baseUrl: document.baseURI });
+      // Registered while no scene record holds the ID; the next catalog does.
+      viewer.activities.replace('clash', [structuredClone(sceneCatalog().activities[0])]);
+      let error = null;
+      try { await viewer.loadCatalog({ json: sceneCatalog(true), baseUrl: document.baseURI }); } catch (e) { error = { name: e.name, conflicts: e.conflicts }; }
+      const ids = viewer.control.listActivities().map((a) => a.id);
+      const owners = viewer.activities.owners();
+      viewer.activities.remove('clash');
+      return { error, ids, owners, objects: viewer.control.listObjects() };
+    });
+    assert(r.error?.name === 'ActivityConflictError' && r.error.conflicts.length === 1 && r.error.conflicts[0].owner === 'clash', JSON.stringify(r.error));
+    // The scene is up, the catalog's record and the other owners' are shown, the clashing owner is not.
+    assert(r.objects.includes('SC-2') && r.ids.filter((id) => id === 'catalog-campaign').length === 1 && r.ids.includes('sc2-perigee-1'), JSON.stringify(r));
+    assert(r.owners.includes('clash') && r.owners.includes('mission-plan'), JSON.stringify(r.owners));
+  });
 
   console.log('Disposal and remount');
   await check('dispose releases everything and leaves the page as it found it', async () => {
@@ -486,6 +510,71 @@ try {
     assert(again.join() === disposedListeners.join(), `listeners after a second mount cycle: ${again} vs ${disposedListeners}`);
     await inPage(() => window.host.mount());
   });
+
+  // Dispose A while its catalog request is held, mount B, then let A's request
+  // finish: A must not tear down, report into, or otherwise touch B.
+  for (const outcome of ['resolves', 'rejects']) {
+    await check(`a disposed mount's late catalog ${outcome === 'resolves' ? 'answer' : 'failure'} and old handles never touch the next mount`, async () => {
+      let held, onHit;
+      const hit = new Promise((resolve) => { onHit = resolve; });
+      await page.route('**/delayed-catalog.json', (route) => { held = route; onHit(); });
+      await inPage(async () => {
+        await window.host.viewer.dispose();
+        const a = await window.host.mountCosmolabe(document.getElementById('viewer'));
+        window.__oldViewer = a;
+        window.__oldLoad = a.loadCatalog('delayed-catalog.json').then(() => 'resolved', (e) => e.message);
+      });
+      await hit;
+      await inPage(async () => {
+        await window.__oldViewer.dispose();
+        await window.host.mount();
+      });
+      await seek(1000.5);
+      const before = await inPage(() => ({ t: window.host.viewer.control.getTime(), sel: window.host.viewer.control.getSelected() }));
+      if (outcome === 'resolves') {
+        const body = JSON.stringify(await inPage(() => window.host.sceneCatalog(false)));
+        await held.fulfill({ contentType: 'application/json', body });
+      } else {
+        expectedAborts++;
+        await held.abort('failed');
+      }
+      await page.unroute('**/delayed-catalog.json');
+      const r = await inPage(async () => {
+        const old = window.__oldViewer, v = window.host.viewer;
+        const oldLoad = await window.__oldLoad;
+        await new Promise((res) => setTimeout(res, 300));
+        const attempts = {
+          setTime: () => old.control.setTime({ kind: 'et', et: window.host.T0 + 50 }),
+          select: () => old.control.select('SC-2'),
+          track: () => old.control.track('SC-2'),
+          on: () => old.control.on('time', () => {}),
+          getTime: () => old.control.getTime(),
+          addSource: () => old.missionState.addSource({ id: 'x', position: { timeScale: 'TDB', frame: 'J2000', center: 'Earth', positionUnits: 'km', velocityUnits: 'km/s', maxSampleSpacing: 60 } }),
+          removeActivities: () => old.activities.remove('mission-plan'),
+          loadCatalog: () => old.loadCatalog({ json: window.host.sceneCatalog(false) }),
+        };
+        const refused = [];
+        for (const [name, fn] of Object.entries(attempts)) {
+          try { const p = fn(); if (p?.then) await p; } catch (e) { if (/disposed/.test(e.message)) refused.push(name); }
+        }
+        const { T0, fixtures } = window.host;
+        const p = v.control.getObjectState('SC-1', { frame: 'J2000' }).position, truth = fixtures.sc1State(T0 + 1000.5).position;
+        return {
+          oldLoad, refused, attempted: Object.keys(attempts),
+          t: v.control.getTime(), sel: v.control.getSelected(), tracked: v.control.getTracked(),
+          objects: v.control.listObjects(), activities: v.control.listActivities().map((a) => a.id),
+          err: Math.hypot(p[0] - truth[0], p[1] - truth[1], p[2] - truth[2]),
+          liveContexts: window.__probe.liveContexts(),
+          loadError: !!document.getElementById('viewer').shadowRoot.textContent.match(/Couldn't load/),
+        };
+      });
+      assert(/disposed/.test(r.oldLoad), `old load settled as: ${r.oldLoad}`);
+      assert(r.refused.join() === r.attempted.join(), `old handle accepted: ${r.attempted.filter((n) => !r.refused.includes(n))}`);
+      assert(r.t === before.t && r.sel === before.sel && r.tracked !== 'SC-2', `new mount changed: ${JSON.stringify(r)} vs ${JSON.stringify(before)}`);
+      assert(r.objects.includes('SC-2') && r.activities.includes('sc2-perigee-1') && r.err < 1e-3, JSON.stringify(r));
+      assert(r.liveContexts === 1 && !r.loadError, `scene torn down or error shown: ${JSON.stringify(r)}`);
+    });
+  }
 
   await check('no console errors or page errors', async () => {
     assert(problems.length === 0, problems.join('\n'));
