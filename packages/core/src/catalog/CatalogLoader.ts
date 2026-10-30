@@ -22,6 +22,7 @@ import { createAnalyticalTrajectory, createAnalyticalTrajectoryByName } from '..
 import type { RotationModel } from '../rotations/RotationModel.js';
 import { UniformRotation } from '../rotations/UniformRotation.js';
 import { IauMoonRotation } from '../rotations/IauMoonRotation.js';
+import { EarthOrientationRotation } from '../rotations/EarthOrientationRotation.js';
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 import { NadirRotation } from '../rotations/NadirRotation.js';
 import { TrajectoryNadirRotation } from '../rotations/TrajectoryNadirRotation.js';
@@ -1437,6 +1438,10 @@ export class CatalogLoader {
         if (item.name.toUpperCase() === 'MOON') {
           if (!this.spice) console.log(`[Cosmolabe] ${item.name}: using analytical IAU rotation (no SPICE)`);
           return new IauMoonRotation();
+        }
+        if (item.name.toUpperCase() === 'EARTH') {
+          if (!this.spice) console.log(`[Cosmolabe] ${item.name}: using analytical precession, nutation and GMST (no SPICE)`);
+          return new EarthOrientationRotation();
         }
         const builtin = BUILTIN_IAU_ROTATIONS[item.name.toUpperCase()];
         if (builtin) {

@@ -299,18 +299,31 @@ describe('FrameRegistry: the frame-pair matrix', () => {
   });
 
   it('resolves IAU_<body> through the body’s own rotation model on the SPICE-free path', () => {
-    // The stock SPICE-free Earth: the analytical IAU pole and spin the loader
+    // The stock SPICE-free Mars: the analytical IAU pole and spin the loader
     // falls back to. It omits the IAU pole drift and uses a rounded sidereal
     // period, so it tracks pck00010 to a few hundredths of a degree in 2004.
+    const u = new Universe();
+    u.loadCatalog({
+      name: 'mars',
+      items: [{ name: 'Mars', trajectory: { type: 'FixedPoint', position: [0, 0, 0] }, rotationModel: { type: 'Builtin' } }],
+    } as unknown as CatalogJson);
+    const et = EPOCHS[2]!;
+    const ours = u.frames.toICRF('IAU_MARS', et)!;
+    const truth = spice.pxform('IAU_MARS', 'J2000', et);
+    expect(angleBetween(ours, truth) * (180 / Math.PI)).toBeLessThan(0.1);
+  });
+
+  it('turns the stock SPICE-free Earth with precession, nutation and GMST, as its ITRF does', () => {
+    // Earth's imagery and coordinates are Earth-fixed, so the drawn globe
+    // follows the analytical ITRF rather than the constant-rate IAU model.
     const u = new Universe();
     u.loadCatalog({
       name: 'earth',
       items: [{ name: 'Earth', trajectory: { type: 'FixedPoint', position: [0, 0, 0] }, rotationModel: { type: 'Builtin' } }],
     } as unknown as CatalogJson);
-    const et = EPOCHS[2]!;
-    const ours = u.frames.toICRF('IAU_EARTH', et)!;
-    const truth = spice.pxform('IAU_EARTH', 'J2000', et);
-    expect(angleBetween(ours, truth) * (180 / Math.PI)).toBeLessThan(0.1);
+    for (const et of EPOCHS) {
+      expect(maxAbsDiff(u.frames.toICRF('IAU_EARTH', et)!, mat3Transpose(j2000ToEarthFixed(et)))).toBeLessThan(1e-12);
+    }
   });
 
   it('prefers the body’s rotation model to SPICE, so surface points sit on the drawn globe', () => {
