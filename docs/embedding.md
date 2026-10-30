@@ -115,7 +115,7 @@ catalog loads and end with their disposer or the viewer's disposal.
 | `load` / `ready` | `{ objects }` | Scene graph up / initial assets settled. |
 | `activities` | `{ count }` | Catalog load or host update. |
 | `activitySelect` | `{ id }` | Activity selection, either side; `null` when cleared. |
-| `flightEnd` | `{ target, path, outcome }` | A camera flight ended: `arrived`, `stopped` (`stopFlight` or another camera command) or `interrupted` by the person's own navigation. A host automating the camera stops there rather than re-asserting the move. |
+| `flightEnd` | `{ id, target, path, outcome }` | A camera flight ended: `arrived`, `stopped` (`stopFlight` or another camera command) or `interrupted` by the person's own navigation. `id` is the ended flight's `getFlight().id`. Told after the command that ended it has finished, and an `arrived` after the landing is applied. A host automating the camera stops there rather than re-asserting the move. |
 
 `getScene()` reports `{ id, catalog, ready }`; `id` changes with every scene
 bound, so place refs, imagery layer IDs and activity IDs held across a

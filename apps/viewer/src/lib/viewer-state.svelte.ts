@@ -80,7 +80,7 @@ export interface ViewerEventMap {
   /** The selected activity changed; null when none is selected. */
   activitySelect: string | null;
   /** A camera flight ended, and how. */
-  flightEnd: { target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
+  flightEnd: { id: number; target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
 }
 
 /** Why the clock last moved: a host's `setTime`, the viewer (scrubber, keys, scripts), or playback. */
@@ -528,7 +528,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _renderer = renderer;
   _universe = universe;
   renderer.cameraController.onFlightEnd = (flight, outcome) =>
-    emit('flightEnd', { target: flight.destination?.body.name ?? null, path: flight.path, outcome });
+    emit('flightEnd', { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path, outcome });
   if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
   vs.catalogName = vs.loadingCatalog || null;
   const syncPlaces = () => {

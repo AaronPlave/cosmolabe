@@ -80,9 +80,9 @@ export class FakeViewer implements ViewerControl {
       body: 'Titan', surface: 'streamed', imageryOnly: true,
       layers: [
         { id: 'iss', name: 'ISS mosaic', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1,
-          bounds: null, resolutionMeters: 4000, status: 'ok', view: null },
+          bounds: null, resolutionMeters: 4000, source: { type: 'xyz', endpoint: 'https://tiles.example/iss/{z}/{x}/{y}.png', layer: null, tileMatrixSet: null }, status: 'ok', view: null },
         { id: 'radar', name: 'RADAR SAR', attribution: 'JPL', description: 'Cassini RADAR swaths', role: 'overlay', optional: true, visible: false,
-          opacity: 1, bounds: [-180, 60, 180, 90], resolutionMeters: 300, status: 'idle', view: null },
+          opacity: 1, bounds: [-180, 60, 180, 90], resolutionMeters: 300, source: { type: 'wms', endpoint: 'https://wms.example/radar', layer: 'RADAR_SAR', tileMatrixSet: null }, status: 'idle', view: null },
       ],
     },
   };
@@ -194,6 +194,7 @@ export class FakeViewer implements ViewerControl {
 
   /** The flight `flyTo` started; it lands only when `stopFlight` ends it. */
   flight: ScriptFlight | null = null;
+  private flightSeq = 0;
 
   frameObject(name?: string): boolean {
     this.log('frameObject', name);
@@ -206,7 +207,7 @@ export class FakeViewer implements ViewerControl {
   flyTo(name: string, opts?: { seconds?: number; path?: FlightPath }): boolean {
     this.log('flyTo', name, opts?.path, opts?.seconds);
     if (!this.known(name)) return false;
-    this.flight = { target: name, path: opts?.path ?? 'direct' };
+    this.flight = { id: ++this.flightSeq, target: name, path: opts?.path ?? 'direct' };
     return this.ok(true);
   }
 

@@ -82,6 +82,19 @@ describe('describeImageryLayers', () => {
     expect(layers[2].bounds).toEqual([77.22, 18.31, 77.58, 18.67]);
   });
 
+  it("names each layer's source without anything that could be a credential", () => {
+    const [a, b, c] = describeImageryLayers([
+      { type: 'wmts-capabilities', url: 'https://user:secret@gibs.example/wmts/caps.xml?api_key=abc#frag', layer: 'BlueMarble', tileMatrixSet: '500m' },
+      { url: 'https://tiles.example/mars/{z}/{x}/{y}.png?token=xyz' },
+      { type: 'cube', url: 'cube/imagery.json' },
+    ], MARS_EQ_KM);
+    expect(a.source).toEqual({ type: 'wmts-capabilities', endpoint: 'https://gibs.example/wmts/caps.xml', layer: 'BlueMarble', tileMatrixSet: '500m' });
+    expect(a.attribution).toBe('gibs.example'); // not user:secret@gibs.example
+    expect(b.source).toEqual({ type: 'xyz', endpoint: 'https://tiles.example/mars/{z}/{x}/{y}.png', layer: null, tileMatrixSet: null });
+    expect(c.source).toEqual({ type: 'cube', endpoint: 'cube/imagery.json', layer: null, tileMatrixSet: null });
+    expect(JSON.stringify([a, b, c])).not.toMatch(/secret|api_key|token=/);
+  });
+
   it('keeps ids unique', () => {
     const ids = describeImageryLayers([{ url: VIKING, id: 'a' }, { url: CTX, id: 'a' }], MARS_EQ_KM).map((l) => l.id);
     expect(new Set(ids).size).toBe(2);

@@ -103,7 +103,8 @@ function makeFakeRenderer(objects: string[]) {
   let tracked: FakeBodyMesh | null = null;
   let lookAt: FakeBodyMesh | null = null;
   /** A flight `flyTo` started; it lands only when a test calls `land`. */
-  let flight: { destination: FakeBodyMesh; path: string } | null = null;
+  let flight: { id: number; destination: FakeBodyMesh; path: string } | null = null;
+  let flightSeq = 0;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
   const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
     ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
@@ -222,7 +223,7 @@ function makeFakeRenderer(objects: string[]) {
       flyTo: (bm: FakeBodyMesh, opts: { path: string; duration?: number }) => {
         log(`flyTo(${bm.body.name}, ${opts.path}, ${opts.duration})`);
         tracked = null;
-        flight = { destination: bm, path: opts.path };
+        flight = { id: ++flightSeq, destination: bm, path: opts.path };
       },
       cancelAnimation: () => log('cancelAnimation'),
       syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
@@ -667,7 +668,7 @@ describe('navigation verbs', () => {
     expect(control.flyTo('Titan')).toBe(true);
     expect(control.flyTo('Enceladus', { path: 'overview', seconds: 3 })).toBe(true);
     expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)', 'flyTo(Enceladus, overview, 3)']);
-    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'overview' });
+    expect(control.getFlight()).toEqual({ id: expect.any(Number), target: 'Enceladus', path: 'overview' });
     expect(vs.flight).toEqual({ target: 'Enceladus', path: 'overview' });
     // The HUD names the destination for the length of the flight.
     expect(vs.trackedBodyName).toBe('Enceladus');
@@ -1246,6 +1247,30 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     go.mockRestore();
   });
 
+  it('refuses a command read from a scene that is no longer bound, even when the new scene reuses its ref', () => {
+    const ref = '["names","string:a"]';
+    vs.places = new PlaceIndex([sites(['a'], 'Titan')]);
+    const go = vi.spyOn(placeActions, 'navigateToPlaceForControl').mockReturnValue({ ok: true });
+    const control = createViewerControl();
+    const read = control.getScene()!.id;
+    expect(control.gotoPlace(ref, { scene: read })).toBe(true);
+    // The catalog is replaced by one with the same layer and feature ids.
+    bind();
+    vs.places = new PlaceIndex([sites(['a'], 'Enceladus')]);
+    go.mockClear();
+    expect(() => control.gotoPlace(ref, { scene: read })).toThrow(/scene changed since this was read/);
+    expect(go).not.toHaveBeenCalled();
+    // Layers and activities are guarded the same way.
+    expect(() => control.setImageryVisible('Titan', 'x', true, { scene: read })).toThrow(/scene changed/);
+    expect(() => control.setImageryOpacity('Titan', 'x', 0.5, { scene: read })).toThrow(/scene changed/);
+    expect(() => control.selectActivity('a', { scene: read })).toThrow(/scene changed/);
+    expect(() => control.seekActivity('a', 'start', { scene: read })).toThrow(/scene changed/);
+    // Read again from the new scene, the same ref goes through; with no scene given nothing is checked.
+    expect(control.gotoPlace(ref, { scene: control.getScene()!.id })).toBe(true);
+    expect(control.gotoPlace(ref)).toBe(true);
+    go.mockRestore();
+  });
+
   it('selects a place for a script without opening the Navigate panel', () => {
     vs.places = new PlaceIndex([sites(['a'])]);
     const place = vs.places.places[0];
@@ -1262,9 +1287,9 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
   it('reads a body\'s imagery and toggles it, keeping the base on', () => {
     const layers = [
       { id: 'base', name: 'Base', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1, bounds: null,
-        resolutionMeters: 100, status: 'ok', minZoom: 0, view: { inCoverage: true, zoomLevel: 4, missingTiles: 0, degradedTiles: 0, cacheFull: false } },
+        resolutionMeters: 100, source: { type: 'xyz', endpoint: 'https://tiles.example/base', layer: null, tileMatrixSet: null }, status: 'ok', minZoom: 0, view: { inCoverage: true, zoomLevel: 4, missingTiles: 0, degradedTiles: 0, cacheFull: false } },
       { id: 'hirise', name: 'HiRISE', attribution: 'UA', description: 'HiRISE ortho', role: 'overlay', optional: true, visible: false, opacity: 1,
-        bounds: [77, 18, 78, 19], resolutionMeters: 0.25, status: 'idle', minZoom: 12, view: null },
+        bounds: [77, 18, 78, 19], resolutionMeters: 0.25, source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' }, status: 'idle', minZoom: 12, view: null },
     ];
     Object.assign(renderer.getBodyMesh('Titan')!, {
       imageryLayers: layers, surfaceTransitionState: 'streamed', isImageryOnlySurface: false,
@@ -1276,7 +1301,8 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     const imagery = control.getImagery('Titan')!;
     expect(imagery).toMatchObject({ body: 'Titan', surface: 'streamed', imageryOnly: false });
     expect(imagery.layers[0].view).toEqual({ inCoverage: true, zoomLevel: 4, minZoom: 0, missingTiles: 0, degradedTiles: 0, cacheFull: false });
-    expect(imagery.layers[1]).toMatchObject({ id: 'hirise', attribution: 'UA', description: 'HiRISE ortho', bounds: [77, 18, 78, 19], resolutionMeters: 0.25, view: null });
+    expect(imagery.layers[1]).toMatchObject({ id: 'hirise', attribution: 'UA', description: 'HiRISE ortho', bounds: [77, 18, 78, 19], resolutionMeters: 0.25, view: null,
+      source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' } });
     expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);
     // Already on is where it was asked to be, not a refusal.
     expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);
@@ -1294,13 +1320,13 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     const seen: ScriptEventMap['flightEnd'][] = [];
     const off = control.on('flightEnd', (end) => seen.push(end));
     const cc = renderer.cameraController as unknown as { onFlightEnd: ((f: unknown, o: string) => void) | null };
-    cc.onFlightEnd!({ destination: renderer.getBodyMesh('Titan'), path: 'direct', phase: 'approach' }, 'interrupted');
-    cc.onFlightEnd!({ destination: null, path: 'direct', phase: 'approach' }, 'arrived');
+    cc.onFlightEnd!({ id: 7, destination: renderer.getBodyMesh('Titan'), path: 'direct', phase: 'approach' }, 'interrupted');
+    cc.onFlightEnd!({ id: 8, destination: null, path: 'direct', phase: 'approach' }, 'arrived');
     off();
-    cc.onFlightEnd!({ destination: null, path: 'direct', phase: 'approach' }, 'stopped');
+    cc.onFlightEnd!({ id: 9, destination: null, path: 'direct', phase: 'approach' }, 'stopped');
     expect(seen).toEqual([
-      { target: 'Titan', path: 'direct', outcome: 'interrupted' },
-      { target: null, path: 'direct', outcome: 'arrived' },
+      { id: 7, target: 'Titan', path: 'direct', outcome: 'interrupted' },
+      { id: 8, target: null, path: 'direct', outcome: 'arrived' },
     ]);
     unbindRenderer();
     expect(cc.onFlightEnd).toBeNull();
