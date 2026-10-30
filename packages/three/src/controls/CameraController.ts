@@ -129,12 +129,21 @@ export interface SurfaceFlightOptions {
 
 /** A camera flight in progress, as `CameraController.flight` reports it. */
 export interface CameraFlight {
+  /**
+   * Names this flight, from its start through every phase of it to its end:
+   * `onFlightEnd` reports the same id, so a caller can tell its own flight's
+   * end from another command's.
+   */
+  readonly id: number;
   /** The body the flight lands on; null for a flight to a saved viewpoint. */
   readonly destination: BodyMesh | null;
   readonly path: FlightPath;
   /** `'overview'` while an overview flight pulls back, `'approach'` after. */
   readonly phase: 'overview' | 'approach';
 }
+
+/** How a flight ended; see `CameraController.onFlightEnd`. */
+export type CameraFlightOutcome = 'arrived' | 'stopped' | 'interrupted';
 
 /** Fraction of an overview flight's duration spent pulling back. */
 const OVERVIEW_PULLBACK_SHARE = 0.4;
@@ -286,7 +295,61 @@ export class CameraController {
   get flight(): CameraFlight | null {
     const anim = this._anim;
     if (!anim) return null;
-    return { destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
+    return this._describe(anim);
+  }
+
+  private _describe(anim: NonNullable<typeof this._anim>): CameraFlight {
+    return { id: anim.id, destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
+  }
+
+  /**
+   * Told when a flight ends: it `arrived`; `stopFlight` or another camera
+   * command (a cut, a reset, a new flight) `stopped` it; or the person's
+   * navigation input `interrupted` it. Not told on `dispose`.
+   *
+   * Never called from inside a camera command. It runs once the command that
+   * ended the flight has finished (a microtask later), so the camera, its
+   * tracking and any landing are already in their final state, and a listener
+   * may start another flight, or stop one, without the command it interrupted
+   * going on to act on state the listener has since replaced. An `arrived`
+   * also waits for the landing to be applied: the origin switch and surface
+   * pivot a flight to a body defers to the renderer's next frame. Ends are
+   * told in the order they happened.
+   */
+  onFlightEnd: ((flight: CameraFlight, outcome: CameraFlightOutcome) => void) | null = null;
+
+  private _endedFlights: { flight: CameraFlight; outcome: CameraFlightOutcome }[] = [];
+  private _flightSeq = 0;
+  /** A flight that has reached its end and is waiting for its landing to be applied. */
+  private _landing: NonNullable<typeof this._anim> | null = null;
+
+  /** Report the flight `anim` was, if it was one, as ended. */
+  private _flightEnded(anim: typeof this._anim, outcome: CameraFlightOutcome): void {
+    if (!anim) return;
+    this._endedFlights.push({ flight: this._describe(anim), outcome });
+    if (this._endedFlights.length === 1) queueMicrotask(() => this._deliverFlightEnds());
+  }
+
+  private _deliverFlightEnds(): void {
+    // Anything a listener does lands behind the ends already waiting.
+    while (this._endedFlights.length > 0) {
+      const { flight, outcome } = this._endedFlights[0];
+      try {
+        this.onFlightEnd?.(flight, outcome);
+      } catch (err) {
+        // A listener's failure must not strand the ends behind it.
+        setTimeout(() => { throw err; });
+      }
+      this._endedFlights.shift();
+    }
+  }
+
+  /** The landing a flight left to the next frame was applied (`arrived`) or dropped by a later command (`stopped`). */
+  private _settleLanding(outcome: CameraFlightOutcome): void {
+    const landing = this._landing;
+    this._landing = null;
+    this._landingApplied = false;
+    this._flightEnded(landing, outcome);
   }
 
   /**
@@ -316,6 +379,8 @@ export class CameraController {
 
   /** Animation state */
   private _anim: {
+    /** `CameraFlight.id`; carried through the phases of one flight. */
+    id: number;
     startPos: THREE.Vector3;
     startTarget: THREE.Vector3;
     startUp: THREE.Vector3;
@@ -634,7 +699,7 @@ export class CameraController {
         const total = opts?.duration ?? DEFAULT_OVERVIEW_SECONDS;
         const pullback = this._startAnimation(
           overview.position, overview.target, up, total * OVERVIEW_PULLBACK_SHARE,
-          () => this._startApproach(bodyMesh, dist, up, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts),
+          () => this._startApproach(bodyMesh, dist, up, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts, pullback.id),
         );
         pullback.destination = bodyMesh;
         pullback.path = 'overview';
@@ -838,6 +903,8 @@ export class CameraController {
   private _startApproach(
     bodyMesh: BodyMesh, dist: number, up: THREE.Vector3, duration: number, path: FlightPath,
     landing?: Pick<FlyToOptions, 'offset' | 'up'>,
+    /** The overview's id, when this approach continues it. */
+    flightId?: number,
   ): void {
     // Approach from the camera's current side of the body.
     const dir = this._approachDirection(bodyMesh);
@@ -850,6 +917,7 @@ export class CameraController {
         // camera's new coordinates, causing a one-frame flash.
         this._pendingOriginSwitch = bodyMesh;
       },
+      flightId,
     );
     // Track the body each frame so endpoints follow its motion
     anim.followBody = bodyMesh;
@@ -1494,7 +1562,11 @@ export class CameraController {
    *  camera coordinates and body positions use the same origin. */
   applyPendingOriginSwitch(): void {
     const body = this._pendingOriginSwitch;
-    if (!body) return;
+    if (!body) {
+      // A command since the flight landed took the landing back.
+      if (this._landing) this._settleLanding('stopped');
+      return;
+    }
     this._pendingOriginSwitch = null;
 
     // Adjust camera from old-origin coords to new-origin coords. Skip the
@@ -1546,7 +1618,11 @@ export class CameraController {
     // the new origin — syncing now would use stale body positions and produce
     // wrong lat/lon (e.g., snapping Surface Explorer to the wrong pole).
     this._pendingModeSync = true;
+    this._landingApplied = this._landing !== null;
   }
+
+  /** The renderer applied the origin switch and surface pivot for `_landing`; the mode resync is the last step. */
+  private _landingApplied = false;
 
   private _pendingModeSync = false;
 
@@ -1560,12 +1636,19 @@ export class CameraController {
     if (this._modeCtx) {
       this._activeMode.syncFromCamera?.(this._modeCtx);
     }
+    // Origin, tracking, pivot and mode now all hold the landing the flight promised.
+    if (this._landingApplied) {
+      this._landingApplied = false;
+      this._settleLanding('arrived');
+    }
   }
 
   /** Pointer travel toward the drag threshold; past it, the press is navigation. */
   private _notePressTravel(dx: number, dy: number): void {
     this._pressTravelPx += Math.abs(dx) + Math.abs(dy);
     if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._manualInput = true;
+    // The camera, tracking and pivot now hold the landing the flight promised.
+    if (this._landing) this._settleLanding('arrived');
   }
 
   /**
@@ -1574,14 +1657,16 @@ export class CameraController {
    * controls have gathered, which is the drag or zoom that asked for this.
    */
   private _yieldToManualInput(): void {
-    const destination = this._anim?.destination;
-    const surface = this._anim?.surface;
+    const anim = this._anim;
+    const destination = anim?.destination;
+    const surface = anim?.surface;
     this._anim = null;
     this._move = null;
     // Inertia from before the flight is not the person's input now.
     (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
     if (destination) this._pendingOriginSwitch = destination;
     if (surface) this._pendingSurfacePivot = surface.endTarget.clone();
+    this._flightEnded(anim, 'interrupted');
   }
 
   /** Whether a fly-to/viewpoint animation is currently playing */
@@ -1589,6 +1674,7 @@ export class CameraController {
 
   /** Cancel any in-progress camera animation, a scripted camera move included */
   cancelAnimation(): void {
+    const anim = this._anim;
     this._anim = null;
     this._move = null;
     // A cut/restored pose must not inherit the previous gesture's inertia.
@@ -1606,6 +1692,7 @@ export class CameraController {
     controls._panStart.copy(controls._panEnd);
     this._rightDragDx = this._rightDragDy = 0;
     this._touchPanDx = this._touchPanDy = 0;
+    this._flightEnded(anim, 'stopped');
   }
 
   /**
@@ -1950,13 +2037,21 @@ export class CameraController {
       this.camera.lookAt(this.controls.target);
 
       if (t >= 1) {
-        const onComplete = this._anim.onComplete;
+        const anim = this._anim;
+        const onComplete = anim.onComplete;
         this._anim = null;
         // Clear stale TrackballControls damping that accumulated while
         // controls.update() was skipped during the animation.
         (this.controls as any)._lastAngle = 0;
         (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
+        // An overview's pull-back lands by starting its approach: the same
+        // flight, still going. A flight to a body is not done until the next
+        // frame applies its landing.
+        if (!this._anim) {
+          if (this._pendingOriginSwitch) this._landing = anim;
+          else this._flightEnded(anim, 'arrived');
+        }
       }
       // A move held behind the fly-to starts its clock when the fly-to lands.
       if (this._move) this._move.lastMs = now;
@@ -2208,6 +2303,8 @@ export class CameraController {
 
   dispose(): void {
     this._anim = null;
+    this._landing = null;
+    this._endedFlights.length = 0;
     this._viewpoints.clear();
     this.keyboard.dispose();
     this.controls.dispose();
@@ -2222,8 +2319,12 @@ export class CameraController {
     endUp: THREE.Vector3,
     duration: number,
     onComplete?: () => void,
+    /** Continuing a flight (an overview's approach) keeps its id. */
+    id?: number,
   ): NonNullable<typeof this._anim> {
+    const previous = this._anim;
     this._anim = {
+      id: id ?? ++this._flightSeq,
       startPos: this.camera.position.clone(),
       startTarget: this.controls.target.clone(),
       startUp: this.camera.up.clone(),
@@ -2235,6 +2336,10 @@ export class CameraController {
       onComplete,
     };
     this._lastAnimMs = performance.now();
-    return this._anim;
+    const anim = this._anim;
+    // A flight whose landing was still to be applied is replaced by this one.
+    if (this._landing) this._settleLanding('stopped');
+    this._flightEnded(previous, 'stopped');
+    return anim;
   }
 }

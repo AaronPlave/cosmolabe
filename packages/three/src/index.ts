@@ -76,7 +76,7 @@ export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
 export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
 export type {
-  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  CameraFlight, CameraFlightOutcome, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
   SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
 } from './controls/CameraController.js';
 export {
@@ -102,7 +102,7 @@ export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } fr
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
 export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
-export type { ImageryLayerInfo, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLayerSource, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
 export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {

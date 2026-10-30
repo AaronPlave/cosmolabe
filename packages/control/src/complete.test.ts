@@ -83,3 +83,14 @@ describe('signatureAt', () => {
     expect(signatureAt(at('go|'))).toBeNull();
   });
 });
+
+describe('imagery layer completion', () => {
+  it('offers the layers of the body named earlier on the line', () => {
+    const imagery = (body: string) => (body === 'Mars' ? ['ctx', 'hirise'] : []);
+    expect(completionsAt(at('showImagery Mars |'), { imagery }).map((c) => c.label)).toEqual(['ctx', 'hirise']);
+    expect(completionsAt(at('showImagery "Mars" h|'), { imagery }).map((c) => c.label)).toEqual(['ctx', 'hirise']);
+    expect(completionsAt(at('showImagery Moon |'), { imagery })).toEqual([]);
+    expect(at('showImagery Mars hirise |').args).toEqual(['Mars', 'hirise']);
+  });
+});
+

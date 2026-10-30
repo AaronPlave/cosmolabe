@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { selectEvent } from '../event-finder.svelte';
 import { activityEvent } from '../mission-activities';
 import { createViewerControl } from '../viewer-control';
+import { closeTool, isToolOpen } from '../shell.svelte';
 import {
   DISPLAY_OPTIONS,
   releaseSurfaceTarget, dismissGeographicContext,
@@ -102,7 +103,8 @@ function makeFakeRenderer(objects: string[]) {
   let tracked: FakeBodyMesh | null = null;
   let lookAt: FakeBodyMesh | null = null;
   /** A flight `flyTo` started; it lands only when a test calls `land`. */
-  let flight: { destination: FakeBodyMesh; path: string } | null = null;
+  let flight: { id: number; destination: FakeBodyMesh; path: string } | null = null;
+  let flightSeq = 0;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
   const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
     ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
@@ -221,7 +223,7 @@ function makeFakeRenderer(objects: string[]) {
       flyTo: (bm: FakeBodyMesh, opts: { path: string; duration?: number }) => {
         log(`flyTo(${bm.body.name}, ${opts.path}, ${opts.duration})`);
         tracked = null;
-        flight = { destination: bm, path: opts.path };
+        flight = { id: ++flightSeq, destination: bm, path: opts.path };
       },
       cancelAnimation: () => log('cancelAnimation'),
       syncModeFromCamera: (t: number) => log(`syncModeFromCamera(${t})`),
@@ -666,7 +668,7 @@ describe('navigation verbs', () => {
     expect(control.flyTo('Titan')).toBe(true);
     expect(control.flyTo('Enceladus', { path: 'overview', seconds: 3 })).toBe(true);
     expect(cameraCalls()).toEqual(['flyTo(Titan, direct, undefined)', 'flyTo(Enceladus, overview, 3)']);
-    expect(control.getFlight()).toEqual({ target: 'Enceladus', path: 'overview' });
+    expect(control.getFlight()).toEqual({ id: expect.any(Number), target: 'Enceladus', path: 'overview' });
     expect(vs.flight).toEqual({ target: 'Enceladus', path: 'overview' });
     // The HUD names the destination for the length of the flight.
     expect(vs.trackedBodyName).toBe('Enceladus');
@@ -1181,5 +1183,152 @@ describe('shared activity host and script operations', () => {
     const before = renderer.timeController.et;
     expect(host.seekActivity!('stale')).toBe(false);
     expect(renderer.timeController.et).toBe(before);
+  });
+});
+
+describe('scene identity, places, imagery and flight ends (#297)', () => {
+  const sites = (ids: string[], body = 'Titan') => parseGeographicGeoJson(JSON.stringify({ type: 'FeatureCollection', features: ids.map((id, i) => ({
+    type: 'Feature', id, properties: { name: `Kraken ${id}`, placeKind: 'nomenclature', diameterKm: 100 * (i + 1) }, geometry: { type: 'Point', coordinates: [10 * i, 20] } })) }),
+  { id: 'names', name: 'Names', body, source: 'names.json', coordinates: { latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '-180..180', referenceShape: { kind: 'sphere', radiusKm: 2575 } } },
+  { kind: 'catalog', identity: 'https://example.test/names.json', revision: 'r1' });
+
+  it('gives every bound scene a new id, a reload of the same catalog included', () => {
+    const control = createViewerControl();
+    const first = control.getScene();
+    expect(first).toMatchObject({ ready: false });
+    bind();
+    expect(control.getScene()!.id).toBe(first!.id + 1);
+    unbindRenderer();
+    expect(control.getScene()).toBeNull();
+  });
+
+  it('searches places as plain data with stable refs, provenance and coordinates', () => {
+    vs.places = new PlaceIndex([sites(['a', 'b'])]);
+    const control = createViewerControl();
+    // Ranked by extent: the larger first, then cut to the limit.
+    const found = control.searchPlaces('krak', { limit: 1 });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      ref: '["names","string:b"]', name: 'Kraken b', body: 'Titan', layer: { id: 'names', name: 'Names' }, feature: 'string:b',
+      origin: 'nomenclature', diameterKm: 200, source: { kind: 'catalog', identity: 'https://example.test/names.json', revision: 'r1' }, unavailable: null,
+    });
+    expect(found[0].latitude).toBeCloseTo(20, 9);
+    expect(found[0].longitude).toBeCloseTo(10, 9);
+    expect(control.searchPlaces('krak').map((p) => p.name)).toEqual(['Kraken b', 'Kraken a']);
+    expect(control.searchPlaces('krak', { body: 'Saturn' })).toEqual([]);
+    expect(control.getPlace('["names","string:a"]')?.name).toBe('Kraken a');
+    expect(control.getPlace('Kraken a')).toBeUndefined();
+  });
+
+  it('does not search, or navigate to, a source the person excluded', () => {
+    vs.places = new PlaceIndex([sites(['a'])]);
+    vs.excludedPlaceLayers = ['names'];
+    const control = createViewerControl();
+    expect(control.searchPlaces('kraken')).toEqual([]);
+    expect(control.getPlace('["names","string:a"]')?.unavailable).toMatch(/excluded/);
+    expect(() => control.gotoPlace('["names","string:a"]')).toThrow(/excluded/);
+    vs.excludedPlaceLayers = [];
+    expect(control.gotoPlace('["names","zzz"]')).toBe(false);
+  });
+
+  it('navigates to a place by the control path, flying by default', () => {
+    vs.places = new PlaceIndex([sites(['a'])]);
+    const go = vi.spyOn(placeActions, 'navigateToPlaceForControl').mockReturnValue({ ok: true });
+    const control = createViewerControl();
+    const ref = '["names","string:a"]';
+    expect(control.gotoPlace(ref)).toBe(true);
+    expect(control.gotoPlace(ref, { animate: false, view: 'oblique' })).toBe(true);
+    expect(go.mock.calls.map(([p, o]) => [p.ref, o])).toEqual([
+      [ref, { animate: true, view: undefined }],
+      [ref, { animate: false, view: 'oblique' }],
+    ]);
+    go.mockReturnValue({ ok: false, error: 'Target is outside the surface' });
+    expect(() => control.gotoPlace(ref)).toThrow('Target is outside the surface');
+    go.mockRestore();
+  });
+
+  it('refuses a command read from a scene that is no longer bound, even when the new scene reuses its ref', () => {
+    const ref = '["names","string:a"]';
+    vs.places = new PlaceIndex([sites(['a'], 'Titan')]);
+    const go = vi.spyOn(placeActions, 'navigateToPlaceForControl').mockReturnValue({ ok: true });
+    const control = createViewerControl();
+    const read = control.getScene()!.id;
+    expect(control.gotoPlace(ref, { scene: read })).toBe(true);
+    // The catalog is replaced by one with the same layer and feature ids.
+    bind();
+    vs.places = new PlaceIndex([sites(['a'], 'Enceladus')]);
+    go.mockClear();
+    expect(() => control.gotoPlace(ref, { scene: read })).toThrow(/scene changed since this was read/);
+    expect(go).not.toHaveBeenCalled();
+    // Layers and activities are guarded the same way.
+    expect(() => control.setImageryVisible('Titan', 'x', true, { scene: read })).toThrow(/scene changed/);
+    expect(() => control.setImageryOpacity('Titan', 'x', 0.5, { scene: read })).toThrow(/scene changed/);
+    expect(() => control.selectActivity('a', { scene: read })).toThrow(/scene changed/);
+    expect(() => control.seekActivity('a', 'start', { scene: read })).toThrow(/scene changed/);
+    // Read again from the new scene, the same ref goes through; with no scene given nothing is checked.
+    expect(control.gotoPlace(ref, { scene: control.getScene()!.id })).toBe(true);
+    expect(control.gotoPlace(ref)).toBe(true);
+    go.mockRestore();
+  });
+
+  it('selects a place for a script without opening the Navigate panel', () => {
+    vs.places = new PlaceIndex([sites(['a'])]);
+    const place = vs.places.places[0];
+    closeTool('navigate');
+    selectPlace(place, { reveal: false });
+    expect(vs.selectedPlaceRef).toBe(place.ref);
+    expect(isToolOpen('navigate')).toBe(false);
+    expect(createViewerControl().getSelectedPlace()?.ref).toBe(place.ref);
+    selectPlace(place);
+    expect(isToolOpen('navigate')).toBe(true);
+    closeTool('navigate');
+  });
+
+  it('reads a body\'s imagery and toggles it, keeping the base on', () => {
+    const layers = [
+      { id: 'base', name: 'Base', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1, bounds: null,
+        resolutionMeters: 100, source: { type: 'xyz', endpoint: 'https://tiles.example/base', layer: null, tileMatrixSet: null }, status: 'ok', minZoom: 0, view: { inCoverage: true, zoomLevel: 4, missingTiles: 0, degradedTiles: 0, cacheFull: false } },
+      { id: 'hirise', name: 'HiRISE', attribution: 'UA', description: 'HiRISE ortho', role: 'overlay', optional: true, visible: false, opacity: 1,
+        bounds: [77, 18, 78, 19], resolutionMeters: 0.25, source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' }, status: 'idle', minZoom: 12, view: null },
+    ];
+    Object.assign(renderer.getBodyMesh('Titan')!, {
+      imageryLayers: layers, surfaceTransitionState: 'streamed', isImageryOnlySurface: false,
+      setImageryLayerVisible: (id: string, v: boolean) => { const l = layers.find((x) => x.id === id)!; if (l.visible === v || !l.optional) return false; l.visible = v; return true; },
+      setImageryLayerOpacity: (id: string, o: number) => { layers.find((x) => x.id === id)!.opacity = o; return true; },
+    });
+    Object.assign(renderer.getBodyMesh('Saturn')!, { imageryLayers: [], surfaceTransitionState: null, isImageryOnlySurface: false });
+    const control = createViewerControl();
+    const imagery = control.getImagery('Titan')!;
+    expect(imagery).toMatchObject({ body: 'Titan', surface: 'streamed', imageryOnly: false });
+    expect(imagery.layers[0].view).toEqual({ inCoverage: true, zoomLevel: 4, minZoom: 0, missingTiles: 0, degradedTiles: 0, cacheFull: false });
+    expect(imagery.layers[1]).toMatchObject({ id: 'hirise', attribution: 'UA', description: 'HiRISE ortho', bounds: [77, 18, 78, 19], resolutionMeters: 0.25, view: null,
+      source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' } });
+    expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);
+    // Already on is where it was asked to be, not a refusal.
+    expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);
+    expect(control.setImageryVisible('Titan', 'base', false)).toBe(false);
+    expect(control.setImageryVisible('Titan', 'nope', true)).toBe(false);
+    expect(control.setImageryOpacity('Titan', 'hirise', 0.4)).toBe(true);
+    expect(control.setImageryOpacity('Titan', 'hirise', 1.4)).toBe(false);
+    expect(control.getImagery('Titan')!.layers[1]).toMatchObject({ visible: true, opacity: 0.4 });
+    expect(control.getImagery('Saturn')).toEqual({ body: 'Saturn', surface: null, imageryOnly: false, layers: [] });
+    expect(control.getImagery('Nowhere')).toBeUndefined();
+  });
+
+  it('relays how a flight ended, by destination name', () => {
+    const control = createViewerControl();
+    const seen: ScriptEventMap['flightEnd'][] = [];
+    const off = control.on('flightEnd', (end) => seen.push(end));
+    const cc = renderer.cameraController as unknown as { onFlightEnd: ((f: unknown, o: string) => void) | null };
+    cc.onFlightEnd!({ id: 7, destination: renderer.getBodyMesh('Titan'), path: 'direct', phase: 'approach' }, 'interrupted');
+    cc.onFlightEnd!({ id: 8, destination: null, path: 'direct', phase: 'approach' }, 'arrived');
+    off();
+    cc.onFlightEnd!({ id: 9, destination: null, path: 'direct', phase: 'approach' }, 'stopped');
+    expect(seen).toEqual([
+      { id: 7, target: 'Titan', path: 'direct', outcome: 'interrupted' },
+      { id: 8, target: null, path: 'direct', outcome: 'arrived' },
+    ]);
+    unbindRenderer();
+    expect(cc.onFlightEnd).toBeNull();
   });
 });

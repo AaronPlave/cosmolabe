@@ -49,6 +49,12 @@ export type FlightPath = 'direct' | 'overview';
 
 /** A camera flight in progress, as `getFlight` reports it. */
 export interface ScriptFlight {
+  /**
+   * Names the flight from its start to its end: `flightEnd` reports the same
+   * id, so a caller can tell its own flight's end from another command's. An
+   * overview keeps its id through its pull-back and approach.
+   */
+  readonly id: number;
   /** The object the flight lands on; null for a flight to a viewpoint. */
   readonly target: string | null;
   readonly path: FlightPath;
@@ -115,7 +121,23 @@ export interface ScriptEventMap {
   activities: { count: number };
   /** The selected mission activity changed; null when none is selected. */
   activitySelect: { id: string | null };
+  /**
+   * A camera flight ended. `outcome` says how: it `arrived`; it was `stopped`
+   * by `stopFlight` or another camera command (a cut, a reset, a newer
+   * flight); or the person's own navigation — a drag, a wheel zoom, a pinch,
+   * a movement key — `interrupted` it where it was. `id` is the ended
+   * flight's `ScriptFlight.id`.
+   *
+   * Told once the command that ended the flight has finished, and an `arrived`
+   * once the camera holds its landing (tracking and origin applied), so a
+   * listener sees the camera as the flight left it and may issue another
+   * camera command.
+   */
+  flightEnd: { id: number; target: string | null; path: FlightPath; outcome: FlightOutcome };
 }
+
+/** How a camera flight ended; see `ScriptEventMap.flightEnd`. */
+export type FlightOutcome = 'arrived' | 'stopped' | 'interrupted';
 
 export type ScriptEventName = keyof ScriptEventMap;
 
@@ -175,14 +197,129 @@ export interface ScriptObjectState {
   readonly attitudeAvailability?: ScriptAvailability;
 }
 
+/**
+ * The scene bound to the viewer, as `getScene` reports it.
+ *
+ * `id` changes with every scene bound, including a reload of the same
+ * catalog. Place refs, imagery layer IDs and activity IDs are scoped to the
+ * scene they were read from: a caller holding one across a load compares `id`
+ * rather than letting it resolve against a different catalog's records.
+ *
+ * The actions that take one of those IDs (`gotoPlace`, `selectActivity`,
+ * `seekActivity`, `setImageryVisible`, `setImageryOpacity`) accept the scene
+ * the caller read it from, as `scene`, and throw instead of acting when the
+ * viewer has since bound another. A caller that issues commands later than it
+ * read them, such as an agent's queued tool call, passes it: two catalogs can
+ * reuse a ref, and the older command would otherwise act on the newer scene's
+ * record of that name.
+ */
+export interface ScriptScene {
+  readonly id: number;
+  /** The catalog's display name; null when it has none. */
+  readonly catalog: string | null;
+  /** The initial models, textures and trails have settled (the `ready` event). */
+  readonly ready: boolean;
+}
+
+/**
+ * A named place (#191): a point feature of one of the scene's geographic
+ * layers — a Gazetteer name, or a mission or user site.
+ *
+ * `ref` is the stable reference (the layer and feature IDs, or the source's
+ * own `placeRef`), unique within the scene; `name` is a display label and is
+ * not. Coordinates are planetocentric latitude and east longitude, degrees,
+ * as `gotoCoordinates` reads them by default.
+ */
+export interface ScriptPlace {
+  readonly ref: string;
+  readonly name: string;
+  readonly body: string;
+  /** The geographic layer the place comes from, and its feature within it. */
+  readonly layer: { readonly id: string; readonly name: string };
+  readonly feature: string;
+  readonly kind: string;
+  readonly origin: 'nomenclature' | 'mission/user';
+  readonly latitude: number;
+  readonly longitude: number;
+  /** The source's indicative extent; absent when the source does not say. */
+  readonly diameterKm?: number;
+  /** Where the layer's data came from: a catalog URL, a local file, or this session. */
+  readonly source: { readonly kind: 'catalog' | 'local-file' | 'user'; readonly identity: string; readonly revision?: string };
+  /** Null when the place can be navigated to; otherwise why not. */
+  readonly unavailable: string | null;
+}
+
+/** One layer of a body's streamed imagery stack (#123), bottom to top. */
+export interface ScriptImageryLayer {
+  readonly id: string;
+  readonly name: string;
+  /** Who serves the data. */
+  readonly attribution: string;
+  /** The full product name; null when the catalog gives none. */
+  readonly description: string | null;
+  readonly role: 'base' | 'overlay';
+  /** False for the base, which cannot be turned off. */
+  readonly optional: boolean;
+  readonly visible: boolean;
+  readonly opacity: number;
+  /** Coverage `[west, south, east, north]` in degrees; null for a global layer. */
+  readonly bounds: readonly [number, number, number, number] | null;
+  /** Native ground resolution in m/px as the provider advertises it; null when unstated. */
+  readonly resolutionMeters: number | null;
+  /**
+   * Which product the layer is, as the catalog names it, apart from its
+   * display name and who serves it. The endpoint is reduced to scheme, host
+   * and path: a signed URL's query, credentials and fragment never appear.
+   */
+  readonly source: {
+    readonly type: string;
+    readonly endpoint: string;
+    /** The service's layer identifier; null when the catalog gives none. */
+    readonly layer: string | null;
+    readonly tileMatrixSet: string | null;
+  };
+  /** Request outcome so far this session: none yet, all good, some tiles failed, or the source failed. */
+  readonly status: 'idle' | 'ok' | 'partial' | 'failed';
+  /**
+   * What the layer adds to the current view; null while it is not drawn. A
+   * layer can be on and still draw nothing here: out of its coverage, or too
+   * far out for its data.
+   */
+  readonly view: {
+    readonly inCoverage: boolean;
+    readonly zoomLevel: number | null;
+    readonly minZoom: number;
+    readonly missingTiles: number;
+    readonly degradedTiles: number;
+    readonly cacheFull: boolean;
+  } | null;
+}
+
+/** A body's streamed surface, as `getImagery` reports it. */
+export interface ScriptImagery {
+  readonly body: string;
+  /**
+   * What the body is drawing: its static map (`static`, `preloading`), the
+   * streamed surface (`waiting` for tiles, `streamed`), or its static map
+   * because the stream failed (`fallback`). Null without a streamed surface.
+   */
+  readonly surface: 'static' | 'preloading' | 'waiting' | 'streamed' | 'fallback' | null;
+  /**
+   * The streamed surface is imagery draped on the ellipsoid, with no
+   * physical terrain behind it: imagery detail is not elevation.
+   */
+  readonly imageryOnly: boolean;
+  readonly layers: readonly ScriptImageryLayer[];
+}
+
 export interface ViewerControl {
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
   getActivity?(id: string): ScriptActivity | undefined;
   getSelectedActivity?(): ScriptActivity | undefined;
   /** Selection changes neither the clock nor the camera. */
-  selectActivity?(id: string): boolean;
+  selectActivity?(id: string, opts?: { scene?: number }): boolean;
   /** Both edges of an instant seek its single epoch; does not move the camera. */
-  seekActivity?(id: string, edge?: 'start' | 'end'): boolean;
+  seekActivity?(id: string, edge?: 'start' | 'end', opts?: { scene?: number }): boolean;
   /** Select only. Filter applies before deterministic start/end/ID ordering. */
   navigateActivity?(direction: 'previous' | 'next', filter?: ScriptActivityFilter): boolean;
 
@@ -414,6 +551,41 @@ export interface ViewerControl {
    * model of it.
    */
   snapshot(): string;
+  /** The scene bound now; null before any scene is up. */
+  getScene?(): ScriptScene | null;
+
+  // ── Places (#191) ──
+
+  /**
+   * Places whose name or alias matches every word of `query` by prefix,
+   * ranked (an exact name first, then by extent). Sources the person excluded
+   * from search are not searched. Bounded: `limit` defaults to 10, at most 100.
+   */
+  searchPlaces?(query: string, opts?: { body?: string; limit?: number }): readonly ScriptPlace[];
+  /** One place by `ref`; undefined when the scene has none by that ref. */
+  getPlace?(ref: string): ScriptPlace | undefined;
+  /** The place the Navigate panel has selected, if any. */
+  getSelectedPlace?(): ScriptPlace | undefined;
+  /**
+   * Fly to (default) or cut to a place, by the coordinate navigation
+   * `gotoCoordinates` uses, framed by the place's extent, and select it.
+   * False for no such ref; throws, with the reason, when the place exists but
+   * cannot be navigated to, or when `scene` names a scene no longer bound.
+   */
+  gotoPlace?(ref: string, opts?: { animate?: boolean; view?: SurfaceView; scene?: number }): boolean;
+
+  // ── Imagery (#123) ──
+
+  /**
+   * A body's streamed imagery stack and surface state. A body without a
+   * streamed surface reports no layers. Undefined for no such object.
+   */
+  getImagery?(body: string): ScriptImagery | undefined;
+  /** False for no such object or layer, or for turning off a non-optional base. */
+  setImageryVisible?(body: string, layer: string, visible: boolean, opts?: { scene?: number }): boolean;
+  /** Opacity 0–1. False for no such object or layer, or an opacity out of range. */
+  setImageryOpacity?(body: string, layer: string, opacity: number, opts?: { scene?: number }): boolean;
+
   /** Subscribe to an event. Returns a disposer. */
   on<K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void): () => void;
 }
