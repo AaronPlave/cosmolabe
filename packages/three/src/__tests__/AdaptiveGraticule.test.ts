@@ -67,6 +67,29 @@ describe('adaptive graticule', () => {
     bm.dispose(); other.dispose();
   });
 
+  it('withholds grid geometry and captions during unavailable attitude and recovers fixed sites', () => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Moon', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [100, 100, 100], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', bodyFixedFrame: 'MOON_ME_DE421', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000); camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    bm.showGrid(true, true, normalizeGridSettings());
+    const frame = () => { now += 16; bm.updateGrid(camera, { width: 800, height: 800 }, manager); };
+    for (let i = 0; i < 40; i++) frame();
+    const anchors = bm.gridMetrics!.annotations.map(a => [a.id, a.latDeg, a.lonDeg]);
+    expect(anchors.length).toBeGreaterThan(0); expect(bm.surfaceCoordinates?.frame).toBe('MOON_ME_DE421');
+    const grid = (bm as unknown as { graticule: AdaptiveGraticule }).graticule;
+    bm.attitudeAvailable = false; frame();
+    expect(grid.uniforms.uGridVisible.value).toBe(0); expect(bm.gridMetrics!.labels).toBe(0);
+    bm.attitudeAvailable = true;
+    for (let i = 0; i < 40; i++) frame();
+    expect(grid.uniforms.uGridVisible.value).toBe(1);
+    expect(bm.gridMetrics!.annotations.map(a => [a.id, a.latDeg, a.lonDeg])).toEqual(anchors);
+    bm.dispose();
+  });
+
   it('switches whole fixed ruler bands without drawing both carriers together', () => {
     vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
     let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -226,7 +249,7 @@ describe('adaptive graticule', () => {
     const sampler = new TerrainSampler(bodySurfaceCoordinates(body)!.datum, { id: 'resident', kind: 'height-grid' });
     sampler.addTile({ id: 'depression', westDeg: -180, eastDeg: 180, southDeg: -90, northDeg: 90,
       width: 2, height: 2, elevationsKm: new Float32Array(4).fill(-1) });
-    vi.spyOn(bm, 'sampleTerrain').mockImplementation((lat, lon) => sampler.sample(lat, lon));
+    vi.spyOn(bm, 'sampleResidentTerrain').mockImplementation((lat, lon) => sampler.sample(lat, lon));
     const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000);
     camera.position.set(99.5, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(99, 0, 0);
     bm.showGrid(true, false, normalizeGridSettings());

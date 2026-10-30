@@ -5,7 +5,6 @@ export { geodeticToBodyFixed, bodyFixedToGeodetic, isSupportedGeodeticDatum, wra
 export type { TerrainDatum, VerticalDatum, HeightConvention, BodyFixedPosition, BodyFixedCartesian } from '@cosmolabe/core';
 const DEG = Math.PI / 180;
 
-
 export interface TerrainSourceMetadata {
   id: string;
   /** 'reference-shape' is an analytic datum (e.g. IAU ellipsoid), never measured terrain. */
@@ -73,7 +72,6 @@ export interface TerrainSamplerDiagnostics {
   meanSampleMicros: number;
   state: 'ready' | 'unloaded';
 }
-
 
 /** Derived per-tile data kept alongside the caller's tile, computed once on insert. */
 interface CachedTile {

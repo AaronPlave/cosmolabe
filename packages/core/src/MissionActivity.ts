@@ -39,7 +39,7 @@ export interface ActivityFilter { vehicle?: string; kind?: ActivityKind }
 export const compareActivities = (a: MissionActivity, b: MissionActivity): number =>
   a.start - b.start || a.end - b.end || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-function utcTimestamp(value: string): boolean {
+export function utcTimestamp(value: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/.exec(value);
   if (!m) return false;
   const [year, month, day, hour, minute, second] = m.slice(1).map(Number);

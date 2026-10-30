@@ -23,7 +23,7 @@ export interface GeographicGridAnchor {
 }
 type Anchor = GeographicGridAnchor;
 interface Label { sprite: THREE.Sprite; readonly anchor: Anchor; text: string; width: number; visibleSince: number; }
-interface SurfaceHit { overlay: boolean; point: THREE.Vector3 | null; projectedAnchor: THREE.Vector3; time: number; }
+interface SurfaceHit { point: THREE.Vector3 | null; time: number; }
 const MAX_LABELS = 24;
 const MAX_CANDIDATES = 96;
 // Current geometry must validate every displayed terrain/occluder label. Leave
@@ -67,6 +67,7 @@ export class AdaptiveGraticule {
   private readonly toWorld = new THREE.Matrix4();
   private readonly v = new THREE.Vector3();
   private lastPlan = -Infinity;
+  private planningHeightKm = 0;
   private lastFrame = 0;
   private candidates: Anchor[] = [];
   private readonly eligibility = new Map<string, number>();
@@ -139,24 +140,16 @@ export class AdaptiveGraticule {
   }
   /** Intersect the nearby resident height surface; never take a far-side exit. */
   private planningHit(x: number, y: number, camera: THREE.PerspectiveCamera, seed: number | null) {
-    const reference = this.referenceHit(x, y, camera);
-    let height = reference ? this.bm.sampleTerrain(reference.latDeg, reference.lonDeg)?.elevationKm ?? seed : seed;
-    if (height === null) return reference;
-    for (let i = 0; i < 6; i++) {
-      const hit = this.referenceHit(x, y, camera, height);
-      if (!hit) return null;
-      const sample = this.bm.sampleTerrain(hit.latDeg, hit.lonDeg);
-      if (!sample) return reference;
-      const error = sample.elevationKm - hit.heightKm;
-      if (Math.abs(error) < 1e-6) return { ...hit, heightKm: sample.elevationKm };
-      height += error;
-    }
-    return null;
+    // A resident physical height is a planning hint, not a per-screen-pixel
+    // terrain query. Admission still uses fresh rendered geometry below.
+    return this.referenceHit(x, y, camera, seed ?? 0);
   }
+
   private plan(camera: THREE.PerspectiveCamera, width: number, height: number): void {
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
     const foot = bodyFixedToSurfacePosition({ xKm: cameraFixed.x, yKm: cameraFixed.y, zKm: cameraFixed.z }, this.coordinates);
-    const seed = this.bm.sampleTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
+    const seed = this.bm.sampleResidentTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
+    this.planningHeightKm = seed ?? 0;
     const samples: Array<{ latDeg: number; lonDeg: number }> = [];
     const latScale: number[] = [], lonScale: number[] = [];
     const center = this.bm.position.clone().project(camera);
@@ -170,8 +163,8 @@ export class AdaptiveGraticule {
       const p = this.point(hit.latDeg, hit.lonDeg, hit.heightKm).project(camera);
       const delta = 0.0001;
       const latitude = Math.min(89.9999, hit.latDeg + delta);
-      const a = this.point(latitude, hit.lonDeg, this.bm.sampleTerrain(latitude, hit.lonDeg)?.elevationKm ?? hit.heightKm).project(camera);
-      const b = this.point(hit.latDeg, hit.lonDeg + delta, this.bm.sampleTerrain(hit.latDeg, hit.lonDeg + delta)?.elevationKm ?? hit.heightKm).project(camera);
+      const a = this.point(latitude, hit.lonDeg, hit.heightKm).project(camera);
+      const b = this.point(hit.latDeg, hit.lonDeg + delta, hit.heightKm).project(camera);
       latScale.push(Math.hypot((a.x - p.x) * width / 2, (a.y - p.y) * height / 2) / delta);
       lonScale.push(Math.hypot((b.x - p.x) * width / 2, (b.y - p.y) * height / 2) / delta);
     }
@@ -279,8 +272,12 @@ export class AdaptiveGraticule {
       this.physicalRevision = this.bm.terrainRevision; this.invalidateSurface(); this.lastPlan = -Infinity;
     }
     this.frame?.hide(); this.frameQueries = 0;
-    const queryBudget = new AnnotationBudget(3);
-    const cast = () => castRenderedSurfaces(this.raycaster, occluders, this.bm.scaleFactor);
+    let surfaceQueries = 0;
+    const cast = () => {
+      if (surfaceQueries >= 8) return undefined; // Deferred work never proves visibility.
+      surfaceQueries++;
+      return castRenderedSurfaces(this.raycaster, occluders, this.bm.scaleFactor, { visualBlockers: true });
+    };
     const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.uniforms.uGridPixelRatio.value = Math.max(1, globalThis.devicePixelRatio ?? 1);
@@ -294,9 +291,9 @@ export class AdaptiveGraticule {
     const hide = (label: Label | undefined) => {
       if (label) { label.sprite.visible = false; label.sprite.material.opacity = 0; }
     };
-    if (!this.visible || !this.bm.visible || this.bm.hasModel) {
+    if (!this.visible || !this.bm.visible || !this.bm.attitudeAvailable || this.bm.hasModel) {
       for (const label of this.labels.values()) hide(label);
-      this.eligibility.clear(); return;
+      this.uniforms.uGridVisible.value = 0; this.persistence.clear(); this.eligibility.clear(); return;
     }
     const ratio = this.bm.mesh.scale.x / (this.bm.scaleFactor * this.bm.ellipsoidRatios[0]);
     this.uniforms.uGridVisible.value = ratio > 1.001 ? 0 : 1;
@@ -313,8 +310,7 @@ export class AdaptiveGraticule {
       const materials = Array.isArray(this.bm.mesh.material) ? this.bm.mesh.material : [this.bm.mesh.material];
       if (this.bm.mesh.visible && materials.some(m => (m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshPhongMaterial) && m.displacementMap && (m.displacementScale !== 0 || m.displacementBias !== 0))) return;
       const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
-      const foot = bodyFixedToSurfacePosition({ xKm: cameraFixed.x, yKm: cameraFixed.y, zKm: cameraFixed.z }, this.coordinates);
-      const seed = this.bm.sampleTerrain(foot.latDeg, foot.lonDeg)?.elevationKm ?? null;
+      const seed = this.planningHeightKm;
       const sample = (x: number, y: number) => {
         const h = this.planningHit(x / width * 2 - 1, 1 - y / height * 2, camera, seed);
         if (!h) return null;
@@ -328,12 +324,13 @@ export class AdaptiveGraticule {
         const normal = new THREE.Vector3(Math.cos(h.latDeg * DEG) * Math.cos(h.lonDeg * DEG), Math.cos(h.latDeg * DEG) * Math.sin(h.lonDeg * DEG), Math.sin(h.latDeg * DEG));
         return { ...h, incidence: cameraFixed.clone().sub(p).normalize().dot(normal) };
       };
+      const queryBudget = new AnnotationBudget(8);
       const query = (tick: FrameTick) => {
         if (this.frameQueries >= 8) return null;
         this.frameQueries++;
         this.raycaster.setFromCamera(new THREE.Vector2(tick.x / width * 2 - 1, 1 - tick.y / height * 2), camera);
         const result = queryBudget.run(cast)?.value;
-        if (!result || result.bm !== this.bm || result.renderedSkirt) return null;
+        if (!result || result.bm !== this.bm || result.renderedSkirt || result.annotationBlocker) return null;
         const intersection = result.intersection;
         if (!(intersection.object instanceof THREE.Mesh) || !intersection.face) return null;
         const mesh = intersection.object, matrix = mesh.matrixWorld.clone();
@@ -421,7 +418,7 @@ export class AdaptiveGraticule {
     for (const anchor of this.candidates) {
       const lineWeight = this.lineWeight(anchor);
       if (lineWeight <= 0) continue;
-      const heightKm = this.bm.sampleTerrain(anchor.lat, anchor.lon)?.elevationKm ?? 0;
+      const heightKm = this.planningHeightKm;
       const physical = surfacePositionToBodyFixed({ latDeg: anchor.lat, lonDeg: anchor.lon, heightKm }, this.coordinates);
       const fixed = new THREE.Vector3(physical.xKm, physical.yKm, physical.zKm);
       const normal = this.coordinates.latitudeType === 'geodetic'
@@ -476,7 +473,7 @@ export class AdaptiveGraticule {
       });
       const pending = ordered;
       let queries = 0;
-      for (const { anchor, view } of pending) {
+      for (const { anchor } of pending) {
         if (queries + 2 > 8) break;
         let surface: THREE.Vector3 | null = null;
         // Register the fixed latitude/longitude on the actual rendered surface,
@@ -491,16 +488,16 @@ export class AdaptiveGraticule {
         this.raycaster.far = reach * 2 * this.bm.scaleFactor;
         const radial = cast(); queries++;
         this.raycaster.far = Infinity;
-        if (radial?.bm === this.bm && !radial.renderedSkirt) {
+        if (radial?.bm === this.bm && !radial.renderedSkirt && !radial.annotationBlocker) {
           const target = radial.worldPoint;
           this.raycaster.set(camera.position, target.clone().sub(camera.position).normalize());
           const visible = cast(); queries++;
-          if (visible?.bm === this.bm && !visible.renderedSkirt
+          if (visible?.bm === this.bm && !visible.renderedSkirt && !visible.annotationBlocker
             && visible.worldPoint.distanceTo(target) <= Math.max(...radii) * this.bm.scaleFactor * 1e-7) {
             surface = target.clone().applyMatrix4(this.bodyFromWorld);
           }
         }
-        this.cachedHits.set(anchor.id, { overlay: false, point: surface, projectedAnchor: view.clone(), time: now });
+        this.cachedHits.set(anchor.id, { point: surface, time: now });
       }
     }
     const active = new Set<string>();
@@ -617,6 +614,7 @@ export class AdaptiveGraticule {
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of
       // cutting the billboard's glyphs against the curved surface's depth buffer.
       depthTest: false, depthWrite: false, sizeAttenuation: false, opacity: 0 }));
+    sprite.material.map!.colorSpace = THREE.SRGBColorSpace;
     sprite.userData.gridLineId = anchor.id;
     sprite.userData.gridLabelWidth = width;
     this.group.add(sprite);

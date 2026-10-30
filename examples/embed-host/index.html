@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission Ops — embedded Cosmolabe</title>
+</head>
+<body>
+  <header>
+    <h1>Mission Ops <small>reference host</small></h1>
+    <nav>
+      <button data-select="SC-1">SC-1</button>
+      <button data-select="SC-2">SC-2</button>
+      <button id="play">Play / pause</button>
+      <button id="live">Live +120 s</button>
+      <button id="disconnect">Disconnect live</button>
+      <button id="narrow">Narrow</button>
+      <button id="unmount">Unmount / mount</button>
+    </nav>
+  </header>
+  <main>
+    <section id="viewer" aria-label="Cosmolabe workspace"></section>
+    <aside>
+      <label>Host clock <input id="clock" type="range" min="0" max="18000" step="1" value="1800"></label>
+      <p>UTC <output id="clock-text">—</output></p>
+      <p>Selected <output id="selection">—</output></p>
+      <h2>Sources</h2>
+      <pre id="status">mounting…</pre>
+      <h2>Viewer events</h2>
+      <ol id="events"></ol>
+    </aside>
+  </main>
+  <p class="host-footer">Host page text and controls: Cosmolabe's styles must not reach these.</p>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

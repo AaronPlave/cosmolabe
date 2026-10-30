@@ -33,13 +33,13 @@ import { injectRingShadowIntoShader, makeRingShadowUniforms, type RingShadowUnif
 import { BLOOM_LAYER } from './BloomEffect.js';
 import { isMesh } from './internal/three-typeguards.js';
 import { SurfaceTileOverlay, type SurfaceTileConfig } from './SurfaceTileOverlay.js';
-import { bodySurfaceCoordinates, isSupportedGeodeticDatum, composeBodyToWorldQuat, SpiceRotation, type Body, type FrameRegistry, type SurfaceCoordinates } from '@cosmolabe/core';
+import { bodySurfaceCoordinates, isSupportedGeodeticDatum, composeBodyToWorldQuat, SpiceRotation, StateUnavailableError, type Body, type FrameRegistry, type SurfaceCoordinates } from '@cosmolabe/core';
 
 import { AdaptiveGraticule } from './AdaptiveGraticule.js';
 import type { GridSettings } from '@cosmolabe/control';
 import type { LabelManager } from './LabelManager.js';
-import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
+import { dskToBufferGeometry, gunzipIfNeeded, type DskShapeProvider } from './DskShapeProvider.js';
 
 const DEFAULT_BODY_COLORS: Record<string, number> = {
   star: 0xffdd44,
@@ -147,6 +147,12 @@ export class BodyMesh extends THREE.Object3D {
   private aerialPerspectiveUniforms: AerialPerspectiveUniforms | null = null;
   /** Suppress repeated rotation-failure warnings after first occurrence */
   private _rotationFailed = false;
+  /**
+   * False while a coverage-aware rotation model reports no attitude at the
+   * current epoch. The renderer then draws the position marker rather than a
+   * model frozen in its last orientation.
+   */
+  attitudeAvailable = true;
   /** Shared uniform values — patched into every compiled shader by reference */
   private readonly shadowUniforms: ShadowUniforms = makeShadowUniforms();
   /** Ring-on-body shadow uniforms — only used when this body has rings. */
@@ -990,7 +996,15 @@ export class BodyMesh extends THREE.Object3D {
       }
       if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = this._userVisible && this._present;
       this._rotationFailed = false;
+      if (!this.attitudeAvailable && this.axesHelper) this.axesHelper.visible = this.axesVisible;
+      this.attitudeAvailable = true;
     } catch (err) {
+      if (err instanceof StateUnavailableError) {
+        // Known absence, with its reason on the model: no warning, no held attitude.
+        this.attitudeAvailable = false;
+        if (this.axesHelper) this.axesHelper.visible = false;
+        return;
+      }
       // Explicit lunar orientation cannot use a stale or identity attitude.
       if (this.body.rotation?.bodyFixedFrame?.startsWith('MOON_')) this.visible = false;
       if (!this._rotationFailed) {
@@ -1157,7 +1171,6 @@ export class BodyMesh extends THREE.Object3D {
       factor * this.ellipsoidRatios[1],
       factor * this.ellipsoidRatios[2],
     );
-
   }
 
   /** Whether this body has streaming terrain active */
@@ -1216,6 +1229,11 @@ export class BodyMesh extends THREE.Object3D {
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
   sampleTerrain(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     return this.terrainManager?.sample(latDeg, lonDeg, deriveNormal) ?? null;
+  }
+
+  /** Read-only planning query; unlike analytical sampling, never refines CPU grids. */
+  sampleResidentTerrain(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.terrainManager?.sampleResident(latDeg, lonDeg) ?? null;
   }
 
   sampleTerrainBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
@@ -1384,7 +1402,6 @@ export class BodyMesh extends THREE.Object3D {
     // so by the time we swap, higher-LOD tiles are already cached → less pop-in.
     // Defaults 40 / 80 are tunable per-body via TerrainConfig.preloadAtPixels/showAtPixels.
     if (screenPixels < tm.preloadAtPixels) {
-
       // Camera is far — hide terrain, show static sphere
       this.showStaticSurface();
       tm.resetShowWait();
@@ -1431,8 +1448,6 @@ export class BodyMesh extends THREE.Object3D {
     }
     this.mesh.visible = false;
     this._surfaceState = 'streamed';
-
-
   }
 
   /** Defer contour layout until the renderer has its final post-selection camera. */

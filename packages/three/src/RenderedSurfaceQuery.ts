@@ -15,6 +15,8 @@ export interface SurfaceRayHit {
   renderedSkirt: boolean;
   tintHeightKm?: number;
   intersection: THREE.Intersection;
+  /** Visual site geometry can block an annotation but cannot certify a geographic anchor. */
+  annotationBlocker: boolean;
 }
 
 const _normalMatrix = new THREE.Matrix3();
@@ -25,8 +27,10 @@ export function surfaceNormalWorld(hit: THREE.Intersection): THREE.Vector3 | nul
 
 /** Visible authoritative geometry only. CPU grids and visual-only site reconstructions
  * do not certify attachment. Hidden cache entries are excluded; imagery draw sources
- * retain the same exception as picking. Never changes geometry or raycaster state. */
-export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonly BodyMesh[], scaleFactor: number): SurfaceRayHit | null {
+ * retain the same exception as picking. Annotation callers may include visual-only
+ * blockers explicitly; those hits never authorize placement. Never changes geometry
+ * or raycaster state. Overlay transforms must already be restored to world space. */
+export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonly BodyMesh[], scaleFactor: number, options: { visualBlockers?: boolean } = {}): SurfaceRayHit | null {
     // Broad phase. Terrain tiles and surface overlays can be hundreds of
     // meshes, and this runs at hover rate while probing; a body whose
     // true-scale surface the ray cannot reach skips them all. The globe mesh
@@ -46,12 +50,16 @@ export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonl
     // Main scene: globe spheres, authoritative DSKs and terrain tiles. The raycaster
     // ignores ancestor visibility, so a hidden body is skipped here.
     const mainTargets: THREE.Object3D[] = [];
+    const visualOwners = new Map<THREE.Object3D, BodyMesh>();
     for (const bm of bodies) {
       if (!bm.visible) continue;
       if (bm.mesh.visible) mainTargets.push(bm.mesh);
       mainTargets.push(...bm.getDskMeshes());
       const tg = bm.terrainTileGroup;
       if (tg && tg.visible && reachable.has(bm)) mainTargets.push(tg);
+      if (options.visualBlockers && reachable.has(bm)) for (const overlay of bm.getSurfaceOverlays()) {
+        if (overlay.group.visible) { mainTargets.push(overlay.group); visualOwners.set(overlay.group, bm); }
+      }
     }
     const visible = (hit: THREE.Intersection) => {
       for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible && !isDrawnCubeImagerySource(object)) return false;
@@ -70,6 +78,7 @@ export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonl
     let source: SurfaceHitSource = 'ellipsoid';
     let bestNormal: THREE.Vector3 | null = null;
     let intersection: THREE.Intersection | null = null;
+    let annotationBlocker = false;
 
     if (mainHits.length > 0) {
       const hit = mainHits[0];
@@ -87,6 +96,7 @@ export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonl
           const terrain = bm.terrainTileGroup;
           while (obj) {
             if (terrain && obj === terrain) source = 'terrain';
+            if (visualOwners.get(obj) === bm) { bestBm = bm; annotationBlocker = true; source = 'surface-overlay'; break; }
             if (obj === bm) { bestBm = bm; break; }
             obj = obj.parent;
           }
@@ -96,5 +106,5 @@ export function castRenderedSurfaces(raycaster: THREE.Raycaster, bodies: readonl
     }
 
     if (!bestWorldPoint || !bestBm) return null;
-    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm, intersection: intersection! };
+    return { worldPoint: bestWorldPoint, distance: bestDist, bm: bestBm, source, normal: bestNormal, renderedSkirt, tintHeightKm, intersection: intersection!, annotationBlocker };
 }

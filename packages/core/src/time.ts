@@ -153,6 +153,10 @@ export function etFromDate(date: Date): number {
  * moves a body to J2000.
  */
 export function etFromCalendarString(time: string): number {
+  // A leap second (`23:59:60`) is a real UTC reading `Date` cannot represent:
+  // it is the second after `:59`, still under that second's ΔAT.
+  const leap = /^(.*T\d{2}:\d{2}:)60(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/i.exec(time.trim());
+  if (leap) return etFromCalendarString(`${leap[1]}59${leap[2] ?? ''}${leap[3] ?? ''}`) + 1;
   const utcMs = utcMsFromCalendarString(time);
   if (Number.isNaN(utcMs)) return NaN;
   return (utcMs - J2000_UNIX_MS) / 1000 + (deltaAtSeconds(utcMs) - DELTA_AT_AT_J2000);

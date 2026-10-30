@@ -1503,6 +1503,11 @@ export class TerrainManager {
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
   }
 
+  /** Annotation planning reads resident coverage without changing CPU residency. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
+  }
+
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
     if (this.cubeConfigured) {
       const { latDeg, lonDeg } = bodyFixedToGeodetic(point, this.sampler.datum);

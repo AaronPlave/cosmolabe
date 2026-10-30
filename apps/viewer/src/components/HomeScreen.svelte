@@ -191,7 +191,7 @@
     margin: auto;
     /* Sits left of centre on a wide screen, like a document; centred text
        would read as a splash page. */
-    margin-left: max(1rem, 12vw);
+    margin-left: max(1rem, 12cqw);
     padding: 3rem 1rem;
   }
   @media (max-width: 639px) {

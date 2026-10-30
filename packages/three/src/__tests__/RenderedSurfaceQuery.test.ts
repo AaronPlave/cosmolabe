@@ -50,6 +50,7 @@ describe('shared rendered surface discovery', () => {
     const local = new THREE.Group(); local.add(new THREE.Mesh(new THREE.SphereGeometry(120), new THREE.MeshBasicMaterial()));
     local.updateMatrixWorld(true);
     vi.spyOn(bm, 'getSurfaceOverlays').mockReturnValue([{ group: local }] as never);
-    expect(castRenderedSurfaces(ray, [bm], 1)).toBeNull(); bm.dispose();
+    expect(castRenderedSurfaces(ray, [bm], 1)).toBeNull();
+    expect(castRenderedSurfaces(ray, [bm], 1, { visualBlockers: true })).toMatchObject({ bm, annotationBlocker: true, source: 'surface-overlay' }); bm.dispose();
   });
 });

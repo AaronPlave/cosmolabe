@@ -93,7 +93,7 @@
     <Popover.Trigger class="ui-control flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-1 text-left text-text-secondary hover:bg-surface-3" title={filterSummary || 'Filter places and choose ordering'}>
       <ChevronDown size={13} class="shrink-0" /><span class="shrink-0 whitespace-nowrap text-xs">Filters and sort</span>{#if filterSummary}<span class="min-w-0 flex-1 truncate text-right text-xs text-text-muted">{filterSummary}</span>{/if}
     </Popover.Trigger>
-    <Popover.Portal><Popover.Content side="bottom" align="start" sideOffset={4} class="w-64 max-w-[calc(100vw-32px)] p-3 ui-body space-y-2">
+    <Popover.Portal><Popover.Content side="bottom" align="start" sideOffset={4} class="w-64 max-w-[calc(100cqw-32px)] p-3 ui-body space-y-2">
   <label class="flex items-center gap-2"><span class="w-10 shrink-0 text-text-secondary">Type</span>
     <select aria-label="Search place type" class="ui-control min-w-0 flex-1 rounded bg-surface-3 p-1" bind:value={kind}>
       <option value="">All types</option>{#each kinds as [value, label]}<option {value}>{label}</option>{/each}

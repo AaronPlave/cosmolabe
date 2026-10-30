@@ -130,6 +130,7 @@ export class GraticuleFrame {
       let e = this.elements.find(e => e.key === key && !used.has(e)) ?? this.elements.find(e => !used.has(e));
       if (!e) {
         const canvas = document.createElement('canvas'), sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), toneMapped: false, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }));
+        sprite.material.map!.colorSpace = THREE.SRGBColorSpace;
         sprite.renderOrder = 10; sprite.userData.gridFrameElement = true; this.group.add(sprite);
         e = { sprite, canvas, key, drawingKey: '', x: 0, y: 0, width: 0, height: 0 }; this.elements.push(e);
       }
@@ -145,6 +146,7 @@ export class GraticuleFrame {
         // WebGL textures cannot change dimensions after their first upload.
         if (resized) {
           e.sprite.material.map?.dispose(); e.sprite.material.map = new THREE.CanvasTexture(e.canvas);
+          e.sprite.material.map.colorSpace = THREE.SRGBColorSpace;
           e.sprite.material.needsUpdate = true;
         }
         const ctx = e.canvas.getContext('2d')!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -80,3 +80,15 @@ describe('graticule surface materials', () => {
     material.dispose(); a.geometry.dispose();
   });
 });
+
+it('does not mistake copied userData for a live shader hook on a material clone', () => {
+  const original = new THREE.MeshStandardMaterial();
+  const first = new THREE.Mesh(new THREE.BoxGeometry(), original);
+  const uniforms = makeGraticuleUniforms(coordinates);
+  applyGraticuleToScene(first, uniforms, new THREE.Matrix4());
+  const clone = original.clone();
+  const second = new THREE.Mesh(first.geometry, clone);
+  applyGraticuleToScene(second, uniforms, new THREE.Matrix4());
+  expect(compile(clone).fragmentShader).toContain('uGridVisible');
+  original.dispose(); clone.dispose(); first.geometry.dispose();
+});

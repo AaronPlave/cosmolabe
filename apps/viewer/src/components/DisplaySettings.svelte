@@ -101,7 +101,7 @@
       </label>
       <label class="ui-body flex items-center justify-between gap-2">
         <span>Target</span>
-        <select class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
+        <select aria-label="Grid target" class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
           onchange={e => setGridSettings({ scope: e.currentTarget.value as 'tracked' | 'bodies' | 'all', perBody: {} })}>
           <option value="tracked">Tracked body</option><option value="bodies">Chosen bodies</option><option value="all">All eligible bodies</option>
         </select>
@@ -114,7 +114,7 @@
       {/if}
       <label class="ui-body flex items-center justify-between gap-2">
         <span>Density</span>
-        <select class="ui-control bg-surface-3 rounded" value={vs.grid.density}
+        <select aria-label="Grid density" class="ui-control bg-surface-3 rounded" value={vs.grid.density}
           onchange={e => setGridSettings({ density: e.currentTarget.value as 'auto' | 'manual' })}>
           <option value="auto">Auto</option><option value="manual">Manual</option>
         </select>

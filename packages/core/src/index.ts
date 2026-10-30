@@ -1,6 +1,13 @@
 export { Body } from './Body.js';
 export type { BodyProperties, TrajectoryPlotConfig, BodyChangeField, BodyChangeCallback, LegacyTrajectoryFrame } from './Body.js';
 export { Universe } from './Universe.js';
+export { StateUnavailableError } from './availability.js';
+export type { StateAvailability, UnavailableReason, CoverageInterval } from './availability.js';
+export { MissionStateManager, MissionStateTrajectory, MissionStateRotation } from './mission-state.js';
+export type {
+  MissionStateSource, MissionStateSink, MissionStateChannel, MissionStateChange, PositionConvention, AttitudeConvention,
+  PositionSample, AttitudeSample, StateBatch, PositionBatch, AttitudeBatch, SuppliedBatch, SampleTime, SourceStatus, ChannelCoverage,
+} from './mission-state.js';
 export type { UniverseOptions } from './Universe.js';
 export { CatalogLoader, collectKernelRefs } from './catalog/CatalogLoader.js';
 export type { CatalogJson, CatalogItem, TrajectorySpec, RotationModelSpec, GeometrySpec, LoadedCatalog, CatalogLoaderOptions, TrajectoryFactory, RotationFactory, TrajectoryFactoryContext, RotationFactoryContext, KernelRef, SpkImportSpec } from './catalog/CatalogLoader.js';
@@ -240,4 +247,3 @@ export * from './MissionActivity.js';
 export { surfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
 export type { SurfaceTrajectoryProvenance, SurfaceTrajectoryAvailability, SurfaceTrajectoryDiagnostic } from './geometry/surface-trajectory.js';
 export { LUNAR_SURFACE_FRAME, lunarProductFrame } from './geographic/lunar-frame.js';
-

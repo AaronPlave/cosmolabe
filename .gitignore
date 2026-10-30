@@ -97,3 +97,6 @@ apps/viewer/test-catalogs/data/curiosity-cube/
 
 # Mission activity browser captures and raw performance measurements (#293).
 /work/issue-293/
+
+# The embeddable workspace build (npm run build:embed)
+dist-embed/

@@ -1,3 +1,5 @@
+import { bodySurfaceCoordinates } from '@cosmolabe/core';
+import { applyGraticuleToScene, makeGraticuleUniforms } from '../GraticuleShader.js';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CubeImageryLayer, cubeBlockInsideBounds, cubeBlockOverlapsBounds, isDrawnCubeImagerySource } from '../CubeImageryLayer.js';
@@ -472,4 +474,37 @@ describe("source ingestion and bounded recovery",()=>{
   });
 
 
+});
+
+
+it('composes grid, current cube imagery and dynamic Surface Appearance without changing terrain', async () => {
+  const s = await setup();
+  const style = new SurfaceAppearance({ referenceShape: { kind: 'sphere', radiusKm: R / 1000 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' });
+  style.attach(s.mesh, s.mesh.matrixWorld.clone());
+  const coordinates = bodySurfaceCoordinates({ name: 'Moon', radii: [R / 1000, R / 1000, R / 1000] })!;
+  const grid = makeGraticuleUniforms(coordinates);
+  const material = s.mesh.material as THREE.Material;
+  const position = s.mesh.geometry.getAttribute('position').array.slice();
+  const indices = s.mesh.geometry.index!.array.slice();
+  applyGraticuleToScene(s.scene, grid, new THREE.Matrix4());
+  const plainKey = material.customProgramCacheKey();
+  style.set({ ...DEFAULT_SURFACE_APPEARANCE, hillshade: true, contours: true, baseColor: 'elevation' });
+  style.update(Infinity);
+  const styledKey = material.customProgramCacheKey();
+  expect(styledKey).not.toBe(plainKey);
+  const shader = compile(material);
+  expect(shader.fragmentShader).toContain('uGridVisible');
+  expect(shader.fragmentShader).toContain('saContourLine');
+  expect(shader.uniforms).toHaveProperty('cubeImageryToBody');
+  expect(shader.uniforms).toHaveProperty('uGridVisible', grid.uGridVisible);
+  grid.uGridVisible.value = 0;
+  expect(shader.uniforms.uGridVisible.value).toBe(0);
+  grid.uGridVisible.value = 1;
+  style.set({ ...DEFAULT_SURFACE_APPEARANCE });
+  expect(material.customProgramCacheKey()).toBe(plainKey);
+  expect(compile(material).fragmentShader).toContain('uGridVisible');
+  expect(s.mesh.material).toBe(material);
+  expect(s.mesh.geometry.getAttribute('position').array).toEqual(position);
+  expect(s.mesh.geometry.index!.array).toEqual(indices);
+  s.layer.dispose(); style.forget(s.scene);
 });

@@ -76,6 +76,8 @@
   const deg = (d: number) => (d >= 10 ? d.toFixed(1) : d >= 1 ? d.toFixed(2) : d.toPrecision(3));
   const POINTING = {
     spice: { text: 'SPICE attitude', title: 'Pointed by the instrument frame\'s SPICE attitude (CK) at this time' },
+    attitude: { text: 'Host attitude', title: 'Pointed by the host-supplied spacecraft attitude and the catalog mounting' },
+    unavailable: { text: 'No pointing', title: 'This instrument cannot be pointed truthfully at this time' },
     target: { text: 'Approx. pointing', title: 'No attitude at this time: the boresight is aimed at the target, roll unknown' },
     none: { text: 'Unpointed', title: 'No attitude and no target: the view direction is not meaningful' },
   } as const;
@@ -102,7 +104,7 @@
       {:else}
         <span class="warn" title="Neither the catalog nor a loaded instrument kernel gives this sensor's field of view; the image shows a nominal {deg(info.viewFov[0])}° × {deg(info.viewFov[1])}°">FOV unknown</span>
       {/if}
-      <span title={POINTING[info.pointing].title} class:warn={info.pointing !== 'spice'}>{POINTING[info.pointing].text}</span>
+      <span title={info.pointingUnavailable ?? POINTING[info.pointing].title} class:warn={info.pointing !== 'spice' && info.pointing !== 'attitude'}>{POINTING[info.pointing].text}</span>
     {/if}
   </div>
 
@@ -120,7 +122,9 @@
       style:--feed-aspect={feedAspect}
     >
       <canvas bind:this={surface} aria-label="View from {sensor}"></canvas>
-      {#if fullCanvas}
+      {#if info?.pointingUnavailable}
+        <p class="state overlay opaque">{info.pointingUnavailable}</p>
+      {:else if fullCanvas}
         <p class="state overlay">Showing full-canvas in Instrument camera mode.</p>
       {/if}
     </div>
@@ -148,10 +152,10 @@
   .feed.sized {
     flex: none;
     aspect-ratio: var(--feed-aspect);
-    max-height: 60vh;
+    max-height: 60cqh;
   }
   @media (max-width: 767px) {
-    .feed.sized { max-height: 30vh; }
+    .feed.sized { max-height: 30cqh; }
   }
   canvas {
     position: absolute;
@@ -172,5 +176,8 @@
     justify-content: center;
     text-align: center;
     background: rgba(0, 0, 0, 0.6);
+  }
+  .state.overlay.opaque {
+    background: #000;
   }
 </style>

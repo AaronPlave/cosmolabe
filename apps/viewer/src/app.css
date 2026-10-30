@@ -156,7 +156,9 @@
 
 /* ── Base overrides (in @layer so utilities win) ── */
 @layer base {
-  html, body, #app {
+  /* `.cosmolabe-root` is the same box when the workspace is embedded in a
+     shadow root, where the page's html and body are out of reach. */
+  html, body, #app, .cosmolabe-root {
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -325,7 +327,7 @@
      lifted plot surface, a faint wash on the inspected row. */
   /* Rows are exactly their height: one grid track that may not grow to its
      content, so a plot can never spill into — and double-paint — the next. */
-  :root {
+  :root, :host {
     --tl-label-inset: 9px;
     /* One stacking order for the timeline. A transient label or callout is
        never under structural chrome. */
@@ -576,13 +578,15 @@
 
 /* Shared analysis row states: identity tint, neutral boundary, independent focus. */
 .analysis-row { --row-accent: var(--color-event-accent); }
-body .analysis-row:hover, body .analysis-row.hovered { background: var(--color-hover); }
-body .analysis-row.selected {
+/* `.cosmolabe-embedded` stands in for body inside an embedded workspace's shadow root. */
+body .analysis-row:hover, body .analysis-row.hovered, .cosmolabe-embedded .analysis-row:hover, .cosmolabe-embedded .analysis-row.hovered { background: var(--color-hover); }
+body .analysis-row.selected, .cosmolabe-embedded .analysis-row.selected {
   border-color: var(--color-border-strong);
   background: color-mix(in srgb, var(--row-accent) 5%, transparent);
   box-shadow: inset 2px 0 0 var(--row-accent);
 }
-body .analysis-row:focus-visible, body .analysis-row:has(:focus-visible) {
+body .analysis-row:focus-visible, body .analysis-row:has(:focus-visible),
+.cosmolabe-embedded .analysis-row:focus-visible, .cosmolabe-embedded .analysis-row:has(:focus-visible) {
   outline: 1px solid var(--color-primary-accent); outline-offset: -1px;
 }
 .cosmolabe-measurement-value[data-hovered='true'], .cosmolabe-measurement-value:focus-visible {

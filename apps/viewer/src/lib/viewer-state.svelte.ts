@@ -23,10 +23,12 @@ import { loadPrefs, savePrefs } from './persistence';
 import { LoadProgress, type LoadPhase } from './load-progress';
 import { windowFollowing } from './scrubber-math';
 import { openTool, closeTool, isToolOpen, isPanelVisible } from './shell.svelte';
+import { workspaceNode } from './workspace.svelte';
 import { navigateToPlace, selectPlace, viewportPlace } from './places';
 import { setCatalogActivities } from './analysis.svelte';
 import { activityEvent } from './mission-activities';
 import type { MissionActivity } from '@cosmolabe/core';
+import { resettable } from './session.svelte';
 
 // ── Exported types ──
 
@@ -69,6 +71,32 @@ export interface ViewerEventMap {
   time: number;
   /** A scene finished loading; the payload is its object list. */
   load: readonly string[];
+  /** The scene's initial models, textures and trails settled; its object list. */
+  ready: readonly string[];
+  /** Playback started, stopped or changed rate. */
+  playback: { playing: boolean; rate: number };
+  /** The scene's mission activities changed (catalog load or host update). */
+  activities: number;
+  /** The selected activity changed; null when none is selected. */
+  activitySelect: string | null;
+}
+
+/** Why the clock last moved: a host's `setTime`, the viewer (scrubber, keys, scripts), or playback. */
+export type TimeChangeCause = 'host' | 'viewer' | 'playback';
+let _hostTimeChange = false;
+let _timeCause: TimeChangeCause = 'viewer';
+/** The cause of the time change being notified right now. */
+export function timeChangeCause(): TimeChangeCause { return _timeCause; }
+/** Run a time change on a host's behalf, so its notification says so. */
+export function asHostTimeChange<T>(fn: () => T): T {
+  _hostTimeChange = true;
+  try { return fn(); } finally { _hostTimeChange = false; }
+}
+let _lastPlayback: { playing: boolean; rate: number } | null = null;
+function notifyPlayback(playing: boolean, rate: number) {
+  if (_lastPlayback && _lastPlayback.playing === playing && _lastPlayback.rate === rate) return;
+  _lastPlayback = { playing, rate };
+  emit('playback', { playing, rate });
 }
 
 // ── Single reactive state object ──
@@ -174,6 +202,7 @@ export const vs = $state({
    */
   surfaceTarget: null as SurfaceTargetInfo | null,
 });
+resettable(vs);
 
 /** What the view context shows about a surface navigation target. */
 export interface SurfaceTargetInfo {
@@ -235,8 +264,10 @@ export function formatBytes(bytes: number): string {
 
 export function setSceneLoaded(v: boolean) { vs.sceneLoaded = v; }
 export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null = null) {
+  const became = v && !vs.assetsReady;
   vs.assetsReady = v;
   vs.assetSummary = summary;
+  if (became) emit('ready', vs.bodies.map((b) => b.name));
 }
 export function setKernelCount(v: number) { vs.kernelCount = v; }
 export function selectBody(name: string | null) {
@@ -330,7 +361,7 @@ export function onViewerEvent<K extends keyof ViewerEventMap>(
   return () => void set.delete(cb as (data: never) => void);
 }
 
-function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
+export function emit<K extends keyof ViewerEventMap>(event: K, data: ViewerEventMap[K]) {
   for (const cb of _eventListeners.get(event) ?? []) {
     try {
       (cb as (d: ViewerEventMap[K]) => void)(data);
@@ -417,6 +448,7 @@ function syncTimeState() {
   vs.playing = tc.playing;
   vs.rateText = rateLabel(tc.rate);
   vs.timeText = etToUtcString(tc.et);
+  notifyPlayback(tc.playing, tc.rate);
 }
 
 function syncPlaceSelection(tracked: string | null | undefined) {
@@ -466,7 +498,7 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
     if (now - cachedAt < 250) return cached;
     cachedAt = now;
     const origin = canvas().getBoundingClientRect();
-    cached = [...document.querySelectorAll<HTMLElement>('[data-scene-occluder]')]
+    cached = [...workspaceNode().querySelectorAll<HTMLElement>('[data-scene-occluder]')]
       .map((element) => element.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => ({
@@ -581,13 +613,17 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
     endLoad();
   }
 
+  _lastPlayback = null;
   const unsub = renderer.timeController.onTimeChange((newEt: number) => {
     vs.et = newEt;
     vs.timeText = etToUtcString(newEt);
     vs.playing = renderer.timeController.playing;
     vs.rate = renderer.timeController.rate;
     vs.rateText = rateLabel(renderer.timeController.rate);
+    _timeCause = _hostTimeChange ? 'host' : renderer.timeController.playing ? 'playback' : 'viewer';
+    notifyPlayback(vs.playing, vs.rate);
     emit('time', newEt);
+    _timeCause = 'viewer';
   });
   _unsubscribers.push(unsub);
 
@@ -674,6 +710,11 @@ export function getRenderer(): UniverseRenderer | null {
   return _renderer;
 }
 
+/** The scene's universe, or null with no scene. */
+export function getSceneUniverse(): Universe | null {
+  return _universe;
+}
+
 // ── Commands ──
 
 export function togglePlay() {
@@ -724,6 +765,10 @@ export function setTime(newEt: number) {
   );
   if (!next) {
     initScrubberRange();
+    // A seek outside everything the scene's data spans (a host following a
+    // live feed, an activity beyond the trajectories) extends the timeline to
+    // it rather than leaving the playhead off the end.
+    extendTimelineBase(newEt, newEt);
     return;
   }
   vs.scrubMin = next.min;
@@ -1778,4 +1823,23 @@ function syncActivities(universe: Universe) {
   vs.activities = [...universe.activities.list()];
   vs.activityMetadataAvailable = universe.activities.available;
   setCatalogActivities(vs.activities.map(activityEvent));
+  emit('activities', vs.activities.length);
+}
+
+/**
+ * Grow the timeline's full range to include [min, max], padded a little, and
+ * the visible window with it when it was showing the whole range. Never
+ * shrinks: data that arrives later only ever extends what can be navigated.
+ */
+export function extendTimelineBase(min: number, max: number) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+  if (min >= vs.scrubBaseMin && max <= vs.scrubBaseMax) return;
+  const pad = Math.max(5, Math.min((max - min) * 0.05, 3600));
+  const whole = vs.scrubMin === vs.scrubBaseMin && vs.scrubMax === vs.scrubBaseMax;
+  vs.scrubBaseMin = Math.min(vs.scrubBaseMin, min - pad);
+  vs.scrubBaseMax = Math.max(vs.scrubBaseMax, max + pad);
+  if (whole) {
+    vs.scrubMin = vs.scrubBaseMin;
+    vs.scrubMax = vs.scrubBaseMax;
+  }
 }

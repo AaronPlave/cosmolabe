@@ -71,7 +71,14 @@ import {
   stopFlight,
   trackBody,
   untrack,
+  asHostTimeChange,
+  timeChangeCause,
+  getSceneUniverse,
+  setScrubberWindow,
+  extendTimelineBase,
 } from './viewer-state.svelte';
+import type { StateAvailability } from '@cosmolabe/core';
+import type { ScriptAvailability } from '@cosmolabe/control';
 import { etToIso } from './camera-view-io';
 import { captureFilename, captureFrameDataUrl, downloadDataUrl, setVideoRecording } from './capture';
 
@@ -85,7 +92,19 @@ export interface ViewerControlDeps {
    * has to keep working for.
    */
   getSpice?: () => HeritageSpice | null;
+  /**
+   * This instance is an embedding host's: its clock changes notify as
+   * `cause: 'host'`, so the host can tell its own seeks from the viewer's.
+   */
+  host?: boolean;
 }
+
+/** Playback notifies at most this often; seeks notify at once. */
+const PLAYBACK_TIME_EVENT_MS = 250;
+
+const availabilityOf = (a: StateAvailability): ScriptAvailability => ({
+  available: a.available, reason: a.reason, message: a.message, sourceId: a.sourceId, classification: a.classification,
+});
 
 /**
  * Seconds past J2000 for a time a script asked for, or null if it cannot be read.
@@ -115,7 +134,7 @@ function isFrameMode(value: string): value is CameraModeName {
 }
 
 /** Build a `ViewerControl` over the app's current renderer and state. */
-export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl {
+export function createViewerControl(deps: ViewerControlDeps = {}): Required<ViewerControl> {
   const spice = () => deps.getSpice?.() ?? null;
 
   const camera = (): ScriptCamera => {
@@ -163,7 +182,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
-    selectActivity, seekActivity, navigateActivity,
+    selectActivity, navigateActivity,
+    seekActivity: (id, edge) => (deps.host ? asHostTimeChange(() => seekActivity(id, edge)) : seekActivity(id, edge)),
     // ── Write: scene setup ──
     gotoObject: (name, opts) =>
       gotoObject(name, { animate: opts?.seconds !== undefined, duration: opts?.seconds }),
@@ -278,8 +298,13 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     setTime: (when) => {
       const et = resolveEpoch(when, spice());
       if (et === null) return false;
-      if (!getRenderer()) return false;
-      setTime(et);
+      const r = getRenderer();
+      if (!r) return false;
+      // Already there: a host echoing the viewer's own time back is a no-op,
+      // not a second seek.
+      if (r.timeController.et === et) return true;
+      if (deps.host) asHostTimeChange(() => setTime(et));
+      else setTime(et);
       return true;
     },
 
@@ -324,6 +349,30 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     },
 
     // ── Read ──
+    getObjectState: (name, opts) => {
+      const u = getSceneUniverse();
+      if (!u || !hasBody(name)) return undefined;
+      const et = opts?.time ? resolveEpoch(opts.time, spice()) : getRenderer()?.timeController.et ?? vs.et;
+      if (et === null) return undefined;
+      const frame = opts?.frame ?? 'ECLIPJ2000';
+      const center = opts?.center ?? u.getBody(name)?.activeParentAt(et) ?? null;
+      const s = u.stateIn(name, et, { frame, center: center ?? undefined });
+      return {
+        et, frame, center,
+        position: s.position, attitude: s.attitude,
+        positionAvailability: availabilityOf(s.availability.position),
+        attitudeAvailability: s.availability.attitude && availabilityOf(s.availability.attitude),
+      };
+    },
+    getTimelineWindow: () => ({ start: vs.scrubMin, end: vs.scrubMax }),
+    setTimelineWindow: (from, to) => {
+      const start = resolveEpoch(from, spice());
+      const end = resolveEpoch(to, spice());
+      if (start === null || end === null || !(end > start) || !getRenderer()) return false;
+      extendTimelineBase(start, end);
+      setScrubberWindow(start, end);
+      return true;
+    },
     getTime: () => getRenderer()?.timeController.et ?? vs.et,
     getRate: () => getRenderer()?.timeController.rate ?? vs.rate,
     isPlaying: () => getRenderer()?.timeController.playing ?? vs.playing,
@@ -356,12 +405,43 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
           return onViewerEvent('select', (name) =>
             (cb as (d: ScriptEventMap['select']) => void)({ name }),
           );
-        case 'time':
-          return onViewerEvent('time', (et) => (cb as (d: ScriptEventMap['time']) => void)({ et }));
+        case 'time': {
+          // Seeks at once; playback coalesced to a few a second, trailing, so
+          // the last notification always carries the clock's current value.
+          const deliver = cb as (d: ScriptEventMap['time']) => void;
+          let latest: ScriptEventMap['time'] | null = null;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const flush = () => {
+            timer = undefined;
+            if (latest) deliver(latest);
+            latest = null;
+          };
+          const off = onViewerEvent('time', (et) => {
+            latest = { et, cause: timeChangeCause() };
+            if (latest.cause !== 'playback') {
+              clearTimeout(timer);
+              flush();
+            } else {
+              timer ??= setTimeout(flush, PLAYBACK_TIME_EVENT_MS);
+            }
+          });
+          return () => {
+            off();
+            clearTimeout(timer);
+          };
+        }
         case 'load':
           return onViewerEvent('load', (objects) =>
             (cb as (d: ScriptEventMap['load']) => void)({ objects }),
           );
+        case 'ready':
+          return onViewerEvent('ready', (objects) => (cb as (d: ScriptEventMap['ready']) => void)({ objects }));
+        case 'playback':
+          return onViewerEvent('playback', (p) => (cb as (d: ScriptEventMap['playback']) => void)({ ...p }));
+        case 'activities':
+          return onViewerEvent('activities', (count) => (cb as (d: ScriptEventMap['activities']) => void)({ count }));
+        case 'activitySelect':
+          return onViewerEvent('activitySelect', (id) => (cb as (d: ScriptEventMap['activitySelect']) => void)({ id }));
         default: {
           const unreachable: never = event;
           throw new Error(`unknown event ${String(unreachable)}`);

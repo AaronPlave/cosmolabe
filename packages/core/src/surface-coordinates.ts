@@ -25,7 +25,7 @@ export function formatSurfaceAngle(value: number, axis: 'latitude' | 'longitude'
   return `${rounded.toFixed(precision)}°${suffix}`;
 }
 export function supportsGeodetic(shape: ReferenceShape): boolean {
-  return shape.kind === 'sphere' || Math.abs(shape.radiiKm[0] - shape.radiiKm[1]) <= shape.radiiKm[0] * 1e-12;
+  return shape.kind === 'sphere' || shape.radiiKm[0] === shape.radiiKm[1];
 }
 const DEG = Math.PI / 180;
 function requireGeodetic(datum: TerrainDatum): void {

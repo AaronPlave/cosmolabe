@@ -41,7 +41,7 @@ import { TrajectoryLine, type PositionResolver, type TrajectoryLineOptions } fro
 import type { LeadPolicy, LeadRequest } from './TrajectoryLead.js';
 import { TrajectoryCache } from './TrajectoryCache.js';
 import type { SpiceCacheWorker, CacheBuildRequest } from './SpiceCacheWorker.js';
-import { SensorFrustum, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
+import { SensorFrustum, sensorPointing, type SensorClipSummary, type SensorFovClipper } from './SensorFrustum.js';
 import type { FovBoundaryShape } from './surface/FovClipper.js';
 import { SensorFovClipping } from './SensorFovClipping.js';
 import { InstrumentView, type InstrumentViewOptions } from './InstrumentView.js';
@@ -86,14 +86,6 @@ const _clampTmpQuat = /* @__PURE__ */ new THREE.Quaternion();
 const _tmpRingNormal = /* @__PURE__ */ new THREE.Vector3();
 const _NAN3: [number, number, number] = [NaN, NaN, NaN];
 
-/**
- * World-space unit normal of the surface a ray hit, or null when the hit has
- * no face. The triangle's own: vertex normals are shading normals (terrain
- * blends them toward the sphere for lighting) and understate the slope.
- * Transformed by the normal matrix (inverse transpose), not as a direction:
- * an oblate or triaxial globe is a non-uniformly scaled sphere, and scaling
- * a normal like a direction tilts it the wrong way.
- */
 /** @deprecated Prefer `pickScene(x, y, 'probe')` and its `SurfacePoint`. */
 export interface SurfacePickResult {
   /** Name of the body that was clicked */
@@ -886,7 +878,11 @@ export class UniverseRenderer {
 
       bm.scale.setScalar(1); // Always real scale
 
-      if (bm.hasModel) {
+      if (bm.hasModel && !bm.attitudeAvailable) {
+        // Position known, attitude not: the marker, never a model at a held attitude.
+        bm.setModelVisible(false);
+        bm.mesh.visible = true;
+      } else if (bm.hasModel) {
         const MODEL_SHOW_PX = 2;   // Show model when > 2px
         const MODEL_FADE_PX = 5;   // Fully opaque at 5px
         // Surface-locked bodies (rovers, landers): always show the model at full
@@ -1045,26 +1041,24 @@ export class UniverseRenderer {
     for (const sf of this.sensorFrustums.values()) {
       // A sensor is drawn only while its own body is: an instrument does not
       // outlive its spacecraft (Universe.isPresentAt follows the parent chain).
-      sf.present = this.bodyMeshes.get(sf.body.name)?.present ?? true;
+      const sensorBody = this.bodyMeshes.get(sf.body.name);
+      // Nor is a sensor drawn while its spacecraft's supplied attitude is missing.
+      const carrier = sf.body.parentName ? this.bodyMeshes.get(sf.body.parentName) : undefined;
+      sf.present = (sensorBody?.present ?? true) && sensorBody?.attitudeAvailable !== false && carrier?.attitudeAvailable !== false;
       if (!sf.present) continue;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      // Try SPICE-based orientation using cached FOV frame (from enrichSensorFromSpice).
-      // Use the sensor's inertial frame (J2000 or ECLIPJ2000) to match scene positions.
-      let spiceRot: number[] | undefined;
-      if (sf.spiceFovFrame && spiceInst) {
-        try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
-        } catch {
-          // CK data may not cover this time — fall back to target-pointing
-        }
-      }
+      const pointing = sensorPointing(this.universe, sf, et, spiceInst);
+      sf.pointingUnavailable = pointing.unavailable ?? null;
+      // A sensor that cannot be truthfully pointed is not drawn pointing somewhere.
+      if (pointing.unavailable) { sf.present = false; continue; }
+      const spiceRot = pointing.rotation;
       let clip: SensorFovClipper | undefined;
       if (clipping && sf.visible) {
         if (!clippingReady) {
           clipping.begin(et, originAbsPos, this.bodyMeshes.values(), this.absolutePositionOf);
           clippingReady = true;
         }
-        clip = clipping.clipperFor(sf.body.name, spiceRot ? 'spice' : 'target');
+        clip = clipping.clipperFor(sf.body.name, pointing.from);
       }
       sf.update(et, this.scaleFactor, targetBody, originRelResolver, spiceRot, clip);
     }
@@ -1583,13 +1577,10 @@ export class UniverseRenderer {
       const sf = this.sensorFrustums.get(iv.sensorName!);
       if (!sf) return;
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
-      let spiceRot: number[] | undefined;
-      if (sf.spiceFovFrame && spiceInst) {
-        try {
-          spiceRot = spiceInst.pxform(sf.spiceFovFrame, sf.spiceInertialFrame, et) as unknown as number[];
-        } catch { /* no CK coverage */ }
-      }
-      iv.update(et, this.scaleFactor, originRelResolver, targetBody, spiceRot);
+      const pointing = sensorPointing(this.universe, sf, et, spiceInst);
+      const unavailable = pointing.unavailable ?? (sf.present ? null : `${sf.body.name} or its spacecraft has no state or attitude at this time.`);
+      if (unavailable) { iv.markUnavailable(unavailable); return; }
+      iv.update(et, this.scaleFactor, originRelResolver, targetBody, pointing.rotation, pointing.from === 'attitude' ? 'attitude' : 'spice');
       // The terrain draw cull is the main camera's.
       for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
       // The instrument has its own observer position and may be inside a
@@ -2369,7 +2360,9 @@ export class UniverseRenderer {
     fov: [number, number] | null;
     /** Rendered image extent, degrees (coverage plus a small margin for SPICE boundaries). */
     viewFov: [number, number];
-    pointing: 'spice' | 'target' | 'none';
+    pointing: import('./InstrumentView.js').InstrumentPointing;
+    /** Why the instrument has no pointing (`pointing === 'unavailable'`). */
+    pointingUnavailable: string | null;
     imageRect: import('./InstrumentView.js').Rect | null;
   } | null {
     const iv = this.instrumentView;
@@ -2382,6 +2375,7 @@ export class UniverseRenderer {
       fov: iv.fov,
       viewFov: iv.viewFov,
       pointing: iv.pointing,
+      pointingUnavailable: iv.unavailableReason,
       imageRect: iv.imageRect,
     };
   }
@@ -3179,8 +3173,8 @@ export class UniverseRenderer {
       const radii = bm.body.radii;
       // Equal radii are a sphere, whatever field they came in.
       const oblate = !!radii && (radii[0] !== radii[1] || radii[0] !== radii[2]);
-      // The hit height is measured against the terrain datum when the body has
-      // one (terrainBodyFixedToGeodetic), else radially from the body's shape.
+      // The hit uses the grid/probe coordinate reference. A decoded terrain
+      // sample keeps its independent physical datum and provenance below.
       const hitDatum: SurfaceDatum = terrainPosition && terrainDatum && isSupportedGeodeticDatum(terrainDatum)
         ? { ...terrainDatum, origin: 'terrain' }
         : {

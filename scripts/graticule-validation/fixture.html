@@ -68,7 +68,7 @@ window.setup=(options={})=>{
    for(let y=0;y<65;y++)for(let x=0;x<129;x++)elevations[y*129+x]=elevation(-90+y*180/64,-180+x*360/128);
    sampler=new TerrainSampler(coordinates.datum,{id:'synthetic',kind:'height-grid'});
    sampler.addTile({id:'resident',westDeg:-180,eastDeg:180,southDeg:-90,northDeg:90,width:129,height:65,elevationsKm:elevations});
-   bm.sampleTerrain=(lat,lon)=>sampler.sample(lat,lon);
+   bm.sampleResidentTerrain=(lat,lon)=>sampler.sample(lat,lon);
    bm.applyMeshScale(1);
  }
  window.pose(options);

@@ -225,7 +225,7 @@
                   <Info size={11} />
                 </Popover.Trigger>
                 <Popover.Portal>
-                  <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100vw-24px)] p-3 ui-helper">
+                  <Popover.Content side="bottom" align="start" sideOffset={6} class="w-64 max-w-[calc(100cqw-24px)] p-3 ui-helper">
                     {#each ground.help as line, i (i)}
                       <p class={i > 0 ? 'mt-2' : ''}>{line}</p>
                     {/each}

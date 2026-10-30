@@ -35,6 +35,7 @@ import { excludeFromProbe, getRenderer, onViewerEvent, setProbeActive } from './
 import { cancelMeasurementPick } from './spatial-measurements.svelte';
 import { getUniverse } from './loader';
 import { geo, geographicLayer, selectFeature, showSelectedDetails } from './geographic-layers.svelte';
+import { resettable } from './session.svelte';
 
 const STORAGE_KEY = 'cosmolabe-geographic-edits';
 /** The scene-store owner for authored layers. */
@@ -84,6 +85,7 @@ export const edits = $state({
   problems: [] as string[],
   persistent: true,
 });
+resettable(edits);
 
 const sessions = new Map<string, GeographicEditSession>();
 let lastPick = { at: 0, x: 0, y: 0 };
