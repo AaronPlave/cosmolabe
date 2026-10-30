@@ -27,3 +27,12 @@ labels: bug
 ## Additional context
 
 <!-- Logs, screenshots, related issues. -->
+
+## Issue relationships
+
+<!-- Use native GitHub "Blocked by" only for genuine prerequisites. When the available integration cannot set it, update .github/issue-relationships.json. Related/parallel work is not automatically a blocker. -->
+
+- Hard blockers (or None):
+- Parent initiative / related issues:
+
+<!-- See docs/issue-dependencies.md. -->
