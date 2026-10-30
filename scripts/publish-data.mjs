@@ -37,9 +37,16 @@ import { publishDirectory } from './data-hosting/lib/publish.mjs';
 import { createLocalStorage, createS3Storage } from './data-hosting/lib/storage.mjs';
 import { terrainManifest, validateTerrain } from './data-hosting/lib/terrain.mjs';
 import { kernelManifest, validateKernelHeader } from './data-hosting/lib/kernels.mjs';
+import { cubeImageryManifest, cubeTerrainManifest, validateCubeImagery, validateCubeTerrain } from './data-hosting/lib/cube.mjs';
 import { verifyBuild } from './data-hosting/lib/verify.mjs';
 
-const DEFAULT_ORIGINS = ['https://aaronplave.github.io', 'http://localhost:5173'];
+// The Pages site is served from its custom domain (aaronplave.github.io redirects there).
+const DEFAULT_ORIGINS = ['https://aaronplave.com', 'http://localhost:5173'];
+// Directory products other than quantized-mesh terrain and kernels: [validate, manifest, deferred files].
+const PRODUCT_KINDS = {
+  'cube-terrain': [validateCubeTerrain, cubeTerrainManifest, ['tileset.json', 'cpu-grids.json']],
+  'cube-imagery': [validateCubeImagery, cubeImageryManifest, ['imagery.json']],
+};
 
 const { values: opt, positionals } = parseArgs({
   allowPositionals: true,
@@ -88,20 +95,22 @@ async function main() {
   console.log(`${id} → ${prefix}  (${storage?.name ?? 'dry run'})`);
 
   const isKernels = dataset.kind === 'kernels';
+  const product = PRODUCT_KINDS[dataset.kind];
   const result = await publishDirectory({
     storage, srcDir, prefix, concurrency, dryRun: opt['dry-run'],
     recursive: dataset.recursive !== false,
-    deferred: isKernels ? [] : ['layer.json'],
+    // Entry points last, so a reader never finds one whose files are still uploading.
+    deferred: isKernels ? [] : product ? product[2] : ['layer.json'],
     stateDir: join(ROOT, '.data-hosting'),
     stateName: `${id.replace('/', '-')}-${build}`,
     validate: isKernels
       ? async (entries) => { for (const e of entries) await validateKernelHeader(join(srcDir, e.path)); }
-      : validateTerrain,
+      : product ? product[0] : validateTerrain,
     buildManifest: isKernels
       ? (entries, inventorySha256) => kernelManifest({
         dataset, build, entries, inventorySha256, srcDir, root: ROOT, gitCommit: commit, strictProvenance: opt['strict-provenance'],
       })
-      : (entries, inventorySha256) => terrainManifest({ dataset, build, entries, inventorySha256, srcDir, gitCommit: commit }),
+      : (entries, inventorySha256) => (product ? product[1] : terrainManifest)({ dataset, build, entries, inventorySha256, srcDir, gitCommit: commit }),
   });
   if (result.dryRun) return;
   if (!result.alreadyPublished) console.log(`Uploaded ${result.uploaded.toLocaleString()} objects (${result.skipped.toLocaleString()} already present).`);

@@ -29,19 +29,26 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "tsc --build packages/control packages/cspice-wasm packages/frames packages/interop packages/spice packages/core packages/three packages/cesium-adapter packages/cesium",
+    "build": "tsc --build packages/control packages/cspice-wasm packages/frames packages/interop packages/core packages/three packages/cesium-adapter packages/cesium",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "typecheck:viewer": "tsc -p apps/viewer/tsconfig.check.json",
     "typecheck:svelte": "npm --prefix apps/viewer run typecheck:svelte",
     "typecheck": "npm run build && npm run typecheck:tests && npm run typecheck:viewer && npm run typecheck:svelte",
     "test": "vitest run",
+    "test:permalinks": "node scripts/test-view-permalinks.mjs",
+    "test:instrument-window": "node scripts/test-instrument-window.mjs",
+    "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
+    "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",
     "lint": "eslint packages/ apps/",
     "lint:purity": "bash scripts/purity-lint.sh",
     "preprocess:displacement": "node scripts/preprocess-displacement.mjs",
     "validate:terrain": "node scripts/validate-terrain.mjs",
+    "plan:surface": "tsc --build packages/core && node scripts/plan-surface.mjs",
     "test:dem": "python3 scripts/terrain/dem.py selftest",
-    "publish:data": "node scripts/publish-data.mjs"
+    "publish:data": "node scripts/publish-data.mjs",
+    "discover:surface": "tsc --build packages/core && node scripts/discover-surface.mjs",
+    "build:surface": "tsc --build packages/core && node scripts/build-surface.mjs"
   },
   "engines": {
     "node": ">=20"

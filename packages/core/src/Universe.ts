@@ -1,3 +1,6 @@
+import { MissionActivityStore } from './MissionActivity.js';
+import { surfaceTrajectoryAvailability, type SurfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
+import type { TerrainDatum } from './geographic/coordinates.js';
 import type { SpiceInstance } from './spice-injection.js';
 import { Body } from './Body.js';
 import { CatalogLoader } from './catalog/CatalogLoader.js';
@@ -10,7 +13,6 @@ import {
   BODY_FIXED,
   FrameRegistry,
   WORLD_FRAME,
-  bodyFixedFrameName,
   normalizeFrameKey,
 } from './frames/FrameRegistry.js';
 import { EventBus } from './events/EventBus.js';
@@ -18,6 +20,8 @@ import type { UniverseEventMap } from './events/EventTypes.js';
 import { StateStore } from './state/StateStore.js';
 import type { UniverseState } from './state/StateTypes.js';
 import { DEFAULT_UNIVERSE_STATE } from './state/StateTypes.js';
+import { GeographicLayerStore, geographicLayersFromFiles } from './geographic/loading.js';
+import type { GeographicLayerLoad } from './geographic/model.js';
 
 export interface UniverseOptions {
   /** Resolve trajectory data files (e.g. .xyzv). Return file text content or undefined. */
@@ -31,6 +35,10 @@ export interface UniverseOptions {
 }
 
 export class Universe {
+  readonly activities = new MissionActivityStore();
+  readonly geographicLayers = new GeographicLayerStore();
+  private geographicCatalogOwners = new WeakMap<CatalogJson, string>();
+  private nextGeographicCatalogOwner = 0;
   private bodies = new Map<string, Body>();
   private _viewpoints: ViewpointDefinition[] = [];
   private _defaultViewpoint?: string;
@@ -50,6 +58,8 @@ export class Universe {
   readonly frames: FrameRegistry;
   /** Normalized body name → body, for `IAU_<BODY>` lookups; rebuilt lazily. */
   private frameKeyIndex?: Map<string, Body>;
+  /** Exact rotation-target frame names, rebuilt with the body index. */
+  private bodyFixedFrameKeys?: Set<string>;
 
   constructor(spice?: SpiceInstance, options?: UniverseOptions) {
     this.spice = spice;
@@ -61,6 +71,7 @@ export class Universe {
     this.frames = new FrameRegistry({
       spice,
       bodyRotation: (key) => this.bodyRotationByFrameKey(key),
+      isBodyFixedFrame: (name) => this.isDeclaredBodyFixedFrame(name),
     });
   }
 
@@ -75,7 +86,23 @@ export class Universe {
     return this.frameKeyIndex.get(key)?.rotation;
   }
 
-  loadCatalog(json: CatalogJson): void {
+  private isDeclaredBodyFixedFrame(name: string): boolean {
+    if (!this.bodyFixedFrameKeys) {
+      this.bodyFixedFrameKeys = new Set();
+      for (const body of this.bodies.values()) {
+        if (body.rotation?.bodyFixedFrame) this.bodyFixedFrameKeys.add(normalizeFrameKey(body.rotation.bodyFixedFrame));
+      }
+    }
+    return this.bodyFixedFrameKeys.has(normalizeFrameKey(name));
+  }
+
+  private invalidateBodyFrameTargets(): void {
+    this.frameKeyIndex = undefined;
+    this.bodyFixedFrameKeys = undefined;
+    this.frames.invalidateBodyFrameClassification();
+  }
+
+  loadCatalog(json: CatalogJson, options?: { source?: string; geographicLayers?: readonly GeographicLayerLoad[] }): void {
     const loaderOpts: CatalogLoaderOptions = {
       spice: this.spice,
       resolveFile: this.resolveFile,
@@ -86,6 +113,13 @@ export class Universe {
     };
     const loader = new CatalogLoader(loaderOpts);
     const result = loader.load(json);
+
+    let geographicOwner = options?.source ?? json.name ?? this.geographicCatalogOwners.get(json);
+    if (geographicOwner === undefined) {
+      geographicOwner = `anonymous-catalog:${++this.nextGeographicCatalogOwner}`;
+      this.geographicCatalogOwners.set(json, geographicOwner);
+    }
+    this.activities.replace(geographicOwner, result.activities, json.activities !== undefined);
 
     for (const body of result.bodies) {
       // If a body with this name already exists (e.g. brought in by a `require`d
@@ -108,7 +142,7 @@ export class Universe {
         if (parent) parent.children.push(body);
       }
     }
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
 
     for (const vp of result.viewpoints) {
       this._viewpoints.push(vp);
@@ -118,6 +152,15 @@ export class Universe {
       this._defaultViewpoint = result.defaultViewpoint;
     }
 
+    const geographicLoads = options?.geographicLayers ?? geographicLayersFromFiles(json, this.resolveFile, options?.source, geographicOwner);
+    this.geographicLayers.replaceCatalog(geographicOwner, geographicLoads);
+    for (const load of geographicLoads) {
+      for (const diagnostic of load.diagnostics.slice(0, 5)) {
+        console.warn(`[Cosmolabe] geographic layer "${load.id}": ${diagnostic.message}`);
+      }
+      if (load.diagnostics.length > 5) console.warn(`[Cosmolabe] geographic layer "${load.id}": ${load.diagnostics.length} diagnostics in geographicLayers.loads`);
+    }
+    this.events.emit('geographic:changed', {});
     this.events.emit('catalog:loaded', { name: json.name });
 
     for (const plugin of this.plugins) {
@@ -127,7 +170,7 @@ export class Universe {
 
   addBody(body: Body): void {
     this.bodies.set(body.name, body);
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
     this.wireBodyChangeCallback(body);
     if (body.parentName) {
       const parent = this.bodies.get(body.parentName);
@@ -141,6 +184,7 @@ export class Universe {
       if (field === 'trajectory') {
         this.events.emit('body:trajectoryChanged', { body: b });
       } else if (field === 'rotation') {
+        this.invalidateBodyFrameTargets();
         this.events.emit('body:rotationChanged', { body: b });
       }
     };
@@ -150,7 +194,7 @@ export class Universe {
     const body = this.bodies.get(name);
     if (!body) return false;
     this.bodies.delete(name);
-    this.frameKeyIndex = undefined;
+    this.invalidateBodyFrameTargets();
     this.events.emit('body:removed', { bodyName: name });
     return true;
   }
@@ -202,6 +246,7 @@ export class Universe {
         spans.push([s, e]);
       }
     }
+    for (const activity of this.activities.list()) spans.push([activity.start, activity.end]);
     if (spans.length === 0) return undefined;
 
     // Separate narrow (mission-specific) from wide (planetary ephemeris) spans.
@@ -233,7 +278,47 @@ export class Universe {
   resolveFrame(frame: string, centerName: string | undefined): string {
     const canonical = this.frames.canonicalName(frame);
     if (canonical !== BODY_FIXED) return canonical;
-    return centerName ? bodyFixedFrameName(centerName) : BODY_FIXED;
+    return centerName ? this.frames.bodyFixedFrameFor(centerName) : BODY_FIXED;
+  }
+
+  /** Placement diagnostics for absolute surface inputs; never modifies samples. */
+  surfaceTrajectoryStatus(bodyName: string, et: number, surface: { frame: string; datum: TerrainDatum; terrainRevision?: string }): SurfaceTrajectoryAvailability | undefined {
+    const body = this.getBody(bodyName);
+    const provenance = body?.surfaceTrajectory;
+    if (!body || !provenance) return undefined;
+    const result = surfaceTrajectoryAvailability(provenance, surface, this.frames, et);
+    if (!this.surfaceTrajectoryFrameAgrees(body, et)) {
+      result.kind = 'unavailable';
+      result.diagnostics.push({ code: 'frame-disagreement', message: `Trajectory frame declarations (${this.frameOf(body, et)}, ${body.declaredFrame ?? 'intrinsic'}) disagree with provenance ${provenance.frame}. Placement withheld.` });
+    }
+    return result;
+  }
+
+  /** Shared marker/path gate. Explicit arc context must be used when sampling
+   * an inactive composite arc, rather than the body's active arc at that epoch. */
+  trajectoryPlacementAvailable(body: Body | string, et: number, sample?: { frame: string; centerName?: string }): boolean {
+    const b = typeof body === 'string' ? this.getBody(body) : body;
+    if (!b) return false;
+    if (!b.surfaceTrajectory) return true;
+    try {
+      return this.surfaceTrajectoryFrameAgrees(b, et, sample) && this.frames.isResolvable(b.surfaceTrajectory.frame, et);
+    } catch { return false; }
+  }
+
+  private surfaceTrajectoryFrameAgrees(body: Body, et: number, sample?: { frame: string; centerName?: string }): boolean {
+    const provenance = body.surfaceTrajectory;
+    const center = sample ? sample.centerName : body.activeParentAt(et);
+    const frame = sample ? this.resolveFrame(sample.frame, center) : this.frameOf(body, et);
+    return !provenance || (this.frames.sameFrame(frame, provenance.frame) &&
+      (!body.declaredFrame || this.frames.sameFrame(this.resolveFrame(body.declaredFrame, center), provenance.frame)));
+  }
+
+  private transformPosition(position: Vec3, from: string, to: string, et: number): Vec3 {
+    // Explicit lunar realizations need an FK and binary PCK. Missing coverage
+    // cannot turn a rotating surface location into an inertial position.
+    return /^(MOON_ME|MOON_PA)(_|$)/i.test(from) || /^(MOON_ME|MOON_PA)(_|$)/i.test(to)
+      ? this.frames.transformRequired(position, from, to, et)
+      : this.frames.transform(position, from, to, et);
   }
 
   /** Re-express a center-relative position given in `frame` in the scene frame
@@ -241,7 +326,7 @@ export class Universe {
    *  sum left out — what a trail sampler needs to draw a body's offset from
    *  its center in the same frame the marker is placed in. */
   toWorldFrame(position: Vec3, frame: string, centerName: string | undefined, et: number): Vec3 {
-    return this.frames.transform(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
+    return this.transformPosition(position, this.resolveFrame(frame, centerName), WORLD_FRAME, et);
   }
 
   /** A body's body → world (ECLIPJ2000) orientation quaternion `[w, x, y, z]`
@@ -260,9 +345,30 @@ export class Universe {
   /** A body's position relative to its active parent, in the scene frame. */
   relativePositionInWorld(bodyName: string, et: number): Vec3 {
     const body = this.getBody(bodyName);
-    if (!body) return [NaN, NaN, NaN];
+    if (!body || !this.trajectoryPlacementAvailable(body, et)) return [NaN, NaN, NaN];
     const p = body.stateAt(et).position;
-    return this.frames.transform([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
+    return this.transformPosition([p[0], p[1], p[2]], this.frameOf(body, et), WORLD_FRAME, et);
+  }
+
+  /**
+   * Whether a body is in the scene at `et`: inside its own existence window
+   * (catalog `startTime` / `endTime`) and so is every body it is placed
+   * relative to, following the active arc's centre the way
+   * `absolutePositionOf` does. An instrument does not outlive its spacecraft.
+   *
+   * Existence is separate from data coverage on purpose. A body inside its
+   * window whose ephemeris has a gap is still meant to be there; that shows up
+   * as a NaN position, which a renderer treats the same way.
+   */
+  isPresentAt(bodyName: string, et: number): boolean {
+    let name: string | undefined = bodyName;
+    for (let depth = 0; name && depth < 64; depth++) {
+      const body = this.getBody(name);
+      if (!body) return depth > 0; // an unknown ancestor ends the chain, as in absolutePositionOf
+      if (!body.existsAt(et)) return false;
+      name = body.activeParentAt(et);
+    }
+    return true;
   }
 
   /**
@@ -284,6 +390,7 @@ export class Universe {
       const body = this.getBody(bodyName);
       if (!body) return [NaN, NaN, NaN];
 
+      if (!this.trajectoryPlacementAvailable(body, et)) return [NaN, NaN, NaN];
       const state = body.stateAt(et);
       let pos: Vec3 = [state.position[0], state.position[1], state.position[2]];
       if (isNaN(pos[0])) return [NaN, NaN, NaN];
@@ -301,6 +408,7 @@ export class Universe {
       while (currentParent) {
         const parent = this.getBody(currentParent);
         if (!parent) break;
+        if (!this.trajectoryPlacementAvailable(parent, et)) return [NaN, NaN, NaN];
         const ps = parent.stateAt(et);
         if (isNaN(ps.position[0])) return [NaN, NaN, NaN];
 
@@ -310,13 +418,13 @@ export class Universe {
         const nextParent = parent.activeParentAt(et);
         const parentFrame = this.resolveFrame(parent.frameAt(et), nextParent);
 
-        pos = this.frames.transform(pos, frame, parentFrame, et);
+        pos = this.transformPosition(pos, frame, parentFrame, et);
         pos = [pos[0] + ps.position[0], pos[1] + ps.position[1], pos[2] + ps.position[2]];
         frame = parentFrame;
         currentParent = nextParent;
       }
 
-      pos = this.frames.transform(pos, frame, WORLD_FRAME, et);
+      pos = this.transformPosition(pos, frame, WORLD_FRAME, et);
       return [pos[0], pos[1], pos[2]];
     } catch {
       // SPICE throws "insufficient ephemeris" when a body's position can't be
@@ -332,7 +440,11 @@ export class Universe {
       plugin.dispose?.();
     }
     this.plugins = [];
+    this.activities.clear();
     this.bodies.clear();
+    this.geographicLayers.clear();
+    this.geographicCatalogOwners = new WeakMap();
+    this.nextGeographicCatalogOwner = 0;
     this._viewpoints = [];
     this._defaultViewpoint = undefined;
     this.events.dispose();

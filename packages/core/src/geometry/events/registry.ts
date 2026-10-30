@@ -1,3 +1,4 @@
+import type { EventGeometryDependencies } from './coverage.js';
 import type { GeometryFinderProvider } from './provider.js';
 import type {
   EtSeconds,
@@ -74,6 +75,16 @@ export interface EventKind<P = Record<string, unknown>> {
    * and step). Return a fault to reject the query.
    */
   validate?(query: EventQuery<P>): EventSearchFault | undefined;
+  /**
+   * What the search's SPICE calculation reads: the observer→target states,
+   * with their corrections, plus any body-fixed frames and radii. Declared so
+   * the time ranges a query can actually be computed over can be derived
+   * without running it (see `assessEventCoverage`). A kind that leaves it out
+   * simply gets no suggested range.
+   */
+  geometry?(query: ResolvedEventQuery<P>): EventGeometryDependencies;
+  /** Number of progress-reporting GF calls in `run`, excluding diagnostics; defaults to 1. */
+  plannedCalls?(query: ResolvedEventQuery<P>): number;
   /** Runs the search. Faults are raised by throwing; the service wraps them. */
   run(query: ResolvedEventQuery<P>, ctx: EventKindContext): Promise<GeometryEvent[]>;
   /**

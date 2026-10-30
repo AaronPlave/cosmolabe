@@ -1,6 +1,7 @@
 @import "@fontsource-variable/martian-mono";
 @import "@fontsource-variable/public-sans";
-@import "tailwindcss";
+/* Limit utility discovery to UI source, excluding large optional terrain/catalog assets. */
+@import "tailwindcss" source("./");
 
 /* ── Design tokens ── */
 @theme {
@@ -280,6 +281,7 @@
 @layer components {
   [data-ev-kind] { --ev: var(--color-event-accent); }
   [data-ev-kind='closest-approach'] { --ev: #72b7d8; }
+  [data-ev-kind='mission-activity'] { --ev: #b69bd3; }
   [data-ev-kind='distance-range'] { --ev: #71b896; }
   [data-ev-kind='occultation'] { --ev: #8c72d8; }
   [data-ev-state='partial'] { --ev: #e0a84c; }
@@ -570,4 +572,23 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* Shared analysis row states: identity tint, neutral boundary, independent focus. */
+.analysis-row { --row-accent: var(--color-event-accent); }
+body .analysis-row:hover, body .analysis-row.hovered { background: var(--color-hover); }
+body .analysis-row.selected {
+  border-color: var(--color-border-strong);
+  background: color-mix(in srgb, var(--row-accent) 5%, transparent);
+  box-shadow: inset 2px 0 0 var(--row-accent);
+}
+body .analysis-row:focus-visible, body .analysis-row:has(:focus-visible) {
+  outline: 1px solid var(--color-primary-accent); outline-offset: -1px;
+}
+.cosmolabe-measurement-value[data-hovered='true'], .cosmolabe-measurement-value:focus-visible {
+  border-color: var(--color-border-strong) !important;
+  background: var(--color-control) !important;
+}
+.cosmolabe-measurement-value:focus-visible, .cosmolabe-event-callout button:focus-visible {
+  outline: 2px solid var(--color-primary-accent); outline-offset: 2px;
 }

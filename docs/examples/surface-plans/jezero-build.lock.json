@@ -1,0 +1,882 @@
+{
+  "version": 1,
+  "kind": "locked-surface-plan",
+  "desired": {
+    "version": 1,
+    "kind": "desired-surface-plan",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "coordinates": {
+      "latitude": "planetocentric",
+      "longitudeDirection": "east",
+      "longitudeDomain": "-180..180",
+      "referenceShape": {
+        "kind": "sphere",
+        "radiusKm": 3396.19
+      }
+    },
+    "layers": [
+      {
+        "id": "pilot",
+        "name": "Bounded real Jezero source pilot; no mission trajectory claim",
+        "body": "Mars",
+        "source": "embedded",
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "pilot",
+              "properties": null,
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      77.4506,
+                      18.4445
+                    ],
+                    [
+                      77.451,
+                      18.4445
+                    ],
+                    [
+                      77.451,
+                      18.4449
+                    ],
+                    [
+                      77.4506,
+                      18.4449
+                    ],
+                    [
+                      77.4506,
+                      18.4445
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "regions": [
+      {
+        "id": "pilot",
+        "feature": {
+          "layerId": "pilot",
+          "featureId": "string:pilot"
+        },
+        "elevation": {
+          "gsdM": 100
+        },
+        "imagery": {
+          "gsdM": 0.5
+        },
+        "fallback": "require-target"
+      },
+      {
+        "id": "context",
+        "feature": {
+          "layerId": "pilot",
+          "featureId": "string:pilot"
+        },
+        "imagery": {
+          "gsdM": 5
+        },
+        "fallback": "require-target"
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "base",
+      "productId": "USGS-HRSC-MOLA-200m-v2",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "base-pilot-envelope",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.3,
+                    18.3
+                  ],
+                  [
+                    77.6,
+                    18.3
+                  ],
+                  [
+                    77.6,
+                    18.6
+                  ],
+                  [
+                    77.3,
+                    18.6
+                  ],
+                  [
+                    77.3,
+                    18.3
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+      },
+      "nativeGsdM": 200,
+      "accuracyM": null,
+      "projection": "EPSG:4326",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif; canonical global source; existing #50 input, no reprojection",
+        "bytes": 11384463908,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419"
+        }
+      },
+      "license": {
+        "name": "USGS/NASA public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+        "confidence": "verified-mask",
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "Illumination varies across the source mosaic; no single acquisition angle is asserted."
+        ],
+        "rasterGsdM": 200,
+        "dataType": "Int16",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "EPSG:4326",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+            "role": "raster",
+            "bytes": 11384463908,
+            "sizeEvidence": "source file or HTTP Content-Length"
+          }
+        ],
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        },
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "valid-pilot",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.4498,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4437
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://planetarymaps.usgs.gov/mosaic/Mars/HRSC_MOLA_Blend/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+          "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+          "extent": "known-valid-subset"
+        }
+      }
+    },
+    {
+      "id": "detail",
+      "productId": "JEZ-hirise-soc-006-DTM-1m-DeltaGeoid-blend40",
+      "channel": "elevation",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "detail",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.22294,
+                    18.30681
+                  ],
+                  [
+                    77.58395,
+                    18.30681
+                  ],
+                  [
+                    77.58395,
+                    18.6693
+                  ],
+                  [
+                    77.22294,
+                    18.6693
+                  ],
+                  [
+                    77.22294,
+                    18.30681
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": {
+        "maskUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+      },
+      "nativeGsdM": 1,
+      "accuracyM": null,
+      "projection": "Mars-EQC-0-0",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "areoid",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif; DTM label SHA-256 2a5e50ea40f1965359f3fb8d3b316e69243b77cf63f435629be58163bca7efd7; existing #50 input, no reprojection",
+        "bytes": 1839545409,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8"
+        }
+      },
+      "license": {
+        "name": "USGS/NASA public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+        "confidence": "verified-mask",
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "Illumination varies across the source mosaic; no single acquisition angle is asserted."
+        ],
+        "rasterGsdM": 1,
+        "dataType": "Float32",
+        "bands": [
+          "height"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "MOLA areoid topography",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+            "role": "raster",
+            "bytes": 1839545409,
+            "sizeEvidence": "source file or HTTP Content-Length"
+          }
+        ],
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        },
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "valid-pilot",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.4498,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4437
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+          "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+          "extent": "known-valid-subset"
+        }
+      }
+    },
+    {
+      "id": "hirise-ortho",
+      "productId": "JEZ-hirise-soc-006-ortho-25cm-native-window",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "hirise-ortho",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.44647702664388,
+                    18.44038511660434
+                  ],
+                  [
+                    77.45511477633124,
+                    18.44038511660434
+                  ],
+                  [
+                    77.45511477633124,
+                    18.449022866291692
+                  ],
+                  [
+                    77.44647702664388,
+                    18.449022866291692
+                  ],
+                  [
+                    77.44647702664388,
+                    18.44038511660434
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 0.25,
+      "accuracyM": null,
+      "projection": "Mars-EQC-0-0",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Exact native crop: {\n  \"kind\": \"native-grid-window\",\n  \"sourceUrl\": \"https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif\",\n  \"sourceBytes\": 7358523457,\n  \"sourceEtag\": \"755fa7c86ddfeca7e2dd582fbd50e4ce-878\",\n  \"sourceSize\": [\n    85600,\n    85952\n  ],\n  \"sourceGeoTransform\": [\n    4577366,\n    0.25,\n    0,\n    1106618,\n    0,\n    -0.25\n  ],\n  \"sourceWindow\": [\n    53002,\n    52231,\n    2048,\n    2048\n  ],\n  \"resampling\": \"none; exact native pixel window\",\n  \"cropSha256\": \"c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9\",\n  \"sourceLabelSha256\": \"bae9b7686951ba3ce580152b71bde1d5fcce0e09cfae724a9d49dc5084b64988\",\n  \"dtmLabelSha256\": \"2a5e50ea40f1965359f3fb8d3b316e69243b77cf63f435629be58163bca7efd7\"\n}",
+        "bytes": 2643975,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9"
+        }
+      },
+      "license": {
+        "name": "USGS/NASA public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+        "confidence": "verified-mask",
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "Illumination varies across the source mosaic; no single acquisition angle is asserted."
+        ],
+        "rasterGsdM": 0.25,
+        "dataType": "Byte",
+        "bands": [
+          "grayscale"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "controlled orthomosaic map directions",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+            "role": "raster",
+            "bytes": 7358523457,
+            "sizeEvidence": "source file or HTTP Content-Length"
+          }
+        ],
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        },
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "valid-pilot",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.4498,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4437
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+          "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+          "extent": "known-valid-subset"
+        }
+      }
+    },
+    {
+      "id": "hirise-context",
+      "productId": "JEZ-hirise-soc-006-ortho-25cm-native-window",
+      "channel": "imagery",
+      "body": "Mars",
+      "frame": "IAU_MARS",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        }
+      },
+      "footprint": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "hirise-ortho",
+            "properties": null,
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    77.44647702664388,
+                    18.44038511660434
+                  ],
+                  [
+                    77.45511477633124,
+                    18.44038511660434
+                  ],
+                  [
+                    77.45511477633124,
+                    18.449022866291692
+                  ],
+                  [
+                    77.44647702664388,
+                    18.449022866291692
+                  ],
+                  [
+                    77.44647702664388,
+                    18.44038511660434
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "nodata": "none",
+      "nativeGsdM": 0.25,
+      "accuracyM": null,
+      "projection": "Mars-EQC-0-0",
+      "datum": {
+        "referenceShape": {
+          "kind": "sphere",
+          "radiusKm": 3396.19
+        },
+        "verticalDatum": "reference-sphere",
+        "heightConvention": "radial"
+      },
+      "asset": {
+        "retrieval": "Exact native crop: {\n  \"kind\": \"native-grid-window\",\n  \"sourceUrl\": \"https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif\",\n  \"sourceBytes\": 7358523457,\n  \"sourceEtag\": \"755fa7c86ddfeca7e2dd582fbd50e4ce-878\",\n  \"sourceSize\": [\n    85600,\n    85952\n  ],\n  \"sourceGeoTransform\": [\n    4577366,\n    0.25,\n    0,\n    1106618,\n    0,\n    -0.25\n  ],\n  \"sourceWindow\": [\n    53002,\n    52231,\n    2048,\n    2048\n  ],\n  \"resampling\": \"none; exact native pixel window\",\n  \"cropSha256\": \"c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9\",\n  \"sourceLabelSha256\": \"bae9b7686951ba3ce580152b71bde1d5fcce0e09cfae724a9d49dc5084b64988\",\n  \"dtmLabelSha256\": \"2a5e50ea40f1965359f3fb8d3b316e69243b77cf63f435629be58163bca7efd7\"\n}; independent coarser context pyramid of the same observed native crop",
+        "bytes": 2643975,
+        "checksum": {
+          "algorithm": "sha256",
+          "value": "c58942b72afe8cd610f627783181557105903de8fb3d99123c5394455f8ac0c9"
+        }
+      },
+      "license": {
+        "name": "USGS/NASA public domain",
+        "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE"
+      },
+      "metadata": {
+        "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+        "confidence": "verified-mask",
+        "unknowns": [
+          "Absolute physical accuracy is not certified.",
+          "Illumination varies across the source mosaic; no single acquisition angle is asserted."
+        ],
+        "rasterGsdM": 0.25,
+        "dataType": "Byte",
+        "bands": [
+          "grayscale"
+        ],
+        "acquisitionUtc": null,
+        "observationId": null,
+        "sourceProjection": "Mars-EQC-0-0",
+        "sourceCoordinates": "planetocentric, east-positive",
+        "sourceDatum": "controlled orthomosaic map directions",
+        "registration": {
+          "group": "Mars-2020-TRN-soc-006",
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+          "accuracyM": null
+        },
+        "illumination": null,
+        "stereoProductIds": [],
+        "assets": [
+          {
+            "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+            "role": "raster",
+            "bytes": 7358523457,
+            "sizeEvidence": "source file or HTTP Content-Length"
+          }
+        ],
+        "reuse": {
+          "status": "allowed",
+          "evidenceUrl": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits"
+        },
+        "validData": {
+          "geometry": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "id": "valid-pilot",
+                "properties": null,
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        77.4498,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4437
+                      ],
+                      [
+                        77.4518,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4457
+                      ],
+                      [
+                        77.4498,
+                        18.4437
+                      ]
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "evidenceUrl": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+          "method": "Executor verifies every touched native cell and two-cell interpolation halo from the pinned raster; subset only.",
+          "extent": "known-valid-subset"
+        }
+      }
+    }
+  ],
+  "selections": [
+    {
+      "regionId": "pilot",
+      "channel": "elevation",
+      "sourceIds": [
+        "base",
+        "detail"
+      ],
+      "outputGsdM": 100,
+      "resampling": "cubic",
+      "transformations": [
+        {
+          "kind": "areoid-radial",
+          "outputDatum": {
+            "referenceShape": {
+              "kind": "ellipsoid",
+              "radiiKm": [
+                3396.19,
+                3396.19,
+                3376.2
+              ]
+            },
+            "verticalDatum": "ellipsoid",
+            "heightConvention": "geodetic-normal"
+          },
+          "areoid": {
+            "label": {
+              "retrieval": "Official MOLA MEG016 detached label",
+              "bytes": 3760,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "83b4df3255dade92ab64c7261a3ce54728675e0f1e9c023b56e5facae9ec41ef"
+              }
+            },
+            "image": {
+              "retrieval": "Official MOLA MEG016 detached image",
+              "bytes": 33177600,
+              "checksum": {
+                "algorithm": "sha256",
+                "value": "e80333b01489e66ebf20ac83ec7e130bd5a03f0c3f98f8f7b8d5c054cd6ad239"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "regionId": "pilot",
+      "channel": "imagery",
+      "sourceIds": [
+        "hirise-ortho"
+      ],
+      "outputGsdM": 0.5,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    },
+    {
+      "regionId": "context",
+      "channel": "imagery",
+      "sourceIds": [
+        "hirise-context"
+      ],
+      "outputGsdM": 5,
+      "resampling": "bilinear",
+      "transformations": [
+        "identity"
+      ]
+    }
+  ],
+  "processing": {
+    "generator": {
+      "name": "cosmolabe-surface-build",
+      "version": "1"
+    },
+    "fusion": "residual-bias-none",
+    "parameters": {
+      "profile": "bounded-real-mars",
+      "toolchain": {
+        "python": "3.14.5",
+        "gdal": "3.13.0",
+        "numpy": "2.4.6"
+      },
+      "terrain": {
+        "base": "base",
+        "detail": "detail",
+        "globalLevel": 0,
+        "regions": [
+          "jezero@18.45,77.4:1=80,2=60,3=50,4=35,5=25,6=18,7=12,8=8,9=6,10=4,11=2"
+        ],
+        "blendM": 1000,
+        "fitStride": 8,
+        "fusionAsset": {
+          "retrieval": "Pinned unchanged #50 fusion and its complete raster dependency inventory",
+          "bytes": 1060,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "373aec20134b0fecc374c339a1a40c892a8f9dce5a947e3c701257a05a5b4bfe"
+          }
+        },
+        "baseOverviewAsset": {
+          "retrieval": "Canonical global source overview pyramid; pinned because it affects coarse sampling",
+          "bytes": 1847506216,
+          "checksum": {
+            "algorithm": "sha256",
+            "value": "e7d37b9b00c929b5495f933d4df7e4d0fd551ca6c08d838159eb6d5a8a343c75"
+          }
+        }
+      },
+      "imagery": [
+        {
+          "sourceId": "hirise-context",
+          "globalLevel": 0,
+          "regions": [
+            "context@18.4447,77.4508:1=80,2=60,3=40,4=20,5=10,6=5,7=2,8=1,9=.5,10=.25,11=.15,12=.1,13=.08"
+          ],
+          "visible": true,
+          "opacity": 1
+        },
+        {
+          "sourceId": "hirise-ortho",
+          "globalLevel": 0,
+          "regions": [
+            "pilot@18.4447,77.4508:1=80,2=60,3=40,4=20,5=10,6=5,7=2,8=1,9=.5,10=.25,11=.15,12=.1,13=.08,14=.05,15=.03,16=.02"
+          ],
+          "visible": true,
+          "opacity": 1
+        }
+      ],
+      "gates": {
+        "maxOffsetM": 10,
+        "maxBoundaryStepM": 1,
+        "clearanceM": 50,
+        "controls": [
+          {
+            "lat": 18.648996249008597,
+            "lon": 77.45101915,
+            "heightM": -2236.417024736056,
+            "toleranceM": 10
+          }
+        ]
+      },
+      "caveats": [
+        "Existing #50 residual and registration plane preserved byte-for-byte.",
+        "Native-valid subset is limited to the explicit pilot geometry.",
+        "Source control shares provenance; absolute terrain/image accuracy and mission placement are not certified.",
+        "Production publication requires separate review and acceptance."
+      ]
+    }
+  },
+  "output": {
+    "representation": "tiled-raster-pyramid",
+    "formatVersion": "cosmolabe-cube-1",
+    "tileSize": 256,
+    "gutter": 2,
+    "imageryEncoding": "png",
+    "elevationEncoding": "float32"
+  },
+  "desiredIdentity": "sha256:a8da0d0b623d3fada087aa65ea89c992961d4c56fa0af39d61e5a51efaeaeb46",
+  "identity": "sha256:5c5fbc579f3b693facfd6aefc41b9358a682378c60edb59dc048a569f250c7b9"
+}

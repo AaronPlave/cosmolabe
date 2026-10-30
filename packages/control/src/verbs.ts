@@ -22,7 +22,15 @@
  *
  * The mapping table lives in `docs/scripting.md`.
  */
-import type { CircleDirection, ScriptTime, ScriptVec3, VerbValue, ViewerControl } from './contracts.js';
+import type {
+  CircleDirection,
+  FlightPath,
+  ScriptTime,
+  ScriptVec3,
+  SurfaceView,
+  VerbValue,
+  ViewerControl,
+} from './contracts.js';
 
 /**
  * The camera frames `setFrame` accepts.
@@ -60,11 +68,18 @@ export const LAYERS = [
   { id: 'sensorLabels', label: 'sensor labels' },
 ] as const;
 
+/** The paths `flyTo` accepts. */
+export const FLIGHT_PATHS: readonly FlightPath[] = ['direct', 'overview'];
+
+/** The views `gotoCoordinates` accepts. */
+export const SURFACE_VIEWS: readonly SurfaceView[] = ['overhead', 'oblique', 'surface'];
+
 const FRAME_MODE_IDS = FRAME_MODES.map((m) => m.id);
 const LAYER_IDS = LAYERS.map((l) => l.id);
 
 export type ParamType =
   /** Names a scene object. Passed to the host verbatim. */
+  | 'activity'
   | 'object'
   /** Names a catalog viewpoint. Passed verbatim. */
   | 'viewpoint'
@@ -105,7 +120,7 @@ export interface VerbSpec {
    * What a `false` return means, so the error can suggest a real name.
    * Absent when `false` is not about a name (`setFov` out of range, say).
    */
-  readonly resolvesName?: 'object' | 'viewpoint';
+  readonly resolvesName?: 'object' | 'viewpoint' | 'activity';
   readonly presets?: readonly VerbPreset[];
   /** Table-driven dispatch. `args` are already coerced to `params`' types. */
   invoke(host: ViewerControl, args: readonly VerbValue[]): unknown;
@@ -145,6 +160,15 @@ const CIRCLE_DIRECTIONS: readonly (readonly [string, CircleDirection])[] = [
 ];
 
 export const VERB_LIST: readonly VerbSpec[] = [
+  { name: 'selectActivity', params: [{ name: 'activity', type: 'activity' }], category: 'Time', method: 'selectActivity', resolvesName: 'activity',
+    help: 'Select an activity by stable ID without seeking or moving the camera.', invoke: (h, a) => h.selectActivity!(str(a[0])) },
+  { name: 'seekActivity', params: [{ name: 'activity', type: 'activity' }, { name: 'edge', type: 'enum', values: ['start', 'end'], optional: true }],
+    category: 'Time', method: 'seekActivity', resolvesName: 'activity', help: 'Seek an activity edge; both edges of a milestone mean its one epoch.',
+    invoke: (h, a) => h.seekActivity!(str(a[0]), optStr(a[1]) as 'start' | 'end' | undefined) },
+  { name: 'navigateActivity', params: [{ name: 'direction', type: 'enum', values: ['previous', 'next'] }, { name: 'vehicle', type: 'object', optional: true }, { name: 'kind', type: 'enum', values: ['flight', 'drive', 'hop', 'descent', 'landing', 'phase', 'other'], optional: true }],
+    category: 'Time', method: 'navigateActivity', help: 'Select previous/next in start/end/ID order, optionally within a vehicle and kind. Does not seek.',
+    invoke: (h, a) => h.navigateActivity!(str(a[0]) as 'previous' | 'next', { vehicle: optStr(a[1]), kind: optStr(a[2]) }) },
+
   // ── Scene ──
   {
     name: 'gotoObject',
@@ -155,7 +179,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
     category: 'Scene',
     method: 'gotoObject',
     resolvesName: 'object',
-    help: 'Track an object and frame it. Cuts by default; give seconds to fly there.',
+    help: 'Jump to an object; give seconds to fly there directly instead.',
     invoke: (host, a) =>
       host.gotoObject(str(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
   },
@@ -182,7 +206,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
     category: 'Camera',
     method: 'track',
     resolvesName: 'object',
-    help: 'Orbit-lock the camera to an object without moving it.',
+    help: 'Make an object the camera’s anchor without moving the camera.',
     invoke: (host, a) => host.track(str(a[0])),
   },
   {
@@ -192,6 +216,68 @@ export const VERB_LIST: readonly VerbSpec[] = [
     method: 'untrack',
     help: 'Release the tracked object. The camera stays where it is.',
     invoke: (host) => host.untrack(),
+  },
+  {
+    name: 'frameObject',
+    params: [{ name: 'object', type: 'object', optional: true }],
+    category: 'Camera',
+    method: 'frameObject',
+    resolvesName: 'object',
+    help: 'Cut to a view that fits an object (default: the tracked one), and track it.',
+    invoke: (host, a) => host.frameObject(optStr(a[0])),
+  },
+  {
+    name: 'flyTo',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'path', type: 'enum', values: FLIGHT_PATHS, optional: true },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'flyTo',
+    resolvesName: 'object',
+    help: `Fly to an object and track it (${FLIGHT_PATHS.join(' or ')}). Returns at once; follow with wait.`,
+    invoke: (host, a) =>
+      host.flyTo(str(a[0]), {
+        ...(a[1] === undefined ? {} : { path: str(a[1]) as FlightPath }),
+        ...(a[2] === undefined ? {} : { seconds: num(a[2]) }),
+      }),
+  },
+  {
+    name: 'jumpTo',
+    params: [{ name: 'object', type: 'object' }],
+    category: 'Camera',
+    method: 'jumpTo',
+    resolvesName: 'object',
+    help: 'Cut to the view a flight to an object would land on, and track it.',
+    invoke: (host, a) => host.jumpTo(str(a[0])),
+  },
+  {
+    name: 'gotoCoordinates',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'latitude', type: 'number' },
+      { name: 'longitude', type: 'number' },
+      { name: 'view', type: 'enum', values: SURFACE_VIEWS, optional: true },
+      { name: 'seconds', type: 'number', optional: true },
+    ],
+    category: 'Camera',
+    method: 'gotoCoordinates',
+    resolvesName: 'object',
+    help: `Go to a place on a body by planetocentric latitude and east longitude, in degrees (${SURFACE_VIEWS.join(', ')}). Cuts; give seconds to fly.`,
+    invoke: (host, a) =>
+      host.gotoCoordinates(str(a[0]), num(a[1]), num(a[2]), {
+        ...(a[3] === undefined ? {} : { view: str(a[3]) as SurfaceView }),
+        ...(a[4] === undefined ? {} : { seconds: num(a[4]) }),
+      }),
+  },
+  {
+    name: 'stopFlight',
+    params: [],
+    category: 'Camera',
+    method: 'stopFlight',
+    help: 'End a flight where it is, tracking what it was flying to.',
+    invoke: (host) => host.stopFlight(),
   },
   {
     name: 'pointAtObject',

@@ -50,6 +50,7 @@ function refusalMessage(spec: VerbSpec, statement: Statement, host: ViewerContro
     const viewpoints = safeList(() => host.listViewpoints());
     return `${spec.name}: no viewpoint named ${JSON.stringify(target)}${suggestionSuffix(target, viewpoints)}`;
   }
+  if (target !== undefined && spec.resolvesName === 'activity') return `${spec.name}: no activity with ID ${JSON.stringify(target)}`;
   const args = statement.text.trim().slice(spec.name.length).trim();
   return `${spec.name}: the viewer refused${args ? ` ${args}` : ''}`;
 }

@@ -6,137 +6,56 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: read
+
+# Superseded PR commits cancel their own jobs, not nightly or other PRs.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build & Test
-    runs-on: ubuntu-latest
+  fast:
+    name: Fast PR CI
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           lfs: false
-
-      - name: Cache LFS test kernels
-        id: lfs-cache
-        uses: actions/cache@v4
+      - name: Install dependencies and sparse test kernels
+        uses: ./.github/actions/ci-setup
         with:
-          path: .git/lfs
-          key: lfs-test-kernels-${{ hashFiles('packages/spice/test-kernels/**', 'kernels/fixtures/**', 'apps/viewer/test-catalogs/kernels/cassini/**', 'apps/viewer/test-catalogs/kernels/de440s.bsp', 'apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc') }}
+          test-kernels: 'true'
 
-      - name: Smudge test-kernel LFS files
-        # See deploy-pages.yml for why we install + fetch + checkout
-        # explicitly. Sparse fetch keeps the test job's LFS bandwidth tiny.
-        #
-        # Five paths are needed: packages/spice's suite reads test-kernels/,
-        # the cspice-wasm, frames and interop suites read the shared
-        # kernels/fixtures/ (*.bsp and *.bc are LFS-routed there too), core's
-        # oem-demo-fidelity suite reads the viewer's Cassini SOI SPK as its
-        # SPICE truth reference, and lro-validation furnishes de440s.bsp for
-        # the Moon's position relative to the solar-system barycentre.
-        #
-        # The viewer include stays scoped to cassini/ (4.8 MB) rather than the
-        # whole test-catalogs/kernels/ tree (~150 MB: mar099s, europa-clipper),
-        # which is the point of a sparse fetch. Add a sibling path here when a
-        # test starts needing one — the harness now fails with "is a git-lfs
-        # pointer, not a kernel" when that step is missed.
-        #
-        # Paths are given as `dir/**` globs, not `dir/`: git-lfs 3.4 accepts a
-        # bare directory silently and checks out nothing, which would leave
-        # pointers in place. SPICE ignores text outside \begindata, so furnish
-        # would otherwise accept the pointer and load nothing, failing much
-        # later with SPICE(NOLOADEDFILES).
-        #
-        # The fifth path is one file, not a directory: the frames differential
-        # harness checks CK coverage on a second mission (issue #39) and needs
-        # only the MSL rover telemetry CK (335 KB), not the rest of msl/, which
-        # is 70 MB of Mars ephemeris no test here touches.
-        #
-        # de440s.bsp is smudged rather than downloaded: it is already
-        # committed as an LFS object, so one glob entry costs 33 MB once and
-        # nothing after (the cache above covers it), where
-        # scripts/fetch-kernels.sh would pull 94 MB from NAIF — 62 MB of that
-        # an asteroid SPK no test touches.
-        run: |
-          git lfs install --local
-          git lfs fetch --include "packages/spice/test-kernels/**,kernels/fixtures/**,apps/viewer/test-catalogs/kernels/cassini/**,apps/viewer/test-catalogs/kernels/de440s.bsp,apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-          git lfs checkout "packages/spice/test-kernels/**" "kernels/fixtures/**" "apps/viewer/test-catalogs/kernels/cassini/**" "apps/viewer/test-catalogs/kernels/de440s.bsp" "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc"
-
+      # Catch tracked LFS pointers that were left behind after changing
+      # .gitattributes, rather than debugging invalid binary data downstream.
       - name: Check for stale git-lfs pointers
-        # A .gitattributes narrowing does not re-stage blobs committed while the
-        # old rule was live, so the file keeps serving its ~130-byte pointer and
-        # ships as ASCII wearing a binary's name. Cheap, and it runs before the
-        # build so the failure names the file rather than surfacing as a corrupt
-        # binary much later.
         run: bash scripts/check-lfs-pointers.sh
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      # core importing nothing from three or cesium is a property the embed
-      # targets need and M-0001 ratified core on, held until now only by habit
-      # and a sentence in CONTRIBUTING.md (#7). tsc cannot check it: both
-      # packages are hoisted to the root node_modules by the workspace, so the
-      # import would resolve and build green. `control` is held to the same rule
-      # — it is the contract an embed host programs against, and the point of a
-      # port is that it names no implementation.
-      #
-      # The DOM half of the property is not here — each package's tsconfig.json
-      # drops "DOM" from lib, so the build step below rejects `document` on its
-      # own. Its own step rather than folded into `npm run lint`: a grep over
-      # import specifiers is simpler to audit than an eslint rule, and a failure
-      # here names the property it protects.
       - name: Purity lint (core and control import no renderer)
         run: npm run lint:purity
 
-      # eslint over packages/ and apps/ (eslint.config.mjs; #11, #25). Needs
-      # no build output, so it runs before the build and fails fast.
       - name: Lint
         run: npm run lint
 
-      - name: Typecheck + build
+      - name: Build packages
         run: npm run build
 
-      # Separate from `build`: the per-package projects emit the shipped
-      # library and several exclude their suites, so the tests are only
-      # typechecked here. Runs after build because it resolves cross-package
-      # imports through each package's built dist types.
+      # Package build excludes test files. The viewer TS and Svelte checks are
+      # separate because tsc does not check the contents of .svelte files.
       - name: Typecheck tests
         run: npm run typecheck:tests
 
-      # apps/viewer was in no gate at all — not typechecked, not tested, not
-      # built on any PR (issue #20) — which is how its camera-view-io.ts kept
-      # the noon-UTC J2000 constant through both #3 and #22. Covers the app's
-      # own .ts; the .svelte half is the step below.
       - name: Typecheck viewer
         run: npm run typecheck:viewer
 
-      # The other half of apps/viewer: plain `tsc` cannot see inside `.svelte`,
-      # so the components were still ungated after typecheck:viewer. Measured at
-      # 0 errors and 0 warnings when it was turned on, so it starts green and
-      # `--fail-on-warnings` keeps it that way.
       - name: Typecheck svelte components
         run: npm run typecheck:svelte
 
-      # lro-validation.test.ts reads an LRO reconstructed-orbit SPK that is not
-      # committed. deploy-pages.yml has fetched it from NAIF since April, so the
-      # download is already proven on the runner — this workflow simply never
-      # ran the step, which is why that test has failed every CI run.
-      #
-      # Fetching beats committing it: NAIF is plain HTTPS, so it costs no
-      # git-lfs bandwidth at all, which is the whole point of the sparse smudge
-      # above. Cached on the script's own hash so repeat runs cost no network.
+      # Required by lro-validation.test.ts. Keep all fixture-dependent Vitest
+      # coverage, rather than removing tests to make this job artificially fast.
       - name: Cache mission kernels
         uses: actions/cache@v4
         with:
@@ -146,11 +65,8 @@ jobs:
       - name: Fetch LRO kernels
         run: bash scripts/fetch-lro-kernels.sh
 
-      # Two suites read Cosmographia's own catalog data as third-party
-      # fixtures. Fetched, never vendored: that repo has no LICENSE file and no
-      # license statement, so committing its data here would be a rights
-      # question we cannot answer, while downloading it at test time is not.
-      # A sparse partial clone takes ~9 MB of its 322 MB data tree.
+      # Cosmographia's catalog is third-party test data, downloaded rather than
+      # vendored. Both fixtures and the full Vitest suite stay on every PR.
       - name: Cache Cosmographia data
         uses: actions/cache@v4
         with:
@@ -160,5 +76,268 @@ jobs:
       - name: Fetch Cosmographia data
         run: bash scripts/fetch-cosmographia-data.sh
 
-      - name: Run tests
-        run: npm test
+      # Keep deterministic surface planning in the fast gate; GDAL rebuilds
+      # and hosted acceptance belong to the path-filtered surface-builds job.
+      - name: Run Vitest suite and surface planning tests
+        run: |
+          npm test -- --exclude scripts/surface-build.test.mjs
+          npx vitest run --project scripts scripts/surface-build.test.mjs --testNamePattern '^finite locked surface build planning'
+
+      - name: Replay MoonFall clearance against pinned hosted CPU terrain
+        if: ${{ vars.DATA_BASE_URL != '' }}
+        env:
+          DATA_BASE_URL: ${{ vars.DATA_BASE_URL }}
+        run: |
+          MOONFALL_GRIDS=$(node --input-type=module -e "import {loadDatasets,remotePrefix,joinUrl} from './scripts/data-hosting/lib/datasets.mjs'; console.log(joinUrl(process.env.DATA_BASE_URL, remotePrefix(loadDatasets().datasets['cube-terrain/moon-terrain-cube']) + 'cpu-grids.json'))")
+          export MOONFALL_GRIDS
+          npx vitest run --project scripts scripts/moonfall-clearance.test.mjs
+
+      - name: Planetary nomenclature converter regressions
+        run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v
+
+  changes:
+    name: Detect expensive-check changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      terrain: ${{ steps.filter.outputs.terrain }}
+      surface: ${{ steps.filter.outputs.surface }}
+      browser: ${{ steps.filter.outputs.browser }}
+      stars: ${{ steps.filter.outputs.stars }}
+      geographic: ${{ steps.filter.outputs.geographic }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      # PR API comparisons include added/removed paths across every commit.
+      # Conservative shared-renderer and CI-infrastructure fallbacks are
+      # intentional. Skipped targeted jobs must not become required statuses.
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            terrain:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - 'scripts/ci/**'
+              - '.gitattributes'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'apps/viewer/package.json'
+              - 'apps/viewer/vite.config.ts'
+              - 'scripts/terrain/**'
+              - 'scripts/surface-build/worker.py'
+              - 'scripts/surface-build/source_kernels.py'
+              - 'scripts/build-mars-terrain/**'
+              - 'scripts/build-moon-terrain/**'
+              - 'scripts/build-*terrain*'
+              - 'scripts/validate*terrain*'
+              - 'scripts/plan-surface.mjs'
+              - 'scripts/discover-surface.mjs'
+              - 'packages/core/src/surface-plan/**'
+              - 'packages/core/src/geographic/**'
+              - 'apps/viewer/test-catalogs/data/**'
+              - 'apps/viewer/test-catalogs/*terrain*.json'
+              - 'apps/viewer/test-catalogs/*imagery*.json'
+            surface:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - 'scripts/ci/**'
+              - '.gitattributes'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vitest.config.*'
+              - 'apps/viewer/package.json'
+              - 'apps/viewer/vite.config.ts'
+              - 'packages/core/**'
+              - 'packages/three/**'
+              - 'packages/frames/**'
+              - 'packages/control/**'
+              - 'packages/cspice-wasm/**'
+              - 'packages/interop/**'
+              - 'apps/viewer/src/lib/**'
+              - 'apps/viewer/src/workers/**'
+              - 'apps/viewer/src/App.svelte'
+              - 'apps/viewer/src/main.ts'
+              - 'apps/viewer/src/components/ImageryLayersSection.svelte'
+              - 'apps/viewer/src/components/BodyInfoPanel.svelte'
+              - 'apps/viewer/test-catalogs/experiments/mars-terrain-cube-jezero.json'
+              - 'apps/viewer/test-catalogs/experiments/mars-surface-build-pilot.json'
+              - 'scripts/surface-build/**'
+              - 'scripts/surface-build.test.mjs'
+              - 'scripts/build-surface.mjs'
+              - 'scripts/terrain/**'
+              - 'scripts/data-hosting/**'
+              - 'scripts/test-surface-build*.mjs'
+              - 'scripts/validate-cube-terrain.mjs'
+              - 'docs/examples/surface-plans/**'
+            # Any change to the shared scene engine, browser integration, or
+            # infrastructure must exercise BOTH browser suites. Keep this broad:
+            # new camera/scene files must not silently escape the smoke checks.
+            browser:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - 'scripts/ci/**'
+              - '.gitattributes'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'apps/viewer/package.json'
+              - 'apps/viewer/vite.config.ts'
+              - 'packages/core/src/**'
+              - 'packages/three/**'
+              - 'packages/frames/**'
+              - 'packages/cspice-wasm/**'
+              - 'packages/interop/**'
+              - 'apps/viewer/src/lib/**'
+              - 'apps/viewer/src/workers/**'
+              - 'apps/viewer/src/App.svelte'
+              - 'apps/viewer/src/main.ts'
+              - 'apps/viewer/test-catalogs/**'
+              - 'scripts/visual-regression.mjs'
+            # Suites also run independently for changes to their own harness.
+            stars:
+              - 'scripts/test-starfield-webgl.mjs'
+              - 'scripts/capture-starfield-calibration.mjs'
+              - 'scripts/test-sun-viewer-gpu.mjs'
+              - 'scripts/test-sun-terrain-gpu.mjs'
+              - 'scripts/test-site-mesh-depth-gpu.mjs'
+            geographic:
+              - 'scripts/test-geographic*.mjs'
+              - 'scripts/test-place*.mjs'
+              - 'scripts/test-planetary-places.mjs'
+              - 'scripts/lib/place-label-motion*.mjs'
+              - 'scripts/prepare-natural-earth-countries.py'
+  terrain:
+    name: Targeted terrain fixtures
+    needs: changes
+    if: needs.changes.outputs.terrain == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install offline raster tooling
+        run: sudo apt-get update && sudo apt-get install -y python3-gdal python3-numpy
+      - name: Run all terrain builder fixtures
+        run: bash scripts/ci/run-terrain-fixtures.sh
+
+  surface-builds:
+    needs: changes
+    if: needs.changes.outputs.surface == 'true'
+    name: Surface build executor
+    runs-on: ubuntu-24.04
+    # Full-density SwiftShader acceptance plus rebuilds takes about 15 minutes.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+      - name: Install surface build raster tooling
+        timeout-minutes: 5
+        run: |
+          # Hosted runners may select Azure through a mirror list, not the sources file.
+          for apt_source in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$apt_source" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source"
+            fi
+          done
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends python3-gdal python3-numpy
+      - run: npm run build
+      - name: Install fixture browser
+        run: npx playwright install --with-deps chromium
+      - name: Verify executor prerequisites
+        run: /usr/bin/python3 -c 'from osgeo import gdal; import numpy'
+      - name: Surface build rebuild and publication regressions
+        run: npx vitest run --project scripts scripts/surface-build.test.mjs
+      - name: Hosted Skyfall fixture, planner report, catalog pin and rollback
+        run: node scripts/surface-build/acceptance.mjs work/surface-build/skyfall-ci /usr/bin/python3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: surface-build-acceptance
+          path: |
+            work/surface-build/skyfall-ci/acceptance.json
+            work/surface-build/skyfall-ci/report.json
+            work/surface-build/skyfall-ci/published-planner-feedback.json
+            work/surface-build/skyfall-ci/catalog-candidate.json
+            work/surface-build/skyfall-ci/browser.log
+            work/surface-build/skyfall-ci/viewer.log
+            work/surface-build/skyfall-ci/browser/
+          if-no-files-found: warn
+          retention-days: 7
+
+  stars:
+    name: Targeted StarField WebGL and viewer
+    needs: changes
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.stars == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+        with:
+          test-kernels: 'true'
+      - name: Build packages
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: StarField readback and normal-viewer calibration
+        run: bash scripts/ci/run-viewer-smoke.sh stars pr
+      - name: Site mesh and solar depth GPU regressions
+        run: |
+          node scripts/test-sun-viewer-gpu.mjs
+          node scripts/test-sun-terrain-gpu.mjs
+          node scripts/test-site-mesh-depth-gpu.mjs /tmp/site-mesh-depth
+      - name: Upload StarField evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-starfield
+          path: |
+            /tmp/starfield-webgl/
+            /tmp/starfield-viewer/
+            /tmp/viewer-smoke-vite.log
+            /tmp/site-mesh-depth/
+            work/sun-rendering/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  geographic:
+    name: Targeted geographic viewer smoke
+    needs: changes
+    if: needs.changes.outputs.browser == 'true' || needs.changes.outputs.geographic == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: ./.github/actions/ci-setup
+        with:
+          test-kernels: 'true'
+      - name: Build packages
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Global geographic viewer smoke
+        run: bash scripts/ci/run-viewer-smoke.sh geographic pr
+      - name: Upload geographic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-geographic
+          path: |
+            /tmp/geographic-global-smoke/
+            /tmp/planetary-places/
+            /tmp/planetary-place-inspector/
+            /tmp/planetary-places-motion/
+            /tmp/planetary-place-targets/
+            /tmp/viewer-smoke-vite.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -271,7 +271,7 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 
   if (options.boundary && isIntervalEvent(event)) {
     const et = options.boundary === 'start' ? eventStart(event) : eventEnd(event);
-    return [`${title} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
+    return [`${title}${event.kind === 'mission-activity' && event.state === 'bounded' ? ' window' : ''} ${options.boundary === 'start' ? 'begins' : 'ends'}`, options.utc(et)];
   }
 
   const headline = headlineMetric(event);
@@ -282,7 +282,7 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
     return [title, headline ? `${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
   }
 
-  const duration = `Duration ${formatSeconds(eventDuration(event))}`;
+  const duration = event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`;
   const lines = [title, headline ? `${headline.label} ${formatMetric(headline)} · ${duration}` : duration];
   if (options.selected) {
     if (event.kind === 'occultation' && front && back) lines.push(`${front} occults ${back}`);
@@ -302,7 +302,7 @@ export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
   const title = eventCalloutTitle(event);
   const headline = headlineMetric(event);
   if (headline) return [title, formatMetric(headline)];
-  if (isIntervalEvent(event)) return [title, formatSeconds(eventDuration(event))];
+  if (isIntervalEvent(event)) return [title, event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : formatSeconds(eventDuration(event))];
   return [title];
 }
 

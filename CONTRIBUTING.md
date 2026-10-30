@@ -35,7 +35,6 @@ cd apps/viewer && npm run dev
 packages/
   cspice-wasm/      # CSPICE compiled to WASM + raw bindings — the runtime SPICE
   frames/           # The ADR M-0002 seam: StateProvider, FramesService, heritage adapter
-  spice/            # Heritage CSPICE wrappers (TimeCraftJS) — test-only reference implementation
   core/             # Universe model — pure TypeScript, no rendering deps
   control/          # ViewerControl port + script language — no renderer, no DOM
   interop/          # CCSDS (OEM, CDM, AEM), CSV and CZML parse/write — pure string transforms
@@ -65,7 +64,7 @@ npx vitest run packages/core                    # one package
 npx vitest run --reporter=verbose <test-name>   # debug single test
 ```
 
-Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
+Tests that depend on SPICE kernels live under `kernels/test-data/` (LFS-tracked) and `apps/viewer/test-catalogs/kernels/` (LFS-tracked). If you skip `git lfs pull`, those tests will fail with "no such file or directory".
 
 ## Adding a feature
 
@@ -73,6 +72,7 @@ Tests that depend on SPICE kernels live under `packages/spice/test-kernels/` (LF
 - New rotation model? `packages/core/src/rotations/RotationModel.ts`.
 - New renderer plugin? `packages/three/src/plugins/RendererPlugin.ts` and the stock plugins in `packages/three/src/plugins/stock/`.
 - New script verb, or a new way to drive the viewer from a host? `packages/control/src/verbs.ts` is the one table the language, the port and the palette all read; see [docs/scripting.md](docs/scripting.md).
+- A new way to navigate the camera, or a new surface that does? Call the shared verbs — Select, Track, Frame, Fly, Jump — rather than the camera directly; see [docs/navigation.md](docs/navigation.md).
 - New mission catalog? Drop a [catalog JSON](docs/catalog-format.md) into `apps/viewer/test-catalogs/`. See existing catalogs (`iss.json`, `cassini-soi.json`) for examples.
 
 ## Opening a PR

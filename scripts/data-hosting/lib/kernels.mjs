@@ -81,6 +81,14 @@ export function upstreamFromScript(text) {
   const out = new Map();
   const lines = text.split('\n');
 
+  // Rosetta's ship helper preserves the archive basename (optionally gzipped).
+  if (vars.ESA) {
+    for (const line of lines) {
+      const m = line.match(/^ship\s+([a-z]+\/[A-Za-z0-9_./-]+)/);
+      if (m) out.set(basename(m[1]), `${vars.ESA}/${m[1]}`);
+    }
+  }
+
   // Base used by the loop's `curl … "$NAIF_X/$subdir/$filename"` line.
   let pairBase;
   for (const line of lines) {
@@ -166,7 +174,14 @@ export async function kernelManifest({
       // Small kernels committed to the repository (often via LFS) have no fetch
       // line; their provenance is the repository path at the publishing commit.
       const repositoryPath = tracked.has(e.path) ? `${dataset.localDir}/${e.path}` : null;
-      if (!upstreamUrl && !repositoryPath && strictProvenance) {
+      const derived = dataset.derivedKernels?.[stripGz(e.path)];
+      const derivation = derived ? {
+        sourceUrls: derived.sourceUrls,
+        scripts: derived.scripts.map((path) => ({
+          path, sha256: createHash('sha256').update(readFileSync(join(root, path))).digest('hex'),
+        })),
+      } : null;
+      if (!upstreamUrl && !repositoryPath && !derivation && strictProvenance) {
         throw new Error(`no upstream URL found in ${dataset.fetchScripts?.join(', ')} and not tracked in git: ${e.path}`);
       }
       return {
@@ -177,6 +192,7 @@ export async function kernelManifest({
         sha256: e.sha256,
         upstreamUrl,
         repositoryPath,
+        ...(derivation ? { derivation } : {}),
         retrievedAt: statSync(join(srcDir, e.path)).mtime.toISOString(),
       };
     });
@@ -188,11 +204,10 @@ export async function kernelManifest({
     createdAt: now.toISOString(),
     publisher: { tool: 'scripts/publish-data.mjs', gitCommit },
     fetchScripts: scripts.map(({ path, sha256 }) => ({ path, sha256 })),
-    attribution: 'SPICE kernels from NASA/JPL NAIF (https://naif.jpl.nasa.gov/naif/). Mirrored unmodified; see upstreamUrl per file.',
+    attribution: dataset.attribution ?? 'SPICE kernels from NASA/JPL NAIF (https://naif.jpl.nasa.gov/naif/). Mirrored unmodified; see upstreamUrl per file.',
     fileCount: files.length,
     totalBytes: files.reduce((s, f) => s + f.sizeBytes, 0),
     inventory: { key: 'inventory.jsonl.gz', sha256: inventorySha256, entries: entries.length },
     files,
   };
 }
-

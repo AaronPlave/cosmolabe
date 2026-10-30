@@ -3,6 +3,7 @@
   "name": "Examples",
   "description": "Example catalogs shipped in the Cosmolabe repository",
   "catalogs": [
+    { "id": "planetary-places", "name": "Mars and Moon places", "catalog": "./planetary-places.json", "description": "USGS/IAU named places: search, Fly/Jump and optional geographic names", "group": "Extended scenes" },
     { "id": "earth-moon", "name": "Earth + Moon", "catalog": "./earth-moon.json", "description": "Keplerian orbits, no kernels", "group": "No SPICE — loads instantly" , "featured": true },
     { "id": "inner-planets-keplerian", "name": "Inner Planets", "catalog": "./inner-planets-keplerian.json", "description": "Sun → Mars via Keplerian fallback", "group": "No SPICE — loads instantly" },
     { "id": "iss", "name": "ISS (TLE)", "catalog": "./iss.json", "description": "Two-line element propagation around Earth", "group": "No SPICE — loads instantly" },
@@ -18,15 +19,19 @@
     { "id": "earth-moon-tour", "name": "Earth–Moon Scripted Tour", "catalog": "./earth-moon-tour.json", "script": "./earth-moon-tour.cosmo", "description": "Adapted from the Cosmographia scripting example; demonstrates the equivalent Cosmolabe viewer-control workflow", "group": "Extended scenes", "featured": true },
     { "id": "solar-system", "name": "Solar System Tour", "catalog": "./solar-system.json", "description": "Planets + Ceres + sample spacecraft arc", "group": "Extended scenes" },
     { "id": "sensor-demo", "name": "Sensor Frustums", "catalog": "./sensor-demo.json", "description": "FOV cones from spacecraft instruments", "group": "Extended scenes" },
+    { "id": "arrokoth-dsk", "name": "Arrokoth (DSK)", "catalog": "./arrokoth-dsk.json", "description": "A SPICE DSK plate model drawn natively — New Horizons' MU69 shape", "group": "Extended scenes" },
     { "id": "oem-ingest", "name": "CCSDS OEM Ingest", "catalog": "./oem-ingest.json", "description": "Cassini at Saturn flown from a text ephemeris — no spacecraft SPK", "group": "Extended scenes" },
 
     { "id": "cassini-soi", "name": "Cassini Saturn Tour", "catalog": "./cassini-soi.json", "description": "2004 SOI through Enceladus E-2 (~150 MB)", "group": "Mission demos" , "featured": true },
     { "id": "lro-moon", "name": "LRO at the Moon", "catalog": "./lro-moon.json", "description": "Lunar Reconnaissance Orbiter, 2025", "group": "Mission demos" },
     { "id": "europa-clipper", "name": "Europa Clipper", "catalog": "./europa-clipper.json", "description": "Jupiter science phase, 2031", "group": "Mission demos" , "featured": true },
     { "id": "psyche", "name": "Psyche", "catalog": "./psyche.json", "description": "Launch → Mars flyby → asteroid arrival 2029 (~125 MB)", "group": "Mission demos" },
+    { "id": "rosetta", "name": "Rosetta + Philae", "catalog": "./rosetta.json", "description": "2004 launch → Philae landing → 2016 impact on 67P, DSK terrain + textured spacecraft (~253 MB)", "group": "Mission demos" },
     { "id": "voyagers", "name": "Voyager 1 & 2", "catalog": "./voyagers.json", "description": "Grand Tour: 1977 launch → interstellar (~85 MB)", "group": "Mission demos" , "featured": true },
-    { "id": "msl-dingo-gap", "name": "Curiosity at Mars", "catalog": "./msl-dingo-gap.json", "description": "Mars surface rendering (experimental)", "group": "Mission demos" },
+    { "id": "msl-dingo-gap", "name": "Curiosity at Mars", "catalog": "./msl-dingo-gap.json", "description": "Orbital-localized rover position; exact wheel-to-ground clearance unknown", "group": "Mission demos" },
     { "id": "ingenuity-jezero", "name": "Ingenuity at Jezero", "catalog": "./ingenuity-jezero.json", "description": "Mars helicopter at Wright Brothers Field — no SPICE", "group": "Mission demos" },
+    { "id": "moon-imagery-apollo15", "name": "Apollo 15 imagery", "catalog": "./moon-imagery-apollo15.json", "description": "Streamed global + Hadley Rille NAC lunar imagery, no terrain — no SPICE", "group": "Mission demos" },
+    { "id": "mars-imagery-jezero", "name": "Jezero imagery", "catalog": "./mars-imagery-jezero.json", "description": "Streamed global + regional Mars imagery, no terrain — no SPICE", "group": "Mission demos" },
     { "id": "moonfall-shackleton", "name": "MoonFall at Shackleton", "catalog": "./moonfall-shackleton.json", "description": "Synthetic 4-hopper lunar South Pole mission, Dec 2028", "group": "Mission demos" }
   ]
 }

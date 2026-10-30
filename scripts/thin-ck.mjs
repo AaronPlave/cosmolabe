@@ -1,0 +1,433 @@
+#!/usr/bin/env node
+/**
+ * Thin an attitude history into a compact CK Type 3, to a stated angular
+ * tolerance, and prove the result against the source.
+ *
+ * Why: mission CKs are written for science, at a rate a viewer does not need.
+ * Rosetta's solar-array CKs are ~250 MB for the mission, yet each array is a
+ * single gimbal angle that mostly sits still between slews; its HGA is two such
+ * angles. A CK Type 3 interpolates between records at a constant rate (a slerp),
+ * so any stretch the attitude follows that closely enough needs only its two
+ * ends. Sampling the source densely and keeping only the records a slerp cannot
+ * skip reproduces it to the tolerance at a small fraction of the size — the same
+ * idea resample-spk.mjs applies to an ephemeris.
+ *
+ * The attitude sampled is whatever SPICE answers for `--frame` relative to
+ * `--ref` with every `--kernels` CK loaded, in the order given — later files
+ * take precedence, exactly as they would in the viewer — so overlapping
+ * versions of a reconstruction merge into one history. Gaps in coverage stay
+ * gaps: each covered stretch is its own interpolation interval.
+ *
+ * Each record also carries the source's angular velocity, so state
+ * transformations through the frame (spkezr, sxform) work on the output as they
+ * do on the source.
+ *
+ * The output is furnished into a second SPICE instance and compared with the
+ * source at random epochs; the script fails if the worst error exceeds 1.5×
+ * the tolerance, or if source/output angular velocities or state-transform
+ * derivatives differ beyond the stated rate tolerance. Thinning preserves both
+ * attitude and rate; successful sxform alone is not an accuracy check.
+ *
+ * Usage:
+ *   node scripts/thin-ck.mjs \
+ *     --kernels NAIF0011.TLS,ROS_160929_STEP.TSC,ROS_V38.TF,ROS_SA_2014_V0048.BC \
+ *     --inst=-226015 --frame ROS_SA+Y --ref ROS_SA+Y_ZERO \
+ *     --step 60 --tol-deg 0.25 --out ros_sapy.bc
+ *
+ * Needs the packages built (npm run build): it runs on cspice-wasm.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
+import { parseArgs } from 'node:util';
+import { createSpiceBindings } from 'cspice-wasm';
+
+const { values: opt } = parseArgs({
+  options: {
+    kernels: { type: 'string' },
+    inst: { type: 'string' },
+    frame: { type: 'string' },
+    ref: { type: 'string' },
+    // Optional: by default the clock the frame kernel assigns to --inst.
+    sclk: { type: 'string' },
+    step: { type: 'string', default: '60' },
+    'tol-deg': { type: 'string', default: '0.25' },
+    'max-rate-error-rad-s': { type: 'string', default: '0.00001' },
+    start: { type: 'string' },
+    stop: { type: 'string' },
+    out: { type: 'string' },
+    verify: { type: 'string', default: '20000' },
+  },
+});
+for (const k of ['kernels', 'inst', 'frame', 'ref', 'out']) {
+  if (!opt[k]) {
+    console.error(`thin-ck: --${k} is required`);
+    process.exit(2);
+  }
+}
+const INST = Number(opt.inst);
+const STEP = Number(opt.step);
+const TOL = (Number(opt['tol-deg']) * Math.PI) / 180;
+const RATE_TOL = Number(opt['max-rate-error-rad-s']);
+const kernels = opt.kernels.split(',').filter(Boolean);
+const isCk = (p) => /\.bc$/i.test(p);
+
+/**
+ * The clock a CK for INST is read with, which is also the one it must be
+ * written with: `CK_<inst>_SCLK` from the text kernels, else SPICE's own
+ * default of the instrument ID divided by 1000. Getting this wrong is not an
+ * error SPICE reports — it shifts every record by the clocks' offset (81 s for
+ * 67P's frame against Rosetta's clock), which the verification below catches.
+ */
+function sclkFor(inst) {
+  if (opt.sclk) return Number(opt.sclk);
+  const re = new RegExp(`CK_${inst}_SCLK\\s*=\\s*(-?\\d+)`);
+  for (const k of kernels) {
+    if (!/\.(tf|ti|tpc|tsc|tm)$/i.test(k)) continue;
+    const m = readFileSync(k, 'latin1').match(re);
+    if (m) return Number(m[1]);
+  }
+  return Math.trunc(inst / 1000);
+}
+const SCLK = sclkFor(INST);
+
+const load = async (paths) => {
+  const s = await createSpiceBindings();
+  for (const p of paths) s.furnsh(basename(p), new Uint8Array(readFileSync(p)));
+  return s;
+};
+const spice = await load(kernels);
+
+/**
+ * Type-3 CK rates are piecewise linear at the source record times. A regular
+ * grid can miss short rate changes even when its quaternion error is small.
+ * Include every native record epoch; still query SPICE for the actual state so
+ * overlapping-file precedence and reference-frame composition stay authoritative.
+ * Layout: https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/ck.html
+ * Data Type 3: pointing records, then their encoded SCLK times.
+ */
+const nativeEpochs = new Set();
+for (const path of kernels.filter(isCk)) {
+  const bytes = readFileSync(path);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const format = bytes.subarray(88, 96).toString('ascii');
+  if (format !== 'LTL-IEEE' && format !== 'BIG-IEEE') {
+    console.warn(`thin-ck: no native-record extraction for legacy CK format ${format}; retaining sampled verification`);
+    continue;
+  }
+  const little = format === 'LTL-IEEE';
+  if (view.getInt32(8, little) !== 2 || view.getInt32(12, little) !== 6) throw new Error('thin-ck: unexpected CK summary layout');
+  const word = address => view.getFloat64((address - 1) * 8, little);
+  let record = view.getInt32(76, little);
+  while (record > 0) {
+    const offset = (record - 1) * 1024;
+    const count = view.getFloat64(offset + 16, little);
+    for (let i = 0; i < count; i++) {
+      const at = offset + 24 + i * 40;
+      const inst = view.getInt32(at + 16, little), type = view.getInt32(at + 24, little);
+      if (inst !== INST || type !== 3) continue;
+      const hasRate = view.getInt32(at + 28, little);
+      const begin = view.getInt32(at + 32, little), end = view.getInt32(at + 36, little);
+      const n = word(end);
+      const firstTime = begin + n * (hasRate ? 7 : 4);
+      if (!Number.isSafeInteger(n) || n < 1 || firstTime + n > end) throw new Error('thin-ck: malformed Type-3 record table');
+      for (let k = 0; k < n; k++) nativeEpochs.add(spice.sct2e(SCLK, word(firstTime + k)));
+    }
+    record = view.getFloat64(offset, little);
+  }
+}
+const nativeTimes = [...nativeEpochs].sort((a, b) => a - b);
+console.log(`thin-ck: ${nativeTimes.length} native Type-3 record epochs`);
+
+/** Source attitude as a SPICE quaternion [w, x, y, z], or null in a gap. */
+const quat = (s, et) => {
+  try {
+    return s.m2q(s.pxform(opt.ref, opt.frame, et));
+  } catch {
+    return null;
+  }
+};
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+/** Rotation angle between two unit quaternions. */
+const angle = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(dot(a, b))));
+function slerp(a, b, u) {
+  let d = dot(a, b);
+  const bb = d < 0 ? b.map((v) => -v) : b;
+  d = Math.abs(d);
+  if (d > 1 - 1e-12) return a.map((v, i) => v + (bb[i] - v) * u);
+  const om = Math.acos(d);
+  const s0 = Math.sin((1 - u) * om) / Math.sin(om);
+  const s1 = Math.sin(u * om) / Math.sin(om);
+  return a.map((v, i) => s0 * v + s1 * bb[i]);
+}
+
+const start = opt.start ? spice.str2et(opt.start) : -Infinity;
+const stop = opt.stop ? spice.str2et(opt.stop) : Infinity;
+const coverage = spice
+  .ckCoverageAll(INST, { level: 'INTERVAL' })
+  .map(([a, b]) => [Math.max(a, start), Math.min(b, stop)])
+  .filter(([a, b]) => b > a);
+if (coverage.length === 0) throw new Error(`thin-ck: no CK coverage for ${INST} in the window`);
+
+// ── Sample each covered stretch; a failed pxform (a gap inside it) splits it ──
+
+const pieces = [];
+for (const [a, b] of coverage) {
+  let cur = null;
+  const n = Math.max(1, Math.ceil((b - a) / STEP));
+  const times = new Set([a, b]);
+  for (let k = 1; k < n; k++) times.add(a + k * STEP);
+  let lo = 0, hi = nativeTimes.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (nativeTimes[mid] < a) lo = mid + 1; else hi = mid;
+  }
+  for (let k = lo; k < nativeTimes.length && nativeTimes[k] <= b; k++) times.add(nativeTimes[k]);
+  for (const t of [...times].sort((a, b) => a - b)) {
+    const q = quat(spice, t);
+    if (!q) {
+      if (cur && cur.t.length >= 2) pieces.push(cur);
+      cur = null;
+      continue;
+    }
+    if (!cur) cur = { t: [], q: [] };
+    const prev = cur.q[cur.q.length - 1];
+    cur.q.push(prev && dot(prev, q) < 0 ? q.map((v) => -v) : q);
+    cur.t.push(t);
+  }
+  if (cur && cur.t.length >= 2) pieces.push(cur);
+}
+
+/**
+ * Refine a piece wherever the motion between neighbouring samples is not the
+ * steady rotation a slerp would draw: a fast slew, or a step between the
+ * source's interpolation intervals, can hide inside one --step. The midpoint is
+ * sampled; if it strays from the slerp by more than TOL/4 the gap is bisected
+ * (to 0.5 s) so the thinning below sees the real motion. A steady spin — a
+ * comet's, or a slow array turn — passes the test and costs nothing.
+ */
+function refine(p) {
+  const t = [p.t[0]];
+  const q = [p.q[0]];
+  const fill = (ta, qa, tb, qb, depth) => {
+    if (depth > 12 || tb - ta < 0.5) return;
+    const tm = (ta + tb) / 2;
+    let qm = quat(spice, tm);
+    if (!qm) return;
+    if (dot(qa, qm) < 0) qm = qm.map((v) => -v);
+    const av = angularVelocity(tm, ta, tb);
+    const avA = angularVelocity(ta, ta, tb), avB = angularVelocity(tb, ta, tb);
+    const rateError = Math.hypot(...av.map((v, i) => v - (avA[i] + avB[i]) / 2));
+    if (angle(slerp(qa, qb, 0.5), qm) <= TOL / 4 && rateError <= RATE_TOL / 4) return;
+    fill(ta, qa, tm, qm, depth + 1);
+    t.push(tm);
+    q.push(qm);
+    fill(tm, qm, tb, qb, depth + 1);
+  };
+  for (let k = 1; k < p.t.length; k++) {
+    fill(p.t[k - 1], p.q[k - 1], p.t[k], p.q[k], 0);
+    t.push(p.t[k]);
+    q.push(p.q[k]);
+  }
+  return { t, q, av: t.map((epoch) => angularVelocity(epoch, t[0], t[t.length - 1])) };
+}
+for (let i = 0; i < pieces.length; i++) pieces[i] = refine(pieces[i]);
+
+/** Whether a slerp from sample i to sample j stays within TOL of every sample between. */
+function spans(p, i, j) {
+  for (let m = i + 1; m < j; m++) {
+    const u = (p.t[m] - p.t[i]) / (p.t[j] - p.t[i]);
+    if (angle(slerp(p.q[i], p.q[j], u), p.q[m]) > TOL) return false;
+    const rateError = Math.hypot(...p.av[m].map((v, k) => v - (p.av[i][k] * (1 - u) + p.av[j][k] * u)));
+    if (rateError > RATE_TOL / 2) return false;
+  }
+  return true;
+}
+
+// Greedy thinning, galloping then bisecting for how far each record can reach.
+/**
+ * Angular velocity of --frame relative to --ref, in --ref axes — what a CK
+ * record carries (rad/s). It is not needed for orientation, but it is for any
+ * state transformation through the frame: a Philae ephemeris stated in 67P's
+ * body frame, or a solar-array offset stated in the spacecraft's, cannot be
+ * turned into a velocity without it, and spkezr then fails where spkpos would
+ * not. Taken from the source's sxform; differenced from pxform if the source
+ * carries none.
+ */
+function rotationBlock(xf) {
+  return [xf[0], xf[1], xf[2], xf[6], xf[7], xf[8], xf[12], xf[13], xf[14]];
+}
+
+function angularVelocity(t, t0, t1, source = spice, transform) {
+  let C;
+  let dC;
+  try {
+    const xf = transform ?? source.sxform(opt.ref, opt.frame, t);
+    C = rotationBlock(xf);
+    dC = [xf[18], xf[19], xf[20], xf[24], xf[25], xf[26], xf[30], xf[31], xf[32]];
+  } catch {
+    const h = 0.5;
+    const a = Math.max(t0, t - h);
+    const b = Math.min(t1, t + h);
+    const Ca = source.pxform(opt.ref, opt.frame, a);
+    const Cb = source.pxform(opt.ref, opt.frame, b);
+    C = source.pxform(opt.ref, opt.frame, t);
+    dC = Ca.map((v, i) => (Cb[i] - v) / (b - a));
+  }
+  // dC/dt = -[w]x C with w in the instrument frame: [w]x = -dC C^T.
+  const W = (i, j) => -(dC[i * 3] * C[j * 3] + dC[i * 3 + 1] * C[j * 3 + 1] + dC[i * 3 + 2] * C[j * 3 + 2]);
+  const wi = [W(2, 1), W(0, 2), W(1, 0)];
+  // Into reference-frame axes: w_ref = C^T w_inst.
+  return [0, 1, 2].map((j) => C[j] * wi[0] + C[3 + j] * wi[1] + C[6 + j] * wi[2]);
+}
+
+const sclkdp = [];
+const quats = [];
+const avvs = [];
+const starts = [];
+let samples = 0;
+for (const p of pieces) {
+  samples += p.t.length;
+  const keep = [0];
+  let i = 0;
+  const last = p.t.length - 1;
+  while (i < last) {
+    let good = i + 1;
+    let stride = 1;
+    let bad = -1;
+    while (true) {
+      const j = Math.min(i + stride * 2, last);
+      if (j === good) break;
+      if (spans(p, i, j)) {
+        good = j;
+        if (j === last) break;
+        stride *= 2;
+      } else {
+        bad = j;
+        break;
+      }
+    }
+    if (bad > 0) {
+      while (bad - good > 1) {
+        const mid = (good + bad) >> 1;
+        if (spans(p, i, mid)) good = mid;
+        else bad = mid;
+      }
+    }
+    keep.push(good);
+    i = good;
+  }
+  starts.push(spice.sce2c(SCLK, p.t[0]));
+  for (const k of keep) {
+    sclkdp.push(spice.sce2c(SCLK, p.t[k]));
+    quats.push(...p.q[k]);
+    avvs.push(...p.av[k]);
+  }
+}
+
+const outName = basename(opt.out);
+spice.writeCk03(
+  outName, INST, opt.ref, `THINNED ${opt.frame}`.slice(0, 40),
+  new Float64Array(sclkdp), new Float64Array(quats), new Float64Array(avvs), new Float64Array(starts),
+);
+const outBytes = spice.readKernelBytes(outName);
+// writeCk03 furnishes what it wrote; the source instance must answer from the
+// source alone, or the check below compares the output with itself.
+spice.unload(outName);
+console.log(
+  `thin-ck: ${opt.frame} (clock ${SCLK}): ${samples} samples in ${pieces.length} covered stretches -> ${sclkdp.length} records, ` +
+    `${opt.out} (${(outBytes.length / 1e6).toFixed(2)} MB)`,
+);
+
+// ── Verify in an independent instance holding only the output CK ──
+
+const check = await load(kernels.filter((k) => !isCk(k)));
+check.furnsh(outName, outBytes);
+let seed = 7;
+const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+let worst = 0;
+let worstAt = 0;
+let probed = 0;
+const randomProbes = [];
+const total = pieces.reduce((s, p) => s + (p.t[p.t.length - 1] - p.t[0]), 0);
+for (let n = 0; n < Number(opt.verify); n++) {
+  // Pick a covered stretch in proportion to its length, then a time inside it.
+  let r = rand() * total;
+  const p = pieces.find((pc) => (r -= pc.t[pc.t.length - 1] - pc.t[0]) <= 0) ?? pieces[pieces.length - 1];
+  const t = p.t[0] + rand() * (p.t[p.t.length - 1] - p.t[0]);
+  randomProbes.push({ p, t });
+  const a = quat(spice, t);
+  const b = quat(check, t);
+  if (!a || !b) throw new Error(`thin-ck: missing attitude at verification epoch ${t}`);
+  probed++;
+  const e = angle(a, b);
+  if (e > worst) { worst = e; worstAt = t; }
+}
+// Probe every coverage edge and retained slew sample as well as random epochs.
+// Compare the full state transform: lower-left dR/dt, rotation blocks, and
+// recovered reference-frame angular velocity. A missing transform is a failure.
+let worstRate = 0, worstRateAt = 0, worstDerivative = 0, transformProbes = 0;
+let derivativeFailures = 0;
+const probeTransform = (p, t) => {
+  let source;
+  try {
+    source = spice.sxform(opt.ref, opt.frame, t);
+  } catch {
+    // Some source CKs contain orientations only. Match the existing numerical
+    // derivative path used to write their rates, without claiming source AV.
+    const lo = Math.max(p.t[0], t - 0.5), hi = Math.min(p.t[p.t.length - 1], t + 0.5);
+    const a = spice.pxform(opt.ref, opt.frame, lo), b = spice.pxform(opt.ref, opt.frame, hi);
+    const C = spice.pxform(opt.ref, opt.frame, t);
+    source = new Array(36).fill(0);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        source[row * 6 + col] = source[(row + 3) * 6 + col + 3] = C[row * 3 + col];
+        source[(row + 3) * 6 + col] = (b[row * 3 + col] - a[row * 3 + col]) / (hi - lo);
+      }
+    }
+  }
+  const rebuilt = check.sxform(opt.ref, opt.frame, t);
+  // Derive all comparisons from these same two transforms. Re-querying the
+  // same source/output matrices for rates and quaternions multiplies the cold
+  // build cost without adding independent evidence.
+  const a = angularVelocity(t, p.t[0], p.t[p.t.length - 1], spice, source);
+  const b = angularVelocity(t, p.t[0], p.t[p.t.length - 1], check, rebuilt);
+  const rateError = Math.hypot(...a.map((v, i) => v - b[i]));
+  if (rateError > worstRate) { worstRate = rateError; worstRateAt = t; }
+  const derivativeBound = maxRate + 3 * TOL * Math.hypot(...a);
+  for (const i of [18, 19, 20, 24, 25, 26, 30, 31, 32]) {
+    if (Math.abs(source[i] - rebuilt[i]) > derivativeBound) derivativeFailures++;
+    worstDerivative = Math.max(worstDerivative, Math.abs(source[i] - rebuilt[i]));
+  }
+  const qa = spice.m2q(rotationBlock(source)), qb = check.m2q(rotationBlock(rebuilt));
+  const e = angle(qa, qb);
+  if (e > worst) { worst = e; worstAt = t; }
+  transformProbes++;
+};
+const maxRate = Number(opt['max-rate-error-rad-s']);
+for (const { p, t } of randomProbes) probeTransform(p, t);
+for (const p of pieces) {
+  for (const t of p.t) probeTransform(p, t);
+  const edgePad = Math.min(0.001, (p.t[p.t.length - 1] - p.t[0]) / 2);
+  probeTransform(p, p.t[0] + edgePad);
+  probeTransform(p, p.t[p.t.length - 1] - edgePad);
+  for (let n = 0; n < 4; n++) {
+    const a = p.t[0], b = p.t[p.t.length - 1];
+    probeTransform(p, a + rand() * (b - a));
+  }
+}
+console.log(`thin-ck: ${transformProbes} state transforms: max rate error ${worstRate} rad/s at ${spice.et2utc(worstRateAt, 'ISOC', 3)}; max dR/dt component error ${worstDerivative} /s`);
+// Allow orientation error to rotate a nonzero source angular velocity when
+// comparing derivative matrices; rate itself has the explicit absolute bound.
+if (worstRate > maxRate || derivativeFailures > 0) {
+  console.error(`thin-ck: angular velocity error exceeds --max-rate-error-rad-s ${maxRate}; not using the result`);
+  process.exit(1);
+}
+const deg = (x) => ((x * 180) / Math.PI).toFixed(3);
+console.log(`thin-ck: verified at ${probed} epochs: max ${deg(worst)} deg at ${spice.et2utc(worstAt, 'ISOC', 0)}`);
+if (worst > 1.5 * TOL) {
+  console.error(`thin-ck: worst error exceeds 1.5 x --tol-deg ${opt['tol-deg']}; not using the result`);
+  process.exit(1);
+}
+
+// Publish the output only after every accuracy gate passes.
+writeFileSync(opt.out, outBytes);

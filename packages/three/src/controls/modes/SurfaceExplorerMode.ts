@@ -138,8 +138,8 @@ export class SurfaceExplorerMode implements ICameraMode {
   activate(ctx: CameraModeContext, params: CameraModeParams): void {
     this.bodyName = params.bodyName ?? '';
     this.altKm = params.altKm ?? 0.05;
-    this.heading = 0;
-    this.pitch = -0.3;
+    this.heading = (params.headingDeg ?? 0) * Math.PI / 180;
+    this.pitch = Math.max(-1.5, Math.min(0.3, params.pitchDeg !== undefined ? params.pitchDeg * Math.PI / 180 : -0.3));
     this.keys.clear();
     this.dragDx = 0;
     this.dragDy = 0;
@@ -157,9 +157,12 @@ export class SurfaceExplorerMode implements ICameraMode {
     const rp = bm.body.radii[2];
     this.e2 = 1 - (rp * rp) / (this.re * this.re);
 
-    // Derive initial lat/lon from current camera position instead of defaulting to (0,0).
-    // This way switching to Surface Explorer keeps you where you were.
-    if (params.latDeg === 0 && params.lonDeg === 0) {
+    // No destination given: stand beneath the camera, at its height. A named
+    // coordinate — 0°, 0° included — is always honoured as a destination.
+    // CameraController.setMode fills in a practical entry pose (surfaceEntryPose)
+    // before this, so this branch is only reached by a caller driving the mode
+    // directly.
+    if (params.latDeg === undefined || params.lonDeg === undefined) {
       const bodyQ = this.getBodyQuat(ctx, bm);
       const km = ctx.camera.position.clone().sub(bm.position).divideScalar(ctx.scaleFactor);
       if (bodyQ) km.applyQuaternion(bodyQ.clone().invert());
@@ -548,7 +551,7 @@ export class SurfaceExplorerMode implements ICameraMode {
     if (typeof window !== 'undefined' && (window as any).__surfExDebug) {
       const sf = ctx.scaleFactor;
       const camDist = ctx.camera.position.distanceTo(bm.position) / sf;
-      console.log(`[SurfEx] pick ndc=(${ndcX.toFixed(3)},${ndcY.toFixed(3)}) hit=${hit ? `body=${hit.bodyName} lat=${hit.latDeg.toFixed(4)} lon=${hit.lonDeg.toFixed(4)} alt=${hit.altKm.toFixed(4)}` : 'null'} camAlt=${this.altKm.toFixed(4)} camDistBody=${camDist.toFixed(2)} altAboveTerrain=${this.altAboveTerrainKm.toFixed(4)}`);
+      console.log(`[SurfEx] pick ndc=(${ndcX.toFixed(3)},${ndcY.toFixed(3)}) hit=${hit ? `body=${hit.bodyName} lat=${hit.latDeg.toFixed(4)} lon=${hit.lonDeg.toFixed(4)} alt=${hit.altKm?.toFixed(4) ?? 'unavailable'}` : 'null'} camAlt=${this.altKm.toFixed(4)} camDistBody=${camDist.toFixed(2)} altAboveTerrain=${this.altAboveTerrainKm.toFixed(4)}`);
     }
 
     if (!hit) { this.hasPivot = false; return; }

@@ -100,15 +100,20 @@ if (uGridVisible > 0.0) {
 }
 #include <opaque_fragment>`);
 }
+const graticuleMaterials = new WeakSet<THREE.Material>();
+
 /** A camera-to-body transform shared by all objects using this surface material. */
 export function applyGraticuleMaterial(material: THREE.Material, uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
-  if (material.userData.graticule) return;
+  if (graticuleMaterials.has(material)) return;
+  graticuleMaterials.add(material);
   material.userData.graticule = true;
   const localUniforms = { ...uniforms, uGridViewToBody: { value: new THREE.Matrix4() } };
   const compile = material.onBeforeCompile.bind(material);
-  const key = material.customProgramCacheKey();
+  const previousKey = material.customProgramCacheKey.bind(material);
+  const defaultKey = material.customProgramCacheKey === THREE.Material.prototype.customProgramCacheKey;
+  const key = previousKey();
   material.onBeforeCompile = (shader, renderer) => { compile(shader, renderer); injectGraticule(shader, localUniforms); };
-  material.customProgramCacheKey = () => key + '_graticule_v7';
+  material.customProgramCacheKey = () => (defaultKey ? key : previousKey()) + '_graticule_v7';
   const render = material.onBeforeRender.bind(material);
   material.onBeforeRender = (renderer, scene, camera, geometry, object, group) => {
     render(renderer, scene, camera, geometry, object, group);

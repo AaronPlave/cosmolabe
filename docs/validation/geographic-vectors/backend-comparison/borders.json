@@ -1,0 +1,53 @@
+{
+  "results": [
+    {
+      "name": "Chad",
+      "hover": false,
+      "sampled": 228,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    },
+    {
+      "name": "Chad",
+      "hover": true,
+      "sampled": 228,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    },
+    {
+      "name": "Germany",
+      "hover": false,
+      "sampled": 228,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    },
+    {
+      "name": "Germany",
+      "hover": true,
+      "sampled": 228,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    },
+    {
+      "name": "France",
+      "hover": false,
+      "sampled": 16,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    },
+    {
+      "name": "France",
+      "hover": true,
+      "sampled": 16,
+      "missing": [],
+      "draws": 7,
+      "diagnostics": []
+    }
+  ],
+  "errors": []
+}

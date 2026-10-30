@@ -13,9 +13,10 @@
    * page-level layer (fixed, viewport coordinates), clamped by its measured
    * width.
    */
+  import { getActivity, seekActivity } from '../../lib/activity-control';
   import type { GeometryEvent } from '@cosmolabe/core';
-  import { eventDuration, eventEnd, eventStart, isIntervalEvent } from '@cosmolabe/core';
-  import { etToUtcString } from '../../lib/viewer-state.svelte';
+  import { eventDuration, eventEnd, eventStart, focusForEvent, isIntervalEvent } from '@cosmolabe/core';
+  import { etToUtcString, flyToBody, hasBody } from '../../lib/viewer-state.svelte';
   import { clearSelection, openConfiguredQuery, selectEvent } from '../../lib/event-finder.svelte';
   import { configuredItem } from '../../lib/analysis.svelte';
   import { eventCalloutTitle, formatMetric, formatSeconds, headlineMetric } from '../../lib/event-query';
@@ -36,9 +37,16 @@
   let open = $state(false);
   let width = $state(0);
 
+  const activity = $derived(event.kind === 'mission-activity' ? getActivity(event.id) : undefined);
   const title = $derived(eventCalloutTitle(event));
   const headline = $derived(headlineMetric(event));
   const search = $derived(configuredItem(event.queryId)?.label);
+  // Selecting the event already selected its primary body without moving the
+  // camera; going there is a separate, explicit navigation.
+  const primary = $derived.by(() => {
+    const name = focusForEvent(event).primary;
+    return name && hasBody(name) ? name : null;
+  });
   const utc = (et: number) => etToUtcString(et);
   const bare = (et: number) => etToUtcString(et).replace(' UTC', '');
   const left = $derived.by(() => {
@@ -83,28 +91,47 @@
     {#if isIntervalEvent(event)}
       <span class="stamp">{bare(eventStart(event))}</span>
       <span class="arrow">→</span>
-      <button class="stamp end" onclick={() => selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
+      <button class="stamp end" onclick={() => activity ? seekActivity(activity.id, 'end') : selectEvent(event, 'end')} title="Go to the end">{utc(eventEnd(event))}</button>
     {:else}
       <span class="stamp">{utc(eventStart(event))}</span>
     {/if}
   </div>
-  {#if isIntervalEvent(event) && !open}
-    <div class="when">Duration {formatSeconds(eventDuration(event))}</div>
+  {#if isIntervalEvent(event) && (!open || activity)}
+    <div class="when">{activity?.provenance.timing === 'bounded' ? 'Actual duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`}</div>
   {/if}
+  {#if activity}<div class="when">{activity.provenance.timing === 'bounded' ? 'Reported dates · exact timing unknown' : activity.provenance.authority === 'authored' ? 'Authored activity' : activity.provenance.authority === 'estimated' ? 'Estimated activity' : activity.provenance.authority === 'inferred' ? 'Inferred activity' : 'Observed activity'}
+    {#if /^https?:/.test(activity.provenance.source)} · <a class="link" href={activity.provenance.source} target="_blank" rel="noreferrer">Source</a>{/if}
+  </div>{/if}
   {#if open}
-    <div class="details"><EventDetails {event} showEnd={false} /></div>
+    <div class="details">
+      {#if activity}
+        <div class="technical">
+          <p>{activity.provenance.limitations}</p>
+          <p>{activity.provenance.authority} · {activity.provenance.timing} timing</p>
+          <p>{activity.provenance.source} · version {activity.provenance.version}</p>
+        </div>
+      {:else}<EventDetails {event} showEnd={false} />{/if}
+    </div>
   {/if}
   <div class="actions">
     <button class="link" onclick={() => open = !open} aria-expanded={open}>
       {#if open}<ChevronUp size={11} /> Less{:else}<ChevronDown size={11} /> Details{/if}
     </button>
-    <button class="link" onclick={edit} title={search ? `Edit “${search}” in Event Finder` : 'Open in Event Finder'}>
-      Edit search
-    </button>
+    {#if search}
+      <button class="link" onclick={edit} title={`Edit “${search}” in Event Finder`}>
+        Edit search
+      </button>
+    {/if}
+    {#if primary}
+      <button class="link" onclick={() => flyToBody(primary)} title="Fly the camera to {primary}">
+        Fly to {primary}
+      </button>
+    {/if}
   </div>
 </div>
 
 <style>
+  .technical { max-height:160px; overflow:auto; overflow-wrap:anywhere; }
   .inspector {
     position: fixed;
     z-index: calc(var(--tl-z-callout) - 1);

@@ -1,3 +1,4 @@
+import type { EventGeometryDependencies } from './coverage.js';
 import type { GeometryFinderProvider } from './provider.js';
 import {
   EventKindRegistry,
@@ -18,6 +19,8 @@ import {
 export interface EventSearchOptions {
   registry: EventKindRegistry;
   provider: GeometryFinderProvider;
+  /** Whole-search progress, available only when the provider reports it. */
+  onProgress?: (fraction: number) => void;
 }
 
 /**
@@ -32,13 +35,28 @@ export interface EventSearchOptions {
  * looked and found nothing" (`ok: true` with no events) are different answers
  * and callers should be able to show them differently.
  */
+/**
+ * The geometry a query's search will evaluate, or undefined when its kind does
+ * not declare one or a required body is still unset.
+ */
+export function eventGeometry<P>(
+  query: EventQuery<P>,
+  kind: EventKind<never>,
+): EventGeometryDependencies | undefined {
+  if (!kind.geometry) return undefined;
+  if (requiredRoles(kind).some((spec) => !(query.bodies[spec.role] ?? spec.default))) return undefined;
+  return (kind as unknown as EventKind<P>).geometry!(resolveQuery(query, kind));
+}
+
 export class EventSearch {
   private readonly registry: EventKindRegistry;
   private readonly provider: GeometryFinderProvider;
+  private readonly onProgress?: (fraction: number) => void;
 
   constructor(options: EventSearchOptions) {
     this.registry = options.registry;
     this.provider = options.provider;
+    this.onProgress = options.onProgress;
   }
 
   /** Kinds available to search, for building a query-configuration UI. */
@@ -71,7 +89,32 @@ export class EventSearch {
 
     let events: GeometryEvent[];
     try {
-      events = await (kind as unknown as EventKind<P>).run(resolved as ResolvedEventQuery<P>, ctx);
+      const planned = (kind as unknown as EventKind<P>).plannedCalls?.(resolved) ?? 1;
+      let call = 0;
+      let furthest = 0;
+      let reported = false;
+      const track = <T extends (...args: any[]) => any>(fn: T): T =>
+        ((...args: any[]) => {
+          const index = call++;
+          return fn.call(this.provider, ...args, (fraction: number) => {
+            // Refinement calls beyond the plan have no known cost. They must
+            // not reset the bar or claim completion before `run` returns.
+            if (index >= planned || !Number.isFinite(fraction)) return;
+            reported = true;
+            furthest = Math.max(furthest, (index + Math.max(0, Math.min(1, fraction))) / planned);
+            if (furthest < 1) this.onProgress?.(furthest);
+          });
+        }) as T;
+      const provider = this.onProgress ? {
+        ...(this.provider.range ? { range: this.provider.range.bind(this.provider) } : {}),
+        ...(this.provider.altitude ? { altitude: this.provider.altitude.bind(this.provider) } : {}),
+        gfdist: track(this.provider.gfdist),
+        gfsep: track(this.provider.gfsep),
+        gfoclt: track(this.provider.gfoclt),
+        gfposc: track(this.provider.gfposc),
+      } : this.provider;
+      events = await (kind as unknown as EventKind<P>).run(resolved, { ...ctx, provider });
+      if (reported) this.onProgress?.(1);
     } catch (cause) {
       return this.fault(query, {
         code: 'provider-error',
@@ -150,7 +193,8 @@ function validateShared(query: EventQuery<any>, kind: EventKind<never>): EventSe
   return undefined;
 }
 
-function resolveQuery<P>(query: EventQuery<P>, kind: EventKind<never>): ResolvedEventQuery<P> {
+/** A query with the kind's role, param, step and correction defaults applied. */
+export function resolveQuery<P>(query: EventQuery<P>, kind: EventKind<never>): ResolvedEventQuery<P> {
   const bodies: EventParticipants = { ...query.bodies };
   for (const spec of kind.roles) {
     if (!bodies[spec.role] && spec.default) bodies[spec.role] = spec.default;

@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "lm",
+      "properties": {
+        "name": "Apollo 15 landing site",
+        "placeRef": "moon:mission:apollo15-site/lm",
+        "placeKind": "mission-site",
+        "featureClass": "Mission site",
+        "aliases": [
+          "Hadley landing site"
+        ],
+        "sourceFields": {
+          "origin": "NASA NSSDCA Apollo lunar-module landing coordinates; mission site, not official nomenclature.",
+          "accuracy": "No accuracy estimate or frame transformation supplied; use as a regional reference anchor."
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          3.6333,
+          26.13239
+        ]
+      }
+    }
+  ]
+}

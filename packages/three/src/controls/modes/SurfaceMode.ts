@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { CameraModeName, ensureQuatContinuity, bodyWorldOrientation, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
+import { CameraModeName, ensureQuatContinuity, type ICameraMode, type CameraModeContext, type CameraModeParams } from '../CameraModes.js';
 import { attachPointerInput, pinchZoomFactor } from '../PointerInput.js';
 import type { BodyMesh } from '../../BodyMesh.js';
+import { bodyFixedToGeodeticRad, geodeticToBodyFixedKm, type Ellipsoid } from '../surfaceNavigation.js';
 
 const _surfaceNormal = /* @__PURE__ */ new THREE.Vector3();
 const _forward = /* @__PURE__ */ new THREE.Vector3();
@@ -10,6 +11,10 @@ const _move = /* @__PURE__ */ new THREE.Vector3();
 const _lookTarget = /* @__PURE__ */ new THREE.Vector3();
 const _toBody = /* @__PURE__ */ new THREE.Vector3();
 const _bodyWorldQ = /* @__PURE__ */ new THREE.Quaternion();
+const _invBodyQ = /* @__PURE__ */ new THREE.Quaternion();
+
+/** Lowest height above the floor (terrain, or the ellipsoid without terrain), km. */
+const MIN_CLEARANCE_KM = 0.01;
 
 /**
  * Surface Flight Camera — WASD flight over a body's surface, airplane-style.
@@ -20,6 +25,9 @@ const _bodyWorldQ = /* @__PURE__ */ new THREE.Quaternion();
  * - Mouse drag / one-finger drag: look around (yaw/pitch, horizon stays level)
  * - Scroll wheel / two-finger pinch: adjust altitude directly
  * - Shift: speed boost
+ *
+ * Cruise speed starts at twice the entry clearance per second and remains
+ * fixed across terrain relief. Wheel/pinch selects a new altitude and speed.
  *
  * The camera co-rotates with the body. Heading is maintained as a body-fixed
  * direction that's updated after movement to prevent drift.
@@ -33,6 +41,7 @@ export class SurfaceMode implements ICameraMode {
   private bodyName = '';
   private altitudeKm = 10;
   private speedKmPerSec = 10;
+  private altitudeFactor = 1;
   private yaw = 0;
   private pitch = 0;
 
@@ -59,6 +68,7 @@ export class SurfaceMode implements ICameraMode {
     this.bodyName = params.bodyName ?? '';
     this.altitudeKm = params.altKm ?? 10;
     this.speedKmPerSec = this.altitudeKm * 2;
+    this.altitudeFactor = 1;
     this.yaw = 0;
     this.pitch = 0;
     this.keys.clear();
@@ -90,8 +100,17 @@ export class SurfaceMode implements ICameraMode {
       (N * (1 - e2) + this.altitudeKm) * sinLat,
     );
 
-    // Body-fixed north at this lat/lon
-    this.bodyFixedForward.set(-sinLat * cosLon, -sinLat * sinLon, cosLat).normalize();
+    // Body-fixed heading at this lat/lon: north turned clockwise (toward east)
+    // by `headingDeg`. Yaw then starts at zero, so the heading is the base the
+    // mode carries over movement.
+    const headingRad = (params.headingDeg ?? 0) * Math.PI / 180;
+    const ch = Math.cos(headingRad), sh = Math.sin(headingRad);
+    this.bodyFixedForward.set(
+      ch * -sinLat * cosLon + sh * -sinLon,
+      ch * -sinLat * sinLon + sh * cosLon,
+      ch * cosLat,
+    ).normalize();
+    this.pitch = Math.max(-1.4, Math.min(1.4, (params.pitchDeg ?? 0) * Math.PI / 180));
 
     // Transform to J2000
     const bodyQ = this.getBodyQuat(ctx, bm);
@@ -104,6 +123,10 @@ export class SurfaceMode implements ICameraMode {
     }
 
     ctx.camera.position.copy(bm.position).addScaledVector(posKm, ctx.scaleFactor);
+    // Choose cruise speed once from the real entry clearance. Terrain relief
+    // and later sampling/LOD changes must not act like throttle input.
+    this.clampAboveFloor(ctx, bm);
+    this.speedKmPerSec = this.altitudeKm * 2;
 
     // Set up event listeners
     const canvas = ctx.controls.domElement as HTMLElement;
@@ -171,6 +194,8 @@ export class SurfaceMode implements ICameraMode {
       this.curBodyQuat.copy(bodyQ);
       this.hasBodyQuat = true;
     }
+
+    if (this.altitudeFactor !== 1) this.clampAboveFloor(ctx, bm);
 
     // Surface normal at camera position
     _toBody.copy(ctx.camera.position).sub(bm.position);
@@ -252,20 +277,12 @@ export class SurfaceMode implements ICameraMode {
       }
     }
 
-    // Update altitude from radial distance (pitch-based movement changes it)
-    _toBody.copy(ctx.camera.position).sub(bm.position);
-    const dist = _toBody.length() / sf;
-    this.altitudeKm = Math.max(0.01, dist - bm.body.radii[0]);
-    this.speedKmPerSec = this.altitudeKm * 2;
-
-    // Minimum altitude clamp — don't go underground
-    const minAlt = 0.01; // 10 meters
-    const minDist = (bm.body.radii[0] + minAlt) * sf;
-    const actualDist = _toBody.length();
-    if (actualDist < minDist && actualDist > 1e-20) {
-      _surfaceNormal.copy(_toBody).divideScalar(actualDist);
-      ctx.camera.position.copy(bm.position).addScaledVector(_surfaceNormal, minDist);
-    }
+    // Height above the floor — sampled terrain where the body has it, the
+    // reference ellipsoid where it does not — measured geodetically, as the
+    // entry pose places the camera. A radial distance against the equatorial
+    // radius would read an oblate body's poles as tens of km underground
+    // (Earth ≈ 21 km) and throw the camera up on the first frame.
+    this.clampAboveFloor(ctx, bm);
 
     // Recompute normal after all position adjustments
     _toBody.copy(ctx.camera.position).sub(bm.position);
@@ -296,16 +313,53 @@ export class SurfaceMode implements ICameraMode {
     this.detachPointerInput = null;
   }
 
-  /** Scale altitude (and the speed derived from it) by a zoom factor. */
-  private zoomAltitude(factor: number): void {
-    this.altitudeKm = Math.max(0.01, this.altitudeKm * factor);
-    this.speedKmPerSec = this.altitudeKm * 2;
+  /**
+   * Keep the camera at least `MIN_CLEARANCE_KM` above the floor along the
+   * geodetic normal. Only an explicit altitude adjustment changes cruise
+   * speed; terrain relief or a new terrain sample cannot change the throttle.
+   */
+  private clampAboveFloor(ctx: CameraModeContext, bm: BodyMesh): void {
+    const radii = bm.body.radii;
+    if (!radii) return;
+    const sf = ctx.scaleFactor;
+    const a = radii[0];
+    const c = radii[2] ?? a;
+    const ell: Ellipsoid = { a, e2: 1 - (c * c) / (a * a) };
+
+    _toBody.copy(ctx.camera.position).sub(bm.position).divideScalar(sf);
+    if (this.hasBodyQuat) _toBody.applyQuaternion(_invBodyQ.copy(this.curBodyQuat).invert());
+    if (_toBody.lengthSq() < 1e-20) return;
+    const g = bodyFixedToGeodeticRad([_toBody.x, _toBody.y, _toBody.z], ell);
+    const terrainKm = bm.hasTerrain
+      ? bm.sampleTerrainElevation(g.latRad * 180 / Math.PI, g.lonRad * 180 / Math.PI)?.elevationKm ?? 0
+      : 0;
+
+    const zooming = this.altitudeFactor !== 1;
+    const clearanceKm = Math.max(MIN_CLEARANCE_KM, g.altKm - terrainKm);
+    const requestedKm = Math.max(MIN_CLEARANCE_KM, clearanceKm * this.altitudeFactor);
+    const floorKm = terrainKm + MIN_CLEARANCE_KM;
+    if (zooming || g.altKm < floorKm) {
+      const p = geodeticToBodyFixedKm(g.latRad, g.lonRad, zooming ? terrainKm + requestedKm : floorKm, ell);
+      _toBody.set(p[0], p[1], p[2]);
+      if (this.hasBodyQuat) _toBody.applyQuaternion(this.curBodyQuat);
+      ctx.camera.position.copy(bm.position).addScaledVector(_toBody, sf);
+    }
+    this.altitudeKm = zooming ? requestedKm : clearanceKm;
+    if (zooming) this.speedKmPerSec = requestedKm * 2;
+    this.altitudeFactor = 1;
   }
 
-  private getBodyQuat(ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {
-    // Body→world orientation as the mesh renders it (catalog rotation model +
-    // obliquity), so surface lat/lon placement and horizon stay locked to the
-    // rendered terrain. Callers copy the result, so a shared scratch is safe.
-    return bodyWorldOrientation(bm, ctx.et, _bodyWorldQ);
+  /** Scale altitude (and the speed derived from it) by a zoom factor. */
+  private zoomAltitude(factor: number): void {
+    this.altitudeFactor *= factor;
+  }
+
+  private getBodyQuat(_ctx: CameraModeContext, bm: BodyMesh): THREE.Quaternion | null {
+    // Body→world orientation read off the rendered mesh (catalog rotation
+    // model + obliquity, or the globe's own pole when there is no rotation
+    // model), so surface lat/lon placement and horizon stay locked to the
+    // rendered terrain — the frame Surface Explorer and the entry pose use.
+    // Callers copy the result, so a shared scratch is safe.
+    return bm.bodyToWorldQuaternion(_bodyWorldQ);
   }
 }

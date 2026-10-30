@@ -85,6 +85,8 @@ export interface FrameRegistryOptions {
   /** Rotation model of a body, by the name part of an `IAU_<BODY>` frame
    *  (upper-case, spaces as underscores). `Universe` supplies this. */
   bodyRotation?: (normalizedBodyName: string) => RotationModel | undefined;
+  /** Whether a non-IAU SPICE frame is an exact target of a loaded body's rotation model. */
+  isBodyFixedFrame?: (frameName: string) => boolean;
 }
 
 /** Name of the pseudo-frame for "fixed to the body this position is relative to". */
@@ -208,6 +210,12 @@ export const BUILTIN_FRAMES: readonly FrameDefinition[] = [
 
 const IAU_PREFIX = 'IAU_';
 
+// Authoritative body-fixed names from NAIF's moon_080317.tf (frames 31000,
+// 31001, 31006, 31007). Classification is independent of the render target;
+// each name still resolves through its own SPICE transform, never an alias.
+// https://naif.jpl.nasa.gov/pub/naif/generic_kernels/fk/satellites/moon_080317.tf
+const LUNAR_BODY_FIXED_SPICE_FRAMES = new Set(['MOON_PA', 'MOON_ME', 'MOON_PA_DE421', 'MOON_ME_DE421']);
+
 export class FrameRegistry {
   private readonly byKey = new Map<string, FrameDefinition>();
   /** `IAU_*` and SPICE-frame definitions, synthesized on first request. */
@@ -220,6 +228,7 @@ export class FrameRegistry {
   private readonly spiceUnknown = new Set<string>();
   private readonly spice?: SpiceInstance;
   private readonly bodyRotation?: (normalizedBodyName: string) => RotationModel | undefined;
+  private readonly isBodyFixedFrame?: (frameName: string) => boolean;
   /** Recursion guard: body-fixed frames whose rotation is stated in another
    *  body-fixed frame resolve recursively, and a cycle must not hang. */
   private depth = 0;
@@ -227,7 +236,13 @@ export class FrameRegistry {
   constructor(options: FrameRegistryOptions = {}) {
     this.spice = options.spice;
     this.bodyRotation = options.bodyRotation;
+    this.isBodyFixedFrame = options.isBodyFixedFrame;
     for (const def of BUILTIN_FRAMES) this.register(def);
+  }
+
+  /** Explicit definitions, including catalog frames, without synthesized lookup guesses. */
+  definitions(): FrameDefinition[] {
+    return [...new Set(this.byKey.values())];
   }
 
   /** Add (or replace) a frame. Its name and aliases become resolvable. */
@@ -273,6 +288,13 @@ export class FrameRegistry {
   /** Forget cached SPICE failures (call after furnishing kernels). */
   invalidate(): void {
     this.spiceUnknown.clear();
+    this.invalidateBodyFrameClassification();
+  }
+
+  /** The catalog can add, replace or remove a body's declared rotation target.
+   * Reclassify synthesized SPICE frames without discarding known SPICE failures. */
+  invalidateBodyFrameClassification(): void {
+    this.synthesized.clear();
     this.staticCache.clear();
   }
 
@@ -366,6 +388,20 @@ export class FrameRegistry {
     return m ? mat3Vec(m, v) : v;
   }
 
+  /** Exact frame of the catalog attitude, retaining the historical IAU default
+   * for analytical/custom rotations that do not declare a target frame. */
+  bodyFixedFrameFor(bodyName: string): string {
+    return this.bodyRotation?.(normalizeFrameKey(bodyName))?.bodyFixedFrame ?? bodyFixedFrameName(bodyName);
+  }
+
+  /** Placement must opt into failure rather than interpreting missing rotations
+   * as identity. This leaves the legacy transform API compatible. */
+  transformRequired(v: Vec3, from: string, to: string, et: number): Vec3 {
+    const m = this.rotation(from, to, et);
+    if (!m) throw new Error(`Frame transform unavailable: ${from} -> ${to} at ET ${et}`);
+    return mat3Vec(m, v);
+  }
+
   /** True when two names denote the same frame (aliases included). */
   sameFrame(a: string, b: string): boolean {
     if (a === b) return true;
@@ -387,7 +423,7 @@ export class FrameRegistry {
       return this.spice.pxform(spiceName, 'J2000', et);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      // CSPICE's own wording (@cosmolabe/spice) and the frames tier's
+      // CSPICE's own wording and the frames tier's
       // (cspice-wasm heritage adapter: "not known to the furnished kernel set").
       if (/not recognized|not known|UNKNOWNFRAME|NOFRAME|not a known reference frame/i.test(msg)) {
         this.spiceUnknown.add(spiceName);
@@ -404,7 +440,7 @@ export class FrameRegistry {
       spiceName: key,
       toICRF: (et, registry) => {
         const rotation = this.bodyRotation?.(bodyKey);
-        if (rotation) {
+        if (rotation && (!rotation.bodyFixedFrame || normalizeFrameKey(rotation.bodyFixedFrame) === key)) {
           // rotationAt is source → body-fixed; its transpose is body-fixed → source.
           const srcToIcrf = registry.toICRF(rotation.sourceFrame, et);
           if (srcToIcrf) {
@@ -419,7 +455,11 @@ export class FrameRegistry {
   private spiceDefinition(name: string): FrameDefinition {
     return {
       name,
-      kind: 'inertial',
+      // Known lunar frames and a body's declared target are body-fixed even
+      // without an IAU_ prefix. Unknown names retain the inertial default;
+      // a MOON_* spelling alone establishes neither kind nor equivalence.
+      kind: LUNAR_BODY_FIXED_SPICE_FRAMES.has(normalizeFrameKey(name)) || this.isBodyFixedFrame?.(name)
+        ? 'body-fixed' : 'inertial',
       spiceName: name,
       toICRF: (et, registry) => registry.spiceToJ2000(name, et),
     };

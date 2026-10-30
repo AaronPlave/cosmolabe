@@ -1,0 +1,368 @@
+{
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "synthetic": {
+    "passed": true,
+    "views": [
+      {
+        "name": "Mars Orbit",
+        "models": [
+          0,
+          0
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 17591.31642816393
+      },
+      {
+        "name": "Dingo Gap Approach",
+        "models": [
+          1,
+          1
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 8.837442016311883
+      },
+      {
+        "name": "Curiosity Surface",
+        "models": [
+          19,
+          1
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 0.5
+      },
+      {
+        "name": "Curiosity Close-up",
+        "models": [
+          31,
+          0
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 0.019999999999999997
+      },
+      {
+        "name": "Dingo Gap Daylight",
+        "models": [
+          67,
+          1
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 0.3078089166947762
+      }
+    ],
+    "states": [
+      {
+        "utc": "2014-01-29T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.3215391939407,
+          2287.6584359403982,
+          -273.6100779531479
+        ],
+        "errorM": 5.818455676144063e-06,
+        "attitudeMatrixMaxError": 4.440892098500626e-16
+      },
+      {
+        "utc": "2014-02-01T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.307365636181,
+          2287.6767729446815,
+          -273.5833430261009
+        ],
+        "errorM": 1.6952170660132215e-05,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-05T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.305332314118,
+          2287.6792231499535,
+          -273.58620935433373
+        ],
+        "errorM": 6.4114042334781236e-06,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-08T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.300433046981,
+          2287.683707903343,
+          -273.58568603377455
+        ],
+        "errorM": 9.054767106523292e-06,
+        "attitudeMatrixMaxError": 4.0245584642661925e-16
+      }
+    ],
+    "fixedTransformsStable": true,
+    "physicalQuerySource": "height-grid",
+    "cacheBytesBefore": 40122508,
+    "cacheBytesAfterEviction": 0,
+    "forcedFailures": 1,
+    "recoveredModels": 8,
+    "pageErrors": []
+  },
+  "hosted": {
+    "passed": true,
+    "coldBrowserCache": true,
+    "catalogInterception": false,
+    "publicationIdentity": "011ebce5f8ad09e35f8e782152812c4754d6cc489a0458894e6864b46f3b7258",
+    "vikingRequests": 68,
+    "products": {
+      "terrain-207dcdb48c82b74acaad4fcb": {
+        "requests": 576,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-terrain/terrain-207dcdb48c82b74acaad4fcb/207dcdb48c82b74acaad4fcb22452b06/cpu-grids.json",
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5173",
+            "age": "463",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "HIT",
+            "cf-ray": "a51a900a98b34cda-BOS",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Wed, 28 Oct 2026 14:17:12 GMT",
+            "etag": "W/\"f80c5b5cb8c85967804d867728cc5db4\"",
+            "last-modified": "Wed, 28 Oct 2026 13:07:06 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=m5fttvWSPr7Bkor5NN9X6wrPwconJMBShzcrSDdFp22Lh8gIhSna2R1rP%2B%2BMHO98h9Gf%2B4qM8JYMMyIo18J1wOhvMwmh9M3pVmCGXZFEhaXDLzegX04GTMKEa9R64CeM4nVOjDOI\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-df467b18c609f3ac702aaeaf": {
+        "requests": 73,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-df467b18c609f3ac702aaeaf/df467b18c609f3ac702aaeaf84eb0668/imagery.json",
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5173",
+            "age": "463",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "HIT",
+            "cf-ray": "a51a900a98ba4cda-BOS",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Wed, 28 Oct 2026 14:17:12 GMT",
+            "etag": "W/\"f39443bdcee55269706ffd7cf61a956d\"",
+            "last-modified": "Wed, 28 Oct 2026 13:08:00 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=Wfo0ZhOtk1TrWWWHmHIia4S8EV2kWU8fIxr2iZ5ls%2FvEJTgpRxXfNDDMYhJc1x6jSmTKcrAKPneYo%2BpTo4T4J35rhr3OFbci6IZtCAomfAKsIYjK1Y%2F67AKZMOox6TZVm%2B%2BBoeCi\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      },
+      "imagery-65a14eef13d9c08962ea5879": {
+        "requests": 72,
+        "sample": {
+          "url": "https://data.aaronplave.com/cube-imagery/imagery-65a14eef13d9c08962ea5879/65a14eef13d9c08962ea5879f795274b/imagery.json",
+          "headers": {
+            "access-control-allow-origin": "http://localhost:5173",
+            "age": "463",
+            "cache-control": "public, max-age=31536000, immutable",
+            "cf-cache-status": "HIT",
+            "cf-ray": "a51a900a98bc4cda-BOS",
+            "content-encoding": "zstd",
+            "content-type": "application/json",
+            "date": "Wed, 28 Oct 2026 14:17:12 GMT",
+            "etag": "W/\"443aa95d1943986dfdba81863ed3c769\"",
+            "last-modified": "Wed, 28 Oct 2026 13:08:26 GMT",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=DFlOKbU7CR%2BgcFmkdQ196RmJA%2B3jMgyljCHxxpVZe9QhytkoQ1WyKLR1bdhT9amtGY0MHJ3UJfGhK5RwTbA%2FDg%2FwRrSxFFVSGnJLWWEHwtpwcZwVC2Ro6NSlSv9x1kRgEbzcJ7Fy\"}]}",
+            "server": "cloudflare",
+            "vary": "Origin"
+          }
+        }
+      }
+    },
+    "views": [
+      {
+        "name": "Mars Orbit",
+        "models": [
+          0
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 17591.31642816671
+      },
+      {
+        "name": "Dingo Gap Approach",
+        "models": [
+          1
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 8.837442013021926
+      },
+      {
+        "name": "Curiosity Close-up",
+        "models": [
+          29
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 0.020000000000000004
+      },
+      {
+        "name": "Dingo Gap Daylight",
+        "models": [
+          49
+        ],
+        "baseUncoveredBlocks": 0,
+        "cameraToRoverKm": 0.3078089166947762
+      }
+    ],
+    "imageryUiPassed": true,
+    "controls": [
+      {
+        "id": "viking",
+        "stack": [
+          {
+            "id": "viking",
+            "visible": true,
+            "opacity": 0.35
+          },
+          {
+            "id": "gale-ctx",
+            "visible": false,
+            "opacity": 0.6
+          },
+          {
+            "id": "curiosity-hirise",
+            "visible": false,
+            "opacity": 1
+          }
+        ]
+      },
+      {
+        "id": "gale-ctx",
+        "stack": [
+          {
+            "id": "viking",
+            "visible": true,
+            "opacity": 0.35
+          },
+          {
+            "id": "curiosity-hirise",
+            "visible": false,
+            "opacity": 1
+          },
+          {
+            "id": "gale-ctx",
+            "visible": true,
+            "opacity": 0.35
+          }
+        ]
+      },
+      {
+        "id": "curiosity-hirise",
+        "stack": [
+          {
+            "id": "viking",
+            "visible": true,
+            "opacity": 0.35
+          },
+          {
+            "id": "gale-ctx",
+            "visible": false,
+            "opacity": 0.35
+          },
+          {
+            "id": "curiosity-hirise",
+            "visible": true,
+            "opacity": 0.35
+          }
+        ]
+      }
+    ],
+    "navigation": [
+      {
+        "northM": -300,
+        "source": "height-grid",
+        "radiusKm": 3391.1579750084707,
+        "clearanceM": 49.999999574993126
+      },
+      {
+        "northM": -100,
+        "source": "height-grid",
+        "radiusKm": 3391.1486755232822,
+        "clearanceM": 50.00000000154614
+      },
+      {
+        "northM": 0,
+        "source": "height-grid",
+        "radiusKm": 3391.1467493930404,
+        "clearanceM": 49.999999664578354
+      },
+      {
+        "northM": 100,
+        "source": "height-grid",
+        "radiusKm": 3391.145960786397,
+        "clearanceM": 50.00000000154614
+      },
+      {
+        "northM": 300,
+        "source": "height-grid",
+        "radiusKm": 3391.1488604829683,
+        "clearanceM": 49.99999972142177
+      }
+    ],
+    "reloadTransformStable": true,
+    "initialAssets": {
+      "total": 2,
+      "settled": 2,
+      "loaded": 2,
+      "failed": 0,
+      "failures": [],
+      "stillPending": [],
+      "timedOut": false,
+      "durationMs": 170.80000001192093
+    },
+    "regressions": [
+      {
+        "catalog": "ingenuity-jezero",
+        "view": null,
+        "assets": {
+          "total": 2,
+          "settled": 2,
+          "loaded": 2,
+          "failed": 0,
+          "failures": [],
+          "stillPending": [],
+          "timedOut": false,
+          "durationMs": 175.20000004768372
+        },
+        "finiteCamera": true,
+        "baseUncoveredBlocks": 0
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "view": "Polaris-A Close-up",
+        "assets": {
+          "total": 8,
+          "settled": 8,
+          "loaded": 8,
+          "failed": 0,
+          "failures": [],
+          "stillPending": [],
+          "timedOut": false,
+          "durationMs": 2049.199999988079
+        },
+        "finiteCamera": true,
+        "baseUncoveredBlocks": 0
+      }
+    ],
+    "transportFailures": [
+      {
+        "url": "https://data.aaronplave.com/cube-imagery/imagery-df467b18c609f3ac702aaeaf/df467b18c609f3ac702aaeaf84eb0668/tiles/nx/3/3/7.png",
+        "reason": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://data.aaronplave.com/kernels/msl-2026-10-02/mar099s.bsp",
+        "reason": "net::ERR_CONNECTION_RESET"
+      }
+    ],
+    "pageErrors": []
+  },
+  "limits": [
+    "Hardware acceptance on one Apple M4 Max/Metal desktop; no additional device gate.",
+    "Hosted controls/navigation/regression run preceded the final nested-group priority propagation; the final two-mesh GPU lifecycle run includes that fix.",
+    "A cancelled CTX request and a reset background mar099s transfer were observed during catalog transitions; recorded separately from loaded model/texture and terrain coverage checks.",
+    "Absolute mesh registration and fine-LOD physical residuals remain unvalidated."
+  ]
+}

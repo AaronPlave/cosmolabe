@@ -9,10 +9,12 @@
 // models) is left alone. Managed data is then pruned from `dist/`.
 import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join, posix } from 'node:path';
+import { publicDirCopyFilter } from './public-dir-filter.mjs';
 import { joinUrl, remotePrefix } from './datasets.mjs';
 
 const MAX_JSON_BYTES = 10 * 1024 * 1024;
 const LOCAL_ABS_PREFIX = '/test-catalogs/';
+const DIST_CATALOG_PREFIX = 'test-catalogs/';
 
 /** Resolve a catalog string to a path relative to the catalog root, or null if it is not a local path. */
 export function resolveLocalPath(value, catalogRel) {
@@ -20,7 +22,12 @@ export function resolveLocalPath(value, catalogRel) {
   let rel;
   if (value.startsWith(LOCAL_ABS_PREFIX)) rel = value.slice(LOCAL_ABS_PREFIX.length);
   else if (value.startsWith('/')) return null;
-  else rel = posix.join(posix.dirname(catalogRel), value);
+  else {
+    const catalogRootRel = catalogRel.startsWith(DIST_CATALOG_PREFIX)
+      ? catalogRel.slice(DIST_CATALOG_PREFIX.length)
+      : catalogRel;
+    rel = posix.join(posix.dirname(catalogRootRel), value);
+  }
   rel = posix.normalize(rel);
   if (rel.startsWith('..')) return null;
   // posix.join/normalize keep a trailing slash, which prefix matching relies on.
@@ -85,10 +92,16 @@ export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = tr
   if (!/^https?:\/\//.test(baseUrl)) throw new Error(`data base URL must be absolute http(s), got ${JSON.stringify(baseUrl)}`);
   const unpublished = new Set();
   const used = new Set();
+  const keepLocalOnly = publicDirCopyFilter(
+    Object.fromEntries(Object.entries(datasets).filter(([, ds]) => ds.localOnly)),
+    join(dist, DIST_CATALOG_PREFIX),
+  );
+  const excluded = [];
   const pending = []; // [abs, json, references]: written only once strictness has passed
   for await (const rel of jsonFiles(dist)) {
     if (rel === 'hosted-data.json') continue;
     const abs = join(dist, rel);
+    if (!keepLocalOnly(abs)) { excluded.push(abs); continue; }
     if ((await stat(abs)).size > MAX_JSON_BYTES) continue;
     let json;
     try { json = JSON.parse(await readFile(abs, 'utf8')); } catch { continue; }
@@ -102,6 +115,8 @@ export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = tr
   if (strict && blocking.length) {
     throw new Error(`catalogs reference datasets with no published build: ${blocking.join(', ')}. Publish them (scripts/publish-data.mjs) or pass --allow-unpublished <dataset-id>.`);
   }
+  // Remove explicitly local catalogs only after strict validation succeeds.
+  for (const abs of excluded) await rm(abs, { force: true });
   const rewritten = [];
   for (const p of pending) {
     await writeFile(p.abs, `${JSON.stringify(p.json, null, 2)}\n`);
@@ -109,11 +124,11 @@ export async function buildHostedCatalogs({ dist, baseUrl, datasets, strict = tr
   }
   for (const id of unpublished) log(`warning: ${id} has no published build; its catalog paths stay local`);
 
-  // Everything that is hosted leaves the Pages artifact, referenced or not.
+  // Hosted and local-only products leave the Pages artifact, referenced or not.
   const pruned = [];
   for (const [id, ds] of Object.entries(datasets)) {
-    if (!ds.build) continue;
-    const dir = join(dist, ds.catalogPrefix);
+    if (!ds.build && !ds.localOnly) continue;
+    const dir = join(dist, DIST_CATALOG_PREFIX, ds.catalogPrefix);
     if (ds.recursive === false) {
       let names = [];
       try { names = await readdir(dir, { withFileTypes: true }); } catch { /* absent */ }

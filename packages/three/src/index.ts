@@ -1,12 +1,21 @@
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
-export type { UniverseRendererOptions, SurfacePickResult } from './UniverseRenderer.js';
+export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';
+export {
+  PICK_PRECEDENCE, resolveSceneHit, resolveSurfaceAltitude, coordinateDecimals, pointerResolution, formatLatitude, formatLongitude, formatHeight,
+  describeDatum, describeSource, surfacePointToText,
+} from './SceneHit.js';
+export type {
+  SceneHit, SurfacePoint, SurfaceDatum, PointerResolution, SurfaceHitSource, PickIntent, HitLayer,
+} from './SceneHit.js';
 
 // Scene components
 export { BodyMesh } from './BodyMesh.js';
 export type { ModelResolver } from './BodyMesh.js';
 export { TrajectoryLine } from './TrajectoryLine.js';
 export type { TrajectoryLineOptions, PositionResolver, ColorSegment, DrawnTrail } from './TrajectoryLine.js';
+export { TrajectoryLead, resolveLeadWindows, leadFade } from './TrajectoryLead.js';
+export type { LeadRequest, LeadPolicy, LeadSpan, LeadWindow, LeadWindowKind, DrawnLead } from './TrajectoryLead.js';
 export { TrajectoryCache } from './TrajectoryCache.js';
 export type { TrajectoryCacheConfig } from './TrajectoryCache.js';
 export {
@@ -28,11 +37,14 @@ export type {
   WorkerGeometrySearch,
 } from './SpiceCacheWorker.js';
 export { SensorFrustum } from './SensorFrustum.js';
-export type { SensorFrustumOptions } from './SensorFrustum.js';
+export type { SensorFrustumOptions, SensorFovClipper, SensorClipSummary } from './SensorFrustum.js';
 export { InstrumentView } from './InstrumentView.js';
-export type { InstrumentViewOptions, FovBoundary } from './InstrumentView.js';
+export { fitImageRect } from './InstrumentView.js';
+export type { InstrumentViewOptions, FovBoundary, FovOutline, Rect as InstrumentImageRect } from './InstrumentView.js';
 export { instrumentFovProviderOf } from './InstrumentFovProvider.js';
 export type { InstrumentFov, InstrumentFovProvider } from './InstrumentFovProvider.js';
+export { dskShapeProviderOf, dskToBufferGeometry } from './DskShapeProvider.js';
+export type { DskShape, DskShapeProvider } from './DskShapeProvider.js';
 export { RingMesh } from './RingMesh.js';
 export { AssetLoadTracker, DEFAULT_INITIAL_ASSET_TIMEOUT_MS } from './AssetLoadTracker.js';
 export type {
@@ -47,32 +59,51 @@ export type { AtmosphereParams } from './AtmosphereMesh.js';
 export { BloomEffect, BLOOM_LAYER } from './BloomEffect.js';
 export type { BloomConfig } from './BloomEffect.js';
 export { StarField } from './StarField.js';
-export type { StarFieldOptions } from './StarField.js';
+export type { StarFieldOptions, StarCatalogStatus } from './StarField.js';
 export { LabelManager } from './LabelManager.js';
 export type { LabelManagerOptions } from './LabelManager.js';
 export { EventMarkers } from './EventMarkers.js';
-export type { EventMarker, EventMarkerType, EventMarkersOptions } from './EventMarkers.js';
+export type { EventMarker, EventMarkerType, EventMarkersOptions, EventLeadVisibility } from './EventMarkers.js';
 export type { ScreenRect } from './EventCallout.js';
 export { OccultationGeometry } from './OccultationGeometry.js';
 export type { OccultationGeometryParticipants } from './OccultationGeometry.js';
 export { GeometryReadout } from './GeometryReadout.js';
 export type { GeometryReadoutOptions } from './GeometryReadout.js';
+export { SpatialRelationshipLayer, type SpatialInteraction } from './SpatialRelationshipLayer.js';
 
 // Controls
 export { TimeController, rateLabel } from './controls/TimeController.js';
 export type { TimeListener } from './controls/TimeController.js';
-export { CameraController } from './controls/CameraController.js';
-export type { CameraViewpoint, FlyToOptions } from './controls/CameraController.js';
+export { CameraController, SURFACE_PIVOT_CLEARANCE_KM } from './controls/CameraController.js';
+export type {
+  CameraFlight, CameraViewpoint, FlightPath, FlyToOptions, ViewpointPose,
+  SurfacePose, SurfaceFlightPath, SurfaceFlightOptions, SurfaceFlightPlan,
+} from './controls/CameraController.js';
+export {
+  bodyFixedToMeshLocal, meshLocalToBodyFixed, navigationShapeOf, terrainGroundRadius,
+  surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint, surfacePointCoordinatePair, surfaceNavigable, SurfaceTerrainAnchor, SURFACE_ZOOM_FRACTION, SURFACE_ZOOM_MIN_RANGE_KM,
+} from './SurfaceNavigation.js';
+export type { AnchorTerrain } from './SurfaceNavigation.js';
 export { applyNamedViewpoint } from './controls/applyNamedViewpoint.js';
+export { cameraViewpointFromDefinition, resolveCameraViewpoint } from './controls/catalogViewpoint.js';
 export type { ViewpointHost, ApplyViewpointOptions } from './controls/applyNamedViewpoint.js';
 export { KeyboardControls } from './controls/KeyboardControls.js';
 export type { KeyboardControlsConfig } from './controls/KeyboardControls.js';
 export { CameraModeName } from './controls/CameraModes.js';
 export type { ICameraMode, CameraModeContext, CameraModeParams, CameraModeSpice } from './controls/CameraModes.js';
+export { FrameLockedMode, FRAME_AXIS_BASIS } from './controls/modes/FrameLockedMode.js';
+export type { FrameLockBehavior, FrameLockedModeOptions, AxisBasis } from './controls/modes/FrameLockedMode.js';
+export { bodyRotationFrame, spiceFrame, lvlhFrame, frameToWorldQuat } from './controls/frameOrientation.js';
+export type { FrameOrientationSource } from './controls/frameOrientation.js';
 
 // Terrain
+export { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES } from './SurfaceAppearance.js';
+export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
-export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming } from './TerrainManager.js';
+export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';
+export { resolveGlobeSurfaceConfig, describeImageryLayers, nativeMetersPerPixel, overlapsBounds } from './ImageryLayers.js';
+export type { ImageryLayerInfo, ImageryLatitudeConvention, ImageryLayerRole, ImageryLayerStatus, ImageryLayerView } from './ImageryLayers.js';
+export type { SurfaceTransitionState } from './BodyMesh.js';
 export { TerrainSampler, geodeticToBodyFixed, bodyFixedToGeodetic, datumRadiusAtLat } from './TerrainSampler.js';
 export {
   summarizeDifferences, fitPlane, tileKeyId, parseTileKey, geographicTileBounds, geographicTilesCovering,
@@ -88,6 +119,7 @@ export type {
 export type { TerrainDatum, TerrainSourceMetadata, TerrainSample, TerrainHeightTile, TerrainMeshTile, TerrainTile, BodyFixedPosition, BodyFixedCartesian } from './TerrainSampler.js';
 export { SurfaceTileOverlay, SURFACE_TILE_LAYER } from './SurfaceTileOverlay.js';
 export type { SurfaceTileConfig } from './SurfaceTileOverlay.js';
+export type { SiteMeshConfig, SiteMeshRegistration } from './SiteMeshPlacement.js';
 
 // Plugin interface
 export type { RendererPlugin } from './plugins/RendererPlugin.js';
@@ -136,4 +168,32 @@ export type {
   SurfaceAccuracy, SurfaceHit, SurfaceIntersection, SurfaceQueryLoader,
 } from './surface/PhysicalSurface.js';
 export { pickPhysicalSurface, cameraPositionFromSurfacePick, surfaceRayBetween } from './surface/SurfaceConsumers.js';
+export { ReferenceEllipsoidSurface } from './surface/ReferenceEllipsoidSurface.js';
+export { ResidentTerrainSurface } from './surface/ResidentTerrainSurface.js';
+export {
+  clipFovPerimeter, resolveFovRay, fovBoundaryDirection, fovBaseParams, rectangularFov, surfaceSource,
+} from './surface/FovClipper.js';
+export type {
+  FovBoundaryShape, FovSurfaceCandidate, FovSurfaceSource, FovRayHit, FovPerimeterSample, FovClipOptions,
+} from './surface/FovClipper.js';
 export type { MapImageLayer, ObservationImageProjection, ObservationRayResolver } from './surface/SurfaceImagery.js';
+export { CubeSphereSampler, cubeFaceBasis, cubeFaceToDirection, directionToCubeFace, cubeTileAt, cubeTileId } from './surface/CubeSphere.js';
+export type { CubeFace, CubeFaceCoordinate, CubeTileAddress, CubeHeightTile } from './surface/CubeSphere.js';
+export { CubeSphereGridSource, CubeGridSurface, cubeTileMesh } from './surface/CubeSphereGrids.js';
+export type { CubeGridManifest, CubeCoverage, CubeCoverageState, CubeGridSourceOptions, CubeGridSourceStats } from './surface/CubeSphereGrids.js';
+export {
+  CubeImageryAvailability, directionToTexel, faceToTexel, imageryTextureTransform, imageryTileRect, parseImageryAddress,
+  selectImageryBlocks, texelCenterDirection, texelCenterToFace, texelGroundSizeKm, tileProjectiveBasis, validateCubeImageryManifest,
+} from './surface/CubeImagery.js';
+export type { CubeImageryManifest, ImageryAddress, ImageryBlock } from './surface/CubeImagery.js';
+export { CubeImageryLayer } from './CubeImageryLayer.js';
+export type { CubeImageryConfig, CubeImageryStats, CubeImageryDebug } from './CubeImageryLayer.js';
+export { geographicPositionOnSurface } from './surface/GeographicSurface.js';
+export { placeAnchor } from './geographic/PlaceSurface.js';
+export { GeographicVectorLayer, sameGeographicFeature } from './geographic/GeographicVectorLayer.js';
+export { geographicSurfaceNote } from './geographic/GeographicStatus.js';
+export type { GeographicPlacement, GeographicVectorStatus } from './geographic/GeographicVectorLayer.js';
+export type { GeographicFeatureRef, GeographicRenderDiagnostic } from './geographic/GeographicIndex.js';
+
+export { PersistentLabels, AnnotationBudget, labelOverlaps } from './annotations/PersistentLabels.js';
+export type { LabelCandidate, PersistentLabel } from './annotations/PersistentLabels.js';

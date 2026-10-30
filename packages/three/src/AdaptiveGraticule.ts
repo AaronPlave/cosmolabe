@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { castRenderedSurfaces } from './RenderedSurfaceQuery.js';
+import { PersistentLabels, AnnotationBudget } from './annotations/PersistentLabels.js';
 import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAngle, wrapLongitude, type SurfaceCoordinates } from '@cosmolabe/core';
 import { ANGULAR_GRID_STEPS, type GridSettings } from '@cosmolabe/control';
 import type { BodyMesh } from './BodyMesh.js';
@@ -56,6 +58,8 @@ function inPattern(anchor: Anchor, latStep: number, lonStep: number): boolean {
 export class AdaptiveGraticule {
   readonly uniforms;
   readonly bodyFromWorld = new THREE.Matrix4();
+  private readonly persistence = new PersistentLabels(MAX_LABELS, 200);
+  private physicalRevision: number | null = null;
   private readonly labels = new Map<string, Label>();
   private readonly group = new THREE.Group();
   private readonly raycaster = new THREE.Raycaster();
@@ -271,7 +275,12 @@ export class AdaptiveGraticule {
   }
   update(camera: THREE.PerspectiveCamera, viewport: { width: number; height: number }, manager: LabelManager | null, occluders: readonly BodyMesh[] = [this.bm]): void {
     const now = performance.now();
+    if (this.physicalRevision !== this.bm.terrainRevision) {
+      this.physicalRevision = this.bm.terrainRevision; this.invalidateSurface(); this.lastPlan = -Infinity;
+    }
     this.frame?.hide(); this.frameQueries = 0;
+    const queryBudget = new AnnotationBudget(3);
+    const cast = () => castRenderedSurfaces(this.raycaster, occluders, this.bm.scaleFactor);
     const dt = Math.max(0, Math.min(0.1, (now - this.lastFrame) / 1000));
     this.lastFrame = now;
     this.uniforms.uGridPixelRatio.value = Math.max(1, globalThis.devicePixelRatio ?? 1);
@@ -301,13 +310,6 @@ export class AdaptiveGraticule {
     if (this.settings?.coordinateFrame && !this.globeScale) {
       for (const label of this.labels.values()) hide(label);
       this.frame ??= new GraticuleFrame(this.group);
-      const targets: THREE.Object3D[] = [], own = new Set<THREE.Object3D>();
-      for (const body of occluders.length ? occluders : [this.bm]) {
-        if (!body.visible) continue;
-        const meshes = [body.mesh.visible ? body.mesh : null, body.terrainTileGroup?.visible ? body.terrainTileGroup : null,
-          ...body.getSurfaceOverlays().filter(o => o.group.visible).map(o => o.group)].filter((o): o is THREE.Object3D => !!o);
-        for (const mesh of meshes) { targets.push(mesh); if (body === this.bm) own.add(mesh); }
-      }
       const materials = Array.isArray(this.bm.mesh.material) ? this.bm.mesh.material : [this.bm.mesh.material];
       if (this.bm.mesh.visible && materials.some(m => (m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshPhongMaterial) && m.displacementMap && (m.displacementScale !== 0 || m.displacementBias !== 0))) return;
       const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
@@ -330,18 +332,10 @@ export class AdaptiveGraticule {
         if (this.frameQueries >= 8) return null;
         this.frameQueries++;
         this.raycaster.setFromCamera(new THREE.Vector2(tick.x / width * 2 - 1, 1 - tick.y / height * 2), camera);
-        const intersection = this.raycaster.intersectObjects(targets, true).find(hit => {
-          for (let object: THREE.Object3D | null = hit.object; object; object = object.parent) if (!object.visible) return false;
-          if (hit.object instanceof THREE.Mesh) {
-            const m = hit.object.material, material = Array.isArray(m) ? m[hit.face?.materialIndex ?? 0] : m;
-            if (!material?.visible) return false;
-          }
-          return true;
-        });
-        if (!intersection) return null;
-        let object: THREE.Object3D | null = intersection.object;
-        while (object && !own.has(object)) object = object.parent;
-        if (!object || !(intersection.object instanceof THREE.Mesh) || !intersection.face) return null;
+        const result = queryBudget.run(cast)?.value;
+        if (!result || result.bm !== this.bm || result.renderedSkirt) return null;
+        const intersection = result.intersection;
+        if (!(intersection.object instanceof THREE.Mesh) || !intersection.face) return null;
         const mesh = intersection.object, matrix = mesh.matrixWorld.clone();
         if (mesh instanceof THREE.InstancedMesh && intersection.instanceId !== undefined) {
           const instance = new THREE.Matrix4(); mesh.getMatrixAt(intersection.instanceId, instance); matrix.multiply(instance);
@@ -415,29 +409,10 @@ export class AdaptiveGraticule {
     }
     const dpr = Math.max(1, globalThis.devicePixelRatio ?? 1);
     if (dpr !== this.dpr) { this.clearLabels(); this.dpr = dpr; }
-    const targets: THREE.Object3D[] = [];
-    const overlayTargets = new Set<THREE.Object3D>();
-    const ownTargets: THREE.Object3D[] = [];
-    const foreignOccluders: Array<{ sphere: THREE.Sphere; targets: THREE.Object3D[] }> = [];
-    for (const body of occluders) {
-      if (!body.visible) continue;
-      const bodyTargets: THREE.Object3D[] = [];
-      if (body.mesh.visible && (body !== this.bm || body.body.geometryData?.displacementMap)) {
-        bodyTargets.push(body.mesh);
-      }
-      if (body.terrainTileGroup?.visible) bodyTargets.push(body.terrainTileGroup);
-      for (const overlay of body.getSurfaceOverlays()) if (overlay.group.visible) {
-        bodyTargets.push(overlay.group); overlayTargets.add(overlay.group);
-      }
-      targets.push(...bodyTargets);
-      if (body === this.bm) ownTargets.push(...bodyTargets);
-      else if (bodyTargets.length) foreignOccluders.push({
-        // Only a ray that reaches this conservative bound can hit the body's
-        // geometry. Most unrelated bodies never require a triangle query.
-        sphere: new THREE.Sphere(body.getWorldPosition(new THREE.Vector3()), body.displayRadius * body.scaleFactor * 1.25),
-        targets: bodyTargets,
-      });
-    }
+    // Only conservative body bounds are private to the analytic-globe fast path.
+    // All actual mesh discovery and nearest-hit decisions use the shared adapter.
+    const foreignOccluders = occluders.filter(body => body !== this.bm && body.visible).map(body =>
+      new THREE.Sphere(body.getWorldPosition(new THREE.Vector3()), (body.displayRadius * 1.01 + 30) * body.scaleFactor));
     const registeredTerrain = !this.bm.mesh.visible || !!this.bm.body.geometryData?.displacementMap || this.bm.getSurfaceOverlays().some(o => o.group.visible);
     const prepared: Array<{ anchor: Anchor; p: THREE.Vector3; view: THREE.Vector3; incidence: number; strength: number }> = [];
     const cameraFixed = camera.position.clone().applyMatrix4(this.bodyFromWorld);
@@ -492,7 +467,7 @@ export class AdaptiveGraticule {
     const keys = new Set(available.map(p => p.anchor.id));
     for (const key of this.cachedHits.keys()) if (!keys.has(key)) this.cachedHits.delete(key);
     for (const key of this.eligibility.keys()) if (!keys.has(key)) this.eligibility.delete(key);
-    if (registeredTerrain && targets.length) {
+    if (registeredTerrain) {
       const ordered = [...available].sort((a, b) => {
         const visible = (anchor: Anchor) => this.labels.get(anchor.id)?.sprite.visible ? 1 : 0;
         return visible(b.anchor) - visible(a.anchor)
@@ -501,18 +476,9 @@ export class AdaptiveGraticule {
       });
       const pending = ordered;
       let queries = 0;
-      const preferredHit = (intersections: THREE.Intersection[]) => {
-        const overlay = intersections.find(hit => {
-          let object: THREE.Object3D | null = hit.object;
-          while (object) { if (overlayTargets.has(object)) return true; object = object.parent; }
-          return false;
-        });
-        return { intersection: overlay ?? intersections[0], overlay: !!overlay };
-      };
       for (const { anchor, view } of pending) {
         if (queries + 2 > 8) break;
         let surface: THREE.Vector3 | null = null;
-        let overlay = false;
         // Register the fixed latitude/longitude on the actual rendered surface,
         // independently of the camera. A second ray checks current occlusion.
         const base = surfacePositionToBodyFixed({ latDeg: anchor.lat, lonDeg: anchor.lon }, this.coordinates);
@@ -523,18 +489,18 @@ export class AdaptiveGraticule {
         const start = new THREE.Vector3(base.xKm, base.yKm, base.zKm).addScaledVector(normal, reach).applyMatrix4(this.toWorld);
         this.raycaster.set(start, normal.clone().negate().transformDirection(this.toWorld));
         this.raycaster.far = reach * 2 * this.bm.scaleFactor;
-        const radial = preferredHit(this.raycaster.intersectObjects(ownTargets, true)); queries++;
+        const radial = cast(); queries++;
         this.raycaster.far = Infinity;
-        overlay = radial.overlay;
-        if (radial.intersection) {
-          const target = radial.intersection.point;
+        if (radial?.bm === this.bm && !radial.renderedSkirt) {
+          const target = radial.worldPoint;
           this.raycaster.set(camera.position, target.clone().sub(camera.position).normalize());
-          const visible = preferredHit(this.raycaster.intersectObjects(targets, true)); queries++;
-          if (visible.intersection && visible.intersection.point.distanceTo(target) <= Math.max(...radii) * this.bm.scaleFactor * 1e-7) {
+          const visible = cast(); queries++;
+          if (visible?.bm === this.bm && !visible.renderedSkirt
+            && visible.worldPoint.distanceTo(target) <= Math.max(...radii) * this.bm.scaleFactor * 1e-7) {
             surface = target.clone().applyMatrix4(this.bodyFromWorld);
           }
         }
-        this.cachedHits.set(anchor.id, { overlay, point: surface, projectedAnchor: view.clone(), time: now });
+        this.cachedHits.set(anchor.id, { overlay: false, point: surface, projectedAnchor: view.clone(), time: now });
       }
     }
     const active = new Set<string>();
@@ -570,11 +536,11 @@ export class AdaptiveGraticule {
         const ray = new THREE.Ray(camera.position, direction);
         let obscured = false;
         for (const occluder of foreignOccluders) {
-          const bound = ray.intersectSphere(occluder.sphere, new THREE.Vector3());
-          if (!bound || camera.position.distanceTo(bound) >= distance - this.bm.scaleFactor * 0.001) continue;
+          const bound = ray.intersectSphere(occluder, new THREE.Vector3());
+          if (!occluder.containsPoint(camera.position) && (!bound || camera.position.distanceTo(bound) >= distance - this.bm.scaleFactor * 0.001)) continue;
           this.raycaster.set(camera.position, direction);
           this.raycaster.far = distance - this.bm.scaleFactor * 0.001;
-          obscured = this.raycaster.intersectObjects(occluder.targets, true).length > 0;
+          obscured = cast() !== null;
           this.raycaster.far = Infinity;
           if (obscured) break;
         }
@@ -587,7 +553,7 @@ export class AdaptiveGraticule {
       const labelWidth = text.length * 8.5 + 10;
       const offsetX = 0, offsetY = -LABEL_HEIGHT / 2 - 6;
       const x = (projected.x + 1) * width / 2 + offsetX, y = (1 - projected.y) * height / 2 + offsetY;
-      const padding = label?.sprite.visible ? 3 : 6;
+      const padding = 3;
       const rect = { x0: x - labelWidth / 2 - padding, x1: x + labelWidth / 2 + padding,
         y0: y - LABEL_HEIGHT / 2 - padding, y1: y + LABEL_HEIGHT / 2 + padding };
       if (strength < 0.012 || projected.z < -1 || projected.z > 1 || rect.x0 < 4 || rect.x1 > width - 4 || rect.y0 < 4 || rect.y1 > height - 4
@@ -605,9 +571,16 @@ export class AdaptiveGraticule {
       if (!label?.sprite.visible && (!eligible || now - this.eligibility.get(anchor.id)! < ENTRY_DWELL_MS)) continue;
       ready.push({ anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength });
     }
+    const unsafe = new Set([...this.persistence.states.keys()].filter(id => !ready.some(r => r.anchor.id === id)));
+    // No cached positive survives omitted current-frame certification. Persistence
+    // arbitrates collisions/fades only; it cannot extend geometry validity.
+    const states = this.persistence.update(ready.map(r => ({ id: r.anchor.id, box: r.rect,
+      priority: r.anchor.lat === 0 || r.anchor.lon === 0 ? 10 : 0,
+      eligibility: r.eligible ? 1 : 0 })), [], now, unsafe);
+    const accepted = new Map(states.slice(0, limit).map(state => [state.id, state]));
     // Resource limits only cap work/display; they are never coverage targets.
-    for (const { anchor, fixed, text, labelWidth, offsetX, offsetY, rect, eligible, strength } of ready) {
-      if (active.size >= limit) break;
+    for (const { anchor, fixed, text, labelWidth, offsetX, offsetY, rect, strength } of ready) {
+      if (!accepted.has(anchor.id)) continue;
       let label = this.labels.get(anchor.id);
       if (!manager.reserveContextRect(rect)) { hide(label); this.eligibility.delete(anchor.id); continue; }
       if (!label) {
@@ -623,8 +596,7 @@ export class AdaptiveGraticule {
       label.sprite.center.set(0.5 - offsetX / labelWidth, 0.5 + (offsetY + 3) / (LABEL_HEIGHT + 6));
       const unitsPerPixel = 2 * Math.tan(camera.fov * DEG / 2) / height / this.bm.scaleFactor;
       label.sprite.scale.set(labelWidth * unitsPerPixel, (LABEL_HEIGHT + 6) * unitsPerPixel, 1);
-      label.sprite.material.opacity = Math.min(0.72 * strength, Math.max(0,
-        label.sprite.material.opacity + (eligible ? dt * 5 : -dt * 4)));
+      label.sprite.material.opacity = 0.72 * strength * accepted.get(anchor.id)!.opacity;
       label.sprite.visible = label.sprite.material.opacity > 0;
       if (label.sprite.visible) active.add(anchor.id);
     }
@@ -636,12 +608,12 @@ export class AdaptiveGraticule {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr * 2, dpr * 2);
     ctx.font = `${LABEL_FONT_SIZE}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 2; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
+    ctx.lineWidth = 1; ctx.strokeStyle = '#101725'; ctx.strokeText(text, width / 2, LABEL_HEIGHT / 2);
     ctx.fillStyle = '#b8c8da';
     ctx.fillText(text, width / 2, LABEL_HEIGHT / 2);
     ctx.strokeStyle = '#91a4b9'; ctx.lineWidth = 0.9; ctx.beginPath();
     ctx.moveTo(width / 2, LABEL_HEIGHT - 3); ctx.lineTo(width / 2, LABEL_HEIGHT + 5.5); ctx.stroke();
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true,
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), toneMapped: false, transparent: true,
       // Like body labels, annotation rectangles use CPU anchor occlusion instead of
       // cutting the billboard's glyphs against the curved surface's depth buffer.
       depthTest: false, depthWrite: false, sizeAttenuation: false, opacity: 0 }));
@@ -660,6 +632,6 @@ export class AdaptiveGraticule {
         text: l.text, opacity: l.sprite.material.opacity })) };
   }
   private disposeLabel(label: Label): void { label.sprite.removeFromParent(); label.sprite.material.map?.dispose(); label.sprite.material.dispose(); }
-  private clearLabels(): void { this.eligibility.clear(); for (const l of this.labels.values()) this.disposeLabel(l); this.labels.clear(); }
+  private clearLabels(): void { this.persistence.clear(); this.eligibility.clear(); for (const l of this.labels.values()) this.disposeLabel(l); this.labels.clear(); }
   dispose(): void { this.frame?.dispose(); this.clearLabels(); this.group.removeFromParent(); }
 }

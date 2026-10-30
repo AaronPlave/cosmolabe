@@ -6,11 +6,10 @@
  * furnishes all referenced kernels (with `.tm` meta-kernels expanded), and
  * initializes the scene. There is no per-mission code path.
  */
-import * as THREE from 'three';
+import { configureMeasurementInput, resetMeasurementsForScene } from './spatial-measurements.svelte';
 import {
   Universe,
   loadCatalogFromUrl,
-  bodyFixedOffsetToWorld,
   etFromCalendarString,
   type ResolvedCatalogGraph,
 } from '@cosmolabe/core';
@@ -39,8 +38,9 @@ import {
 } from './kernel-set';
 import {
   bindRenderer,
+  displayNote,
   unbindRenderer,
-  gotoObject,
+  selectAndFlyTo,
   syncBodies,
   setSceneLoaded,
   setKernelCount,
@@ -48,15 +48,31 @@ import {
   beginLoad,
   setPhaseProgress,
   endLoad,
-  selectBody,
   formatBytes,
 } from './viewer-state.svelte';
 import { createViewerControl } from './viewer-control';
-import { absolutizeCatalogAssets } from './catalog-assets';
+import { absolutizeCatalogAssets, catalogsUseDsk } from './catalog-assets';
+import { textKernelFrameNames } from './geometry-frames';
 import { stopHero, resizeHero } from './hero';
+import { prepareGeographicCatalogs, type PreparedGeographicCatalog } from './geographic-loading';
+import { categorizeFiles, resolveCatalogOrder, rememberLocalFilePath } from './local-files';
+
+let geographicImport: AbortController | null = null;
+function beginGeographicImport(): AbortController {
+  geographicImport?.abort();
+  geographicImport = new AbortController();
+  return geographicImport;
+}
 
 // ── State ──
 let spice: HeritageSpice | null = null;
+const missionFrameNames = new Set<string>();
+export function getMissionFrameNames(): string[] { return [...missionFrameNames]; }
+function rememberKernelFrames(buffer: ArrayBuffer): void {
+  // Binary SPK/CK kernels can be hundreds of MB; never decode them as text.
+  if (new TextDecoder().decode(buffer.slice(0, 4)) !== 'KPL/') return;
+  for (const name of textKernelFrameNames(buffer)) missionFrameNames.add(name);
+}
 let universe: Universe | null = null;
 let renderer: UniverseRenderer | null = null;
 let cacheWorker: SpiceCacheWorker | null = null;
@@ -197,12 +213,6 @@ async function currentWorkerKernels(scope?: GeometrySearchScope): Promise<Kernel
  *  deterministic-capture hook. Never true in normal use. */
 const TEST_MODE =
   typeof location !== 'undefined' && new URLSearchParams(location.search).has('test');
-
-const KERNEL_EXTENSIONS = new Set([
-  '.bsp', '.tls', '.tpc', '.tf', '.tsc', '.ti', '.ck', '.bc', '.bpc', '.spk', '.pck', '.fk', '.tm',
-]);
-const MODEL_EXTENSIONS = new Set(['.gltf', '.glb', '.obj', '.cmod']);
-const TEXTURE_EXTENSIONS = new Set(['.dds', '.jpg', '.jpeg', '.png', '.bmp', '.tga']);
 
 // ── Fetch with progress + gzip decompression ──
 
@@ -397,6 +407,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[]): Promis
  * collector honours.
  */
 function teardownScene(): void {
+  resetMeasurementsForScene();
   cacheWorker?.dispose();
   cacheWorker = null;
   geometryWorker?.dispose();
@@ -409,6 +420,7 @@ function teardownScene(): void {
   universe = null;
 
   spice = null;
+  missionFrameNames.clear();
   furnished = [];
 }
 
@@ -420,17 +432,17 @@ async function furnishPlanned(
 ): Promise<void> {
   const { source } = k;
   if ('file' in source) {
-    await s.furnish({ type: 'buffer', data: await source.file.arrayBuffer(), filename: source.file.name });
+    const buffer = await source.file.arrayBuffer();
+    await s.furnish({ type: 'buffer', data: buffer, filename: source.file.name });
+    rememberKernelFrames(buffer);
     return;
   }
-  if (k.size && k.size > 0) {
-    // Fetched here rather than inside `furnish` only to report byte progress,
-    // which is worth it for the files big enough to be declared.
-    const buffer = await fetchWithProgress(source.url, (loaded) => onProgress(loaded));
-    await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
-    return;
-  }
-  await s.furnish({ type: 'url', url: source.url });
+  // Fetched here rather than inside `furnish` to undo `.gz` transport
+  // compression, and to report byte progress for the files big enough to be
+  // declared.
+  const buffer = await fetchWithProgress(source.url, k.size ? onProgress : undefined);
+  await s.furnish({ type: 'buffer', data: buffer, filename: kernelNameFromUrl(source.url) });
+  rememberKernelFrames(buffer);
 }
 
 /**
@@ -447,15 +459,13 @@ function dropUserKernel(source: KernelSourceRef): void {
 
 // ── File handling ──
 
-function isKernelFile(name: string): boolean {
-  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
-  return KERNEL_EXTENSIONS.has(ext);
-}
-
 async function collectFilesFromEntry(entry: FileSystemEntry): Promise<File[]> {
   if (entry.isFile) {
     return new Promise((resolve) => {
-      (entry as FileSystemFileEntry).file(f => resolve([f]), () => resolve([]));
+      (entry as FileSystemFileEntry).file(f => {
+        rememberLocalFilePath(f, entry.fullPath);
+        resolve([f]);
+      }, () => resolve([]));
     });
   }
   if (entry.isDirectory) {
@@ -490,77 +500,6 @@ async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<File[]> 
     }
   }
   return Array.from(dataTransfer.files);
-}
-
-interface LoadedFiles {
-  jsonFiles: Map<string, { json: Record<string, unknown>; text: string }>;
-  kernelFiles: File[];
-  dataFiles: Map<string, string>;
-  binaryFiles: Map<string, ArrayBuffer>;
-  modelFiles: Map<string, string>;
-}
-
-async function categorizeFiles(files: File[]): Promise<LoadedFiles> {
-  const jsonFiles = new Map<string, { json: Record<string, unknown>; text: string }>();
-  const kernelFiles: File[] = [];
-  const dataFiles = new Map<string, string>();
-  const binaryFiles = new Map<string, ArrayBuffer>();
-  const modelFiles = new Map<string, string>();
-
-  for (const file of files) {
-    const name = file.name.toLowerCase();
-    const ext = name.slice(name.lastIndexOf('.'));
-    if (name.endsWith('.json')) {
-      try {
-        const text = await file.text();
-        const json = JSON.parse(text);
-        jsonFiles.set(file.name, { json, text });
-      } catch { /* skip invalid JSON */ }
-    } else if (isKernelFile(file.name)) {
-      kernelFiles.push(file);
-    } else if (name.endsWith('.xyzv') || name.endsWith('.xyz')) {
-      const text = await file.text();
-      dataFiles.set(file.name, text);
-      const webkitPath = (file as any).webkitRelativePath;
-      if (webkitPath) dataFiles.set(webkitPath, text);
-    } else if (name.endsWith('.cheb')) {
-      const buf = await file.arrayBuffer();
-      const webkitPath = (file as any).webkitRelativePath;
-      binaryFiles.set(file.name, buf);
-      if (webkitPath) binaryFiles.set(webkitPath, buf);
-    } else if (MODEL_EXTENSIONS.has(ext) || TEXTURE_EXTENSIONS.has(ext)) {
-      const blobUrl = URL.createObjectURL(file);
-      modelFiles.set(file.name, blobUrl);
-      const webkitPath = (file as any).webkitRelativePath;
-      if (webkitPath) modelFiles.set(webkitPath, blobUrl);
-    }
-  }
-  return { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles };
-}
-
-function resolveCatalogOrder(
-  jsonFiles: Map<string, { json: Record<string, unknown>; text: string }>,
-): Record<string, unknown>[] {
-  const ordered: Record<string, unknown>[] = [];
-  const loaded = new Set<string>();
-
-  function loadCatalog(name: string) {
-    if (loaded.has(name)) return;
-    loaded.add(name);
-    const entry = jsonFiles.get(name);
-    if (!entry) return;
-    const requires = entry.json.require as string[] | undefined;
-    if (requires) for (const dep of requires) loadCatalog(dep);
-    if (entry.json.items && (entry.json.items as unknown[]).length > 0) ordered.push(entry.json);
-  }
-
-  for (const [name, entry] of jsonFiles) {
-    if (entry.json.require) loadCatalog(name);
-  }
-  for (const [name] of jsonFiles) {
-    if (!loaded.has(name)) loadCatalog(name);
-  }
-  return ordered;
 }
 
 // ── Scene initialization ──
@@ -609,6 +548,7 @@ function initScene(
   dataFiles?: Map<string, string>,
   binaryFiles?: Map<string, ArrayBuffer>,
   modelFiles?: Map<string, string>,
+  geographicCatalogs?: readonly PreparedGeographicCatalog[],
 ) {
   // Nothing to clean up here: the scene that was up was torn down before its
   // SPICE instance was replaced (`teardownScene`), which is the only way in.
@@ -636,9 +576,10 @@ function initScene(
   // catalog files shareable (no token in source) — operator just sets the env
   // var in apps/viewer/.env.local once.
   const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
-  for (const json of catalogs) {
+  for (const [index, json] of catalogs.entries()) {
     injectCesiumIonToken(json, ionToken);
-    universe.loadCatalog(json as any);
+    const geographic = geographicCatalogs?.[index];
+    universe.loadCatalog(json as any, geographic ? { source: geographic.source, geographicLayers: geographic.loads } : undefined);
   }
 
   // Set initial time from catalog defaultTime. SPICE str2et needs the LSK kernel —
@@ -691,6 +632,16 @@ function initScene(
   // DPR is pinned to 1 for capture via the browser context (Playwright
   // deviceScaleFactor: 1) — the renderer already follows window.devicePixelRatio.
 
+  // Entry catalogs load after their requirements, so the last declaration
+  // owns the initial setting; reusable data catalogs need not opt users in.
+  let defaultNames: unknown;
+  for (const json of catalogs) {
+    if (Array.isArray(json.defaultGeographicNames)) defaultNames = json.defaultGeographicNames;
+  }
+  if (Array.isArray(defaultNames)) {
+    for (const body of defaultNames) if (typeof body === 'string' && renderer.getBodyMesh(body)) renderer.placeNames.setBodyVisible(body, true);
+  }
+
   renderer.camera.position.set(0, 300, 500);
   renderer.camera.lookAt(0, 0, 0);
 
@@ -699,94 +650,25 @@ function initScene(
   renderer.use(new VideoRecordPlugin());
   renderer.use(new OrbitalInfoPlugin());
 
-  // Double-click a body → fly to it + select it for the info panel.
-  // Delegated to the same mutator the `gotoObject` verb drives, so the two
-  // cannot drift: the pointer and the script reach one implementation.
+  // Double-click a body → select it for the info panel and fly there: the
+  // same "go to this body" the body browser and the palette mean, through the
+  // navigation verbs every surface shares (docs/navigation.md).
   const r = renderer;
   r.events.on('body:dblclick', ({ bodyName }) => {
-    gotoObject(bodyName, { animate: true });
-    selectBody(bodyName);
+    selectAndFlyTo(bodyName);
   });
 
   // Bind reactive state
+  configureMeasurementInput(renderer);
   bindRenderer(renderer, universe);
+  const caption = catalogs.at(-1)?.displayNote;
+  displayNote(typeof caption === 'string' ? caption : '');
   syncBodies(universe);
   setKernelCount(spice?.totalLoaded() ?? 0);
 
-  // Load catalog viewpoints
-  const scaleFactor = 1e-6;
-  for (const vpDef of universe.viewpoints) {
-    let pos: { x: number; y: number; z: number };
-    if (vpDef.eye) {
-      pos = { x: vpDef.eye[0] * scaleFactor, y: vpDef.eye[1] * scaleFactor, z: vpDef.eye[2] * scaleFactor };
-    } else if (vpDef.distance != null) {
-      const dist = vpDef.distance * scaleFactor;
-      // Viewpoint distance + lat/lon are a body-fixed offset from the tracked
-      // body (e.g. "Jezero Overhead" should point at Jezero on Mars, not at
-      // inertial coords Mars no longer faces), so it is mapped to world coords
-      // through the tracked body's (or its parent's) orientation at the epoch
-      // the viewpoint is for. The convention and the composition both live in
-      // core's `bodyFixedOffsetToWorld` so they are tested against SPICE.
-      //
-      // That epoch is the viewpoint's own `time` when it names one, and
-      // `defaultTime` otherwise: "Titan T-A Flyby (2004-10-26)" is a lat/lon on
-      // Titan four months after defaultTime, and orienting it with Titan's
-      // defaultTime attitude would aim the camera at the wrong hemisphere even
-      // though the clock it seeks to is right.
-      const layoutEt = vpDef.epoch ?? universe.time;
-      const refBody = vpDef.center ? universe.getBody(vpDef.center) : undefined;
-      // For a body that itself spins (planet, moon), use the body's own rotation.
-      // For a child of a spinning body (e.g. Ingenuity → Mars), use the parent's rotation.
-      const spinBody = refBody?.rotation
-        ? refBody
-        : refBody?.parentName ? universe.getBody(refBody.parentName) : undefined;
-      const q = spinBody?.rotationAt(layoutEt);
-      const sourceFrame = spinBody?.rotation?.sourceFrame;
-      if (q && sourceFrame) {
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          q,
-          sourceFrame,
-          undefined,
-          layoutEt,
-          universe.frames,
-        );
-        pos = { x, y, z };
-      } else {
-        // No rotation model to orient against: fall back to treating the
-        // offset as world-frame, which is what it degenerates to anyway.
-        const [x, y, z] = bodyFixedOffsetToWorld(
-          dist,
-          vpDef.latitude ?? 0,
-          vpDef.longitude ?? 0,
-          [1, 0, 0, 0],
-          'EclipticJ2000',
-        );
-        pos = { x, y, z };
-      }
-    } else {
-      pos = { x: 0, y: 300, z: 500 };
-    }
-
-    const tgt = vpDef.target
-      ? new THREE.Vector3(vpDef.target[0] * scaleFactor, vpDef.target[1] * scaleFactor, vpDef.target[2] * scaleFactor)
-      : new THREE.Vector3(0, 0, 0);
-    const up = vpDef.up ? new THREE.Vector3(vpDef.up[0], vpDef.up[1], vpDef.up[2]).normalize() : new THREE.Vector3(0, 1, 0);
-
-    renderer.cameraController.addViewpoint({
-      name: vpDef.name,
-      position: new THREE.Vector3(pos.x, pos.y, pos.z),
-      target: tgt,
-      up,
-      trackBody: vpDef.center,
-      // Resolved by CatalogLoader (SPICE str2et, else core's calendar parse),
-      // and undefined when the catalog named no time — which is what keeps a
-      // timeless viewpoint from moving the clock.
-      epoch: vpDef.epoch,
-    });
-  }
+  // Catalog viewpoints. Each is re-resolved whenever it is applied, at its
+  // own `time` or at the current time, through core's `resolveViewpoint`.
+  renderer.addCatalogViewpoints();
   renderer.cameraController.saveViewpoint('Default');
 
   // Apply default viewpoint. Also seeks the clock if that viewpoint declares a
@@ -819,6 +701,13 @@ function initScene(
 
   // Expose for console-based tuning during development.
   (window as unknown as { renderer: UniverseRenderer }).renderer = renderer;
+
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('geographic-comparison')) {
+    const sceneUniverse = universe;
+    void import('./geographic-overlay-comparison.js').then(({attachGeographicComparison}) => {
+      if (r === renderer && sceneUniverse) return attachGeographicComparison(r, sceneUniverse);
+    }).catch(error => console.error('Geographic comparison setup failed', error));
+  }
 
   // The script host, beside it. `cosmo` is a *binding* of the ViewerControl
   // contract, not the contract itself — an embedded app or a test holds an
@@ -914,6 +803,7 @@ export function demoCatalogUrl(name: string): string {
 
 /** Load a catalog by URL. The catalog drives kernel furnishing via `require` + `spiceKernels`. */
 export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string, name: string) {
+  const geographicController = beginGeographicImport();
   // One bar for the whole load. It opens here and closes on `assets:ready`
   // (viewer-state), so the kernel download and the models/textures/trajectories
   // that follow it are one continuous run rather than two 0→100 passes. The
@@ -923,6 +813,7 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
 
   try {
     const graph = await loadCatalogFromUrl(entryUrl);
+    geographicController.signal.throwIfAborted();
     beginLoad('Preparing scene...', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
@@ -932,14 +823,20 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // and a network failure should leave the scene on screen intact rather than
     // tear it down for a scene that then cannot be built.
     const catalogKernels = await plannedFromGraph(graph);
+    geographicController.signal.throwIfAborted();
     const dataFiles = await fetchCatalogDataFiles(graph);
+    geographicController.signal.throwIfAborted();
+    const geographicCatalogs = await prepareGeographicCatalogs(graph.catalogs, geographicController.signal);
+    geographicController.signal.throwIfAborted();
 
     // A catalog replaces the scene, so the scene that is up goes either way.
     // Only the SPICE half is conditional: a catalog with no kernels, no kernels
     // carried over from a drop, and no instance already standing needs no SPICE
     // at all — CatalogLoader falls through to Keplerian/analytical trajectories.
-    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice) {
+    // A DSK surface is the exception: it is read by SPICE even with no kernels.
+    if (catalogKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(graph.catalogs.map((c) => c.json))) {
       await buildSceneSpice(catalogKernels);
+      geographicController.signal.throwIfAborted();
     } else {
       teardownScene();
     }
@@ -948,13 +845,13 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
     // page; the renderer only sees JSON, so pin them down while the URL is in
     // hand (catalog-assets.ts).
     for (const { url, json } of graph.catalogs) absolutizeCatalogAssets(json, url);
-    initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles);
+    initScene(canvas, graph.catalogs.map(c => c.json as Record<string, unknown>), dataFiles, undefined, undefined, geographicCatalogs);
   } catch (err) {
     // A load that dies mid-way (missing catalog, a kernel the scene can't do
     // without) must not leave the bar sitting at whatever fraction it reached.
     // Close it and let the error surface. The home screen comes back, which
     // is the honest end state for a scene that never built.
-    endLoad();
+    if (geographicImport === geographicController) endLoad();
     throw err;
   }
 }
@@ -1065,7 +962,9 @@ async function furnishUserKernels(files: File[]): Promise<void> {
       continue;
     }
     try {
-      await s.furnish({ type: 'buffer', data: await file.arrayBuffer(), filename: file.name });
+      const buffer = await file.arrayBuffer();
+      await s.furnish({ type: 'buffer', data: buffer, filename: file.name });
+      rememberKernelFrames(buffer);
     } catch (err) {
       console.warn(`[Cosmolabe] Failed to furnish ${file.name}:`, err);
       continue;
@@ -1151,55 +1050,63 @@ export async function handleDrop(canvas: HTMLCanvasElement, dataTransfer: DataTr
  * page.
  */
 export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
+  const geographicController = beginGeographicImport();
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
   beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
-  const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files);
-
-  if (jsonFiles.size === 0 && kernelFiles.length === 0) {
-    endLoad();
-    return;
-  }
-
-  // Resolved before anything is furnished, because it is what says whether this
-  // drop is a scene load, and the two cases furnish into different instances.
-  const catalogs = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
-  // Dependencies come first, so the last catalog is the one the drop is of.
-  const top = catalogs.at(-1);
-  if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
-
-  if (catalogs.length > 0) {
-    // A drop carrying a catalog is a scene load like any other: the scene that
-    // is up is torn down, and this drop's kernels go into the fresh instance
-    // the new scene gets. They are that scene's, not the user's, so they are
-    // not remembered past it.
-    const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
-    if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice) {
-      await buildSceneSpice(droppedKernels);
-    } else {
-      teardownScene();
-    }
-  } else if (kernelFiles.length > 0) {
-    // A drop with no catalog is the user adding kernels: onto an empty viewer,
-    // or onto a scene already up (a CK for an attitude the catalog omitted, a
-    // newer SPK). Those are remembered and re-furnished into every instance
-    // built afterwards, because a file someone dragged in by hand disappearing
-    // on a catalog switch they made for other reasons is not what they asked
-    // for. Clearing them means reloading the page.
-    await furnishUserKernels(kernelFiles);
-  }
-
-  // Only `initScene` opens the asset phase that closes the bar, so a drop that
-  // furnishes kernels and nothing else has to close it here.
-  if (catalogs.length === 0) {
-    endLoad();
-    return;
-  }
-
   try {
-    initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles);
+    const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files, geographicController.signal);
+    geographicController.signal.throwIfAborted();
+
+    if (jsonFiles.size === 0 && kernelFiles.length === 0) {
+      endLoad();
+      if (dataFiles.size > 0) throw new Error('Open GeoJSON together with a catalog declaring geographicLayers, body and coordinate conventions (see docs/geographic-layers.md)');
+      return;
+    }
+
+    // Resolved before anything is furnished, because it is what says whether this
+    // drop is a scene load, and the two cases furnish into different instances.
+    const graph = jsonFiles.size > 0 ? resolveCatalogOrder(jsonFiles) : [];
+    const catalogs = graph.map(entry => entry.json as Record<string, unknown>);
+    // Dependencies come first, so the last catalog is the one the drop is of.
+    const top = catalogs.at(-1);
+    if (top) setLoadingState({ catalog: typeof top.name === 'string' && top.name ? top.name : 'Local catalog' });
+    const geographicCatalogs = await prepareGeographicCatalogs(graph, geographicController.signal, dataFiles);
+    geographicController.signal.throwIfAborted();
+
+    if (catalogs.length > 0) {
+      // A drop carrying a catalog is a scene load like any other: the scene that
+      // is up is torn down, and this drop's kernels go into the fresh instance
+      // the new scene gets. They are that scene's, not the user's, so they are
+      // not remembered past it.
+      const droppedKernels = kernelFiles.map((file) => ({ source: { file } }));
+      if (droppedKernels.length > 0 || userKernelSources.length > 0 || spice || catalogsUseDsk(catalogs)) {
+        await buildSceneSpice(droppedKernels);
+        geographicController.signal.throwIfAborted();
+      } else {
+        teardownScene();
+      }
+    } else if (kernelFiles.length > 0) {
+      // A drop with no catalog is the user adding kernels: onto an empty viewer,
+      // or onto a scene already up (a CK for an attitude the catalog omitted, a
+      // newer SPK). Those are remembered and re-furnished into every instance
+      // built afterwards, because a file someone dragged in by hand disappearing
+      // on a catalog switch they made for other reasons is not what they asked
+      // for. Clearing them means reloading the page.
+      await furnishUserKernels(kernelFiles);
+      geographicController.signal.throwIfAborted();
+    }
+
+    // Only `initScene` opens the asset phase that closes the bar, so a drop that
+    // furnishes kernels and nothing else has to close it here.
+    if (catalogs.length === 0) {
+      endLoad();
+      return;
+    }
+
+    initScene(canvas, catalogs, dataFiles, binaryFiles, modelFiles, geographicCatalogs);
   } catch (err) {
-    endLoad();
+    if (geographicImport === geographicController) endLoad();
     throw err;
   }
 }

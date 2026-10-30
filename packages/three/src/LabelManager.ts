@@ -247,7 +247,8 @@ export class LabelManager {
   }
 
   /** Contextual annotations yield to the same reservations and body-label boxes. */
-  beginContextAnnotations(): void { this._contextRects = [...this._reserved, ...this.getScreenRects()]; }
+  beginContextAnnotations(obstacles: readonly LabelScreenRect[] = []): void { this._contextRects = [...this._reserved, ...this.getScreenRects(), ...obstacles]; }
+  getContextAnnotationRects(): readonly LabelScreenRect[] { return this._contextRects; }
   canReserveContextRect(rect: LabelScreenRect): boolean {
     return !this._contextRects.some(p => rect.x0 < p.x1 && rect.x1 > p.x0 && rect.y0 < p.y1 && rect.y1 > p.y0);
   }
@@ -431,7 +432,7 @@ export class LabelManager {
       // each frame and take the max radial distance from the body center.
       let silhouettePx = 0;
       const isGlobe = bm.body.geometryType === 'Globe';
-      const isMesh = bm.body.geometryType === 'Mesh';
+      const isMesh = bm.body.geometryType === 'Mesh' || bm.body.geometryType === 'Dsk' || bm.body.geometryType === 'TimeSwitched';
       if (isGlobe) {
         silhouettePx = (bm.displayRadius * bm.scaleFactor) / Math.max(worldPerPx, 1e-9);
       } else if (isMesh && bm.modelLocalBox && bm.modelContainer && bm.isModelVisible) {
@@ -478,6 +479,10 @@ export class LabelManager {
 
       this.applyOcclusionFade(sprite, bm.position, distToBody, bodyMeshes, camPos, bm);
       entry.occlusionOpacity = mat.opacity;
+      // A body that is not in the scene right now (outside its existence
+      // window, or with no position) has no label either. This is an opacity,
+      // not `sprite.visible`, which belongs to the user's show/hide choice.
+      if (!bm.present) entry.occlusionOpacity = 0;
 
       // NASA-Eyes-style fade: once the body's silhouette is large enough to
       // be visually identifiable, drop the label. Only applies to bodies
@@ -668,8 +673,8 @@ export class LabelManager {
 
   /**
    * Compute and apply occlusion-based opacity fade for a label sprite.
-   * Uses ray-sphere intersection to determine if the labeled position is behind
-   * any body, with smoothstep fade at the limb and temporal smoothing.
+   * Uses actual plates for DSKs and ray-sphere intersections for other bodies,
+   * with smoothstep sphere-limb fade and temporal smoothing.
    * Public so UniverseRenderer can also apply it to sensor frustum labels.
    */
   applyOcclusionFade(
@@ -721,7 +726,13 @@ export class LabelManager {
     let fade = surfaceHemiFade;
     for (const other of bodyMeshes) {
       if (other === excludeBody) continue;
+      if (!other.present) continue;
       if (excludeParentName && other.body.name === excludeParentName) continue;
+      const dskHidden = other.dskOccludes(camPos, worldPos);
+      if (dskHidden !== null) {
+        if (dskHidden) fade = 0;
+        continue;
+      }
       // Only large bodies (planets, moons, large asteroids) can meaningfully occlude.
       // Skip spacecraft/instrument body meshes — they are colocated with their parent
       // and would false-positive via ray-through-center at zero closest approach.

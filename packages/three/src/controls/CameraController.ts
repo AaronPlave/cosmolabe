@@ -4,6 +4,7 @@ import { KeyboardControls } from './KeyboardControls.js';
 import { attachPointerInput } from './PointerInput.js';
 import type { KeyboardControlsConfig } from './KeyboardControls.js';
 import type { BodyMesh } from '../BodyMesh.js';
+import type { ViewpointDefinition } from '@cosmolabe/core';
 import {
   CameraModeName,
   type ICameraMode,
@@ -20,15 +21,28 @@ import { ChaseMode } from './modes/ChaseMode.js';
 import { SurfaceMode } from './modes/SurfaceMode.js';
 import { InstrumentMode } from './modes/InstrumentMode.js';
 import { SurfaceExplorerMode } from './modes/SurfaceExplorerMode.js';
+import { surfaceEntryPose } from './surfaceEntry.js';
 
-/** A saved camera viewpoint (position + target in scene coordinates) */
-export interface CameraViewpoint {
-  name: string;
+/** A camera pose in scene coordinates. */
+export interface ViewpointPose {
   position: THREE.Vector3;
   target: THREE.Vector3;
   up: THREE.Vector3;
+}
+
+/** A saved camera viewpoint (position + target in scene coordinates) */
+export interface CameraViewpoint extends ViewpointPose {
+  name: string;
   /** If set, camera tracks this body name */
   trackBody?: string;
+  /** The body the pose's coordinates are relative to (null: the universe
+   *  origin). Defaults to `trackBody`. A view saved after un-tracking keeps
+   *  the origin it was taken in. */
+  originBody?: string | null;
+  /** If set, the camera keeps facing this body while tracking `trackBody`. */
+  lookAtBody?: string;
+  /** Vertical field of view in degrees, when the viewpoint sets one. */
+  fov?: number;
   /**
    * If set, the moment this viewpoint depicts, in ephemeris seconds past J2000
    * (a catalog Viewpoint's `time`, already resolved). Applying the viewpoint
@@ -36,18 +50,197 @@ export interface CameraViewpoint {
    * clock where it is.
    */
   epoch?: number;
+  /** The semantic definition this viewpoint was built from (catalog
+   *  viewpoints), for consumers that serialize or inspect it. */
+  definition?: ViewpointDefinition;
+  /** Re-derive the pose at an epoch. Catalog viewpoints carry one; the stored
+   *  pose is then only the pose at the epoch the viewpoint was registered. */
+  resolve?: (et: number) => ViewpointPose;
 }
 
 /** The scripted camera moves `orbitTarget`, `dolly` and `crane` start. */
 type CameraMoveKind = 'orbit-up' | 'orbit-right' | 'dolly' | 'crane';
 
+/**
+ * How `flyTo` travels to its destination.
+ *
+ * - `'direct'` closes on the destination along a straight line.
+ * - `'overview'` first pulls back far enough to show where the camera is
+ *   looking and the destination side by side, then approaches. Across an
+ *   astronomical change of scale a direct move shows nothing but a blur; the
+ *   pull-back is what says where the destination is. When the camera is
+ *   already that far back there is nothing to establish, and an overview
+ *   flight is a direct one.
+ */
+export type FlightPath = 'direct' | 'overview';
+
 export interface FlyToOptions {
-  /** Animation duration in seconds (default: 1.0) */
+  /**
+   * Animation duration in seconds: 1 for a direct flight, 2.5 in all for an
+   * overview flight's pull-back and approach together.
+   */
   duration?: number;
-  /** Distance multiplier relative to body display radius (default: 3) */
+  /**
+   * Land this many display radii from the body's centre, rather than at the
+   * distance that fits it in view (`framingDistance`).
+   */
   distanceMultiplier?: number;
   /** Scale factor for converting body radius to scene units */
   scaleFactor?: number;
+  /** Which way to travel (default: `'direct'`). */
+  path?: FlightPath;
+  /**
+   * Where to land relative to the body's centre, in scene units in the body's
+   * mesh frame, so the pose turns with the body during the flight. Overrides
+   * `distanceMultiplier`; the camera then looks at the body's centre.
+   */
+  offset?: THREE.Vector3;
+  /** Camera up on landing, in the body's mesh frame. Defaults to the current up. */
+  up?: THREE.Vector3;
+}
+
+/**
+ * A camera pose relative to a body, in the body's mesh frame and scene units:
+ * it turns with the body. What surface navigation (#190) lands on.
+ */
+export interface SurfacePose {
+  position: THREE.Vector3;
+  /** The point on the surface the camera looks at; it becomes the orbit pivot. */
+  target: THREE.Vector3;
+  up: THREE.Vector3;
+}
+
+/**
+ * How `flyToSurface` travels.
+ *
+ * - `'arc'` swings around the body along the great circle between the two
+ *   directions, rising enough not to cut through it: the path for a target
+ *   picked by its coordinates, which may be on the far side.
+ * - `'line'` closes straight in. Only for a destination along a clear line of
+ *   sight, such as toward a point picked on screen.
+ */
+export type SurfaceFlightPath = 'arc' | 'line';
+
+export interface SurfaceFlightOptions {
+  /** Seconds; by default from how far round the body and how far down the flight goes. */
+  duration?: number;
+  path?: SurfaceFlightPath;
+}
+
+/** A camera flight in progress, as `CameraController.flight` reports it. */
+export interface CameraFlight {
+  /** The body the flight lands on; null for a flight to a saved viewpoint. */
+  readonly destination: BodyMesh | null;
+  readonly path: FlightPath;
+  /** `'overview'` while an overview flight pulls back, `'approach'` after. */
+  readonly phase: 'overview' | 'approach';
+}
+
+/** Fraction of an overview flight's duration spent pulling back. */
+const OVERVIEW_PULLBACK_SHARE = 0.4;
+const DEFAULT_DIRECT_SECONDS = 1.0;
+const DEFAULT_OVERVIEW_SECONDS = 2.5;
+/**
+ * Pointer travel, in CSS pixels, that counts as navigating rather than a click.
+ * A click that lands while a flight plays (selecting a body, say) must not stop
+ * it; a drag must.
+ */
+const MANUAL_DRAG_THRESHOLD_PX = 3;
+
+/** A surface flight's path, in the destination body's mesh frame (scene units). */
+interface SurfaceFlight {
+  body: BodyMesh;
+  path: SurfaceFlightPath;
+  startPos: THREE.Vector3;
+  startTarget: THREE.Vector3;
+  startUp: THREE.Vector3;
+  endPos: THREE.Vector3;
+  endTarget: THREE.Vector3;
+  endUp: THREE.Vector3;
+  /** Extra height at the middle of an arc, so it clears the body. */
+  rise: number;
+}
+
+/**
+ * What `flyToSurface` did with a request, for callers and diagnostics:
+ * - `flight`: started one, with its `rise` at the middle and its `chord`
+ *   (straight-line distance between the eyes), scene units, and `duration` (s);
+ * - `arrived`: the camera was already at the pose, so nothing moved (the
+ *   pivot is installed, as a landing would);
+ * - `continuing`: a flight to the same pose was already under way and goes on.
+ */
+export type SurfaceFlightPlan =
+  | { kind: 'flight'; rise: number; chord: number; duration: number }
+  | { kind: 'arrived' }
+  | { kind: 'continuing' };
+
+/**
+ * How near, as a fraction of the camera-to-target range, a surface pose
+ * counts as the one the camera already holds or is already flying to.
+ */
+const SURFACE_POSE_SAME_FRACTION = 0.01;
+
+/** How close to a globe without terrain the camera may come about a surface pivot, km. */
+export const SURFACE_PIVOT_CLEARANCE_KM = 0.002;
+
+const _sfQ = /* @__PURE__ */ new THREE.Quaternion();
+const _sfSwing = /* @__PURE__ */ new THREE.Quaternion();
+const _sfIdentity = /* @__PURE__ */ new THREE.Quaternion();
+const _sfA = /* @__PURE__ */ new THREE.Vector3();
+const _sfB = /* @__PURE__ */ new THREE.Vector3();
+
+/**
+ * The pose `s` (0..1, eased) of the way along a surface flight, in the scene
+ * frame as the body stands now: the path is in the body's frame, so the
+ * landing stays on the same ground while the body turns.
+ *
+ * An arc swings the direction from the body's centre along the great circle,
+ * scales the distance geometrically (so a descent from interplanetary range
+ * spends its time where the scale changes, not in a blur) and adds `rise`
+ * at the middle. The distance never drops below the smaller endpoint's, so
+ * the camera cannot pass inside the body.
+ */
+/** Whether a camera pose (mesh frame) is `pose`, to within `SURFACE_POSE_SAME_FRACTION` of its range. */
+function sameSurfacePose(position: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3, pose: SurfacePose): boolean {
+  const range = pose.position.distanceTo(pose.target);
+  const tol = SURFACE_POSE_SAME_FRACTION * range;
+  return range > 0 && position.distanceTo(pose.position) <= tol && target.distanceTo(pose.target) <= tol
+    && up.clone().normalize().dot(pose.up.clone().normalize()) > Math.cos(1 * Math.PI / 180);
+}
+
+function surfaceFlightPose(f: SurfaceFlight, s: number, pos: THREE.Vector3, target: THREE.Vector3, up: THREE.Vector3): void {
+  const q = f.body.mesh.quaternion;
+  const center = f.body.position;
+  if (f.path === 'line') {
+    pos.lerpVectors(f.startPos, f.endPos, s);
+  } else {
+    const r0 = f.startPos.length(), r1 = f.endPos.length();
+    const u0 = _sfA.copy(f.startPos).divideScalar(r0 || 1);
+    const u1 = _sfB.copy(f.endPos).divideScalar(r1 || 1);
+    _sfSwing.setFromUnitVectors(u0, u1);
+    _sfQ.slerpQuaternions(_sfIdentity, _sfSwing, s);
+    const r = (r0 > 0 && r1 > 0 ? r0 ** (1 - s) * r1 ** s : r0 + (r1 - r0) * s) + f.rise * Math.sin(Math.PI * s);
+    pos.copy(u0).applyQuaternion(_sfQ).multiplyScalar(r);
+  }
+  pos.applyQuaternion(q).add(center);
+  target.lerpVectors(f.startTarget, f.endTarget, s).applyQuaternion(q).add(center);
+  up.lerpVectors(f.startUp, f.endUp, s);
+  if (up.lengthSq() < 1e-12) up.copy(f.endUp);
+  up.normalize().applyQuaternion(q);
+}
+
+/**
+ * The rendered globe's radius in the direction of `offset` (scene frame,
+ * from the body's centre), scene units: its ellipsoid as drawn, enlargement
+ * included.
+ */
+function renderedRadiusToward(body: BodyMesh, offset: THREE.Vector3): number {
+  const mesh = body.mesh as THREE.Mesh | undefined;
+  if (!mesh) return body.displayRadius * body.scaleFactor;
+  const u = _sfA.copy(offset).applyQuaternion(_sfQ.copy(mesh.quaternion).invert()).normalize();
+  const r = body.displayRadius;
+  const k = (u.x / (r * mesh.scale.x)) ** 2 + (u.y / (r * mesh.scale.y)) ** 2 + (u.z / (r * mesh.scale.z)) ** 2;
+  return k > 0 ? 1 / Math.sqrt(k) : body.displayRadius * body.scaleFactor;
 }
 
 export class CameraController {
@@ -82,7 +275,18 @@ export class CameraController {
    *  the next frame's applyPendingOriginSwitch — without _pendingOriginSwitch
    *  here, the clamp would briefly engage and snap the camera out. */
   get focusBody(): BodyMesh | null {
-    return this._anim?.followBody ?? this._pendingOriginSwitch ?? this._trackTarget;
+    return this._anim?.destination ?? this._anim?.followBody ?? this._pendingOriginSwitch ?? this._trackTarget;
+  }
+
+  /**
+   * The flight playing, or null when the camera is not being flown: a fly-to,
+   * or an animated move to a saved viewpoint. A scripted swing, dolly or crane
+   * is not a flight.
+   */
+  get flight(): CameraFlight | null {
+    const anim = this._anim;
+    if (!anim) return null;
+    return { destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
   }
 
   /**
@@ -92,6 +296,13 @@ export class CameraController {
    */
   private _originBody: BodyMesh | null = null;
   get originBody(): BodyMesh | null { return this._originBody; }
+
+  /** Restore an explicit coordinate origin, without changing navigation. */
+  setOriginBody(body: BodyMesh | null): void {
+    this.cancelAnimation();
+    this._pendingOriginSwitch = null;
+    this._originBody = body;
+  }
 
   private _lookAtTarget: BodyMesh | null = null;
   get lookAtBody(): BodyMesh | null { return this._lookAtTarget; }
@@ -118,8 +329,42 @@ export class CameraController {
     followBody?: BodyMesh;
     followDist?: number;
     followDir?: THREE.Vector3;
+    /** The body this flight lands on, through every phase of it. */
+    destination?: BodyMesh;
+    path?: FlightPath;
+    phase?: 'overview' | 'approach';
+    /** Landing pose in the followed body's mesh frame (`FlyToOptions.offset`/`up`). */
+    followOffset?: THREE.Vector3;
+    followUp?: THREE.Vector3;
+    /** A surface flight (`flyToSurface`): the whole path, in the body's mesh frame. */
+    surface?: SurfaceFlight;
   } | null = null;
   private _lastAnimMs = 0;
+
+  /**
+   * A point on a body's surface the orbit turns about (#190), in the body's
+   * mesh frame so it stays on the same ground as the body rotates. Live only
+   * while that body is tracked; in free orbit the camera co-rotates with it.
+   */
+  private _surfacePivot: { body: BodyMesh; local: THREE.Vector3; lastQuat: THREE.Quaternion } | null = null;
+  /** A pivot to install with the origin switch a surface flight lands with. */
+  private _pendingSurfacePivot: THREE.Vector3 | null = null;
+  /**
+   * Released surface navigation keeps the close-surface clearance floor.
+   * Its orbit offset is zero: the body centre owns the orbit after release.
+   */
+  private _orbitOffset: { body: BodyMesh; offset: THREE.Vector3 } | null = null;
+  /** An offset to install with the origin switch a released flight lands with. */
+  private _pendingOrbitOffset: THREE.Vector3 | null = null;
+
+  /**
+   * Navigation input from the person since the last `update()`: a drag past
+   * the click threshold, a wheel zoom, a pinch. Keyboard navigation is read off
+   * `keyboard` directly.
+   */
+  private _manualInput = false;
+  /** Pointer travel since the current press began, toward the drag threshold. */
+  private _pressTravelPx = 0;
 
   /** Frame timing for keyboard dt */
   private _lastFrameMs: number;
@@ -136,6 +381,8 @@ export class CameraController {
   /** Camera mode system */
   private readonly _modes: Map<CameraModeName, ICameraMode>;
   private _activeMode: ICameraMode;
+  /** The body the active mode was set on (`CameraModeParams.bodyName`). */
+  private _modeBodyName: string | undefined;
   private _modeCtx: CameraModeContext | null = null;
 
   /** Current camera mode name */
@@ -192,11 +439,13 @@ export class CameraController {
     this._detachPointerInput = attachPointerInput(domElement, {
       preventContextMenu: true,
       onButtonDown: (e) => {
+        this._pressTravelPx = 0;
         if (e.button !== 2) return;
         e.stopPropagation();
         this._rightDragging = true;
       },
       onButtonDrag: (dx, dy) => {
+        this._notePressTravel(dx, dy);
         if (!this._rightDragging) return;
         this._rightDragDx += dx;
         this._rightDragDy += dy;
@@ -210,15 +459,23 @@ export class CameraController {
       // `noPan` is what keeps a right-mouse drag from panning *and* free
       // looking at once. Panning here keeps those two independent.
       onPinch: (_scale, dx, dy) => {
+        this._manualInput = true;
         this._touchPanDx += dx;
         this._touchPanDy += dy;
       },
+      onDrag: (dx, dy) => this._notePressTravel(dx, dy),
+      onCountChange: () => { this._pressTravelPx = 0; },
     });
 
     // Shift + wheel adjusts FOV instead of zooming. Capture phase to intercept
     // before TrackballControls's wheel handler so it doesn't also dolly the camera.
     this._onWheel = (e: WheelEvent) => {
-      if (!e.shiftKey) return;
+      if (!e.shiftKey) {
+        // A plain wheel zooms — navigation. Shift+wheel changes the field of
+        // view, which no flight touches, so it does not interrupt one.
+        this._manualInput = true;
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       // Browsers (notably macOS) remap shift+vertical-wheel to horizontal scroll,
@@ -249,52 +506,489 @@ export class CameraController {
     this.controls.target.copy(bodyMesh.position);
   }
 
-  /** Focus and zoom to a body — positions camera at a good viewing distance.
-   *  With origin-shifting, the tracked body will be at (0,0,0) after the next frame. */
-  zoomTo(bodyMesh: BodyMesh, scaleFactor: number): void {
-    this.controls.target.set(0, 0, 0);
-    // Position camera at 3× the body's display radius
-    const viewDist = bodyMesh.displayRadius * scaleFactor * 3;
-    const dir = this.camera.position.clone();
-    if (dir.lengthSq() < 1e-20) dir.set(0, 0, 1);
-    dir.normalize();
-    this.camera.position.copy(dir).multiplyScalar(viewDist);
+  // ── Navigation: focus, frame, fly ──
+  //
+  // The camera-side half of the viewer's navigation vocabulary (docs/navigation.md).
+  // Each takes a body whose `position` is current in the camera's coordinates —
+  // relative to `originBody` at the present time — which is what a renderer's
+  // last frame gives, and what `UniverseRenderer.refreshBodyPose` restores
+  // between frames.
+
+  /**
+   * The distance from `bodyMesh`'s centre at which it comfortably fills the
+   * view: its bounding sphere, padded, inside the narrower of the two fields of
+   * view. At a 60° vertical field of view in a landscape viewport that is three
+   * radii, the distance every fly-to used before it was fitted to the view; a
+   * portrait viewport stands further back, so the body still fits across.
+   */
+  framingDistance(bodyMesh: BodyMesh, scaleFactor = 1e-6): number {
+    const radius = bodyMesh.displayRadius * scaleFactor;
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const halfH = Math.atan(Math.tan(halfV) * (this.camera.aspect || 1));
+    return (radius * CameraController.FRAME_PADDING) / Math.sin(Math.min(halfV, halfH));
   }
 
-  /** Animated fly-to: smoothly move camera to view a body.
-   *  Handles cross-body flight: animates toward the body's current scene position
-   *  (updating each frame as it moves), then switches origin on completion. */
+  /** Bounding-sphere padding `framingDistance` fits. */
+  static readonly FRAME_PADDING = 1.5;
+
+  /**
+   * Focus: make `bodyMesh` the camera's anchor — the body it orbits, and the
+   * origin the scene is drawn around — without relocating the camera. The
+   * camera stays where it is and turns to face the body.
+   *
+   * Ends any flight or scripted move, and any look-at. A body-fixed or
+   * SC-fixed frame moves onto the body, as switching frames would. A frame
+   * that places the camera itself (LVLH, chase, surface, instrument) is left
+   * as it is, pose and all, when it is set on this very body, or on none;
+   * otherwise the camera returns to free orbit where it is.
+   */
+  focus(bodyMesh: BodyMesh): void {
+    this._beginNavigation();
+    if (this._frameOwnsCamera) {
+      // A frame that places the camera itself, set on this very body (or on
+      // none, as instrument), keeps it and the pose it has made: only the
+      // anchor changes. Reactivating would reset its state, and aiming the
+      // camera at the body's centre would undo its view. Set on anything
+      // else — another body, or the planet this spacecraft orbits — it would
+      // move the camera, which focusing does not do.
+      const mode = this._activeMode.name;
+      if (mode === CameraModeName.INSTRUMENT || bodyMesh.body.name === this._modeBodyName) {
+        this._trackTarget = bodyMesh;
+        return;
+      }
+      this.setMode(CameraModeName.FREE_ORBIT);
+    }
+    const center = this._rebaseOnto(bodyMesh);
+    this._anchorOn(bodyMesh, center);
+  }
+
+  /**
+   * Frame: cut to a view that fits `bodyMesh`, and focus it. The camera keeps
+   * the side it sees the body from and moves along that line to
+   * `framingDistance` (or `distanceMultiplier` display radii) — the pose a
+   * direct `flyTo` lands on, without the flight. A frame that places the
+   * camera itself is left for free orbit; a body-fixed or SC-fixed one moves
+   * onto the body.
+   */
+  frame(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number } = {}): void {
+    this._beginNavigation();
+    // A frame that places the camera itself would take it straight back.
+    if (this._frameOwnsCamera) this.setMode(CameraModeName.FREE_ORBIT);
+    const dir = this._approachDirection(bodyMesh);
+    const dist = this._arrivalDistance(bodyMesh, opts);
+    const center = this._rebaseOnto(bodyMesh);
+    this.camera.position.copy(center).addScaledVector(dir, dist);
+    this._anchorOn(bodyMesh, center);
+  }
+
+  /** @deprecated Use `frame`, which this is. */
+  zoomTo(bodyMesh: BodyMesh, scaleFactor: number): void {
+    this.frame(bodyMesh, { scaleFactor });
+  }
+
+  /**
+   * Fly: animate the camera to the pose `frame` would cut to, then focus the
+   * body. The endpoints follow the body while it moves, and the origin switches
+   * to it once the camera lands.
+   *
+   * With `path: 'overview'` the flight first pulls back to show the point the
+   * camera is looking at and the destination together, then approaches the
+   * destination from there; see `FlightPath`.
+   *
+   * A frame that places the camera itself is left for free orbit as the
+   * flight starts; a body-fixed or SC-fixed one moves onto the body when it
+   * lands, or is stopped.
+   *
+   * The flight owns the camera until it lands. Navigation input from the
+   * person — a drag, a wheel zoom, a pinch, a movement key — stops it where it
+   * is, as `stopFlight` does, and the input then applies. Nothing else is
+   * waiting for the two to agree.
+   */
   flyTo(bodyMesh: BodyMesh, opts?: FlyToOptions): void {
-    const duration = opts?.duration ?? 1.0;
-    const distMult = opts?.distanceMultiplier ?? 3;
-    const sf = opts?.scaleFactor ?? 1e-6;
+    const path = opts?.path ?? 'direct';
+    const dist = this._arrivalDistance(bodyMesh, opts ?? {});
 
     // Disable tracking during animation so the orbit target can animate
-    // freely (tracking resets it to origin each frame)
+    // freely (tracking resets it to origin each frame). A landing still to be
+    // applied belongs to a flight this one replaces; applied later, it would
+    // move the camera's coordinates out from under this one.
     this._trackTarget = null;
+    this._pendingOriginSwitch = null;
+    this._clearSurfacePivot();
+    // A look-at would override the view the flight lands on.
+    this.clearLookAt();
+    // A frame that places the camera itself would take it back from where the
+    // flight lands; the flight starts in free orbit instead. It keeps its roll
+    // and turns to free orbit's up on the way.
+    const up = this.camera.up.clone();
+    if (this._frameOwnsCamera) {
+      const startUp = up.clone();
+      this.setMode(CameraModeName.FREE_ORBIT);
+      up.copy(this.camera.up);
+      this.camera.up.copy(startUp);
+    }
 
-    const viewDist = bodyMesh.displayRadius * sf * distMult;
-    const bodyPos = bodyMesh.position;
+    if (path === 'overview') {
+      const overview = this._overviewPose(bodyMesh);
+      if (overview) {
+        const total = opts?.duration ?? DEFAULT_OVERVIEW_SECONDS;
+        const pullback = this._startAnimation(
+          overview.position, overview.target, up, total * OVERVIEW_PULLBACK_SHARE,
+          () => this._startApproach(bodyMesh, dist, up, total * (1 - OVERVIEW_PULLBACK_SHARE), 'overview', opts),
+        );
+        pullback.destination = bodyMesh;
+        pullback.path = 'overview';
+        pullback.phase = 'overview';
+        return;
+      }
+    }
+    this._startApproach(bodyMesh, dist, up, opts?.duration ?? DEFAULT_DIRECT_SECONDS, path, opts);
+  }
 
-    // Approach from current camera direction relative to body
-    const dir = this.camera.position.clone().sub(bodyPos);
-    if (dir.lengthSq() < 1e-20) dir.set(0, 0.3, 1);
-    dir.normalize();
+  /**
+   * Stop the flight playing where it is. The camera keeps its position, and a
+   * flight toward a body leaves that body focused, as though it had been
+   * focused from here — so the camera turns to face it: the flight's intent
+   * was that body, so the camera anchors on it rather than on nothing. Also drops any scripted move queued
+   * behind the flight. False when nothing was flying.
+   */
+  stopFlight(): boolean {
+    const anim = this._anim;
+    if (!anim) return false;
+    this.cancelAnimation();
+    if (anim.destination) this._pendingOriginSwitch = anim.destination;
+    if (anim.surface) this._pendingSurfacePivot = anim.surface.endTarget.clone();
+    return true;
+  }
 
-    const endTarget = bodyPos.clone();
-    const endPos = bodyPos.clone().addScaledVector(dir, viewDist);
+  // ── Surface navigation (#190) ──
+  //
+  // A pose on a body's surface rather than a framing of the whole body. The
+  // poses are in the body's mesh frame (`SurfacePose`), so they hold the
+  // same ground as the body turns, and the point looked at becomes the orbit
+  // pivot: wheel and drag then work about that point, not the body's centre.
 
-    const anim = this._startAnimation(endPos, endTarget, this.camera.up.clone(), duration, () => {
-      // Defer origin switch to next frame — if we switch now, body positions
-      // (already computed this frame with the old origin) won't match the
-      // camera's new coordinates, causing a one-frame flash.
+  /** The surface point the orbit turns about, in its body's mesh frame; null when none. */
+  get surfacePivot(): { body: BodyMesh; local: THREE.Vector3 } | null {
+    const p = this._surfacePivot;
+    return p ? { body: p.body, local: p.local.clone() } : null;
+  }
+
+  /** Whether surface navigation holds the camera: flying to a surface pose, landing, or pivoting about one. */
+  get surfaceNavigating(): boolean {
+    return !!(this._surfacePivot || this._pendingSurfacePivot || this._anim?.surface);
+  }
+
+  /**
+   * Move the surface target by `delta` (the body's mesh frame, scene units),
+   * carrying the camera with it so the view keeps its framing: the hand-off
+   * when terrain the target was waiting for arrives. Applies to a flight
+   * still heading there, a landing about to install its pivot, or the pivot
+   * itself. False when none of those is on `bodyMesh`.
+   */
+  retargetSurface(bodyMesh: BodyMesh, delta: THREE.Vector3): boolean {
+    const flight = this._anim?.surface;
+    if (flight && flight.body === bodyMesh) {
+      flight.endPos.add(delta);
+      flight.endTarget.add(delta);
+      return true;
+    }
+    const world = delta.clone().applyQuaternion(bodyMesh.mesh.quaternion);
+    if (this._pendingSurfacePivot && this._pendingOriginSwitch === bodyMesh) {
+      this._pendingSurfacePivot.add(delta);
+      this.camera.position.add(world);
+      return true;
+    }
+    const pivot = this._surfacePivot;
+    if (pivot && pivot.body === bodyMesh) {
+      pivot.local.add(delta);
+      this.camera.position.add(world);
+      this.controls.target.add(world);
+      this._prevTargetPos.add(world);
+      return true;
+    }
+    return false;
+  }
+
+  private _clearSurfacePivot(): void {
+    this._surfacePivot = null;
+    this._pendingSurfacePivot = null;
+    this._orbitOffset = null;
+    this._pendingOrbitOffset = null;
+  }
+
+  /**
+   * Release a surface point and resume orbiting the body's centre. Keep the
+   * camera's location, but let its aim follow the body rather than the old
+   * ground coordinate. A flight stops where it is. False with no surface target.
+   */
+  releaseSurface(): boolean {
+    if (!this.surfaceNavigating) return false;
+    const body = this._anim?.surface?.body ?? this._surfacePivot?.body ?? this._pendingOriginSwitch;
+    const flight = this._anim?.surface;
+    const landing = this._pendingOriginSwitch;
+    this._clearSurfacePivot();
+    this.clearLookAt();
+    if (flight) {
+      this.cancelAnimation();
+      this._pendingOriginSwitch = body;
+      this._pendingOrbitOffset = new THREE.Vector3();
+    } else if (landing) {
+      // The completed flight still needs its deferred coordinate rebase.
+      this._pendingOrbitOffset = new THREE.Vector3();
+    } else if (body) {
+      this._anchorOn(body, body.position);
+      // A zero offset uses the close-surface floor without retaining the
+      // released point as the orbit target (including below-datum terrain).
+      if (this._activeMode.name === CameraModeName.FREE_ORBIT) {
+        this._orbitOffset = { body, offset: new THREE.Vector3() };
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Jump: cut to `pose` on `bodyMesh`, track the body, and pivot about the
+   * pose's target. A frame that places the camera itself is left for free
+   * orbit; a body-fixed one moves onto the body.
+   */
+  jumpToSurface(bodyMesh: BodyMesh, pose: SurfacePose): void {
+    this._beginNavigation();
+    if (this._frameOwnsCamera) this.setMode(CameraModeName.FREE_ORBIT);
+    const center = this._rebaseOnto(bodyMesh);
+    const q = bodyMesh.mesh.quaternion;
+    this.camera.position.copy(pose.position).applyQuaternion(q).add(center);
+    this.camera.up.copy(pose.up).applyQuaternion(q).normalize();
+    this.controls.target.copy(pose.target).applyQuaternion(q).add(center);
+    this._prevTargetPos.copy(this.controls.target);
+    this._trackTarget = bodyMesh;
+    this.camera.lookAt(this.controls.target);
+    this._carryOrbitFrameTo(bodyMesh);
+    this._surfacePivot = { body: bodyMesh, local: pose.target.clone(), lastQuat: q.clone() };
+  }
+
+  /**
+   * Fly: animate to `pose` on `bodyMesh`, then track the body and pivot about
+   * the pose's target, as `jumpToSurface` would land. Stopping it, or manual
+   * input, leaves the camera where it is facing that target.
+   */
+  flyToSurface(bodyMesh: BodyMesh, pose: SurfacePose, opts: SurfaceFlightOptions = {}): SurfaceFlightPlan {
+    const inv = bodyMesh.mesh.quaternion.clone().invert();
+    const center = bodyMesh.position;
+    const toLocal = (v: THREE.Vector3) => v.clone().sub(center).applyQuaternion(inv);
+    // Asked again for where it is, or where it is already going: a repeated
+    // Fly is not a reason to leave the ground and come back.
+    const running = this._anim?.surface;
+    if (running && running.body === bodyMesh && sameSurfacePose(running.endPos, running.endTarget, running.endUp, pose)) {
+      return { kind: 'continuing' };
+    }
+    if (!running && sameSurfacePose(toLocal(this.camera.position), toLocal(this.controls.target), this.camera.up.clone().applyQuaternion(inv), pose)) {
+      this.jumpToSurface(bodyMesh, pose);
+      return { kind: 'arrived' };
+    }
+    this._trackTarget = null;
+    this._pendingOriginSwitch = null;
+    this._clearSurfacePivot();
+    this.clearLookAt();
+    const up = this.camera.up.clone();
+    if (this._frameOwnsCamera) {
+      const startUp = up.clone();
+      this.setMode(CameraModeName.FREE_ORBIT);
+      this.camera.up.copy(startUp);
+    }
+    const path = opts.path ?? 'arc';
+    const flight: SurfaceFlight = {
+      body: bodyMesh, path,
+      startPos: toLocal(this.camera.position),
+      startTarget: toLocal(this.controls.target),
+      startUp: up.applyQuaternion(inv),
+      endPos: pose.position.clone(),
+      endTarget: pose.target.clone(),
+      endUp: pose.up.clone().normalize(),
+      rise: 0,
+    };
+    const r0 = flight.startPos.length(), r1 = flight.endPos.length();
+    const turn = r0 > 0 && r1 > 0 ? flight.startPos.angleTo(flight.endPos) / Math.PI : 0;
+    const chord = flight.startPos.distanceTo(flight.endPos);
+    if (path === 'arc') {
+      // Cruise higher the further round the body the flight goes: half a
+      // radius up, for the far side, which is also what shows where it is.
+      // Never more than half the distance travelled, though: a hop between
+      // nearby places stays low over the ground instead of climbing tens of
+      // km and dropping the terrain's detail on the way.
+      const radius = renderedRadiusToward(bodyMesh, flight.endPos.clone().applyQuaternion(bodyMesh.mesh.quaternion));
+      const cruise = radius * (1.02 + 0.5 * turn);
+      flight.rise = Math.max(0, Math.min(cruise - Math.sqrt(r0 * r1), 0.5 * chord));
+    }
+    const descent = r0 > 0 && r1 > 0 ? Math.min(1, Math.abs(Math.log10(r0 / r1)) / 4) : 0;
+    const duration = opts.duration ?? (path === 'line' ? DEFAULT_DIRECT_SECONDS : 1 + 1.5 * Math.max(turn, descent));
+    const endPos = new THREE.Vector3(), endTarget = new THREE.Vector3(), endUp = new THREE.Vector3();
+    surfaceFlightPose(flight, 1, endPos, endTarget, endUp);
+    const anim = this._startAnimation(endPos, endTarget, endUp, duration, () => {
       this._pendingOriginSwitch = bodyMesh;
+      this._pendingSurfacePivot = flight.endTarget.clone();
     });
+    anim.surface = flight;
+    anim.destination = bodyMesh;
+    anim.path = 'direct';
+    anim.phase = 'approach';
+    return { kind: 'flight', rise: flight.rise, chord, duration };
+  }
 
+  private _startApproach(
+    bodyMesh: BodyMesh, dist: number, up: THREE.Vector3, duration: number, path: FlightPath,
+    landing?: Pick<FlyToOptions, 'offset' | 'up'>,
+  ): void {
+    // Approach from the camera's current side of the body.
+    const dir = this._approachDirection(bodyMesh);
+    const bodyPos = bodyMesh.position;
+    const anim = this._startAnimation(
+      bodyPos.clone().addScaledVector(dir, dist), bodyPos.clone(), up.clone(), duration,
+      () => {
+        // Defer origin switch to next frame — if we switch now, body positions
+        // (already computed this frame with the old origin) won't match the
+        // camera's new coordinates, causing a one-frame flash.
+        this._pendingOriginSwitch = bodyMesh;
+      },
+    );
     // Track the body each frame so endpoints follow its motion
     anim.followBody = bodyMesh;
-    anim.followDist = viewDist;
+    anim.followDist = dist;
     anim.followDir = dir;
+    anim.destination = bodyMesh;
+    anim.path = path;
+    anim.phase = 'approach';
+    if (landing?.offset) {
+      anim.followOffset = landing.offset.clone();
+      anim.followUp = landing.up?.clone();
+    }
+  }
+
+  /**
+   * Where an overview flight pulls back to: far enough out that the point the
+   * camera looks at and the destination both sit inside the narrower field of
+   * view, looking at the midpoint between them from the side, so neither hides
+   * behind the other. Null when the camera is already at least that far out —
+   * then there is nothing for a pull-back to establish.
+   */
+  private _overviewPose(bodyMesh: BodyMesh): { position: THREE.Vector3; target: THREE.Vector3 } | null {
+    const source = this.controls.target;
+    const dest = bodyMesh.position;
+    const axis = new THREE.Vector3().subVectors(dest, source);
+    const span = axis.length();
+    if (!(span > 0)) return null;
+    axis.divideScalar(span);
+
+    const halfV = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    const halfH = Math.atan(Math.tan(halfV) * (this.camera.aspect || 1));
+    const reach = ((span / 2) * CameraController.FRAME_PADDING) / Math.sin(Math.min(halfV, halfH));
+    const mid = new THREE.Vector3().addVectors(source, dest).multiplyScalar(0.5);
+    if (this.camera.position.distanceTo(mid) >= reach) return null;
+
+    // Keep the side the camera is on, minus any component along the line
+    // between the two; with nothing left, any direction square to it will do.
+    const back = new THREE.Vector3().subVectors(this.camera.position, source);
+    back.addScaledVector(axis, -back.dot(axis));
+    if (back.lengthSq() < 1e-12 * span * span) {
+      back.crossVectors(axis, this.camera.up);
+      if (back.lengthSq() < 1e-12) back.crossVectors(axis, new THREE.Vector3(1, 0, 0));
+      if (back.lengthSq() < 1e-12) back.crossVectors(axis, new THREE.Vector3(0, 1, 0));
+    }
+    back.normalize();
+    return { position: mid.clone().addScaledVector(back, reach), target: mid };
+  }
+
+  /** Unit vector from `bodyMesh` toward the camera: the side the camera sees it from. */
+  private _approachDirection(bodyMesh: BodyMesh): THREE.Vector3 {
+    const dir = this.camera.position.clone().sub(bodyMesh.position);
+    if (dir.lengthSq() < 1e-20) dir.set(0, 0.3, 1);
+    return dir.normalize();
+  }
+
+  private _arrivalDistance(bodyMesh: BodyMesh, opts: { scaleFactor?: number; distanceMultiplier?: number }): number {
+    const sf = opts.scaleFactor ?? 1e-6;
+    return opts.distanceMultiplier !== undefined
+      ? bodyMesh.displayRadius * sf * opts.distanceMultiplier
+      : this.framingDistance(bodyMesh, sf);
+  }
+
+  /** A cut navigation takes the camera over: nothing still in flight, no look-at. */
+  private _beginNavigation(): void {
+    this.cancelAnimation();
+    this._pendingOriginSwitch = null;
+    this.clearLookAt();
+    this._clearSurfacePivot();
+  }
+
+  /**
+   * Move the scene origin to `bodyMesh`, carrying the camera and its target into
+   * the new coordinates so neither moves in space. Returns where the body sits
+   * under the new origin: the origin itself, unless it already was the origin —
+   * a surface-locked body is drawn off it — in which case nothing shifts.
+   */
+  private _rebaseOnto(bodyMesh: BodyMesh): THREE.Vector3 {
+    if (this._originBody === bodyMesh) return bodyMesh.position.clone();
+    const offset = bodyMesh.position.clone();
+    this.camera.position.sub(offset);
+    this.controls.target.sub(offset);
+    this._originBody = bodyMesh;
+    return new THREE.Vector3();
+  }
+
+  /** Orbit-lock to `bodyMesh` at `center`, carrying an orbit frame over to it. */
+  private _anchorOn(bodyMesh: BodyMesh, center: THREE.Vector3): void {
+    this._trackTarget = bodyMesh;
+    this.controls.target.copy(center);
+    this._prevTargetPos.copy(center);
+    this.camera.lookAt(center);
+    this._carryOrbitFrameTo(bodyMesh);
+  }
+
+  /**
+   * Whether the active frame places the camera itself — LVLH, chase, surface,
+   * surface explorer, instrument — rather than leaving the pose to the person,
+   * as free orbit, body-fixed and SC-fixed do.
+   */
+  private get _frameOwnsCamera(): boolean {
+    return !this._activeMode.allowsOrbitControls;
+  }
+
+  /**
+   * The body `setModeForBody(mode, bodyMesh)` sets `mode` on: the spacecraft
+   * for the spacecraft frames, the body it orbits for the planet frames, and
+   * none for free orbit and instrument.
+   */
+  private _modeSubjectFor(mode: CameraModeName, bodyMesh: BodyMesh): string | undefined {
+    const body = bodyMesh.body;
+    switch (mode) {
+      case CameraModeName.SC_FIXED:
+      case CameraModeName.LVLH:
+      case CameraModeName.CHASE:
+        return body.name;
+      case CameraModeName.BODY_FIXED:
+      case CameraModeName.SURFACE:
+      case CameraModeName.SURFACE_EXPLORER:
+        return body.classification === 'spacecraft' ? (body.parentName ?? '') : body.name;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Move a body-fixed or SC-fixed frame onto `bodyMesh`, the body navigation
+   * has just anchored on, as switching frames would — unless it is on that
+   * body already, when reactivating would only re-baseline it. The camera
+   * stays where it is in space.
+   */
+  private _carryOrbitFrameTo(bodyMesh: BodyMesh): void {
+    const mode = this._activeMode.name;
+    if (mode === CameraModeName.FREE_ORBIT || this._frameOwnsCamera) return;
+    if (this._modeSubjectFor(mode, bodyMesh) === this._modeBodyName) return;
+    // Mode.activate() only reads body rotation (not position), so it is safe
+    // before the renderer's next frame recomputes positions under this origin.
+    // setMode puts the origin on the frame's body — the planet, for a
+    // body-fixed frame on a spacecraft — and carries the camera with it.
+    this.setModeForBody(mode, bodyMesh);
   }
 
   /**
@@ -330,22 +1024,64 @@ export class CameraController {
     }
   }
 
-  /** Animate camera to a saved viewpoint by name */
+  /** Animate camera to a saved viewpoint by name, at its stored pose */
   goToViewpoint(name: string, duration = 1.0): boolean {
     const vp = this._viewpoints.get(name);
     if (!vp) return false;
-    this._startAnimation(
-      vp.position.clone(), vp.target.clone(), vp.up.clone(), duration,
-    );
+    this.flyToViewpoint(vp, duration);
     return true;
   }
 
+  /** Animate camera to a viewpoint's pose */
+  flyToViewpoint(vp: ViewpointPose, duration = 1.0): void {
+    this._startAnimation(
+      vp.position.clone(), vp.target.clone(), vp.up.clone(), duration,
+    );
+  }
+
   /** Apply a viewpoint immediately (no animation) */
-  applyViewpoint(vp: CameraViewpoint): void {
+  applyViewpoint(vp: ViewpointPose): void {
     this.cancelAnimation();
     this.camera.position.copy(vp.position);
     this.controls.target.copy(vp.target);
     this.camera.up.copy(vp.up);
+  }
+
+  /**
+   * Establish a viewpoint: the whole view, not a pose laid over whatever
+   * navigation left behind. Ends any flight, scripted move or look-at, returns
+   * to free orbit, puts the scene origin on `origin` (null: the universe
+   * origin) — the coordinates the pose is in — and applies the pose. Then
+   * orbit-locks `track` and faces `lookAt` when given.
+   *
+   * Free orbit because the other frames would not keep the pose: LVLH, chase,
+   * surface and instrument place the camera themselves on their next update,
+   * and body-fixed or SC-fixed would carry a pose stated in scene axes round
+   * with their body as time runs.
+   *
+   * With `duration`, the camera flies to the pose instead of cutting, but only
+   * when the origin stays where it is and nothing is tracked: a flight between
+   * two origins' coordinates would pass through neither.
+   */
+  establishView(
+    pose: ViewpointPose,
+    opts: { origin: BodyMesh | null; track?: BodyMesh | null; lookAt?: BodyMesh | null; duration?: number },
+  ): void {
+    this._beginNavigation();
+    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) this.setMode(CameraModeName.FREE_ORBIT);
+    const sameOrigin = this._originBody === opts.origin;
+    this._originBody = opts.origin;
+    this._trackTarget = opts.track ?? null;
+    this._lookAtTarget = opts.lookAt ?? null;
+    if (opts.duration && sameOrigin && !opts.track && !opts.lookAt) {
+      this._startAnimation(pose.position.clone(), pose.target.clone(), pose.up.clone(), opts.duration);
+      return;
+    }
+    this.camera.position.copy(pose.position);
+    this.controls.target.copy(pose.target);
+    this.camera.up.copy(pose.up);
+    this._prevTargetPos.copy(pose.target);
+    this.camera.lookAt(pose.target);
   }
 
   /** Save current camera state as a named viewpoint */
@@ -356,6 +1092,12 @@ export class CameraController {
       target: this.controls.target.clone(),
       up: this.camera.up.clone(),
       trackBody: this._trackTarget?.body.name,
+      // The pose is in the origin body's coordinates, which outlive tracking.
+      originBody: this._originBody?.body.name ?? null,
+      // Without these a restored look-at view would orbit-lock back onto the
+      // tracked body, and a zoomed view would come back at whatever FOV is set.
+      lookAtBody: this._lookAtTarget?.body.name,
+      fov: this.camera.fov,
     };
     this._viewpoints.set(name, vp);
     return vp;
@@ -379,6 +1121,7 @@ export class CameraController {
   /** Track a body each frame — camera orbits the body, preserving the view offset.
    *  Also sets this body as the origin body for coordinate-system centering. */
   track(bodyMesh: BodyMesh | null): void {
+    this._clearSurfacePivot();
     this._trackTarget = bodyMesh;
     if (bodyMesh) {
       this._originBody = bodyMesh;
@@ -400,29 +1143,75 @@ export class CameraController {
 
   /**
    * Switch camera mode. Returns false if the mode name is unknown.
-   * Switching to FREE_ORBIT re-enables orbit controls and keyboard.
+   *
+   * The camera stays where it is in space unless the new mode places it
+   * itself. When the mode moves the scene origin onto its body, the camera
+   * and orbit target are carried into those coordinates. Leaving a mode that
+   * placed the camera (surface, chase, LVLH, instrument) for one the person
+   * orbits in keeps the view as it was: the orbit target is put on the line
+   * of sight and `up` is the screen's up, so the next `controls.update()`
+   * does not turn the camera, and free orbit lets go of a tracked body the
+   * view is no longer centred on rather than swinging round to face it.
+   *
+   * SURFACE and SURFACE_EXPLORER given a body but no `latDeg`/`lonDeg` enter
+   * at the pose `surfaceEntryPose` infers from the current view — the region
+   * looked at, at a practical height, heading where the view was heading —
+   * never at 0°, 0° by default. A given coordinate, 0°, 0° included, is used
+   * as it is.
    */
   setMode(modeName: CameraModeName, params: CameraModeParams = {}): boolean {
     const newMode = this._modes.get(modeName);
     if (!newMode) return false;
+    const leaving = this._activeMode;
+    const ctx = this._modeCtx;
 
-    // Deactivate current mode
-    if (this._modeCtx) {
-      this._activeMode.deactivate(this._modeCtx);
+    // Infer a surface entry before anything moves: it reads the view as it is.
+    if ((modeName === CameraModeName.SURFACE || modeName === CameraModeName.SURFACE_EXPLORER)
+      && params.bodyName && ctx && (params.latDeg === undefined || params.lonDeg === undefined)) {
+      const bm = ctx.bodyMeshes.get(params.bodyName);
+      const pick = ctx.pickSurface;
+      const entry = bm && surfaceEntryPose(
+        bm, this.camera, ctx.scaleFactor,
+        modeName === CameraModeName.SURFACE ? 'flight' : 'explorer',
+        pick ? () => pick(0, 0) : undefined,
+      );
+      if (entry) {
+        params = {
+          ...params,
+          latDeg: entry.latDeg,
+          lonDeg: entry.lonDeg,
+          altKm: params.altKm ?? entry.altKm,
+          headingDeg: params.headingDeg ?? entry.headingDeg,
+          pitchDeg: params.pitchDeg ?? entry.pitchDeg,
+        };
+      }
     }
 
-    // Restore TrackballControls damping and camera up when leaving a non-FreeOrbit mode
-    if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
+    // Deactivate current mode
+    if (ctx) leaving.deactivate(ctx);
+
+    // Restore TrackballControls damping when leaving a non-FreeOrbit mode
+    if (leaving.name !== CameraModeName.FREE_ORBIT) {
       this.controls.staticMoving = false;
       this.controls.dynamicDampingFactor = 0.15;
-      // Modes may set camera.up to unusual directions (e.g. surface normal).
-      // Reset to prevent TrackballControls gimbal instability.
-      if (modeName === CameraModeName.FREE_ORBIT) {
-        this.camera.up.set(0, 1, 0);
+    }
+
+    if (newMode.allowsOrbitControls && newMode !== leaving) {
+      if (!leaving.allowsOrbitControls) this._targetLineOfSight(this._modeBodyName);
+      // Modes may leave camera.up anywhere (a surface normal, a co-rotated
+      // up). The screen's up is the same view with an up square to the line
+      // of sight, which TrackballControls handles without a roll or snap.
+      this.camera.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion).normalize();
+      if (modeName === CameraModeName.FREE_ORBIT && this._trackTarget) {
+        const reach = Math.max(this.camera.position.distanceTo(this.controls.target), 1e-20);
+        if (this.controls.target.distanceTo(this._trackTarget.position) > 1e-6 * reach) this._trackTarget = null;
       }
     }
 
     this._activeMode = newMode;
+    this._modeBodyName = params.bodyName;
+    // A frame that places the camera itself has no orbit to pivot.
+    if (!newMode.allowsOrbitControls) this._clearSurfacePivot();
 
     // Enable/disable TrackballControls based on mode
     this.controls.enabled = newMode.allowsOrbitControls;
@@ -436,19 +1225,57 @@ export class CameraController {
 
     // Set origin body to the mode's target for floating-point precision.
     // Without this, camera.position = largeBodyOffset + smallCameraOffset loses precision.
-    if (params.bodyName && this._modeCtx) {
-      const targetBm = this._modeCtx.bodyMeshes.get(params.bodyName);
+    const prevOrigin = this._originBody;
+    if (params.bodyName && ctx) {
+      const targetBm = ctx.bodyMeshes.get(params.bodyName);
       if (targetBm) {
         this._originBody = targetBm;
       }
     }
 
-    // Activate new mode with context
-    if (this._modeCtx) {
-      newMode.activate(this._modeCtx, params);
+    // Activate new mode with context. Body positions are still the last
+    // frame's, under the previous origin, and so is the camera: a mode that
+    // places the camera places it in those coordinates.
+    if (ctx) {
+      newMode.activate(ctx, params);
+    }
+
+    // Then carry the camera into the new origin's coordinates. Every body
+    // position is still in one frame, so the difference between the two
+    // origins is the shift; the renderer's next frame puts the bodies there.
+    const origin = this._originBody;
+    if (origin && origin !== prevOrigin) {
+      const shift = origin.position.clone();
+      if (prevOrigin) shift.sub(prevOrigin.position);
+      this.camera.position.sub(shift);
+      this.controls.target.sub(shift);
+      this._prevTargetPos.sub(shift);
     }
 
     return true;
+  }
+
+  /**
+   * Put the orbit target on the camera's line of sight, so orbiting resumes
+   * around what is in the middle of the view without turning the camera: where
+   * the line of sight meets `bodyName`'s surface, or as far ahead as the body's
+   * centre when it misses.
+   */
+  private _targetLineOfSight(bodyName: string | undefined): void {
+    const bm = bodyName ? this._modeCtx?.bodyMeshes.get(bodyName) : undefined;
+    const forward = this.camera.getWorldDirection(this._tmpV1);
+    let reach = this.camera.position.distanceTo(this.controls.target);
+    if (bm) {
+      const toCenter = this._tmpV2.subVectors(bm.position, this.camera.position);
+      const along = toCenter.dot(forward);
+      const radius = bm.displayRadius * bm.scaleFactor;
+      const miss2 = toCenter.lengthSq() - along * along;
+      const hit = along - Math.sqrt(Math.max(radius * radius - miss2, 0));
+      reach = along > 0 && miss2 <= radius * radius && hit > 0 ? hit : toCenter.length();
+    }
+    if (!(reach > 0)) reach = 1;
+    this.controls.target.copy(this.camera.position).addScaledVector(forward, reach);
+    this._prevTargetPos.copy(this.controls.target);
   }
 
   /**
@@ -458,8 +1285,12 @@ export class CameraController {
    * - BODY_FIXED/SURFACE: uses the parent celestial body (planet/moon)
    * - INSTRUMENT: activates the specified sensor
    *
+   * Surface modes enter where the current view is looking (see `setMode`).
+   * A mode that needs a body returns false, changing nothing, when there is
+   * none; `modeSubject` is the body a mode change normally applies to.
+   *
    * @param modeName The camera mode to switch to
-   * @param bodyMesh The body to target (usually the tracked body)
+   * @param bodyMesh The body to target (usually `modeSubject`)
    * @param opts Extra options (sensorName for instrument mode)
    */
   setModeForBody(
@@ -467,7 +1298,11 @@ export class CameraController {
     bodyMesh: BodyMesh | null,
     opts?: { sensorName?: string },
   ): boolean {
-    if (!bodyMesh) return this.setMode(modeName);
+    if (modeName === CameraModeName.FREE_ORBIT) return this.setMode(CameraModeName.FREE_ORBIT);
+    if (modeName === CameraModeName.INSTRUMENT) {
+      return this.setMode(CameraModeName.INSTRUMENT, { sensorName: opts?.sensorName ?? '' });
+    }
+    if (!bodyMesh) return false;
 
     const body = bodyMesh.body;
     const isSC = body.classification === 'spacecraft';
@@ -475,8 +1310,6 @@ export class CameraController {
     const celestialBody = isSC ? parentName : body.name;
 
     switch (modeName) {
-      case CameraModeName.FREE_ORBIT:
-        return this.setMode(CameraModeName.FREE_ORBIT);
       case CameraModeName.SC_FIXED:
         return this.setMode(CameraModeName.SC_FIXED, { bodyName: body.name });
       case CameraModeName.BODY_FIXED:
@@ -490,49 +1323,34 @@ export class CameraController {
           bodyName: body.name, centerBodyName: parentName, offset: 100,
         });
       case CameraModeName.SURFACE:
+        if (!this._hasSurface(celestialBody)) return false;
         return this.setMode(CameraModeName.SURFACE, {
-          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 10,
+          bodyName: celestialBody,
           lookTarget: isSC ? body.name : undefined,
         });
       case CameraModeName.SURFACE_EXPLORER:
-        return this.setMode(CameraModeName.SURFACE_EXPLORER, {
-          bodyName: celestialBody, latDeg: 0, lonDeg: 0, altKm: 0.05,
-        });
-      case CameraModeName.INSTRUMENT:
-        return this.setMode(CameraModeName.INSTRUMENT, {
-          sensorName: opts?.sensorName ?? '',
-        });
+        if (!this._hasSurface(celestialBody)) return false;
+        return this.setMode(CameraModeName.SURFACE_EXPLORER, { bodyName: celestialBody });
       default:
         return this.setMode(modeName);
     }
   }
 
   /**
-   * Track a body and restore the current camera mode.
-   * Handles the zoom → track → mode-reactivation sequence.
-   *
-   * @param bodyMesh The body to track
-   * @param scaleFactor Scale factor for zoom distance
+   * Whether `bodyName` is a loaded body with a shape a surface mode can stand
+   * on. Without one the surface mode would activate and place nothing.
+   */
+  private _hasSurface(bodyName: string): boolean {
+    const radii = bodyName ? this._modeCtx?.bodyMeshes.get(bodyName)?.body.radii : undefined;
+    return !!radii && radii[0] > 0;
+  }
+
+  /**
+   * Track a body and frame it, keeping the current camera mode.
+   * @deprecated Use `frame`, which this is; `focus` tracks without moving.
    */
   trackBody(bodyMesh: BodyMesh, scaleFactor: number): void {
-    const prevMode = this._activeMode.name;
-
-    this.clearLookAt();
-    this.zoomTo(bodyMesh, scaleFactor);
-    this.track(bodyMesh);
-
-    // track() calls focusOn() which sets controls.target to the body's current
-    // scene position — but that's in the OLD origin's coordinates. After the origin
-    // switch (next renderFrame), the body will be at (0,0,0). Set target there now
-    // so the mode doesn't start with a stale target vector.
-    this.controls.target.set(0, 0, 0);
-
-    // Re-activate the mode with the new body. Mode.activate() only reads body
-    // rotation (not position), so it's safe to call before the origin switch
-    // settles — the first update() will use the correct positions from renderFrame.
-    if (prevMode !== CameraModeName.FREE_ORBIT) {
-      this.setModeForBody(prevMode, bodyMesh);
-    }
+    this.frame(bodyMesh, { scaleFactor });
   }
 
   /**
@@ -544,6 +1362,7 @@ export class CameraController {
    * Idempotent: safe to call when nothing is tracked.
    */
   stopTracking(): void {
+    this._clearSurfacePivot();
     this._trackTarget = null;
     this.clearLookAt();
     if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
@@ -565,9 +1384,11 @@ export class CameraController {
   }
 
   /**
-   * Cycle to the next camera mode. Excludes INSTRUMENT by default.
+   * Cycle to the next camera mode `modeSubject` can take. Excludes INSTRUMENT
+   * by default; a mode that needs a body it lacks (no subject, no parent with
+   * a surface) is skipped, so the cycle never reports a mode it did not enter.
    * @param exclude Mode names to skip when cycling
-   * @returns The new mode name
+   * @returns The mode now active
    */
   cycleMode(exclude: CameraModeName[] = [CameraModeName.INSTRUMENT]): CameraModeName {
     const allModes = [
@@ -577,9 +1398,22 @@ export class CameraController {
     ];
     const available = allModes.filter(m => !exclude.includes(m));
     const curIdx = available.indexOf(this._activeMode.name);
-    const nextMode = available[(curIdx + 1) % available.length];
-    this.setModeForBody(nextMode, this._trackTarget ?? this._originBody);
-    return nextMode;
+    for (let step = 1; step <= available.length; step++) {
+      const nextMode = available[(curIdx + step) % available.length];
+      if (this.setModeForBody(nextMode, this.modeSubject)) return nextMode;
+    }
+    return this._activeMode.name;
+  }
+
+  /**
+   * The body a mode change applies to: the tracked body, or — when the
+   * camera has let go of it (a free look, a WASD move, leaving a surface
+   * view) — the origin body, the body the camera was last anchored on and is
+   * still drawn around. Focusing another body moves both. Every mode-change
+   * entry point (the `M` cycle, a mode menu) should use this, so they agree.
+   */
+  get modeSubject(): BodyMesh | null {
+    return this._trackTarget ?? this._originBody;
   }
 
   /** Get the mode instance (for mode-specific properties like InstrumentMode.sensorName) */
@@ -686,6 +1520,27 @@ export class CameraController {
       this.camera.position.sub(bodyPos);
       this.controls.target.set(0, 0, 0);
     }
+    // A body-fixed or SC-fixed frame lands on the body too, as focusing it
+    // would put it there; left on the body the flight left, it would carry
+    // the camera around that one.
+    this._carryOrbitFrameTo(body);
+
+    const pivot = this._pendingSurfacePivot;
+    this._pendingSurfacePivot = null;
+    const offset = this._pendingOrbitOffset;
+    this._pendingOrbitOffset = null;
+    // Under the new origin the body is at the origin (or still where it was
+    // drawn, when it already was the origin).
+    const center = wasAlreadyOrigin ? bodyPos : new THREE.Vector3();
+    if (pivot) {
+      this.controls.target.copy(pivot).applyQuaternion(body.mesh.quaternion).add(center);
+      this._prevTargetPos.copy(this.controls.target);
+      this._surfacePivot = { body, local: pivot, lastQuat: body.mesh.quaternion.clone() };
+    } else if (offset) {
+      this.controls.target.copy(offset).add(center);
+      this._prevTargetPos.copy(this.controls.target);
+      if (this._activeMode.name === CameraModeName.FREE_ORBIT) this._orbitOffset = { body, offset };
+    }
 
     // Defer mode-state resync to after body positions are recomputed under
     // the new origin — syncing now would use stale body positions and produce
@@ -707,6 +1562,28 @@ export class CameraController {
     }
   }
 
+  /** Pointer travel toward the drag threshold; past it, the press is navigation. */
+  private _notePressTravel(dx: number, dy: number): void {
+    this._pressTravelPx += Math.abs(dx) + Math.abs(dy);
+    if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._manualInput = true;
+  }
+
+  /**
+   * Hand the camera back to the person: stop a flight as `stopFlight` does,
+   * and any scripted move. Unlike `cancelAnimation` it keeps the input the
+   * controls have gathered, which is the drag or zoom that asked for this.
+   */
+  private _yieldToManualInput(): void {
+    const destination = this._anim?.destination;
+    const surface = this._anim?.surface;
+    this._anim = null;
+    this._move = null;
+    // Inertia from before the flight is not the person's input now.
+    (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
+    if (destination) this._pendingOriginSwitch = destination;
+    if (surface) this._pendingSurfacePivot = surface.endTarget.clone();
+  }
+
   /** Whether a fly-to/viewpoint animation is currently playing */
   get animating(): boolean { return this._anim !== null; }
 
@@ -714,6 +1591,21 @@ export class CameraController {
   cancelAnimation(): void {
     this._anim = null;
     this._move = null;
+    // A cut/restored pose must not inherit the previous gesture's inertia.
+    // TrackballControls exposes no public method to clear damping independently
+    // of resetting the camera, so use the same internals as animation completion.
+    const controls = this.controls as unknown as {
+      _lastAngle: number;
+      _movePrev: THREE.Vector2; _moveCurr: THREE.Vector2;
+      _zoomStart: THREE.Vector2; _zoomEnd: THREE.Vector2;
+      _panStart: THREE.Vector2; _panEnd: THREE.Vector2;
+    };
+    controls._lastAngle = 0;
+    controls._movePrev.copy(controls._moveCurr);
+    controls._zoomStart.copy(controls._zoomEnd);
+    controls._panStart.copy(controls._panEnd);
+    this._rightDragDx = this._rightDragDy = 0;
+    this._touchPanDx = this._touchPanDy = 0;
   }
 
   /**
@@ -911,21 +1803,36 @@ export class CameraController {
   }
 
   /**
-   * Adapt orbit/zoom speeds based on altitude above the nearest body surface.
-   * Only Globe/Ellipsoid bodies participate — spacecraft and tiny bodies are
+   * Adapt orbit/zoom speeds to how far an orbit or zoom step would carry the
+   * camera relative to its height above the nearest body's ground. Only
+   * Globe/Ellipsoid bodies participate — spacecraft and tiny bodies are
    * ignored. When far from all bodies, speeds stay at their base values.
    *
-   * sqrt(altitude / (10 × bodyRadius)): speeds reach base level at 10× the
-   * body's radius above the surface, and decrease smoothly as you zoom in:
+   * A drag turns the camera about the orbit target and a wheel step scales
+   * its distance to it, so either moves the camera by about its distance to
+   * the target (the lever arm). That only needs slowing when the lever is
+   * long against the height: orbiting a body's centre from low orbit, not
+   * orbiting a point on the ground the camera is a few metres from. So the
+   * clearance ratio is `h / (lever − h)`, where the lever is the distance to
+   * the target capped at the distance to the body's centre — about the
+   * centre that is `h / R`, as before — and the factor is
+   * sqrt(ratio / 10), between 0.01 and 1:
    *   ratio=10    → factor=1.0   (10× radius above surface — base speeds)
    *   ratio=2     → factor=0.45  (default flyTo distance)
-   *   ratio=0.5   → factor=0.22  (zoomed in closer)
-   *   ratio=0.1   → factor=0.1   (low orbit)
-   *   ratio=0.01  → factor=0.03  (near surface)
+   *   ratio=0.1   → factor=0.1   (low orbit about the centre)
+   *   ratio≥10    → factor=1.0   (overhead of a surface pivot: lever ≈ height)
+   *
+   * The height is above the ground under the camera: the decoded terrain
+   * when `groundRadiusKm` knows it (a crater floor or a basin below the
+   * datum is ground, not "below the surface"), the rendered ellipsoid's
+   * radius in the camera's direction otherwise.
    *
    * Call once per frame before update().
    */
-  adaptSpeeds(bodyMeshes: Iterable<BodyMesh>, scaleFactor: number): void {
+  adaptSpeeds(
+    bodyMeshes: Iterable<BodyMesh>, scaleFactor: number,
+    groundRadiusKm?: (bm: BodyMesh) => number | null,
+  ): void {
     // When focused on a spacecraft or other non-Globe body, keep base speeds —
     // nearby planet proximity shouldn't slow down inspection of that object.
     // Uses originBody (persists after un-tracking via WASD/free-look).
@@ -941,19 +1848,27 @@ export class CameraController {
     let minAltRatio = Infinity;
     let minAltScene = Infinity;
     let nearestSurfaceR = 0;
+    const toTarget = this.camera.position.distanceTo(this.controls.target);
 
     for (const bm of bodyMeshes) {
       const gt = bm.body.geometryType;
       if (gt !== 'Globe' && gt !== 'Ellipsoid') continue;
-      const surfaceR = bm.displayRadius * scaleFactor;
-      if (surfaceR < 1e-20) continue;
-      const dist = this.camera.position.distanceTo(bm.position);
+      const displayR = bm.displayRadius * scaleFactor;
+      if (displayR < 1e-20) continue;
+      const ground = groundRadiusKm?.(bm);
+      const offset = _sfB.copy(this.camera.position).sub(bm.position);
+      const dist = offset.length();
+      // displayRadius is the longest ellipsoid axis. Using it at other
+      // latitudes puts a camera above the visible ground "underground" and
+      // forces even a nearby surface pivot to the minimum control speed.
+      const surfaceR = ground != null && ground > 0 ? ground * scaleFactor : renderedRadiusToward(bm, offset);
       const altitude = Math.max(dist - surfaceR, 0);
-      const ratio = altitude / surfaceR;
+      const lever = Math.min(toTarget, dist);
+      const ratio = altitude >= lever ? Infinity : altitude / Math.max(lever - altitude, 1e-30);
       if (ratio < minAltRatio) minAltRatio = ratio;
       if (altitude < minAltScene) {
         minAltScene = altitude;
-        nearestSurfaceR = surfaceR;
+        nearestSurfaceR = displayR;
       }
     }
 
@@ -977,7 +1892,7 @@ export class CameraController {
       this.keyboard.altitudeRefSceneUnits = null;
     }
 
-    if (!isFinite(minAltRatio)) return; // no nearby Globe — keep base speeds
+    if (minAltRatio === Infinity && !isFinite(minAltScene)) return; // no nearby Globe — keep base speeds
 
     const factor = Math.max(Math.min(Math.sqrt(minAltRatio / 10), 1), 0.01);
     this.controls.rotateSpeed = this._baseRotateSpeed * factor;
@@ -996,6 +1911,13 @@ export class CameraController {
       this._modeCtx.originBody = this._originBody;
     }
 
+    // Manual navigation outranks automatic motion: a flight or a scripted move
+    // stops where it is and the person's input applies, this frame. Two
+    // controllers taking turns with the camera is the alternative.
+    const manual = this._manualInput || this.keyboard.navigating;
+    this._manualInput = false;
+    if (manual && (this._anim || this._move)) this._yieldToManualInput();
+
     // Advance fly-to animation if active (works in all modes)
     if (this._anim) {
       const animDt = (now - this._lastAnimMs) / 1000;
@@ -1007,14 +1929,24 @@ export class CameraController {
         const bodyPos = this._anim.followBody.position;
         this._anim.endTarget.copy(bodyPos);
         this._anim.endPos.copy(bodyPos).addScaledVector(this._anim.followDir, this._anim.followDist);
+        if (this._anim.followOffset) {
+          const q = this._anim.followBody.mesh.quaternion;
+          this._anim.endPos.copy(this._anim.followOffset).applyQuaternion(q).add(bodyPos);
+          if (this._anim.followUp) this._anim.endUp.copy(this._anim.followUp).applyQuaternion(q);
+        }
       }
 
-      const t = Math.min(this._anim.elapsed / this._anim.duration, 1);
+      // A zero-length flight is a cut: it lands on its first frame.
+      const t = this._anim.duration > 0 ? Math.min(this._anim.elapsed / this._anim.duration, 1) : 1;
       const s = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-      this.camera.position.lerpVectors(this._anim.startPos, this._anim.endPos, s);
-      this.controls.target.lerpVectors(this._anim.startTarget, this._anim.endTarget, s);
-      this.camera.up.lerpVectors(this._anim.startUp, this._anim.endUp, s).normalize();
+      if (this._anim.surface) {
+        surfaceFlightPose(this._anim.surface, s, this.camera.position, this.controls.target, this.camera.up);
+      } else {
+        this.camera.position.lerpVectors(this._anim.startPos, this._anim.endPos, s);
+        this.controls.target.lerpVectors(this._anim.startTarget, this._anim.endTarget, s);
+        this.camera.up.lerpVectors(this._anim.startUp, this._anim.endUp, s).normalize();
+      }
       this.camera.lookAt(this.controls.target);
 
       if (t >= 1) {
@@ -1045,20 +1977,31 @@ export class CameraController {
 
     // --- Non-FreeOrbit modes: delegate to active mode ---
     if (this._activeMode.name !== CameraModeName.FREE_ORBIT) {
-      // Discard right-click drag — modes handle their own orientation via delta rotation.
-      // Right-click in these modes would fight with the mode's target/quaternion control.
-      this._rightDragDx = 0;
-      this._rightDragDy = 0;
-
       // Orbit controls (before mode update so mode sees user-adjusted position)
       if (this._activeMode.allowsOrbitControls) {
+        // Right-drag free look in body-fixed and SC-fixed: turn the view in
+        // place, as free orbit does, but keep the frame and its body. The mode
+        // then co-rotates the new target, orientation and up with the frame,
+        // so the look holds as time runs.
+        // A look away from a surface pivot leaves it, as it leaves tracking
+        // in free orbit.
+        if (this._applyFreeLook()) this._surfacePivot = null;
         // The mode's body is what these controls orbit — the origin body
-        // `setMode` put it at — not whatever free orbit last tracked.
-        this._updateMinDistance(this._originBody ?? this._trackTarget);
+        // `setMode` put it at — not whatever free orbit last tracked. Its
+        // surface is a floor on the distance to the target only while the
+        // target is its centre; after a free look, coming back from a surface
+        // view, or about a surface pivot, the target is elsewhere and the
+        // renderer's surface clamp is the floor, as in free orbit.
+        const pivot = this._originBody ?? this._trackTarget;
+        const reach = Math.max(this.camera.position.distanceTo(this.controls.target), 1e-20);
+        this._updateMinDistance(pivot && this.controls.target.distanceTo(pivot.position) <= 1e-6 * reach ? pivot : null);
         this._applyTouchPan();
         this.controls.update();
       } else {
-        // The mode owns the camera; a two-finger drag is its own to interpret.
+        // The mode owns the camera, orientation included; a right-drag or a
+        // two-finger drag is its own to interpret.
+        this._rightDragDx = 0;
+        this._rightDragDy = 0;
         this._touchPanDx = 0;
         this._touchPanDy = 0;
       }
@@ -1068,6 +2011,10 @@ export class CameraController {
       // and screen-space axes stay correct. No lookAt needed.
       if (this._modeCtx) {
         this._activeMode.update(this._modeCtx);
+      }
+      // The co-rotating frame carries the pivot round with the body.
+      if (this._surfacePivot && this._activeMode.allowsOrbitControls) {
+        this._guardSurface(this._surfacePivot.body, true);
       }
 
       // Keyboard (WASD/roll) — camera quaternion is already correct from mode update,
@@ -1088,37 +2035,30 @@ export class CameraController {
 
     // --- FreeOrbit mode: existing behavior ---
 
-    // Right-click free look
-    if (this._rightDragDx !== 0 || this._rightDragDy !== 0) {
-      this._trackTarget = null;
-
-      const forward = new THREE.Vector3();
-      this.camera.getWorldDirection(forward);
-      const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
-
-      const q = new THREE.Quaternion();
-      q.premultiply(
-        new THREE.Quaternion().setFromAxisAngle(this.camera.up, -this._rightDragDx * this.freeLookSensitivity),
-      );
-      q.premultiply(
-        new THREE.Quaternion().setFromAxisAngle(right, -this._rightDragDy * this.freeLookSensitivity),
-      );
-
-      const dist = this.camera.position.distanceTo(this.controls.target);
-      const newDir = forward.applyQuaternion(q).normalize();
-      this.controls.target.copy(this.camera.position).addScaledVector(newDir, dist);
-      this.camera.up.applyQuaternion(q).normalize();
-
-      this._rightDragDx = 0;
-      this._rightDragDy = 0;
-    }
+    // Right-click free look: the view leaves the tracked body
+    if (this._applyFreeLook()) this._trackTarget = null;
 
     // Tracking: lock orbit target to the tracked body. The body is normally at
     // (0,0,0) thanks to CRR origin-shifting, but surface-locked bodies may be
     // shifted off-origin by the renderer's terrain clamp — read bm.position
     // directly so the camera always looks at the body's rendered position.
-    if (this._trackTarget) {
+    if (this._surfacePivot && this._surfacePivot.body !== this._trackTarget) this._surfacePivot = null;
+    if (this._orbitOffset && this._orbitOffset.body !== this._trackTarget) this._orbitOffset = null;
+    const pivot = this._surfacePivot;
+    const offCentre = pivot !== null || this._orbitOffset !== null;
+    if (pivot) {
+      // Turn with the body so the ground under the pivot stays put on
+      // screen, then hold the pivot on it.
+      const q = pivot.body.mesh.quaternion;
+      const center = pivot.body.position;
+      const dq = this._tmpQ.copy(pivot.lastQuat).invert().premultiply(q);
+      this.camera.position.sub(center).applyQuaternion(dq).add(center);
+      this.camera.up.applyQuaternion(dq).normalize();
+      pivot.lastQuat.copy(q);
+      this.controls.target.copy(pivot.local).applyQuaternion(q).add(center);
+    } else if (this._trackTarget) {
       this.controls.target.copy(this._trackTarget.position);
+      if (this._orbitOffset) this.controls.target.add(this._orbitOffset.offset);
     }
 
     // Surface clamp via TrackballControls is camera-to-*target* distance, which
@@ -1130,7 +2070,7 @@ export class CameraController {
     //   to body-radius would lock zoom-in long before the camera reached the
     //   surface. Leave minDistance unconstrained and rely on the body-center
     //   guard at the end of update() to keep the camera from entering the body.
-    this._updateMinDistance(this._trackTarget);
+    this._updateMinDistance(offCentre ? null : this._trackTarget);
     const clampBody = this._trackTarget ?? this._originBody;
 
     // Mouse left-drag orbit + scroll zoom; one-finger orbit + pinch zoom
@@ -1161,26 +2101,73 @@ export class CameraController {
     // `clampCameraAboveSurfaces` does a proper terrain sample and handles the
     // "below reference but above actual terrain" case (Jezero, Hellas, etc.)
     // that this static reference-radius guard would otherwise break.
-    if (clampBody && !clampBody.hasTerrain) {
-      const sf = clampBody.scaleFactor;
-      const minR = clampBody.displayRadius * sf * 1.0001;
-      const offset = this._tmpV1.subVectors(this.camera.position, clampBody.position);
-      const dist = offset.length();
-      if (dist > 0 && dist < minR) {
-        offset.multiplyScalar(minR / dist);
-        this.camera.position.copy(clampBody.position).add(offset);
-        // Also nudge the orbit target out so subsequent rotations don't keep
-        // pulling the camera back into the body.
-        const targetOffset = this._tmpV2.subVectors(this.controls.target, clampBody.position);
-        const targetDist = targetOffset.length();
-        if (targetDist < minR) {
-          if (targetDist > 1e-6) {
-            targetOffset.multiplyScalar(minR / targetDist);
-            this.controls.target.copy(clampBody.position).add(targetOffset);
-          }
-        }
-      }
+    if (clampBody) this._guardSurface(clampBody, offCentre);
+  }
+
+  /**
+   * Keep the camera outside `body`'s rendered globe, pushing it back out
+   * radially. Bodies with terrain are left to the renderer's terrain clamp.
+   * About a surface pivot the target is on the ground by design: it stays,
+   * and the floor is the rendered ellipsoid in the camera's direction plus
+   * `SURFACE_PIVOT_CLEARANCE_KM`, rather than the equatorial radius plus a
+   * fraction of it, so a 2 m eye height or a polar view is not pushed up.
+   */
+  private _guardSurface(body: BodyMesh, aboutPivot: boolean): void {
+    if (body.hasTerrain) return;
+    const offset = this._tmpV1.subVectors(this.camera.position, body.position);
+    const dist = offset.length();
+    if (!(dist > 0)) return;
+    // About a pivot the camera may stand on the ground: an absolute eye-height
+    // floor (the renderer's terrain clamp margin), not a fraction of the
+    // radius, which is hundreds of metres on a planet.
+    const minR = aboutPivot
+      ? renderedRadiusToward(body, offset) + SURFACE_PIVOT_CLEARANCE_KM * body.scaleFactor
+      : body.displayRadius * body.scaleFactor * 1.0001;
+    if (dist >= minR) return;
+    offset.multiplyScalar(minR / dist);
+    this.camera.position.copy(body.position).add(offset);
+    if (aboutPivot) return;
+    // Also nudge the orbit target out so subsequent rotations don't keep
+    // pulling the camera back into the body.
+    const targetOffset = this._tmpV2.subVectors(this.controls.target, body.position);
+    const targetDist = targetOffset.length();
+    if (targetDist < minR && targetDist > 1e-6) {
+      targetOffset.multiplyScalar(minR / targetDist);
+      this.controls.target.copy(body.position).add(targetOffset);
     }
+  }
+
+  /**
+   * Apply the right-drag accumulated since the last frame as a free look: turn
+   * the view about the camera's own position, moving the orbit target along
+   * with the line of sight at the same distance, so the camera stays put and
+   * the next `controls.update()` keeps the new direction.
+   *
+   * A free look is the person aiming the camera, so it ends a look-at — which
+   * would otherwise turn the camera straight back — but nothing else: the
+   * caller decides whether tracking survives. True when it turned the view.
+   */
+  private _applyFreeLook(): boolean {
+    const dx = this._rightDragDx;
+    const dy = this._rightDragDy;
+    this._rightDragDx = 0;
+    this._rightDragDy = 0;
+    if (dx === 0 && dy === 0) return false;
+    this.clearLookAt();
+
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
+
+    const q = new THREE.Quaternion();
+    q.premultiply(new THREE.Quaternion().setFromAxisAngle(this.camera.up, -dx * this.freeLookSensitivity));
+    q.premultiply(new THREE.Quaternion().setFromAxisAngle(right, -dy * this.freeLookSensitivity));
+
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const newDir = forward.applyQuaternion(q).normalize();
+    this.controls.target.copy(this.camera.position).addScaledVector(newDir, dist);
+    this.camera.up.applyQuaternion(q).normalize();
+    return true;
   }
 
   /**
@@ -1217,6 +2204,7 @@ export class CameraController {
 
   private readonly _tmpV1 = new THREE.Vector3();
   private readonly _tmpV2 = new THREE.Vector3();
+  private readonly _tmpQ = new THREE.Quaternion();
 
   dispose(): void {
     this._anim = null;

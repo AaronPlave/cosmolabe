@@ -1,11 +1,17 @@
 // The port
 export type {
   ViewerControl,
+  ScriptActivity,
+  ScriptActivityFilter,
   ViewerSnapshotState,
   CircleDirection,
+  CoordinateNavigationOptions,
+  FlightPath,
+  SurfaceView,
   ScriptCamera,
   ScriptEventMap,
   ScriptEventName,
+  ScriptFlight,
   ScriptImage,
   ScriptTime,
   ScriptVec3,
@@ -34,7 +40,7 @@ export {
 export type { ScriptProblem, ScriptProblemKind } from './errors.js';
 
 // The vocabulary
-export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, LAYERS, verbUsage } from './verbs.js';
+export { VERBS, VERB_LIST, VERB_NAMES, FRAME_MODES, FLIGHT_PATHS, SURFACE_VIEWS, LAYERS, verbUsage } from './verbs.js';
 export type { ParamType, VerbParam, VerbPreset, VerbSpec } from './verbs.js';
 export { suggest } from './suggest.js';
 
@@ -43,3 +49,6 @@ export { cursorContext, completionsAt, signatureAt } from './complete.js';
 export type { CursorContext, ScriptCompletion, CompletionNames, ScriptSignature } from './complete.js';
 export { ANGULAR_GRID_STEPS, DEFAULT_GRID_SETTINGS, normalizeGridSettings, gridBodyState } from './grid.js';
 export type { GridSettings } from './grid.js';
+export { applyViewState, decodeViewState, encodeViewState, validateViewState, viewStateAtEpoch, ViewStateError, MAX_VIEW_STATE_LENGTH, PORTABLE_POSE_MODES } from './view-state.js';
+export type { ViewStateV1, ViewCatalog, ViewTime } from './view-state.js';
+

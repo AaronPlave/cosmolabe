@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { InstantEvent } from '@cosmolabe/core';
+import { Universe } from '@cosmolabe/core';
 import {
   analysis,
   analysisContext,
@@ -17,8 +18,10 @@ import {
   updateConfiguredEventQuery,
   updateConfiguredProfile,
   visibleTimelineEvents,
+  allTimelineEvents,
+  setCatalogActivities,
 } from '../analysis.svelte';
-import { vs } from '../viewer-state.svelte';
+import { vs, syncBodies, onViewerEvent } from '../viewer-state.svelte';
 
 const event: InstantEvent = {
   id: 'result-1',
@@ -36,6 +39,41 @@ describe('viewer analysis state', () => {
     vs.et = 150;
     vs.scrubBaseMin = 100;
     vs.scrubBaseMax = 200;
+  });
+
+  it('shares catalog activities with timeline selection without inventing searches or enabling 3D result overlays', () => {
+    const activity = { ...event, id: 'drive-1', queryId: 'activity:Rover', kind: 'mission-activity' };
+    setCatalogActivities([activity]);
+    expect(analysis.items).toEqual([]);
+    expect(visibleTimelineEvents()).toEqual([activity]);
+    expect(allTimelineEvents()).toEqual([activity]);
+    expect(analysisContext().eventResults).toEqual([]);
+    const query = createConfiguredEventQuery({ kind: 'closest-approach' }, 'Approaches');
+    const result = { ...event, queryId: query.id };
+    setEventResults(query.id, [result]);
+    expect(visibleTimelineEvents()).toEqual([activity, result]);
+    setConfiguredItemVisible(query.id, false);
+    expect(visibleTimelineEvents()).toEqual([activity]);
+    expect(allTimelineEvents()).toEqual([activity, result]);
+    setCatalogActivities([]);
+    expect(visibleTimelineEvents()).toEqual([]);
+    setCatalogActivities([activity]);
+    resetAnalysis();
+    expect(allTimelineEvents()).toEqual([]);
+  });
+
+  it('registers the new catalog activities after scene-reset listeners, and clears them on the next catalog', () => {
+    const universe = new Universe();
+    universe.loadCatalog({ name: 'activity fixture', activities: [{ version: 1, id: 'rover-drive', name: 'Drive 1', kind: 'drive', vehicle: 'Rover', body: 'Mars', temporality: 'interval', timeSystem: 'ET', start: 100, end: 120,
+      provenance: { source: 'fixture', version: '1', authority: 'authored', timing: 'exact', limitations: 'Synthetic fixture' } }] });
+    const unsubscribe = onViewerEvent('load', () => resetAnalysis());
+    try {
+      syncBodies(universe);
+      expect(visibleTimelineEvents()).toMatchObject([{ label: 'Rover Drive 1', start: 100, end: 120 }]);
+      expect(analysis.items).toEqual([]);
+      syncBodies(new Universe());
+      expect(allTimelineEvents()).toEqual([]);
+    } finally { unsubscribe(); }
   });
 
   it('keeps configured items stable while their configuration changes', () => {
@@ -177,4 +215,3 @@ describe('viewer analysis state', () => {
     expect(enabled).toEqual([b.id, a.id]);
   });
 });
-

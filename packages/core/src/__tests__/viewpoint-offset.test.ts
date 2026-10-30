@@ -28,7 +28,7 @@ import { bodyFixedOffsetToWorld, rotateVecByQuat, type Vec3 } from '../kinematic
 import { SpiceRotation } from '../rotations/SpiceRotation.js';
 
 const KERNEL = (name: string) =>
-  fileURLToPath(new URL(`../../../spice/test-kernels/${name}`, import.meta.url));
+  fileURLToPath(new URL(`../../../../kernels/test-data/${name}`, import.meta.url));
 
 /** 2004-07-01T00:00 TDB-ish; any epoch inside the leapsecond kernel does. */
 const ET = 141868864.0;

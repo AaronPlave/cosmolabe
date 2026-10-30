@@ -30,7 +30,7 @@ export interface OracleBody {
 export interface SceneDef {
   name: string;
   catalog: CatalogJson;
-  /** Kernel paths relative to packages/spice/test-kernels. Empty ⇒ SPICE-free. */
+  /** Kernel paths relative to kernels/test-data. Empty ⇒ SPICE-free. */
   kernels: string[];
   defaultTime: string;
   /** Bodies the SPICE oracle can independently verify. */

@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * Generate the MoonFall synthetic-mission catalog.
+ * Generate the MoonFall catalog.
  *
- * Mission: 4 lunar hoppers exploring Shackleton crater rim and PSR floor
- * over a 14-day mission window starting Dec 2028. No SPICE, no EDL — just
- * authored Waypoints trajectories showing what a coordinated multi-hopper
- * sortie looks like in 3D.
+ * JPL's MoonFall (launch 2028) flies 4 hoppers at the lunar south pole for one
+ * lunar day; lunar night freezes the remaining fuel, and each hopper then runs
+ * a survive-the-night payload at its final site. The flights here are authored,
+ * not the mission's plan: hoppers exploring the Shackleton rim and PSR floor
+ * over a 14-day window starting Dec 2028. No EDL — just Waypoints trajectories
+ * showing what a coordinated multi-hopper sortie looks like in 3D.
  *
  *   - Polaris-A starts on the NW rim, sortie-dives into the PSR floor.
  *   - Polaris-B traverses the rim sampling regolith at peaks-of-eternal-light.
@@ -15,40 +17,46 @@
  * Each hopper does 3 flights over ~14 days (rest periods are for thermal /
  * power margin).
  *
- * Authoring vs runtime: waypoints below specify (lat, lon, altM_above_terrain)
+ * Authoring vs runtime: scripts/moonfall-schedule.mjs specifies (lat, lon, altM_above_terrain)
  * for human readability — "fly to lat X, lon Y, 80 m above the ground". The
- * build script then samples the USGS-hosted LOLA 118m global DEM at each
- * waypoint's lat/lon via GDAL /vsicurl/ (no local download — HTTP byte-range
- * reads), adds the authored altM offset, and emits ABSOLUTE altitudes (km
- * above the 1737.4 km lunar mean radius) with `useAbsoluteAlt: true`. The
- * renderer treats those waypoints as fixed Cartesian positions — no runtime
- * terrain-clamp pipeline involved, no angular-distance thresholds to tune at
- * high latitudes.
+ * build script samples the ground along each route from the Moon terrain the
+ * catalog draws — the cube-sphere product pinned in
+ * scripts/data-hosting/datasets.json (#149), on its finest CPU grid, which is
+ * the same lattice triangles the finest .glb tile renders — adds the authored
+ * altM offset, and emits ABSOLUTE altitudes (km above the 1737.4 km lunar mean
+ * radius) with `useAbsoluteAlt: true`. The renderer treats those waypoints as
+ * fixed Cartesian positions — no runtime terrain-clamp pipeline involved — and a
+ * landed hopper sits its altM above the drawn surface. Sampling a different
+ * DEM (the LOLA 118 m global, before #149) left landed hoppers up to 17 m
+ * inside or above the cube terrain.
  *
- * Sampled elevations are cached in scripts/data/moon-elevations.json so
- * subsequent builds don't re-query.
+ * Sampled elevations are cached with the product revision in
+ * scripts/data/moon-elevations-cube.json, and the continuous bake/validation always needs the pinned grids. scripts/data/moon-elevations.json
+ * keeps the LOLA 118 m samples as control points for validate-cube-terrain.mjs.
  *
  * Output: apps/viewer/test-catalogs/moonfall-shackleton.json
  *
- * Run: node scripts/build-moonfall-flights.mjs
+ * Run: node scripts/build-moonfall-flights.mjs [--grids DIR/cpu-grids.json | URL]
+ *   (needs `npm run build`, and the pinned product's grids;
+ *   default: the dataset's localDir)
  */
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
+import { bakeFlight, validateFlight, terrainSource, terrainDigest, sha256 } from './lib/moonfall-clearance.mjs';
+import { hoppers } from './moonfall-schedule.mjs';
+import { moonfallActivities } from './mission-activities.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'apps', 'viewer', 'test-catalogs', 'moonfall-shackleton.json');
 const CACHE_DIR = join(__dirname, 'data');
-const CACHE_FILE = join(CACHE_DIR, 'moon-elevations.json');
-
-// USGS Astrogeology LOLA 118 m/px global DEM in SimpleCylindrical projection.
-// Int16 stored as half-metres (Scale=0.5 in GeoTIFF metadata); the file is
-// 8.5 GB on disk, but /vsicurl/ + range reads only pull a few KB per sample.
-const LOLA_URL = '/vsicurl/https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif';
-const MOON_RADIUS_M = 1737400;
-const DEM_SCALE = 0.5;
-const DEM_NODATA = -32768;
+const CACHE_FILE = join(CACHE_DIR, 'moon-elevations-cube.json');
+const ROOT = join(__dirname, '..');
+const DATASETS = JSON.parse(readFileSync(join(__dirname, 'data-hosting', 'datasets.json'), 'utf8')).datasets;
+const TERRAIN = DATASETS['cube-terrain/moon-terrain-cube'];
+const IMAGERY = DATASETS['cube-imagery/moon-imagery-cube-wac-nac'];
+const { values: opt } = parseArgs({ options: { grids: { type: 'string' } } });
 
 const MISSION = {
   catalogName: 'MoonFall at Shackleton',
@@ -59,272 +67,11 @@ const MISSION = {
   defaultViewpoint: 'Shackleton Overview',
 };
 
-// Each waypoint: t (seconds from flight epoch), lat (deg), lon (deg), altM (meters above terrain).
-const hoppers = [
-  {
-    name: 'Polaris-A',
-    color: [0.4, 0.85, 1.0],
-    base: { lat: -89.55, lon: -45 },
-    flights: [
-      {
-        epoch: '2028-12-15T10:00:00Z',
-        label: 'PSR floor sample run',
-        waypoints: [
-          { t:   0, lat: -89.55, lon: -45, altM:   1 },  // takeoff
-          { t:  25, lat: -89.55, lon: -45, altM:  80 },  // climb
-          { t:  90, lat: -89.62, lon: -30, altM: 140 },  // cruise toward crater
-          { t: 160, lat: -89.69, lon: -10, altM:  90 },  // descent into PSR
-          { t: 200, lat: -89.71, lon:  -2, altM:   5 },  // touchdown for sample
-          { t: 260, lat: -89.71, lon:  -2, altM:  90 },  // climb out
-          { t: 330, lat: -89.62, lon: -30, altM: 140 },  // return cruise
-          { t: 400, lat: -89.55, lon: -45, altM:  60 },  // approach
-          { t: 430, lat: -89.55, lon: -45, altM:   1 },  // landing
-        ],
-      },
-      {
-        epoch: '2028-12-17T22:00:00Z',
-        label: 'PSR transect — west half',
-        waypoints: [
-          { t:   0, lat: -89.55, lon: -45, altM:   1 },
-          { t:  25, lat: -89.55, lon: -45, altM:  70 },
-          { t: 110, lat: -89.65, lon: -35, altM: 110 },
-          { t: 180, lat: -89.72, lon: -25, altM:  40 },  // low cruise over PSR floor
-          { t: 240, lat: -89.78, lon: -15, altM:  40 },
-          { t: 300, lat: -89.78, lon: -15, altM:   5 },  // touchdown
-          { t: 360, lat: -89.78, lon: -15, altM:  70 },
-          { t: 440, lat: -89.65, lon: -35, altM: 130 },
-          { t: 510, lat: -89.55, lon: -45, altM:  60 },
-          { t: 540, lat: -89.55, lon: -45, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-22T14:00:00Z',
-        label: 'Ridge climb to rim peak',
-        waypoints: [
-          { t:   0, lat: -89.55, lon: -45, altM:   1 },
-          { t:  30, lat: -89.55, lon: -45, altM:  90 },
-          { t: 100, lat: -89.52, lon: -55, altM: 180 },  // climb to elevated rim
-          { t: 170, lat: -89.50, lon: -65, altM: 240 },  // PEoL summit candidate
-          { t: 230, lat: -89.50, lon: -65, altM:   5 },  // perch
-          { t: 320, lat: -89.50, lon: -65, altM: 240 },
-          { t: 390, lat: -89.52, lon: -55, altM: 180 },
-          { t: 460, lat: -89.55, lon: -45, altM:  60 },
-          { t: 490, lat: -89.55, lon: -45, altM:   1 },
-        ],
-      },
-    ],
-  },
-  {
-    name: 'Polaris-B',
-    color: [1.0, 0.65, 0.3],
-    base: { lat: -89.40, lon: 30 },
-    flights: [
-      {
-        epoch: '2028-12-15T10:00:00Z',
-        label: 'Rim traverse east',
-        waypoints: [
-          { t:   0, lat: -89.40, lon:  30, altM:   1 },
-          { t:  25, lat: -89.40, lon:  30, altM:  80 },
-          { t: 110, lat: -89.42, lon:  55, altM: 110 },
-          { t: 200, lat: -89.45, lon:  85, altM: 110 },
-          { t: 240, lat: -89.45, lon:  85, altM:   5 },
-          { t: 310, lat: -89.45, lon:  85, altM:  90 },
-          { t: 380, lat: -89.42, lon:  55, altM: 130 },
-          { t: 460, lat: -89.40, lon:  30, altM:  60 },
-          { t: 490, lat: -89.40, lon:  30, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-19T06:00:00Z',
-        label: 'Sun-illuminated peak sampling',
-        waypoints: [
-          { t:   0, lat: -89.40, lon:  30, altM:   1 },
-          { t:  30, lat: -89.40, lon:  30, altM: 100 },
-          { t:  90, lat: -89.36, lon:  20, altM: 220 },  // toward peaks-of-eternal-light
-          { t: 150, lat: -89.34, lon:  10, altM: 220 },
-          { t: 190, lat: -89.34, lon:  10, altM:   5 },
-          { t: 260, lat: -89.34, lon:  10, altM: 220 },
-          { t: 330, lat: -89.38, lon:  25, altM: 160 },
-          { t: 400, lat: -89.40, lon:  30, altM:  60 },
-          { t: 430, lat: -89.40, lon:  30, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-26T11:00:00Z',
-        label: 'Long hop to neighboring rim site',
-        waypoints: [
-          { t:   0, lat: -89.40, lon:  30, altM:   1 },
-          { t:  30, lat: -89.40, lon:  30, altM: 100 },
-          { t: 150, lat: -89.36, lon:  60, altM: 160 },
-          { t: 280, lat: -89.32, lon:  95, altM: 200 },
-          { t: 380, lat: -89.30, lon: 120, altM: 100 },
-          { t: 420, lat: -89.30, lon: 120, altM:   1 },  // new landing site (one-way; rest of mission is data uplink)
-        ],
-      },
-    ],
-  },
-  {
-    name: 'Polaris-C',
-    color: [0.85, 0.4, 1.0],
-    base: { lat: -89.78, lon: 90 },
-    flights: [
-      {
-        epoch: '2028-12-15T10:00:00Z',
-        label: 'Crater inner-wall transect',
-        waypoints: [
-          { t:   0, lat: -89.78, lon:  90, altM:   1 },
-          { t:  25, lat: -89.78, lon:  90, altM:  80 },
-          { t: 100, lat: -89.75, lon:  75, altM: 110 },
-          { t: 180, lat: -89.73, lon:  50, altM:  80 },
-          { t: 240, lat: -89.73, lon:  50, altM:   5 },
-          { t: 310, lat: -89.73, lon:  50, altM:  90 },
-          { t: 390, lat: -89.75, lon:  75, altM: 130 },
-          { t: 470, lat: -89.78, lon:  90, altM:  60 },
-          { t: 500, lat: -89.78, lon:  90, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-20T15:00:00Z',
-        label: 'PSR floor exploration',
-        waypoints: [
-          { t:   0, lat: -89.78, lon:  90, altM:   1 },
-          { t:  25, lat: -89.78, lon:  90, altM:  70 },
-          { t: 110, lat: -89.75, lon:  60, altM:  60 },  // low cruise PSR
-          { t: 190, lat: -89.72, lon:  30, altM:  40 },
-          { t: 240, lat: -89.72, lon:  30, altM:   5 },
-          { t: 320, lat: -89.72, lon:  30, altM:  60 },
-          { t: 400, lat: -89.75, lon:  60, altM:  90 },
-          { t: 480, lat: -89.78, lon:  90, altM:  60 },
-          { t: 510, lat: -89.78, lon:  90, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-25T02:00:00Z',
-        label: 'Rim south-arc survey',
-        waypoints: [
-          { t:   0, lat: -89.78, lon:  90, altM:   1 },
-          { t:  30, lat: -89.78, lon:  90, altM:  90 },
-          { t: 130, lat: -89.80, lon: 130, altM: 130 },
-          { t: 240, lat: -89.78, lon: 170, altM: 100 },
-          { t: 280, lat: -89.78, lon: 170, altM:   5 },
-          { t: 360, lat: -89.78, lon: 170, altM: 100 },
-          { t: 470, lat: -89.80, lon: 130, altM: 150 },
-          { t: 580, lat: -89.78, lon:  90, altM:  60 },
-          { t: 610, lat: -89.78, lon:  90, altM:   1 },
-        ],
-      },
-    ],
-  },
-  {
-    name: 'Polaris-D',
-    color: [0.4, 1.0, 0.5],
-    base: { lat: -89.50, lon: -135 },
-    flights: [
-      {
-        epoch: '2028-12-15T10:00:00Z',
-        label: 'Connector hop to de Gerlache',
-        waypoints: [
-          { t:   0, lat: -89.50, lon: -135, altM:   1 },
-          { t:  30, lat: -89.50, lon: -135, altM: 100 },
-          { t: 160, lat: -89.40, lon: -150, altM: 250 },
-          { t: 320, lat: -89.20, lon: -160, altM: 250 },  // toward de Gerlache
-          { t: 380, lat: -89.10, lon: -160, altM:  40 },
-          { t: 420, lat: -89.10, lon: -160, altM:   5 },
-          { t: 490, lat: -89.10, lon: -160, altM:  80 },
-          { t: 620, lat: -89.30, lon: -155, altM: 200 },
-          { t: 750, lat: -89.50, lon: -135, altM:  60 },
-          { t: 780, lat: -89.50, lon: -135, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-21T07:30:00Z',
-        label: 'PSR oblique entry',
-        waypoints: [
-          { t:   0, lat: -89.50, lon: -135, altM:   1 },
-          { t:  30, lat: -89.50, lon: -135, altM:  80 },
-          { t: 120, lat: -89.60, lon: -120, altM:  60 },
-          { t: 220, lat: -89.68, lon: -100, altM:  40 },
-          { t: 270, lat: -89.68, lon: -100, altM:   5 },
-          { t: 340, lat: -89.68, lon: -100, altM:  60 },
-          { t: 440, lat: -89.60, lon: -120, altM: 100 },
-          { t: 530, lat: -89.50, lon: -135, altM:  60 },
-          { t: 560, lat: -89.50, lon: -135, altM:   1 },
-        ],
-      },
-      {
-        epoch: '2028-12-27T18:00:00Z',
-        label: 'Long traverse to Sverdrup',
-        waypoints: [
-          { t:   0, lat: -89.50, lon: -135, altM:   1 },
-          { t:  30, lat: -89.50, lon: -135, altM: 120 },
-          { t: 180, lat: -89.30, lon: -125, altM: 280 },
-          { t: 350, lat: -88.85, lon: -110, altM: 280 },  // toward Sverdrup
-          { t: 430, lat: -88.65, lon: -100, altM: 100 },
-          { t: 480, lat: -88.65, lon: -100, altM:   5 },
-          { t: 560, lat: -88.65, lon: -100, altM: 100 },
-          { t: 720, lat: -89.15, lon: -120, altM: 250 },
-          { t: 880, lat: -89.50, lon: -135, altM:  60 },
-          { t: 910, lat: -89.50, lon: -135, altM:   1 },
-        ],
-      },
-    ],
-  },
-];
-
 // --- Terrain elevation sampling --------------------------------------------
-
-// Lat/lon → SimpleCylindrical projected metres (LOLA DEM's CRS).
-function latLonToProjMeters(latDeg, lonDeg) {
-  return {
-    x: (lonDeg * Math.PI / 180) * MOON_RADIUS_M,
-    y: (latDeg * Math.PI / 180) * MOON_RADIUS_M,
-  };
-}
 
 function cacheKey(latDeg, lonDeg) {
   // 5 decimal places ≈ 30 cm at lunar surface — well below DEM sampling resolution
   return `${latDeg.toFixed(5)},${lonDeg.toFixed(5)}`;
-}
-
-function loadCache() {
-  if (!existsSync(CACHE_FILE)) return {};
-  try { return JSON.parse(readFileSync(CACHE_FILE, 'utf8')); }
-  catch { return {}; }
-}
-
-function saveCache(cache) {
-  if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
-  writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2) + '\n');
-}
-
-/** Batch-sample LOLA DEM at all (latDeg, lonDeg) pairs. Returns a Map keyed
- *  by cacheKey() with elevation in METRES above lunar mean radius. Issues a
- *  single gdallocationinfo call piping all coords on stdin so we amortize the
- *  /vsicurl/ open cost across the batch. */
-function sampleBatch(coords) {
-  if (coords.length === 0) return new Map();
-  const stdin = coords.map(({ latDeg, lonDeg }) => {
-    const { x, y } = latLonToProjMeters(latDeg, lonDeg);
-    return `${x} ${y}`;
-  }).join('\n');
-  const result = spawnSync(
-    'gdallocationinfo',
-    ['-valonly', '-geoloc', LOLA_URL],
-    { input: stdin, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
-  );
-  if (result.status !== 0) {
-    throw new Error(`gdallocationinfo failed (exit ${result.status}):\n${result.stderr}`);
-  }
-  const lines = result.stdout.split('\n');
-  const out = new Map();
-  for (let i = 0; i < coords.length; i++) {
-    const raw = (lines[i] || '').trim();
-    if (raw === '' || raw === String(DEM_NODATA)) continue;
-    const stored = parseFloat(raw);
-    if (!Number.isFinite(stored)) continue;
-    out.set(cacheKey(coords[i].latDeg, coords[i].lonDeg), stored * DEM_SCALE);
-  }
-  return out;
 }
 
 function collectAllWaypointCoords() {
@@ -343,26 +90,37 @@ function collectAllWaypointCoords() {
   return out;
 }
 
-function ensureElevations() {
-  const cache = loadCache();
+/** Ground (m above the 1737.4 km sphere) at every waypoint, on the pinned cube product's finest grid. */
+async function ensureElevations() {
+  const cache = existsSync(CACHE_FILE) ? JSON.parse(readFileSync(CACHE_FILE, 'utf8')) : {};
   const allCoords = collectAllWaypointCoords();
-  const missing = allCoords.filter(c => !(cacheKey(c.latDeg, c.lonDeg) in cache));
-  if (missing.length === 0) {
-    console.log(`Elevation cache hit (${allCoords.length} waypoint sites already cached).`);
-    return cache;
+  if (cache.revision === TERRAIN.build && allCoords.every(c => Number.isFinite(cache.elevations?.[cacheKey(c.latDeg, c.lonDeg)]))) {
+    console.log(`Elevation cache hit (${allCoords.length} waypoint sites, ${TERRAIN.build}).`);
+    return cache.elevations;
   }
-  console.log(`Sampling LOLA DEM at ${missing.length} new waypoint sites (of ${allCoords.length} total)...`);
-  const sampled = sampleBatch(missing);
-  if (sampled.size !== missing.length) {
-    console.warn(`  warning: ${missing.length - sampled.size} samples returned nodata (treating as 0 m)`);
+  const dist = join(ROOT, 'packages/three/dist/surface/CubeSphereGrids.js');
+  if (!existsSync(dist)) throw new Error('packages/three/dist is missing — run `npm run build` first');
+  const { CubeSphereGridSource } = await import(pathToFileURL(dist).href);
+  const grids = opt.grids ?? join(ROOT, TERRAIN.localDir, 'cpu-grids.json');
+  const local = !/^https?:/.test(grids);
+  const fetchFile = async (url) => new Response(readFileSync(new URL(url)));
+  const source = await CubeSphereGridSource.fromUrl(local ? pathToFileURL(grids).href : grids, local ? { fetch: fetchFile } : {});
+  if (source.manifest.source.version !== TERRAIN.build) {
+    throw new Error(`${grids} is revision ${source.manifest.source.version}; datasets.json pins ${TERRAIN.build}`);
   }
-  for (const c of missing) {
-    const k = cacheKey(c.latDeg, c.lonDeg);
-    cache[k] = sampled.get(k) ?? 0;
+  await source.ready;
+  console.log(`Sampling ${allCoords.length} waypoint sites on ${TERRAIN.build}...`);
+  const elevations = {};
+  for (const { latDeg, lonDeg } of allCoords) {
+    await source.request(latDeg, lonDeg);
+    const c = source.coverage(latDeg, lonDeg), sample = source.sampler.sample(latDeg, lonDeg);
+    if (c.state !== 'finest' || !sample) throw new Error(`no finest-level ground at ${latDeg}, ${lonDeg} (${c.state})`);
+    elevations[cacheKey(latDeg, lonDeg)] = Math.round(sample.elevationKm * 1e6) / 1e3;
   }
-  saveCache(cache);
+  if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true });
+  writeFileSync(CACHE_FILE, JSON.stringify({ revision: TERRAIN.build, grids: 'finest cpu-grids lattice triangles (CubeSphereSampler.sample)', elevations }, null, 2) + '\n');
   console.log(`  wrote ${CACHE_FILE}`);
-  return cache;
+  return elevations;
 }
 
 // --- Build catalog ---------------------------------------------------------
@@ -371,7 +129,7 @@ function isoAdd(iso, seconds) {
   return new Date(new Date(iso).getTime() + seconds * 1000).toISOString();
 }
 
-function flightArc(flight, elevations) {
+function flightArc(flight) {
   const last = flight.waypoints[flight.waypoints.length - 1];
   return {
     startTime: flight.epoch,
@@ -381,18 +139,9 @@ function flightArc(flight, elevations) {
       referenceRadius: 1737.4,
       epoch: flight.epoch,
       // Absolute altitudes (km above 1737.4 km lunar mean). Pre-computed at
-      // build time from LOLA DEM ground elevation + authored altM above terrain.
+      // build time from the cube terrain's ground + authored altM above terrain.
       useAbsoluteAlt: true,
-      waypoints: flight.waypoints.map(w => {
-        const groundM = elevations[cacheKey(w.lat, w.lon)] ?? 0;
-        const absAltKm = (groundM + w.altM) / 1000;
-        return {
-          t: w.t,
-          lat: w.lat,
-          lon: w.lon,
-          alt: `${absAltKm.toFixed(6)}km`,
-        };
-      }),
+      waypoints: flight.bakedWaypoints,
     },
   };
 }
@@ -405,15 +154,14 @@ function hopperItem(hopper, elevations) {
   const arcs = [];
   for (let i = 0; i < hopper.flights.length; i++) {
     const f = hopper.flights[i];
-    arcs.push(flightArc(f, elevations));
+    arcs.push(flightArc(f));
     if (i < hopper.flights.length - 1) {
       const restStart = arcs[arcs.length - 1].endTime;
       const next = hopper.flights[i + 1];
       const lastWp = f.waypoints[f.waypoints.length - 1];
-      const groundM = elevations[cacheKey(lastWp.lat, lastWp.lon)] ?? 0;
-      const absAltKm = (groundM + lastWp.altM) / 1000;
-      const altStr = `${absAltKm.toFixed(6)}km`;
+      const altStr = f.bakedWaypoints.at(-1).alt;
       arcs.push({
+        showLine: false, // parked: no geometry or days-long zero-motion cache
         startTime: restStart,
         endTime: next.epoch,
         trajectory: {
@@ -432,7 +180,13 @@ function hopperItem(hopper, elevations) {
   return {
     name: hopper.name,
     class: 'spacecraft',
-    trajectoryFrame: 'BodyFixed',
+    trajectoryFrame: 'MOON_ME_DE421',
+    surfaceTrajectory: {
+      frame: 'MOON_ME_DE421', positionUnits: 'km', purpose: 'synthetic-demo',
+      datum: { referenceShape: { kind: 'sphere', radiusKm: 1737.4 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+      terrainRevision: TERRAIN.build,
+    },
+    trajectoryPlot: { frame: 'MOON_ME_DE421', sampleInterval: 1 },
     arcs,
     rotationModel: { type: 'SurfaceUp' },
     geometry: {
@@ -452,21 +206,64 @@ function hopperItem(hopper, elevations) {
   };
 }
 
-const elevations = ensureElevations();
+const elevations = await ensureElevations();
+const source = await terrainSource(opt.grids ?? join(ROOT, TERRAIN.localDir, 'cpu-grids.json'), TERRAIN.build);
+const report = { revision: TERRAIN.build, authoredSha256: sha256(hoppers),
+  sampling: { maxDistanceM: 2, maxTimeS: .1 },
+  thresholds: { minClearanceM: .75, maxClearanceM: 500 }, flights: [] };
+for (const hopper of hoppers) for (const flight of hopper.flights) {
+  const original = flight.waypoints.map(w => ({ t: w.t, lat: w.lat, lon: w.lon,
+    alt: `${(elevations[cacheKey(w.lat, w.lon)] + w.altM) / 1000}km` }));
+  const before = await validateFlight(original, source);
+  const baked = await bakeFlight(flight, elevations, source);
+  const after = await validateFlight(baked, source);
+  const segments = flight.waypoints.slice(0, -1).map((a, i) => {
+    const b = flight.waypoints[i + 1];
+    const parts = after.segments.filter(s => s.startS >= a.t - 1e-8 && s.endS <= b.t + 1e-8);
+    const worst = parts.reduce((a, b) => a.minClearanceM < b.minClearanceM ? a : b);
+    return { segment: i, from: a, to: b, minClearanceM: worst.minClearanceM,
+      maxClearanceM: Math.max(...parts.map(s => s.maxClearanceM)), at: worst.at,
+      samples: parts.reduce((sum, s) => sum + s.samples, 0) };
+  });
+  report.flights.push({ hopper: hopper.name, epoch: flight.epoch, label: flight.label,
+    pathSha256: sha256(baked), knots: baked.length,
+    before, after: { ...after, segments } });
+  console.log(`${hopper.name} ${flight.label}: before ${before.minClearanceM.toFixed(2)} m; after ${after.minClearanceM.toFixed(2)}..${after.maxClearanceM.toFixed(2)} m (${after.samples} samples)`);
+  if (after.minClearanceM < report.thresholds.minClearanceM || after.maxClearanceM > report.thresholds.maxClearanceM) {
+    throw Error('Flight clearance acceptance failed; catalog has not been written');
+  }
+  flight.bakedWaypoints = baked;
+}
+console.log('Terrain grids:', source.stats);
+report.terrainInputsSha256 = terrainDigest(source);
+report.terrainInputs = Object.fromEntries([...source.clearanceInputs].sort(([a], [b]) => a.localeCompare(b)));
+source.dispose();
+
+// Viewpoint distance is measured from the body's centre, not its surface.
+// Aim at the regional datum point rather than the lunar centre so these are
+// surface views, with an explicit north-up direction in the Moon's axes.
+function surfaceView(name, latitude, longitude, heightKm) {
+  const lat = latitude * Math.PI / 180, lon = longitude * Math.PI / 180;
+  return {
+    name, type: 'Viewpoint', center: 'Moon', frame: 'BodyFixed',
+    distance: 1737.4 + heightKm, latitude, longitude,
+    target: [1737.4 * Math.cos(lat) * Math.cos(lon), 1737.4 * Math.cos(lat) * Math.sin(lon), 1737.4 * Math.sin(lat)],
+    up: [-Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat)],
+  };
+}
 
 const catalog = {
+  activities: moonfallActivities(),
   name: MISSION.catalogName,
   defaultTime: MISSION.defaultTime,
   defaultViewpoint: MISSION.defaultViewpoint,
+  // Real ephemeris and DE421 mean-Earth orientation (de440s, lunar binary PCK): where the Sun and Earth
+  // sit in the polar sky — grazing sun, Earth dipping below the horizon — is
+  // the point of a south-pole mission.
+  require: ['base/naif.json', 'base/lunar-surface.json', 'places/moon.json', 'places/moonfall-sites.json'],
+  defaultGeographicNames: ['Moon'],
   items: [
-    {
-      name: 'Shackleton Overview',
-      type: 'Viewpoint',
-      center: 'Moon',
-      distance: 60,
-      latitude: -89.6,
-      longitude: 0,
-    },
+    surfaceView('Shackleton Overview', -89.6, 0, 60),
     {
       name: 'Polaris-A Close-up',
       type: 'Viewpoint',
@@ -475,14 +272,7 @@ const catalog = {
       latitude: 25,
       longitude: 90,
     },
-    {
-      name: 'PSR Floor View',
-      type: 'Viewpoint',
-      center: 'Moon',
-      distance: 20,
-      latitude: -89.7,
-      longitude: -10,
-    },
+    surfaceView('PSR Floor View', -89.7, -10, 20),
     {
       name: 'Sun',
       class: 'star',
@@ -494,7 +284,8 @@ const catalog = {
       name: 'Earth',
       class: 'planet',
       center: 'Sun',
-      trajectory: { type: 'Builtin', name: 'Earth', visible: false },
+      trajectory: { type: 'Builtin', name: 'Earth' },
+      trajectoryPlot: { visible: false },
       geometry: {
         type: 'Globe',
         radius: 6378,
@@ -508,7 +299,7 @@ const catalog = {
       class: 'moon',
       center: 'Earth',
       trajectory: { type: 'Builtin', name: 'Moon' },
-      rotationModel: { type: 'Builtin', name: 'IAU_MOON' },
+      rotationModel: { type: 'Spice', bodyFrame: 'MOON_ME_DE421', inertialFrame: 'ECLIPJ2000' },
       geometry: {
         type: 'Globe',
         radius: 1737.4,
@@ -517,19 +308,27 @@ const catalog = {
         displacementMap: 'textures/moon-displacement-2k.jpg',
         displacementScale: 20,
         displacementBias: -9,
-        // Hosted Mars Hub moon_v14 until the fused LOLA pyramid built by
-        // scripts/build-moon-terrain/ (#48) is hosted (#137); its README has the
-        // terrain block to swap in.
+        // Cube-sphere terrain, CPU grids and WAC + NAC imagery (#149). The data/
+        // paths resolve to test-catalogs/data locally and are pinned to the
+        // published builds in datasets.json by build-hosted-catalogs.mjs at deploy.
+        // Rollback: the previous block (moon_v14 quantized-mesh + Trek WAC overlay)
+        // is in docs/design/cube-sphere-experiment.md, "First migration".
         terrain: {
-          type: 'quantized-mesh',
-          url: 'https://marshub.s3.amazonaws.com/moon_v14/',
-          // Geographic tiles are slivers at the pole: one Shackleton view holds
-          // ~1000 of them, so the default 256-tile CPU sampler cache would evict
-          // the tiles under the camera that picking and dolly clearance sample.
-          samplerMaxTiles: 4096,
-          imagery: {
-            url: 'https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
-            levels: 8,
+          type: '3dtiles',
+          frame: 'MOON_ME_DE421',
+          url: `${TERRAIN.catalogPrefix}tileset.json`,
+          errorTarget: 2,
+          fadeDurationMs: 0,
+          datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+          sourceMetadata: {
+            id: 'moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)',
+            kind: 'height-grid',
+          },
+          cubeSphere: {
+            cpuGrids: `${TERRAIN.catalogPrefix}cpu-grids.json`,
+            // Measured Retina tilt/zoom history needs more than the generic
+            // 160 MiB single-source target, including usable parent pages.
+            imagery: { url: `${IMAGERY.catalogPrefix}imagery.json`, maxTextureBytes: 512 * 1024 * 1024 },
           },
         },
       },
@@ -540,5 +339,6 @@ const catalog = {
 };
 
 writeFileSync(OUT, JSON.stringify(catalog, null, 2) + '\n');
+writeFileSync(join(CACHE_DIR, 'moonfall-clearance.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(`Wrote ${OUT}`);
 console.log(`  ${hoppers.length} hoppers, ${hoppers.reduce((n, h) => n + h.flights.length, 0)} flights total`);

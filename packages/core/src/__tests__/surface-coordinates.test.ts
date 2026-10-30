@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodySurfaceCoordinates, bodyFixedToSurfacePosition, surfacePositionToBodyFixed, canonicalLongitude, displayLongitude, formatSurfaceAngle, geodeticToBodyFixed } from '../surface-coordinates.js';
+import { bodySurfaceCoordinates, bodyFixedToSurfacePosition, surfacePositionToBodyFixed, canonicalLongitude, displayLongitude, formatSurfaceAngle } from '../surface-coordinates.js';
 
 describe('shared surface coordinates', () => {
   for (const radii of [[1737.4, 1737.4, 1737.4], [6378.137, 6378.137, 6356.752], [20, 15, 10]] as [number, number, number][]) {
@@ -21,7 +21,7 @@ describe('shared surface coordinates', () => {
     expect(Math.atan2(p.zKm, Math.hypot(p.xKm, p.yKm)) * 180 / Math.PI).toBeLessThan(45);
     const t = bodySurfaceCoordinates({ name: 'Irregular', radii: [20, 15, 10] })!;
     expect(t.latitudeType).toBe('planetocentric');
-    expect(() => geodeticToBodyFixed({ latDeg: 45, lonDeg: 90 }, t.datum)).toThrow(/triaxial/);
+    expect(() => surfacePositionToBodyFixed({ latDeg: 45, lonDeg: 90 }, { ...t, latitudeType: 'geodetic' })).toThrow(/triaxial/);
   });
   it('normalizes seams and declares display direction', () => {
     expect(canonicalLongitude(90, 'west')).toBe(-90);
@@ -34,8 +34,8 @@ describe('shared surface coordinates', () => {
     expect(formatSurfaceAngle(90, 'longitude')).toBe('90°E');
     expect(formatSurfaceAngle(0.1, 'latitude', 0.1)).toBe('0.1°N');
   });
-  it('preserves an explicitly declared target frame rather than inferring an IAU name', () => {
-    const coordinates = bodySurfaceCoordinates({ name: 'Mars', radii: [3396.19, 3396.19, 3376.2], rotation: { targetFrame: 'IAU_MARS' } });
+  it('preserves an explicitly declared body-fixed frame rather than inferring an IAU name', () => {
+    const coordinates = bodySurfaceCoordinates({ name: 'Mars', radii: [3396.19, 3396.19, 3376.2], rotation: { bodyFixedFrame: 'IAU_MARS' } });
     expect(coordinates?.frame).toBe('IAU_MARS');
   });
   it('does not invent physical coordinates for placeholders or spacecraft', () => {

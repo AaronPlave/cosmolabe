@@ -1,0 +1,170 @@
+{
+  "name": "Geographic vectors on streamed Mars terrain",
+  "description": "A modest set of wide regional polygons and lines around Gale crater over streamed MOLA/HRSC terrain with Viking/CTX imagery (network), for LOD-transition correctness and broad-area GPU cost (scripts/test-geographic-streamed-lod.mjs, scripts/test-geographic-close-zoom.mjs, scripts/benchmark-geographic-gpu.mjs).",
+  "defaultViewpoint": "Gale regional",
+  "geographicLayers": [
+    {
+      "id": "gale-regions",
+      "name": "Gale regions",
+      "body": "Mars",
+      "source": "geographic/gale-regions.geojson",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "color": "#56b4e9"
+      },
+      "provenance": {
+        "kind": "lod-and-gpu-test"
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Gale regional",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3816.19,
+      "latitude": -5.0,
+      "longitude": 137.6
+    },
+    {
+      "name": "Gale close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3441.19,
+      "latitude": -5.2,
+      "longitude": 137.5
+    },
+    {
+      "name": "Mars disk",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 12000,
+      "latitude": -5.0,
+      "longitude": 137.6
+    },
+    {
+      "name": "Gale floor close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3421.19,
+      "latitude": -5.9,
+      "longitude": 136.7
+    },
+    {
+      "name": "Gale floor very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.9,
+      "longitude": 136.7
+    },
+    {
+      "name": "Gale floor edge very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.4,
+      "longitude": 136.07
+    },
+    {
+      "name": "Gale region vertex very close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3399.19,
+      "latitude": -5.4,
+      "longitude": 138.75
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          20000000,
+          100000000,
+          20000000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
+        "terrain": {
+          "type": "quantized-mesh",
+          "url": "https://marshub.s3.amazonaws.com/mars_v14/",
+          "referenceRadiusOffsetKm": 8.765,
+          "errorTarget": 1,
+          "imagery": [
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+              "levels": 7
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 12,
+              "bounds": [
+                135.18,
+                -6.57,
+                139.24,
+                -2.81
+              ],
+              "minZoom": 4
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 16,
+              "bounds": [
+                137.12,
+                -4.95,
+                137.73,
+                -4.25
+              ],
+              "minZoom": 8
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

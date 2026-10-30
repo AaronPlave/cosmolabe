@@ -1,0 +1,250 @@
+{
+  "passed": true,
+  "errors": [],
+  "flights": [
+    {
+      "id": "moonfall:Polaris-A:hop:1",
+      "vehicle": "Polaris-A",
+      "name": "PSR floor sample run",
+      "flight": {
+        "start": 913759269.1834563,
+        "end": 913759699.1834563,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 913759484.3394564,
+        "selected": "moonfall:Polaris-A:hop:1"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-A:hop:1",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-B:hop:1",
+      "vehicle": "Polaris-B",
+      "name": "Rim traverse east",
+      "flight": {
+        "start": 913759269.1834563,
+        "end": 913759759.1834563,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 913759514.2824564,
+        "selected": "moonfall:Polaris-B:hop:1"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-B:hop:1",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-C:hop:1",
+      "vehicle": "Polaris-C",
+      "name": "Crater inner-wall transect",
+      "flight": {
+        "start": 913759269.1834563,
+        "end": 913759769.1834563,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 913759519.2894564,
+        "selected": "moonfall:Polaris-C:hop:1"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-C:hop:1",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-D:hop:1",
+      "vehicle": "Polaris-D",
+      "name": "Connector hop to de Gerlache",
+      "flight": {
+        "start": 913759269.1834563,
+        "end": 913760049.1834563,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 913759659.2674564,
+        "selected": "moonfall:Polaris-D:hop:1"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-D:hop:1",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-A:hop:2",
+      "vehicle": "Polaris-A",
+      "name": "PSR transect — west half",
+      "flight": {
+        "start": 913975269.1835251,
+        "end": 913975809.1835251,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 913975539.3415252,
+        "selected": "moonfall:Polaris-A:hop:2"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-A:hop:2",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-B:hop:2",
+      "vehicle": "Polaris-B",
+      "name": "Sun-illuminated peak sampling",
+      "flight": {
+        "start": 914090469.1835623,
+        "end": 914090899.1835623,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914090684.3065623,
+        "selected": "moonfall:Polaris-B:hop:2"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-B:hop:2",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-C:hop:2",
+      "vehicle": "Polaris-C",
+      "name": "PSR floor exploration",
+      "flight": {
+        "start": 914209269.1836008,
+        "end": 914209779.1836008,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914209524.304601,
+        "selected": "moonfall:Polaris-C:hop:2"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-C:hop:2",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-D:hop:2",
+      "vehicle": "Polaris-D",
+      "name": "PSR oblique entry",
+      "flight": {
+        "start": 914268669.1836202,
+        "end": 914269229.1836202,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914268949.2536203,
+        "selected": "moonfall:Polaris-D:hop:2"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-D:hop:2",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-A:hop:3",
+      "vehicle": "Polaris-A",
+      "name": "Ridge climb to rim peak",
+      "flight": {
+        "start": 914378469.1836561,
+        "end": 914378959.1836561,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914378714.3036562,
+        "selected": "moonfall:Polaris-A:hop:3"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-A:hop:3",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-C:hop:3",
+      "vehicle": "Polaris-C",
+      "name": "Rim south-arc survey",
+      "flight": {
+        "start": 914594469.1837273,
+        "end": 914595079.1837273,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914594774.3127272,
+        "selected": "moonfall:Polaris-C:hop:3"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-C:hop:3",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-B:hop:3",
+      "vehicle": "Polaris-B",
+      "name": "Long hop to neighboring rim site",
+      "flight": {
+        "start": 914713269.1837666,
+        "end": 914713689.1837666,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914713479.2717667,
+        "selected": "moonfall:Polaris-B:hop:3"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-B:hop:3",
+        "activeHops": 0,
+        "trails": 0
+      }
+    },
+    {
+      "id": "moonfall:Polaris-D:hop:3",
+      "vehicle": "Polaris-D",
+      "name": "Long traverse to Sverdrup",
+      "flight": {
+        "start": 914824869.1838037,
+        "end": 914825779.1838037,
+        "frame": "MOON_ME_DE421",
+        "trails": 1
+      },
+      "playback": {
+        "time": 914825324.3068038,
+        "selected": "moonfall:Polaris-D:hop:3"
+      },
+      "parked": {
+        "selected": "moonfall:Polaris-D:hop:3",
+        "activeHops": 0,
+        "trails": 0
+      }
+    }
+  ],
+  "gpu": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "error": 0
+  }
+}

@@ -25,13 +25,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { Spice } from '@cosmolabe/spice';
+import { createHeritageSpice } from '@cosmolabe/frames';
 import { Universe, type CatalogJson, type SpiceInstance, type ViewpointDefinition } from '@cosmolabe/core';
 import { applyNamedViewpoint, type ViewpointHost } from '../applyNamedViewpoint.js';
 import type { CameraViewpoint } from '../CameraController.js';
 import type { BodyMesh } from '../../BodyMesh.js';
 
-const LSK = fileURLToPath(new URL('../../../../spice/test-kernels/naif0012.tls', import.meta.url));
+const LSK = fileURLToPath(new URL('../../../../../kernels/test-data/naif0012.tls', import.meta.url));
 const CASSINI = fileURLToPath(new URL('../../../../../apps/viewer/test-catalogs/cassini-soi.json', import.meta.url));
 
 /** What the shipped catalog claims, and what those claims must resolve to. */
@@ -67,13 +67,13 @@ function stubHost(viewpoints: CameraViewpoint[]) {
   const host: ViewpointHost = {
     cameraController: {
       getViewpoint: (n) => byName.get(n),
-      applyViewpoint: (vp) => { calls.push(`apply:${vp.name}`); },
-      goToViewpoint: (n) => { calls.push(`goTo:${n}`); return true; },
-      track: (bm) => { calls.push(`track:${bm ? 'body' : 'null'}`); },
+      establishView: (vp) => { calls.push(`apply:${(vp as CameraViewpoint).name}`); },
     },
     timeController: {
+      get et() { return et; },
       setTime: (t) => { calls.push(`setTime:${t}`); et = t; },
     },
+    camera: { fov: 50, updateProjectionMatrix: () => {} },
     getBodyMesh: () => ({} as BodyMesh),
   };
   return { host, calls, et: () => et };
@@ -85,7 +85,7 @@ describe('catalog viewpoint `time` reaches the scene clock', () => {
   let byName: Map<string, ViewpointDefinition>;
 
   beforeAll(async () => {
-    spice = await Spice.init();
+    spice = await createHeritageSpice();
     const lsk = readFileSync(LSK);
     await spice.furnish({
       type: 'buffer',

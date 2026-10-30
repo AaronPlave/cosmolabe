@@ -19,6 +19,7 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
 import { CameraModeName } from '@cosmolabe/three';
@@ -43,11 +44,15 @@ import {
   crane,
   dolly,
   displayNote,
+  flyToBody,
+  frameBody,
   getRenderer,
   noteIsTimed,
   gotoObject,
   hasBody,
   isDisplayOption,
+  jumpToBody,
+  goToCoordinates,
   onViewerEvent,
   pointAtObject,
   runTo,
@@ -63,6 +68,7 @@ import {
   setTime,
   setTimeRate,
   setTrajectoryVisible,
+  stopFlight,
   trackBody,
   untrack,
 } from './viewer-state.svelte';
@@ -154,6 +160,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
   };
 
   return {
+    listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
+    getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
+    selectActivity, seekActivity, navigateActivity,
     // ── Write: scene setup ──
     gotoObject: (name, opts) =>
       gotoObject(name, { animate: opts?.seconds !== undefined, duration: opts?.seconds }),
@@ -169,6 +179,33 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     track: (name) => trackBody(name),
 
     untrack: () => untrack(),
+
+    frameObject: (name) => frameBody(name),
+
+    flyTo: (name, opts) => flyToBody(name, { path: opts?.path, seconds: opts?.seconds }),
+
+    jumpTo: (name) => jumpToBody(name),
+
+    gotoCoordinates: (name, latDeg, lonDeg, opts) => {
+      if (!hasBody(name)) return false;
+      const result = goToCoordinates(
+        {
+          bodyName: name, latDeg, lonDeg,
+          latitude: opts?.latitude ?? 'planetocentric',
+          longitudeDirection: opts?.longitude ?? 'east',
+        },
+        {
+          preset: opts?.view,
+          animate: opts?.animate || (opts?.seconds !== undefined && opts.seconds > 0),
+          seconds: opts?.seconds,
+          rangeKm: opts?.rangeKm,
+        },
+      );
+      if (!result.ok) throw new Error(result.error);
+      return true;
+    },
+
+    stopFlight: () => void stopFlight(),
 
     pointAtObject: (name) => pointAtObject(name),
 
@@ -292,7 +329,23 @@ export function createViewerControl(deps: ViewerControlDeps = {}): ViewerControl
     isPlaying: () => getRenderer()?.timeController.playing ?? vs.playing,
     getSelected: () => vs.selectedBodyName,
     getTracked: () => getRenderer()?.cameraController.trackedBody?.body.name ?? null,
+    getFlight: () => {
+      // The controller, not `vs.flight`: that mirror updates on the next
+      // animation frame, and a host polling for a landing must not see a
+      // flight that has already ended.
+      const flight = getRenderer()?.cameraController.flight;
+      return flight ? { target: flight.destination?.body.name ?? null, path: flight.path } : null;
+    },
     getCamera: camera,
+    getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
+    setCameraReference: (name) => {
+      const r = getRenderer();
+      if (!r) return false;
+      const body = name === null ? null : r.getBodyMesh(name);
+      if (body === undefined) return false;
+      r.cameraController.setOriginBody(body);
+      return true;
+    },
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),

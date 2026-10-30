@@ -6,10 +6,29 @@ SPICE kernels are ~1.1 GB. These live in an object store instead — Cloudflare 
 behind a custom domain — and the deployed catalogs point there. Nothing large
 goes in git or in the Pages artifact.
 
-Local development is unchanged: catalogs keep their local paths
-(`kernels/…`, `/test-catalogs/data/…`), `npm run dev` serves them from
-`apps/viewer/test-catalogs/`, and the Vite middleware still gunzips `.terrain`
-files on the fly.
+Local development serves repository examples under `/test-catalogs/` from
+`apps/viewer/test-catalogs/`; relative catalog asset paths (for example
+`kernels/…` and `data/…`) resolve from that catalog root, and the Vite
+middleware still gunzips `.terrain` files on the fly. Viewer-owned assets are
+separate in `apps/viewer/public/`.
+
+Vite serves existing local files first. If a requested file is missing and belongs
+to a published managed dataset in `datasets.json`, Vite streams it from that
+dataset's pinned deployed build (`https://data.aaronplave.com` by default).
+Catalogs and relative manifest URLs stay on the local origin, so the fallback
+works on any dev-server port without browser CORS changes. This also applies to
+direct requests for CPU grids, tiles, imagery and kernels. An upstream 404 stays
+a 404; unpublished, local-only and unmanaged paths retain local-only behavior.
+Local fallback URLs use revalidation (`Cache-Control: no-cache`), so changing a
+pin does not leave year-cached responses at an unversioned local alias. No
+dataset inventory scan or large download is needed before starting a demo.
+
+Set `DATA_BASE_URL` to use another data host. For generating or debugging partial
+local products, use `DEV_DATA_MODE=local` to disable remote fallback and ensure
+missing output remains visible. Restart Vite after changing these environment
+settings or registry pins. Production catalog rewriting is unchanged. Partial
+local products should match their pinned build; use local-only mode when they do
+not, rather than mixing an experimental local product with published files.
 
 ## How the pieces fit
 
@@ -134,6 +153,39 @@ top-level files in `apps/viewer/test-catalogs/kernels/` (leap seconds, `pck00011
 Catalogs pin the dated directory, so replacing a kernel is a new build, and a
 demo can't change behaviour underneath its users.
 
+### Cube-sphere terrain and imagery (#149)
+
+Two more directory kinds, each its own dataset and immutable prefix:
+
+- `cube-terrain/<name>/<build>/`: `tileset.json`, the `.glb` tiles it references
+  (`model/gltf-binary`), `cpu-grids.json` and its `heights/…/*.f32` grids, and
+  `terrain-product.json`. Validation refuses a build whose tileset
+  `asset.tilesetVersion`, grid `source.version` and product `source.version`
+  differ, a content URI that is absolute or missing, a grid that is missing or
+  the wrong size, or a geometry/grid tile count mismatch. `tileset.json` and
+  `cpu-grids.json` upload last, before `manifest.json`. Use the product revision
+  as the build id. The viewer also refuses grids whose revision differs from the
+  tileset's (`TerrainManager`), so geometry and CPU queries cannot mix builds.
+- `cube-imagery/<name>/<build>/`: `imagery.json` and every tile it lists, in its
+  declared encoding (`image/png`, `image/jpeg` or `image/webp`).
+
+Verification fetches both entry points and checks that they name the manifest's
+revision. It then checks a shallow, a middle and the deepest `.glb` with its CPU
+grid, or imagery tiles, for status, CORS, immutable caching, content type and
+magic bytes or size. It also checks for a plain 404.
+
+```sh
+V=$(node -p "require('./apps/viewer/test-catalogs/data/moon-terrain-cube/cpu-grids.json').source.version")
+npm run publish:data -- cube-terrain/moon-terrain-cube --build "$V" --origin https://aaronplave.com --origin http://localhost:5173
+npm run publish:data -- cube-imagery/moon-imagery-cube-nac --build cube-imagery-nac-6db766f8beebcace --origin https://aaronplave.com --origin http://localhost:5173
+# end to end through the hosted URLs, the deploy-time catalog rewrite and fault injection:
+node scripts/capture-cube-imagery.mjs --experiments adoption --gpu --throttle 40,200 --hosted-url "$DATA_BASE_URL"
+```
+
+Without credentials, `--local-dir DIR` with `--no-verify` publishes into a
+directory. `capture-cube-imagery.mjs --hosted-store DIR` then serves that
+directory from another origin with the stored headers.
+
 ### Adding a dataset
 
 Add an entry to `datasets.json` (`kind`, `name`, `localDir`, `catalogPrefix`,
@@ -145,14 +197,16 @@ dataset, so a new mission directory can't be forgotten.
 
 ## Checking a deployment
 
-Locally, `apps/viewer/test-catalogs/` may hold gigabytes of terrain and kernels, and
-Vite copies its whole `publicDir` into `dist/`. Build with `HOSTED_DATA=1` to skip
-every dataset pinned in `datasets.json` during that copy (CI never has them, so it
-doesn't need the flag). `HOSTED_DATA_SKIP=<dataset-id>,…` also skips datasets that
-aren't pinned yet, e.g. one that is still uploading:
+Repository examples are not included in ordinary builds. Set
+`BUNDLE_TEST_CATALOGS=1` to copy them under `dist/test-catalogs/` (the Pages
+build does this because it offers the Examples source). Locally, the directory
+may hold gigabytes of terrain and kernels; combine the opt-in with
+`HOSTED_DATA=1` to skip every dataset pinned in `datasets.json` during the copy.
+`HOSTED_DATA_SKIP=<dataset-id>,…` also skips datasets that aren't pinned yet,
+e.g. one that is still uploading:
 
 ```sh
-(cd apps/viewer && HOSTED_DATA=1 HOSTED_DATA_SKIP=terrain/mars-terrain-fused VITE_BASE=/ npx vite build)
+(cd apps/viewer && BUNDLE_TEST_CATALOGS=1 HOSTED_DATA=1 HOSTED_DATA_SKIP=terrain/mars-terrain-fused VITE_BASE=/ npx vite build)
 ```
 
 ```sh
@@ -206,3 +260,14 @@ the free plan.
 - **Kernel coverage intervals** in the kernel manifests.
 - **Moving the whole Examples catalog/index to the host** can use the existing
   catalog-source mechanism ([catalog-sources.md](catalog-sources.md)) later.
+
+### Local-only experiments
+
+A dataset with `localOnly: true` remains available to the Vite development
+server, but its `catalogPrefix` and explicitly listed `catalogs` (paths relative
+to the test-catalog root) are excluded from deployment bundles in both local-data
+and hosted-data modes. The hosted rewriter also removes these files when run on
+a previously copied catalog tree. Keep `build: null` until publication is
+explicitly intended. References from other catalogs still fail strict hosted
+validation while the dataset is unpublished; this is not a global unpublished
+dataset exemption. The bounded Jezero cube product uses this scope.

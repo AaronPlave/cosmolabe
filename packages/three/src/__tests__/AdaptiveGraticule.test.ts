@@ -345,7 +345,7 @@ describe('adaptive graticule', () => {
     bm.mesh.visible = false;
     const terrain = new THREE.Group();
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(100, 128, 64).rotateX(0.137).rotateZ(0.213), new THREE.MeshStandardMaterial());
-    terrain.add(mesh); terrain.updateMatrixWorld(true);
+    terrain.add(mesh); bm.add(terrain); terrain.updateMatrixWorld(true);
     vi.spyOn(bm, 'terrainTileGroup', 'get').mockReturnValue(terrain);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
     camera.position.set(300, 0, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
@@ -392,7 +392,7 @@ describe('adaptive graticule', () => {
       rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
     const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1); bm.mesh.visible = false;
     const terrain = new THREE.Group(); const mesh = new THREE.Mesh(new THREE.SphereGeometry(100, 128, 64), new THREE.MeshStandardMaterial());
-    terrain.add(mesh); terrain.updateMatrixWorld(true); vi.spyOn(bm, 'terrainTileGroup', 'get').mockReturnValue(terrain);
+    terrain.add(mesh); bm.add(terrain); terrain.updateMatrixWorld(true); vi.spyOn(bm, 'terrainTileGroup', 'get').mockReturnValue(terrain);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1000); camera.position.set(300, 100, 0); camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0);
     bm.showGrid(true, true, normalizeGridSettings({ density: 'manual', spacingDeg: 15 }));
     const manager = { reserveContextRect: () => true } as unknown as LabelManager;

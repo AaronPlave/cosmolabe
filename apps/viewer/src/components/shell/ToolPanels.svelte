@@ -14,7 +14,11 @@
   import DisplaySettings from '../DisplaySettings.svelte';
   import EventFinder from '../EventFinder.svelte';
   import DebugPanel from '../DebugPanel.svelte';
+  import MeasurementPanel from '../MeasurementPanel.svelte';
   import ScriptConsole from '../ScriptConsole.svelte';
+  import SurfaceLayersPanel from '../SurfaceLayersPanel.svelte';
+  import NavigatePanel from '../NavigatePanel.svelte';
+  import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -30,7 +34,7 @@
     // scene a strip at the top.
     if (shell.layout === 'compact') {
       const active = shell.activeSheet;
-      if (active == null || active === 'info' || active === 'pick') return [];
+      if (active == null || active === 'info' || active === 'probe') return [];
       const def = toolDef(active);
       return def.presentation === 'panel' && shell.openTools.includes(active) ? [def] : [];
     }
@@ -41,12 +45,20 @@
 {#each panels as tool (tool.id)}
   {#if tool.id === 'catalog'}
     <BodyDrawer onClose={() => closeTool('catalog')} />
+  {:else if tool.id === 'layers'}
+    <SurfaceLayersPanel onClose={() => closeTool('layers')} />
+  {:else if tool.id === 'navigate'}
+    <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
   {:else if tool.id === 'script'}
     <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}
     <DebugPanel onClose={() => closeTool('debug')} />
+  {:else if tool.id === 'measure'}
+    <MeasurementPanel onClose={() => closeTool('measure')} />
+  {:else if tool.id === 'instrument'}
+    <InstrumentViewPanel onClose={() => closeTool('instrument')} />
   {:else if tool.id === 'display'}
     <DisplaySettings
       onClose={() => closeTool('display')}

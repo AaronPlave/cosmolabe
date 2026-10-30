@@ -38,11 +38,11 @@ export class WaypointTrajectory implements Trajectory {
    * with absolute altitudes pre-computed from an offline DEM.
    */
   readonly useAbsoluteAlt: boolean;
-  readonly frame = BODY_FIXED;
+  readonly frame: string;
   readonly startTime: number;
   readonly endTime: number;
 
-  constructor(waypoints: Waypoint[], referenceRadiusKm: number, opts?: { useAbsoluteAlt?: boolean }) {
+  constructor(waypoints: Waypoint[], referenceRadiusKm: number, opts?: { useAbsoluteAlt?: boolean; frame?: string }) {
     if (waypoints.length < 2) {
       throw new Error('WaypointTrajectory requires at least 2 waypoints');
     }
@@ -50,6 +50,7 @@ export class WaypointTrajectory implements Trajectory {
     this.waypoints = sorted;
     this.referenceRadiusKm = referenceRadiusKm;
     this.useAbsoluteAlt = opts?.useAbsoluteAlt === true;
+    this.frame = opts?.frame ?? BODY_FIXED;
     this.startTime = sorted[0].et;
     this.endTime = sorted[sorted.length - 1].et;
 
@@ -87,8 +88,15 @@ export class WaypointTrajectory implements Trajectory {
       return { position: [...last.pos] as Vec3, velocity: [...last.tangent] as Vec3 };
     }
 
-    let i = 0;
-    while (i < s.length - 1 && et > s[i + 1].et) i++;
+    // First knot at or after et. Keep exact-knot/duplicate-time behavior of
+    // the original scan, while bounding lookup cost for densely baked paths.
+    let lo = 1, hi = s.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (s[mid].et < et) lo = mid + 1;
+      else hi = mid;
+    }
+    const i = lo - 1;
     const a = s[i];
     const b = s[i + 1];
     const dt = b.et - a.et;
