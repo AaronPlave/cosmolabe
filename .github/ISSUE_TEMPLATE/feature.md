@@ -25,3 +25,13 @@ labels: enhancement
 ## Additional context
 
 <!-- Sketches, references, related catalogs/kernels. -->
+
+## Issue relationships
+
+<!-- Hard prerequisites: which OPEN issues MUST finish before implementation can safely start? Use GitHub's native "Blocked by" relationship, not only text here. If none, write "None". For automation without direct GitHub dependency API access, update .github/issue-relationships.json. -->
+
+- Hard blockers:
+- Parent initiative / sub-issue, if any:
+- Related or parallel work (not blockers):
+
+<!-- See docs/issue-dependencies.md. Priority is independent of blocker links. -->
