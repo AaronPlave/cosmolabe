@@ -27,6 +27,10 @@ import { BodyMesh } from './BodyMesh.js';
 import { patchLogDepthCoverage, patchLogDepthPrecision } from './LogDepth.js';
 import { SunGlareEffect } from './SunGlareEffect.js';
 import { SOLAR_LAYER, type SunVisual } from './SunVisual.js';
+import {
+  DEFAULT_SOLAR_EXPOSURE_POLICY, SOLAR_REFERENCE_DISTANCE_KM,
+  resolveSolarDisplayExposure, solarExposureMetadata, type SolarExposurePolicy,
+} from './SolarRadiometry.js';
 import { RingMesh } from './RingMesh.js';
 import { selectShadowOccluders } from './EclipseShadow.js';
 import {
@@ -189,6 +193,9 @@ export interface UniverseRendererOptions {
    *  solar photospheres use a dedicated HDR source; other emissive bodies bloom.
    *  Default: disabled. */
   bloom?: BloomConfig;
+  /** Presentation exposure policy for Sun and atmosphere. Defaults to legacy
+   * camera-adapted behavior; fixed-reference is opt-in for repeatable captures. */
+  solarExposure?: SolarExposurePolicy;
   /** Deadline in ms for the initial asset set (the models and textures the
    *  catalog names up front, plus the worker-built trajectory caches its
    *  spacecraft need). Past it, `waitForInitialAssets()` resolves with whatever
@@ -476,6 +483,7 @@ export class UniverseRenderer {
   private bloomEffect: BloomEffect | null = null;
   private sunGlareEffect: SunGlareEffect | null = null;
   private readonly solarSources = new Map<THREE.Mesh, SunVisual>();
+  private solarExposurePolicy: SolarExposurePolicy = DEFAULT_SOLAR_EXPOSURE_POLICY;
   /** Current global show-sensors state — applied to every sensor frustum. */
   private _sensorsVisible = true;
   /** Current global sensor-label state — applied to each frustum's label sprite. */
@@ -519,6 +527,7 @@ export class UniverseRenderer {
     this.scaleFactor = options.scaleFactor ?? 1e-6;
     this.minBodyPixels = options.minBodyPixels ?? 4;
     this.cacheWorker = options.cacheWorker;
+    this.setSolarExposurePolicy(options.solarExposure ?? DEFAULT_SOLAR_EXPOSURE_POLICY);
 
     // Renderer
     patchLogDepthPrecision();
@@ -535,6 +544,11 @@ export class UniverseRenderer {
       antialias: options.antialias ?? true,
       logarithmicDepthBuffer: true,
     });
+    // Document the existing default explicitly: physical display shaders own
+    // their Reinhard response; a second renderer tone curve would double-map
+    // Sun/atmosphere/AP. This is not yet a scene-wide HDR compositing pipeline.
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     // Watch for devicePixelRatio changes — fires when the window is dragged
@@ -1231,7 +1245,7 @@ export class UniverseRenderer {
     for (const [mesh, solar] of this.solarSources) {
       const center = mesh.getWorldPosition(new THREE.Vector3());
       const owner = mesh.parent as BodyMesh;
-      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight, owner.displayRadius);
+      solar.update(this.camera, center, owner.displayRadius * this.scaleFactor, bufferHeight, owner.displayRadius, this.fixedSolarExposure());
       solar.selectAtmosphere(this.camera, center, atmospheres);
       if (!this.bloomEffect?.enabled) solar.uniforms.resolvedWeight.value = 1;
     }
@@ -1650,6 +1664,7 @@ export class UniverseRenderer {
             atm.shellRadius * this.scaleFactor,
             camera === this.instrumentView?.camera ? 'instrument' : 'main',
             renderSkyView,
+            this.fixedSolarExposure(),
           );
           const b = atm.getDaytimeSkyBrightness();
           if (b > maxSkyBrightness) maxSkyBrightness = b;
@@ -1697,6 +1712,29 @@ export class UniverseRenderer {
     // Rebind the media query against the new DPR so the next monitor change fires.
     this._watchDevicePixelRatio();
   };
+
+  /**
+   * Fixed mode freezes the HDR-to-display solar response across camera moves
+   * and time seeking. Legacy catalogs continue to use observer normalization.
+   * This does not calibrate detector imagery or the non-solar material pipeline.
+   */
+  setSolarExposurePolicy(policy: SolarExposurePolicy): void {
+    // Validate before mutating, so a bad external configuration cannot poison a frame.
+    resolveSolarDisplayExposure(policy, SOLAR_REFERENCE_DISTANCE_KM);
+    this.solarExposurePolicy = policy.mode === 'fixed-reference'
+      ? { mode: 'fixed-reference', exposure: policy.exposure }
+      : { mode: 'legacy-observer-adapted' };
+  }
+
+  getSolarExposureMetadata(): ReturnType<typeof solarExposureMetadata> {
+    return solarExposureMetadata(this.solarExposurePolicy);
+  }
+
+  private fixedSolarExposure(): number | undefined {
+    return this.solarExposurePolicy.mode === 'fixed-reference'
+      ? resolveSolarDisplayExposure(this.solarExposurePolicy, SOLAR_REFERENCE_DISTANCE_KM)
+      : undefined;
+  }
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {

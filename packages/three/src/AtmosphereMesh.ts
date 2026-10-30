@@ -630,6 +630,7 @@ export class AtmosphereMesh extends THREE.Mesh {
     shellSceneScale?: number,
     observer: 'main' | 'instrument' = 'main',
     renderSkyView = true,
+    exposureOverride?: number,
   ): void {
     const u = (this.material as THREE.ShaderMaterial).uniforms;
 
@@ -644,7 +645,7 @@ export class AtmosphereMesh extends THREE.Mesh {
       const radiusKm = sunRadius * this.shellRadius / shellSceneScale;
       u.lightColor.value.set(...solarIrradiance(distanceKm, radiusKm));
       const observerDistanceKm = sunWorldPos.distanceTo(cameraWorldPos) * this.shellRadius / shellSceneScale;
-      u.uSolarExposure.value = solarDisplayExposure(observerDistanceKm, radiusKm);
+      u.uSolarExposure.value = exposureOverride ?? solarDisplayExposure(observerDistanceKm, radiusKm);
     }
 
     // Cache camera altitude + local-space directions for getDaytimeSkyBrightness()
