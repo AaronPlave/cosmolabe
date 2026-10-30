@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MeshBVH } from 'three-mesh-bvh';
 import { castRenderedSurfaces } from './RenderedSurfaceQuery.js';
 import { PersistentLabels, AnnotationBudget } from './annotations/PersistentLabels.js';
 import { bodyFixedToSurfacePosition, surfacePositionToBodyFixed, formatSurfaceAngle, wrapLongitude, type SurfaceCoordinates } from '@cosmolabe/core';
@@ -60,6 +61,8 @@ export class AdaptiveGraticule {
   readonly bodyFromWorld = new THREE.Matrix4();
   private readonly persistence = new PersistentLabels(MAX_LABELS, 200);
   private physicalRevision: number | null = null;
+  private globeGeometry: THREE.BufferGeometry | null = null;
+  private globeTree: MeshBVH | null = null;
   private readonly labels = new Map<string, Label>();
   private readonly group = new THREE.Group();
   private readonly raycaster = new THREE.Raycaster();
@@ -118,6 +121,31 @@ export class AdaptiveGraticule {
   private point(lat: number, lon: number, heightKm = 0): THREE.Vector3 {
     const p = surfacePositionToBodyFixed({ latDeg: lat, lonDeg: lon, heightKm }, this.coordinates);
     return new THREE.Vector3(p.xKm, p.yKm, p.zKm).applyMatrix4(this.toWorld);
+  }
+  /** Undisplaced globes are faceted too. Register the fixed geographic site on
+   * their actual triangles, without changing picking, buffers or index order.
+   * The private acceleration structure is reused until the geometry changes. */
+  private globeSurface(lat: number, lon: number, camera: THREE.PerspectiveCamera): THREE.Vector3 | null {
+    const mesh = this.bm.mesh;
+    if (mesh.geometry !== this.globeGeometry) {
+      this.globeGeometry = mesh.geometry;
+      this.globeTree = new MeshBVH(mesh.geometry, { indirect: true });
+    }
+    const base = surfacePositionToBodyFixed({ latDeg: lat, lonDeg: lon }, this.coordinates);
+    const fixed = new THREE.Vector3(base.xKm, base.yKm, base.zKm);
+    const normal = this.coordinates.latitudeType === 'geodetic'
+      ? new THREE.Vector3(Math.cos(lat * DEG) * Math.cos(lon * DEG), Math.cos(lat * DEG) * Math.sin(lon * DEG), Math.sin(lat * DEG))
+      : fixed.clone().normalize();
+    const reach = this.bm.displayRadius * 0.1;
+    const bodyFromMesh = new THREE.Matrix4().multiplyMatrices(this.bodyFromWorld, mesh.matrixWorld);
+    const meshFromBody = bodyFromMesh.clone().invert();
+    const ray = new THREE.Ray(fixed.clone().addScaledVector(normal, reach), normal.clone().negate()).applyMatrix4(meshFromBody);
+    const hit = this.globeTree!.raycastFirst(ray, THREE.FrontSide);
+    if (!hit?.face) return null;
+    // The radial registration ray can reach a facet hidden from the camera.
+    const eye = camera.position.clone().applyMatrix4(this.bodyFromWorld).applyMatrix4(meshFromBody);
+    if (eye.sub(hit.point).dot(hit.face.normal) <= 0) return null;
+    return hit.point.applyMatrix4(bodyFromMesh);
   }
   /** Ray/reference-ellipsoid intersection in physical body-fixed coordinates. */
   private referenceHit(x: number, y: number, camera: THREE.PerspectiveCamera, heightKm = 0): { latDeg: number; lonDeg: number; heightKm: number } | null {
@@ -526,10 +554,14 @@ export class AdaptiveGraticule {
         const physical = surfacePositionToBodyFixed({ latDeg: anchor.lat, lonDeg: anchor.lon, heightKm }, this.coordinates);
         fixed.set(physical.xKm, physical.yKm, physical.zKm);
       } else {
+        const surface = this.globeSurface(anchor.lat, anchor.lon, camera);
+        if (!surface) { reject(); continue; }
+        fixed.copy(surface);
         const front = this.referenceHit(view.x, view.y, camera);
         if (!front || Math.abs(front.latDeg - anchor.lat) > 0.001 || Math.abs(wrapLongitude(front.lonDeg - anchor.lon)) > 0.001) { reject(); continue; }
-        const distance = camera.position.distanceTo(p);
-        const direction = p.clone().sub(camera.position).normalize();
+        const rendered = fixed.clone().applyMatrix4(this.toWorld);
+        const distance = camera.position.distanceTo(rendered);
+        const direction = rendered.sub(camera.position).normalize();
         const ray = new THREE.Ray(camera.position, direction);
         let obscured = false;
         for (const occluder of foreignOccluders) {
@@ -545,8 +577,8 @@ export class AdaptiveGraticule {
       }
       const projected = fixed.clone().applyMatrix4(this.toWorld).project(camera);
       const text = anchor.axis === 'latitude'
-        ? anchor.lat === 0 ? '0°N' : formatSurfaceAngle(anchor.lat, 'latitude', this.uniforms.uGridStep.value.x * annotationPattern(this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y).labelStride)
-        : anchor.lon === 0 ? '0°E' : formatSurfaceAngle(anchor.lon, 'longitude', this.uniforms.uGridStep.value.y * annotationPattern(this.uniforms.uGridStep.value.x, this.uniforms.uGridStep.value.y).labelStride);
+        ? anchor.lat === 0 ? '0°N' : formatSurfaceAngle(anchor.lat, 'latitude', this.uniforms.uGridStep.value.x)
+        : anchor.lon === 0 ? '0°E' : formatSurfaceAngle(anchor.lon, 'longitude', this.uniforms.uGridStep.value.y);
       const labelWidth = text.length * 8.5 + 10;
       const offsetX = 0, offsetY = -LABEL_HEIGHT / 2 - 6;
       const x = (projected.x + 1) * width / 2 + offsetX, y = (1 - projected.y) * height / 2 + offsetY;
@@ -631,5 +663,8 @@ export class AdaptiveGraticule {
   }
   private disposeLabel(label: Label): void { label.sprite.removeFromParent(); label.sprite.material.map?.dispose(); label.sprite.material.dispose(); }
   private clearLabels(): void { this.persistence.clear(); this.eligibility.clear(); for (const l of this.labels.values()) this.disposeLabel(l); this.labels.clear(); }
-  dispose(): void { this.frame?.dispose(); this.clearLabels(); this.group.removeFromParent(); }
+  dispose(): void {
+    this.globeTree = null; this.globeGeometry = null;
+    this.frame?.dispose(); this.clearLabels(); this.group.removeFromParent();
+  }
 }

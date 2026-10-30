@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "errors": [],
+  "views": [
+    {
+      "altitudeKm": 30,
+      "latitudeDeg": 16.67,
+      "longitudeDeg": 0.18,
+      "labels": 2,
+      "maxRegistrationErrorCssPx": 2.1632604469279354e-11,
+      "step": 0.1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "altitudeKm": 12,
+      "latitudeDeg": 16.67,
+      "longitudeDeg": 0.18,
+      "labels": 5,
+      "maxRegistrationErrorCssPx": 3.963496197911809e-11,
+      "step": 0.02,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "altitudeKm": 5,
+      "latitudeDeg": 16.67,
+      "longitudeDeg": 0.18,
+      "labels": 5,
+      "maxRegistrationErrorCssPx": 7.672297054861722e-11,
+      "step": 0.01,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "altitudeKm": 2,
+      "latitudeDeg": 16.6825,
+      "longitudeDeg": 0.1625,
+      "labels": 3,
+      "maxRegistrationErrorCssPx": 9.803269307440132e-11,
+      "step": 0.005,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    },
+    {
+      "altitudeKm": 12,
+      "latitudeDeg": 16.67,
+      "longitudeDeg": 0.18,
+      "labels": 5,
+      "maxRegistrationErrorCssPx": 3.963496197911809e-11,
+      "step": 0.02,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+    }
+  ]
+}

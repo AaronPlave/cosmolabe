@@ -2,6 +2,16 @@
 
 This refresh integrates main `097f92ab` (including #305). Regional border ticks remain opt-in. This is implementation and diagnostic evidence, **not merge approval**.
 
+## Close-zoom tick correction
+
+The reported drift is reproducible near 16.67°N, 0.18°E on Earth. Globe captions were projected from the ideal ellipsoid, while grid lines are evaluated on the actual triangle facets. The close-zoom regression failed with a 9.78 CSS-pixel offset before the fix. Globe captions now intersect their prescribed geographic normal/radial ray with the rendered globe triangles. A private, indirect BVH avoids changing picking, vertex/index buffers or geographic sites, and is rebuilt when the globe geometry changes. Foreign-body occlusion uses the registered point. Displaced globes still withhold unsupported captions.
+
+Small-angle caption precision now follows the grid step, avoiding rounding a 0.165° site to 0.16° when labels are three 0.005° steps apart.
+
+- 104 focused tests in six suites pass, including sphere/oblate/triaxial close zoom, unchanged geographic coordinates/buffers, geometry replacement, and zoom restoration. Package build, test typecheck, changed-file ESLint and diff checks pass.
+- `node scripts/graticule-close-zoom-validation.mjs` repeats the real Earth view at 30, 12, 5, 2 and 12 km in hardware Chrome (Apple M4 Max Metal). The 2 km camera centers on a neighboring fixed ruler band so captions are in view; arbitrary views may legitimately show none. Each displayed tick is checked against an independent triangle raycast and caption precision is checked against its coordinate. These numerical results measure CPU registration, not GPU raster accuracy; the actual captures were also visually inspected.
+- [12 km capture](close-zoom/earth-12km.png), [2 km capture](close-zoom/earth-2km.png), [zoom sweep report](close-zoom/report.json). Previous integration evidence below records the earlier head; its broader outstanding acceptance remains open.
+
 ## Architecture and invariants
 
 - Grid descriptors use canonical core datum/types/converters and `BodyMesh.bodyFixedFrame`. There is no `RotationModel.targetFrame`. Point Probe uses the same reference-coordinate convention; rendered hits and decoded physical samples retain separate heights/provenance.

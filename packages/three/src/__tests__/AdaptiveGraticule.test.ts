@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed } from '@cosmolabe/core';
+import { Body, FixedPointTrajectory, bodySurfaceCoordinates, surfacePositionToBodyFixed, bodyFixedToSurfacePosition } from '@cosmolabe/core';
 import { BodyMesh } from '../BodyMesh.js';
 import { normalizeGridSettings } from '@cosmolabe/control';
 import { chooseGridStep, GRID_STEPS, AUTO_GRID_STEPS, annotationPattern, type AdaptiveGraticule } from '../AdaptiveGraticule.js';
@@ -65,6 +65,55 @@ describe('adaptive graticule', () => {
     expect(bm.gridMetrics!.annotations.some(a => a.id === chosen.id)).toBe(false);
     expect(rays).toHaveBeenCalled();
     bm.dispose(); other.dispose();
+  });
+
+  it.each<[number, number, number]>([[100, 100, 100], [100, 100, 99], [100, 99.5, 99]])('registers close-zoom ticks on rendered facets for radii %s/%s/%s', (a, b, c) => {
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => ({ scale() {}, strokeText() {}, fillText() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} }) }) });
+    let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const body = new Body({ name: 'Close globe', trajectory: new FixedPointTrajectory([0, 0, 0]), radii: [a, b, c], geometryType: 'Globe',
+      rotation: { sourceFrame: 'ECLIPJ2000', rotationAt: () => [1, 0, 0, 0] } });
+    const bm = new BodyMesh(body); bm.updatePosition([0, 0, 0], 0, 1); bm.applyMeshScale(1);
+    const coordinates = bm.surfaceCoordinates!;
+    const point = (latDeg: number, lonDeg: number, heightKm = 0) => {
+      const p = surfacePositionToBodyFixed({ latDeg, lonDeg, heightKm }, coordinates);
+      return new THREE.Vector3(p.xKm, p.yKm, p.zKm);
+    };
+    const target = point(16.67, 0.18), camera = new THREE.PerspectiveCamera(45, 1, 0.00001, 1000);
+    camera.up.copy(point(16.68, 0.18).sub(target).normalize());
+    const manager = { reserveContextRect: () => true } as unknown as LabelManager;
+    bm.showGrid(true, true, normalizeGridSettings());
+    for (const altitude of [0.2, 0.1, 0.08, 0.03, 0.2]) {
+      // Geometry replacement must invalidate the private acceleration structure.
+      if (altitude === 0.08) {
+        bm.mesh.geometry.dispose(); bm.mesh.geometry = new THREE.SphereGeometry(100, 64, 48);
+      }
+      const positions = bm.mesh.geometry.getAttribute('position').array.slice(), indices = bm.mesh.geometry.index!.array.slice();
+      const lat = altitude === 0.03 ? 16.6825 : 16.67, lon = altitude === 0.03 ? 0.1625 : 0.18;
+      camera.position.copy(point(lat, lon, altitude)); camera.lookAt(point(lat, lon)); camera.updateMatrixWorld(true);
+      for (let i = 0; i < 50; i++) { now += 16; bm.updateGrid(camera, { width: 1000, height: 1000 }, manager); }
+      expect(bm.mesh.geometry.getAttribute('position').array).toEqual(positions);
+      expect(bm.mesh.geometry.index!.array).toEqual(indices);
+      const annotations = bm.gridMetrics!.annotations;
+      expect(annotations.length).toBeGreaterThan(0);
+      const grid = (bm as unknown as { graticule: { labels: Map<string, { sprite: THREE.Sprite }> } }).graticule;
+      for (const annotation of annotations) {
+        const value = annotation.axis === 'latitude' ? annotation.latDeg : annotation.lonDeg;
+        expect(parseFloat(annotation.text)).toBeCloseTo(Math.abs(value), 6);
+        const base = point(annotation.latDeg, annotation.lonDeg);
+        const normal = point(annotation.latDeg, annotation.lonDeg, 1).sub(base).normalize();
+        const ray = new THREE.Raycaster(base.clone().addScaledVector(normal, 10), normal.clone().negate());
+        const hit = ray.intersectObject(bm.mesh)[0]!;
+        expect(hit).toBeDefined();
+        const actual = hit.point.clone().project(camera);
+        const fixed = grid.labels.get(annotation.id)!.sprite.position;
+        const coordinate = bodyFixedToSurfacePosition({ xKm: fixed.x, yKm: fixed.y, zKm: fixed.z }, coordinates);
+        expect(coordinate.latDeg).toBeCloseTo(annotation.latDeg, 8);
+        expect(coordinate.lonDeg).toBeCloseTo(annotation.lonDeg, 8);
+        const tick = fixed.clone().project(camera);
+        expect(Math.hypot(actual.x - tick.x, actual.y - tick.y) * 500).toBeLessThan(0.2);
+      }
+    }
+    bm.dispose();
   });
 
   it('withholds grid geometry and captions during unavailable attitude and recovers fixed sites', () => {
