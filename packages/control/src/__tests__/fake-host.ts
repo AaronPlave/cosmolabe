@@ -20,8 +20,12 @@ import type {
   ScriptEventName,
   ScriptFlight,
   ScriptImage,
+  ScriptImagery,
+  ScriptPlace,
+  ScriptScene,
   ScriptTime,
   ScriptVec3,
+  SurfaceView,
   ViewerControl,
   ViewerSnapshotState,
 } from '../contracts.js';
@@ -37,6 +41,69 @@ export class FakeViewer implements ViewerControl {
   selectActivity(_id: string) { return false; }
   seekActivity(_id: string, _edge?: 'start' | 'end') { return false; }
   navigateActivity(_direction: 'previous' | 'next') { return false; }
+
+  scene: ScriptScene | null = { id: 1, catalog: 'Cassini', ready: true };
+  getScene() { return this.scene; }
+
+  places: ScriptPlace[] = [
+    {
+      ref: '["titan-names","42"]', name: 'Kraken Mare', body: 'Titan', layer: { id: 'titan-names', name: 'Titan nomenclature' },
+      feature: '42', kind: 'Mare, maria', origin: 'nomenclature', latitude: 68, longitude: 310, diameterKm: 1170,
+      source: { kind: 'catalog', identity: 'https://example.test/titan-names.geojson' }, unavailable: null,
+    },
+    {
+      ref: '["titan-names","43"]', name: 'Ligeia Mare', body: 'Titan', layer: { id: 'titan-names', name: 'Titan nomenclature' },
+      feature: '43', kind: 'Mare, maria', origin: 'nomenclature', latitude: 79, longitude: 248,
+      source: { kind: 'catalog', identity: 'https://example.test/titan-names.geojson' }, unavailable: 'frame mismatch',
+    },
+  ];
+  selectedPlace: string | null = null;
+  searchPlaces(query: string, opts?: { body?: string; limit?: number }) {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return this.places
+      .filter((p) => (!opts?.body || p.body === opts.body) && words.every((w) => p.name.toLowerCase().split(' ').some((n) => n.startsWith(w))))
+      .slice(0, opts?.limit ?? 10);
+  }
+  getPlace(ref: string) { return this.places.find((p) => p.ref === ref); }
+  getSelectedPlace() { return this.places.find((p) => p.ref === this.selectedPlace); }
+  gotoPlace(ref: string, opts?: { animate?: boolean; view?: SurfaceView }): boolean {
+    this.log('gotoPlace', ref, opts?.animate, opts?.view);
+    const place = this.getPlace(ref);
+    if (!place) return false;
+    if (place.unavailable) throw new Error(place.unavailable);
+    this.selectedPlace = ref;
+    return this.ok(true);
+  }
+
+  imagery: Record<string, ScriptImagery> = {
+    Titan: {
+      body: 'Titan', surface: 'streamed', imageryOnly: true,
+      layers: [
+        { id: 'iss', name: 'ISS mosaic', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1,
+          bounds: null, resolutionMeters: 4000, status: 'ok', view: null },
+        { id: 'radar', name: 'RADAR SAR', attribution: 'JPL', description: 'Cassini RADAR swaths', role: 'overlay', optional: true, visible: false,
+          opacity: 1, bounds: [-180, 60, 180, 90], resolutionMeters: 300, status: 'idle', view: null },
+      ],
+    },
+  };
+  getImagery(body: string): ScriptImagery | undefined {
+    if (!this.known(body)) return undefined;
+    return this.imagery[body] ?? { body, surface: null, imageryOnly: false, layers: [] };
+  }
+  setImageryVisible(body: string, id: string, visible: boolean): boolean {
+    this.log('setImageryVisible', body, id, visible);
+    const layer = this.getImagery(body)?.layers.find((l) => l.id === id);
+    if (!layer || (!visible && !layer.optional)) return false;
+    (layer as { visible: boolean }).visible = visible;
+    return this.ok(true);
+  }
+  setImageryOpacity(body: string, id: string, opacity: number): boolean {
+    this.log('setImageryOpacity', body, id, opacity);
+    const layer = this.getImagery(body)?.layers.find((l) => l.id === id);
+    if (!layer || !(opacity >= 0 && opacity <= 1)) return false;
+    (layer as { opacity: number }).opacity = opacity;
+    return this.ok(true);
+  }
 
   /** Every call, as `verb(arg, arg)`, in the order it arrived. */
   readonly calls: string[] = [];

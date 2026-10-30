@@ -325,6 +325,54 @@ describe('manual input during a flight', () => {
   });
 });
 
+describe('onFlightEnd', () => {
+  const ends = (cc: CameraController) => {
+    const seen: string[] = [];
+    cc.onFlightEnd = (flight, outcome) => seen.push(`${flight.destination?.body.name ?? 'viewpoint'} ${flight.path} ${outcome}`);
+    return seen;
+  };
+
+  it('reports an arrival once, after the camera lands, and an overview only at its end', () => {
+    const { cc, moon, frame } = setup();
+    const seen: string[] = [];
+    let landedFirst = false;
+    cc.onFlightEnd = (flight, outcome) => { landedFirst = cc.flight === null; seen.push(`${flight.destination?.body.name} ${flight.path} ${outcome}`); };
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2, path: 'overview' });
+    for (let i = 0; i < 9; i++) frame(0.1);
+    expect(cc.flight?.phase).toBe('approach');
+    expect(seen).toEqual([]);
+    for (let i = 0; i < 20; i++) frame(0.1);
+    expect(seen).toEqual(['Moon overview arrived']);
+    expect(landedFirst).toBe(true);
+  });
+
+  it('reports stopFlight, a cut and a newer flight as stopped', () => {
+    const { cc, earth, moon, frame } = setup();
+    const seen = ends(cc);
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.stopFlight();
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.frame(earth, { scaleFactor: 1 });
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+    frame(0.1);
+    expect(seen).toEqual(['Moon direct stopped', 'Moon direct stopped', 'Moon direct stopped']);
+  });
+
+  it("reports the person's navigation as interrupted, and nothing without a flight", () => {
+    const { cc, moon, frame, fire } = setup();
+    const seen = ends(cc);
+    const wheel = () => fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    cc.flyTo(moon, { scaleFactor: 1, duration: 2 });
+    frame(0.3);
+    wheel();
+    frame(0.05);
+    wheel();
+    frame(0.05);
+    expect(seen).toEqual(['Moon direct interrupted']);
+  });
+});
+
 describe('look-at', () => {
   it('is cleared by every navigation, so it cannot override the view landed on', () => {
     for (const go of ['focus', 'frame', 'flyTo'] as const) {

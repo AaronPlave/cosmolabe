@@ -158,9 +158,12 @@ implies another: `select` never moves the camera, and none of these selects.
 | `stopFlight` | End a flight where it is, tracking what it was flying to (the camera turns to face it). |
 | `gotoCoordinates <object> <latitude> <longitude> [view] [seconds]` | Go to a place on a body: planetocentric latitude and east longitude in degrees, viewed `overhead` (the default), `oblique` or from the `surface`. **Cuts by default**; give seconds to fly. The place becomes the orbit pivot; time and selection are left alone. `ViewerControl.gotoCoordinates` also takes planetographic latitude, west longitude and a range. See [navigation](navigation.md#surface-navigation). |
 
+| `gotoPlace <place> [fly\|jump]` | Go to a named place (a Gazetteer name or mission site) by its stable ref, and select it. **Flies by default**. Framed overhead by the place's own extent, never by the Navigate panel's form, and without opening that panel. See [places](#places-and-imagery). |
+
 The path comes before the duration, so `flyTo Titan 3` is an error (`3` is not
 a path); write `flyTo Titan overview 3`. Manual input — a drag, a wheel zoom, a
-movement key — also ends a flight where it is.
+movement key — also ends a flight where it is; the `flightEnd` notification
+says which way each flight ended.
 
 ### Camera
 
@@ -229,6 +232,8 @@ and is wrong.
 | `showTrajectory <object> on\|off` | One object's trajectory line. |
 | `showLabel <object> on\|off` | One object's label. |
 | `setLayer <layer> on\|off` | A whole layer at once. |
+| `showImagery <object> <layer> on\|off` | One layer of a body's streamed imagery stack, by layer ID. The base layer stays on. |
+| `setImageryOpacity <object> <layer> <opacity>` | One imagery layer's opacity, 0 to 1. |
 | `displayNote <text> [seconds]` | Caption over the viewport. Omit the duration to leave it up. |
 
 `<layer>` is one of `trajectories`, `labels`, `grid`, `axes`, `sensors`,
@@ -370,10 +375,24 @@ cosmo.getCamera();        // { position, target, up, fov } — all in km
 cosmo.getObjectState('SC-1', { frame: 'J2000', center: 'Earth' }); // position, attitude, availability
 cosmo.getTimelineWindow();  // { start, end } ET; setTimelineWindow(start, end) navigates it
 
+cosmo.getScene();         // { id, catalog, ready } — id changes with every scene bound; null with none
+
 const off = cosmo.on('select', ({ name }) => …);
-// also 'time' ({ et, cause }), 'playback', 'load', 'ready', 'activities', 'activitySelect'
+// also 'time' ({ et, cause }), 'playback', 'load', 'ready', 'activities', 'activitySelect',
+// 'flightEnd' ({ target, path, outcome: 'arrived' | 'stopped' | 'interrupted' })
 off();
 ```
+
+`flightEnd` fires once per flight, after the camera is released: an overview's
+pull-back is not an ending. `interrupted` means the person's own navigation
+took the camera — the signal for automation to stop re-asserting a move rather
+than retry it. `stopped` is `stopFlight` or any other camera command (a cut, a
+reset, a newer flight).
+
+Place refs, imagery layer IDs and activity IDs belong to the scene they were
+read from. `getScene().id` changes with every scene bound, a reload of the same
+catalog included, so a host holding an ID across a load can tell it is stale
+instead of having it resolve against another catalog's records.
 
 Time notifications say who moved the clock (`host`, `viewer` or `playback`) and
 coalesce playback to a few a second; see [embedding](embedding.md#control-and-notifications).
@@ -574,6 +593,41 @@ triaxial ellipsoid is unavailable. Mesh-body grids are unavailable.
 Lines follow rendered geometry (including terrain and its current LOD); CPU
 terrain samples remain authoritative for analytical elevation. This is separate
 from the legacy `FixedSpherical` trajectory's declared radial position.
+## Places and imagery
+
+A **place** is a point feature of one of the scene's geographic layers (#191):
+a Gazetteer name or a mission/user site. It is not an object: `listObjects()`
+is the drawn bodies, and a crater is not one of them.
+
+```js
+const [jezero] = cosmo.searchPlaces('jezero', { body: 'Mars', limit: 5 });
+// { ref, name, body, layer: { id, name }, feature, kind, origin, latitude, longitude,
+//   diameterKm?, source: { kind, identity, revision? }, unavailable: null | reason }
+cosmo.gotoPlace(jezero.ref);                         // fly; { animate: false } cuts; { view: 'oblique' }
+cosmo.getPlace(jezero.ref);                          // undefined for a ref this scene does not have
+cosmo.getSelectedPlace();
+```
+
+Search matches every word of the query against names and aliases by prefix, ranked an exact name first, then by extent. It is bounded (10 by default, at most 100) and skips sources the person excluded from search in the Navigate panel. A place is identified by its `ref` — the layer and feature IDs, or the source's own `placeRef` — never its display name, which need not be unique. `gotoPlace` is false for an unknown ref and throws with the reason when the place exists but cannot be navigated to (its source excluded, or its frame not the rendered surface's); `unavailable` reports the same reason in advance. In a script, a name where the ref belongs is answered with the refs that name finds:
+
+```text
+gotoPlace "Jezero"
+# line 1: gotoPlace: no place with ref "Jezero" (matching places: Jezero on Mars = "[\"mars-names\",\"…\"]")
+```
+
+A body's **imagery** is its streamed imagery stack (#123), bottom to top:
+
+```js
+const mars = cosmo.getImagery('Mars');
+// { body, surface: 'static' | 'preloading' | 'waiting' | 'streamed' | 'fallback' | null,
+//   imageryOnly, layers: [{ id, name, attribution, description, role, optional, visible,
+//   opacity, bounds, resolutionMeters, status, view }] }
+cosmo.setImageryVisible('Mars', 'hirise', true);
+cosmo.setImageryOpacity('Mars', 'hirise', 0.6);
+```
+
+The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
+
 ## Mission activities
 
 `ViewerControl` exposes optional activity capabilities on the native viewer:

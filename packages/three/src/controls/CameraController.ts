@@ -136,6 +136,9 @@ export interface CameraFlight {
   readonly phase: 'overview' | 'approach';
 }
 
+/** How a flight ended; see `CameraController.onFlightEnd`. */
+export type CameraFlightOutcome = 'arrived' | 'stopped' | 'interrupted';
+
 /** Fraction of an overview flight's duration spent pulling back. */
 const OVERVIEW_PULLBACK_SHARE = 0.4;
 const DEFAULT_DIRECT_SECONDS = 1.0;
@@ -287,6 +290,20 @@ export class CameraController {
     const anim = this._anim;
     if (!anim) return null;
     return { destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
+  }
+
+  /**
+   * Told when a flight ends, after the camera is released: it `arrived`;
+   * `stopFlight` or another camera command (a cut, a reset, a new flight)
+   * `stopped` it; or the person's navigation input `interrupted` it. Not told
+   * on `dispose`.
+   */
+  onFlightEnd: ((flight: CameraFlight, outcome: CameraFlightOutcome) => void) | null = null;
+
+  /** Report the flight `anim` was, if it was one, as ended. */
+  private _flightEnded(anim: typeof this._anim, outcome: CameraFlightOutcome): void {
+    if (!anim || !this.onFlightEnd) return;
+    this.onFlightEnd({ destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' }, outcome);
   }
 
   /**
@@ -1574,14 +1591,16 @@ export class CameraController {
    * controls have gathered, which is the drag or zoom that asked for this.
    */
   private _yieldToManualInput(): void {
-    const destination = this._anim?.destination;
-    const surface = this._anim?.surface;
+    const anim = this._anim;
+    const destination = anim?.destination;
+    const surface = anim?.surface;
     this._anim = null;
     this._move = null;
     // Inertia from before the flight is not the person's input now.
     (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
     if (destination) this._pendingOriginSwitch = destination;
     if (surface) this._pendingSurfacePivot = surface.endTarget.clone();
+    this._flightEnded(anim, 'interrupted');
   }
 
   /** Whether a fly-to/viewpoint animation is currently playing */
@@ -1589,6 +1608,7 @@ export class CameraController {
 
   /** Cancel any in-progress camera animation, a scripted camera move included */
   cancelAnimation(): void {
+    const anim = this._anim;
     this._anim = null;
     this._move = null;
     // A cut/restored pose must not inherit the previous gesture's inertia.
@@ -1606,6 +1626,7 @@ export class CameraController {
     controls._panStart.copy(controls._panEnd);
     this._rightDragDx = this._rightDragDy = 0;
     this._touchPanDx = this._touchPanDy = 0;
+    this._flightEnded(anim, 'stopped');
   }
 
   /**
@@ -1950,13 +1971,17 @@ export class CameraController {
       this.camera.lookAt(this.controls.target);
 
       if (t >= 1) {
-        const onComplete = this._anim.onComplete;
+        const anim = this._anim;
+        const onComplete = anim.onComplete;
         this._anim = null;
         // Clear stale TrackballControls damping that accumulated while
         // controls.update() was skipped during the animation.
         (this.controls as any)._lastAngle = 0;
         (this.controls as any)._zoomStart?.copy((this.controls as any)._zoomEnd);
         onComplete?.();
+        // An overview's pull-back lands by starting its approach: the same
+        // flight, still going.
+        if (!this._anim) this._flightEnded(anim, 'arrived');
       }
       // A move held behind the fly-to starts its clock when the fly-to lands.
       if (this._move) this._move.lastMs = now;
@@ -2223,6 +2248,7 @@ export class CameraController {
     duration: number,
     onComplete?: () => void,
   ): NonNullable<typeof this._anim> {
+    const previous = this._anim;
     this._anim = {
       startPos: this.camera.position.clone(),
       startTarget: this.controls.target.clone(),
@@ -2235,6 +2261,8 @@ export class CameraController {
       onComplete,
     };
     this._lastAnimMs = performance.now();
-    return this._anim;
+    const anim = this._anim;
+    this._flightEnded(previous, 'stopped');
+    return anim;
   }
 }

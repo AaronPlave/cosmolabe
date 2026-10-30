@@ -12,7 +12,7 @@ import {
   type TerrainDatum, type Universe, type PlaceIndex, type GeographicCoordinateInput, type SurfaceNavigationTarget, type SurfaceViewPreset,
   type ViewpointDefinition,
 } from '@cosmolabe/core';
-import type { BodyMesh, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
+import type { BodyMesh, CameraFlightOutcome, FlightPath, InitialAssetsSummary, SurfacePoint, UniverseRenderer } from '@cosmolabe/three';
 import {
   CameraModeName, rateLabel, coordinateDecimals, navigationShapeOf, terrainGroundRadius, surfacePoseFromBodyFixed, zoomTowardSurfacePoint, frameSurfacePoint,
   surfaceNavigable, bodyFixedToMeshLocal, SurfaceTerrainAnchor,
@@ -79,6 +79,8 @@ export interface ViewerEventMap {
   activities: number;
   /** The selected activity changed; null when none is selected. */
   activitySelect: string | null;
+  /** A camera flight ended, and how. */
+  flightEnd: { target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
 }
 
 /** Why the clock last moved: a host's `setTime`, the viewer (scrubber, keys, scripts), or playback. */
@@ -511,10 +513,22 @@ function sceneOccluderRects(canvas: () => HTMLCanvasElement): () => Array<{ x0: 
   };
 }
 
+/** Counts scenes bound; see `sceneId`. */
+let _sceneId = 0;
+/**
+ * Which scene is bound: changes with every `bindRenderer`, a reload of the
+ * same catalog included, so IDs read from one scene are not taken for
+ * another's.
+ */
+export function sceneId(): number { return _sceneId; }
+
 export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   unbindRenderer();
+  _sceneId++;
   _renderer = renderer;
   _universe = universe;
+  renderer.cameraController.onFlightEnd = (flight, outcome) =>
+    emit('flightEnd', { target: flight.destination?.body.name ?? null, path: flight.path, outcome });
   if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
   vs.catalogName = vs.loadingCatalog || null;
   const syncPlaces = () => {
@@ -667,6 +681,7 @@ export function unbindRenderer() {
   setCatalogActivities([]);
   for (const unsub of _unsubscribers) unsub();
   _unsubscribers = [];
+  if (_renderer) _renderer.cameraController.onFlightEnd = null;
   _renderer = null;
   _universe = null;
   vs.surfaceTarget = null;

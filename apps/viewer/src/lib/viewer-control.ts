@@ -29,6 +29,8 @@ import {
   type ScriptEventMap,
   type ScriptEventName,
   type ScriptImage,
+  type ScriptImagery,
+  type ScriptPlace,
   type ScriptTime,
   type ViewerControl,
   type ViewerSnapshotState,
@@ -76,7 +78,11 @@ import {
   getSceneUniverse,
   setScrubberWindow,
   extendTimelineBase,
+  sceneId,
 } from './viewer-state.svelte';
+import type { Place } from '@cosmolabe/core';
+import type { BodyMesh } from '@cosmolabe/three';
+import { navigateToPlaceForControl, placeNavigationCoordinates, placeNavigationProblem, searchPlaces } from './places';
 import type { StateAvailability } from '@cosmolabe/core';
 import type { ScriptAvailability } from '@cosmolabe/control';
 import { etToIso } from './camera-view-io';
@@ -128,6 +134,39 @@ function resolveEpoch(when: ScriptTime, spice: HeritageSpice | null): number | n
   const et = etFromCalendarString(when.text);
   return Number.isNaN(et) ? null : et;
 }
+
+/** A place as the port reports it: plain data, nothing that reaches back into the index. */
+function scriptPlace(place: Place): ScriptPlace {
+  const { latDeg, lonDeg } = placeNavigationCoordinates(place);
+  const source = place.layer.source;
+  return {
+    ref: place.ref, name: place.name, body: place.layer.body,
+    layer: { id: place.layer.id, name: place.layer.name }, feature: place.feature.id,
+    kind: place.kind, origin: place.origin, latitude: latDeg, longitude: lonDeg,
+    ...(place.diameterKm === undefined ? {} : { diameterKm: place.diameterKm }),
+    source: { kind: source.kind, identity: source.identity, ...(source.revision ? { revision: source.revision } : {}) },
+    unavailable: placeNavigationProblem(place),
+  };
+}
+
+function scriptImagery(bm: BodyMesh): ScriptImagery {
+  return {
+    body: bm.body.name,
+    surface: bm.surfaceTransitionState,
+    imageryOnly: bm.isImageryOnlySurface,
+    layers: bm.imageryLayers.map((l) => ({
+      id: l.id, name: l.name, attribution: l.attribution, description: l.description,
+      role: l.role, optional: l.optional, visible: l.visible, opacity: l.opacity,
+      bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
+      resolutionMeters: l.resolutionMeters, status: l.status,
+      view: l.view ? { ...l.view, minZoom: l.minZoom } : null,
+    })),
+  };
+}
+
+/** A point place, by ref, in the scene's index. */
+const placeByRef = (ref: string): Place | undefined =>
+  vs.places?.byRef.get(ref);
 
 function isFrameMode(value: string): value is CameraModeName {
   return (Object.values(CameraModeName) as string[]).includes(value);
@@ -399,6 +438,49 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       r.cameraController.setOriginBody(body);
       return true;
     },
+    getScene: () => (getRenderer() ? { id: sceneId(), catalog: vs.catalogName, ready: vs.assetsReady } : null),
+
+    searchPlaces: (query, opts) => {
+      const limit = Math.max(1, Math.min(Math.floor(opts?.limit ?? 10) || 10, 100));
+      const activeBody = getRenderer()?.cameraController.focusBody?.body.name;
+      return searchPlaces(query, { body: opts?.body, limit, activeBody }).map(scriptPlace);
+    },
+    getPlace: (ref) => {
+      const place = placeByRef(ref);
+      return place ? scriptPlace(place) : undefined;
+    },
+    getSelectedPlace: () => {
+      const place = vs.selectedPlaceRef ? placeByRef(vs.selectedPlaceRef) : undefined;
+      return place ? scriptPlace(place) : undefined;
+    },
+    gotoPlace: (ref, opts) => {
+      const place = placeByRef(ref);
+      if (!place) return false;
+      const result = navigateToPlaceForControl(place, { animate: opts?.animate ?? true, view: opts?.view });
+      if (!result.ok) throw new Error(result.error);
+      return true;
+    },
+
+    getImagery: (name) => {
+      if (!hasBody(name)) return undefined;
+      const bm = getRenderer()?.getBodyMesh(name);
+      return bm ? scriptImagery(bm) : { body: name, surface: null, imageryOnly: false, layers: [] };
+    },
+    setImageryVisible: (name, layer, visible) => {
+      const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
+      const info = bm?.imageryLayers.find((l) => l.id === layer);
+      if (!bm || !info) return false;
+      // The base keeps the globe textured; it is not the caller's to remove.
+      if (!visible && !info.optional) return false;
+      return bm.setImageryLayerVisible(layer, visible) || info.visible === visible;
+    },
+    setImageryOpacity: (name, layer, opacity) => {
+      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
+      const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
+      if (!bm?.imageryLayers.some((l) => l.id === layer)) return false;
+      return bm.setImageryLayerOpacity(layer, opacity) || bm.imageryLayers.find((l) => l.id === layer)?.opacity === opacity;
+    },
+
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
@@ -446,6 +528,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
           return onViewerEvent('activities', (count) => (cb as (d: ScriptEventMap['activities']) => void)({ count }));
         case 'activitySelect':
           return onViewerEvent('activitySelect', (id) => (cb as (d: ScriptEventMap['activitySelect']) => void)({ id }));
+        case 'flightEnd':
+          return onViewerEvent('flightEnd', (end) => (cb as (d: ScriptEventMap['flightEnd']) => void)({ ...end }));
         default: {
           const unreachable: never = event;
           throw new Error(`unknown event ${String(unreachable)}`);

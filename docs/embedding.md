@@ -115,6 +115,14 @@ catalog loads and end with their disposer or the viewer's disposal.
 | `load` / `ready` | `{ objects }` | Scene graph up / initial assets settled. |
 | `activities` | `{ count }` | Catalog load or host update. |
 | `activitySelect` | `{ id }` | Activity selection, either side; `null` when cleared. |
+| `flightEnd` | `{ target, path, outcome }` | A camera flight ended: `arrived`, `stopped` (`stopFlight` or another camera command) or `interrupted` by the person's own navigation. A host automating the camera stops there rather than re-asserting the move. |
+
+`getScene()` reports `{ id, catalog, ready }`; `id` changes with every scene
+bound, so place refs, imagery layer IDs and activity IDs held across a
+`loadCatalog` can be recognised as belonging to the previous scene. Places
+(`searchPlaces`, `getPlace`, `gotoPlace`) and imagery (`getImagery`,
+`setImageryVisible`, `setImageryOpacity`) are described in
+[scripting](scripting.md#places-and-imagery).
 
 Reads added for hosts: `getObjectState(name, { time, frame, center })` returns
 position (km) and attitude (scalar-first quaternion, v_body = q ⊗ v_frame ⊗ q*)
