@@ -88,6 +88,12 @@ export const anthropicProvider = {
     model: typeof reply.model === 'string' && reply.model ? reply.model : null,
     inputTokens: Number(reply.usage?.input_tokens) || 0,
     outputTokens: Number(reply.usage?.output_tokens) || 0,
+    cacheReadTokens: Number(reply.usage?.cache_read_input_tokens) || 0,
+    cacheWriteTokens: Number(reply.usage?.cache_creation_input_tokens) || 0,
+    // Per the API's contract, a fallback shows as a `fallback_message` entry in
+    // `usage.iterations`; a reply with the list and no such entry was served by
+    // the requested model. Null when the reply has no list to say.
+    fallback: Array.isArray(reply.usage?.iterations) ? reply.usage.iterations.some((i) => i?.type === 'fallback_message') : null,
     stop: reply.stop_reason ?? null,
   }),
 };

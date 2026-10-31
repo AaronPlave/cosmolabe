@@ -135,9 +135,17 @@ describe('ask proxy server', () => {
     expect(calls).toBe(2);
     // The reply names no model here, so the answering model is not claimed.
     expect(usage).toEqual([
-      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, spent: 1000, stop: 'end_turn' },
-      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, spent: 2000, stop: 'end_turn' },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 1000, stop: 'end_turn' },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 2000, stop: 'end_turn' },
     ]);
+  });
+
+  it('reports whether the provider says a fallback served the reply, from usage.iterations', () => {
+    const usage = (iterations) => anthropicProvider.usage({ model: 'm', stop_reason: 'end_turn', usage: { input_tokens: 5, output_tokens: 1, cache_read_input_tokens: 3, cache_creation_input_tokens: 2, iterations } });
+    // The shape a real reply had: one plain message entry, no fallback entry.
+    expect(usage([{ type: 'message', model: null }])).toMatchObject({ fallback: false, cacheReadTokens: 3, cacheWriteTokens: 2 });
+    expect(usage([{ type: 'message', model: null }, { type: 'fallback_message', model: 'claude-opus-5-5' }]).fallback).toBe(true);
+    expect(usage(undefined).fallback).toBeNull();
   });
 
   it('logs the model the provider says answered, apart from the one asked for', async () => {
@@ -146,7 +154,7 @@ describe('ask proxy server', () => {
       model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Hi.' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 2 },
     }), { status: 200 }), { onUsage: (u) => usage.push(u) });
     await post(url, WIRE);
-    expect(usage).toEqual([{ requestedModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5', inputTokens: 10, outputTokens: 2, spent: 12, stop: 'end_turn' }]);
+    expect(usage).toEqual([{ requestedModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 12, stop: 'end_turn' }]);
     // Only counts and model names: nothing of the conversation or the key.
     expect(JSON.stringify(usage)).not.toMatch(/secret|"go"|sys/);
   });

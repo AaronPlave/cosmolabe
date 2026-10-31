@@ -19,7 +19,8 @@
  * enforce itself: a fixed model and token cap (the client chooses neither),
  * limits on the request's size, a total token budget for the process, and a
  * usage line per request that names the model asked for and the model the
- * provider says answered (`unknown` when it does not say).
+ * provider says answered (`unknown` when it does not say), whether the
+ * provider reports a fallback served it, and the token and cache counts.
  *
  * No provider-side model fallback is requested: a request for one model is
  * answered by that model or fails. Set ASK_ANTHROPIC_FALLBACK=1 to let the
@@ -182,7 +183,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     fallback: process.env.ASK_ANTHROPIC_FALLBACK === '1',
     perMinute: Number(process.env.RATE_PER_MINUTE ?? 20),
     tokenBudget: Number(process.env.TOKEN_BUDGET ?? 2_000_000),
-    onUsage: (u) => console.log(`usage requested=${u.requestedModel} answered=${u.model}: ${u.inputTokens} in, ${u.outputTokens} out (${u.spent} total this run) stop=${u.stop}`),
+    onUsage: (u) => console.log(
+      `usage requested=${u.requestedModel} answered=${u.model} fallback=${u.fallback === undefined || u.fallback === null ? 'unknown' : u.fallback ? 'served' : 'no'}: `
+      + `${u.inputTokens} in (cache ${u.cacheReadTokens ?? 0} read, ${u.cacheWriteTokens ?? 0} written), ${u.outputTokens} out (${u.spent} total this run) stop=${u.stop}`,
+    ),
   }).listen(port, () => {
     console.log(`ask proxy (${provider.name}) on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`);
     console.warn('development proxy: no caller authentication. Do not expose it publicly.');
