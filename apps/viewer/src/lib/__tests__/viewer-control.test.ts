@@ -1271,6 +1271,35 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     go.mockRestore();
   });
 
+  it('keeps Flight 5 selected through seeking it and going to its site, and gives the place its source fields', () => {
+    const layer = parseGeographicGeoJson(JSON.stringify({ type: 'FeatureCollection', features: [{
+      type: 'Feature', id: 'airfield-5',
+      properties: { name: 'Airfield B', placeKind: 'mission-site', sourceFields: { origin: 'NASA/JPL MMGIS Ingenuity waypoint', Flight: 5, Earth_Date: 'May 7, 2021', nested: { no: 1 }, list: [1] } },
+      geometry: { type: 'Point', coordinates: [77.4513883, 18.44266513] } }] }),
+    { id: 'ingenuity-sites', name: 'Ingenuity sites', body: 'Titan', source: 'ingenuity-sites.geojson', coordinates: { latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '-180..180', referenceShape: { kind: 'sphere', radiusKm: 2575 } } },
+    { kind: 'catalog', identity: 'places/ingenuity-sites.geojson' });
+    vs.places = new PlaceIndex([layer]);
+    vs.activities = parseMissionActivities(ingenuityCatalog.activities);
+    const go = vi.spyOn(placeActions, 'navigateToPlaceForControl').mockReturnValue({ ok: true });
+    const control = createViewerControl();
+    const flight5 = control.getActivity('ingenuity:flight:5')!;
+    // The record states its site by name, and points at no place.
+    expect(flight5).toMatchObject({ site: 'Airfield B', references: { trajectory: 'Ingenuity' } });
+    expect(flight5.references?.location).toBeUndefined();
+    const [place] = control.searchPlaces('Airfield B');
+    // The source's own attributes, flat and primitive; nothing nested comes through.
+    expect(place.fields).toEqual({ origin: 'NASA/JPL MMGIS Ingenuity waypoint', Flight: 5, Earth_Date: 'May 7, 2021' });
+    const scene = control.getScene()!.id;
+
+    expect(control.selectActivity('ingenuity:flight:5', { scene })).toBe(true);
+    expect(control.seekActivity('ingenuity:flight:5', 'start', { scene })).toBe(true);
+    expect(control.gotoPlace(place.ref, { animate: false, scene })).toBe(true);
+    // None of the three clears the activity selection or moves the clock off the flight's start.
+    expect(control.getSelectedActivity()?.id).toBe('ingenuity:flight:5');
+    expect(renderer.timeController.et).toBe(flight5.start);
+    go.mockRestore();
+  });
+
   it('selects a place for a script without opening the Navigate panel', () => {
     vs.places = new PlaceIndex([sites(['a'])]);
     const place = vs.places.places[0];

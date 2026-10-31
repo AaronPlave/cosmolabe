@@ -136,14 +136,29 @@ function resolveEpoch(when: ScriptTime, spice: HeritageSpice | null): number | n
 }
 
 /** A place as the port reports it: plain data, nothing that reaches back into the index. */
+/** The source's attribute table for a place, flat and bounded: nothing nested, nothing long. */
+function placeFields(place: Place): Record<string, string | number | boolean> | undefined {
+  const table = place.feature.properties?.sourceFields;
+  if (!table || typeof table !== 'object' || Array.isArray(table)) return undefined;
+  const out: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(table)) {
+    if (Object.keys(out).length >= 16) break;
+    if (typeof value === 'string') out[key] = value.length > 200 ? `${value.slice(0, 200)}…` : value;
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function scriptPlace(place: Place): ScriptPlace {
   const { latDeg, lonDeg } = placeNavigationCoordinates(place);
   const source = place.layer.source;
+  const fields = placeFields(place);
   return {
     ref: place.ref, name: place.name, body: place.layer.body,
     layer: { id: place.layer.id, name: place.layer.name }, feature: place.feature.id,
     kind: place.kind, origin: place.origin, latitude: latDeg, longitude: lonDeg,
     ...(place.diameterKm === undefined ? {} : { diameterKm: place.diameterKm }),
+    ...(fields ? { fields } : {}),
     source: { kind: source.kind, identity: source.identity, ...(source.revision ? { revision: source.revision } : {}) },
     unavailable: placeNavigationProblem(place),
   };

@@ -17,6 +17,7 @@
   import {
     ask, submitAsk, stopAsk, clearAsk, endNote, tally, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
+  import { parseAnswer, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -133,6 +134,8 @@
   }
 </script>
 
+{#snippet spans(list: readonly AnswerSpan[])}{#each list as span}{#if span.bold}<strong class="font-semibold text-text-primary">{span.text}</strong>{:else if span.code}<code class="font-mono text-[11px] text-text-primary">{span.text}</code>{:else}{span.text}{/if}{/each}{/snippet}
+
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if ask.turns.length > 0}
@@ -160,7 +163,18 @@
         <li class="flex flex-col gap-1">
           <p class="ui-body whitespace-pre-wrap font-medium text-text-primary">{turn.prompt}</p>
           {#if turn.reply}
-            <p class="ui-body whitespace-pre-wrap text-text-secondary">{turn.reply}</p>
+            <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
+            <div class="ask-answer ui-body flex flex-col gap-1.5 text-text-secondary">
+              {#each parseAnswer(turn.reply) as block}
+                {#if block.kind === 'ul'}
+                  <ul class="flex list-disc flex-col gap-0.5 pl-4">
+                    {#each block.items as item}<li>{@render spans(item)}</li>{/each}
+                  </ul>
+                {:else}
+                  <p class="whitespace-pre-wrap">{@render spans(block.spans)}</p>
+                {/if}
+              {/each}
+            </div>
           {/if}
           {#if turn.status === 'running' && !turn.reply}
             <p class="ui-meta flex items-center gap-1">

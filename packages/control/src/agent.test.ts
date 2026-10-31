@@ -478,3 +478,150 @@ describe('runAgent: acceptance scenarios', () => {
     expect(JSON.stringify(fly)).not.toContain('arrived');
   });
 });
+
+// The Ingenuity at Jezero case: the activity says its site by name, the place layer has a place by that
+// name with the source's own attributes, and nothing links them but the name.
+class MissionViewer extends FakeViewer {
+  readonly activities: ScriptActivity[] = [
+    {
+      ...FLIGHT_5, id: 'ingenuity:flight:5', name: 'Flight 5', start: 673687471, end: 673687579.2, site: 'Airfield B', mission: 'Mars 2020',
+      references: { trajectory: 'Ingenuity', sourceSegment: 'data/ingenuity/flight_05.xyzv' },
+      provenance: { source: 'https://mars.nasa.gov/maps/location/?mission=M20', version: 'pinned', authority: 'estimated', timing: 'estimated', limitations: 'Observed horizontal path with estimated 3D playback, not precise flight telemetry.' },
+    },
+    { ...FLIGHT_5, id: 'ingenuity:flight:6', name: 'Flight 6', site: 'Airfield C', start: 675019097.7, end: 675019200 },
+    { ...FLIGHT_5, id: 'ingenuity:flight:7', name: 'Flight 7', site: 'Airfield D', references: { location: '["ingenuity-sites","airfield-7"]' }, start: 676000000, end: 676000100 },
+  ];
+  selectedActivityId: string | null = null;
+  /** A selection something else changes behind the caller's back. */
+  loseSelection = false;
+  constructor() {
+    super();
+    const site = (name: string, feature: string, fields: Record<string, string | number>) => ({
+      ref: `["ingenuity-sites","${feature}"]`, name, body: 'Mars', layer: { id: 'ingenuity-sites', name: 'Ingenuity sites' }, feature, kind: 'mission-site',
+      origin: 'mission/user' as const, latitude: 18.44266513, longitude: 77.4513883, fields,
+      source: { kind: 'catalog' as const, identity: 'places/ingenuity-sites.geojson' }, unavailable: null,
+    });
+    this.places = [site('Airfield B', 'airfield-5', { Flight: 5, Earth_Date: 'May 7, 2021' }), site('Airfield D', 'airfield-7', { Flight: 7 })];
+  }
+  listActivities() { return this.activities; }
+  getActivity(id: string) { return this.activities.find((a) => a.id === id); }
+  getSelectedActivity() { return this.activities.find((a) => a.id === this.selectedActivityId); }
+  selectActivity(id: string, _opts?: { scene?: number }) {
+    if (!this.getActivity(id)) return false;
+    this.selectedActivityId = this.loseSelection ? null : id;
+    return true;
+  }
+  seekActivity(id: string, edge: 'start' | 'end' = 'start', _opts?: { scene?: number }) {
+    const a = this.getActivity(id);
+    if (!a) return false;
+    this.time = a[edge];
+    return true;
+  }
+}
+
+describe('agent tools: where an activity happened', () => {
+  const fmt = (et: number) => `ET ${et}`;
+  const data = (r: AgentToolResult) => (r as { data: any }).data;
+
+  it('lists an activity\'s site and references, and the places its name matches, saying it is a name match', async () => {
+    const tools = createAgentTools(new MissionViewer(), { formatTime: fmt });
+    const { activities } = data(await tools.call('listActivities', { vehicle: 'Ingenuity' }));
+    const [five, six, seven] = activities;
+    expect(five).toMatchObject({
+      id: 'ingenuity:flight:5', mission: 'Mars 2020', startUtc: 'ET 673687471',
+      references: { trajectory: 'Ingenuity', sourceSegment: 'data/ingenuity/flight_05.xyzv' },
+      provenance: { timing: 'estimated', limitations: expect.stringContaining('not precise flight telemetry') },
+      site: { name: 'Airfield B', link: 'name match', basis: expect.stringContaining('no direct place reference') },
+    });
+    // The place carries the source's own attributes, so the evidence is quotable, not inferred from a ref.
+    expect(five.site.places).toEqual([expect.objectContaining({ ref: '["ingenuity-sites","airfield-5"]', name: 'Airfield B', fields: { Flight: 5, Earth_Date: 'May 7, 2021' } })]);
+    // A site no place is named after is reported as having no place.
+    expect(six.site).toMatchObject({ name: 'Airfield C', link: 'none', places: [], basis: expect.stringContaining('no place in this scene has the site\'s name') });
+    // A record that points at a place says so.
+    expect(seven.site).toMatchObject({ name: 'Airfield D', locationRef: '["ingenuity-sites","airfield-7"]', link: 'direct reference', places: [expect.objectContaining({ name: 'Airfield D' })] });
+  });
+
+  it('puts the same evidence in the scene description of the selected activity', async () => {
+    const host = new MissionViewer();
+    host.selectedActivityId = 'ingenuity:flight:5';
+    const r = await createAgentTools(host, { formatTime: fmt }).call('describeScene', {});
+    expect(data(r).selectedActivity).toMatchObject({ id: 'ingenuity:flight:5', startUtc: 'ET 673687471', site: { link: 'name match', places: [expect.objectContaining({ name: 'Airfield B' })] } });
+  });
+
+  it('resolves an activity with its site in the candidate detail', async () => {
+    const r = await createAgentTools(new MissionViewer()).call('resolve', { query: 'flight 5', kinds: ['activity'] });
+    expect(data(r).candidates[0]).toMatchObject({ detail: 'flight, Ingenuity, site Airfield B' });
+  });
+});
+
+describe('agent tools: what a write leaves in place', () => {
+  const fmt = (et: number) => `ET ${et}`;
+
+  it('reads the selection back, so "selected" is what the viewer reports', async () => {
+    const host = new MissionViewer();
+    const tools = createAgentTools(host, { formatTime: fmt });
+    expect(await tools.call('selectActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({
+      ok: true, summary: expect.stringContaining('The viewer now reports Flight 5 (ingenuity:flight:5) as the selected activity.'),
+    });
+    expect(await tools.call('seekActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({ ok: true, summary: expect.stringContaining('The clock now reads ET 673687471.') });
+  });
+
+  it('refuses to report a selection the viewer does not hold', async () => {
+    const host = new MissionViewer();
+    host.loseSelection = true; // something clears it between the write and the read
+    const r = await createAgentTools(host).call('selectActivity', { activity: 'ingenuity:flight:5' });
+    expect(r).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining('the viewer reports none as selected') });
+  });
+
+  it('reads a place selection back after navigating', async () => {
+    const host = new MissionViewer();
+    const place = host.places[0];
+    const r = await createAgentTools(host).call('gotoPlace', { place: place.ref });
+    // The host's fake flight starts no animation, so this returns at once.
+    expect(r).toMatchObject({ ok: true, summary: expect.stringContaining('The viewer now reports Airfield B as the selected place.') });
+  });
+
+  it('Flight 5: select, seek, go to its site, then a final read agrees with every step', async () => {
+    const host = new MissionViewer();
+    const tools = createAgentTools(host, { formatTime: fmt });
+    const transport = new MockTransport([
+      { stop: 'tool_use', content: [use('a', 'listActivities', { vehicle: 'Ingenuity' })] },
+      (req) => {
+        const listed = JSON.parse((req.messages.at(-1)!.content[0] as { content: string }).content).data.activities[0];
+        return { stop: 'tool_use', content: [
+          use('b', 'selectActivity', { activity: listed.id }),
+          use('c', 'seekActivity', { activity: listed.id }),
+          use('d', 'gotoPlace', { place: listed.site.places[0].ref }),
+        ] };
+      },
+      { stop: 'tool_use', content: [use('e', 'describeScene', {})] },
+      (req) => {
+        const scene = JSON.parse((req.messages.at(-1)!.content[0] as { content: string }).content).data;
+        // The model's answer is built from the final read.
+        return { stop: 'end', content: [{ type: 'text', text: `${scene.selectedActivity.name} selected; ${scene.selectedPlace.name}; ${scene.time.utc}; link ${scene.selectedActivity.site.link}.` }] };
+      },
+    ]);
+    let answer = '';
+    const results: [string, boolean][] = [];
+    const run = await runAgent({
+      transport, tools, prompt: 'Show me Flight 5, go to its landing site and tell me what is there',
+      onEvent: (e) => { if (e.type === 'text' && e.final) answer = e.text; if (e.type === 'tool-result') results.push([e.name, e.result.ok]); },
+    });
+    expect(run.outcome).toEqual({ kind: 'done' });
+    expect(results).toEqual([['listActivities', true], ['selectActivity', true], ['seekActivity', true], ['gotoPlace', true], ['describeScene', true]]);
+    expect(answer).toBe('Flight 5 selected; Airfield B; ET 673687471; link name match.');
+    // And the viewer itself agrees.
+    expect(host.getSelectedActivity()?.id).toBe('ingenuity:flight:5');
+    expect(host.getSelectedPlace()?.name).toBe('Airfield B');
+    expect(host.getTime()).toBe(673687471);
+  });
+
+  it('a flight with no place of that name gives the model nothing to navigate to', async () => {
+    const tools = createAgentTools(new MissionViewer());
+    const { data } = (await tools.call('listActivities', { vehicle: 'Ingenuity' })) as { data: { activities: { id: string; site: { link: string; places: unknown[] } }[] } };
+    const six = data.activities.find((a) => a.id === 'ingenuity:flight:6')!;
+    expect(six.site).toMatchObject({ link: 'none', places: [] });
+    expect((await tools.call('resolve', { query: 'Airfield C', kinds: ['place'] })) as { summary: string }).toMatchObject({ summary: expect.stringContaining('Nothing in this scene matches') });
+  });
+});
+

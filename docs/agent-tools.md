@@ -41,8 +41,13 @@ The read tools give a model real names to work with, so it doesn't have to guess
   - the imagery stack of the body in focus
   - which capabilities this viewer lacks
 - `resolve` matches a phrase against objects, viewpoints, places and activities. It returns the stable id each other tool takes, and flags ambiguity.
-- `searchPlaces` returns places with their source and an `unavailable` reason (see "Places and imagery" in `docs/scripting.md`).
+- `searchPlaces` returns places with their source, the source's own attributes (`fields`: a mission site's `Flight`, `Earth_Date`, …) and an `unavailable` reason (see "Places and imagery" in `docs/scripting.md`).
+- `listActivities`, and the selected activity in `describeScene`, carry each activity's `site` and `references` and what they come to in the scene. `site` has a `link`: `direct reference` (the record's `references.location` is a place ref, the only direct link), `name match` (the site's name equals a place's name and the record references no place) or `none`, with the `basis` in words and the matching `places`. A model states the link for what it is rather than guessing from a ref's spelling, and a site no place is named after gives it nothing to navigate to.
 - `getImagery` returns layer attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
+
+### What a write leaves in place
+
+Selection is shared state that anything can change, so `selectActivity`, `gotoPlace`, `seekActivity` and `setTime` read the viewer back after they run. A success says what the viewer now reports ("The viewer now reports Flight 5 (…) as the selected activity", "The clock now reads …"), and a selection the viewer does not hold is a `failed` result, not a success. The system prompt asks the model to finish with `describeScene` and report only what it shows, so an answer about the final selection, place, clock and camera is the viewer's own.
 
 ### Results
 
@@ -147,7 +152,7 @@ This is not a public service. Origin allowlisting and an address rate limit are 
 
 Both translations are tested against scripted upstreams (`examples/ask-proxy/*.test.mjs`): multi-turn tool use, replay of the provider's own blocks, errors and cancellation. They have not been run against the live APIs from CI; check a real key against the demos before relying on either.
 
-The panel is a normal shell panel: dock, float, minimize, close. It sizes to its content and then scrolls its conversation, with the input kept at the bottom. Each request shows what was asked, the model's one answer, and a line of what the viewer did, such as "3 actions succeeded, 1 refused". The answer is the model's last message: what it says beside tool calls is narration, kept out of it. Opening the line lists the actions in plain words ("Flew to Mars") with a check or a cross, and a refusal's own reason. A single Details view under them holds the raw tool calls, results and the model's narration, for debugging.
+The panel is a normal shell panel: dock, float, minimize, close. It sizes to its content and then scrolls its conversation, with the input kept at the bottom. Each request shows what was asked, the model's one answer, and a line of what the viewer did, such as "3 actions succeeded, 1 refused". The answer is the model's last message: what it says beside tool calls is narration, kept out of it. The model is asked for plain, short prose, and the panel reads the small Markdown subset models write anyway (paragraphs, `-` bullets, `**bold**`, `code`) as text nodes, so nothing can inject markup, links or images. Opening the line lists the actions in plain words ("Flew to Mars") with a check or a cross, and a refusal's own reason. A single Details view under them holds the raw tool calls, results and the model's narration, for debugging.
 
 A request that stops before its answer (the proxy's token budget or rate limit, a provider error, Stop, a scene change) says why and counts what already happened from the actions' own results, for example "4 actions ran (3 done, 1 refused); changes already made to the view remain." A refused action is never counted as done. The panel does not retry, resume or re-issue anything, and does not suggest retrying a request that ran out of the proxy's budget.
 

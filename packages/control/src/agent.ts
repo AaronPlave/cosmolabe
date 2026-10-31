@@ -26,6 +26,7 @@
  * whose method the host lacks is not listed.
  */
 import type {
+  ScriptActivity,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptPlace,
@@ -377,6 +378,7 @@ function placeSummary(p: ScriptPlace) {
   return {
     ref: p.ref, name: p.name, body: p.body, kind: p.kind, latitude: p.latitude, longitude: p.longitude,
     ...(p.diameterKm !== undefined ? { diameterKm: p.diameterKm } : {}),
+    ...(p.fields ? { fields: p.fields } : {}),
     source: `${p.layer.name} (${p.source.kind}: ${p.source.identity})`,
     ...(p.unavailable ? { unavailable: p.unavailable } : {}),
   };
@@ -430,6 +432,45 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
 
+  /**
+   * What an activity's record says about where it happened, and which places
+   * in the scene that could be. The link is stated for what it is: a direct
+   * reference (`references.location`), a name match (the `site` equals a
+   * place's name), or none. A model reads this instead of guessing from a ref's
+   * spelling.
+   */
+  function activitySite(a: ScriptActivity) {
+    const ref = a.references?.location;
+    const direct = ref && has(host, 'getPlace') ? attempt(() => host.getPlace!(ref)) : undefined;
+    const wanted = a.site?.trim().toLowerCase();
+    const named = wanted && has(host, 'searchPlaces')
+      ? (attempt(() => host.searchPlaces!(a.site!, { body: a.body, limit: 10 })) ?? []).filter((p) => p.name.trim().toLowerCase() === wanted)
+      : [];
+    const places = direct ? [direct] : named;
+    const basis = direct ? 'the activity references this place'
+      : named.length ? `the activity's site name equals ${named.length === 1 ? 'this place name' : 'these places\' names'}; the record has no direct place reference`
+        : a.site ? 'no place in this scene has the site\'s name, and the record has no place reference'
+          : 'the record names no site';
+    return {
+      ...(a.site ? { name: a.site } : {}),
+      ...(ref ? { locationRef: ref } : {}),
+      link: direct ? 'direct reference' : named.length ? 'name match' : 'none',
+      basis,
+      places: places.map(placeSummary),
+    };
+  }
+
+  function activitySummary(a: ScriptActivity) {
+    return {
+      id: a.id, name: a.name, kind: a.kind, vehicle: a.vehicle, body: a.body, ...(a.mission ? { mission: a.mission } : {}),
+      start: a.start, end: a.end,
+      ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(a.start)), endUtc: attempt(() => opts.formatTime!(a.end)) } : {}),
+      ...(a.references ? { references: a.references } : {}),
+      site: activitySite(a),
+      provenance: a.provenance,
+    };
+  }
+
   function describeScene(): AgentToolResult {
     const scene = attempt(() => host.getScene?.()) ?? null;
     const et = host.getTime();
@@ -451,7 +492,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       selected,
       tracked,
       flight: host.getFlight(),
-      selectedActivity: activity ? { id: activity.id, name: activity.name, kind: activity.kind, vehicle: activity.vehicle, start: activity.start, end: activity.end } : null,
+      selectedActivity: activity ? activitySummary(activity) : null,
       selectedPlace: place ? placeSummary(place) : null,
       objects: { names: objects.items, total: objects.total },
       viewpoints: { names: viewpoints.items, total: viewpoints.total },
@@ -495,7 +536,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const words = q.split(/\s+/).filter(Boolean);
       const acts = (attempt(() => host.listActivities!()) ?? [])
         .filter((a) => words.every((w) => `${a.name} ${a.id} ${a.kind} ${a.vehicle}`.toLowerCase().includes(w)));
-      for (const a of acts.slice(0, 8)) candidates.push({ kind: 'activity', id: a.id, label: a.name, detail: `${a.kind}, ${a.vehicle}` });
+      for (const a of acts.slice(0, 8)) candidates.push({ kind: 'activity', id: a.id, label: a.name, detail: `${a.kind}, ${a.vehicle}${a.site ? `, site ${a.site}` : ''}` });
     }
     const summary = candidates.length === 0
       ? `Nothing in this scene matches ${JSON.stringify(query)}.`
@@ -519,11 +560,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       summary: `${total} activit${total === 1 ? 'y' : 'ies'}${total > items.length ? `, first ${items.length} shown` : ''}.`,
       data: {
         total,
-        activities: items.map((a) => ({
-          id: a.id, name: a.name, kind: a.kind, vehicle: a.vehicle, body: a.body, start: a.start, end: a.end,
-          ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(a.start)) } : {}),
-          provenance: a.provenance,
-        })),
+        activities: items.map(activitySummary),
       },
     };
   }
@@ -539,6 +576,30 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       ? `${imagery.body} has no streamed imagery.`
       : `${imagery.body}: ${imagery.layers.length} imagery layer${imagery.layers.length === 1 ? '' : 's'}${imagery.imageryOnly ? ' (imagery only, no terrain elevation)' : ''}.`;
     return { ok: true, summary, data: imagery };
+  }
+
+  /**
+   * Read back what a write was meant to leave in place, from the viewer. A
+   * selection is shared state anything can change, so "selected" is claimed
+   * only when the viewer says it is. Returns a refusal when it is not, else
+   * the sentence to append to the result.
+   */
+  function readBack(name: string, args: Input): { problem: string } | { note: string } | null {
+    if (name === 'selectActivity' && has(host, 'getSelectedActivity')) {
+      const now = attempt(() => host.getSelectedActivity!());
+      return now && now.id === args.activity ? { note: `The viewer now reports ${now.name} (${now.id}) as the selected activity.` }
+        : { problem: `the activity was asked to be selected, but the viewer reports ${now ? `${now.name} (${now.id})` : 'none'} as selected` };
+    }
+    if (name === 'gotoPlace' && has(host, 'getSelectedPlace')) {
+      const now = attempt(() => host.getSelectedPlace!());
+      return now && now.ref === args.place ? { note: `The viewer now reports ${now.name} as the selected place.` }
+        : { problem: `the place was asked to be selected, but the viewer reports ${now ? now.name : 'none'} as selected` };
+    }
+    if ((name === 'seekActivity' || name === 'setTime') && opts.formatTime) {
+      const utc = attempt(() => opts.formatTime!(host.getTime()));
+      return utc ? { note: `The clock now reads ${utc}.` } : null;
+    }
+    return null;
   }
 
   const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getImagery };
@@ -682,9 +743,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
             return { ok: false, code: 'interrupted', error: `the person took over the camera before it reached ${end.target ?? 'the destination'}; leaving the view to them` };
           }
           if (end.outcome === 'stopped') return { ok: false, code: 'failed', error: `the flight to ${end.target ?? 'the destination'} was stopped by another camera command` };
-          return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.` };
+          const back = readBack(name, args);
+          if (back && 'problem' in back) return { ok: false, code: 'failed', error: `${text}: ${back.problem}` };
+          return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.${back ? ` ${back.note}` : ''}` };
         }
-        return { ok: true, summary: `${text}: done.` };
+        const back = readBack(name, args);
+        if (back && 'problem' in back) return { ok: false, code: 'failed', error: `${text}: ${back.problem}` };
+        return { ok: true, summary: `${text}: done.${back ? ` ${back.note}` : ''}` };
       } finally {
         offSeen();
         if (this.ownFlight === own) this.ownFlight = null;
