@@ -33,6 +33,17 @@ export declare class ActivityConflictError extends Error {
  */
 export declare function createHttpTransport(endpoint: string): import('@cosmolabe/control').AgentTransport;
 
+/**
+ * Throw this from an `AgentTransport` to say why a request failed in a way the
+ * panel can act on: `code` is the wire format's `error.code`
+ * (`budget-exhausted`, `rate-limited`, `upstream-rate-limited`,
+ * `upstream-error`, `unreachable`).
+ */
+export declare class AgentTransportError extends Error {
+  constructor(message: string, code?: string);
+  readonly code?: string;
+}
+
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';
@@ -46,5 +57,5 @@ export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,
   ScriptScene, ScriptPlace, ScriptImagery, ScriptImageryLayer, ScriptFlight, FlightOutcome, FlightPath, SurfaceView,
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema,
-  AgentTransport, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
+  AgentTransport, AgentErrorKind, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
 } from '@cosmolabe/control';

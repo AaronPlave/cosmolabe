@@ -261,6 +261,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 
 export { ActivityConflictError };
 export { createHttpTransport };
+export { AgentTransportError } from '@cosmolabe/control';
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';

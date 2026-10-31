@@ -1,10 +1,13 @@
 <script lang="ts">
   /**
    * Ask Cosmolabe (#311) — a compact prompt over the agent tools, not a chat
-   * sidebar. Each request shows the model's short reply and a one-line count
-   * of what the viewer did (and refused); the raw actions — the tool calls,
-   * their results and refusals — are one click away under it. The panel's own
-   * chrome minimizes and closes it; closing stops a running request.
+   * sidebar. A request shows what the person typed, the model's one answer, and
+   * a line of what the viewer did ("3 actions succeeded, 1 refused"). Opening
+   * that line lists the actions in plain words; one Details view under them
+   * holds the raw tool calls, results and the model's narration for anyone
+   * debugging. A request that stops early says why and what its actions came
+   * to, from their actual results. The panel's own chrome minimizes and closes
+   * it; closing stops a running request.
    *
    * Offered only where a model is configured (`askAvailable`).
    */
@@ -12,7 +15,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, MAX_TURNS, type AskStep, type AskStatus, type AskTurn,
+    ask, submitAsk, stopAsk, clearAsk, actionsSummary, endingNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -53,56 +56,73 @@
     if (e.key !== 'Escape') e.stopPropagation();
   }
 
-  /** "3 actions", or "3 actions, 1 refused": what the viewer did for a request, in a line. */
-  function actionsLine(turn: AskTurn): string {
-    const done = turn.steps.filter((s) => s.result?.ok).length;
-    const refused = turn.steps.filter((s) => s.result && !s.result.ok && s.result.code !== 'superseded' && s.result.code !== 'cancelled').length;
-    const running = turn.steps.filter((s) => !s.result).length;
-    const n = turn.steps.length;
-    const parts = [`${n} ${n === 1 ? 'action' : 'actions'}`];
-    if (refused) parts.push(`${refused} refused`);
-    if (running) parts.push('in progress');
-    else if (done + refused < n) parts.push(`${n - done - refused} not run`);
-    return parts.join(', ');
+  const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+  /**
+   * What a step did, in words: "Flew to Mars". Only the arguments a person
+   * would say are used; a place ref or layer id is not one of them.
+   */
+  const LABELS: Record<string, (i: Record<string, unknown>) => string> = {
+    describeScene: () => 'Checked the scene',
+    resolve: (i) => `Looked up “${text(i.query) ?? '…'}”`,
+    searchPlaces: (i) => `Searched places for “${text(i.query) ?? '…'}”`,
+    listActivities: () => 'Listed mission activities',
+    getImagery: (i) => `Checked imagery on ${text(i.object) ?? 'a body'}`,
+    select: (i) => `Selected ${text(i.object) ?? 'an object'}`,
+    deselect: () => 'Cleared the selection',
+    flyTo: (i) => `Flew to ${text(i.object) ?? 'an object'}`,
+    jumpTo: (i) => `Jumped to ${text(i.object) ?? 'an object'}`,
+    frameObject: (i) => `Framed ${text(i.object) ?? 'the tracked object'}`,
+    track: (i) => `Tracked ${text(i.object) ?? 'an object'}`,
+    untrack: () => 'Stopped tracking',
+    pointAtObject: (i) => `Pointed the camera at ${text(i.object) ?? 'an object'}`,
+    clearLookAt: () => 'Stopped pointing the camera',
+    gotoPlace: () => 'Went to the place',
+    gotoCoordinates: (i) => `Went to coordinates on ${text(i.object) ?? 'a body'}`,
+    viewpoint: (i) => `Moved to the ${text(i.name) ?? 'saved'} viewpoint`,
+    setFrame: () => 'Changed the camera frame',
+    circleCenter: () => 'Circled the view',
+    dolly: () => 'Moved the camera',
+    stopFlight: () => 'Stopped the flight',
+    setTime: () => 'Set the time',
+    setTimeRate: () => 'Changed the playback rate',
+    setPlaying: (i) => (i.playing === false ? 'Paused playback' : 'Started playback'),
+    selectActivity: () => 'Selected the activity',
+    seekActivity: () => 'Moved the clock to the activity',
+    navigateActivity: (i) => `Selected the ${text(i.direction) ?? 'next'} activity`,
+    setObjectVisible: (i) => `${i.visible === false ? 'Hid' : 'Showed'} ${text(i.object) ?? 'an object'}`,
+    showTrajectory: (i) => `${i.visible === false ? 'Hid' : 'Showed'} the trajectory of ${text(i.object) ?? 'an object'}`,
+    showLabel: (i) => `${i.visible === false ? 'Hid' : 'Showed'} the label of ${text(i.object) ?? 'an object'}`,
+    setLayer: () => 'Changed a display layer',
+    showImagery: (i) => `${i.visible === false ? 'Hid' : 'Showed'} an imagery layer on ${text(i.object) ?? 'a body'}`,
+    setImageryOpacity: (i) => `Changed imagery opacity on ${text(i.object) ?? 'a body'}`,
+    showBodyGrid: (i) => `${i.visible === false ? 'Hid' : 'Showed'} the grid on ${text(i.object) ?? 'a body'}`,
+  };
+
+  function stepLabel(step: AskStep): string {
+    const input = step.input && typeof step.input === 'object' ? (step.input as Record<string, unknown>) : {};
+    return LABELS[step.name]?.(input) ?? step.name;
   }
 
-  /** The step being worked on, for the "Working…" line. */
-  const latestStep = (turn: AskTurn): string | null => {
+  /** Where the step stopped: the viewer's own refusal, short. */
+  const stepProblem = (step: AskStep): string | null => (step.result && !step.result.ok ? step.result.error : null);
+
+  /** The latest step, for the "Working…" line. */
+  const working = (turn: AskTurn): string | null => {
     const step = turn.steps.at(-1);
     return step && !step.result ? stepLabel(step) : null;
   };
 
-  /** `flyTo Titan` — the step as the equivalent script line, roughly. */
-  function stepLabel(step: AskStep): string {
-    const values = step.input && typeof step.input === 'object'
-      ? Object.values(step.input as Record<string, unknown>).map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
-      : [];
-    return [step.name, ...values].join(' ');
+  /** Everything raw, as one block: the tool calls, their results and the model's narration. */
+  function details(turn: AskTurn): string {
+    const lines = turn.steps.map((s) => JSON.stringify({ tool: s.name, input: s.input, result: s.result }, null, 1));
+    if (turn.notes.length) lines.push(`model notes: ${JSON.stringify(turn.notes)}`);
+    const out = lines.join('\n');
+    return out.length > 8000 ? `${out.slice(0, 8000)}…` : out;
   }
-
-  function stepDetail(step: AskStep): string {
-    if (!step.result) return '';
-    if (!step.result.ok) return step.result.error;
-    return step.result.summary;
-  }
-
-  function stepData(step: AskStep): string | null {
-    if (!step.result?.ok || step.result.data === undefined) return null;
-    const text = JSON.stringify(step.result.data, null, 1);
-    return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
-  }
-
-  const ENDINGS: Partial<Record<AskStatus, string>> = {
-    cancelled: 'Stopped.',
-    superseded: 'Replaced by a newer request.',
-    stale: 'The scene changed, so this request stopped.',
-    'step-limit': 'Stopped after too many steps.',
-    'max-tokens': 'The reply was cut off.',
-    refusal: 'The model declined this request.',
-  };
 </script>
 
-<InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose}>
+<InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if ask.turns.length > 0}
       <button
@@ -116,99 +136,97 @@
   {/snippet}
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="flex flex-col gap-2" onkeydown={containKeys}>
-      {#if ask.turns.length > 0}
-        <ol bind:this={transcript} class="flex max-h-[45vh] flex-col gap-3 overflow-y-auto pr-0.5" aria-live="polite">
-          {#each ask.turns as turn (turn.id)}
-            {#if turn.fresh}
-              <li class="ui-helper flex items-center gap-2 whitespace-normal text-text-faint" role="separator">
-                <span class="h-px flex-1 bg-border"></span><span class="max-w-[85%] text-center">{turn.fresh}</span><span class="h-px flex-1 bg-border"></span>
-              </li>
-            {/if}
-            <li class="flex flex-col gap-1">
-              <p class="ui-body whitespace-pre-wrap text-text-primary">{turn.prompt}</p>
-              {#if turn.reply}
-                <p class="ui-body whitespace-pre-wrap text-text-secondary">{turn.reply}</p>
-              {/if}
-              {#if turn.status === 'running' && !turn.reply}
-                <p class="ui-meta flex items-center gap-1">
-                  <Loader2 size={11} class="animate-spin" /> Working…{#if latestStep(turn)} <span class="font-mono text-[11px] break-all">{latestStep(turn)}</span>{/if}
-                </p>
-              {:else if turn.status === 'error'}
-                <p class="ui-helper whitespace-normal text-error" role="alert">{turn.error}</p>
-              {:else if ENDINGS[turn.status]}
-                <p class="ui-helper whitespace-normal text-warning">{ENDINGS[turn.status]}</p>
-              {/if}
-              {#if turn.steps.length > 0}
-                <details class="actions">
-                  <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
-                    <ChevronRight size={10} class="actions-chevron" />
-                    {actionsLine(turn)}
-                  </summary>
-                  <ul class="mt-1 flex flex-col gap-0.5 border-l border-border pl-2">
-                    {#each turn.steps as step (step.id)}
-                      {@const data = stepData(step)}
-                      <li class="flex flex-col">
-                        <div class="flex items-start gap-1.5">
-                          <span class="mt-0.5 shrink-0">
-                            {#if !step.result}<Loader2 size={11} class="animate-spin text-text-muted" />
-                            {:else if step.result.ok}<Check size={11} class="text-success" />
-                            {:else if step.result.code === 'superseded' || step.result.code === 'cancelled'}<Ban size={11} class="text-text-muted" />
-                            {:else}<X size={11} class="text-error" />{/if}
-                          </span>
-                          <span class="min-w-0 flex-1">
-                            <span class="font-mono text-[11px] text-text-secondary break-all">{stepLabel(step)}</span>
-                            {#if step.result}
-                              <span class="ui-helper block whitespace-normal {step.result.ok ? '' : 'text-error'}">{stepDetail(step)}</span>
-                            {/if}
-                          </span>
-                        </div>
-                        {#if data}
-                          <details class="ml-4">
-                            <summary class="ui-helper cursor-pointer select-none">Data</summary>
-                            <pre class="ui-helper max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{data}</pre>
-                          </details>
-                        {/if}
-                      </li>
-                    {/each}
-                  </ul>
-                </details>
-              {/if}
-            </li>
-          {/each}
-        </ol>
-      {:else}
-        <p class="ui-helper whitespace-normal">
-          Ask for a place, an object, a mission activity, a time or a layer, e.g. "fly to Jezero and show the available imagery".
-        </p>
-      {/if}
-
-      <div class="flex items-end gap-1.5">
-        <textarea
-          bind:value={prompt}
-          onkeydown={onKeydown}
-          rows="2"
-          placeholder="Ask Cosmolabe…"
-          aria-label="Request"
-          class="ui-control min-w-0 flex-1 resize-none rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
-        ></textarea>
-        {#if ask.running}
-          <button class="ask-btn" onclick={stopAsk} aria-label="Stop request" title="Stop: a flight in progress stops where it is">
-            <Square size={11} /> Stop
-          </button>
-        {:else}
-          <button class="ask-btn" onclick={send} disabled={prompt.trim() === ''} aria-label="Send request" title="Send (Enter)">
-            <CornerDownLeft size={12} />
-          </button>
+  <div class="ask flex min-h-0 flex-1 flex-col" onkeydown={containKeys}>
+    <ol bind:this={transcript} class="ask-log flex flex-col gap-3 px-3 pb-2 pt-3" aria-live="polite">
+      {#each ask.turns as turn (turn.id)}
+        {#if turn.fresh}
+          <li class="ask-divider ui-helper flex items-center gap-2 text-text-faint" role="separator" title={turn.fresh}>
+            <span class="h-px flex-1 bg-border"></span>
+            <span>Earlier requests aren't remembered</span>
+            <span class="h-px flex-1 bg-border"></span>
+          </li>
         {/if}
-      </div>
-      <p class="ui-helper whitespace-normal text-text-faint">
-        A model interprets the request; the viewer's catalog and data remain the source of truth. The model remembers {MAX_TURNS} requests at a time, and starts fresh when a new scene loads.
-      </p>
+        <li class="flex flex-col gap-1">
+          <p class="ui-body whitespace-pre-wrap font-medium text-text-primary">{turn.prompt}</p>
+          {#if turn.reply}
+            <p class="ui-body whitespace-pre-wrap text-text-secondary">{turn.reply}</p>
+          {/if}
+          {#if turn.status === 'running' && !turn.reply}
+            <p class="ui-meta flex items-center gap-1">
+              <Loader2 size={11} class="animate-spin" /> Working…{#if working(turn)} <span>{working(turn)}</span>{/if}
+            </p>
+          {/if}
+          {#if endingNote(turn)}
+            <p class="ui-helper whitespace-normal {turn.status === 'error' ? 'text-error' : 'text-warning'}" role={turn.status === 'error' ? 'alert' : 'status'}>{endingNote(turn)}</p>
+          {/if}
+          {#if turn.steps.length > 0}
+            <details class="ask-actions">
+              <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
+                <ChevronRight size={10} class="ask-chevron" />
+                {actionsSummary(turn) || 'Working'}{turn.status === 'running' ? '…' : ''}
+              </summary>
+              <ul class="mt-1 flex flex-col gap-0.5">
+                {#each turn.steps as step (step.id)}
+                  <li class="flex items-start gap-1.5">
+                    <span class="mt-0.5 shrink-0">
+                      {#if !step.result}<Loader2 size={11} class="animate-spin text-text-muted" />
+                      {:else if step.result.ok}<Check size={11} class="text-success" />
+                      {:else if step.result.code === 'superseded' || step.result.code === 'cancelled'}<Ban size={11} class="text-text-muted" />
+                      {:else}<X size={11} class="text-error" />{/if}
+                    </span>
+                    <span class="ui-helper min-w-0 flex-1 whitespace-normal">
+                      <span class="text-text-secondary">{stepLabel(step)}</span>
+                      {#if stepProblem(step)}<span class="block text-error">{stepProblem(step)}</span>{/if}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+              <details class="ask-details mt-1">
+                <summary class="ui-helper cursor-pointer select-none text-text-faint">Details</summary>
+                <pre class="ui-helper mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px]">{details(turn)}</pre>
+              </details>
+            </details>
+          {/if}
+        </li>
+      {/each}
+      {#if ask.turns.length === 0}
+        <li class="ui-helper whitespace-normal">
+          Ask for a place, an object, a mission activity, a time or a layer, e.g. “fly to Jezero and show the available imagery”.
+        </li>
+      {/if}
+    </ol>
+
+    <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
+      <textarea
+        bind:value={prompt}
+        onkeydown={onKeydown}
+        rows="2"
+        placeholder="Ask Cosmolabe…"
+        aria-label="Request"
+        title="A model interprets the request; the viewer's catalog and data remain the source of truth."
+        class="ui-control min-w-0 flex-1 resize-none rounded border border-border bg-surface-3 px-1.5 py-1 text-text-primary outline-none focus-visible:border-accent"
+      ></textarea>
+      {#if ask.running}
+        <button class="ask-btn" onclick={stopAsk} aria-label="Stop request" title="Stop: a flight in progress stops where it is">
+          <Square size={11} /> Stop
+        </button>
+      {:else}
+        <button class="ask-btn" onclick={send} disabled={prompt.trim() === ''} aria-label="Send request" title="Send (Enter)">
+          <CornerDownLeft size={12} />
+        </button>
+      {/if}
+    </div>
   </div>
 </InstrumentPanel>
 
 <style>
+  /* The log takes the room there is: it grows with the conversation up to the
+     panel's height, then scrolls, and the input stays at the bottom. */
+  .ask-log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
   .ask-btn {
     display: flex;
     align-items: center;
@@ -224,6 +242,14 @@
   }
   .ask-btn:hover:not(:disabled) { background: var(--color-hover); }
   .ask-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-  .actions > summary :global(.actions-chevron) { transition: transform 120ms; }
-  .actions[open] > summary :global(.actions-chevron) { transform: rotate(90deg); }
+  .ask-divider { font-size: 10px; }
+  .ask-actions > summary :global(.ask-chevron) { transition: transform 120ms; }
+  .ask-actions[open] > summary :global(.ask-chevron) { transform: rotate(90deg); }
+  /* Disclosures are keyboard-operable, so they show where focus is. */
+  .ask-actions > summary:focus-visible,
+  .ask-details > summary:focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
 </style>

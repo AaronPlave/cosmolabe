@@ -8,7 +8,7 @@
  * server change.
  */
 import {
-  AGENT_WIRE_VERSION, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport,
+  AGENT_WIRE_VERSION, AgentTransportError, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport,
   type AgentWireRequest, type ScriptCancelSignal,
 } from '@cosmolabe/control';
 
@@ -48,12 +48,14 @@ export function createHttpTransport(endpoint: string): AgentTransport {
             signal: controller.signal,
           });
         } catch (err) {
-          throw new Error(controller.signal.aborted ? 'stopped' : `could not reach the model proxy (${err instanceof Error ? err.message : String(err)})`);
+          if (controller.signal.aborted) throw new Error('stopped');
+          throw new AgentTransportError(`could not reach the model proxy (${err instanceof Error ? err.message : String(err)})`, 'unreachable');
         }
         const payload: unknown = await res.json().catch(() => null);
         if (!res.ok) {
-          const message = (payload as { error?: { message?: unknown } } | null)?.error?.message;
-          throw new Error(`the model proxy answered ${res.status}${typeof message === 'string' ? `: ${message}` : ''}`);
+          const error = (payload as { error?: { message?: unknown; code?: unknown } } | null)?.error;
+          const code = typeof error?.code === 'string' ? error.code : res.status === 429 ? 'rate-limited' : undefined;
+          throw new AgentTransportError(`the model proxy answered ${res.status}${typeof error?.message === 'string' ? `: ${error.message}` : ''}`, code);
         }
         return parseWireResponse(payload);
       } finally {

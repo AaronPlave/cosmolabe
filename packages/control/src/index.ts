@@ -64,8 +64,8 @@ export { createAgentTools } from './agent.js';
 export type {
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions,
 } from './agent.js';
-export { runAgent, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION } from './agent-loop.js';
+export { runAgent, AgentTransportError, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION } from './agent-loop.js';
 export type {
-  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
+  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentStop, AgentTransport, AgentErrorKind, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';

@@ -133,8 +133,17 @@ describe('ask proxy server, OpenAI provider', () => {
     const usage = [];
     const url = await start(async () => new Response(JSON.stringify({ status: 'completed', model: 'gpt-5.1-2026-01-01', output: [message], usage: { input_tokens: 9, output_tokens: 3 } }), { status: 200 }), { onUsage: (u) => usage.push(u) });
     await post(url, WIRE);
-    expect(usage).toEqual([{ requestedModel: 'gpt-5.1', model: 'gpt-5.1-2026-01-01', inputTokens: 9, outputTokens: 3, spent: 12, stop: 'completed' }]);
+    expect(usage).toEqual([{ requestedModel: 'gpt-5.1', model: 'gpt-5.1-2026-01-01', uncachedInputTokens: 9, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 3, totalTokens: 12, spent: 12, stop: 'completed' }]);
     expect(usage[0].fallback).toBeUndefined(); // OpenAI has no fallback to report
+  });
+
+  it('splits OpenAI\'s input count, which includes what its cache served, into uncached and cached', async () => {
+    const usage = [];
+    const url = await start(async () => new Response(JSON.stringify({
+      status: 'completed', model: 'gpt-5.1', output: [message], usage: { input_tokens: 5000, input_tokens_details: { cached_tokens: 4800 }, output_tokens: 30 },
+    }), { status: 200 }), { onUsage: (u) => usage.push(u) });
+    await post(url, WIRE);
+    expect(usage[0]).toMatchObject({ uncachedInputTokens: 200, cacheReadTokens: 4800, cacheWriteTokens: 0, outputTokens: 30, totalTokens: 5030 });
   });
 
   it('reports an upstream failure as the proxy\'s, without its credentials problem looking like the viewer\'s', async () => {

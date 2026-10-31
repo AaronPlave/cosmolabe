@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createAgentTools, type AgentToolResult } from './agent.js';
-import { runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
+import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
 import { FakeViewer } from './__tests__/fake-host.js';
 import type { ScriptActivity, ViewerControl } from './contracts.js';
 
@@ -360,5 +360,137 @@ describe('runAgent', () => {
     const second = await runAgent({ transport, tools, history: first.messages, prompt: 'again' });
     expect(transport.requests[0].messages).toHaveLength(3);
     expect(second.messages).toHaveLength(4);
+  });
+});
+
+describe('runAgent: acceptance scenarios', () => {
+
+  it('marks narration beside tool calls apart from the answer, and reports only what ran', async () => {
+    const host = new FakeViewer();
+    const transport = new MockTransport([
+      { stop: 'tool_use', content: [{ type: 'text', text: 'The object Mars is clearly meant.' }, use('a', 'describeScene', {})] },
+      { stop: 'tool_use', content: [use('b', 'resolve', { query: 'Titan' }), use('c', 'select', { object: 'Titan' })] },
+      { stop: 'end', content: [{ type: 'text', text: 'Selected Titan.' }] },
+    ]);
+    const texts: { text: string; final: boolean }[] = [];
+    const results: string[] = [];
+    const run = await runAgent({
+      transport, tools: createAgentTools(host), prompt: 'select titan',
+      onEvent: (e) => {
+        if (e.type === 'text') texts.push({ text: e.text, final: e.final });
+        if (e.type === 'tool-result') results.push(`${e.name}:${e.result.ok}`);
+      },
+    });
+    expect(run.outcome).toEqual({ kind: 'done' });
+    expect(texts).toEqual([{ text: 'The object Mars is clearly meant.', final: false }, { text: 'Selected Titan.', final: true }]);
+    expect(results).toEqual(['describeScene:true', 'resolve:true', 'select:true']);
+    expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(1);
+  });
+
+  it('carries a transport failure\'s code into the outcome', async () => {
+    const run = await runAgent({
+      transport: { send: async () => { throw new AgentTransportError('the model proxy answered 429: the proxy has spent its token budget', 'budget-exhausted'); } },
+      tools: createAgentTools(new FakeViewer()), prompt: 'hi',
+    });
+    expect(run.outcome).toEqual({ kind: 'error', message: 'the model proxy answered 429: the proxy has spent its token budget', code: 'budget-exhausted' });
+  });
+
+  // The proxy's budget runs out after N rounds: whatever ran stays run, nothing runs late, and the
+  // next request starts clean.
+  for (const [after, label] of [[0, 'before any action'], [1, 'after one action'], [5, 'after five actions']] as const) {
+    it(`a budget spent ${label} ends the request with what ran intact and nothing run late`, async () => {
+      const host = new FakeViewer();
+      const tools = createAgentTools(host);
+      const calls = [
+        use('c1', 'select', { object: 'Titan' }), use('c2', 'setTime', { when: 1000 }), use('c3', 'flyTo', { object: 'Saturn' }),
+        use('c4', 'showImagery', { object: 'Titan', layer: 'nope', visible: true }), use('c5', 'setTimeRate', { rate: 2 }),
+      ].slice(0, after);
+      const budget = new AgentTransportError('the model proxy answered 429: the proxy has spent its token budget', 'budget-exhausted');
+      let round = 0;
+      const transport: AgentTransport = {
+        async send() {
+          if (round++ === 0 && after > 0) return { stop: 'tool_use', content: calls };
+          throw budget;
+        },
+      };
+      const seen: { name: string; ok: boolean }[] = [];
+      const pending = runAgent({ transport, tools, prompt: 'do things', onEvent: (e) => { if (e.type === 'tool-result') seen.push({ name: e.name, ok: e.result.ok }); } });
+      // The flight the request started lands; the next round is where the budget runs out.
+      for (let i = 0; i < 50 && calls.some((c) => c.name === 'flyTo') && !host.flight; i++) await tick();
+      if (host.flight) land(host, 'arrived');
+      const run = await pending;
+      expect(run.outcome).toMatchObject({ kind: 'error', code: 'budget-exhausted' });
+      // Each action ran once, in order, and every one has its result.
+      expect(seen.map((r) => r.name)).toEqual(calls.map((c) => c.name));
+      expect(seen.filter((r) => !r.ok).map((r) => r.name)).toEqual(calls.some((c) => c.name === 'showImagery') ? ['showImagery'] : []);
+      expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(calls.some((c) => c.name === 'select') ? 1 : 0);
+      // The history is a valid conversation: the results are in it, ready for the next request.
+      if (after > 0) expect(run.messages.at(-1)!.role).toBe('user');
+      // Later, with the budget lifted, a new request runs from that history without repeating anything.
+      const before = host.calls.length;
+      const next = await runAgent({
+        transport: new MockTransport([{ stop: 'end', content: [{ type: 'text', text: 'Done.' }] }]), tools, history: run.messages, prompt: 'continue',
+      });
+      expect(next.outcome).toEqual({ kind: 'done' });
+      expect(host.calls.length).toBe(before);
+    });
+  }
+
+  it('does not run a round\'s calls after the scene is replaced between rounds, and never touches the new scene', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const transport = new MockTransport([
+      () => ({ stop: 'tool_use', content: [use('a', 'select', { object: 'Titan' })] }),
+      () => {
+        host.scene = { id: 2, catalog: 'Other', ready: true }; // a catalog loaded while the model was thinking
+        return { stop: 'tool_use', content: [use('b', 'gotoPlace', { place: host.places[0].ref }), use('c', 'select', { object: 'Saturn' })] };
+      },
+      { stop: 'end', content: [{ type: 'text', text: 'unused' }] },
+    ]);
+    const results: [string, boolean, string | undefined][] = [];
+    const run = await runAgent({
+      transport, tools, prompt: 'go',
+      onEvent: (e) => { if (e.type === 'tool-result') results.push([e.name, e.result.ok, e.result.ok ? undefined : e.result.code]); },
+    });
+    expect(results).toEqual([['select', true, undefined], ['gotoPlace', false, 'stale'], ['select', false, 'stale']]);
+    expect(host.calls.filter((c) => c.startsWith('gotoPlace'))).toEqual([]);
+    expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(1);
+    expect(run.outcome).toEqual({ kind: 'stale' });
+  });
+
+  it('reports ambiguity as candidates, with their kinds, and missing data as missing', async () => {
+    const host = new FakeViewer();
+    host.places.push({ ...host.places[0], ref: '["names","7"]', name: 'Titan', feature: '7' });
+    const tools = createAgentTools(host);
+    const two = await tools.call('resolve', { query: 'Titan' });
+    expect(two).toMatchObject({ ok: true, summary: expect.stringContaining('2 candidates'), data: { ambiguous: true } });
+    expect((two as { data: { candidates: { kind: string }[] } }).data.candidates.map((c) => c.kind).sort()).toEqual(['object', 'place']);
+    // Nothing invented for a landing site the scene does not have.
+    expect(await tools.call('resolve', { query: 'Atlantis landing' })).toMatchObject({ ok: true, summary: expect.stringContaining('Nothing in this scene matches'), data: { ambiguous: false, candidates: [] } });
+    expect(await tools.call('searchPlaces', { query: 'Atlantis' })).toMatchObject({ ok: true, summary: '0 places found.' });
+    // A place the viewer cannot reach is refused with its reason, not flown to.
+    const refused = await tools.call('gotoPlace', { place: host.places[1].ref });
+    expect(refused).toMatchObject({ ok: false });
+    expect(host.calls.filter((c) => c.startsWith('gotoPlace')).length).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps a scripted multi-step flight request honest: only a completed flight is reported arrived', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const transport = new MockTransport([
+      { stop: 'tool_use', content: [use('a', 'describeScene', {}), use('b', 'flyTo', { object: 'Titan' })] },
+      (req) => ({ stop: 'end', content: [{ type: 'text', text: JSON.stringify(req.messages.at(-1)!.content.map((c) => c.type === 'tool_result' && c.isError)) }] }),
+    ]);
+    const pending = runAgent({ transport, tools, prompt: 'fly to titan' });
+    await tick();
+    await tick();
+    // The person takes the camera before it lands: the flight is reported interrupted, not arrived.
+    land(host, 'interrupted');
+    const run = await pending;
+    expect(run.outcome).toEqual({ kind: 'done' });
+    const toolResults = transport.requests[1].messages.at(-1)!.content;
+    const fly = toolResults.find((c) => c.type === 'tool_result' && c.toolUseId === 'b');
+    expect(JSON.stringify(fly)).toContain('interrupted');
+    expect(JSON.stringify(fly)).not.toContain('arrived');
   });
 });

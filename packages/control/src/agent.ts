@@ -603,6 +603,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
     private gate(def: AgentToolDef): AgentToolResult | null {
       if (this.ended === 'superseded') return { ok: false, code: 'superseded', error: 'a newer request replaced this one; nothing was done' };
+      if (this.ended === 'stale') return { ok: false, code: 'stale', error: 'the scene changed since this request began; nothing was done' };
       if (this.ended) return { ok: false, code: 'cancelled', error: 'this request was stopped; nothing was done' };
       if (this.scene !== sceneId()) {
         this.end('stale');

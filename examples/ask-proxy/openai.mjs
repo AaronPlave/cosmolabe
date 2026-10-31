@@ -119,7 +119,10 @@ export const openaiProvider = {
   usage: (reply) => ({
     // The model the provider says answered, which is not always the one asked for.
     model: typeof reply.model === 'string' && reply.model ? reply.model : null,
-    inputTokens: Number(reply.usage?.input_tokens) || 0,
+    // OpenAI's input count includes what its automatic prompt cache served.
+    uncachedInputTokens: Math.max(0, (Number(reply.usage?.input_tokens) || 0) - (Number(reply.usage?.input_tokens_details?.cached_tokens) || 0)),
+    cacheReadTokens: Number(reply.usage?.input_tokens_details?.cached_tokens) || 0,
+    cacheWriteTokens: 0,
     outputTokens: Number(reply.usage?.output_tokens) || 0,
     stop: reply.status ?? null,
   }),
