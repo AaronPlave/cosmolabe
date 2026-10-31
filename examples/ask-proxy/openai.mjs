@@ -116,5 +116,11 @@ export const openaiProvider = {
   headers: (apiKey) => ({ authorization: `Bearer ${apiKey}` }),
   toRequest: toOpenAIRequest,
   fromResponse: fromOpenAIResponse,
-  usage: (reply) => ({ inputTokens: Number(reply.usage?.input_tokens) || 0, outputTokens: Number(reply.usage?.output_tokens) || 0, stop: reply.status ?? null }),
+  usage: (reply) => ({
+    // The model the provider says answered, which is not always the one asked for.
+    model: typeof reply.model === 'string' && reply.model ? reply.model : null,
+    inputTokens: Number(reply.usage?.input_tokens) || 0,
+    outputTokens: Number(reply.usage?.output_tokens) || 0,
+    stop: reply.status ?? null,
+  }),
 };

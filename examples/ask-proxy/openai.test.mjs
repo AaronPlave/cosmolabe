@@ -129,6 +129,13 @@ describe('ask proxy server, OpenAI provider', () => {
     ]);
   });
 
+  it('logs the model OpenAI says answered, apart from the one asked for', async () => {
+    const usage = [];
+    const url = await start(async () => new Response(JSON.stringify({ status: 'completed', model: 'gpt-5.1-2026-01-01', output: [message], usage: { input_tokens: 9, output_tokens: 3 } }), { status: 200 }), { onUsage: (u) => usage.push(u) });
+    await post(url, WIRE);
+    expect(usage).toEqual([{ requestedModel: 'gpt-5.1', model: 'gpt-5.1-2026-01-01', inputTokens: 9, outputTokens: 3, spent: 12, stop: 'completed' }]);
+  });
+
   it('reports an upstream failure as the proxy\'s, without its credentials problem looking like the viewer\'s', async () => {
     const url = await start(async () => new Response(JSON.stringify({ error: { message: 'Incorrect API key provided' } }), { status: 401 }));
     const res = await post(url, WIRE);

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createProxy, fromAnthropicMessage, rateLimiter, toAnthropicRequest } from './server.mjs';
+import { anthropicProvider, createProxy, fromAnthropicMessage, rateLimiter, toAnthropicRequest } from './server.mjs';
+import { FALLBACK_BETA } from './anthropic.mjs';
 
 const LIMITS = { model: 'claude-sonnet-5-5', maxTokens: 4096 };
 const thinking = { type: 'thinking', thinking: '', signature: 'sig' };
@@ -20,11 +21,19 @@ describe('wire → Anthropic', () => {
     const { body } = toAnthropicRequest(WIRE, LIMITS);
     expect(body.model).toBe('claude-sonnet-5-5');
     expect(body.max_tokens).toBe(4096);
-    expect(body.fallbacks).toBe('default');
+    // One model, nothing else: no provider-side fallback unless asked for.
+    expect('fallbacks' in body).toBe(false);
     expect(body.tools).toEqual([{ name: 'flyTo', description: 'Fly.', input_schema: WIRE.tools[0].inputSchema }]);
     // Provider blocks and raw blocks go back exactly as the model sent them.
     expect(body.messages[1].content).toEqual([thinking, textBlock, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }]);
     expect(body.messages[2].content).toEqual([{ type: 'tool_result', tool_use_id: 't1', content: '{"summary":"arrived"}', is_error: false }]);
+  });
+
+  it('requests provider-side model fallback only when configured to', () => {
+    expect(toAnthropicRequest(WIRE, { ...LIMITS, fallback: true }).body.fallbacks).toBe('default');
+    expect('fallbacks' in toAnthropicRequest(WIRE, { ...LIMITS, fallback: false }).body).toBe(false);
+    expect(anthropicProvider.headers('k')).toEqual({ 'x-api-key': 'k', 'anthropic-version': '2023-06-01' });
+    expect(anthropicProvider.headers('k', { fallback: true })['anthropic-beta']).toBe(FALLBACK_BETA);
   });
 
   it('ignores client attempts to choose model or tokens, and refuses malformed input', () => {
@@ -87,7 +96,20 @@ describe('ask proxy server', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe('http://viewer.test');
     expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }] });
     expect(seen[0].headers['x-api-key']).toBe('secret');
-    expect(seen[0].headers['anthropic-beta']).toBe('server-side-fallback-2026-07-01');
+    // Nothing in the request asks the provider to choose another model.
+    expect(seen[0].headers['anthropic-beta']).toBeUndefined();
+    expect('fallbacks' in JSON.parse(seen[0].body)).toBe(false);
+  });
+
+  it('sends the fallback request and its beta header only when configured', async () => {
+    const seen = [];
+    const url = await start(async (u, init) => {
+      seen.push(init);
+      return new Response(JSON.stringify({ content: [], stop_reason: 'end_turn' }), { status: 200 });
+    }, { fallback: true });
+    await post(url, WIRE);
+    expect(seen[0].headers['anthropic-beta']).toBe(FALLBACK_BETA);
+    expect(JSON.parse(seen[0].body).fallbacks).toBe('default');
   });
 
   it('reports an upstream failure without its credentials problem looking like the viewer\'s', async () => {
@@ -111,10 +133,22 @@ describe('ask proxy server', () => {
     expect(refused.status).toBe(429);
     expect((await refused.json()).error.message).toContain('token budget');
     expect(calls).toBe(2);
+    // The reply names no model here, so the answering model is not claimed.
     expect(usage).toEqual([
-      { model: 'claude-sonnet-5-5', inputTokens: 700, outputTokens: 300, spent: 1000, stop: 'end_turn' },
-      { model: 'claude-sonnet-5-5', inputTokens: 700, outputTokens: 300, spent: 2000, stop: 'end_turn' },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, spent: 1000, stop: 'end_turn' },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, spent: 2000, stop: 'end_turn' },
     ]);
+  });
+
+  it('logs the model the provider says answered, apart from the one asked for', async () => {
+    const usage = [];
+    const url = await start(async () => new Response(JSON.stringify({
+      model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Hi.' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 2 },
+    }), { status: 200 }), { onUsage: (u) => usage.push(u) });
+    await post(url, WIRE);
+    expect(usage).toEqual([{ requestedModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5', inputTokens: 10, outputTokens: 2, spent: 12, stop: 'end_turn' }]);
+    // Only counts and model names: nothing of the conversation or the key.
+    expect(JSON.stringify(usage)).not.toMatch(/secret|"go"|sys/);
   });
 
   it('bounds what a client may send: tools and system prompt', () => {

@@ -18,7 +18,13 @@
  * own caller authentication and per-user quotas in front of it. What it does
  * enforce itself: a fixed model and token cap (the client chooses neither),
  * limits on the request's size, a total token budget for the process, and a
- * usage line per request.
+ * usage line per request that names the model asked for and the model the
+ * provider says answered (`unknown` when it does not say).
+ *
+ * No provider-side model fallback is requested: a request for one model is
+ * answered by that model or fails. Set ASK_ANTHROPIC_FALLBACK=1 to let the
+ * Anthropic API retry a declined request on another model of its choosing,
+ * which can cost more; the usage line then shows which model answered.
  *
  *   ANTHROPIC_API_KEY=…  ALLOW_ORIGIN=http://localhost:5173  node examples/ask-proxy/server.mjs
  *   ASK_PROVIDER=openai OPENAI_API_KEY=…  ALLOW_ORIGIN=…      node examples/ask-proxy/server.mjs
@@ -32,6 +38,8 @@
  *   ASK_MODEL          default claude-sonnet-5-5 (anthropic) or gpt-5.1 (openai)
  *   MAX_TOKENS         per reply; default 4096
  *   ASK_REASONING_EFFORT  openai only; passed as `reasoning.effort` when set
+ *   ASK_ANTHROPIC_FALLBACK  anthropic only; 1 enables the API's server-side
+ *                      model fallback (a beta); default off
  *   RATE_PER_MINUTE    requests per client address per minute; default 20
  *   TOKEN_BUDGET       input + output tokens this process will spend before it
  *                      answers 429; default 2000000, 0 for none
@@ -77,7 +85,7 @@ function readBody(req) {
 }
 
 export function createProxy({
-  apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort,
+  apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false,
   tokenBudget = 0, onUsage = () => {}, fetchImpl = fetch,
 }) {
   const allow = rateLimiter(perMinute);
@@ -114,7 +122,7 @@ export function createProxy({
     } catch (err) {
       return fail(400, err instanceof Error ? err.message : 'invalid JSON');
     }
-    const request = provider.toRequest(parsed, { model, maxTokens, reasoningEffort });
+    const request = provider.toRequest(parsed, { model, maxTokens, reasoningEffort, fallback });
     if (request.error) return fail(400, request.error);
 
     // The client going away (the viewer's Stop) ends the upstream call too.
@@ -125,7 +133,7 @@ export function createProxy({
     try {
       upstream = await fetchImpl(provider.url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...provider.headers(apiKey) },
+        headers: { 'content-type': 'application/json', ...provider.headers(apiKey, { fallback }) },
         body: JSON.stringify(request.body),
         signal: controller.signal,
       });
@@ -142,7 +150,9 @@ export function createProxy({
     if (!wire) return fail(502, 'the model service sent a malformed reply');
     const usage = provider.usage(reply);
     spent += usage.inputTokens + usage.outputTokens;
-    onUsage({ model, ...usage, spent });
+    // `requestedModel` is this proxy's configuration; `model` is what the
+    // provider reported, or 'unknown'. Neither is a statement about billing.
+    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent });
     send(200, wire);
   });
 }
@@ -169,9 +179,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     model: process.env.ASK_MODEL ?? provider.defaultModel,
     maxTokens: Number(process.env.MAX_TOKENS ?? 4096),
     reasoningEffort: process.env.ASK_REASONING_EFFORT || undefined,
+    fallback: process.env.ASK_ANTHROPIC_FALLBACK === '1',
     perMinute: Number(process.env.RATE_PER_MINUTE ?? 20),
     tokenBudget: Number(process.env.TOKEN_BUDGET ?? 2_000_000),
-    onUsage: (u) => console.log(`usage ${u.model}: ${u.inputTokens} in, ${u.outputTokens} out (${u.spent} total this run) stop=${u.stop}`),
+    onUsage: (u) => console.log(`usage requested=${u.requestedModel} answered=${u.model}: ${u.inputTokens} in, ${u.outputTokens} out (${u.spent} total this run) stop=${u.stop}`),
   }).listen(port, () => {
     console.log(`ask proxy (${provider.name}) on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`);
     console.warn('development proxy: no caller authentication. Do not expose it publicly.');

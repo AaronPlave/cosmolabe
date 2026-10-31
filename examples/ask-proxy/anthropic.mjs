@@ -26,9 +26,11 @@ function toBlock(c, role) {
 /**
  * The viewer's wire request as an Anthropic Messages body, or `{ error }`.
  * The proxy builds the body itself, so a client cannot choose the model, add
- * server tools or MCP servers, or raise the token cap.
+ * server tools or MCP servers, or raise the token cap. The request names one
+ * model and nothing else: provider-side model fallback, which can answer on a
+ * different (possibly dearer) model, is off unless `fallback` is set.
  */
-export function toAnthropicRequest(wire, { model, maxTokens }) {
+export function toAnthropicRequest(wire, { model, maxTokens, fallback = false }) {
   const checked = checkWire(wire);
   if (checked.error) return checked;
   const messages = [];
@@ -48,9 +50,9 @@ export function toAnthropicRequest(wire, { model, maxTokens }) {
       system: checked.system,
       messages,
       tools: checked.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })),
-      // A declined request is retried on the model the API picks for that
-      // category, inside the same call (with the beta header below).
-      fallbacks: 'default',
+      // Opt-in: a declined request is retried on the model the API picks for
+      // that category, inside the same call (with `FALLBACK_BETA`).
+      ...(fallback ? { fallbacks: 'default' } : {}),
     },
   };
 }
@@ -67,12 +69,25 @@ export function fromAnthropicMessage(message) {
   return { version: WIRE_VERSION, content, stop: STOPS[message.stop_reason] ?? 'other' };
 }
 
+/** The beta header the `fallbacks` request field needs; sent only with it. */
+export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
 export const anthropicProvider = {
   name: 'anthropic',
   defaultModel: 'claude-sonnet-5-5',
   url: 'https://api.anthropic.com/v1/messages',
-  headers: (apiKey) => ({ 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01' }),
+  headers: (apiKey, { fallback = false } = {}) => ({
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    ...(fallback ? { 'anthropic-beta': FALLBACK_BETA } : {}),
+  }),
   toRequest: toAnthropicRequest,
   fromResponse: (reply) => (reply && Array.isArray(reply.content) ? fromAnthropicMessage(reply) : null),
-  usage: (reply) => ({ inputTokens: Number(reply.usage?.input_tokens) || 0, outputTokens: Number(reply.usage?.output_tokens) || 0, stop: reply.stop_reason ?? null }),
+  usage: (reply) => ({
+    // The model the provider says answered, which is not always the one asked for.
+    model: typeof reply.model === 'string' && reply.model ? reply.model : null,
+    inputTokens: Number(reply.usage?.input_tokens) || 0,
+    outputTokens: Number(reply.usage?.output_tokens) || 0,
+    stop: reply.stop_reason ?? null,
+  }),
 };

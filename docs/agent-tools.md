@@ -126,6 +126,7 @@ VITE_ASK_ENDPOINT=http://localhost:8787 npm run dev
 | `ASK_MODEL` | Default `claude-sonnet-5-5` or `gpt-5.1`. |
 | `MAX_TOKENS` | Cap per reply. Default 4096. |
 | `ASK_REASONING_EFFORT` | OpenAI only: `reasoning.effort`, when set. |
+| `ASK_ANTHROPIC_FALLBACK` | Anthropic only: `1` enables the API's server-side model fallback (a beta). Default off. |
 | `RATE_PER_MINUTE` | Requests per client address. Default 20. |
 | `TOKEN_BUDGET` | Input plus output tokens the process spends before it answers 429. Default 2,000,000; 0 for none. |
 
@@ -134,10 +135,11 @@ The proxy:
 - accepts only `POST /` from the allowed origins
 - builds the provider request itself, so a client cannot choose the model, raise the token cap, or add provider tools (web search, code interpreter) or MCP servers, and it sends only the client function tools the viewer defined
 - bounds the request: at most 200 messages, 64 tools and a 20,000-character system prompt
-- keeps the conversation at the viewer. Anthropic requests carry the model's own blocks back verbatim and enable the API's server-side refusal fallback. OpenAI requests are stateless (`store: false`) and carry the model's own output items back, with encrypted reasoning, so nothing is kept at the provider
+- keeps the conversation at the viewer. Anthropic requests carry the model's own blocks back verbatim. OpenAI requests are stateless (`store: false`) and carry the model's own output items back, with encrypted reasoning, so nothing is kept at the provider
 - replaces the provider's error bodies with a one-line message, and reports a rejected key as a 502 from the proxy rather than as the viewer's credentials problem
 - ends the upstream call when the viewer goes away (Stop, or closing the panel)
-- logs a usage line per request and stops at its token budget
+- asks the provider for the one model it is configured with and nothing else. Provider-side model fallback, which can answer on a different and dearer model, is off; `ASK_ANTHROPIC_FALLBACK=1` opts in to the Anthropic API's beta
+- logs a usage line per request, with the model asked for and the model the provider reports as having answered (`unknown` when it reports none), the token counts, and no key or conversation text. Both are the provider's and the proxy's own statements: they are not a billing record, so compare them with the provider's console. It stops at its token budget
 
 This is not a public service. Origin allowlisting and an address rate limit are not authentication: a non-browser client can send any `Origin`, the client supplies the system prompt, messages and tools, and whoever reaches the endpoint spends the key's budget on arbitrary inference. Before exposing it, put caller authentication, per-user quotas and cost ceilings in front of it, and enforce the tool and prompt policy on the server rather than trusting the request.
 
