@@ -29,8 +29,15 @@ function toBlock(c, role) {
  * server tools or MCP servers, or raise the token cap. The request names one
  * model and nothing else: provider-side model fallback, which can answer on a
  * different (possibly dearer) model, is off unless `fallback` is set.
+ *
+ * Prompt caching (5-minute, ephemeral) is on unless `cache` is false: one
+ * breakpoint after the system prompt (tools render before it, so the stable
+ * prefix of tool schemas and instructions is covered) and one on the last
+ * block, so each round of a tool-using request reads the growing history from
+ * the cache instead of reprocessing it. It lowers what a repeat costs, not the
+ * tokens processed.
  */
-export function toAnthropicRequest(wire, { model, maxTokens, fallback = false }) {
+export function toAnthropicRequest(wire, { model, maxTokens, fallback = false, cache = true }) {
   const checked = checkWire(wire);
   if (checked.error) return checked;
   const messages = [];
@@ -43,11 +50,18 @@ export function toAnthropicRequest(wire, { model, maxTokens, fallback = false })
     }
     messages.push({ role: m.role, content });
   }
+  const mark = { cache_control: { type: 'ephemeral' } };
+  if (cache) {
+    // Copied, so the viewer's own block objects are never changed. The last
+    // message is the person's text or a tool result, both of which can carry it.
+    const last = messages.at(-1);
+    last.content = last.content.map((b, i) => (i === last.content.length - 1 ? { ...b, ...mark } : b));
+  }
   return {
     body: {
       model,
       max_tokens: maxTokens,
-      system: checked.system,
+      system: cache ? [{ type: 'text', text: checked.system, ...mark }] : checked.system,
       messages,
       tools: checked.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })),
       // Opt-in: a declined request is retried on the model the API picks for
@@ -86,6 +100,7 @@ export const anthropicProvider = {
   usage: (reply) => ({
     // The model the provider says answered, which is not always the one asked for.
     model: typeof reply.model === 'string' && reply.model ? reply.model : null,
+    // Anthropic's `input_tokens` is the uncached part only.
     inputTokens: Number(reply.usage?.input_tokens) || 0,
     outputTokens: Number(reply.usage?.output_tokens) || 0,
     cacheReadTokens: Number(reply.usage?.cache_read_input_tokens) || 0,

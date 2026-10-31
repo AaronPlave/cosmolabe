@@ -2,10 +2,10 @@
 // HTTP wire transport, the session's conversation handling, and the shell
 // offering the tool only where a model is configured.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentRequest, AgentResponse, AgentTransport, ScriptCancelSignal } from '@cosmolabe/control';
+import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askAvailable, clearAsk, disposeAsk, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
+import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import { emit } from '../viewer-state.svelte';
@@ -47,6 +47,18 @@ describe('the HTTP wire transport', () => {
     await expect(createHttpTransport('https://proxy.test/').send(REQUEST, never)).rejects.toThrow('the model proxy answered 429: too many requests');
     vi.stubGlobal('fetch', async () => { throw new TypeError('Failed to fetch'); });
     await expect(createHttpTransport('https://proxy.test/').send(REQUEST, never)).rejects.toThrow('could not reach the model proxy');
+  });
+
+  it('carries the proxy\'s reason code, so a local budget is not mistaken for a provider limit', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { message: 'the proxy has spent its token budget', code: 'budget_exhausted' } }), { status: 429 }));
+    const err = await createHttpTransport('https://proxy.test/').send(REQUEST, never).catch((e) => e);
+    expect(err).toBeInstanceOf(AgentTransportError);
+    expect(err).toMatchObject({ code: 'budget_exhausted', status: 429 });
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { message: 'model service 429: slow down', code: 'upstream_error' } }), { status: 429 }));
+    expect(await createHttpTransport('https://proxy.test/').send(REQUEST, never).catch((e) => e)).toMatchObject({ code: 'upstream_error' });
+    // A proxy that sends no code is still an error, with none.
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ error: { message: 'x' } }), { status: 500 }));
+    expect((await createHttpTransport('https://proxy.test/').send(REQUEST, never).catch((e) => e)).code).toBeUndefined();
   });
 
   it('refuses replies it cannot trust', () => {
@@ -110,6 +122,88 @@ describe('the Ask session', () => {
     expect(ask.running).toBe(false);
     // The tools offered are the adapter's.
     expect(transport.requests[0].tools.map((t) => t.name)).toContain('resolve');
+  });
+
+  it('shows only the last round\'s words as the reply, not planning between tool calls', async () => {
+    const transport = new MockTransport((req) => req.messages.length === 1
+      ? { stop: 'tool_use', content: [{ type: 'text', text: 'The object Mars is clearly meant.' }, { type: 'tool_use', id: 'a', name: 'describeScene', input: {} }] }
+      : textReply('Two candidates match Mars: the planet and a place.'));
+    setHostAskTransport(transport);
+    await submitAsk('go to mars');
+    expect(ask.turns[0].reply).toBe('Two candidates match Mars: the planet and a place.');
+  });
+
+  describe('when the model proxy stops partway', () => {
+    const budget = () => new AgentTransportError('the model proxy answered 429: the proxy has spent its token budget', 'budget_exhausted', 429);
+    /** Rounds of tools, then the budget error; the viewer has no scene here, so a write is refused. */
+    const capAfter = (rounds: number) => {
+      let n = 0;
+      return {
+        requests: [] as AgentRequest[],
+        async send(request: AgentRequest): Promise<AgentResponse> {
+          this.requests.push(request);
+          if (n++ >= rounds) throw budget();
+          return { stop: 'tool_use', content: [
+            { type: 'text', text: 'Looking.' },
+            { type: 'tool_use', id: `r${n}a`, name: 'describeScene', input: {} },
+            { type: 'tool_use', id: `r${n}b`, name: 'select', input: { object: 'Titan' } },
+          ] };
+        },
+      };
+    };
+
+    it('before any action: says so, with no account of actions and no reply', async () => {
+      setHostAskTransport(capAfter(0));
+      await submitAsk('go');
+      const [turn] = ask.turns;
+      expect(turn).toMatchObject({ status: 'error', errorCode: 'budget_exhausted', reply: '' });
+      expect(turn.steps).toHaveLength(0);
+      const note = endNote(turn)!;
+      expect(note.text).toContain('local model budget is exhausted');
+      expect(note.text).not.toContain('actions ran');
+      expect(note.tone).toBe('warning');
+    });
+
+    it('after actions: counts what ran from the step results, a refusal not as done, and keeps the trace', async () => {
+      const transport = capAfter(2);
+      setHostAskTransport(transport);
+      await submitAsk('tour');
+      const [turn] = ask.turns;
+      // Two rounds of (a read that worked, a write the viewer refused for want of a scene).
+      expect(turn.steps.map((s) => [s.name, s.result?.ok])).toEqual([['describeScene', true], ['select', false], ['describeScene', true], ['select', false]]);
+      expect(turn.reply).toBe(''); // the planning remark of a round that never got its answer
+      const note = endNote(turn)!;
+      expect(note.text).toContain('4 actions ran (2 done, 2 refused)');
+      expect(note.text).toContain('changes already made to the view remain');
+      // No retry is offered, and nothing ran after the failure.
+      expect(note.text).not.toMatch(/try again|retry/i);
+      expect(transport.requests).toHaveLength(3);
+    });
+
+    it('is a different note from a rate limit and from any other failure', async () => {
+      const failing = (code?: string): AgentTransport => ({ send: async () => { throw new AgentTransportError('the model proxy answered 4xx', code, 429); } });
+      setHostAskTransport(failing('rate_limited'));
+      await submitAsk('a');
+      expect(endNote(ask.turns[0])!.text).toContain('rate limit');
+      setHostAskTransport(failing('upstream_error'));
+      await submitAsk('b');
+      expect(endNote(ask.turns[1])).toMatchObject({ tone: 'error', text: 'the model proxy answered 4xx' });
+    });
+
+    it('leaves the next request clean: it continues a valid conversation and runs normally', async () => {
+      setHostAskTransport(capAfter(1));
+      await submitAsk('tour');
+      const ok = new MockTransport(() => textReply('Done.'));
+      setHostAskTransport(ok);
+      await submitAsk('again');
+      expect(ask.turns.map((t) => t.status)).toEqual(['error', 'done']);
+      // The failed request's tool results are in what the model is sent, each use answered.
+      const sent = ok.requests[0].messages;
+      const uses = sent.flatMap((m) => m.content.filter((c) => c.type === 'tool_use'));
+      const results = sent.flatMap((m) => m.content.filter((c) => c.type === 'tool_result'));
+      expect(results).toHaveLength(uses.length);
+      expect(ask.turns[1].reply).toBe('Done.');
+    });
   });
 
   it('a second request supersedes the first, and continues its conversation', async () => {

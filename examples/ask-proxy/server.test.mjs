@@ -18,7 +18,7 @@ const WIRE = {
 
 describe('wire → Anthropic', () => {
   it('builds the body itself: its model, its cap, client tools only', () => {
-    const { body } = toAnthropicRequest(WIRE, LIMITS);
+    const { body } = toAnthropicRequest(WIRE, { ...LIMITS, cache: false });
     expect(body.model).toBe('claude-sonnet-5-5');
     expect(body.max_tokens).toBe(4096);
     // One model, nothing else: no provider-side fallback unless asked for.
@@ -27,6 +27,26 @@ describe('wire → Anthropic', () => {
     // Provider blocks and raw blocks go back exactly as the model sent them.
     expect(body.messages[1].content).toEqual([thinking, textBlock, { type: 'tool_use', id: 't1', name: 'flyTo', input: { object: 'Mars' } }]);
     expect(body.messages[2].content).toEqual([{ type: 'tool_result', tool_use_id: 't1', content: '{"summary":"arrived"}', is_error: false }]);
+  });
+
+  it('caches the stable prefix and the growing history, without touching the viewer\'s blocks', () => {
+    const wire = JSON.parse(JSON.stringify(WIRE));
+    const before = JSON.stringify(wire);
+    const { body } = toAnthropicRequest(wire, LIMITS);
+    const ephemeral = { type: 'ephemeral' };
+    // After the system prompt (tools render before it), and on the last block only.
+    expect(body.system).toEqual([{ type: 'text', text: 'sys', cache_control: ephemeral }]);
+    expect(body.messages[2].content).toEqual([{ type: 'tool_result', tool_use_id: 't1', content: '{"summary":"arrived"}', is_error: false, cache_control: ephemeral }]);
+    expect(JSON.stringify(body.messages).match(/cache_control/g)).toHaveLength(1);
+    expect(JSON.stringify(wire)).toBe(before);
+    // A model's own blocks go back untouched: a thinking block cannot carry a marker.
+    expect(body.messages[1].content[0]).toEqual(thinking);
+  });
+
+  it('sends no cache markers when caching is off', () => {
+    const { body } = toAnthropicRequest(WIRE, { ...LIMITS, cache: false });
+    expect(body.system).toBe('sys');
+    expect(JSON.stringify(body)).not.toContain('cache_control');
   });
 
   it('requests provider-side model fallback only when configured to', () => {
@@ -131,13 +151,45 @@ describe('ask proxy server', () => {
     // 2000 spent against a 1500 budget: the next request is not sent upstream.
     const refused = await post(url, WIRE);
     expect(refused.status).toBe(429);
-    expect((await refused.json()).error.message).toContain('token budget');
+    // A code, not wording, says it is this proxy's own budget and not the provider's.
+    expect((await refused.json()).error).toMatchObject({ code: 'budget_exhausted', message: expect.stringContaining('token budget') });
     expect(calls).toBe(2);
     // The reply names no model here, so the answering model is not claimed.
     expect(usage).toEqual([
       { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 1000, stop: 'end_turn' },
       { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 2000, stop: 'end_turn' },
     ]);
+  });
+
+  it('counts every token processed against the budget, cached or not, and logs them apart', async () => {
+    const usage = [];
+    let calls = 0;
+    const url = await start(async () => {
+      calls++;
+      return new Response(JSON.stringify({
+        content: [], stop_reason: 'end_turn',
+        usage: { input_tokens: 100, cache_creation_input_tokens: 400, cache_read_input_tokens: 1000, output_tokens: 50 },
+      }), { status: 200 });
+    }, { tokenBudget: 1500, onUsage: (u) => usage.push(u) });
+    expect((await post(url, WIRE)).status).toBe(200);
+    // 100 + 400 + 1000 + 50 = 1550 processed: over a 1500 budget though only 150 were uncached.
+    expect(usage[0]).toMatchObject({ inputTokens: 100, cacheWriteTokens: 400, cacheReadTokens: 1000, outputTokens: 50, spent: 1550 });
+    const refused = await post(url, WIRE);
+    expect(refused.status).toBe(429);
+    expect(calls).toBe(1);
+  });
+
+  it('tells its own rate limit and a provider 429 apart by code', async () => {
+    const own = await start(async () => new Response('{}'), { perMinute: 1 });
+    await post(own, WIRE);
+    const limited = await post(own, WIRE);
+    expect(limited.status).toBe(429);
+    expect((await limited.json()).error.code).toBe('rate_limited');
+    server.close();
+    const upstream = await start(async () => new Response(JSON.stringify({ error: { message: 'slow down' } }), { status: 429 }));
+    const res = await post(upstream, WIRE);
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toEqual({ message: 'model service 429: slow down', code: 'upstream_error' });
   });
 
   it('reports whether the provider says a fallback served the reply, from usage.iterations', () => {

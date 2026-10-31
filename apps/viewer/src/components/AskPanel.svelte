@@ -12,7 +12,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, MAX_TURNS, type AskStep, type AskStatus, type AskTurn,
+    ask, submitAsk, stopAsk, clearAsk, endNote, tally, MAX_TURNS, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -55,14 +55,11 @@
 
   /** "3 actions", or "3 actions, 1 refused": what the viewer did for a request, in a line. */
   function actionsLine(turn: AskTurn): string {
-    const done = turn.steps.filter((s) => s.result?.ok).length;
-    const refused = turn.steps.filter((s) => s.result && !s.result.ok && s.result.code !== 'superseded' && s.result.code !== 'cancelled').length;
-    const running = turn.steps.filter((s) => !s.result).length;
-    const n = turn.steps.length;
-    const parts = [`${n} ${n === 1 ? 'action' : 'actions'}`];
+    const { total, refused, running, notRun } = tally(turn);
+    const parts = [`${total} ${total === 1 ? 'action' : 'actions'}`];
     if (refused) parts.push(`${refused} refused`);
     if (running) parts.push('in progress');
-    else if (done + refused < n) parts.push(`${n - done - refused} not run`);
+    else if (notRun) parts.push(`${notRun} not run`);
     return parts.join(', ');
   }
 
@@ -92,14 +89,6 @@
     return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
   }
 
-  const ENDINGS: Partial<Record<AskStatus, string>> = {
-    cancelled: 'Stopped.',
-    superseded: 'Replaced by a newer request.',
-    stale: 'The scene changed, so this request stopped.',
-    'step-limit': 'Stopped after too many steps.',
-    'max-tokens': 'The reply was cut off.',
-    refusal: 'The model declined this request.',
-  };
 </script>
 
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose}>
@@ -134,10 +123,9 @@
                 <p class="ui-meta flex items-center gap-1">
                   <Loader2 size={11} class="animate-spin" /> Working…{#if latestStep(turn)} <span class="font-mono text-[11px] break-all">{latestStep(turn)}</span>{/if}
                 </p>
-              {:else if turn.status === 'error'}
-                <p class="ui-helper whitespace-normal text-error" role="alert">{turn.error}</p>
-              {:else if ENDINGS[turn.status]}
-                <p class="ui-helper whitespace-normal text-warning">{ENDINGS[turn.status]}</p>
+              {:else if endNote(turn)}
+                {@const note = endNote(turn)!}
+                <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
               {/if}
               {#if turn.steps.length > 0}
                 <details class="actions">

@@ -17,7 +17,8 @@
  * endpoint spends the key's budget on inference. Before exposing it, put your
  * own caller authentication and per-user quotas in front of it. What it does
  * enforce itself: a fixed model and token cap (the client chooses neither),
- * limits on the request's size, a total token budget for the process, and a
+ * limits on the request's size, a total token budget for the process (every
+ * token processed, cached or not), and a
  * usage line per request that names the model asked for and the model the
  * provider says answered (`unknown` when it does not say), whether the
  * provider reports a fallback served it, and the token and cache counts.
@@ -42,8 +43,10 @@
  *   ASK_ANTHROPIC_FALLBACK  anthropic only; 1 enables the API's server-side
  *                      model fallback (a beta); default off
  *   RATE_PER_MINUTE    requests per client address per minute; default 20
- *   TOKEN_BUDGET       input + output tokens this process will spend before it
- *                      answers 429; default 2000000, 0 for none
+ *   ASK_PROMPT_CACHE   anthropic only; 0 turns prompt caching off; default on
+ *   TOKEN_BUDGET       tokens this process will process (uncached input + cache
+ *                      reads + cache writes + output) before it answers 429
+ *                      with code budget_exhausted; default 2000000, 0 for none
  */
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -86,7 +89,7 @@ function readBody(req) {
 }
 
 export function createProxy({
-  apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false,
+  apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false, cache = true,
   tokenBudget = 0, onUsage = () => {}, fetchImpl = fetch,
 }) {
   const allow = rateLimiter(perMinute);
@@ -106,7 +109,9 @@ export function createProxy({
       res.writeHead(status, { 'content-type': 'application/json', ...(cors ?? {}) });
       res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
     };
-    const fail = (status, message) => send(status, { error: { message } });
+    // `code` says why, for the viewer to act on: `budget_exhausted` and
+    // `rate_limited` are this proxy's own limits; `upstream_error` is the provider's.
+    const fail = (status, message, code) => send(status, { error: { message, ...(code ? { code } : {}) } });
 
     if (!cors) return fail(403, 'origin not allowed');
     if (req.method === 'OPTIONS') {
@@ -114,8 +119,8 @@ export function createProxy({
       return res.end();
     }
     if (req.method !== 'POST' || new URL(req.url, 'http://x').pathname !== '/') return fail(404, 'only POST /');
-    if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests');
-    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has spent its token budget');
+    if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests', 'rate_limited');
+    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has spent its token budget', 'budget_exhausted');
 
     let parsed;
     try {
@@ -123,7 +128,7 @@ export function createProxy({
     } catch (err) {
       return fail(400, err instanceof Error ? err.message : 'invalid JSON');
     }
-    const request = provider.toRequest(parsed, { model, maxTokens, reasoningEffort, fallback });
+    const request = provider.toRequest(parsed, { model, maxTokens, reasoningEffort, fallback, cache });
     if (request.error) return fail(400, request.error);
 
     // The client going away (the viewer's Stop) ends the upstream call too.
@@ -145,12 +150,14 @@ export function createProxy({
     if (!upstream.ok) {
       // The provider's message, not its body: nothing else of it is the viewer's business.
       const message = reply?.error?.message ?? 'no detail';
-      return fail(upstream.status === 401 || upstream.status === 403 ? 502 : upstream.status, `model service ${upstream.status}: ${message}`);
+      return fail(upstream.status === 401 || upstream.status === 403 ? 502 : upstream.status, `model service ${upstream.status}: ${message}`, 'upstream_error');
     }
     const wire = provider.fromResponse(reply);
     if (!wire) return fail(502, 'the model service sent a malformed reply');
     const usage = provider.usage(reply);
-    spent += usage.inputTokens + usage.outputTokens;
+    // Every token the provider processed: uncached input, cache reads and
+    // writes, and output. Caching lowers what a repeat costs, not this count.
+    spent += usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens;
     // `requestedModel` is this proxy's configuration; `model` is what the
     // provider reported, or 'unknown'. Neither is a statement about billing.
     onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent });
@@ -181,11 +188,12 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     maxTokens: Number(process.env.MAX_TOKENS ?? 4096),
     reasoningEffort: process.env.ASK_REASONING_EFFORT || undefined,
     fallback: process.env.ASK_ANTHROPIC_FALLBACK === '1',
+    cache: process.env.ASK_PROMPT_CACHE !== '0',
     perMinute: Number(process.env.RATE_PER_MINUTE ?? 20),
     tokenBudget: Number(process.env.TOKEN_BUDGET ?? 2_000_000),
     onUsage: (u) => console.log(
       `usage requested=${u.requestedModel} answered=${u.model} fallback=${u.fallback === undefined || u.fallback === null ? 'unknown' : u.fallback ? 'served' : 'no'}: `
-      + `${u.inputTokens} in (cache ${u.cacheReadTokens ?? 0} read, ${u.cacheWriteTokens ?? 0} written), ${u.outputTokens} out (${u.spent} total this run) stop=${u.stop}`,
+      + `uncached ${u.inputTokens} in, cache ${u.cacheReadTokens} read / ${u.cacheWriteTokens} written, ${u.outputTokens} out (${u.spent} tokens total this run) stop=${u.stop}`,
     ),
   }).listen(port, () => {
     console.log(`ask proxy (${provider.name}) on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`);

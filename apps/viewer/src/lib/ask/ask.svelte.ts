@@ -47,6 +47,54 @@ export interface AskTurn {
   reply: string;
   status: AskStatus;
   error: string | null;
+  /** The transport's reason for an `error`, when it gave one (`budget_exhausted`, `rate_limited`, …). */
+  errorCode: string | null;
+}
+
+/** What the viewer did for a request, counted from the steps' own results. */
+export function tally(turn: Pick<AskTurn, 'steps'>) {
+  const unrun = (s: AskStep) => !s.result;
+  const stopped = (s: AskStep) => !!s.result && !s.result.ok && (s.result.code === 'superseded' || s.result.code === 'cancelled');
+  const done = turn.steps.filter((s) => s.result?.ok).length;
+  const refused = turn.steps.filter((s) => s.result && !s.result.ok && !stopped(s)).length;
+  const running = turn.steps.filter(unrun).length;
+  return { total: turn.steps.length, done, refused, running, notRun: turn.steps.filter(stopped).length };
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const ENDINGS: Partial<Record<AskStatus, string>> = {
+  cancelled: 'Stopped.',
+  superseded: 'Replaced by a newer request.',
+  stale: 'The scene changed, so this request stopped.',
+  'step-limit': 'Stopped after too many steps.',
+  'max-tokens': 'The reply was cut off.',
+  refusal: 'The model declined this request.',
+};
+
+/**
+ * What to tell the person when a request did not finish as a reply: the
+ * reason, and what already happened to the view, from the steps' results (a
+ * refused step is not counted as done). Null for a request that is running or
+ * ended with its answer. Never suggests a retry: a view change is not undone by
+ * stopping, and retrying a request that ran out of budget only fails again.
+ */
+export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error' } | null {
+  if (turn.status === 'running' || turn.status === 'done') return null;
+  const t = tally(turn);
+  const ran = t.done + t.refused;
+  const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused ? ` (${t.done} done, ${t.refused} refused)` : ''}; changes already made to the view remain.`;
+  if (turn.status === 'error') {
+    if (turn.errorCode === 'budget_exhausted') {
+      return { tone: 'warning', text: `Request stopped: this proxy's local model budget is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
+    }
+    if (turn.errorCode === 'rate_limited') {
+      return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; wait a minute.${account}` };
+    }
+    return { tone: 'error', text: `${turn.error ?? 'The request failed.'}${account}` };
+  }
+  const ending = ENDINGS[turn.status];
+  return ending ? { tone: 'warning', text: `${ending}${account}` } : null;
 }
 
 /** Requests the panel keeps showing; older ones scroll away for good. */
@@ -140,7 +188,7 @@ export async function submitAsk(prompt: string): Promise<void> {
 
   const mineConversation = conversation;
   conversationTurns++;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', status: 'running', error: null };
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', status: 'running', error: null, errorCode: null };
   ask.turns.push(turn);
   if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
@@ -155,8 +203,14 @@ export async function submitAsk(prompt: string): Promise<void> {
     onEvent: (e) => {
       const view = live();
       if (!view) return;
-      if (e.type === 'text') view.reply = view.reply ? `${view.reply}\n${e.text}` : e.text;
-      else if (e.type === 'tool') view.steps.push({ id: e.id, name: e.name, input: e.input, result: null });
+      // The reply is the text of the model's last round only. Words before a
+      // tool call are planning, not an answer, and go as the call is made.
+      if (e.type === 'thinking') view.reply = '';
+      else if (e.type === 'text') view.reply = view.reply ? `${view.reply}\n${e.text}` : e.text;
+      else if (e.type === 'tool') {
+        view.reply = '';
+        view.steps.push({ id: e.id, name: e.name, input: e.input, result: null });
+      }
       else if (e.type === 'tool-result') {
         const step = view.steps.find((s) => s.id === e.id);
         if (step) step.result = e.result;
@@ -171,6 +225,10 @@ export async function submitAsk(prompt: string): Promise<void> {
   if (view) {
     view.status = outcome.kind;
     view.error = outcome.kind === 'error' ? outcome.message : null;
+    view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
+    // A request that stopped before its answer has no reply to show: what is
+    // left is a planning remark from a round that never ran its tools.
+    if (outcome.kind !== 'done' && outcome.kind !== 'max-tokens' && outcome.kind !== 'refusal') view.reply = '';
   }
   if (task === mine) {
     task = null;

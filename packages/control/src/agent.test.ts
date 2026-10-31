@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createAgentTools, type AgentToolResult } from './agent.js';
-import { runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
+import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
 import { FakeViewer } from './__tests__/fake-host.js';
 import type { ScriptActivity, ViewerControl } from './contracts.js';
 
@@ -303,6 +303,39 @@ class MockTransport implements AgentTransport {
 }
 
 const use = (id: string, name: string, input: unknown) => ({ type: 'tool_use' as const, id, name, input });
+
+describe('runAgent: the transport gives out partway', () => {
+  const budget = () => new AgentTransportError('the model proxy answered 429: the proxy has spent its token budget', 'budget_exhausted', 429);
+  const round = (n: number): AgentResponse => ({ stop: 'tool_use', content: [use(`s${n}`, 'select', { object: n % 2 ? 'Titan' : 'Saturn' })] });
+
+  // A cap hit before any action, after one round, and after five.
+  for (const rounds of [0, 1, 5]) {
+    it(`after ${rounds} round${rounds === 1 ? '' : 's'}: an error with its code, a valid history, and no late calls`, async () => {
+      const host = new FakeViewer();
+      const replies: (AgentResponse | (() => never))[] = Array.from({ length: rounds }, (_, i) => round(i + 1));
+      replies.push(() => { throw budget(); });
+      const transport = new MockTransport(replies as never);
+      const seen: string[] = [];
+      const run = await runAgent({ transport, tools: createAgentTools(host), prompt: 'tour', onEvent: (e) => { if (e.type === 'tool-result') seen.push(`${e.name}:${e.result.ok}`); } });
+      expect(run.outcome).toEqual({ kind: 'error', message: expect.stringContaining('token budget'), code: 'budget_exhausted' });
+      // Only the rounds that ran acted, once each, and nothing ran after the failure.
+      expect(seen).toHaveLength(rounds);
+      expect(host.calls.filter((c) => c.startsWith('select'))).toHaveLength(rounds);
+      expect(transport.requests).toHaveLength(rounds + 1);
+      // Ends on the last results (or the prompt), so the next request continues a valid conversation.
+      expect(run.messages.at(-1)!.role).toBe('user');
+      const toolUses = run.messages.flatMap((m) => m.content.filter((c) => c.type === 'tool_use'));
+      const results = run.messages.flatMap((m) => m.content.filter((c) => c.type === 'tool_result'));
+      expect(results).toHaveLength(toolUses.length);
+    });
+  }
+
+  it('leaves a transport failure without a code as a plain error', async () => {
+    const transport = new MockTransport([() => { throw new Error('boom'); }] as never);
+    const run = await runAgent({ transport, tools: createAgentTools(new FakeViewer()), prompt: 'x' });
+    expect(run.outcome).toEqual({ kind: 'error', message: 'boom' });
+  });
+});
 
 describe('runAgent', () => {
   it('runs a multi-step request, reporting partial failure, with a valid history', async () => {

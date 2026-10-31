@@ -8,7 +8,7 @@
  * server change.
  */
 import {
-  AGENT_WIRE_VERSION, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport,
+  AGENT_WIRE_VERSION, AgentTransportError, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport,
   type AgentWireRequest, type ScriptCancelSignal,
 } from '@cosmolabe/control';
 
@@ -52,8 +52,13 @@ export function createHttpTransport(endpoint: string): AgentTransport {
         }
         const payload: unknown = await res.json().catch(() => null);
         if (!res.ok) {
-          const message = (payload as { error?: { message?: unknown } } | null)?.error?.message;
-          throw new Error(`the model proxy answered ${res.status}${typeof message === 'string' ? `: ${message}` : ''}`);
+          const error = (payload as { error?: { message?: unknown; code?: unknown } } | null)?.error;
+          const message = error?.message;
+          throw new AgentTransportError(
+            `the model proxy answered ${res.status}${typeof message === 'string' ? `: ${message}` : ''}`,
+            typeof error?.code === 'string' ? error.code : undefined,
+            res.status,
+          );
         }
         return parseWireResponse(payload);
       } finally {
