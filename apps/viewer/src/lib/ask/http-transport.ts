@@ -48,14 +48,17 @@ export function createHttpTransport(endpoint: string): AgentTransport {
             signal: controller.signal,
           });
         } catch (err) {
-          if (controller.signal.aborted) throw new Error('stopped');
-          throw new AgentTransportError(`could not reach the model proxy (${err instanceof Error ? err.message : String(err)})`, 'unreachable');
+          throw new Error(controller.signal.aborted ? 'stopped' : `could not reach the model proxy (${err instanceof Error ? err.message : String(err)})`);
         }
         const payload: unknown = await res.json().catch(() => null);
         if (!res.ok) {
           const error = (payload as { error?: { message?: unknown; code?: unknown } } | null)?.error;
-          const code = typeof error?.code === 'string' ? error.code : res.status === 429 ? 'rate-limited' : undefined;
-          throw new AgentTransportError(`the model proxy answered ${res.status}${typeof error?.message === 'string' ? `: ${error.message}` : ''}`, code);
+          const message = error?.message;
+          throw new AgentTransportError(
+            `the model proxy answered ${res.status}${typeof message === 'string' ? `: ${message}` : ''}`,
+            typeof error?.code === 'string' ? error.code : undefined,
+            res.status,
+          );
         }
         return parseWireResponse(payload);
       } finally {

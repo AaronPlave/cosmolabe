@@ -17,7 +17,8 @@
  * endpoint spends the key's budget on inference. Before exposing it, put your
  * own caller authentication and per-user quotas in front of it. What it does
  * enforce itself: a fixed model and token cap (the client chooses neither),
- * limits on the request's size, a total token budget for the process, and a
+ * limits on the request's size, a total token budget for the process (every
+ * token processed, cached or not), and a
  * usage line per request that names the model asked for and the model the
  * provider says answered (`unknown` when it does not say), whether the
  * provider reports a fallback served it, and the token and cache counts.
@@ -41,12 +42,11 @@
  *   ASK_REASONING_EFFORT  openai only; passed as `reasoning.effort` when set
  *   ASK_ANTHROPIC_FALLBACK  anthropic only; 1 enables the API's server-side
  *                      model fallback (a beta); default off
- *   ASK_PROMPT_CACHE   anthropic only; 0 turns the 5-minute prompt cache off;
- *                      default on (OpenAI caches automatically)
  *   RATE_PER_MINUTE    requests per client address per minute; default 20
- *   TOKEN_BUDGET       raw tokens (uncached input + cache reads + cache writes +
- *                      output) this process will spend before it answers 429;
- *                      default 2000000, 0 for none. A count, not a price
+ *   ASK_PROMPT_CACHE   anthropic only; 0 turns prompt caching off; default on
+ *   TOKEN_BUDGET       tokens this process will process (uncached input + cache
+ *                      reads + cache writes + output) before it answers 429
+ *                      with code budget_exhausted; default 2000000, 0 for none
  */
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -109,7 +109,8 @@ export function createProxy({
       res.writeHead(status, { 'content-type': 'application/json', ...(cors ?? {}) });
       res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
     };
-    // `code` is the wire format's `error.code`: what the viewer acts on, so it never has to read the message.
+    // `code` says why, for the viewer to act on: `budget_exhausted` and
+    // `rate_limited` are this proxy's own limits; `upstream_error` is the provider's.
     const fail = (status, message, code) => send(status, { error: { message, ...(code ? { code } : {}) } });
 
     if (!cors) return fail(403, 'origin not allowed');
@@ -118,8 +119,8 @@ export function createProxy({
       return res.end();
     }
     if (req.method !== 'POST' || new URL(req.url, 'http://x').pathname !== '/') return fail(404, 'only POST /');
-    if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests', 'rate-limited');
-    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has spent its token budget', 'budget-exhausted');
+    if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests', 'rate_limited');
+    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has spent its token budget', 'budget_exhausted');
 
     let parsed;
     try {
@@ -143,26 +144,23 @@ export function createProxy({
         signal: controller.signal,
       });
     } catch {
-      return fail(502, 'could not reach the model service', 'upstream-error');
+      return fail(502, 'could not reach the model service');
     }
     const reply = await upstream.json().catch(() => null);
     if (!upstream.ok) {
       // The provider's message, not its body: nothing else of it is the viewer's business.
       const message = reply?.error?.message ?? 'no detail';
-      return fail(
-        upstream.status === 401 || upstream.status === 403 ? 502 : upstream.status,
-        `model service ${upstream.status}: ${message}`,
-        upstream.status === 429 ? 'upstream-rate-limited' : 'upstream-error',
-      );
+      return fail(upstream.status === 401 || upstream.status === 403 ? 502 : upstream.status, `model service ${upstream.status}: ${message}`, 'upstream_error');
     }
     const wire = provider.fromResponse(reply);
-    if (!wire) return fail(502, 'the model service sent a malformed reply', 'upstream-error');
+    if (!wire) return fail(502, 'the model service sent a malformed reply');
     const usage = provider.usage(reply);
-    const totalTokens = usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens;
-    spent += totalTokens;
+    // Every token the provider processed: uncached input, cache reads and
+    // writes, and output. Caching lowers what a repeat costs, not this count.
+    spent += usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens;
     // `requestedModel` is this proxy's configuration; `model` is what the
     // provider reported, or 'unknown'. Neither is a statement about billing.
-    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', totalTokens, spent });
+    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent });
     send(200, wire);
   });
 }
@@ -195,7 +193,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     tokenBudget: Number(process.env.TOKEN_BUDGET ?? 2_000_000),
     onUsage: (u) => console.log(
       `usage requested=${u.requestedModel} answered=${u.model} fallback=${u.fallback === undefined || u.fallback === null ? 'unknown' : u.fallback ? 'served' : 'no'}: `
-      + `${u.uncachedInputTokens} uncached in, ${u.cacheReadTokens} cache read, ${u.cacheWriteTokens} cache written, ${u.outputTokens} out = ${u.totalTokens} tokens (${u.spent} this run) stop=${u.stop}`,
+      + `uncached ${u.inputTokens} in, cache ${u.cacheReadTokens} read / ${u.cacheWriteTokens} written, ${u.outputTokens} out (${u.spent} tokens total this run) stop=${u.stop}`,
     ),
   }).listen(port, () => {
     console.log(`ask proxy (${provider.name}) on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`);

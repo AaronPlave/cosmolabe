@@ -92,9 +92,7 @@ POST <endpoint>   { version: 1, system, messages, tools }
 non-2xx           { error: { message, code? } }
 ```
 
-`error.code` says which limit or failure it was, so nothing reads the message: `budget-exhausted` and `rate-limited` are the proxy's own limits, `upstream-rate-limited` and `upstream-error` the provider's, and `unreachable` is no answer at all. The viewer's transport throws an `AgentTransportError` carrying it, and `runAgent` returns it in the `error` outcome. A request that stops on one is an incomplete task, and the panel says so (see below).
-
-`AGENT_WIRE_VERSION` in `@cosmolabe/control` is the version. Content blocks are `text`, `tool_use`, `tool_result` and `provider`. A `text` or `tool_use` block may carry `raw`, the provider's own form of the block. The server that translated a block is the one that reads `raw` and `provider` back, so the viewer never interprets them. The transport checks the version and the shape of every reply before the loop acts on it. Tests use mock transports.
+`AGENT_WIRE_VERSION` in `@cosmolabe/control` is the version. Content blocks are `text`, `tool_use`, `tool_result` and `provider`. A `text` or `tool_use` block may carry `raw`, the provider's own form of the block. The server that translated a block is the one that reads `raw` and `provider` back, so the viewer never interprets them. `code` is a stable reason the viewer can act on without reading `message`: the example proxy uses `budget_exhausted` and `rate_limited` for its own limits and `upstream_error` for the provider's. The transport throws it as an `AgentTransportError`, and the loop carries it into the request's `error` outcome. The transport checks the version and the shape of every reply before the loop acts on it. Tests use mock transports.
 
 The provider is chosen on the server. The server holds the key, picks the model and translates the wire format to the provider's API. Switching providers or models is a server change. The viewer doesn't change. The example proxy translates to the Anthropic Messages API and to the OpenAI Responses API.
 
@@ -130,8 +128,8 @@ VITE_ASK_ENDPOINT=http://localhost:8787 npm run dev
 | `ASK_REASONING_EFFORT` | OpenAI only: `reasoning.effort`, when set. |
 | `ASK_ANTHROPIC_FALLBACK` | Anthropic only: `1` enables the API's server-side model fallback (a beta). Default off. |
 | `RATE_PER_MINUTE` | Requests per client address. Default 20. |
-| `ASK_PROMPT_CACHE` | Anthropic only: `0` turns the 5-minute prompt cache off. Default on. OpenAI caches automatically. |
-| `TOKEN_BUDGET` | Raw tokens the process spends before it answers 429 with code `budget-exhausted`: uncached input, cache reads, cache writes and output, all counted. Default 2,000,000; 0 for none. It is a count, not a price. |
+| `ASK_PROMPT_CACHE` | Anthropic only: `0` turns prompt caching off. Default on. |
+| `TOKEN_BUDGET` | Tokens the process processes before it answers 429 with code `budget_exhausted`: uncached input, cache reads, cache writes and output. Default 2,000,000; 0 for none. It is a count of tokens processed, not of cost: caching lowers what a repeat costs, not this count. |
 
 The proxy:
 
@@ -142,16 +140,16 @@ The proxy:
 - replaces the provider's error bodies with a one-line message, and reports a rejected key as a 502 from the proxy rather than as the viewer's credentials problem
 - ends the upstream call when the viewer goes away (Stop, or closing the panel)
 - asks the provider for the one model it is configured with and nothing else. Provider-side model fallback, which can answer on a different and dearer model, is off; `ASK_ANTHROPIC_FALLBACK=1` opts in to the Anthropic API's beta
-- caches the stable prefix (the tools and system prompt) and the growing conversation for five minutes on Anthropic, with two breakpoints, so each round of a tool-using request re-reads what the last one wrote. Caching lowers what repeated rounds cost to process; it does not lower the token count, and the budget counts cache reads and writes in full. Anthropic reports input as uncached, cache-read and cache-written parts that do not overlap; OpenAI's input count includes its cached part, which the proxy separates, so both are logged the same way
-- logs a usage line per request, with the model asked for and the model the provider reports as having answered (`unknown` when it reports none), whether the Anthropic reply says a fallback served it (`usage.iterations` holds a `fallback_message` entry; `unknown` when the reply has no list), the uncached input, cache read, cache written and output tokens, and no key or conversation text. Both are the provider's and the proxy's own statements: they are not a billing record, so compare them with the provider's console. It stops at its token budget
+- caches the Anthropic prompt (5-minute, ephemeral): a breakpoint after the system prompt, which covers the tool schemas that render before it, and one on the last block, so each round of a tool-using request reads the replayed history from the cache. A live sequential tool request shows `cache_creation_input_tokens` and then `cache_read_input_tokens` in the usage line; `ASK_PROMPT_CACHE=0` sends no markers. OpenAI caches automatically, and its cached input is reported as cache reads
+- logs a usage line per request, with the model asked for and the model the provider reports as having answered (`unknown` when it reports none), whether the Anthropic reply says a fallback served it (`usage.iterations` holds a `fallback_message` entry; `unknown` when the reply has no list), uncached input, cache reads, cache writes and output as separate fields, and no key or conversation text. Both are the provider's and the proxy's own statements: they are not a billing record, so compare them with the provider's console. It stops at its token budget
 
 This is not a public service. Origin allowlisting and an address rate limit are not authentication: a non-browser client can send any `Origin`, the client supplies the system prompt, messages and tools, and whoever reaches the endpoint spends the key's budget on arbitrary inference. Before exposing it, put caller authentication, per-user quotas and cost ceilings in front of it, and enforce the tool and prompt policy on the server rather than trusting the request.
 
 Both translations are tested against scripted upstreams (`examples/ask-proxy/*.test.mjs`): multi-turn tool use, replay of the provider's own blocks, errors and cancellation. They have not been run against the live APIs from CI; check a real key against the demos before relying on either.
 
-The panel is a normal shell panel: dock, float, minimize, close. It sizes to its content and then scrolls its conversation, with the input kept at the bottom. Each request shows what was asked, the model's one answer, and a line of what the viewer did, such as "3 actions succeeded, 1 refused". The answer is the model's last message: what it says between tool calls is narration, kept out of it. Opening the line lists the actions in plain words ("Flew to Mars") with a check or a cross, and a refusal's own reason. A single Details view under them holds the raw tool calls, results and the model's narration, for debugging.
+The panel is a normal shell panel: dock, float, minimize, close. It sizes to its content and then scrolls its conversation, with the input kept at the bottom. Each request shows what was asked, the model's one answer, and a line of what the viewer did, such as "3 actions succeeded, 1 refused". The answer is the model's last message: what it says beside tool calls is narration, kept out of it. Opening the line lists the actions in plain words ("Flew to Mars") with a check or a cross, and a refusal's own reason. A single Details view under them holds the raw tool calls, results and the model's narration, for debugging.
 
-A request that stops without an answer says so, from what its actions actually did: "Request stopped: the local model budget is spent. 5 actions succeeded. The final answer wasn't generated. Changes already made to the view remain." The counts are succeeded, refused and not run. Nothing is rolled back, nothing is run again, and no retry is suggested while a budget stays spent.
+A request that stops before its answer (the proxy's token budget or rate limit, a provider error, Stop, a scene change) says why and counts what already happened from the actions' own results, for example "4 actions ran (3 done, 1 refused); changes already made to the view remain." A refused action is never counted as done. The panel does not retry, resume or re-issue anything, and does not suggest retrying a request that ran out of the proxy's budget.
 
 - **Stop** ends the request and leaves a flight where it is.
 - **Closing the panel** stops the request. Minimizing does not.
@@ -160,7 +158,7 @@ A request that stops without an answer says so, from what its actions actually d
 Conversation scope:
 
 - The model remembers 12 requests, then the next request starts a new conversation. The panel keeps showing the earlier requests, behind a quiet divider ("Earlier requests aren't remembered").
-- A catalog load stops a running request, and the next request starts a new conversation (same divider), so nothing about one catalog's objects is applied to another.
+- A catalog load stops a running request, and the next request starts a new conversation (also marked by a divider), so nothing about one catalog's objects is applied to another.
 - The panel shows the last 50 requests.
 - Clear forgets the conversation and empties the panel.
 - Nothing is stored. A reload forgets the conversation.

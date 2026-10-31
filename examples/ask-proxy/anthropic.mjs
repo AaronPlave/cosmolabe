@@ -30,11 +30,12 @@ function toBlock(c, role) {
  * model and nothing else: provider-side model fallback, which can answer on a
  * different (possibly dearer) model, is off unless `fallback` is set.
  *
- * Prompt caching (5-minute, `cache`, on by default) marks two breakpoints: the
- * system prompt, which with the tools before it is the stable prefix, and the
- * last block of the conversation, so each round of a tool-using request
- * re-reads the history the last round wrote. It lowers what repeated rounds
- * cost to process, not how many tokens they carry.
+ * Prompt caching (5-minute, ephemeral) is on unless `cache` is false: one
+ * breakpoint after the system prompt (tools render before it, so the stable
+ * prefix of tool schemas and instructions is covered) and one on the last
+ * block, so each round of a tool-using request reads the growing history from
+ * the cache instead of reprocessing it. It lowers what a repeat costs, not the
+ * tokens processed.
  */
 export function toAnthropicRequest(wire, { model, maxTokens, fallback = false, cache = true }) {
   const checked = checkWire(wire);
@@ -49,18 +50,18 @@ export function toAnthropicRequest(wire, { model, maxTokens, fallback = false, c
     }
     messages.push({ role: m.role, content });
   }
+  const mark = { cache_control: { type: 'ephemeral' } };
   if (cache) {
-    // The last block of the last message, on a copy: provider blocks go back as sent.
-    const last = messages.at(-1).content;
-    if (last.length > 0 && last.at(-1).type !== 'thinking' && last.at(-1).type !== 'redacted_thinking') {
-      last[last.length - 1] = { ...last.at(-1), cache_control: { type: 'ephemeral' } };
-    }
+    // Copied, so the viewer's own block objects are never changed. The last
+    // message is the person's text or a tool result, both of which can carry it.
+    const last = messages.at(-1);
+    last.content = last.content.map((b, i) => (i === last.content.length - 1 ? { ...b, ...mark } : b));
   }
   return {
     body: {
       model,
       max_tokens: maxTokens,
-      system: cache ? [{ type: 'text', text: checked.system, cache_control: { type: 'ephemeral' } }] : checked.system,
+      system: cache ? [{ type: 'text', text: checked.system, ...mark }] : checked.system,
       messages,
       tools: checked.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema })),
       // Opt-in: a declined request is retried on the model the API picks for
@@ -99,8 +100,8 @@ export const anthropicProvider = {
   usage: (reply) => ({
     // The model the provider says answered, which is not always the one asked for.
     model: typeof reply.model === 'string' && reply.model ? reply.model : null,
-    // Anthropic reports input in three parts that do not overlap.
-    uncachedInputTokens: Number(reply.usage?.input_tokens) || 0,
+    // Anthropic's `input_tokens` is the uncached part only.
+    inputTokens: Number(reply.usage?.input_tokens) || 0,
     outputTokens: Number(reply.usage?.output_tokens) || 0,
     cacheReadTokens: Number(reply.usage?.cache_read_input_tokens) || 0,
     cacheWriteTokens: Number(reply.usage?.cache_creation_input_tokens) || 0,

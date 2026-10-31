@@ -15,7 +15,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, actionsSummary, endingNote, type AskStep, type AskTurn,
+    ask, submitAsk, stopAsk, clearAsk, endNote, tally, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
@@ -54,6 +54,17 @@
   // reaches the shell, which dismisses the panel.
   function containKeys(e: KeyboardEvent) {
     if (e.key !== 'Escape') e.stopPropagation();
+  }
+
+  /** "4 actions succeeded, 1 refused": what the viewer did for a request, in a line. */
+  function actionsLine(turn: AskTurn): string {
+    const { total, done, refused, running, notRun } = tally(turn);
+    if (total === 0) return '';
+    const parts = [`${done} ${done === 1 ? 'action' : 'actions'} succeeded`];
+    if (refused) parts.push(`${refused} refused`);
+    if (notRun) parts.push(`${notRun} not run`);
+    if (running) parts.push('in progress');
+    return parts.join(', ');
   }
 
   const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -156,14 +167,15 @@
               <Loader2 size={11} class="animate-spin" /> Working…{#if working(turn)} <span>{working(turn)}</span>{/if}
             </p>
           {/if}
-          {#if endingNote(turn)}
-            <p class="ui-helper whitespace-normal {turn.status === 'error' ? 'text-error' : 'text-warning'}" role={turn.status === 'error' ? 'alert' : 'status'}>{endingNote(turn)}</p>
+          {#if endNote(turn)}
+            {@const note = endNote(turn)!}
+            <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
           {/if}
           {#if turn.steps.length > 0}
             <details class="ask-actions">
               <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
                 <ChevronRight size={10} class="ask-chevron" />
-                {actionsSummary(turn) || 'Working'}{turn.status === 'running' ? '…' : ''}
+                {actionsLine(turn) || 'Working'}{turn.status === 'running' ? '…' : ''}
               </summary>
               <ul class="mt-1 flex flex-col gap-0.5">
                 {#each turn.steps as step (step.id)}

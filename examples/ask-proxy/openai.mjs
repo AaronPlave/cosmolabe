@@ -109,6 +109,8 @@ export function fromOpenAIResponse(reply) {
   return { version: WIRE_VERSION, content, stop };
 }
 
+const cached = (reply) => Number(reply.usage?.input_tokens_details?.cached_tokens) || 0;
+
 export const openaiProvider = {
   name: 'openai',
   defaultModel: 'gpt-5.1',
@@ -119,11 +121,11 @@ export const openaiProvider = {
   usage: (reply) => ({
     // The model the provider says answered, which is not always the one asked for.
     model: typeof reply.model === 'string' && reply.model ? reply.model : null,
-    // OpenAI's input count includes what its automatic prompt cache served.
-    uncachedInputTokens: Math.max(0, (Number(reply.usage?.input_tokens) || 0) - (Number(reply.usage?.input_tokens_details?.cached_tokens) || 0)),
-    cacheReadTokens: Number(reply.usage?.input_tokens_details?.cached_tokens) || 0,
-    cacheWriteTokens: 0,
+    // OpenAI's `input_tokens` includes the cached part; reported apart, as Anthropic's are.
+    inputTokens: Math.max(0, (Number(reply.usage?.input_tokens) || 0) - cached(reply)),
     outputTokens: Number(reply.usage?.output_tokens) || 0,
+    cacheReadTokens: cached(reply),
+    cacheWriteTokens: 0, // OpenAI caches automatically and does not bill or report writes
     stop: reply.status ?? null,
   }),
 };

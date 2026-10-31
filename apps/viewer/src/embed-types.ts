@@ -36,12 +36,13 @@ export declare function createHttpTransport(endpoint: string): import('@cosmolab
 /**
  * Throw this from an `AgentTransport` to say why a request failed in a way the
  * panel can act on: `code` is the wire format's `error.code`
- * (`budget-exhausted`, `rate-limited`, `upstream-rate-limited`,
- * `upstream-error`, `unreachable`).
+ * (`budget_exhausted`, `rate_limited`, `upstream_error`) and `status` the HTTP
+ * status, when there was one.
  */
 export declare class AgentTransportError extends Error {
-  constructor(message: string, code?: string);
+  constructor(message: string, code?: string, status?: number);
   readonly code?: string;
+  readonly status?: number;
 }
 
 export {
@@ -57,5 +58,5 @@ export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,
   ScriptScene, ScriptPlace, ScriptImagery, ScriptImageryLayer, ScriptFlight, FlightOutcome, FlightPath, SurfaceView,
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema,
-  AgentTransport, AgentErrorKind, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
+  AgentTransport, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
 } from '@cosmolabe/control';

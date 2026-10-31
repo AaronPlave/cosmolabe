@@ -46,12 +46,58 @@ export interface AskTurn {
   steps: AskStep[];
   /** The model's answer: the text of its last message, not its narration while it worked. */
   reply: string;
-  /** That narration, kept for the details view and out of the answer. */
+  /** That narration, kept for the Details view and out of the answer. */
   notes: string[];
   status: AskStatus;
   error: string | null;
-  /** The transport's code for a failed request (`budget-exhausted`, `rate-limited`, …), when it had one. */
+  /** The transport's reason for an `error`, when it gave one (`budget_exhausted`, `rate_limited`, …). */
   errorCode: string | null;
+}
+
+/** What the viewer did for a request, counted from the steps' own results. */
+export function tally(turn: Pick<AskTurn, 'steps'>) {
+  const unrun = (s: AskStep) => !s.result;
+  const stopped = (s: AskStep) => !!s.result && !s.result.ok && (s.result.code === 'superseded' || s.result.code === 'cancelled');
+  const done = turn.steps.filter((s) => s.result?.ok).length;
+  const refused = turn.steps.filter((s) => s.result && !s.result.ok && !stopped(s)).length;
+  const running = turn.steps.filter(unrun).length;
+  return { total: turn.steps.length, done, refused, running, notRun: turn.steps.filter(stopped).length };
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const ENDINGS: Partial<Record<AskStatus, string>> = {
+  cancelled: 'Stopped.',
+  superseded: 'Replaced by a newer request.',
+  stale: 'The scene changed, so this request stopped.',
+  'step-limit': 'Stopped after too many steps.',
+  'max-tokens': 'The reply was cut off.',
+  refusal: 'The model declined this request.',
+};
+
+/**
+ * What to tell the person when a request did not finish as a reply: the
+ * reason, and what already happened to the view, from the steps' results (a
+ * refused step is not counted as done). Null for a request that is running or
+ * ended with its answer. Never suggests a retry: a view change is not undone by
+ * stopping, and retrying a request that ran out of budget only fails again.
+ */
+export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error' } | null {
+  if (turn.status === 'running' || turn.status === 'done') return null;
+  const t = tally(turn);
+  const ran = t.done + t.refused;
+  const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused ? ` (${t.done} done, ${t.refused} refused)` : ''}; changes already made to the view remain.`;
+  if (turn.status === 'error') {
+    if (turn.errorCode === 'budget_exhausted') {
+      return { tone: 'warning', text: `Request stopped: this proxy's local model budget is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
+    }
+    if (turn.errorCode === 'rate_limited') {
+      return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; wait a minute.${account}` };
+    }
+    return { tone: 'error', text: `${turn.error ?? 'The request failed.'}${account}` };
+  }
+  const ending = ENDINGS[turn.status];
+  return ending ? { tone: 'warning', text: `${ending}${account}` } : null;
 }
 
 /** Requests the panel keeps showing; older ones scroll away for good. */
@@ -160,6 +206,8 @@ export async function submitAsk(prompt: string): Promise<void> {
     onEvent: (e) => {
       const view = live();
       if (!view) return;
+      // The reply is the model's last message. Text beside tool calls is its
+      // planning, not an answer: it is kept apart, for the Details view.
       if (e.type === 'text') {
         if (e.final) view.reply = view.reply ? `${view.reply}\n${e.text}` : e.text;
         else view.notes.push(e.text);
@@ -185,55 +233,6 @@ export async function submitAsk(prompt: string): Promise<void> {
     task = null;
     ask.running = false;
   }
-}
-
-/** What a request's actions came to, from their actual results: not what the model said or how many it asked for. */
-export function actionCounts(turn: Pick<AskTurn, 'steps'>): { total: number; done: number; refused: number; notRun: number } {
-  let done = 0, refused = 0, notRun = 0;
-  for (const { result } of turn.steps) {
-    if (!result || (!result.ok && (result.code === 'superseded' || result.code === 'cancelled'))) notRun++;
-    else if (result.ok) done++;
-    else refused++;
-  }
-  return { total: turn.steps.length, done, refused, notRun };
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-/** "3 actions succeeded, 1 refused" — what the viewer did, in one line; empty when it did nothing. */
-export function actionsSummary(turn: Pick<AskTurn, 'steps'>): string {
-  const { total, done, refused, notRun } = actionCounts(turn);
-  if (total === 0) return '';
-  const parts = [`${plural(done, 'action')} succeeded`];
-  if (refused) parts.push(`${refused} refused`);
-  if (notRun) parts.push(`${notRun} not run`);
-  return parts.join(', ');
-}
-
-/**
- * The line under a request that did not end in an answer: why it stopped, what
- * its actions came to, and that the view changes already made remain. Null for
- * a request that finished, and while it runs. A budget the proxy has spent is
- * not a reason to try again, so none is suggested.
- */
-export function endingNote(turn: Pick<AskTurn, 'status' | 'steps' | 'error' | 'errorCode'>): string | null {
-  if (turn.status === 'running' || turn.status === 'done') return null;
-  const why = turn.status === 'error'
-    ? turn.errorCode === 'budget-exhausted' ? 'Request stopped: the local model budget is spent.'
-      : turn.errorCode === 'rate-limited' || turn.errorCode === 'upstream-rate-limited' ? 'Request stopped: too many requests too quickly. Wait a moment before asking again.'
-        : `Request stopped: ${turn.error ?? 'the model could not be reached'}.`
-    : ({
-      cancelled: 'Stopped.',
-      superseded: 'Replaced by a newer request.',
-      stale: 'The scene changed, so this request stopped.',
-      'step-limit': 'Stopped after too many steps.',
-      'max-tokens': 'The reply was cut off.',
-      refusal: 'The model declined this request.',
-    } as Record<string, string>)[turn.status] ?? 'Stopped.';
-  const summary = actionsSummary(turn);
-  const answer = turn.status === 'error' || turn.status === 'step-limit' || turn.status === 'max-tokens' ? " The final answer wasn't generated." : '';
-  if (!summary) return `${why} No actions had run.${answer}`;
-  return `${why} ${summary}.${answer} Changes already made to the view remain.`;
 }
 
 /** Stop the running request: a flight it started stops where it is; nothing else is undone. */
