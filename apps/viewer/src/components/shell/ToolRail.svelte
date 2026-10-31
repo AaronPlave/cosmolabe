@@ -23,7 +23,7 @@
    * tool: that browses the bodies of the loaded scene, this replaces the scene.
    */
   import { Search, Crosshair, Camera, Info, Keyboard, FolderOpen, Link, Check } from 'lucide-svelte';
-  import { TOOLS, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
+  import { availableTools, shell, isToolOpen, isMinimized, toggleTool, type ToolDef } from '../../lib/shell.svelte';
   import { onDestroy } from 'svelte';
   import { copyViewLink } from '../../lib/view-link';
   import { ef } from '../../lib/event-finder.svelte';
@@ -119,7 +119,7 @@
 
   <div class="rail-divider" class:horizontal={compact}></div>
 
-  {#each TOOLS as tool (tool.id)}
+  {#each availableTools() as tool (tool.id)}
     {@const Icon = tool.icon}
     {@const s = toolState(tool)}
     <button

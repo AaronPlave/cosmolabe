@@ -169,6 +169,18 @@ export interface ScriptActivity {
   readonly enabled?: boolean;
   readonly id: string; readonly name: string; readonly kind: string;
   readonly vehicle: string; readonly body: string;
+  readonly mission?: string;
+  /** The named place the catalog says the activity happened at (a flight's airfield, say); a name, not a link. */
+  readonly site?: string;
+  /**
+   * What the record points at. `location` is a place ref: the only direct
+   * link from an activity to a place. A record with a `site` and no
+   * `location` is tied to a place by name alone, if at all.
+   */
+  readonly references?: {
+    readonly trajectory?: string; readonly sourceSegment?: string; readonly location?: string; readonly viewpoint?: string;
+    readonly objects?: readonly string[];
+  };
   readonly start: number; readonly end: number;
   readonly temporality: 'instant' | 'interval';
   readonly provenance: { readonly source: string; readonly version: string; readonly authority: string; readonly timing: string; readonly limitations: string; readonly uncertaintySeconds?: number };
@@ -243,6 +255,13 @@ export interface ScriptPlace {
   readonly longitude: number;
   /** The source's indicative extent; absent when the source does not say. */
   readonly diameterKm?: number;
+  /**
+   * The source's own attributes for the place (a mission site's `Flight`,
+   * `Earth_Date`, …), as the layer states them: strings, numbers and
+   * booleans only, bounded. The evidence a caller can cite for what a place
+   * is; absent when the layer carries none.
+   */
+  readonly fields?: Readonly<Record<string, string | number | boolean>>;
   /** Where the layer's data came from: a catalog URL, a local file, or this session. */
   readonly source: { readonly kind: 'catalog' | 'local-file' | 'user'; readonly identity: string; readonly revision?: string };
   /** Null when the place can be navigated to; otherwise why not. */

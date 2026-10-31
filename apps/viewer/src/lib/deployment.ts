@@ -113,3 +113,25 @@ export function catalogSourceDeployment(): CatalogSourceDeployment {
     new URL(import.meta.env.BASE_URL, location.href).href,
   );
 }
+
+/**
+ * Whether the deployment offers the Ask prompt (#311): `VITE_ASK_ENDPOINT`, a
+ * model proxy speaking the agent wire format (`examples/ask-proxy`). The proxy
+ * holds the key and picks the model; the browser never sees either. Relative
+ * URLs resolve against the page. Unset: no prompt, and the viewer is exactly
+ * the static app it was.
+ */
+export type AskDeployment = { mode: 'off' } | { mode: 'proxy'; endpoint: string };
+
+export interface AskEnv {
+  VITE_ASK_ENDPOINT?: string;
+}
+
+export function resolveAskDeployment(env: AskEnv, pageUrl: string): AskDeployment {
+  const endpoint = env.VITE_ASK_ENDPOINT?.trim();
+  return endpoint ? { mode: 'proxy', endpoint: new URL(endpoint, pageUrl).href } : { mode: 'off' };
+}
+
+export function askDeployment(): AskDeployment {
+  return resolveAskDeployment(import.meta.env as AskEnv, typeof location === 'undefined' ? 'http://localhost/' : location.href);
+}

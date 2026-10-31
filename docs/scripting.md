@@ -657,7 +657,7 @@ cosmo.navigateActivity('next', { vehicle: 'Ingenuity', kind: 'flight' }); // sel
 cosmo.getSelectedActivity();
 ```
 
-Records expose stable ID/name, vehicle/body, kind, actual supplied ET bounds, instant/interval status and provenance (including estimated/bounded timing and limitations). Reads follow the current catalog, and return detached copies. Unknown IDs and exhausted/filter-empty navigation return false; unavailable data never seeks a fallback epoch. Unloading clears records and activity selection. Trajectories can be invisible, absent, analytic or SPICE-backed.
+Records expose stable ID/name, vehicle/body, kind, the named `site` and `references` (only `references.location` is a link to a place; a `site` alone is a name), actual supplied ET bounds, instant/interval status and provenance (including estimated/bounded timing and limitations). Reads follow the current catalog, and return detached copies. Unknown IDs and exhausted/filter-empty navigation return false; unavailable data never seeks a fallback epoch. Unloading clears records and activity selection. Trajectories can be invisible, absent, analytic or SPICE-backed.
 
 The same operations are available as text verbs, with stable-ID completion and generated console help:
 
@@ -668,3 +668,7 @@ navigateActivity next Ingenuity flight
 ```
 
 Order is start/end/ID; within a filter the selected record anchors previous/next. Without a selection in that filter, navigation uses the current clock (next starts strictly after now; previous starts at/before now). It does not wrap. Selection is independent of seeking and camera movement. UI clicks compose pause, selection and seek using these same operations. See [mission activity schema and source limitations](mission-activities.md).
+
+## Agent tools
+
+The verbs are also the write half of the agent tools (`createAgentTools`), which a language-model agent and the Ask Cosmolabe prompt call through the same `execute`. Refusals there are the messages above, word for word. See [agent tools](agent-tools.md).

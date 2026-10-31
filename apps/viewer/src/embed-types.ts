@@ -26,6 +26,25 @@ export declare class ActivityConflictError extends Error {
   constructor(conflicts: readonly ActivityConflict[]);
 }
 
+/**
+ * The viewer's own Ask transport: the agent request, POSTed as JSON to a model
+ * proxy speaking the agent wire format (`AGENT_WIRE_VERSION`, as
+ * `examples/ask-proxy` does). For `mountCosmolabe(el, { ask: { transport } })`.
+ */
+export declare function createHttpTransport(endpoint: string): import('@cosmolabe/control').AgentTransport;
+
+/**
+ * Throw this from an `AgentTransport` to say why a request failed in a way the
+ * panel can act on: `code` is the wire format's `error.code`
+ * (`budget_exhausted`, `rate_limited`, `upstream_error`) and `status` the HTTP
+ * status, when there was one.
+ */
+export declare class AgentTransportError extends Error {
+  constructor(message: string, code?: string, status?: number);
+  readonly code?: string;
+  readonly status?: number;
+}
+
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';
@@ -38,4 +57,6 @@ export type {
 export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,
   ScriptScene, ScriptPlace, ScriptImagery, ScriptImageryLayer, ScriptFlight, FlightOutcome, FlightPath, SurfaceView,
+  AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema,
+  AgentTransport, AgentRequest, AgentResponse, AgentContent, AgentMessage, AgentStop, ScriptCancelSignal,
 } from '@cosmolabe/control';
