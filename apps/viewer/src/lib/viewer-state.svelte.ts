@@ -65,6 +65,11 @@ export function isDisplayOption(value: string): value is DisplayOption {
 
 /** Events the app publishes, independent of which renderer is mounted. */
 export interface ViewerEventMap {
+  places: Record<string, never>;
+  measurements: Record<string, never>;
+  geographic: Record<string, never>;
+  surface: { body: string };
+  unload: Record<string, never>;
   /** The selection changed; null when it cleared. */
   select: string | null;
   /** Scene time moved. */
@@ -709,6 +714,7 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+  emit('unload', {});
 }
 
 /**

@@ -190,6 +190,9 @@ function coerce(spec: VerbSpec, param: VerbParam, token: Token): Coerced {
     case 'object':
     case 'viewpoint':
     case 'place':
+    case 'measurement':
+    case 'geographic-layer':
+    case 'geographic-feature':
     case 'imagery':
     case 'text':
       if (token.kind === 'vector') return { ok: false, message: `${where} expected a name, got a vector` };

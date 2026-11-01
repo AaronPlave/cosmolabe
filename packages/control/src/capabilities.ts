@@ -58,10 +58,12 @@ export interface CapabilityPage {
   readonly total: number;
   readonly nextOffset: number | null;
 }
-export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabulary' | 'allowExport'> {
+export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabulary' | 'allowExport' | 'allowAuthoring'> {
   /** Trusted host policy only; never populated from a scene or model argument. */
   readonly omitted?: Readonly<Record<string, string>>;
   readonly allowExternal?: boolean;
+  readonly allowAuthoring?: boolean;
+  readonly confirmAuthoring?: (operation: string, input: unknown) => Promise<boolean>;
   /** A trusted UI/host confirmation, bound to this exact call. Model text cannot grant it. */
   readonly confirmExternal?: (operation: string, input: unknown) => Promise<boolean>;
   /** Observe accepted/running/final progress; callback failures do not change execution. */
@@ -87,6 +89,9 @@ const DISCOVERY: readonly AgentToolDef[] = [
 ];
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
+  if (/Measurement/.test(name)) return 'measurements';
+  if (/Geographic|Annotation/.test(name)) return 'geographic';
+  if (/Readiness|Ready/.test(name)) return 'readiness';
   if (/Activity|Activities/.test(name)) return 'activities';
   if (/Place|Coordinates/.test(name)) return 'places';
   if (/Imagery|Surface/.test(name)) return 'surface';
@@ -97,7 +102,7 @@ export function capabilityDomain(name: string, effect: AgentToolEffect): string 
   return effect === 'read' || effect === 'selection' ? 'scene' : 'display';
 }
 const idOf = (def: AgentToolDef) => `${capabilityDomain(def.name, def.effect)}.${def.name}`;
-const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : 'viewer';
+const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : def.effect === 'authoring' ? 'authoring' : 'viewer';
 const fail = (error: string, code: AgentErrorCode = 'invalid-input'): AgentToolResult => ({ ok: false, code, error });
 const SCOPE_SCHEMA = objectSchema({ viewer: { type: 'string' }, scene: { type: ['number', 'null'] }, revision: { type: 'number' } }, ['viewer', 'scene', 'revision']);
 const TEXT: AgentJsonSchema = { type: 'string' }, NUMBER: AgentJsonSchema = { type: 'number' };
@@ -106,6 +111,12 @@ const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  listPlaceSources: objectSchema({ total: NUMBER, offset: NUMBER, sources: RECORDS }),
+  listMeasurements: objectSchema({ selected: { type: ['string', 'null'] }, items: RECORDS }),
+  listGeographicLayers: objectSchema({ total: NUMBER, offset: NUMBER, layers: RECORDS }),
+  listGeographicFeatures: objectSchema({ total: NUMBER, features: RECORDS }),
+  getSurfaceAppearance: objectSchema({ settings: NULLABLE_RECORD, unavailable: { type: ['string', 'null'] } }),
+  getReadiness: objectSchema({ scene: { type: ['number', 'null'] }, status: TEXT, request: { type: 'object' }, missing: STRINGS, limitations: STRINGS }),
   describeScene: objectSchema({ scene: NULLABLE_RECORD, time: objectSchema({ et: NUMBER, utc: TEXT, playing: { type: 'boolean' }, rate: NUMBER }),
     selectedObject: { type: ['string', 'null'] }, tracked: { type: ['string', 'null'] }, flight: NULLABLE_RECORD,
     selectedActivity: NULLABLE_RECORD, selectedPlace: NULLABLE_RECORD, objects: objectSchema({ names: STRINGS, total: NUMBER }),
@@ -131,7 +142,7 @@ let instanceSeq = 0;
 
 /** No alternate dispatcher, state store or model-driven permission mechanism. */
 export function createCapabilityTools(host: ViewerControl, opts: CapabilityToolsOptions = {}): CapabilityTools {
-  const raw = createAgentTools(host, { ...opts, vocabulary: 'catalog', allowExport: true });
+  const raw = createAgentTools(host, { ...opts, vocabulary: 'catalog', allowExport: true, allowAuthoring: true });
   const instance = ++instanceSeq;
   let revision = 0, sequence = 0, disposed = false;
   const receipts = new Map<string, OperationReceipt>();
@@ -166,6 +177,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     const id = idOf(def);
     const reason = opts.omitted?.[id] ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
       : effectOf(def) !== 'read' && (!host.getScene || scope().scene === null) ? 'Scene identity is required for writes'
+        : effectOf(def) === 'authoring' && (!opts.allowAuthoring || !opts.confirmAuthoring) ? 'Host authoring permission and confirmation required'
         : effectOf(def) === 'external' && (!opts.allowExternal || !opts.confirmExternal) ? 'Host permission and confirmation required' : null);
     return { id, version: CAPABILITY_VERSION, domain: capabilityDomain(def.name, def.effect), description: def.description.slice(0, 640), effect: effectOf(def), available: reason === null, reason: reason?.slice(0, 640) ?? null };
   };
@@ -194,13 +206,13 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const { method, ...tool } = def;
       const referenceKinds: Record<string, string> = { object: 'object', body: 'object', activity: 'activity', place: 'place', layer: 'imagery' };
       const parameters = VERBS.get(def.name)?.params ?? Object.keys(def.inputSchema.properties ?? {}).flatMap(name => referenceKinds[name] ? [{ name, type: referenceKinds[name] }] : []);
-      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery'].includes(p.type))
+      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery', 'measurement', 'geographic-layer', 'geographic-feature'].includes(p.type))
         .map(p => ({ field: p.name, kind: p.type, scope: 'scene' as const }));
       return { ...summary(def), tool, outputSchema: { ...RECEIPT_SCHEMA, properties: { ...RECEIPT_SCHEMA.properties, data: READ_OUTPUTS[def.name] ?? { description: 'Writes report their resulting state through receipt.observation.' } } }, scope: scope(), references,
         dependencies: method ? [method] : [],
         conventions: 'Time: ET seconds past J2000 or UTC calendar; angles: degrees; distances and camera poses: km. Scene body/frame conventions are authoritative; no implicit coordinate transform. Consult verb parameter descriptions.',
         provenance: 'Scene/catalog declarations and observed runtime state are distinct. Null/withheld provenance, accuracy and coverage remain unknown.',
-        permission: effectOf(def) === 'external' ? 'host-and-confirmation' : 'none' };
+        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : 'none' };
     });
   };
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -271,6 +283,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         let result: AgentToolResult;
         try {
           let confirmed = true;
+          if (effectOf(def) === 'authoring') confirmed = await opts.confirmAuthoring!(idOf(def), JSON.parse(serialized));
           if (effectOf(def) === 'external') confirmed = await opts.confirmExternal!(idOf(def), JSON.parse(serialized));
           if (!confirmed) result = fail('Host confirmation declined', 'refused');
           else if (task.ended || bound.revision !== revision) result = fail('Task ended while awaiting confirmation', task.ended ?? 'stale');

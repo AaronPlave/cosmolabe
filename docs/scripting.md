@@ -11,8 +11,8 @@ other two are derived from it.
 | the text language | scene setup, saved programs, visual-regression goldens | no eval, checked in, safe to hand a stranger |
 | the verb table | command palette, keymap | one vocabulary, derived rather than restated |
 
-Everything lives in [`@cosmolabe/control`](../packages/control), a zero-dependency
-package with no DOM and no renderer in it. The viewer's implementation is one
+Everything lives in [`@cosmolabe/control`](../packages/control), a package with no runtime imports
+of the domain model or renderer with no DOM and no renderer in it. The viewer's implementation is one
 file, [`apps/viewer/src/lib/viewer-control.ts`](../apps/viewer/src/lib/viewer-control.ts).
 
 ## What this API asserts
@@ -643,7 +643,7 @@ cosmo.setImageryVisible('Mars', 'hirise', true);
 cosmo.setImageryOpacity('Mars', 'hirise', 0.6);
 ```
 
-The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `source` reports `{ type, endpoint, layer, tileMatrixSet }`. `endpoint` is only the HTTP(S) provider origin, or null for relative, local and non-HTTP resources. Resource paths, userinfo, queries and fragments are omitted because any of them can hold private tokens. `layer` and `tileMatrixSet` are explicit catalog service identifiers; an origin alone does not identify a dataset. Default display names use the provider host rather than URL path segments. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
+The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `source` reports `{ type, endpoint, layer, tileMatrixSet }`. `endpoint` is only the HTTP(S) provider origin, or null for relative, local and non-HTTP resources. Resource paths, userinfo, queries and fragments are omitted because any of them can hold private tokens. `layer` and `tileMatrixSet` are explicit catalog service identifiers; an origin alone does not identify a dataset. Default display names use the provider host rather than URL path segments. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are included in script snapshots by catalog layer ID.
 
 The `ViewerControl` boundary omits raw imagery resource locations and place source identities. It does **not** certify arbitrary catalog text (names, descriptions, attribution or service IDs) as public. External agent adapters (#311) must construct their model context from an explicit allowlist of public metadata, treating catalog text as untrusted input; they must not serialize entire scene/control responses by default. Public provider/dataset identifiers should be deliberately supplied and approved at that boundary, never inferred from a resource path. These reads do not claim dataset-level provenance where the catalog has supplied none.
 
@@ -677,3 +677,172 @@ Order is start/end/ID; within a filter the selected record anchors previous/next
 The verbs are also the write half of the agent tools (`createAgentTools`), which a language-model agent and the Ask Cosmolabe prompt call through the same `execute`. Refusals there are the messages above, word for word. See [agent tools](agent-tools.md).
 
 Local control place provenance/fields can contain private resource paths. Agent tools apply their own conservative metadata projection before model transport; see docs/agent-tools.md.
+
+## Modern analysis automation (#297)
+
+The native viewer now exposes saved measurements/reference geometry, geographic
+layers and annotations, place-source inclusion/labels, terrain appearance and
+explicit readiness predicates through the same `ViewerControl`. Optional methods
+remain the capability declaration: older hosts fail at the relevant script line.
+The port has **no runtime import** of core or a renderer. Its TypeScript domain
+arguments reference core's types so callers use the existing semantic model,
+including `MeasurementDefinition`, `SpatialEndpoint`, `ReferenceVector`,
+`GeographicCoordinates`, `GeographicLayerStyle` and `GeographicEditOperation`.
+
+```ts
+const scene = cosmo.getScene()!.id;
+cosmo.upsertMeasurement({
+  id: 'earth-moon', kind: 'distance',
+  source: { kind: 'entity', bodyName: 'Earth' },
+  target: { kind: 'entity', bodyName: 'Moon' }, vertex: null,
+}, { scene });
+cosmo.showMeasurement('earth-moon', true, { scene });
+cosmo.selectMeasurement('earth-moon', { scene }); // null clears selection
+const definitions = cosmo.listMeasurements();  // detached definitions, no sampled results
+cosmo.removeMeasurement('earth-moon', { scene });
+
+const layers = cosmo.listGeographicLayers();
+const page = cosmo.listGeographicFeatures(layers[0].id, { offset: 0, limit: 50 });
+cosmo.selectGeographicFeature(layers[0].id, page.features[0].id, { scene });
+cosmo.gotoGeographicFeature(layers[0].id, page.features[0].id, { scene, animate: false });
+cosmo.setGeographicLayerStyle(layers[0].id, { version: 1, opacity: 0.7 }, { scene });
+```
+
+Every mutation accepting `scene` rejects stale IDs before changing anything.
+Scripts bind to the scene at execution start and stop before another statement
+can act on a replacement scene. A script replayed in a new run must be used with
+the original catalog; IDs alone do not identify a dataset across catalogs.
+Measurements use the shared validator before installing any changes (32 saved
+definitions, IDs up to 128 characters); references and frames must exist at the
+current epoch. Definition installation preserves unrelated definitions and the
+creation draft. Visibility/selection do not seek time or move the camera.
+
+Geographic feature IDs are the importer IDs returned by the read API, including
+typed prefixes such as `string:airfield-5`; they are not display labels. Each feature read also includes the original typed
+`sourceId` for core edit operations; edit receipts return both `featureId` (source
+ID) and `ref` (selection ID). Layer discovery includes failed inputs with status/diagnostic codes and unknown
+body/frame, rather than hiding them behind the ready-layer list. Features
+are paged (default 50, at most 100). Selection uses the UI's shared selection;
+focus uses its existing frame-checked extent navigation. Styles are validated,
+applied immediately, and do not overwrite saved browser style preferences.
+
+`createAnnotationLayer(body, name, coordinates, { scene })` requires explicit
+coordinate conventions compatible with the rendered body frame and returns the
+new layer ID. `editAnnotation(layer, operation, { scene })` uses the existing
+`GeographicEditSession`, validation, persistence and undo history. It accepts one
+bounded core operation, never a second GeoJSON editor; published layers remain
+read-only. JSON data supplied through text verbs is limited to 32,768 characters.
+Authored edits use normal browser storage, just like the drawing tools.
+
+`selectPlace(ref, { scene })` inspects without navigation; null clears it.
+`listPlaceSources()`, `setPlaceSourceEnabled(layer, enabled, { scene })`, and
+`showPlaceLabels(layer, visible, { scene })` distinguish search/navigation inclusion
+from label visibility. Hiding labels does not exclude the source from search.
+`getSurfaceAppearance(body)` returns settings or an explicit unavailable reason;
+`setSurfaceAppearance(body, patch, { scene })` validates supported settings and
+calls the same terrain appearance action as the UI. Relief styling requires a
+validated physical terrain product. It changes no geometry, sampled elevations,
+source data, terrain authority or Sun illumination.
+
+The text verbs accept quoted JSON **data**, without eval. Help and completion
+come from the verb table; measurement/layer/feature slots complete stable IDs.
+
+```text
+upsertMeasurement "{\"id\":\"baseline\",\"kind\":\"distance\",\"source\":{\"kind\":\"entity\",\"bodyName\":\"Earth\"},\"target\":{\"kind\":\"entity\",\"bodyName\":\"Moon\"},\"vertex\":null}"
+showMeasurement baseline on
+selectMeasurement baseline
+setSurfaceAppearance Mars "{\"hillshade\":true,\"contrast\":1.2}"
+```
+
+`measurements`, `geographic`, `places` and `surface` subscriptions report shared
+UI and control changes, with scene identity and relevant selection/body. They
+survive reloads; disposers remove them. These are semantic change notifications,
+not per-tile streaming progress. Geographic notifications include style and
+layer-data changes. Surface notifications cover visibility/opacity and appearance
+writes; use readiness reads/waits for streaming state.
+
+### Readiness guarantees and limits
+
+`getReadiness(request, { scene })` returns a structured observation.
+`waitUntilReady(request, { scene, timeoutMs, signal })` waits for that predicate,
+with a 15-second default and a hard 120-second maximum. Cancellation, replacement
+and disposal terminate the wait and clean up its timer/subscriptions. Reads reuse
+the existing asset summaries, imagery view counters and cube base-coverage
+counters. A surface observation is invalidated by changes to camera, epoch,
+viewport, body transform or imagery settings until an actual streaming update
+observes those inputs. They do not start a second streaming manager, prefetch or retry failures.
+
+| Request | A `ready` result guarantees | Excluded or unavailable |
+|---|---|---|
+| `{kind:'assets'}` | Initial models, textures and trajectories settled without reported failures or asset timeout | Streamed surfaces; source scientific adequacy |
+| `{kind:'imagery',body,layer}` | Enabled, nontransparent layer intersects the current view at its minimum zoom; no observed missing/degraded tiles or full cache | Other sources, other views, planetary coverage, source accuracy |
+| `{kind:'cube-base',body}` | Mandatory base imagery covers every currently drawn terrain block | Missing geometry, completeness of target LOD, regions outside the view, optional overlays |
+| `{kind:'terrain',body}` | No complete-coverage predicate is currently supported | Returns `unavailable`; loaded/drawn tile counts cannot prove geometry coverage |
+
+Results contain `scene`, `request`, `status`, `missing`, and `limitations`.
+Statuses are `ready`, `partial`, `unavailable`, `failed`, `timed-out`, `cancelled`
+or `stale`. A fixed timeout never becomes success. Freeze playback and camera
+motion when preparing a capture: these predicates observe the current view, they
+do not lock it against another user/host. A `waitUntilReady` **text verb** fails the
+script unless the result is `ready`, so a later capture never runs on a partial
+or timed-out result. Script cancellation is forwarded into the wait.
+
+```text
+waitUntilReady "{\"kind\":\"assets\"}" 60
+waitUntilReady "{\"kind\":\"cube-base\",\"body\":\"Mars\"}" 60
+```
+
+### Portable snapshots and permissions
+
+Snapshots now include portable measurement definitions/selection, catalog place selection, place-source
+choices, managed imagery visibility/opacity, catalog geographic layer visibility
+and styles, and supported terrain appearance settings. Measurement snapshots
+**merge by ID**: matching definitions are upserted, unrelated user work is kept,
+and omitted analysis state preserves it. `restoreMeasurements <json> replace`
+is the explicit replacement operation. A supplied selection is restored;
+selection omitted from a merge is preserved. No cache arrays or computed results
+are serialized. Existing ViewState v1 links and their restore semantics are
+unchanged.
+
+User annotation layers, local-file geographic layers, captured terrain-sample
+provenance, pointer drafts, timed notes, panel geometry, Event Finder results,
+instrument state, surface target anchoring/refinement metadata, and bookmarks are not reproduced by script snapshots. A
+measurement carrying a captured terrain sample is omitted with a comment because
+its original product provenance is not a portable resource contract. Other
+surface anchors retain their coordinates/frame/datum. Layer and imagery settings
+refer to already loaded catalog IDs; snapshots never package source files or
+resource URLs. Do not use a snapshot as an external agent context: arbitrary
+catalog/user text has not been certified public.
+
+Capability discovery includes the implemented operations and bounded public reads.
+Saved-definition/annotation mutations are classified `authoring`; capability calls
+require trusted `allowAuthoring` plus exact-call `confirmAuthoring`. Direct agent
+tools also default to refusing authoring unless their host allows it. Export
+permission stays separate. Native trusted host/script calls use the typed port;
+a catalog script can invoke these bounded data operations but cannot install
+plugins or execute arbitrary JavaScript. Agent measurement reads withhold endpoint
+and resource provenance; trusted local hosts receive complete definitions.
+Operations without verified receipt readback remain explicitly `partial`.
+
+Event Finder orchestration, instrument/observation operations, portable authored
+layer transport and bookmark CRUD remain explicit coverage gaps. P2 plugin hooks
+remain deferred until there is a concrete domain contract; no generic registry or
+new solver is introduced here.
+
+### Mission tour and capture fixture
+
+The ordinary index entry **Ingenuity Analysis Tour** links
+[`ingenuity-analysis-tour.cosmo`](../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo)
+to the existing Ingenuity/Jezero catalog. It composes Flight 5 selection/seek, a
+stable named place, coordinate navigation, imagery and geographic styles, a saved
+Mars-centre distance definition and physical-terrain appearance. The caption
+retains the trajectory's estimated timing/path limitation and does not describe
+centre distance as terrain clearance. Missing products fail transparently.
+
+Run `CL_VIEWER_URL=http://127.0.0.1:5297/ node scripts/test-modern-scene-automation.mjs`
+against a viewer from this checkout. The fixture exercises the ordinary scripted
+entry and `?test=1` script execution, asserts semantic state and readiness,
+round-trips the supported snapshot, tests missing-source refusal, and writes
+screenshots plus a compact JSON report under `/tmp/modern-scene-automation`.
+It uses no arbitrary settle delay. The report records GPU identity and the
+predicate limitations; a passed cube-base check is not terrain coverage acceptance.

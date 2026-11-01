@@ -61,7 +61,7 @@ export interface AgentJsonSchema {
 }
 
 /** What a tool can change; `read` tools change nothing. */
-export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display' | 'export';
+export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display' | 'export' | 'authoring';
 
 export interface AgentToolDef {
   readonly name: string;
@@ -133,6 +133,8 @@ export interface AgentToolsOptions {
   omittedTools?: Readonly<Record<string, string>>;
   /** Trusted host permission; captures are refused by default even in catalog mode. */
   allowExport?: boolean;
+  /** Trusted host permission for saved definitions and annotation mutations. */
+  allowAuthoring?: boolean;
   /** Only the trusted host can approve public metadata; never derive this policy from catalog fields. */
   metadata?: AgentMetadataPolicy;
   /** Renders scene time for `describeScene` (a UTC calendar string, say). */
@@ -220,6 +222,12 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'listPlaceSources', effect: 'read', method: 'listPlaceSources', description: 'A bounded page of source IDs with body, search inclusion and label visibility; no resource locations.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
+  { name: 'listMeasurements', effect: 'read', method: 'listMeasurements', description: 'Saved semantic measurement IDs, kinds and visibility. Endpoints/provenance are withheld from model transport; trusted hosts use the typed port.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listGeographicLayers', effect: 'read', method: 'listGeographicLayers', description: 'A bounded page of geographic layer IDs, body/frame, editability, visibility and availability.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
+  { name: 'listGeographicFeatures', effect: 'read', method: 'listGeographicFeatures', description: 'A bounded page of stable feature IDs and geometry types in an exact layer.', inputSchema: { type: 'object', properties: { layer: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['layer'], additionalProperties: false } },
+  { name: 'getSurfaceAppearance', effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
+  { name: 'getReadiness', effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, or explicit unsupported terrain coverage. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain'] }, body: { type: 'string' }, layer: { type: 'string' } }, required: ['kind'], additionalProperties: false } },
   {
     name: 'describeScene',
     effect: 'read',
@@ -434,7 +442,7 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 /** Registration comes from VERBS and the bounded read implementations above. No catalog code executes. */
 export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
   return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
-    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
+    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
       : spec.category === 'Time' || spec.name === 'seekActivity' ? 'time'
         : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
   }))];
@@ -689,7 +697,36 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return null;
   }
 
-  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery };
+  const reads: Record<string, (input: Input) => AgentToolResult> = {
+    describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    listPlaceSources: input => {
+      const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
+      if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
+      const sources = host.listPlaceSources!();
+      return { ok: true, summary: 'Place source inclusion and labels.', data: { total: sources.length, offset, sources: sources.slice(offset, offset + limit) } };
+    },
+    listMeasurements: () => ({ ok: true, summary: 'Saved measurement definitions (endpoint metadata withheld).', data: {
+      selected: host.getSelectedMeasurement?.() ?? null,
+      items: host.listMeasurements!().slice(0, 32).map(m => ({ id: m.id, kind: m.kind, visible: m.visible !== false })),
+    } }),
+    listGeographicLayers: input => {
+      const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
+      if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
+      const all = host.listGeographicLayers!();
+      return { ok: true, summary: 'Geographic layers.', data: { total: all.length, offset, layers: all.slice(offset, offset + limit).map(l => ({
+        id: l.id, name: l.name, body: l.body, frame: metadata.text(l.frame), features: l.features, status: l.status, diagnostics: l.diagnostics, visible: l.visible, editable: l.editable, navigable: l.navigationUnavailable === null,
+      })) } };
+    },
+    listGeographicFeatures: input => {
+      const page = host.listGeographicFeatures!(input.layer as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
+      return page ? { ok: true, summary: 'Geographic features.', data: page } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
+    },
+    getSurfaceAppearance: input => {
+      const appearance = host.getSurfaceAppearance!(input.body as string);
+      return appearance ? { ok: true, summary: 'Terrain appearance.', data: appearance } : { ok: false, code: 'refused', error: 'Unknown rendered body' };
+    },
+    getReadiness: input => ({ ok: true, summary: 'Observed readiness with explicit limitations.', data: host.getReadiness!(input as unknown as import('./contracts.js').ScriptReadinessRequest) }),
+  };
 
   /**
    * Wait for the end of flight `id`, the one a call started, unless the task or
@@ -775,6 +812,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (problem) return { ok: false, code: 'invalid-input', error: problem };
       const refused = this.gate(def);
       if (refused) return refused;
+      if (def.effect === 'authoring' && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
 

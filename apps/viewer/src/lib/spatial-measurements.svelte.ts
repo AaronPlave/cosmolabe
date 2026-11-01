@@ -9,7 +9,7 @@ import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { cancelAppearancePick } from './surface-appearance-pick.svelte';
 import { getCurrentRenderer, getUniverse } from './loader';
-import { excludeFromProbe, setProbeActive, vs } from './viewer-state.svelte';
+import { excludeFromProbe, setProbeActive, vs, emit, onViewerEvent } from './viewer-state.svelte';
 import { workspaceNode } from './workspace.svelte';
 import { definitionEndpoints, validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
 import { resettable } from './session.svelte';
@@ -134,10 +134,13 @@ export function renderedMeasurements(): SpatialRelationship[] {
     return valid ? [{ ...valid, selected: item.id === measurements.selectedId, hovered: item.id === measurements.hoveredId, editing: item.id === measurements.editingId }] : [];
   });
 }
+let lastNotification = '';
 export function syncMeasurements(): void {
   defaultDraftFrame();
   const renderer = getCurrentRenderer();
   const rendered = renderedMeasurements();
+  const notification = JSON.stringify([measurements.items, measurements.selectedId]);
+  if (notification !== lastNotification) { lastNotification = notification; emit('measurements', {}); }
   renderer?.setSpatialRelationships(rendered);
   const selected = measurements.items.find(item => item.id === measurements.editingId);
   renderer?.setSpatialDraftEndpoints(selected && relationship(selected) ? []
@@ -187,6 +190,19 @@ export function restoreSharedMeasurements(input: MeasurementLinkState | undefine
   measurements.items = state.items;
   measurements.nextColor = state.items.filter(item => item.kind !== 'axes').length;
   if (state.selected) selectMeasurement(state.selected);
+  syncMeasurements();
+}
+/** Install already validated host definitions without discarding the person's creation draft. */
+export function installMeasurementDefinitions(state: MeasurementLinkState): void {
+  applyMeasurementFields();
+  const selected = state.selected ?? null;
+  const keptDraft = measurements.editingId ? suspendedDraft : snapshot();
+  measurements.editingId = null;
+  measurements.selectedId = null;
+  measurements.items = state.items;
+  if (keptDraft) restore(keptDraft);
+  if (selected) selectMeasurement(selected);
+  else if (!keptDraft) resetMeasurementDraft();
   syncMeasurements();
 }
 export function openMeasurementEditor(id: string): void {
@@ -423,3 +439,6 @@ export function measureFromHere(point: SurfacePoint): void {
   openTool('measure');
   startMeasurementPick('target', 'surface');
 }
+
+// Dispose scene-owned definitions even when replacement loading fails.
+onViewerEvent('unload', resetMeasurementsForScene);

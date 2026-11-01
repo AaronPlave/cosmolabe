@@ -1,3 +1,4 @@
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 import type { GridSettings } from './grid.js';
 /**
  * The `ViewerControl` port — the contract a Cosmolabe viewer offers a host.
@@ -101,6 +102,11 @@ export interface ScriptCamera {
  * catalog loads, and end only with their disposer (or the viewer's disposal).
  */
 export interface ScriptEventMap {
+  places: { scene: number; selected: string | null };
+  measurements: { scene: number; selected: string | null; count: number };
+  geographic: { scene: number; selected: { layer: string; feature: string } | null };
+  surface: { scene: number; body: string };
+
   /** The selected object changed. `name` is null when the selection cleared. */
   select: { name: string | null };
   /**
@@ -377,7 +383,70 @@ export interface ScriptSurfaceData {
   readonly overlays: readonly ScriptImageryLayer[];
 }
 
+/** Scene-scoped semantic reads and edits. Definitions come from core, never renderer samples. */
+export interface ScriptSceneOptions { scene?: number }
+export interface ScriptGeographicLayer {
+  readonly id: string; readonly name: string; readonly body: string | null; readonly frame: string | null;
+  readonly status: 'ready' | 'error'; readonly diagnostics: readonly { code: string; severity: 'warning' | 'error' }[];
+  readonly features: number; readonly visible: boolean; readonly editable: boolean;
+  readonly navigationUnavailable: string | null; readonly style: GeographicLayerStyle;
+}
+export interface ScriptGeographicFeature {
+  readonly id: string; readonly name: string; readonly type: string;
+  /** Original typed GeoJSON ID used by core edit operations; null for source-order-only IDs. */
+  readonly sourceId: string | number | null;
+}
+export interface ScriptSurfaceAppearance {
+  hillshade: boolean; contours?: boolean; contourOpacity?: number; contourColor?: string;
+  contourDensity?: number; contourIntervalKm?: number; contourLabels?: boolean;
+  azimuthDeg: number; elevationDeg: number; contrast: number;
+  baseColor: 'imagery' | 'elevation' | 'neutral'; imageryAmount: number;
+  palette: 'terrain' | 'blue-gold' | 'grayscale'; minKm: number; maxKm: number;
+}
+/** Current-view observations only. No region prefetch or planetary coverage claim. */
+export type ScriptReadinessRequest =
+  | { kind: 'assets' }
+  | { kind: 'imagery'; body: string; layer: string }
+  | { kind: 'cube-base'; body: string }
+  | { kind: 'terrain'; body: string };
+export interface ScriptReadiness {
+  readonly scene: number | null;
+  readonly status: 'ready' | 'partial' | 'unavailable' | 'failed' | 'timed-out' | 'cancelled' | 'stale';
+  readonly request: ScriptReadinessRequest;
+  readonly missing: readonly string[];
+  readonly limitations: readonly string[];
+}
+
 export interface ViewerControl {
+  selectPlace?(ref: string | null, opts?: ScriptSceneOptions): boolean;
+  listPlaceSources?(): readonly { id: string; body: string; enabled: boolean; labelsVisible: boolean }[];
+  setPlaceSourceEnabled?(layer: string, enabled: boolean, opts?: ScriptSceneOptions): boolean;
+  showPlaceLabels?(layer: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  listMeasurements?(): readonly MeasurementDefinition[];
+  getSelectedMeasurement?(): string | null;
+  /** Upsert by ID, preserving unrelated work. Validates the whole definition first. */
+  upsertMeasurement?(definition: MeasurementDefinition, opts?: ScriptSceneOptions): boolean;
+  removeMeasurement?(id: string, opts?: ScriptSceneOptions): boolean;
+  selectMeasurement?(id: string | null, opts?: ScriptSceneOptions): boolean;
+  showMeasurement?(id: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  /** Merge is the default; replace is explicit. Omitted payload preserves current work. */
+  restoreMeasurements?(state: { version: 1; items: MeasurementDefinition[]; selected?: string }, mode?: 'merge' | 'replace', opts?: ScriptSceneOptions): boolean;
+  listGeographicLayers?(): readonly ScriptGeographicLayer[];
+  listGeographicFeatures?(layer: string, opts?: { offset?: number; limit?: number }): { total: number; features: readonly ScriptGeographicFeature[] } | undefined;
+  getSelectedGeographicFeature?(): { layer: string; feature: string } | null;
+  setGeographicLayerVisible?(layer: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  setGeographicLayerStyle?(layer: string, style: GeographicLayerStyle | null, opts?: ScriptSceneOptions): boolean;
+  selectGeographicFeature?(layer: string, feature: string, opts?: ScriptSceneOptions): boolean;
+  clearGeographicSelection?(): void;
+  gotoGeographicFeature?(layer: string, feature: string, opts?: ScriptSceneOptions & { animate?: boolean }): boolean;
+  createAnnotationLayer?(body: string, name: string, coordinates: GeographicCoordinates, opts?: ScriptSceneOptions): string | false;
+  /** Operations are core's validated edit/undo model; imported layers remain read-only. */
+  editAnnotation?(layer: string, operation: GeographicEditOperation, opts?: ScriptSceneOptions): { featureId: string | number; ref: string } | false;
+  getSurfaceAppearance?(body: string): { settings: ScriptSurfaceAppearance | null; unavailable: string | null } | undefined;
+  setSurfaceAppearance?(body: string, patch: Partial<ScriptSurfaceAppearance>, opts?: ScriptSceneOptions): boolean;
+  getReadiness?(request: ScriptReadinessRequest, opts?: ScriptSceneOptions): ScriptReadiness;
+  waitUntilReady?(request: ScriptReadinessRequest, opts?: ScriptSceneOptions & { timeoutMs?: number; signal?: ScriptCancelSignal }): Promise<ScriptReadiness>;
+
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
   getActivity?(id: string): ScriptActivity | undefined;
   getSelectedActivity?(): ScriptActivity | undefined;
@@ -671,6 +740,14 @@ export interface ViewerSnapshotState {
   /** Layer name → on. Keys are `LAYERS` entries. */
   readonly layers: Readonly<Record<string, boolean>>;
   readonly grid?: GridSettings;
+  readonly selectedPlace?: string;
+  readonly omitted?: readonly string[];
+  readonly placeSources?: readonly { id: string; enabled: boolean; labelsVisible: boolean }[];
+  /** Present => merge by stable ID; absent => preserve. No cached results or drafts. */
+  readonly measurements?: { version: 1; items: MeasurementDefinition[]; selected?: string };
+  readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number }[];
+  readonly geographic?: readonly { id: string; visible: boolean; style: GeographicLayerStyle }[];
+  readonly appearance?: readonly { body: string; settings: ScriptSurfaceAppearance }[];
   /**
    * A caption that will stay up until something clears it.
    *

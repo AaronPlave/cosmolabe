@@ -819,6 +819,11 @@ export class UniverseRenderer {
   }
 
 
+  /** Whether the main view's streaming counters describe its current camera, epoch and source configuration. */
+  surfaceViewIsCurrent(body: string): boolean {
+    return this.bodyMeshes.get(body)?.surfaceViewIsCurrent(this.camera, this.renderer, this.timeController.et) ?? false;
+  }
+
   /** Render a single frame at current time */
   renderFrame(): void {
     const et = this.timeController.et;
@@ -1163,7 +1168,10 @@ export class UniverseRenderer {
         const dist = bm.position.distanceTo(this.camera.position);
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+        if (bm.hasTerrain) {
+          bm.observeSurfaceView(this.camera, this.renderer, et);
+          bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+        }
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
     }

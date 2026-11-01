@@ -1,6 +1,6 @@
 import { geodeticToBodyFixed, type Place, type PlaceIndex, type SurfaceViewPreset } from '@cosmolabe/core';
 import { formatLatitude, formatLongitude } from '@cosmolabe/three';
-import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget } from './viewer-state.svelte';
+import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget, emit } from './viewer-state.svelte';
 import { navigationView, navigationRange, placeRangeKm } from './navigation-view.svelte';
 import { openTool } from './shell.svelte';
 
@@ -33,6 +33,7 @@ export function setPlaceSourceEnabled(layerIds: readonly string[], enabled: bool
     if (!enabled || vs.hiddenPlaceLayers.includes(id)) labels?.hiddenLayers.add(id);
     else labels?.hiddenLayers.delete(id);
   }
+  emit('places', {});
   const target = vs.surfaceTarget?.place;
   if (target) { const place = vs.places?.byRef.get(target.ref); if (!place || !isPlaceAvailable(place)) releaseSurfaceTarget(); }
   const selected = vs.selectedPlaceRef && vs.places?.byRef.get(vs.selectedPlaceRef);
@@ -54,6 +55,7 @@ export function viewportPlace(ref: { layerId: string; featureId: string; bodyNam
 export function selectPlace(place: Place | null, { reveal = true }: { reveal?: boolean } = {}): void {
   if (place && !isPlaceAvailable(place)) return;
   vs.selectedPlaceRef = place?.ref ?? null;
+  emit('places', {});
   const renderer = getRenderer();
   if (renderer) renderer.placeNames.selectedRef = vs.selectedPlaceRef ?? vs.surfaceTarget?.place?.ref ?? null;
   // The place is the one selection: Surface layers lets go of its own.
@@ -63,12 +65,14 @@ export function selectPlace(place: Place | null, { reveal = true }: { reveal?: b
 export function showPlaceBody(body: string, visible: boolean): void {
   vs.placeBodies = [...vs.placeBodies.filter(b => b !== body), ...(visible ? [body] : [])];
   getRenderer()?.placeNames.setBodyVisible(body, visible);
+  emit('places', {});
 }
 
 export function showPlaceDataset(layerId: string, visible: boolean): void {
   vs.hiddenPlaceLayers = [...vs.hiddenPlaceLayers.filter(id => id !== layerId), ...(!visible ? [layerId] : [])];
   const labels = getRenderer()?.placeNames;
   if (visible && !vs.excludedPlaceLayers.includes(layerId)) labels?.hiddenLayers.delete(layerId); else labels?.hiddenLayers.add(layerId);
+  emit('places', {});
 }
 
 export function placeFrameUnavailable(place: Place): string | null {

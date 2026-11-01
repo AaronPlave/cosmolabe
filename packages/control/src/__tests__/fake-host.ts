@@ -1,3 +1,5 @@
+import type { MeasurementDefinition, GeographicCoordinates, GeographicEditOperation, GeographicLayerStyle } from '@cosmolabe/core';
+import type { ScriptReadinessRequest, ScriptReadiness, ScriptSurfaceAppearance } from '../contracts.js';
 import { normalizeGridSettings, type GridSettings } from '../grid.js';
 /**
  * A complete `ViewerControl` with no renderer behind it.
@@ -37,6 +39,39 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
+  selectPlace(ref: string | null) { if (ref && !this.places.some(p => p.ref === ref)) return false; this.selectedPlace = ref; return true; }
+  listPlaceSources() { return []; }
+  setPlaceSourceEnabled(_id: string, _enabled: boolean) { return false; }
+  showPlaceLabels(_id: string, _visible: boolean) { return false; }
+  measurements: MeasurementDefinition[] = [];
+  selectedMeasurement: string | null = null;
+  listMeasurements() { return structuredClone(this.measurements); }
+  getSelectedMeasurement() { return this.selectedMeasurement; }
+  upsertMeasurement(definition: MeasurementDefinition) { this.measurements = [...this.measurements.filter(m => m.id !== definition.id), structuredClone(definition)]; return true; }
+  restoreMeasurements(state: { version: 1; items: MeasurementDefinition[]; selected?: string }, mode: 'merge' | 'replace' = 'merge') {
+    if (mode === 'replace') { this.measurements = []; this.selectedMeasurement = null; }
+    for (const m of state.items) this.upsertMeasurement(m);
+    if (state.selected) this.selectedMeasurement = state.selected;
+    return true;
+  }
+  removeMeasurement(id: string) { const found = this.measurements.some(m => m.id === id); this.measurements = this.measurements.filter(m => m.id !== id); return found; }
+  selectMeasurement(id: string | null) { if (id !== null && !this.measurements.some(m => m.id === id)) return false; this.selectedMeasurement = id; return true; }
+  showMeasurement(id: string, visible: boolean) { const m = this.measurements.find(m => m.id === id); if (!m) return false; m.visible = visible; return true; }
+  listGeographicLayers() { return []; }
+  listGeographicFeatures(_id: string) { return undefined; }
+  getSelectedGeographicFeature() { return null; }
+  setGeographicLayerVisible(_id: string, _visible: boolean) { return false; }
+  setGeographicLayerStyle(_id: string, _style: GeographicLayerStyle | null) { return false; }
+  selectGeographicFeature(_layer: string, _feature: string) { return false; }
+  clearGeographicSelection() {}
+  gotoGeographicFeature(_layer: string, _feature: string) { return false; }
+  createAnnotationLayer(_body: string, _name: string, _coordinates: GeographicCoordinates) { return false as const; }
+  editAnnotation(_layer: string, _operation: GeographicEditOperation) { return false as const; }
+  getSurfaceAppearance(_body: string) { return undefined; }
+  setSurfaceAppearance(_body: string, _patch: Partial<ScriptSurfaceAppearance>) { return false; }
+  getReadiness(request: ScriptReadinessRequest): ScriptReadiness { return { request, scene: this.scene?.id ?? null, status: this.scene?.ready ? 'ready' : 'partial', missing: [], limitations: ['Fake initial assets only'] }; }
+  async waitUntilReady(request: ScriptReadinessRequest, _opts?: { signal?: import('../contracts.js').ScriptCancelSignal; timeoutMs?: number; scene?: number }) { return this.getReadiness(request); }
+
   listActivities(): readonly ScriptActivity[] { return []; }
   getActivity(_id: string): ScriptActivity | undefined { return undefined; }
   getSelectedActivity(): ScriptActivity | undefined { return undefined; }
@@ -433,6 +468,7 @@ export class FakeViewer implements ViewerControl {
       ...(this.grid ? { grid: this.grid } : {}),
       layers: { ...this.layers },
       note: this.note,
+      ...(this.measurements.length ? { measurements: { version: 1 as const, items: this.listMeasurements(), ...(this.selectedMeasurement ? { selected: this.selectedMeasurement } : {}) } } : {}),
     };
   }
 

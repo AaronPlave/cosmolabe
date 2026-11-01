@@ -48,6 +48,7 @@ function vector(v: ScriptVec3): string {
 export function snapshotScript(state: ViewerSnapshotState): string {
   const lines: string[] = ['# Cosmolabe snapshot'];
 
+  for (const omitted of state.omitted ?? []) lines.push(`# Omitted: ${omitted.replace(/[\r\n]/g, ' ')}`);
   lines.push('setPlaying off');
   lines.push(`setTime ${quote(state.timeText ?? num(state.time))}`);
   lines.push(`setTimeRate ${num(state.rate)}`);
@@ -95,7 +96,26 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     lines.push(`setLayer grid ${state.layers.grid ? 'on' : 'off'}`);
   }
 
+  for (const source of state.placeSources ?? []) {
+    lines.push(`setPlaceSourceEnabled ${quote(source.id)} ${source.enabled ? 'on' : 'off'}`);
+    lines.push(`showPlaceLabels ${quote(source.id)} ${source.labelsVisible ? 'on' : 'off'}`);
+  }
+  if (state.measurements) {
+    for (const definition of state.measurements.items) lines.push(`upsertMeasurement ${quote(JSON.stringify(definition))}`);
+    if (state.measurements.selected) lines.push(`selectMeasurement ${quote(state.measurements.selected)}`);
+  }
+  for (const layer of state.imagery ?? []) {
+    lines.push(`showImagery ${quote(layer.body)} ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
+    lines.push(`setImageryOpacity ${quote(layer.body)} ${quote(layer.id)} ${num(layer.opacity)}`);
+  }
+  for (const layer of state.geographic ?? []) {
+    lines.push(`showGeographicLayer ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
+    lines.push(`setGeographicLayerStyle ${quote(layer.id)} ${quote(JSON.stringify(layer.style))}`);
+  }
+  for (const appearance of state.appearance ?? []) lines.push(`setSurfaceAppearance ${quote(appearance.body)} ${quote(JSON.stringify(appearance.settings))}`);
+
   lines.push(state.selected ? `select ${quote(state.selected)}` : 'deselect');
+  if (state.selectedPlace) lines.push(`selectPlace ${quote(state.selectedPlace)}`);
 
   // Persistent only: `ViewerSnapshotState.note` carries a caption that will stay
   // up, and a timed one never reaches here. Emitting it without a duration is

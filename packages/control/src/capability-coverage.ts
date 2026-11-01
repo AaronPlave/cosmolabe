@@ -7,10 +7,13 @@ const UI: Readonly<Record<string, string>> = {
   scene: 'BodyDrawer / NavigationView / ScriptConsole', camera: 'NavigationActions / NavigationView / ScriptConsole',
   time: 'TimeScrubber / TimelineDock / ScriptConsole', activities: 'MissionActivityTimeline / SelectedEventInspector',
   places: 'NavigatePanel', surface: 'SurfaceLayersPanel / ImageryLayersSection', grids: 'SurfaceLayersPanel / ScriptConsole',
+  measurements: 'MeasurementPanel', geographic: 'SurfaceLayersPanel / DrawToolbar', readiness: 'Scene loading / SurfaceLayersPanel',
   display: 'BodyDrawer / ScriptConsole', capture: 'Command palette / ScriptConsole',
 };
 /** Existing port methods which have no catalog operation. A new method must be classified here or registered. */
 export const CONTROL_CONTRACT_GAPS = {
+  getSelectedMeasurement: 'Observed by listMeasurements; trusted hosts receive full definitions.',
+  getSelectedGeographicFeature: 'Scene-scoped geographic selection read; included in notifications.',
   getActivity: 'Activity detail is currently derived from listActivities; direct lookup is not a separate tool.',
   getObjectState: '#297: scientific state query schema and availability/provenance projection missing.',
   getTimelineWindow: '#297: timeline window read/write schemas missing.',
@@ -36,12 +39,11 @@ export const CONTROL_CONTRACT_GAPS = {
 
 export const UI_CAPABILITY_GAPS = [
   { feature: 'Event Finder', ui: 'EventFinder / EventDetails', reason: '#297 owns semantic search/results/selection/readiness APIs; no agent event analysis.' },
-  { feature: 'Measurements', ui: 'MeasurementPanel', reason: '#297 owns measurement create/read/edit/delete APIs and authoring permissions.' },
-  { feature: 'Geographic shapes', ui: 'DrawToolbar', reason: '#297 owns shape import/create/read/edit/delete and frame/provenance semantics.' },
+  { feature: 'Geographic file import/export', ui: 'DrawToolbar', reason: 'Bounded annotation edits are supported; local file import/export and authored layer snapshot transport require an explicit portable-resource contract.' },
   { feature: 'Instruments', ui: 'InstrumentViewPanel', reason: '#297 owns instrument selection, observation, visibility and readiness APIs.' },
   { feature: 'Bookmarks / view sharing', ui: 'NavigationView / camera bookmark and permalink actions', reason: '#297 owns semantic bookmark CRUD and share/export contract. Existing portable view-state functions are not instance-bound catalog operations.' },
   { feature: 'Surface planner', ui: 'SurfaceLayersPanel / external plan:surface CLI', reason: 'CLI planning/building is outside ViewerControl; no browser filesystem/network tool. #297 owns any future viewer contract.' },
-  { feature: 'Terrain appearance / readiness', ui: 'SurfaceAppearanceControls / SurfaceLayersPanel', reason: 'getSurfaceData inventories existing configuration/runtime observations. #297 owns missing appearance writes and complete readiness APIs.' },
+  { feature: 'Terrain appearance / readiness', ui: 'SurfaceAppearanceControls / SurfaceLayersPanel', reason: 'getSurfaceData inventories existing configuration/runtime observations. Appearance writes and bounded readiness predicates are supported. Complete terrain geometry/target LOD and arbitrary-region coverage remain unavailable.' },
 ] as const;
 
 export function capabilityCoverage() {

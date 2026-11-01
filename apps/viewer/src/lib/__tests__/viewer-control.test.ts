@@ -305,6 +305,7 @@ function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
   const all = [...objects, ...catalogOnly];
   const universe = {
+    geographicLayers: { layers: [], loads: [] },
     events: { on: () => () => {} },
     getTimeRange: () => null,
     getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
@@ -1503,4 +1504,12 @@ describe('shared place framing with real catalog records', () => {
     expect(JSON.stringify([site.feature.geometry, crater.feature.geometry])).toBe(before);
     go.mockRestore();
   });
+});
+
+
+it('snapshots the controller frame even before the UI mode mirror updates', () => {
+  const control = createViewerControl();
+  control.setFrame('body-fixed', 'Titan');
+  vs.cameraMode = CameraModeName.FREE_ORBIT;
+  expect(parse(control.snapshot()).statements.find(s => s.verb === 'setFrame')?.args[0]).toBe('body-fixed');
 });

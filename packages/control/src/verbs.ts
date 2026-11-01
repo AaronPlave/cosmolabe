@@ -1,3 +1,4 @@
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
 /**
  * The verb table — one vocabulary, three faces.
  *
@@ -24,6 +25,8 @@
  */
 import type {
   CircleDirection,
+  ScriptCancelSignal,
+  ScriptReadinessRequest,
   FlightPath,
   ScriptTime,
   ScriptVec3,
@@ -87,6 +90,9 @@ export type ParamType =
   | 'place'
   /** An imagery layer ID on the body the verb names. Passed verbatim. */
   | 'imagery'
+  | 'measurement'
+  | 'geographic-layer'
+  | 'geographic-feature'
   /** Free text — a note, a screenshot label. */
   | 'text'
   /** One of `values`. */
@@ -116,7 +122,7 @@ export interface VerbPreset {
 export interface VerbSpec {
   readonly name: string;
   readonly params: readonly VerbParam[];
-  readonly category: 'Scene' | 'Time' | 'Camera' | 'Display' | 'Capture' | 'Sequencing';
+  readonly category: 'Scene' | 'Time' | 'Camera' | 'Display' | 'Capture' | 'Sequencing' | 'Analysis' | 'Authoring';
   readonly help: string;
   /** The `ViewerControl` method this verb needs. Missing on a host → located error. */
   readonly method: keyof ViewerControl;
@@ -127,7 +133,7 @@ export interface VerbSpec {
   readonly resolvesName?: 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery';
   readonly presets?: readonly VerbPreset[];
   /** Table-driven dispatch. `args` are already coerced to `params`' types. */
-  invoke(host: ViewerControl, args: readonly VerbValue[]): unknown;
+  invoke(host: ViewerControl, args: readonly VerbValue[], signal?: ScriptCancelSignal): unknown;
 }
 
 // Coerced-argument accessors. `parse` has already checked arity and type, so
@@ -163,7 +169,42 @@ const CIRCLE_DIRECTIONS: readonly (readonly [string, CircleDirection])[] = [
   ['Down', 'down'],
 ];
 
+/** JSON is a bounded data token, parsed without eval and validated by the shared domain action. */
+function data<T>(value: VerbValue): T {
+  if (typeof value !== 'string' || value.length > 32768) throw new Error('JSON data must be a string of at most 32768 characters');
+  return JSON.parse(value) as T;
+}
+const measurement = { name: 'id', type: 'measurement' } as const;
+const geoLayer = { name: 'layer', type: 'geographic-layer' } as const;
+const geoFeature = { name: 'feature', type: 'geographic-feature' } as const;
+const json = { name: 'json', type: 'text' } as const;
+const visible = { name: 'visible', type: 'boolean' } as const;
+const modernVerbs: readonly VerbSpec[] = [
+  { name: 'selectPlace', category: 'Scene', method: 'selectPlace', params: [{ name: 'place', type: 'place' }], help: 'Inspect a stable place without moving the camera; empty ref clears selection.', invoke: (h,a) => h.selectPlace!(str(a[0]) || null) },
+  { name: 'setPlaceSourceEnabled', category: 'Display', method: 'setPlaceSourceEnabled', params: [geoLayer, { name: 'enabled', type: 'boolean' }], help: 'Include or exclude an exact place source in shared search and navigation.', invoke: (h,a) => h.setPlaceSourceEnabled!(str(a[0]), bool(a[1])) },
+  { name: 'showPlaceLabels', category: 'Display', method: 'showPlaceLabels', params: [geoLayer, visible], help: 'Show or hide source labels independently of search inclusion.', invoke: (h,a) => h.showPlaceLabels!(str(a[0]), bool(a[1])) },
+  { name: 'upsertMeasurement', category: 'Authoring', method: 'upsertMeasurement', params: [json], help: 'Upsert a validated semantic measurement by stable ID; preserve other definitions.', invoke: (h,a) => h.upsertMeasurement!(data<MeasurementDefinition>(a[0])) },
+  { name: 'restoreMeasurements', category: 'Authoring', method: 'restoreMeasurements', params: [json, { name: 'mode', type: 'enum', values: ['merge','replace'], optional: true }], help: 'Restore version 1 measurement definitions; merge by default, replace only when explicit.', invoke: (h,a) => h.restoreMeasurements!(data(a[0]), optStr(a[1]) as 'merge' | 'replace' | undefined) },
+  { name: 'removeMeasurement', category: 'Authoring', method: 'removeMeasurement', params: [measurement], help: 'Remove one saved measurement by ID.', invoke: (h,a) => h.removeMeasurement!(str(a[0])) },
+  { name: 'selectMeasurement', category: 'Analysis', method: 'selectMeasurement', params: [measurement], help: 'Select a measurement; an empty ID clears selection.', invoke: (h,a) => h.selectMeasurement!(str(a[0]) || null) },
+  { name: 'showMeasurement', category: 'Display', method: 'showMeasurement', params: [measurement, visible], help: 'Show or hide a saved measurement.', invoke: (h,a) => h.showMeasurement!(str(a[0]), bool(a[1])) },
+  { name: 'showGeographicLayer', category: 'Display', method: 'setGeographicLayerVisible', params: [geoLayer, visible], help: 'Show or hide one geographic layer.', invoke: (h,a) => h.setGeographicLayerVisible!(str(a[0]), bool(a[1])) },
+  { name: 'setGeographicLayerStyle', category: 'Display', method: 'setGeographicLayerStyle', params: [geoLayer, json], help: 'Apply a validated version 1 layer style; null restores catalog style. Does not save local preferences.', invoke: (h,a) => h.setGeographicLayerStyle!(str(a[0]), data<GeographicLayerStyle | null>(a[1])) },
+  { name: 'selectGeographicFeature', category: 'Scene', method: 'selectGeographicFeature', params: [geoLayer, geoFeature], help: 'Select a stable feature without moving the camera.', invoke: (h,a) => h.selectGeographicFeature!(str(a[0]), str(a[1])) },
+  { name: 'clearGeographicSelection', category: 'Scene', method: 'clearGeographicSelection', params: [], help: 'Clear geographic feature selection.', invoke: h => h.clearGeographicSelection!() },
+  { name: 'gotoGeographicFeature', category: 'Camera', method: 'gotoGeographicFeature', params: [geoLayer, geoFeature, { name: 'animate', type: 'boolean', optional: true }], help: 'Use the existing feature extent navigation; off cuts to the view.', invoke: (h,a) => h.gotoGeographicFeature!(str(a[0]), str(a[1]), { animate: a[2] as boolean | undefined }) },
+  { name: 'createAnnotationLayer', category: 'Authoring', method: 'createAnnotationLayer', params: [{ name: 'body', type: 'object' }, { name: 'name', type: 'text' }, json], help: 'Create a user annotation layer with explicit body/frame/coordinate conventions.', invoke: (h,a) => h.createAnnotationLayer!(str(a[0]), str(a[1]), data<GeographicCoordinates>(a[2])) },
+  { name: 'editAnnotation', category: 'Authoring', method: 'editAnnotation', params: [geoLayer, json], help: 'Apply one bounded core annotation edit, with normal validation and undo. Catalog layers remain read-only.', invoke: (h,a) => h.editAnnotation!(str(a[0]), data<GeographicEditOperation>(a[1])) },
+  { name: 'setSurfaceAppearance', category: 'Display', method: 'setSurfaceAppearance', params: [{ name: 'body', type: 'object' }, json], help: 'Patch supported physical terrain appearance. Changes no terrain geometry or scientific data.', invoke: (h,a) => h.setSurfaceAppearance!(str(a[0]), data(a[1])) },
+  { name: 'waitUntilReady', category: 'Sequencing', method: 'waitUntilReady', params: [json, { name: 'timeoutSeconds', type: 'number', optional: true }], help: 'Wait for an explicit observed readiness predicate, failing transparently unless ready; no wall-clock fallback.', invoke: async (h,a,signal) => {
+    const result = await h.waitUntilReady!(data<ScriptReadinessRequest>(a[0]), { timeoutMs: a[1] === undefined ? undefined : num(a[1]) * 1000, signal });
+    if (result.status !== 'ready') throw new Error(`${result.status}: ${result.missing.join('; ')}`);
+    return result;
+  } },
+];
+
 export const VERB_LIST: readonly VerbSpec[] = [
+  ...modernVerbs,
   { name: 'selectActivity', params: [{ name: 'activity', type: 'activity' }], category: 'Time', method: 'selectActivity', resolvesName: 'activity',
     help: 'Select an activity by stable ID without seeking or moving the camera.', invoke: (h, a) => h.selectActivity!(str(a[0])) },
   { name: 'seekActivity', params: [{ name: 'activity', type: 'activity' }, { name: 'edge', type: 'enum', values: ['start', 'end'], optional: true }],
@@ -264,6 +305,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
       { name: 'longitude', type: 'number' },
       { name: 'view', type: 'enum', values: SURFACE_VIEWS, optional: true },
       { name: 'seconds', type: 'number', optional: true },
+      { name: 'rangeKm', type: 'number', optional: true },
     ],
     category: 'Camera',
     method: 'gotoCoordinates',
@@ -273,6 +315,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
       host.gotoCoordinates(str(a[0]), num(a[1]), num(a[2]), {
         ...(a[3] === undefined ? {} : { view: str(a[3]) as SurfaceView }),
         ...(a[4] === undefined ? {} : { seconds: num(a[4]) }),
+        ...(a[5] === undefined ? {} : { rangeKm: num(a[5]) }),
       }),
   },
   {

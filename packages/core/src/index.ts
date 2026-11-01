@@ -247,3 +247,5 @@ export * from './MissionActivity.js';
 export { surfaceTrajectoryAvailability } from './geometry/surface-trajectory.js';
 export type { SurfaceTrajectoryProvenance, SurfaceTrajectoryAvailability, SurfaceTrajectoryDiagnostic } from './geometry/surface-trajectory.js';
 export { LUNAR_SURFACE_FRAME, lunarProductFrame } from './geographic/lunar-frame.js';
+
+export type { MeasurementDefinition } from './geometry/measurement-definition.js';

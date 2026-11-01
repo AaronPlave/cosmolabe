@@ -22,7 +22,7 @@ import {
 } from '@cosmolabe/core';
 import { sameGeographicFeature, type GeographicFeatureRef } from '@cosmolabe/three';
 import * as THREE from 'three';
-import { flyOverSurface, getRenderer, onViewerEvent, vs } from './viewer-state.svelte';
+import { flyOverSurface, getRenderer, onViewerEvent, vs, emit } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { isToolOpen, onToolClose, openTool } from './shell.svelte';
 import { selectPlace, viewportPlace } from './places';
@@ -184,6 +184,7 @@ export function setLayerVisible(id: string, visible: boolean): void {
   if (!renderer) return;
   if (!visible && geo.selected?.layerId === id) geo.notice = 'Selection cleared: its layer was hidden.';
   renderer.geographicVectors.setVisible(id, visible);
+  emit('geographic', {});
   geo.revision++;
 }
 
@@ -374,6 +375,7 @@ export function selectFeature(ref: GeographicFeatureRef | null, options: { revea
   }
   renderer.geographicVectors.setSelected(ref);
   geo.selected = ref;
+  emit('geographic', {});
   if (ref) followSelection(ref);
   // One selection at a time: browsing to a Gazetteer name selects it here.
   if (ref && vs.selectedPlaceRef) selectPlace(null);
@@ -454,6 +456,8 @@ function resetForScene(): void {
   geo.revision++;
 }
 
+onViewerEvent('unload', () => { resetForScene(); emit('geographic', {}); });
+
 // However the panel closes, the scene filter and the in-view polling go with
 // it; minimizing keeps them.
 onToolClose('layers', () => {
@@ -478,6 +482,7 @@ onViewerEvent('load', () => {
     renderer.events.on('geographic:select', (ref) => {
       if (ref && viewportPlace(ref)) { geo.selected = null; return; }
       geo.selected = ref;
+  emit('geographic', {});
       if (!ref) return;
       followSelection(ref);
       if (vs.selectedPlaceRef) selectPlace(null);
@@ -486,6 +491,6 @@ onViewerEvent('load', () => {
     // Double-click flies, as the callout's ✈ does; a Gazetteer name flies through Places.
     renderer.events.on('geographic:dblclick', (ref) => { if (!viewportPlace(ref)) goToFeature(ref); }),
     renderer.events.on('geographic:hover', (ref) => { geo.hovered = ref; }),
-    scene.events.on('geographic:changed', () => { geo.revision++; }),
+    scene.events.on('geographic:changed', () => { geo.revision++; emit('geographic', {}); }),
   );
 });

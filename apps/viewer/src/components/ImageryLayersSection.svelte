@@ -4,6 +4,7 @@
 </script>
 
 <script lang="ts">
+  import { emit } from '../lib/viewer-state.svelte';
   /**
    * The selected body's streamed imagery stack (#123): which sources it has,
    * which are on, their opacity and order. The settings are transient, scoped
@@ -80,11 +81,13 @@
 
   function setVisible(layer: ImageryLayerInfo, visible: boolean) {
     bodyMesh()?.setImageryLayerVisible(layer.id, visible);
+    emit('surface', { body: bodyMesh()!.body.name });
     rev++;
   }
 
   function setOpacity(layer: ImageryLayerInfo, value: number) {
     bodyMesh()?.setImageryLayerOpacity(layer.id, value);
+    emit('surface', { body: bodyMesh()!.body.name });
     rev++;
   }
 

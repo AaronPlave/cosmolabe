@@ -69,7 +69,7 @@
     return Number.isInteger(n) ? String(n) : n.toFixed(1);
   }
 
-  const CATEGORY_ORDER: readonly VerbSpec['category'][] = ['Scene', 'Camera', 'Time', 'Display', 'Capture', 'Sequencing'];
+  const CATEGORY_ORDER: readonly VerbSpec['category'][] = ['Scene', 'Camera', 'Time', 'Display', 'Analysis', 'Authoring', 'Capture', 'Sequencing'];
   const verbGroups = CATEGORY_ORDER
     .map((category) => ({ category, verbs: VERB_LIST.filter((v) => v.category === category) }))
     .filter((g) => g.verbs.length > 0);
@@ -122,7 +122,7 @@
         placeholder: 'gotoObject Moon\nsetFrame body-fixed Moon\ndisplayNote "The Moon"',
         getNames: () => {
           const cosmo = getCosmo();
-          return { activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()), imagery: (body: string) => safe(() => cosmo.getImagery?.(body)?.layers.map(l => l.id) ?? []) };
+          return { measurements: safe(() => cosmo.listMeasurements?.().map(m => m.id) ?? []), geographicLayers: safe(() => cosmo.listGeographicLayers?.().map(l => l.id) ?? []), geographicFeatures: (layer: string) => safe(() => cosmo.listGeographicFeatures?.(layer)?.features.map(f => f.id) ?? []), activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()), imagery: (body: string) => safe(() => cosmo.getImagery?.(body)?.layers.map(l => l.id) ?? []) };
         },
         onChange: (doc) => {
           source = doc;

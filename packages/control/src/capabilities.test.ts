@@ -24,7 +24,7 @@ describe('capability catalog contract', () => {
     const port = source.statements.find(node => ts.isInterfaceDeclaration(node) && node.name.text === 'ViewerControl') as ts.InterfaceDeclaration;
     const classified = new Set([...defs.map(d => d.method), ...Object.keys(CONTROL_CONTRACT_GAPS)]);
     for (const member of port.members) expect(classified.has(member.name!.getText(source)), member.name!.getText(source)).toBe(true);
-    expect(UI_CAPABILITY_GAPS.map(row => row.feature)).toEqual(expect.arrayContaining(['Event Finder', 'Measurements', 'Geographic shapes', 'Instruments', 'Bookmarks / view sharing', 'Surface planner']));
+    expect(UI_CAPABILITY_GAPS.map(row => row.feature)).toEqual(expect.arrayContaining(['Event Finder', 'Geographic file import/export', 'Instruments', 'Bookmarks / view sharing', 'Surface planner']));
     expect(new Set(coverage.map(row => row.operation).filter(Boolean)).size).toBe(defs.length);
   });
 

@@ -1,0 +1,151 @@
+{
+  "date": "2026-11-01",
+  "baseline": "8a96260bc362a24f82ed64cdc1036fa8f1efd1dd",
+  "command": "CL_VIEWER_URL=http://127.0.0.1:5297/ node scripts/test-modern-scene-automation.mjs",
+  "passed": true,
+  "tourSha256": "52eda9659030012bd823ef640e42fe6f26aa882522bfd5df0f847c70efcfc449",
+  "scenarios": [
+    {
+      "mode": "ordinary",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "activity": "ingenuity:flight:5",
+      "place": "mars:mission:ingenuity-sites/airfield-5",
+      "selectedMeasurement": "tour:mars-centre-distance",
+      "ready": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "cube-base",
+          "body": "Mars"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee.",
+          "Only mandatory cube imagery on currently drawn terrain blocks. Missing geometry and target LOD completeness are excluded."
+        ]
+      },
+      "restoredReady": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "cube-base",
+          "body": "Mars"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee.",
+          "Only mandatory cube imagery on currently drawn terrain blocks. Missing geometry and target LOD completeness are excluded."
+        ]
+      },
+      "imageryReady": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "imagery",
+          "body": "Mars",
+          "layer": "jezero-hirise"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee."
+        ]
+      },
+      "unavailable": {
+        "scene": 1,
+        "status": "unavailable",
+        "request": {
+          "kind": "imagery",
+          "body": "Mars",
+          "layer": "missing-source"
+        },
+        "missing": [
+          "No imagery layer missing-source."
+        ],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee."
+        ]
+      },
+      "captureRefusalReason": "line 1: waitUntilReady: unavailable: No imagery layer missing-source.",
+      "drawingDiagnostics": [],
+      "errors": [],
+      "snapshotRoundTrip": {
+        "camera": true,
+        "measurements": true,
+        "imagery": true,
+        "appearance": true,
+        "placeSelection": true
+      }
+    },
+    {
+      "mode": "test-harness",
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "activity": "ingenuity:flight:5",
+      "place": "mars:mission:ingenuity-sites/airfield-5",
+      "selectedMeasurement": "tour:mars-centre-distance",
+      "ready": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "cube-base",
+          "body": "Mars"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee.",
+          "Only mandatory cube imagery on currently drawn terrain blocks. Missing geometry and target LOD completeness are excluded."
+        ]
+      },
+      "restoredReady": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "cube-base",
+          "body": "Mars"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee.",
+          "Only mandatory cube imagery on currently drawn terrain blocks. Missing geometry and target LOD completeness are excluded."
+        ]
+      },
+      "imageryReady": {
+        "scene": 1,
+        "status": "ready",
+        "request": {
+          "kind": "imagery",
+          "body": "Mars",
+          "layer": "jezero-hirise"
+        },
+        "missing": [],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee."
+        ]
+      },
+      "unavailable": {
+        "scene": 1,
+        "status": "unavailable",
+        "request": {
+          "kind": "imagery",
+          "body": "Mars",
+          "layer": "missing-source"
+        },
+        "missing": [
+          "No imagery layer missing-source."
+        ],
+        "limitations": [
+          "Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee."
+        ]
+      },
+      "captureRefusalReason": "line 1: waitUntilReady: unavailable: No imagery layer missing-source.",
+      "drawingDiagnostics": [],
+      "errors": [],
+      "snapshotRoundTrip": {
+        "camera": true,
+        "measurements": true,
+        "imagery": true,
+        "appearance": true,
+        "placeSelection": true
+      }
+    }
+  ]
+}

@@ -117,7 +117,7 @@ export interface ScriptCompletion {
   readonly insert: string;
   /** What the list shows. */
   readonly label: string;
-  readonly kind: 'verb' | 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery' | 'value';
+  readonly kind: 'verb' | 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery' | 'measurement' | 'geographic-layer' | 'geographic-feature' | 'value';
   /** The verb's usage line, or the parameter a value is for. */
   readonly detail?: string;
   /** One-line help, for a verb. */
@@ -126,6 +126,9 @@ export interface ScriptCompletion {
 
 /** Names only the running viewer knows. */
 export interface CompletionNames {
+  readonly measurements?: readonly string[];
+  readonly geographicLayers?: readonly string[];
+  readonly geographicFeatures?: (layer: string) => readonly string[];
   readonly activities?: readonly string[];
   readonly objects?: readonly string[];
   readonly viewpoints?: readonly string[];
@@ -171,6 +174,9 @@ export function completionsAt(ctx: CursorContext, names: CompletionNames = {}): 
       return ctx.quoted ? [] : values(param.values ?? [], 'value');
     case 'boolean':
       return ctx.quoted ? [] : values(BOOLEANS, 'value');
+    case 'measurement': return values(names.measurements ?? [], 'measurement');
+    case 'geographic-layer': return values(names.geographicLayers ?? [], 'geographic-layer');
+    case 'geographic-feature': return values(names.geographicFeatures?.(ctx.args?.[0] ?? '') ?? [], 'geographic-feature');
     case 'activity':
       return values(names.activities ?? [], 'activity');
     case 'object':

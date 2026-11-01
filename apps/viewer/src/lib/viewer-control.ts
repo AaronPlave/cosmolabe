@@ -1,3 +1,8 @@
+import { definitionEndpoints } from './measurement-link-state';
+import { setPlaceSourceEnabled, showPlaceDataset, selectPlace } from './places';
+import { analysisControl } from './analysis-control';
+import { getReadiness, waitUntilReady } from './readiness-control';
+import { getSurfaceAppearance, setSurfaceAppearance } from './appearance-control';
 /**
  * The viewer's implementation of `ViewerControl`.
  *
@@ -80,6 +85,7 @@ import {
   setScrubberWindow,
   extendTimelineBase,
   sceneId,
+  emit,
 } from './viewer-state.svelte';
 import type { Place } from '@cosmolabe/core';
 import type { BodyMesh } from '@cosmolabe/three';
@@ -208,6 +214,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     const r = getRenderer();
     const et = r?.timeController.et ?? vs.et;
     const tracked = r?.cameraController.trackedBody?.body.name ?? vs.trackedBodyName;
+    const allMeasurements = analysisControl.listMeasurements();
+    const portable = allMeasurements.filter(m => !definitionEndpoints(m).some(e => e.kind === 'surface-point' && e.point.terrainSample));
     return {
       time: et,
       timeText: etToIso(et),
@@ -216,9 +224,16 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       selected: vs.selectedBodyName,
       tracked,
       lookAt: r?.cameraController.lookAtBody?.body.name ?? vs.lookAtBodyName,
-      frame: { mode: vs.cameraMode, body: tracked ?? undefined },
+      frame: { mode: r?.cameraController.mode ?? vs.cameraMode, body: tracked ?? undefined },
       camera: camera(),
       grid: vs.grid,
+      ...(portable.length ? { measurements: { version: 1 as const, items: portable, ...(portable.some(m => m.id === analysisControl.getSelectedMeasurement()) ? { selected: analysisControl.getSelectedMeasurement()! } : {}) } } : {}),
+      ...(vs.selectedPlaceRef && placeByRef(vs.selectedPlaceRef)?.layer.source.kind === 'catalog' ? { selectedPlace: vs.selectedPlaceRef } : {}),
+      omitted: allMeasurements.length > portable.length ? ['Measurements with captured terrain sample provenance require the original product; omitted from portable snapshots.'] : [],
+      placeSources: [...new Map((vs.places?.places ?? []).filter(p => p.layer.source.kind === 'catalog').map(p => [p.layer.id, { id: p.layer.id, enabled: !vs.excludedPlaceLayers.includes(p.layer.id), labelsVisible: !vs.hiddenPlaceLayers.includes(p.layer.id) }])).values()],
+      imagery: bodyNames().flatMap(body => getRenderer()?.getBodyMesh(body)?.imageryLayers?.map(l => ({ body, id: l.id, visible: l.visible, opacity: l.opacity })) ?? []),
+      geographic: analysisControl.listGeographicLayers().filter(l => !l.editable && getSceneUniverse()?.geographicLayers.get(l.id)?.source.kind === 'catalog').map(l => ({ id: l.id, visible: l.visible, style: l.style })),
+      appearance: bodyNames().flatMap(body => { const settings = getSurfaceAppearance(body)?.settings; return settings ? [{ body, settings }] : []; }),
       layers: {
         trajectories: vs.showTrajectories,
         labels: vs.showLabels,
@@ -241,6 +256,27 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
   };
 
   return {
+    selectPlace: (ref, opts) => {
+      inScene(opts?.scene);
+      if (!getRenderer()) return false;
+      if (ref === null) { selectPlace(null, { reveal: false }); return true; }
+      const place = placeByRef(ref);
+      if (!place) return false;
+      if (vs.excludedPlaceLayers.includes(place.layer.id)) throw new Error('The place source is excluded from search and selection');
+      selectPlace(place, { reveal: false }); return true;
+    },
+    listPlaceSources: () => [...new Map((vs.places?.places ?? []).map(p => [p.layer.id, { id: p.layer.id, body: p.layer.body, enabled: !vs.excludedPlaceLayers.includes(p.layer.id), labelsVisible: !vs.hiddenPlaceLayers.includes(p.layer.id) }])).values()],
+    setPlaceSourceEnabled: (id, enabled, opts) => {
+      inScene(opts?.scene);
+      if (typeof enabled !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
+      setPlaceSourceEnabled([id], enabled); return true;
+    },
+    showPlaceLabels: (id, visible, opts) => {
+      inScene(opts?.scene);
+      if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
+      showPlaceDataset(id, visible); return true;
+    },
+    ...analysisControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
@@ -510,14 +546,18 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (!bm || !info) return false;
       // The base keeps the globe textured; it is not the caller's to remove.
       if (!visible && !info.optional) return false;
-      return bm.setImageryLayerVisible(layer, visible) || info.visible === visible;
+      const changed = bm.setImageryLayerVisible(layer, visible) || info.visible === visible;
+      if (changed) emit('surface', { body: name });
+      return changed;
     },
     setImageryOpacity: (name, layer, opacity, opts) => {
       inScene(opts?.scene);
       if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
       const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
       if (!bm?.imageryLayers.some((l) => l.id === layer)) return false;
-      return bm.setImageryLayerOpacity(layer, opacity) || bm.imageryLayers.find((l) => l.id === layer)?.opacity === opacity;
+      const changed = bm.setImageryLayerOpacity(layer, opacity) || bm.imageryLayers.find((l) => l.id === layer)?.opacity === opacity;
+      if (changed) emit('surface', { body: name });
+      return changed;
     },
 
     listObjects: () => bodyNames(),
@@ -526,6 +566,14 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
 
     on: <K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void) => {
       switch (event) {
+        case 'places':
+          return onViewerEvent('places', () => (cb as (d: ScriptEventMap['places']) => void)({ scene: sceneId(), selected: vs.selectedPlaceRef }));
+        case 'measurements':
+          return onViewerEvent('measurements', () => (cb as (d: ScriptEventMap['measurements']) => void)({ scene: sceneId(), selected: analysisControl.getSelectedMeasurement(), count: analysisControl.listMeasurements().length }));
+        case 'geographic':
+          return onViewerEvent('geographic', () => (cb as (d: ScriptEventMap['geographic']) => void)({ scene: sceneId(), selected: analysisControl.getSelectedGeographicFeature() }));
+        case 'surface':
+          return onViewerEvent('surface', ({ body }) => (cb as (d: ScriptEventMap['surface']) => void)({ scene: sceneId(), body }));
         case 'select':
           return onViewerEvent('select', (name) =>
             (cb as (d: ScriptEventMap['select']) => void)({ name }),
