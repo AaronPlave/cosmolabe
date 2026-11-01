@@ -83,6 +83,10 @@ export type ParamType =
   | 'object'
   /** Names a catalog viewpoint. Passed verbatim. */
   | 'viewpoint'
+  /** A place's stable `ref` (`ScriptPlace.ref`). Passed verbatim. */
+  | 'place'
+  /** An imagery layer ID on the body the verb names. Passed verbatim. */
+  | 'imagery'
   /** Free text — a note, a screenshot label. */
   | 'text'
   /** One of `values`. */
@@ -120,7 +124,7 @@ export interface VerbSpec {
    * What a `false` return means, so the error can suggest a real name.
    * Absent when `false` is not about a name (`setFov` out of range, say).
    */
-  readonly resolvesName?: 'object' | 'viewpoint' | 'activity';
+  readonly resolvesName?: 'object' | 'viewpoint' | 'activity' | 'place' | 'imagery';
   readonly presets?: readonly VerbPreset[];
   /** Table-driven dispatch. `args` are already coerced to `params`' types. */
   invoke(host: ViewerControl, args: readonly VerbValue[]): unknown;
@@ -298,6 +302,18 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.viewpoint(str(a[0])),
   },
   {
+    name: 'gotoPlace',
+    params: [
+      { name: 'place', type: 'place' },
+      { name: 'how', type: 'enum', values: ['fly', 'jump'], optional: true },
+    ],
+    category: 'Camera',
+    method: 'gotoPlace',
+    resolvesName: 'place',
+    help: 'Fly (or jump) to a named place by its stable ref, and select it.',
+    invoke: (host, a) => host.gotoPlace!(str(a[0]), { animate: optStr(a[1]) !== 'jump' }),
+  },
+  {
     name: 'setFrame',
     params: [
       { name: 'mode', type: 'enum', values: FRAME_MODE_IDS },
@@ -431,6 +447,32 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.setLayer(str(a[0]), bool(a[1])),
   },
 
+  {
+    name: 'showImagery',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'layer', type: 'imagery' },
+      { name: 'visible', type: 'boolean' },
+    ],
+    category: 'Display',
+    method: 'setImageryVisible',
+    resolvesName: 'imagery',
+    help: "Show or hide one layer of a body's imagery stack, by layer ID.",
+    invoke: (host, a) => host.setImageryVisible!(str(a[0]), str(a[1]), bool(a[2])),
+  },
+  {
+    name: 'setImageryOpacity',
+    params: [
+      { name: 'object', type: 'object' },
+      { name: 'layer', type: 'imagery' },
+      { name: 'opacity', type: 'number' },
+    ],
+    category: 'Display',
+    method: 'setImageryOpacity',
+    resolvesName: 'imagery',
+    help: "Set one imagery layer's opacity, 0 to 1.",
+    invoke: (host, a) => host.setImageryOpacity!(str(a[0]), str(a[1]), num(a[2])),
+  },
   {
     name: 'showBodyGrid', params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
     category: 'Display', method: 'showBodyGrid', resolvesName: 'object', help: 'Show or hide a body surface grid using shared viewer state.',

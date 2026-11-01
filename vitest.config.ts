@@ -26,6 +26,9 @@ export default defineConfig({
         test: {
           name: 'scripts',
           include: ['scripts/**/*.test.mjs'],
+          // Written for `node --test`, which its own workflow runs; vitest
+          // finds no suite in it.
+          exclude: ['scripts/ingest-issue-relationships.test.mjs'],
         },
       },
       // The viewer brings its own config so the Svelte plugin is imported from

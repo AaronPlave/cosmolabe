@@ -189,6 +189,8 @@ function coerce(spec: VerbSpec, param: VerbParam, token: Token): Coerced {
     case 'activity':
     case 'object':
     case 'viewpoint':
+    case 'place':
+    case 'imagery':
     case 'text':
       if (token.kind === 'vector') return { ok: false, message: `${where} expected a name, got a vector` };
       return { ok: true, value: token.text };

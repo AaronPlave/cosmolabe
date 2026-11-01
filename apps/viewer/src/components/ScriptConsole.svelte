@@ -122,7 +122,7 @@
         placeholder: 'gotoObject Moon\nsetFrame body-fixed Moon\ndisplayNote "The Moon"',
         getNames: () => {
           const cosmo = getCosmo();
-          return { activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()) };
+          return { activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()), imagery: (body: string) => safe(() => cosmo.getImagery?.(body)?.layers.map(l => l.id) ?? []) };
         },
         onChange: (doc) => {
           source = doc;

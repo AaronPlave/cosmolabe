@@ -37,4 +37,5 @@ export type {
 } from '@cosmolabe/core';
 export type {
   ViewerControl, ScriptEventMap, ScriptEventName, ScriptTime, ScriptActivity, ScriptActivityFilter, ScriptObjectState, ScriptAvailability,
+  ScriptScene, ScriptPlace, ScriptImagery, ScriptImageryLayer, ScriptFlight, FlightOutcome, FlightPath, SurfaceView,
 } from '@cosmolabe/control';
