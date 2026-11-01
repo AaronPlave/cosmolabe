@@ -302,6 +302,9 @@ export class CameraController {
     return { id: anim.id, destination: anim.destination ?? null, path: anim.path ?? 'direct', phase: anim.phase ?? 'approach' };
   }
 
+  /** Navigation input, including when no automatic flight is active. */
+  onCameraInput: (() => void) | null = null;
+
   /**
    * Told when a flight ends: it `arrived`; `stopFlight` or another camera
    * command (a cut, a reset, a new flight) `stopped` it; or the person's
@@ -478,6 +481,7 @@ export class CameraController {
     this.controls.noPan = true;
 
     this.keyboard = new KeyboardControls(keyboardConfig, domElement);
+    this.keyboard.onNavigationInput = () => this._noteManualInput();
     this._lastFrameMs = performance.now();
 
     // Initialize camera modes
@@ -524,7 +528,7 @@ export class CameraController {
       // `noPan` is what keeps a right-mouse drag from panning *and* free
       // looking at once. Panning here keeps those two independent.
       onPinch: (_scale, dx, dy) => {
-        this._manualInput = true;
+        this._noteManualInput();
         this._touchPanDx += dx;
         this._touchPanDy += dy;
       },
@@ -538,7 +542,7 @@ export class CameraController {
       if (!e.shiftKey) {
         // A plain wheel zooms — navigation. Shift+wheel changes the field of
         // view, which no flight touches, so it does not interrupt one.
-        this._manualInput = true;
+        this._noteManualInput();
         return;
       }
       e.preventDefault();
@@ -1643,10 +1647,15 @@ export class CameraController {
     }
   }
 
+  private _noteManualInput(): void {
+    this._manualInput = true;
+    this.onCameraInput?.();
+  }
+
   /** Pointer travel toward the drag threshold; past it, the press is navigation. */
   private _notePressTravel(dx: number, dy: number): void {
     this._pressTravelPx += Math.abs(dx) + Math.abs(dy);
-    if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._manualInput = true;
+    if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._noteManualInput();
   }
 
   /**
@@ -2001,6 +2010,7 @@ export class CameraController {
     // stops where it is and the person's input applies, this frame. Two
     // controllers taking turns with the camera is the alternative.
     const manual = this._manualInput || this.keyboard.navigating;
+    if (!this._manualInput && this.keyboard.navigating) this.onCameraInput?.();
     this._manualInput = false;
     if (manual && (this._anim || this._move || this._landing)) this._yieldToManualInput();
 

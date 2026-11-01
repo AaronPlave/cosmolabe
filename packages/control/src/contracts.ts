@@ -121,6 +121,8 @@ export interface ScriptEventMap {
   activities: { count: number };
   /** The selected mission activity changed; null when none is selected. */
   activitySelect: { id: string | null };
+  /** The person navigated the camera, including between flights. */
+  cameraInput: Record<string, never>;
   /**
    * A camera flight ended. `outcome` says how: it `arrived`; it was `stopped`
    * by `stopFlight` or another camera command (a cut, a reset, a newer
@@ -169,6 +171,18 @@ export interface ScriptActivity {
   readonly enabled?: boolean;
   readonly id: string; readonly name: string; readonly kind: string;
   readonly vehicle: string; readonly body: string;
+  readonly mission?: string;
+  /** The named place the catalog says the activity happened at (a flight's airfield, say); a name, not a link. */
+  readonly site?: string;
+  /**
+   * What the record points at. `location` is a place ref: the only direct
+   * link from an activity to a place. A record with a `site` and no
+   * `location` is tied to a place by name alone, if at all.
+   */
+  readonly references?: {
+    readonly trajectory?: string; readonly sourceSegment?: string; readonly location?: string; readonly viewpoint?: string;
+    readonly objects?: readonly string[];
+  };
   readonly start: number; readonly end: number;
   readonly temporality: 'instant' | 'interval';
   readonly provenance: { readonly source: string; readonly version: string; readonly authority: string; readonly timing: string; readonly limitations: string; readonly uncertaintySeconds?: number };
@@ -243,9 +257,15 @@ export interface ScriptPlace {
   readonly longitude: number;
   /** The source's indicative extent; absent when the source does not say. */
   readonly diameterKm?: number;
-  /** Source category only. Resource identities/revisions can contain private URLs or paths.
-   * `layer.id` is the catalog-scoped identifier; it is not a public dataset identifier. */
-  readonly source: { readonly kind: 'catalog' | 'local-file' | 'user' };
+  /**
+   * The source's own attributes for the place (a mission site's `Flight`,
+   * `Earth_Date`, …), as the layer states them: strings, numbers and
+   * booleans only, bounded. The evidence a caller can cite for what a place
+   * is; absent when the layer carries none.
+   */
+  readonly fields?: Readonly<Record<string, string | number | boolean>>;
+  /** Trusted local provenance: may contain private URLs/paths. Model-facing reads must project it separately. */
+  readonly source: { readonly kind: 'catalog' | 'local-file' | 'user'; readonly identity?: string; readonly revision?: string };
   /** Null when the place can be navigated to; otherwise why not. */
   readonly unavailable: string | null;
 }
@@ -313,6 +333,48 @@ export interface ScriptImagery {
    */
   readonly imageryOnly: boolean;
   readonly layers: readonly ScriptImageryLayer[];
+}
+
+/** One configured surface product. Null observations mean the runtime does not know. */
+export interface ScriptSurfaceProduct {
+  readonly kind: 'terrain' | 'cube-imagery' | 'baseMap' | 'normalMap' | 'displacementMap' | 'bumpMap' | 'imagery';
+  readonly endpoint: string | null;
+  readonly configured: true;
+  /** Declared product metadata only; filenames do not establish scientific provenance. */
+  readonly source: { readonly id: string | null; readonly revision: string | null; readonly kind: string | null; readonly attribution?: string | null; readonly url?: string | null };
+  readonly frame: string | null;
+  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null } | null;
+  readonly resolutionMeters: number | null;
+  /** Declared cube layout identifier; distinct from the body's render frame. */
+  readonly crsId?: string | null;
+  /** Pyramid levels describe representation detail, not source accuracy. */
+  readonly lod?: { readonly minLevel: number; readonly maxLevel: number } | null;
+  readonly runtime: {
+    /** Manager/manifest initialized; does not mean every tile loaded. */
+    readonly ready: boolean | null;
+    /** At least some product data resident; does not establish complete coverage. */
+    readonly loaded: boolean | null;
+    readonly manifestFailed?: boolean | null;
+    readonly failedRequests: number | null;
+    readonly drawn: boolean | null;
+    /** Complete current-view coverage, when explicitly observable. */
+    readonly coversView: boolean | null;
+    /** Cube base imagery covers every currently drawn terrain block; excludes missing geometry. */
+    readonly coversDrawnTiles?: boolean | null;
+  };
+}
+
+export interface ScriptSurfaceData {
+  readonly body: string;
+  readonly bodyFrame: string | null;
+  readonly surface: ScriptImagery['surface'];
+  readonly terrain: ScriptSurfaceProduct | null;
+  readonly cubeImagery: ScriptSurfaceProduct | null;
+  readonly textures: readonly ScriptSurfaceProduct[];
+  /** Other configured imagery products, including those not initialized yet. */
+  readonly imageryProducts: readonly ScriptSurfaceProduct[];
+  /** Independently managed layers; an empty list says nothing about products above. */
+  readonly overlays: readonly ScriptImageryLayer[];
 }
 
 export interface ViewerControl {
@@ -579,10 +641,9 @@ export interface ViewerControl {
 
   // ── Imagery (#123) ──
 
-  /**
-   * A body's streamed imagery stack and surface state. A body without a
-   * streamed surface reports no layers. Undefined for no such object.
-   */
+  /** Configured products and observed resource state. Undefined for no such object. */
+  getSurfaceData?(body: string): ScriptSurfaceData | undefined;
+  /** Independently managed imagery layers only; not a full surface inventory. */
   getImagery?(body: string): ScriptImagery | undefined;
   /** False for no such object or layer, or for turning off a non-optional base. */
   setImageryVisible?(body: string, layer: string, visible: boolean, opts?: { scene?: number }): boolean;

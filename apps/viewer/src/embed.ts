@@ -14,19 +14,22 @@
  * component styles never reach the host page and the host's never reach it.
  * Only `@font-face` and `@property` rules go to the document (`embed-css.ts`).
  */
+import { builtInAgentMetadata } from './lib/ask/public-metadata';
 import { mount, unmount } from 'svelte';
 import App from './App.svelte';
 import css from './app.css?inline';
 import cspiceWasmUrl from 'cspice-wasm/wasm/cspice.wasm?url';
 import starsUrl from '../public/stars.bin?url';
 import { MissionStateManager, parseMissionActivities, type CatalogJson, type MissionActivity } from '@cosmolabe/core';
-import type { ViewerControl } from '@cosmolabe/control';
+import { createAgentTools, type ViewerControl } from '@cosmolabe/control';
 import type { ActivityConflict, CosmolabeViewer, MountOptions, WorkspaceUi } from './embed-api';
 import type * as Declared from './embed-types';
 import { workspace, ALL_UI } from './lib/workspace.svelte';
 import { setSceneHooks, disposeSession, getSpice } from './lib/loader';
 import { createViewerControl } from './lib/viewer-control';
-import { emit, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent } from './lib/viewer-state.svelte';
+import { emit, etToUtcString, extendTimelineBase, getRenderer, getSceneUniverse, onViewerEvent } from './lib/viewer-state.svelte';
+import { disposeAsk, setHostAskTransport } from './lib/ask/ask.svelte';
+import { createHttpTransport } from './lib/ask/http-transport';
 import { resetStores } from './lib/session.svelte';
 import { splitShadowCss } from './lib/embed-css';
 
@@ -128,6 +131,8 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 
     workspace.embedded = true;
     workspace.ui = { ...EMBED_DEFAULT_UI, ...options.ui };
+    setHostAskTransport(options.ask?.transport ?? null);
+    undo.push(() => disposeAsk());
     const app = mount(App, { target }) as unknown as AppExports;
     undo.push(() => unmount(app as unknown as Record<string, never>));
 
@@ -157,8 +162,11 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
       },
     });
 
+    const agentTools = createAgentTools(control, { formatTime: etToUtcString, metadata: builtInAgentMetadata });
+
     viewer = {
       control,
+      agentTools: guarded(agentTools),
       missionState: guarded({
         addSource: (s) => manager.addSource(s),
         replaceSource: (s) => manager.replaceSource(s),
@@ -212,6 +220,8 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
       dispose: async () => {
         if (disposed) return;
         disposed = true;
+        agentTools.dispose();
+        disposeAsk();
         for (const off of [...subscriptions]) off();
         offFocus();
         offCoverage();
@@ -251,6 +261,8 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 }
 
 export { ActivityConflictError };
+export { createHttpTransport };
+export { AgentTransportError } from '@cosmolabe/control';
 export {
   HostDataAdapter, exploratoryData, parseMissionActivities, etFromCalendarString, etToDate, StateUnavailableError,
 } from '@cosmolabe/core';
@@ -258,3 +270,4 @@ export type * from './embed-types';
 
 // The published declarations (`embed-types.ts`) must describe this function.
 mountCosmolabe satisfies typeof Declared.mountCosmolabe;
+createHttpTransport satisfies typeof Declared.createHttpTransport;

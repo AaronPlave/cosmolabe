@@ -68,7 +68,9 @@ function refusalMessage(spec: VerbSpec, statement: Statement, host: ViewerContro
     if (layer && !layer.optional) return `${spec.name}: ${JSON.stringify(target)} is the base layer and stays on`;
     if (layer) return `${spec.name}: the viewer refused ${statement.text.trim().slice(spec.name.length).trim()}`;
     const ids = layers.map((l) => l.id);
-    return `${spec.name}: ${ids.length ? `no imagery layer ${JSON.stringify(target)} on ${body}${suggestionSuffix(target, ids)}` : `${body} has no streamed imagery`}`;
+    // No near miss: name the layers that do exist, so the next try can be right.
+    const hint = suggestionSuffix(target, ids) || ` (layers: ${ids.join(', ')})`;
+    return `${spec.name}: ${ids.length ? `no imagery layer ${JSON.stringify(target)} on ${body}${hint}` : `${body} has no streamed imagery`}`;
   }
   const args = statement.text.trim().slice(spec.name.length).trim();
   return `${spec.name}: the viewer refused${args ? ` ${args}` : ''}`;

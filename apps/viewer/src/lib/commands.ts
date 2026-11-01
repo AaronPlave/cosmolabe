@@ -9,7 +9,7 @@ import {
   toggleProbe, clearProbePin, navigateToSurfacePoint, showNextInstrument,
 } from './viewer-state.svelte';
 import { exportCameraView, importCameraViewFromFile } from './camera-view-io';
-import { shell, openTool } from './shell.svelte';
+import { shell, openTool, isToolAvailable } from './shell.svelte';
 import { getUniverse } from './loader';
 import { showReference } from './spatial-measurements.svelte';
 import { geo, clearGeographicSelection, findFeature, goToFeature } from './geographic-layers.svelte';
@@ -70,6 +70,8 @@ function getBuiltinCommands(): Command[] {
       { id: 'draw:point', label: `Place a point on ${drawBody()}`, category: 'Inspect', execute: () => startDrawing('point') },
     ] : []),
     ...geographicSelectionCommands(),
+
+    ...(isToolAvailable('ask') ? [{ id: 'ask:open', label: 'Ask Cosmolabe…', category: 'Inspect', execute: () => openTool('ask') }] : []),
 
     // Instrument
     { id: 'instr:open', label: 'Open instrument view', shortcut: 'I', category: 'Display', execute: () => openTool('instrument') },

@@ -6,7 +6,7 @@
 import type {
   CatalogJson, MissionActivity, MissionActivitySpec, MissionStateChange, MissionStateSource, SourceStatus,
 } from '@cosmolabe/core';
-import type { ViewerControl } from '@cosmolabe/control';
+import type { AgentTools, AgentTransport, ViewerControl } from '@cosmolabe/control';
 
 /** Major workspace features a host can leave out. All on in the standalone app. */
 export interface WorkspaceUi {
@@ -32,6 +32,12 @@ export interface MountOptions {
   assetBaseUrl?: string | URL;
   /** Mission-state sources to register at mount; more can be added later. */
   missionState?: readonly MissionStateSource[];
+  /**
+   * The Ask Cosmolabe prompt (#311), through the host's own model transport.
+   * Omitted: no prompt. A host can still drive `agentTools` from an agent of
+   * its own without offering the prompt.
+   */
+  ask?: { transport: AgentTransport };
 }
 
 /** A catalog given as data. Relative paths inside it resolve against `baseUrl` (default: the page). */
@@ -73,6 +79,13 @@ export interface ActivityConflict {
 export interface CosmolabeViewer {
   /** The viewer's control port, with every optional capability implemented. */
   readonly control: Required<ViewerControl>;
+  /**
+   * `control` as typed tools for a language-model agent: JSON-schema inputs,
+   * strict validation, bounded scene reads, observed flight completion,
+   * supersession and manual-takeover guards. The same tools the built-in
+   * prompt uses; see docs/agent-tools.md.
+   */
+  readonly agentTools: AgentTools;
   readonly missionState: MissionStateApi;
   readonly activities: HostActivities;
   /**

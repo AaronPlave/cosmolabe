@@ -1,0 +1,123 @@
+{
+  "date": "2026-11-01",
+  "transport": "Real Anthropic API through visible Ask form; three fresh scene sessions",
+  "checks": [
+    {
+      "answer": "Flight 12 is Ingenuity's longest flight by duration, at about 169.5 seconds. It ran from 2021-08-16 12:53:50 to 12:56:40 UTC, and the timing is estimated. The clock is paused at the flight start, Flight 12 is selected, and the camera is tracking Ingenuity. The flight's site is Airfield H, but the record has no link to a place in this scene.",
+      "status": "done",
+      "error": null,
+      "selectedActivity": "ingenuity:flight:12",
+      "playing": false,
+      "time": 682390499.7,
+      "tracked": "Ingenuity",
+      "name": "duration",
+      "prompt": "Show me the longest Ingenuity flight by duration.",
+      "requests": 6,
+      "errors": [],
+      "validToolJson": true,
+      "actions": [
+        "describeScene",
+        "listActivities",
+        "getActivity",
+        "setPlaying",
+        "selectActivity",
+        "seekActivity",
+        "frameObject",
+        "describeScene"
+      ],
+      "requestedModel": "claude-sonnet-5-5",
+      "reportedModel": "claude-sonnet-5-5"
+    },
+    {
+      "answer": "Do you mean the longest Ingenuity flight by duration or by distance? The catalog gives each flight's start and end times, so I can rank by duration. I haven't selected or moved anything yet.",
+      "status": "done",
+      "error": null,
+      "playing": true,
+      "time": 678747680.0166003,
+      "tracked": "Mars",
+      "name": "ambiguity",
+      "prompt": "Show me the longest Ingenuity flight.",
+      "requests": 1,
+      "errors": [],
+      "validToolJson": true,
+      "actions": [],
+      "requestedModel": "claude-sonnet-5-5",
+      "reportedModel": "claude-sonnet-5-5"
+    },
+    {
+      "answer": "I flew to \"MoonFall PSR landing (synthetic)\" at -89.71\u00b0, -2\u00b0. It's a synthetic mission waypoint, not an observed landing. It is separate from the Shackleton crater place record (-89.67\u00b0, 129.78\u00b0) and the \"Shackleton Overview\" viewpoint.\n\nThe Moon has streamed terrain, built from LOLA 118 m and south-pole 10 m height data. It also has cube imagery, a LROC WAC 100 m and NAC south-pole 1 m composite. Both are loaded and drawn, with no failed requests. Base, normal and displacement textures are configured, but their source and load state are unknown. There are no managed overlay layers. Current-view coverage is unknown.",
+      "status": "done",
+      "error": null,
+      "selectedPlace": "MoonFall PSR landing (synthetic)",
+      "playing": true,
+      "time": 913759520.5967649,
+      "tracked": "Moon",
+      "name": "moonfall",
+      "surface": {
+        "terrain": {
+          "source": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "kind": "height-grid",
+            "attribution": null
+          },
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "runtime": {
+            "ready": true,
+            "loaded": true,
+            "manifestFailed": null,
+            "failedRequests": 0,
+            "drawn": true,
+            "coversView": null,
+            "coversDrawnTiles": null
+          }
+        },
+        "cubeImagery": {
+          "source": {
+            "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
+            "revision": "cube-imagery-composite-3f34a19541af7710",
+            "kind": "imagery",
+            "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)"
+          },
+          "runtime": {
+            "ready": true,
+            "loaded": true,
+            "manifestFailed": false,
+            "failedRequests": 0,
+            "drawn": true,
+            "coversView": null,
+            "coversDrawnTiles": true
+          }
+        }
+      },
+      "prompt": "Show the Shackleton landing area and explain which surface datasets are available.",
+      "requests": 4,
+      "errors": [],
+      "validToolJson": true,
+      "actions": [
+        "describeScene",
+        "resolve",
+        "searchPlaces",
+        "searchPlaces",
+        "gotoPlace",
+        "getSurfaceData",
+        "getImagery",
+        "describeScene"
+      ],
+      "requestedModel": "claude-sonnet-5-5",
+      "reportedModel": "claude-sonnet-5-5"
+    }
+  ],
+  "note": "Compact screenshot is a real duration answer. No provider trace, resource endpoints or arbitrary attributes retained.",
+  "usage": {
+    "requests": 11,
+    "rawTokensProcessed": 95823,
+    "estimatedUsd": 0.05812,
+    "pricing": "standard global Sonnet 5.5, 5-minute writes; estimate from proxy usage logs, not a billing record",
+    "rawTokenCap": 500000,
+    "estimatedUsdGuard": 3
+  }
+}

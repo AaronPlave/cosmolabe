@@ -58,6 +58,9 @@ export class KeyboardControls {
   /** True during the frame if translation was applied */
   translatedThisFrame = false;
 
+  /** Accepted manual navigation key, before the next animation frame. */
+  onNavigationInput: (() => void) | null = null;
+
   /**
    * Altitude (in scene units) above the nearest Globe body, set by
    * `CameraController.adaptSpeeds()` each frame. When non-null, WASD
@@ -90,13 +93,18 @@ export class KeyboardControls {
 
     this._onKeyDown = (e: KeyboardEvent) => {
       if (!this.enabled || !keyEventInScope(e, scope)) return;
+      // OS/browser shortcuts are not camera commands (KeyC also means descend).
+      if (e.metaKey || e.ctrlKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       // A code editor (the script console's CodeMirror) is a contenteditable
       // element, not a textarea: typing in it is not flying the camera.
       if (target?.isContentEditable) return;
-      if (ALL_CODES.has(e.code)) e.preventDefault();
+      if (ALL_CODES.has(e.code)) {
+        e.preventDefault();
+        this.onNavigationInput?.();
+      }
       this._keys.add(e.code);
     };
 

@@ -295,7 +295,7 @@ export interface TerrainPerformanceMetrics {
   /** CPU height queries. Independent of rendered vertex count by construction. */
   sample: { count: number; lastMicros: number; meanMicros: number };
   /** `visible`: selected by any streaming camera; `drawn`: of those, left visible by the main-view draw cull. */
-  tiles: { active: number; visible: number; drawn: number; inCache: number; cpu: number };
+  tiles: { active: number; visible: number; drawn: number; loaded: number; inCache: number; cpu: number };
   network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
   memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
   /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
@@ -679,6 +679,7 @@ export class TerrainManager {
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
   private loadedModels = 0;
+  private residentModels = new Set<THREE.Object3D>();
   /** Tile materials already customized. A virtual (split) tile hands back the
    *  same scene each time it reloads, and chaining the shader injections onto
    *  it again redefines every injected symbol, so the program fails to compile. */
@@ -1084,6 +1085,7 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.loadedModels++;
+      this.residentModels.add(event.scene);
       this.customizeTileMaterial(event.scene, event.tile);
       if (this.cubeConfigured) {
         this.cubeScenes.add(event.scene);
@@ -1095,6 +1097,7 @@ export class TerrainManager {
       this.applyGraticule(event.scene);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
+      this.residentModels.delete(event.scene);
       this.cubeScenes.delete(event.scene);
       if (event.scene) this.surfaceStyle?.forget(event.scene);
       this.cubeImagery?.removeTile(event.tile);
@@ -1478,6 +1481,8 @@ export class TerrainManager {
   get cubeImageryLayer(): CubeImageryLayer | null {
     return this.cubeImagery;
   }
+
+  get cubeImageryMetadata() { return this.cubeImagery?.productMetadata ?? null; }
 
   /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
   get cubeImageryStats(): CubeImageryStats | null {
@@ -2278,12 +2283,20 @@ export class TerrainManager {
     return worst;
   }
 
+  /** Constant-time residency/draw status, without geometry or texture traversal. */
+  get surfaceStatus() {
+    const stats = (this.tiles as any).stats ?? {};
+    return { tiles: { loaded: this.residentModels.size, cpu: this.cpuDiagnostics.tileCount,
+      drawn: Math.max(0, (stats.visible ?? 0) - this.culledScenes.length) },
+    network: { failed: stats.failed ?? 0 } };
+  }
+
   /** Terrain cost/load snapshot. See {@link TerrainPerformanceMetrics}. */
   get metrics(): TerrainPerformanceMetrics {
     const t = this.tiles as any;
     const stats = t.stats ?? {};
     const cache = t.lruCache ?? {};
-    let geometryBytes = 0, textureBytes = 0;
+    let geometryBytes = 0, textureBytes = 0, loadedModels = 0;
     const seenGeometry = new Set<THREE.BufferGeometry>();
     // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
     // share a Source, and three.js uploads a shared Source to the GPU once.
@@ -2305,6 +2318,7 @@ export class TerrainManager {
     // Every loaded model, not just `group`: the renderer detaches tiles that
     // leave the view but keeps their buffers cached until LRU disposal.
     this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      loadedModels++;
       scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -2328,7 +2342,7 @@ export class TerrainManager {
       parse: this.parseTiming.value,
       cpuDecode: this.decodeTiming.value,
       sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
-      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, loaded: loadedModels, inCache: stats.inCache ?? 0, cpu: d.tileCount },
       network: {
         requests: this.requestCount,
         queued: stats.queued ?? 0,
@@ -2380,6 +2394,7 @@ export class TerrainManager {
     }
     this.normalMap?.dispose();
     this.tiles.dispose();
+    this.residentModels.clear();
   }
 
   // ---------------------------------------------------------------------------

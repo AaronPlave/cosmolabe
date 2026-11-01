@@ -103,3 +103,7 @@ dist-embed/
 
 # Generated graticule browser captures and detailed diagnostics (PR #163).
 /work/graticule/
+
+# Python runtime bytecode
+__pycache__/
+*.py[cod]

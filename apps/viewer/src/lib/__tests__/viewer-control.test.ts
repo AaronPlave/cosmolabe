@@ -5,11 +5,13 @@
  * `apps/viewer` in the vitest projects list was to exercise the real rune
  * module. What is faked is the renderer below it, which needs WebGL.
  */
+import { builtInAgentMetadata } from '../ask/public-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
+import { createAgentTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
+import * as viewerState from '../viewer-state.svelte';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { selectEvent } from '../event-finder.svelte';
@@ -35,7 +37,7 @@ const curiosityCatalog = readCatalog('msl-dingo-gap');
 // ── A renderer with no WebGL behind it ──
 
 interface FakeBodyMesh {
-  body: { name: string; classification?: string; parentName?: string };
+  body: { name: string; classification?: string; parentName?: string; geometryData?: Record<string, unknown> };
   displayRadius: number;
   position: { x: number; y: number; z: number; clone(): FakeVec; sub(v: FakeVec): FakeVec };
   visible: boolean;
@@ -1220,7 +1222,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.getPlace('Kraken a')).toBeUndefined();
   });
 
-  it.each(['https://example.test/private-token/names.json?signature=secret', '/Users/alice/private/names.json', 'file:///private/names.json'])('omits raw place source locations from every control read: %s', (identity) => {
+  it.each(['https://example.test/private-token/names.json?signature=secret', '/Users/alice/private/names.json', 'file:///private/names.json'])('preserves rich source locations in trusted local control reads: %s', (identity) => {
     const layer = sites(['a']);
     layer.source.identity = identity;
     layer.source.revision = 'private-revision';
@@ -1229,8 +1231,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     const [place] = control.searchPlaces('krak');
     selectPlace(vs.places.byRef.get(place.ref)!, { reveal: false });
     for (const result of [place, control.getPlace(place.ref), control.getSelectedPlace()]) {
-      expect(result?.source).toEqual({ kind: 'catalog' });
-      expect(JSON.stringify(result)).not.toMatch(/private|signature|secret/);
+      expect(result?.source).toEqual({ kind: 'catalog', identity, revision: 'private-revision' });
     }
   });
 
@@ -1285,6 +1286,35 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     go.mockRestore();
   });
 
+  it('keeps Flight 5 selected through seeking it and going to its site, and gives the place its source fields', () => {
+    const layer = parseGeographicGeoJson(JSON.stringify({ type: 'FeatureCollection', features: [{
+      type: 'Feature', id: 'airfield-5',
+      properties: { name: 'Airfield B', placeKind: 'mission-site', sourceFields: { origin: 'NASA/JPL MMGIS Ingenuity waypoint', Flight: 5, Earth_Date: 'May 7, 2021', nested: { no: 1 }, list: [1] } },
+      geometry: { type: 'Point', coordinates: [77.4513883, 18.44266513] } }] }),
+    { id: 'ingenuity-sites', name: 'Ingenuity sites', body: 'Titan', source: 'ingenuity-sites.geojson', coordinates: { latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '-180..180', referenceShape: { kind: 'sphere', radiusKm: 2575 } } },
+    { kind: 'catalog', identity: 'places/ingenuity-sites.geojson' });
+    vs.places = new PlaceIndex([layer]);
+    vs.activities = parseMissionActivities(ingenuityCatalog.activities);
+    const go = vi.spyOn(placeActions, 'navigateToPlaceForControl').mockReturnValue({ ok: true });
+    const control = createViewerControl();
+    const flight5 = control.getActivity('ingenuity:flight:5')!;
+    // The record states its site by name, and points at no place.
+    expect(flight5).toMatchObject({ site: 'Airfield B', references: { trajectory: 'Ingenuity' } });
+    expect(flight5.references?.location).toBeUndefined();
+    const [place] = control.searchPlaces('Airfield B');
+    // The source's own attributes, flat and primitive; nothing nested comes through.
+    expect(place.fields).toEqual({ origin: 'NASA/JPL MMGIS Ingenuity waypoint', Flight: 5, Earth_Date: 'May 7, 2021' });
+    const scene = control.getScene()!.id;
+
+    expect(control.selectActivity('ingenuity:flight:5', { scene })).toBe(true);
+    expect(control.seekActivity('ingenuity:flight:5', 'start', { scene })).toBe(true);
+    expect(control.gotoPlace(place.ref, { animate: false, scene })).toBe(true);
+    // None of the three clears the activity selection or moves the clock off the flight's start.
+    expect(control.getSelectedActivity()?.id).toBe('ingenuity:flight:5');
+    expect(renderer.timeController.et).toBe(flight5.start);
+    go.mockRestore();
+  });
+
   it('selects a place for a script without opening the Navigate panel', () => {
     vs.places = new PlaceIndex([sites(['a'])]);
     const place = vs.places.places[0];
@@ -1296,6 +1326,70 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     selectPlace(place);
     expect(isToolOpen('navigate')).toBe(true);
     closeTool('navigate');
+  });
+
+  it('inventories real MoonFall products even without managed overlays or runtime data', async () => {
+    bind();
+    const mesh = renderer.getBodyMesh('Titan')!;
+    const moon = moonfallCatalog.items.find((item: { name: string }) => item.name === 'Moon');
+    Object.assign(mesh.body, { geometryData: moon.geometry, rotation: { bodyFixedFrame: moon.rotationModel.bodyFrame } });
+    Object.assign(mesh, { imageryLayers: [], surfaceTransitionState: 'fallback', hasTerrain: true });
+    Object.defineProperty(mesh, 'terrainMetrics', { get() { throw new Error('surface read must not calculate memory'); }, configurable: true });
+    const control = createViewerControl();
+    const data = control.getSurfaceData('Titan')!;
+    expect(data).toMatchObject({
+      bodyFrame: 'MOON_ME_DE421', surface: 'fallback', overlays: [],
+      terrain: { endpoint: 'data/moon-terrain-cube/tileset.json', frame: 'MOON_ME_DE421',
+        source: { id: expect.stringContaining('moon-lola-118m'), revision: null },
+        datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+        resolutionMeters: null, runtime: { ready: true, loaded: null, coversView: null } },
+      cubeImagery: { endpoint: 'data/moon-imagery-cube-wac-nac/imagery.json', source: { revision: null }, runtime: { ready: null, loaded: null, coversView: null } },
+    });
+    expect(data.textures.map(t => t.kind)).toEqual(['baseMap', 'normalMap', 'displacementMap']);
+    expect(data.textures.every(t => t.runtime.loaded === null && t.source.id === null)).toBe(true);
+    const tools = createAgentTools(control);
+    expect(await tools.call('getSurfaceData', { object: 'Titan' })).toMatchObject({ ok: true, data: { body: data.body, terrain: { kind: 'terrain', runtime: data.terrain!.runtime } } });
+    expect(JSON.stringify(await tools.call('getSurfaceData', { object: 'Titan' }))).not.toContain('endpoint');
+    expect(await tools.call('getImagery', { object: 'Titan' })).toMatchObject({ ok: true, summary: expect.stringContaining('no independently managed overlays') });
+    expect(await tools.call('getSurfaceData', {})).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(await tools.call('getSurfaceData', { object: 'Nowhere' })).toMatchObject({ ok: false, code: 'refused' });
+    expect(control.getSurfaceData('Nowhere')).toBeUndefined();
+
+    // The built-in policy preserves exact public science metadata, never endpoints.
+    const manifest = JSON.parse(readFileSync(new URL('./fixtures/moonfall-imagery-source.json', import.meta.url), 'utf8'));
+    Object.assign(mesh, { terrainCubeImageryMetadata: manifest,
+      terrainSourceMetadata: { ...moon.geometry.terrain.sourceMetadata, version: 'cube-fused-79895697c6b6-g3-m12-b6747ec9d' } });
+    const publicTools = createAgentTools(control, { metadata: builtInAgentMetadata });
+    const wire = JSON.stringify(await publicTools.call('getSurfaceData', { object: 'Titan' }));
+    expect(wire).toContain('moon-lola-118m+south-pole-lola-10m-residual');
+    expect(wire).toContain('LRO LROC WAC global mosaic');
+    expect(wire).toContain('LRO LROC NAC South Pole');
+    expect(wire).toContain('reference-sphere');
+    expect(wire).toContain('radial');
+    expect(wire).not.toContain('endpoint');
+    Object.assign(mesh, { terrainSourceMetadata: { id: 'https://internal.example/PATH_SECRET', version: 'PRIVATE_REVISION' },
+      terrainCubeImageryMetadata: { ...manifest, source: { ...manifest.source, id: '/Users/private/catalog', attribution: 'PRIVATE_ATTRIBUTION' } } });
+    const privateWire = JSON.stringify(await publicTools.call('getSurfaceData', { object: 'Titan' }));
+    expect(privateWire).not.toMatch(/PATH_SECRET|PRIVATE_|Users\/private|endpoint/);
+    publicTools.dispose();
+    Object.assign(mesh, { terrainSourceMetadata: undefined, terrainCubeImageryMetadata: undefined });
+
+    // Failed requests do not erase configuration or imply complete coverage.
+    Object.assign(mesh, { terrainSurfaceStatus: { tiles: { inCache: 3, loaded: 0, cpu: 0, drawn: 0 }, network: { failed: 3 } },
+      terrainCubeImageryStats: { ready: false, textures: 0, failures: 1, tiles: 0, version: null, baseUncoveredBlocks: 0 } });
+    expect(control.getSurfaceData('Titan')).toMatchObject({
+      terrain: { configured: true, runtime: { loaded: false, failedRequests: 3, drawn: false, coversView: null } },
+      cubeImagery: { configured: true, runtime: { ready: false, loaded: false, failedRequests: 1, drawn: false, coversView: null } },
+    });
+    Object.assign(mesh, { surfaceTransitionState: 'streamed',
+      terrainCubeImageryStats: { ready: true, textures: 6, failures: 1, tiles: 2, version: 'test-revision', baseUncoveredBlocks: 1 } });
+    expect(control.getSurfaceData('Titan')!.cubeImagery).toMatchObject({ source: { revision: 'test-revision' }, runtime: { ready: true, loaded: true, drawn: true, coversView: null, coversDrawnTiles: false } });
+    mesh.visible = false;
+    expect(control.getSurfaceData('Titan')!.cubeImagery!.runtime).toMatchObject({ drawn: false, coversDrawnTiles: null });
+    // Snapshot data is independent of the next frame's state.
+    expect(data.cubeImagery!.runtime.loaded).toBeNull();
+    mesh.body.geometryData = { baseMap: 'https://user:secret@example.test/map.jpg?token=secret#private', terrain: { url: '//user:secret@example.test/tiles?key=secret' } };
+    expect(JSON.stringify(control.getSurfaceData('Titan'))).not.toContain('secret');
   });
 
   it('reads a body\'s imagery and toggles it, keeping the base on', () => {
@@ -1329,6 +1423,20 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.getImagery('Nowhere')).toBeUndefined();
   });
 
+  it('relays manual camera input and detaches it with the renderer', () => {
+    const control = createViewerControl();
+    const seen = vi.fn();
+    const off = control.on('cameraInput', seen);
+    const cc = renderer.cameraController as unknown as { onCameraInput: (() => void) | null };
+    cc.onCameraInput!();
+    expect(seen).toHaveBeenCalledWith({});
+    off();
+    cc.onCameraInput!();
+    expect(seen).toHaveBeenCalledOnce();
+    unbindRenderer();
+    expect(cc.onCameraInput).toBeNull();
+  });
+
   it('relays how a flight ended, by destination name', () => {
     const control = createViewerControl();
     const seen: ScriptEventMap['flightEnd'][] = [];
@@ -1344,5 +1452,36 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     ]);
     unbindRenderer();
     expect(cc.onFlightEnd).toBeNull();
+  });
+});
+
+
+describe('shared place framing with real catalog records', () => {
+  it('frames Airfield B locally and Jezero by its diameter, preserving their geometry', () => {
+    const places = (name: string) => {
+      const cfg = readCatalog(`places/${name}`);
+      const layer = cfg.geographicLayers[0];
+      return parseGeographicGeoJson(readFileSync(new URL(`../../../test-catalogs/places/${layer.source}`, import.meta.url), 'utf8'),
+        { ...layer, coordinates: cfg.geographicCoordinates }, { kind: 'catalog', identity: layer.source });
+    };
+    vs.places = new PlaceIndex([places('ingenuity-sites'), places('mars')]);
+    const site = vs.places.search('Airfield B')[0];
+    const crater = vs.places.search('Jezero').find(p => p.name === 'Jezero')!;
+    expect(site.diameterKm).toBeUndefined();
+    expect(crater.diameterKm).toBeGreaterThan(40);
+    const before = JSON.stringify([site.feature.geometry, crater.feature.geometry]);
+    const go = vi.spyOn(viewerState, 'goToCoordinates').mockReturnValue({ ok: true } as any);
+    for (const view of ['overhead', 'oblique'] as const) {
+      expect(placeActions.navigateToPlaceForControl(site, { animate: false, view }).ok).toBe(true);
+      expect(go.mock.calls.at(-1)?.[1]).toMatchObject({ preset: view, rangeKm: 0.5 });
+      expect(placeActions.navigateToPlaceForControl(crater, { animate: false, view }).ok).toBe(true);
+      expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBeCloseTo(crater.diameterKm! * 1.5);
+    }
+    expect(placeActions.navigateToPlace(site, 'jump')).toBe(true);
+    expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBe(0.5);
+    expect(placeActions.navigateToPlaceForControl(site, { animate: false, view: 'surface' }).ok).toBe(true);
+    expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBeUndefined();
+    expect(JSON.stringify([site.feature.geometry, crater.feature.geometry])).toBe(before);
+    go.mockRestore();
   });
 });

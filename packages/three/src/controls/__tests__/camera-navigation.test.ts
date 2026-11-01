@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { KeyboardControls } from '../KeyboardControls.js';
 import { CameraController } from '../CameraController.js';
 import { CameraModeName } from '../CameraModes.js';
 import type { InstrumentMode } from '../modes/InstrumentMode.js';
@@ -637,5 +638,66 @@ describe('camera frames', () => {
       expect(setModeForBody).toHaveBeenCalledWith(CameraModeName.BODY_FIXED, moon);
       expect(cc.originBody).toBe(moon);
     }
+  });
+});
+
+
+describe('manual camera input notifications between flights', () => {
+  it('reports navigation keys immediately but excludes typing and unrelated keys', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const { cc } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    const keydown = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const key = (code: string, target: object = {}, modifiers: object = {}) => keydown({ code, target, ...modifiers, preventDefault() {} } as unknown as Event);
+    key('KeyW', { tagName: 'TEXTAREA' });
+    key('KeyW', { isContentEditable: true });
+    key('Escape');
+    for (const modifiers of [{ metaKey: true }, { ctrlKey: true }]) {
+      key('KeyC', {}, modifiers);
+      expect(cc.keyboard.navigating).toBe(false);
+    }
+    expect(input).not.toHaveBeenCalled();
+    key('AltLeft', {}, { altKey: true });
+    expect(input).not.toHaveBeenCalled();
+    key('KeyW', {}, { altKey: true });
+    expect(input).toHaveBeenCalledOnce();
+    cc.keyboard.enabled = false;
+    key('KeyA');
+    expect(input).toHaveBeenCalledOnce();
+  });
+  it('retains Alt slow movement at 0.2 times the normal distance', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const keyboard = new KeyboardControls();
+    const down = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const up = events.mock.calls.filter(([type]) => type === 'keyup').at(-1)![1] as EventListener;
+    const key = (listener: EventListener, code: string, altKey = false) => listener({ code, altKey, target: {}, preventDefault() {} } as unknown as Event);
+    const camera = new THREE.PerspectiveCamera();
+    const target = new THREE.Vector3();
+    camera.position.set(0, 0, 10);
+    key(down, 'KeyW');
+    keyboard.update(camera, target, 0.1);
+    const normal = 10 - camera.position.z;
+    key(up, 'KeyW');
+    camera.position.set(0, 0, 10); target.set(0, 0, 0);
+    key(down, 'AltLeft', true); key(down, 'KeyW', true);
+    keyboard.update(camera, target, 0.1);
+    expect(10 - camera.position.z).toBeCloseTo(normal * 0.2, 10);
+    keyboard.dispose();
+  });
+  it('reports real wheel navigation when idle, excluding field-of-view-only input', () => {
+    const { cc, frame, fire } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: true, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    expect(input).toHaveBeenCalledOnce(); // before a model reply can race the next frame
+    frame(0.1);
+    expect(input).toHaveBeenCalledOnce();
+    expect(cc.flight).toBeNull();
   });
 });

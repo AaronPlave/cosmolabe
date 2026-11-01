@@ -19,6 +19,7 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { surfaceData } from './surface-data';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
@@ -136,15 +137,30 @@ function resolveEpoch(when: ScriptTime, spice: HeritageSpice | null): number | n
 }
 
 /** A place as the port reports it: plain data, nothing that reaches back into the index. */
+/** The source's attribute table for a place, flat and bounded: nothing nested, nothing long. */
+function placeFields(place: Place): Record<string, string | number | boolean> | undefined {
+  const table = place.feature.properties?.sourceFields;
+  if (!table || typeof table !== 'object' || Array.isArray(table)) return undefined;
+  const out: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(table)) {
+    if (Object.keys(out).length >= 16) break;
+    if (typeof value === 'string') out[key] = value.length > 200 ? `${value.slice(0, 200)}…` : value;
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function scriptPlace(place: Place): ScriptPlace {
   const { latDeg, lonDeg } = placeNavigationCoordinates(place);
   const source = place.layer.source;
+  const fields = placeFields(place);
   return {
     ref: place.ref, name: place.name, body: place.layer.body,
     layer: { id: place.layer.id, name: place.layer.name }, feature: place.feature.id,
     kind: place.kind, origin: place.origin, latitude: latDeg, longitude: lonDeg,
     ...(place.diameterKm === undefined ? {} : { diameterKm: place.diameterKm }),
-    source: { kind: source.kind },
+    ...(fields ? { fields } : {}),
+    source: { kind: source.kind, identity: source.identity, ...(source.revision ? { revision: source.revision } : {}) },
     unavailable: placeNavigationProblem(place),
   };
 }
@@ -476,6 +492,12 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       return true;
     },
 
+    getSurfaceData: (name) => {
+      if (!hasBody(name)) return undefined;
+      const bm = getRenderer()?.getBodyMesh(name);
+      const body = bm?.body ?? getSceneUniverse()?.getBody(name);
+      return body ? surfaceData(body, bm, bm ? scriptImagery(bm).layers : []) : undefined;
+    },
     getImagery: (name) => {
       if (!hasBody(name)) return undefined;
       const bm = getRenderer()?.getBodyMesh(name);
@@ -545,6 +567,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
           return onViewerEvent('activities', (count) => (cb as (d: ScriptEventMap['activities']) => void)({ count }));
         case 'activitySelect':
           return onViewerEvent('activitySelect', (id) => (cb as (d: ScriptEventMap['activitySelect']) => void)({ id }));
+        case 'cameraInput':
+          return onViewerEvent('cameraInput', () => (cb as (d: ScriptEventMap['cameraInput']) => void)({}));
         case 'flightEnd':
           return onViewerEvent('flightEnd', (end) => (cb as (d: ScriptEventMap['flightEnd']) => void)({ ...end }));
         default: {

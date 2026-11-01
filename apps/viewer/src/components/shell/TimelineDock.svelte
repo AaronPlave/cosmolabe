@@ -407,6 +407,9 @@
   const inspector = $derived.by(() => {
     const event = selectedEvent;
     if (!event) return null;
+    // The compact Ask sheet needs its answer and input unobscured. Selection
+    // remains intact; the activity inspector returns when the sheet is closed.
+    if (compact && shell.activeSheet === 'ask' && isToolOpen('ask')) return null;
     if (isToolOpen('events') && ef.configuredId === event.queryId) return null;
     const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
     const f = span ? (span.start + span.end) / 2 : timelineFraction(eventStart(event)) < 0 ? 0 : 1;

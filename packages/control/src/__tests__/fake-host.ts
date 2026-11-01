@@ -13,6 +13,7 @@ import { normalizeGridSettings, type GridSettings } from '../grid.js';
 import { snapshotScript } from '../snapshot.js';
 import type {
   CircleDirection,
+  ScriptActivity,
   CoordinateNavigationOptions,
   FlightPath,
   ScriptCamera,
@@ -36,8 +37,9 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
-  listActivities() { return []; }
-  getActivity(_id: string) { return undefined; }
+  listActivities(): readonly ScriptActivity[] { return []; }
+  getActivity(_id: string): ScriptActivity | undefined { return undefined; }
+  getSelectedActivity(): ScriptActivity | undefined { return undefined; }
   selectActivity(_id: string) { return false; }
   seekActivity(_id: string, _edge?: 'start' | 'end') { return false; }
   navigateActivity(_direction: 'previous' | 'next') { return false; }

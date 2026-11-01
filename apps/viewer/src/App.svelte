@@ -25,8 +25,9 @@
   import {
     shell, TOOLS, toggleTool, closeTool, watchLayout, isMinimized,
     reclampFloats, topVisiblePanel, minimizePanel, isToolId, toggleExpanded, expandedPanel,
-    isToolOpen, openTool, setLayout, COMPACT_MAX_WIDTH,
+    isToolOpen, openTool, setLayout, COMPACT_MAX_WIDTH, enableTool,
   } from './lib/shell.svelte';
+  import { askAvailable } from './lib/ask/ask.svelte';
   import { ef, clearSelection } from './lib/event-finder.svelte';
   import { loadDemo, demoCatalogUrl, loadCatalogUrl, handleDrop, handleFileList, resize, getCurrentRenderer, isSessionDisposed } from './lib/loader';
   import { startHero, stopHero } from './lib/hero';
@@ -637,6 +638,7 @@
     document.addEventListener('dragover', onDocDragOver);
     document.addEventListener('drop', onDocDrop);
     const stopLayoutWatch = watchLayout();
+    if (askAvailable()) enableTool('ask');
     return () => {
       viewRestore?.abort();
       stopHero();

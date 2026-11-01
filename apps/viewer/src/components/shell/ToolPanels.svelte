@@ -19,6 +19,7 @@
   import SurfaceLayersPanel from '../SurfaceLayersPanel.svelte';
   import NavigatePanel from '../NavigatePanel.svelte';
   import InstrumentViewPanel from '../InstrumentViewPanel.svelte';
+  import AskPanel from '../AskPanel.svelte';
 
   interface Props {
     /** `all` is the compact case, where the shell picks one sheet instead. */
@@ -51,6 +52,8 @@
     <NavigatePanel onClose={() => closeTool('navigate')} />
   {:else if tool.id === 'events'}
     <EventFinder onClose={() => closeTool('events')} />
+  {:else if tool.id === 'ask'}
+    <AskPanel onClose={() => closeTool('ask')} />
   {:else if tool.id === 'script'}
     <ScriptConsole onClose={() => closeTool('script')} />
   {:else if tool.id === 'debug'}

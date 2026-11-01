@@ -124,6 +124,12 @@ bound, so place refs, imagery layer IDs and activity IDs held across a
 `setImageryVisible`, `setImageryOpacity`) are described in
 [scripting](scripting.md#places-and-imagery).
 
+`viewer.agentTools` is the same control as typed tools for a language-model
+agent, with JSON-schema inputs, bounded scene reads, observed flight completion
+and supersession guards. `mountCosmolabe(el, { ask: { transport } })` adds the
+Ask Cosmolabe prompt over the host's own model path; without it an embed offers
+no prompt. See [agent tools](agent-tools.md).
+
 Reads added for hosts: `getObjectState(name, { time, frame, center })` returns
 position (km) and attitude (scalar-first quaternion, v_body = q ⊗ v_frame ⊗ q*)
 in any frame the scene can resolve, with availability and reasons — the same

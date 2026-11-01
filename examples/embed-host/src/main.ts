@@ -85,6 +85,35 @@ $('unmount').addEventListener('click', async () => {
 });
 $('narrow').addEventListener('click', () => container.classList.toggle('narrow'));
 
+// A host-owned agent (#311). This one is a fixed plan rather than a model, to
+// show the contract: the same `agentTools` the viewer's own prompt uses,
+// resolving names before acting, and reporting each tool's real result —
+// including refusals — instead of assuming success. A host with a model
+// passes its tool calls straight through `task.call(name, input)`, or hands
+// the viewer a transport with `mountCosmolabe(container, { ask: { transport } })`.
+const agentLog = $('agent-log');
+$('agent').addEventListener('click', async () => {
+  if (!viewer) return;
+  agentLog.replaceChildren();
+  const task = viewer.agentTools.begin(); // supersedes a run still going
+  const step = async (name: string, input: unknown) => {
+    const result = await task.call(name, input);
+    const line = document.createElement('li');
+    line.textContent = `${name} ${JSON.stringify(input)} → ${result.ok ? result.summary : `${result.code}: ${result.error}`}`;
+    agentLog.append(line);
+    return result;
+  };
+  const found = await step('resolve', { query: 'imaging window', kinds: ['activity'] });
+  const candidates = found.ok ? (found.data as { candidates: { id: string }[] }).candidates : [];
+  if (candidates.length === 1) {
+    await step('selectActivity', { activity: candidates[0].id });
+    await step('seekActivity', { activity: candidates[0].id, edge: 'start' });
+  }
+  await step('flyTo', { object: 'SC-2' });
+  await step('showImagery', { object: 'Earth', layer: 'not-a-layer', visible: true });
+  task.finish();
+});
+
 // For the acceptance test (scripts/test-embed-host.mjs): the same objects the UI uses.
 Object.assign(window, { host: { get viewer() { return viewer; }, mount, archive, live, seen, T0, utc, sceneCatalog, missionPlan, archiveSource, fixtures, mountCosmolabe } });
 

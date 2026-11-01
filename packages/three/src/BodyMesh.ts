@@ -1226,6 +1226,9 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.metrics ?? null;
   }
 
+  /** Lightweight surface inventory observations, without memory accounting. */
+  get terrainSurfaceStatus() { return this.terrainManager?.surfaceStatus ?? null; }
+
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
   sampleTerrain(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     return this.terrainManager?.sample(latDeg, lonDeg, deriveNormal) ?? null;
@@ -1265,6 +1268,10 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   get terrainFrameAvailability(): TerrainManager['frameAvailability'] | null { return this.terrainManager?.frameAvailability ?? null; }
+
+  /** Product declarations from the loaded terrain and cube imagery sources. */
+  get terrainSourceMetadata() { return this.terrainManager ? { ...this.terrainManager.cpuSource } : null; }
+  get terrainCubeImageryMetadata() { return this.terrainManager?.cubeImageryMetadata ?? null; }
 
   /** Immutable revision of the active physical terrain, when declared. */
   get terrainSourceRevision(): string | undefined { return this.terrainManager?.cpuSource.version; }

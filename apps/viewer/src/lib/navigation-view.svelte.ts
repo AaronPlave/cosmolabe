@@ -12,6 +12,12 @@ export function featureRangeKm(diameterKm?: number): number | undefined {
   return Number.isFinite(km) ? km : undefined;
 }
 
+/** Camera framing only: a point with unknown extent gets a local 500 m view,
+ * never a fabricated physical diameter. Known extents retain feature fitting. */
+export function placeRangeKm(diameterKm?: number): number {
+  return featureRangeKm(diameterKm) ?? 0.5;
+}
+
 export function setNavigationFraming(framing: NavigationFraming, diameterKm?: number): void {
   if (framing === 'custom' && navigationView.framing === 'feature') {
     const km = featureRangeKm(diameterKm);
