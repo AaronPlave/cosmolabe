@@ -84,6 +84,19 @@ try {
     const loaded = path => performance.getEntriesByType('resource').map(e => e.name).find(url => new URL(url).pathname === path);
     const ask = await import(loaded('/src/lib/ask/ask.svelte.ts'));
     const shell = await import(loaded('/src/lib/shell.svelte.ts'));
+    let fixedRounds = 0;
+    ask.setHostAskTransport({ send: async request => {
+      if (request.tools.some(tool => tool.name === 'listCapabilities')) throw new Error('Default Ask unexpectedly offered discovery');
+      fixedRounds++;
+      return fixedRounds === 1
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'fixed-select', name: 'select', input: { object: 'Earth' } }] }
+        : { stop: 'end', content: [{ type: 'text', text: 'Earth selected.' }] };
+    } });
+    await ask.submitAsk('Select Earth');
+    if (window.cosmo.getSelected() !== 'Earth') throw new Error('Default Ask selection was not applied');
+    if (fixedRounds !== 2) throw new Error('Default Ask added discovery rounds');
+    ask.disposeAsk();
+    ask.clearAsk();
     let round = 0;
     const call = (name, input) => ({ stop: 'tool_use', content: [{ type: 'tool_use', id: String(round), name, input }] });
     ask.setHostAskTransport({ send: async () => {
@@ -92,7 +105,7 @@ try {
       if (round === 2) return call('invokeCapability', { id: 'grids.setGridOpacity', input: { opacity: 0.5 } });
       if (round === 3) return call('invokeCapability', { id: 'scene.select', input: { object: 'Moon' } });
       return { stop: 'end', content: [{ type: 'text', text: 'Moon is selected. Grid opacity was requested but its state is unverified.' }] };
-    } });
+    } }, {}, 'discovery');
     shell.enableTool('ask'); shell.openTool('ask');
     await ask.submitAsk('Inspect the Moon and grid opacity');
   });
@@ -109,7 +122,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByText('1 unverified', { exact: false }).first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'compact Ask overflow');
-  report.askPanel = { semanticLabels: true, partialResultVisible: true, desktopAnd390px: true };
+  report.askPanel = { fixedDefaultSelection: true, fixedDefaultRounds: 2, discoveryOptIn: true, semanticLabels: true, partialResultVisible: true, desktopAnd390px: true };
   await page.setViewportSize({ width: 1280, height: 900 });
 
   if (process.env.CAPABILITY_LIVE === '1') for (provider of [anthropicProvider, openaiProvider]) {

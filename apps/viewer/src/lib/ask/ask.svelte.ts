@@ -17,7 +17,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createAgentTools, createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, type AskDeployment } from '../deployment';
@@ -59,11 +59,13 @@ export interface AskTurn {
 export function tally(turn: Pick<AskTurn, 'steps'>) {
   const unrun = (s: AskStep) => !s.result;
   const stopped = (s: AskStep) => !!s.result && !s.result.ok && (s.result.code === 'superseded' || s.result.code === 'cancelled');
+  const inspection = (s: AskStep) => ['listCapabilities', 'describeCapabilities', 'getOperationResult'].includes(s.name);
+  const inspected = turn.steps.filter(s => inspection(s) && s.result?.ok).length;
   const partial = turn.steps.filter(s => s.result?.ok && s.result.receipt?.status === 'partial').length;
-  const done = turn.steps.filter((s) => s.result?.ok && s.result.receipt?.status !== 'partial').length;
+  const done = turn.steps.filter((s) => !inspection(s) && s.result?.ok && s.result.receipt?.status !== 'partial').length;
   const refused = turn.steps.filter((s) => s.result && !s.result.ok && !stopped(s)).length;
   const running = turn.steps.filter(unrun).length;
-  return { total: turn.steps.length, done, partial, refused, running, notRun: turn.steps.filter(stopped).length };
+  return { total: turn.steps.length, done, partial, inspected, refused, running, notRun: turn.steps.filter(stopped).length };
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -88,7 +90,8 @@ export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error
   if (turn.status === 'running' || turn.status === 'done') return null;
   const t = tally(turn);
   const ran = t.done + t.refused + t.partial;
-  const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused || t.partial ? ` (${t.done} done, ${t.refused} refused${t.partial ? `, ${t.partial} unverified` : ''})` : ''}; changes already made to the view remain.`;
+  const inspections = t.inspected ? ` ${plural(t.inspected, 'capability lookup')} completed.` : '';
+  const account = inspections + (ran === 0 ? '' : ` ${plural(ran, 'step')} ran${t.refused || t.partial ? ` (${t.done} done, ${t.refused} refused${t.partial ? `, ${t.partial} unverified` : ''})` : ''}; changes already made to the view remain.`);
   if (turn.status === 'error') {
     if (turn.errorCode === 'budget_exhausted') {
       return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
@@ -118,14 +121,22 @@ resettable(ask);
 
 let hostTransport: AgentTransport | null = null;
 let hostCapabilities: CapabilityToolsOptions = {};
+let toolMode: 'fixed' | 'discovery' = 'fixed';
 let deployment: AskDeployment | null = null;
 let embedded = false;
 
 /** Embedding: the host's own transport, or null for no prompt. Replaces the deployment's. */
-export function setHostAskTransport(transport: AgentTransport | null, capabilities: CapabilityToolsOptions = {}) {
+export function setHostAskTransport(transport: AgentTransport | null, capabilities: CapabilityToolsOptions = {}, mode: 'fixed' | 'discovery' = 'fixed') {
+  if (toolMode !== mode) {
+    stopAsk();
+    tools?.dispose();
+    tools = null;
+    startOver();
+  }
   embedded = true;
   hostTransport = transport;
   hostCapabilities = capabilities;
+  toolMode = mode;
 }
 
 function config(): AskDeployment {
@@ -152,7 +163,11 @@ function currentTransport(): AgentTransport | null {
 // ── The conversation ──
 
 let tools: AgentTools | null = null;
-const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), { ...hostCapabilities, formatTime: etToUtcString, metadata: builtInAgentMetadata }));
+const agentTools = () => (tools ??= toolMode === 'discovery'
+  ? createCapabilityTools(getCosmo(), { ...hostCapabilities, formatTime: etToUtcString, metadata: builtInAgentMetadata })
+  : createAgentTools(getCosmo(), { formatTime: etToUtcString, metadata: builtInAgentMetadata,
+    omittedTools: Object.fromEntries(Object.entries(hostCapabilities.omitted ?? {}).map(([id, reason]) => [id.slice(id.lastIndexOf('.') + 1), reason])),
+  }));
 
 let history: AgentMessage[] = [];
 let historyScene = -1;
@@ -268,6 +283,7 @@ export function disposeAsk() {
   transport = null;
   hostTransport = null;
   hostCapabilities = {};
+  toolMode = 'fixed';
   embedded = false;
   conversation++;
   history = [];

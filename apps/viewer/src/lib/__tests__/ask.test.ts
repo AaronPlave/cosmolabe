@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
+import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import { emit } from '../viewer-state.svelte';
@@ -121,7 +121,8 @@ describe('the Ask session', () => {
     expect(turn.reply).toBe('No scene is loaded.');
     expect(ask.running).toBe(false);
     // The tools offered are the adapter's.
-    expect(transport.requests[0].tools.map((t) => t.name)).toEqual(['describeScene', 'listCapabilities', 'describeCapabilities', 'getOperationResult', 'invokeCapability']);
+    expect(transport.requests[0].tools.map((t) => t.name)).toContain('resolve');
+    expect(transport.requests[0].tools.map((t) => t.name)).not.toContain('listCapabilities');
   });
 
   it('applies the embedding host capability omissions to Ask discovery and execution', async () => {
@@ -130,11 +131,30 @@ describe('the Ask session', () => {
       ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'describe', name: 'describeCapabilities', input: { ids: ['scene.resolve'] } }] }
       : round === 2 ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'resolve', name: 'resolve', input: { query: 'Earth' } }] }
         : textReply('The host omitted name resolution.'));
-    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host omitted name resolution' } });
+    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host omitted name resolution' } }, 'discovery');
     await submitAsk('Find Earth');
     expect(ask.turns[0].steps[0].result).toMatchObject({ ok: true, data: { selected: [{ id: 'scene.resolve', available: false, reason: 'Host omitted name resolution' }] } });
     expect(ask.turns[0].steps[1].result).toMatchObject({ ok: false, code: 'refused' });
     expect(transport.requests[1].tools.map(t => t.name)).not.toContain('resolve');
+  });
+
+  it('enforces host omissions with fixed tools and avoids capability lookup rounds', async () => {
+    const transport = new MockTransport(req => req.messages.length === 1
+      ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'resolve', name: 'resolve', input: { query: 'Earth' } }] }
+      : textReply('Resolution is unavailable.'));
+    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host owns resolution' } });
+    await submitAsk('Find Earth');
+    expect(transport.requests[0].tools.map(t => t.name)).not.toContain('resolve');
+    expect(ask.turns[0].steps[0].result).toMatchObject({ ok: false, code: 'refused', error: 'Host owns resolution' });
+    expect(transport.requests).toHaveLength(2);
+  });
+
+  it('counts capability lookups separately from completed viewer steps', () => {
+    const steps = ['listCapabilities', 'describeCapabilities', 'getOperationResult', 'describeScene'].map(name => ({ id: name, name, input: {}, result: { ok: true as const, summary: 'Read' } }));
+    expect(tally({ steps })).toMatchObject({ inspected: 3, done: 1, partial: 0 });
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null });
+    expect(note?.text).toContain('3 capability lookups completed');
+    expect(note?.text).not.toContain('changes already made');
   });
 
   it('shows only the last round\'s words as the reply, not planning between tool calls', async () => {
@@ -186,7 +206,7 @@ describe('the Ask session', () => {
       expect(turn.steps.map((s) => [s.name, s.result?.ok])).toEqual([['describeScene', true], ['select', false], ['describeScene', true], ['select', false]]);
       expect(turn.reply).toBe(''); // the planning remark of a round that never got its answer
       const note = endNote(turn)!;
-      expect(note.text).toContain('4 actions ran (2 done, 2 refused)');
+      expect(note.text).toContain('4 steps ran (2 done, 2 refused)');
       expect(note.text).toContain('changes already made to the view remain');
       // No retry is offered, and nothing ran after the failure.
       expect(note.text).not.toMatch(/try again|retry/i);

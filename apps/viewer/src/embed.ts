@@ -131,7 +131,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
 
     workspace.embedded = true;
     workspace.ui = { ...EMBED_DEFAULT_UI, ...options.ui };
-    setHostAskTransport(options.ask?.transport ?? null, options.capabilities);
+    setHostAskTransport(options.ask?.transport ?? null, options.capabilities, options.ask?.toolMode);
     undo.push(() => disposeAsk());
     const app = mount(App, { target }) as unknown as AppExports;
     undo.push(() => unmount(app as unknown as Record<string, never>));

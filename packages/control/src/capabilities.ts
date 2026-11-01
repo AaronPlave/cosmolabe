@@ -143,7 +143,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
   const observe = () => {
     try {
       const read = raw.inspect!();
-      const data = read.ok ? read.data as Record<string, unknown> : {};
+      if (!read.ok) return { scope: scope(), state: null };
+      const data = read.data as Record<string, unknown>;
       const state = Object.fromEntries(['scene', 'time', 'selectedObject', 'tracked', 'flight', 'selectedActivity', 'selectedPlace'].map(key => [key, data[key]]));
       const activity = data.selectedActivity as { id: string; name: string } | null;
       const place = data.selectedPlace as { ref: string; name: string; body: string } | null;
@@ -281,11 +282,12 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         finally { busy = false; }
         const observation = observe();
         // Features without a shared semantic read remain explicitly unverified (#297).
-        const verified = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
+        const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
           || ['select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
           || (name === 'seekActivity' && typeof host.listActivities === 'function');
+        const verified = observation.state !== null && hasReadback;
         const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
             : result.code === 'failed' ? 'partial' : 'refused';
@@ -303,7 +305,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             } catch { referenceWarnings.push(`Could not verify reference field ${field}`); }
           }
         }
-        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(result.ok ? verified ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
+        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
         remember(receipt);
         return { ...result, receipt };
       },

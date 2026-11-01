@@ -129,6 +129,8 @@ export interface AgentTools {
 export interface AgentToolsOptions {
   /** Catalog adapter only: include all registered verbs, retaining execute as the dispatcher. */
   vocabulary?: 'curated' | 'catalog';
+  /** Trusted per-tool omissions, enforced even for direct task calls. */
+  omittedTools?: Readonly<Record<string, string>>;
   /** Trusted host permission; captures are refused by default even in catalog mode. */
   allowExport?: boolean;
   /** Only the trusted host can approve public metadata; never derive this policy from catalog fields. */
@@ -763,6 +765,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     }
 
     async call(name: string, input: unknown): Promise<AgentToolResult> {
+      if (opts.omittedTools?.[name]) return { ok: false, code: 'refused', error: opts.omittedTools[name] };
       const def = list().find((t) => t.name === name);
       if (!def) {
         const s = suggest(name, list().map((t) => t.name));
@@ -858,7 +861,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   return {
     inspect: describeScene,
-    list,
+    list: () => list().filter(def => !opts.omittedTools?.[def.name]),
     begin,
     call: async (name, input) => {
       const task = begin();

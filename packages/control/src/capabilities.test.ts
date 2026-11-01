@@ -6,7 +6,7 @@ import { agentDefinitions } from './agent.js';
 import { createCapabilityTools, CAPABILITY_LIMITS } from './capabilities.js';
 import { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
 import { VERB_LIST } from './verbs.js';
-import { resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { CAPABILITY_SYSTEM_PROMPT, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import type { AgentTask } from './agent.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -121,6 +121,33 @@ describe('verified receipts and partial workflows', () => {
     await choose(task, 'scene.select');
     expect(await task.call('select', { object: 'Titan' })).toMatchObject({ ok: false, receipt: { status: 'partial', observation: { state: { selectedObject: null } } } });
     tools.dispose();
+  });
+
+  it('retains success but marks it unverified when resulting observation fails', async () => {
+    const host = new FakeViewer();
+    const original = host.select.bind(host);
+    host.select = (object) => {
+      const result = original(object);
+      host.getCamera = () => { throw new Error('Camera readback unavailable'); };
+      return result;
+    };
+    const tools = createCapabilityTools(host);
+    const task = tools.begin();
+    await choose(task, 'scene.select');
+    const result = await task.call('select', { object: 'Titan' });
+    expect(host.selected).toBe('Titan');
+    expect(result).toMatchObject({ ok: true, receipt: { status: 'partial', verification: 'host-return', observation: { state: null }, warnings: expect.arrayContaining([expect.stringContaining('could not be observed')]) } });
+    expect(tools.getOperationResult(result.receipt!.id)).toEqual(result.receipt);
+    tools.dispose();
+  });
+
+  it('offers discovery instructions without direct semantic-tool workflows', () => {
+    for (const name of ['Use resolve,', 'When resolve', 'searchPlaces', 'listActivities', 'getSurfaceData', 'getImagery', 'seekActivity', 'setPlaying', 'frameObject']) {
+      expect(CAPABILITY_SYSTEM_PROMPT).not.toContain(name);
+    }
+    for (const name of ['describeScene', 'listCapabilities', 'describeCapabilities', 'invokeCapability', 'getOperationResult']) expect(CAPABILITY_SYSTEM_PROMPT).toContain(name);
+    expect(CAPABILITY_SYSTEM_PROMPT).toContain('source provenance withheld');
+    expect(CAPABILITY_SYSTEM_PROMPT).toContain('current-view coverage is unknown');
   });
 
   it('declares missing semantic readback instead of marking every UI feature verified', async () => {

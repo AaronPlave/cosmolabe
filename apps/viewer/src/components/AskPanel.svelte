@@ -59,9 +59,10 @@
 
   /** "4 actions succeeded, 1 refused": what the viewer did for a request, in a line. */
   function actionsLine(turn: AskTurn): string {
-    const { total, done, partial, refused, running, notRun } = tally(turn);
+    const { total, done, partial, inspected, refused, running, notRun } = tally(turn);
     if (total === 0) return '';
-    const parts = [`${done} ${done === 1 ? 'action' : 'actions'} succeeded`];
+    const parts = [`${done} ${done === 1 ? 'step' : 'steps'} completed`];
+    if (inspected) parts.push(`${inspected} capability ${inspected === 1 ? 'lookup' : 'lookups'}`);
     if (refused) parts.push(`${refused} refused`);
     if (partial) parts.push(`${partial} unverified`);
     if (notRun) parts.push(`${notRun} not run`);

@@ -37,7 +37,8 @@ export interface MountOptions {
    * Omitted: no prompt. A host can still drive `agentTools` from an agent of
    * its own without offering the prompt.
    */
-  ask?: { transport: AgentTransport };
+  /** Fixed tools are the default; discovery is opt-in pending broader performance evidence. */
+  ask?: { transport: AgentTransport; toolMode?: 'fixed' | 'discovery' };
   /** Trusted discovery/permission policy shared by capabilities and embedded Ask. */
   capabilities?: Pick<CapabilityToolsOptions, 'omitted' | 'allowExternal' | 'confirmExternal' | 'onReceipt'>;
 }
