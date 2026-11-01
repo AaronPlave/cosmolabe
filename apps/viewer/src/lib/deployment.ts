@@ -135,3 +135,8 @@ export function resolveAskDeployment(env: AskEnv, pageUrl: string): AskDeploymen
 export function askDeployment(): AskDeployment {
   return resolveAskDeployment(import.meta.env as AskEnv, typeof location === 'undefined' ? 'http://localhost/' : location.href);
 }
+
+/** Development-only Ask test override; production URLs cannot enable discovery. */
+export function resolveDevAskToolMode(dev: boolean, search: string): 'fixed' | 'discovery' {
+  return dev && new URLSearchParams(search).get('askMode') === 'discovery' ? 'discovery' : 'fixed';
+}

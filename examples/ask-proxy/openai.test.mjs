@@ -38,6 +38,14 @@ describe('wire → OpenAI Responses', () => {
     ]);
   });
 
+  it('accepts the fixed discovery envelope without strict coercion and allows multi-call rounds', () => {
+    const invoke = { name: 'invokeCapability', description: 'Invoke a selected operation.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, input: { type: 'object' } }, required: ['id', 'input'], additionalProperties: false } };
+    const { body } = toOpenAIRequest({ ...WIRE, tools: [invoke] }, LIMITS);
+    expect(body.parallel_tool_calls).toBe(true);
+    expect(body.tools[0]).toMatchObject({ strict: false, parameters: invoke.inputSchema });
+    expect(body.input[1]).toEqual(reasoning);
+  });
+
   it('rebuilds items for blocks without a raw form, and marks a failed tool result', () => {
     const wire = {
       ...WIRE,

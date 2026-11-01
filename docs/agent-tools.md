@@ -1,5 +1,7 @@
 # Agent tools and Ask Cosmolabe
 
+Built-in Ask now uses the [discoverable capability catalog and verified receipts](discoverable-capabilities.md). The fixed `createAgentTools` API documented below remains available to existing hosts.
+
 Cosmolabe can be driven in natural language (#311): a model reads the request, chooses actions from a fixed set of typed tools, and the viewer carries them out. The model is never the source of truth. The catalog, SPICE and host state, mission activities, and the terrain and imagery sources are. The model can only call tools, and every tool answers with what the viewer actually did.
 
 There are two parts, and they share everything:

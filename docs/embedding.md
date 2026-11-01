@@ -1,5 +1,7 @@
 # Embedding the Cosmolabe workspace
 
+`viewer.capabilities` exposes the [versioned discovery and receipt API](discoverable-capabilities.md); `MountOptions.capabilities` supplies trusted host omissions and external-action confirmation to it and embedded Ask. Existing `viewer.agentTools` callers remain supported.
+
 The standalone viewer's complete workspace — renderer, tool rail, timeline and
 activity lanes, panels, event finder, measurements, camera controls — mounts into
 any element of any web page. There is one implementation: the standalone app and

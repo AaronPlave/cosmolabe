@@ -3,9 +3,9 @@
 // offering the tool only where a model is configured.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ScriptCancelSignal } from '@cosmolabe/control';
-import { resolveAskDeployment } from '../deployment';
+import { resolveAskDeployment, resolveDevAskToolMode } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk } from '../ask/ask.svelte';
+import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import { emit } from '../viewer-state.svelte';
@@ -22,6 +22,18 @@ describe('resolveAskDeployment', () => {
   });
   it('resolves the endpoint against the page', () => {
     expect(resolveAskDeployment({ VITE_ASK_ENDPOINT: '/ask' }, page)).toEqual({ mode: 'proxy', endpoint: 'https://viewer.test/ask' });
+  });
+});
+
+describe('development Ask mode', () => {
+  it('requires both development and the exact opt-in; production always stays fixed', () => {
+    for (const search of ['', '?askMode=fixed', '?askMode=Discovery', '?askMode=', '?askMode=discovery']) {
+      expect(resolveDevAskToolMode(false, search)).toBe('fixed');
+    }
+    expect(resolveDevAskToolMode(true, '?askMode=discovery')).toBe('discovery');
+    expect(resolveDevAskToolMode(true, '?catalog=moonfall-shackleton&askMode=discovery')).toBe('discovery');
+    expect(resolveDevAskToolMode(true, '')).toBe('fixed');
+    expect(resolveDevAskToolMode(true, '?askMode=other')).toBe('fixed');
   });
 });
 
@@ -101,6 +113,8 @@ describe('the Ask session', () => {
   afterEach(() => {
     disposeAsk();
     resetStores();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('is unavailable with no deployment or host transport', () => {
@@ -122,6 +136,109 @@ describe('the Ask session', () => {
     expect(ask.running).toBe(false);
     // The tools offered are the adapter's.
     expect(transport.requests[0].tools.map((t) => t.name)).toContain('resolve');
+    expect(transport.requests[0].tools.map((t) => t.name)).not.toContain('listCapabilities');
+  });
+
+  it('applies the embedding host capability omissions to Ask discovery and execution', async () => {
+    let round = 0;
+    const transport = new MockTransport(() => ++round === 1
+      ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'describe', name: 'describeCapabilities', input: { ids: ['scene.resolve'] } }] }
+      : round === 2 ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'resolve', name: 'resolve', input: { query: 'Earth' } }] }
+        : textReply('The host omitted name resolution.'));
+    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host omitted name resolution' } }, 'discovery');
+    await submitAsk('Find Earth');
+    expect(ask.turns[0].steps[0].result).toMatchObject({ ok: true, data: { selected: [{ id: 'scene.resolve', available: false, reason: 'Host omitted name resolution' }] } });
+    expect(ask.turns[0].steps[1].result).toMatchObject({ ok: false, code: 'refused' });
+    expect(transport.requests[1].tools.map(t => t.name)).not.toContain('resolve');
+  });
+
+  it('enforces host omissions with fixed tools and avoids capability lookup rounds', async () => {
+    const transport = new MockTransport(req => req.messages.length === 1
+      ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'resolve', name: 'resolve', input: { query: 'Earth' } }] }
+      : textReply('Resolution is unavailable.'));
+    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host owns resolution' } });
+    await submitAsk('Find Earth');
+    expect(transport.requests[0].tools.map(t => t.name)).not.toContain('resolve');
+    expect(ask.turns[0].steps[0].result).toMatchObject({ ok: false, code: 'refused', error: 'Host owns resolution' });
+    expect(transport.requests).toHaveLength(2);
+  });
+
+  it('counts capability lookups separately from completed viewer steps', () => {
+    const steps = ['listCapabilities', 'describeCapabilities', 'getOperationResult', 'describeScene'].map(name => ({ id: name, name, input: {}, result: { ok: true as const, summary: 'Read' } }));
+    expect(tally({ steps })).toMatchObject({ inspected: 3, done: 1, partial: 0 });
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null });
+    expect(note?.text).toContain('3 capability lookups completed');
+    expect(note?.text).not.toContain('changes already made');
+  });
+
+  it('uses the normal proxy with the dev URL mode and resets history when it changes', async () => {
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_ASK_ENDPOINT', '/ask');
+    const page = { href: 'http://localhost/?askMode=discovery', search: '?askMode=discovery' };
+    vi.stubGlobal('location', page);
+    const requests: AgentRequest[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(init.body as string));
+      return new Response(JSON.stringify({ version: 1, ...textReply('Observed.') }));
+    });
+    await submitAsk('Inspect this scene');
+    await submitAsk('Again');
+    expect(requests[0].tools.map(t => t.name)).toEqual(['describeScene', 'listCapabilities', 'describeCapabilities', 'getOperationResult', 'invokeCapability']);
+    expect(requests[1].messages.length).toBeGreaterThan(1);
+    page.search = '?askMode=fixed';
+    await submitAsk('Find Earth');
+    expect(requests[2].tools.map(t => t.name)).toContain('resolve');
+    expect(requests[2].messages).toHaveLength(1);
+    expect(ask.toolMode).toBe('fixed');
+    page.search = '?askMode=discovery';
+    await submitAsk('Inspect');
+    expect(requests[3].messages).toHaveLength(1);
+    expect(ask.toolMode).toBe('discovery');
+  });
+
+  it('cancels a running task on mode change and drops its late tool response', async () => {
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_ASK_ENDPOINT', '/ask');
+    const page = { href: 'http://localhost/', search: '' };
+    vi.stubGlobal('location', page);
+    let release!: (response: Response) => void;
+    let firstSignal!: AbortSignal;
+    const requests: AgentRequest[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(init.body as string));
+      if (requests.length === 1) {
+        firstSignal = init.signal as AbortSignal;
+        return new Promise<Response>(resolve => { release = resolve; });
+      }
+      return new Response(JSON.stringify({ version: 1, ...textReply('New mode.') }));
+    });
+    const first = submitAsk('Move camera');
+    await until(() => requests.length === 1);
+    page.search = '?askMode=discovery';
+    const second = submitAsk('Inspect');
+    expect(firstSignal.aborted).toBe(true);
+    release(new Response(JSON.stringify({ version: 1, stop: 'tool_use', content: [{ type: 'tool_use', id: 'late', name: 'select', input: { object: 'Earth' } }] })));
+    await Promise.all([first, second]);
+    expect(ask.turns.at(-2)?.steps).toHaveLength(0);
+    expect(ask.turns.at(-2)?.status).toBe('cancelled');
+    expect(ask.turns.at(-1)?.reply).toBe('New mode.');
+    expect(requests[1].messages).toHaveLength(1);
+    expect(requests[1].tools.map(t => t.name)).toContain('listCapabilities');
+  });
+
+  it('ignores a discovery URL in production when offering tools to the proxy', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_ASK_ENDPOINT', '/ask');
+    vi.stubGlobal('location', { href: 'http://viewer.test/?askMode=discovery', search: '?askMode=discovery' });
+    let request!: AgentRequest;
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      request = JSON.parse(init.body as string);
+      return new Response(JSON.stringify({ version: 1, ...textReply('Observed.') }));
+    });
+    await submitAsk('Inspect');
+    expect(request.tools.map(t => t.name)).toContain('resolve');
+    expect(request.tools.map(t => t.name)).not.toContain('listCapabilities');
+    expect(ask.toolMode).toBe('fixed');
   });
 
   it('shows only the last round\'s words as the reply, not planning between tool calls', async () => {
@@ -173,7 +290,7 @@ describe('the Ask session', () => {
       expect(turn.steps.map((s) => [s.name, s.result?.ok])).toEqual([['describeScene', true], ['select', false], ['describeScene', true], ['select', false]]);
       expect(turn.reply).toBe(''); // the planning remark of a round that never got its answer
       const note = endNote(turn)!;
-      expect(note.text).toContain('4 actions ran (2 done, 2 refused)');
+      expect(note.text).toContain('4 steps ran (2 done, 2 refused)');
       expect(note.text).toContain('changes already made to the view remain');
       // No retry is offered, and nothing ran after the failure.
       expect(note.text).not.toMatch(/try again|retry/i);

@@ -84,7 +84,7 @@ describe('agent tools: validation', () => {
   it('takes a time as a calendar string or seconds past J2000', async () => {
     const host = new FakeViewer();
     const calls: unknown[] = [];
-    host.setTime = (when) => { calls.push(when); return true; };
+    host.setTime = (when) => { calls.push(when); if (when.kind === 'et') host.time = when.et; return true; };
     const t = createAgentTools(host);
     expect((await t.call('setTime', { when: '2021-04-30T19:00:00' })).ok).toBe(true);
     expect((await t.call('setTime', { when: 1000 })).ok).toBe(true);
@@ -150,7 +150,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     const pending = createAgentTools(host).call('flyTo', { object: 'Titan' });
     await tick();
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.' });
+    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
   });
 
   it('leaves the camera to a person who takes it, for the rest of the task', async () => {
@@ -204,7 +204,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     await tick();
     expect(settled).toBe(false);
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.' });
+    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
   });
 
   it('reports its flight stopped when another command replaces it, and does not wait on the replacement', async () => {

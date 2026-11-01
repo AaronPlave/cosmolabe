@@ -6,7 +6,7 @@
 import type {
   CatalogJson, MissionActivity, MissionActivitySpec, MissionStateChange, MissionStateSource, SourceStatus,
 } from '@cosmolabe/core';
-import type { AgentTools, AgentTransport, ViewerControl } from '@cosmolabe/control';
+import type { AgentTools, AgentTransport, CapabilityTools, CapabilityToolsOptions, ViewerControl } from '@cosmolabe/control';
 
 /** Major workspace features a host can leave out. All on in the standalone app. */
 export interface WorkspaceUi {
@@ -37,7 +37,10 @@ export interface MountOptions {
    * Omitted: no prompt. A host can still drive `agentTools` from an agent of
    * its own without offering the prompt.
    */
-  ask?: { transport: AgentTransport };
+  /** Fixed tools are the default; discovery is opt-in pending broader performance evidence. */
+  ask?: { transport: AgentTransport; toolMode?: 'fixed' | 'discovery' };
+  /** Trusted discovery/permission policy shared by capabilities and embedded Ask. */
+  capabilities?: Pick<CapabilityToolsOptions, 'omitted' | 'allowExternal' | 'confirmExternal' | 'onReceipt'>;
 }
 
 /** A catalog given as data. Relative paths inside it resolve against `baseUrl` (default: the page). */
@@ -86,6 +89,8 @@ export interface CosmolabeViewer {
    * prompt uses; see docs/agent-tools.md.
    */
   readonly agentTools: AgentTools;
+  /** Versioned discovery and verified receipts for this viewer's shared control operations. */
+  readonly capabilities: CapabilityTools;
   readonly missionState: MissionStateApi;
   readonly activities: HostActivities;
   /**
