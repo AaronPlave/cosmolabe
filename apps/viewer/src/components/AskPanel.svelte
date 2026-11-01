@@ -150,6 +150,9 @@
 
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
+    {#if import.meta.env.DEV}
+      <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} title="Development Ask tool mode">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
+    {/if}
     {#if ask.turns.length > 0}
       <button
         class="ui-meta flex items-center gap-1 rounded px-1.5 py-0.5 text-text-secondary hover:bg-hover hover:text-text-primary"

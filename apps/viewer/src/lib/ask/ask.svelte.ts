@@ -20,7 +20,7 @@ import {
   createAgentTools, createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
-import { askDeployment, type AskDeployment } from '../deployment';
+import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
 import { getCosmo } from '../loader';
 import { etToUtcString, onViewerEvent, sceneId } from '../viewer-state.svelte';
 import { resettable } from '../session.svelte';
@@ -114,6 +114,7 @@ const MAX_SHOWN = 50;
 export const ask = $state({
   turns: [] as AskTurn[],
   running: false,
+  toolMode: standaloneToolMode(),
 });
 resettable(ask);
 
@@ -121,22 +122,15 @@ resettable(ask);
 
 let hostTransport: AgentTransport | null = null;
 let hostCapabilities: CapabilityToolsOptions = {};
-let toolMode: 'fixed' | 'discovery' = 'fixed';
 let deployment: AskDeployment | null = null;
 let embedded = false;
 
 /** Embedding: the host's own transport, or null for no prompt. Replaces the deployment's. */
 export function setHostAskTransport(transport: AgentTransport | null, capabilities: CapabilityToolsOptions = {}, mode: 'fixed' | 'discovery' = 'fixed') {
-  if (toolMode !== mode) {
-    stopAsk();
-    tools?.dispose();
-    tools = null;
-    startOver();
-  }
+  changeToolMode(mode);
   embedded = true;
   hostTransport = transport;
   hostCapabilities = capabilities;
-  toolMode = mode;
 }
 
 function config(): AskDeployment {
@@ -163,7 +157,7 @@ function currentTransport(): AgentTransport | null {
 // ── The conversation ──
 
 let tools: AgentTools | null = null;
-const agentTools = () => (tools ??= toolMode === 'discovery'
+const agentTools = () => (tools ??= ask.toolMode === 'discovery'
   ? createCapabilityTools(getCosmo(), { ...hostCapabilities, formatTime: etToUtcString, metadata: builtInAgentMetadata })
   : createAgentTools(getCosmo(), { formatTime: etToUtcString, metadata: builtInAgentMetadata,
     omittedTools: Object.fromEntries(Object.entries(hostCapabilities.omitted ?? {}).map(([id, reason]) => [id.slice(id.lastIndexOf('.') + 1), reason])),
@@ -178,6 +172,27 @@ let running: Promise<unknown> | null = null;
 let turnSeq = 0;
 /** Bumped whenever the conversation is replaced, so a run that ends late cannot write into the new one. */
 let conversation = 0;
+
+function standaloneToolMode(): 'fixed' | 'discovery' {
+  return resolveDevAskToolMode(import.meta.env.DEV, typeof location === 'undefined' ? '' : location.search);
+}
+
+function changeToolMode(mode: 'fixed' | 'discovery') {
+  if (ask.toolMode === mode) return;
+  stopAsk();
+  tools?.dispose();
+  tools = null;
+  ask.toolMode = mode;
+  startOver();
+}
+
+// Back/forward URL changes reset provider history before another request can run.
+// submitAsk also synchronizes pushState/replaceState changes, which emit no event.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  const syncMode = () => { if (!embedded) changeToolMode(standaloneToolMode()); };
+  window.addEventListener('popstate', syncMode);
+  import.meta.hot?.dispose(() => window.removeEventListener('popstate', syncMode));
+}
 
 /** The model forgets what was said; what the panel shows stays. */
 function startOver() {
@@ -196,6 +211,7 @@ export async function submitAsk(prompt: string): Promise<void> {
   const t = currentTransport();
   if (!text || !t) return;
 
+  if (!embedded) changeToolMode(standaloneToolMode());
   const toolkit = agentTools();
   const mine = toolkit.begin(); // supersedes the running task, if any
   task = mine;
@@ -283,7 +299,8 @@ export function disposeAsk() {
   transport = null;
   hostTransport = null;
   hostCapabilities = {};
-  toolMode = 'fixed';
+  ask.toolMode = standaloneToolMode();
+  deployment = null;
   embedded = false;
   conversation++;
   history = [];
