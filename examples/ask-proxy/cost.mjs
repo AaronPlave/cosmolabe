@@ -13,7 +13,11 @@ const PRICES = {
 };
 
 export function estimatedCostUsd(provider, usage) {
-  const prices = PRICES[provider]?.[usage.model];
+  // Long-context rates depend on ALL prompt tokens, including cache reads/writes.
+  const promptTokens = usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
+  const prices = provider === 'anthropic' && usage.model === 'claude-haiku-5-5'
+    ? (promptTokens > 100_000 ? [0.5, 0.05, 0.625, 2.5] : [0.1, 0.01, 0.125, 0.5])
+    : PRICES[provider]?.[usage.model];
   if (!prices) return null;
   return (usage.inputTokens * prices[0] + usage.cacheReadTokens * prices[1]
     + usage.cacheWriteTokens * prices[2] + usage.outputTokens * prices[3]) / 1_000_000;
