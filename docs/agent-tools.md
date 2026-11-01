@@ -76,6 +76,12 @@ Calls belong to a **task**. `begin()` starts one per request, and `call(name, in
 - **Scene guards.** A task holds the `getScene().id` it began with. Once a catalog loads or reloads, every call returns `stale` before anything runs, and a pending flight wait ends. This check is the adapter's, made on every call, so a place ref or layer id that a new catalog happens to reuse can never act on the new scene. Direct `ViewerControl` callers get the same guard from the `scene` option of the actions that take such an ID (see `docs/scripting.md`).
 - **Cancel** (`task.cancel()`, `tools.cancel()`) stops the flight the task started, where it is, if that flight is still the one playing. A flight a person or host started since, or one the task never started, is left alone: Stop then only ends the request. Nothing else is undone.
 
+For inspection of a specific activity moment, Ask requests a pause through `setPlaying` before seeking. `seekActivity` itself retains its existing semantics and never pauses implicitly. Time-write results state whether playback continues or is paused; the final scene read remains the authority. A host refusal is reported without bypassing it.
+
+Place navigation uses a 0.5 km camera range for point anchors whose physical diameter is unknown. This is a navigation preference, not a landing-zone extent or a change to source geometry. Known diameters retain feature fitting; surface eye heights and explicit custom ranges retain their own policy. The same defaults serve UI and control callers.
+
+`describeScene` names `selectedObject`, `selectedActivity` and `selectedPlace` separately. `cameraInput` reports manual navigation even between flights, so the active agent request yields subsequent camera writes to the person. Surface inventory reads use constant-time terrain status rather than traversing cached models for memory accounting.
+
 Host clock and selection ownership is unchanged. Agent writes go through `ViewerControl` like any other viewer-side write, so a host mirroring `time` sees them with `cause: 'viewer'`, and its own `cause: 'host'` echoes stay filterable as before.
 
 ## The loop and transports
@@ -110,7 +116,7 @@ The prompt exists only when a model proxy is configured. Otherwise the standalon
 | --- | --- |
 | `VITE_ASK_ENDPOINT` | A model proxy speaking the wire format. Relative URLs resolve against the page. |
 
-No key or model setting ever goes into the bundle, development included. `examples/ask-proxy/server.mjs` is a zero-dependency proxy, written to be adapted. **It is for development and trusted hosts only.**
+No key or model setting ever goes into the bundle, development included. `examples/ask-proxy/server.mjs` is a zero-dependency proxy, written to be adapted. **It is for development and trusted hosts only.** The executable binds explicitly to IPv4 loopback (`127.0.0.1`); use `http://127.0.0.1:8787` as the endpoint.
 
 ```bash
 ANTHROPIC_API_KEY=… ALLOW_ORIGIN=http://localhost:5173 node examples/ask-proxy/server.mjs
@@ -121,7 +127,7 @@ ASK_PROVIDER=openai OPENAI_API_KEY=… ALLOW_ORIGIN=http://localhost:5173 node e
 ```
 
 ```bash
-VITE_ASK_ENDPOINT=http://localhost:8787 npm run dev
+VITE_ASK_ENDPOINT=http://127.0.0.1:8787 npm run dev
 ```
 
 | Variable | Meaning |

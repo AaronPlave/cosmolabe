@@ -121,6 +121,8 @@ export interface ScriptEventMap {
   activities: { count: number };
   /** The selected mission activity changed; null when none is selected. */
   activitySelect: { id: string | null };
+  /** The person navigated the camera, including between flights. */
+  cameraInput: Record<string, never>;
   /**
    * A camera flight ended. `outcome` says how: it `arrived`; it was `stopped`
    * by `stopFlight` or another camera command (a cut, a reset, a newer

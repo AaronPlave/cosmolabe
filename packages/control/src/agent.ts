@@ -441,6 +441,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     if (e.outcome === 'interrupted' && current) current.cameraTaken = true;
   });
 
+  const offInput = host.on('cameraInput', () => { if (current) current.cameraTaken = true; });
+
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
 
@@ -501,7 +503,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const data = {
       scene,
       time: { et, ...(opts.formatTime ? { utc: attempt(() => opts.formatTime!(et)) } : {}), playing: host.isPlaying(), rate: host.getRate() },
-      selected,
+      selectedObject: selected,
       tracked,
       flight: host.getFlight(),
       selectedActivity: activity ? activitySummary(activity) : null,
@@ -520,7 +522,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     };
     const summary = scene === null && has(host, 'getScene')
       ? 'No scene is loaded.'
-      : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected ${selected ?? 'nothing'}; tracking ${tracked ?? 'nothing'}.`;
+      : `${scene?.catalog ?? 'Scene'}: ${objects.total} objects; selected object ${selected ?? 'none'}; selected activity ${activity?.name ?? 'none'}; selected place ${place?.name ?? 'none'}; tracking ${tracked ?? 'nothing'}.`;
     return { ok: true, summary, data };
   }
 
@@ -615,9 +617,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       return now && now.ref === args.place ? { note: `The viewer now reports ${now.name} as the selected place.` }
         : { problem: `the place was asked to be selected, but the viewer reports ${now ? now.name : 'none'} as selected` };
     }
-    if ((name === 'seekActivity' || name === 'setTime') && opts.formatTime) {
-      const utc = attempt(() => opts.formatTime!(host.getTime()));
-      return utc ? { note: `The clock now reads ${utc}.` } : null;
+    if (name === 'seekActivity' || name === 'setTime' || name === 'setPlaying') {
+      const utc = opts.formatTime ? attempt(() => opts.formatTime!(host.getTime())) : null;
+      return { note: `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.` };
     }
     return null;
   }
@@ -797,6 +799,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     cancel: () => current?.cancel(),
     dispose: () => {
       offFlight();
+      offInput();
       current?.end('cancelled');
     },
   };

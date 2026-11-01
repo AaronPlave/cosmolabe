@@ -25,7 +25,7 @@ export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: read
     source: { id: null, revision: null, kind: null }, frame: null, datum: null,
     resolutionMeters: null, runtime: unknownRuntime(),
   });
-  const metrics = bm?.terrainMetrics;
+  const metrics = bm?.terrainSurfaceStatus;
   const cubeStats = bm?.terrainCubeImageryStats;
   const elevation = Object.keys(terrain).length > 0 && terrain.type !== 'imagery' ? {
     ...product('terrain', terrain.url), frame: string(terrain.frame),

@@ -10,6 +10,7 @@ import { createAgentTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type 
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
+import * as viewerState from '../viewer-state.svelte';
 import { CameraModeName, type UniverseRenderer } from '@cosmolabe/three';
 import * as THREE from 'three';
 import { selectEvent } from '../event-finder.svelte';
@@ -1319,6 +1320,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     const moon = moonfallCatalog.items.find((item: { name: string }) => item.name === 'Moon');
     Object.assign(mesh.body, { geometryData: moon.geometry, rotation: { bodyFixedFrame: moon.rotationModel.bodyFrame } });
     Object.assign(mesh, { imageryLayers: [], surfaceTransitionState: 'fallback', hasTerrain: true });
+    Object.defineProperty(mesh, 'terrainMetrics', { get() { throw new Error('surface read must not calculate memory'); }, configurable: true });
     const control = createViewerControl();
     const data = control.getSurfaceData('Titan')!;
     expect(data).toMatchObject({
@@ -1339,7 +1341,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.getSurfaceData('Nowhere')).toBeUndefined();
 
     // Failed requests do not erase configuration or imply complete coverage.
-    Object.assign(mesh, { terrainMetrics: { tiles: { inCache: 3, loaded: 0, cpu: 0, drawn: 0 }, network: { failed: 3 } },
+    Object.assign(mesh, { terrainSurfaceStatus: { tiles: { inCache: 3, loaded: 0, cpu: 0, drawn: 0 }, network: { failed: 3 } },
       terrainCubeImageryStats: { ready: false, textures: 0, failures: 1, tiles: 0, version: null, baseUncoveredBlocks: 0 } });
     expect(control.getSurfaceData('Titan')).toMatchObject({
       terrain: { configured: true, runtime: { loaded: false, failedRequests: 3, drawn: false, coversView: null } },
@@ -1387,6 +1389,20 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.getImagery('Nowhere')).toBeUndefined();
   });
 
+  it('relays manual camera input and detaches it with the renderer', () => {
+    const control = createViewerControl();
+    const seen = vi.fn();
+    const off = control.on('cameraInput', seen);
+    const cc = renderer.cameraController as unknown as { onCameraInput: (() => void) | null };
+    cc.onCameraInput!();
+    expect(seen).toHaveBeenCalledWith({});
+    off();
+    cc.onCameraInput!();
+    expect(seen).toHaveBeenCalledOnce();
+    unbindRenderer();
+    expect(cc.onCameraInput).toBeNull();
+  });
+
   it('relays how a flight ended, by destination name', () => {
     const control = createViewerControl();
     const seen: ScriptEventMap['flightEnd'][] = [];
@@ -1402,5 +1418,36 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     ]);
     unbindRenderer();
     expect(cc.onFlightEnd).toBeNull();
+  });
+});
+
+
+describe('shared place framing with real catalog records', () => {
+  it('frames Airfield B locally and Jezero by its diameter, preserving their geometry', () => {
+    const places = (name: string) => {
+      const cfg = readCatalog(`places/${name}`);
+      const layer = cfg.geographicLayers[0];
+      return parseGeographicGeoJson(readFileSync(new URL(`../../../test-catalogs/places/${layer.source}`, import.meta.url), 'utf8'),
+        { ...layer, coordinates: cfg.geographicCoordinates }, { kind: 'catalog', identity: layer.source });
+    };
+    vs.places = new PlaceIndex([places('ingenuity-sites'), places('mars')]);
+    const site = vs.places.search('Airfield B')[0];
+    const crater = vs.places.search('Jezero').find(p => p.name === 'Jezero')!;
+    expect(site.diameterKm).toBeUndefined();
+    expect(crater.diameterKm).toBeGreaterThan(40);
+    const before = JSON.stringify([site.feature.geometry, crater.feature.geometry]);
+    const go = vi.spyOn(viewerState, 'goToCoordinates').mockReturnValue({ ok: true } as any);
+    for (const view of ['overhead', 'oblique'] as const) {
+      expect(placeActions.navigateToPlaceForControl(site, { animate: false, view }).ok).toBe(true);
+      expect(go.mock.calls.at(-1)?.[1]).toMatchObject({ preset: view, rangeKm: 0.5 });
+      expect(placeActions.navigateToPlaceForControl(crater, { animate: false, view }).ok).toBe(true);
+      expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBeCloseTo(crater.diameterKm! * 1.5);
+    }
+    expect(placeActions.navigateToPlace(site, 'jump')).toBe(true);
+    expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBe(0.5);
+    expect(placeActions.navigateToPlaceForControl(site, { animate: false, view: 'surface' }).ok).toBe(true);
+    expect(go.mock.calls.at(-1)?.[1]?.rangeKm).toBeUndefined();
+    expect(JSON.stringify([site.feature.geometry, crater.feature.geometry])).toBe(before);
+    go.mockRestore();
   });
 });

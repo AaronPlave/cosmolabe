@@ -104,7 +104,8 @@ describe('agent tools: scene context', () => {
     expect(data.time.utc).toBe('2000-01-01T12:00:00');
     expect(data.objects.total).toBe(100);
     expect(data.objects.names).toHaveLength(40);
-    expect(data.selected).toBe('Object 3');
+    expect(data.selectedObject).toBe('Object 3');
+    expect(data).not.toHaveProperty('selected');
     expect(data.unsupported).toEqual(['surface datasets']);
   });
 
@@ -625,3 +626,63 @@ describe('agent tools: what a write leaves in place', () => {
   });
 });
 
+
+
+describe('review regressions: camera and clock ownership', () => {
+  const data = (r: AgentToolResult) => (r as { data: any }).data;
+  it('keeps a manual camera between tools, even after the owned flight arrived', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    const task = tools.begin();
+    const flight = task.call('flyTo', { object: 'Titan' });
+    await tick(); land(host, 'arrived');
+    expect((await flight).ok).toBe(true);
+    host.emit('cameraInput', {});
+    const before = host.calls.length;
+    expect(await task.call('jumpTo', { object: 'Saturn' })).toMatchObject({ ok: false, code: 'interrupted' });
+    expect(host.calls).toHaveLength(before);
+    expect((await task.call('describeScene', {})).ok).toBe(true);
+    tools.dispose();
+  });
+
+  it('does not let earlier camera input prevent a new request', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    host.emit('cameraInput', {});
+    expect((await tools.call('jumpTo', { object: 'Titan' })).ok).toBe(true);
+    tools.dispose();
+  });
+
+  it('reports running and paused time without changing seek semantics', async () => {
+    const host = new MissionViewer();
+    host.setPlaying(true);
+    const tools = createAgentTools(host);
+    expect(await tools.call('seekActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({ ok: true, summary: expect.stringContaining('Playback continues; this moment is not held') });
+    expect(host.isPlaying()).toBe(true);
+    await tools.call('setPlaying', { on: false });
+    expect(await tools.call('seekActivity', { activity: 'ingenuity:flight:5', edge: 'end' })).toMatchObject({ ok: true, summary: expect.stringContaining('Playback is paused') });
+    expect(host.isPlaying()).toBe(false);
+  });
+
+  it('respects a host refusing clock changes and reports its observed state', async () => {
+    const host = new MissionViewer();
+    host.setPlaying(true);
+    host.setPlaying = () => false;
+    host.seekActivity = () => false;
+    const tools = createAgentTools(host);
+    expect((await tools.call('setPlaying', { on: false })).ok).toBe(false);
+    expect((await tools.call('seekActivity', { activity: 'ingenuity:flight:5' })).ok).toBe(false);
+    expect(data(await tools.call('describeScene', {})).time.playing).toBe(true);
+  });
+
+  it('names activity and place selection when no object is selected', async () => {
+    const host = new MissionViewer();
+    host.selected = null;
+    const tools = createAgentTools(host);
+    await tools.call('selectActivity', { activity: 'ingenuity:flight:5' });
+    await tools.call('gotoPlace', { place: host.places[0].ref, how: 'jump' });
+    const result = await tools.call('describeScene', {});
+    expect(result).toMatchObject({ ok: true, summary: expect.stringContaining('selected activity Flight 5') });
+    expect(data(result)).toMatchObject({ selectedObject: null, selectedActivity: { name: 'Flight 5' }, selectedPlace: { name: 'Airfield B' } });
+  });
+});

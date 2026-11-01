@@ -195,8 +195,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       `usage requested=${u.requestedModel} answered=${u.model} fallback=${u.fallback === undefined || u.fallback === null ? 'unknown' : u.fallback ? 'served' : 'no'}: `
       + `uncached ${u.inputTokens} in, cache ${u.cacheReadTokens} read / ${u.cacheWriteTokens} written, ${u.outputTokens} out (${u.spent} tokens total this run) stop=${u.stop}`,
     ),
-  }).listen(port, () => {
-    console.log(`ask proxy (${provider.name}) on http://localhost:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://localhost:${port}`);
+  }).listen(port, '127.0.0.1', () => {
+    console.log(`ask proxy (${provider.name}) on http://127.0.0.1:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://127.0.0.1:${port}`);
     console.warn('development proxy: no caller authentication. Do not expose it publicly.');
   });
 }

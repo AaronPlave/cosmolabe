@@ -379,6 +379,7 @@ cosmo.getScene();         // { id, catalog, ready } — id changes with every sc
 
 const off = cosmo.on('select', ({ name }) => …);
 // also 'time' ({ et, cause }), 'playback', 'load', 'ready', 'activities', 'activitySelect',
+// 'cameraInput' ({}) — manual navigation, including between flights
 // 'flightEnd' ({ id, target, path, outcome: 'arrived' | 'stopped' | 'interrupted' })
 off();
 ```

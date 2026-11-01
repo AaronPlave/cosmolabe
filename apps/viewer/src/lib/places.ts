@@ -1,7 +1,7 @@
 import { geodeticToBodyFixed, type Place, type PlaceIndex, type SurfaceViewPreset } from '@cosmolabe/core';
 import { formatLatitude, formatLongitude } from '@cosmolabe/three';
 import { getRenderer, goToCoordinates, vs, releaseSurfaceTarget } from './viewer-state.svelte';
-import { navigationView, navigationRange, featureRangeKm } from './navigation-view.svelte';
+import { navigationView, navigationRange, placeRangeKm } from './navigation-view.svelte';
 import { openTool } from './shell.svelte';
 
 export function isPlaceAvailable(place: Place): boolean {
@@ -97,7 +97,7 @@ export function navigateToPlace(place: Place, action: 'fly' | 'jump', options: {
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg,
     latitude: 'planetocentric', longitudeDirection: 'east' }, {
     place: { ref: place.ref, name: place.name },
-    preset: viewport ? 'overhead' : navigationView.preset, animate: action === 'fly', rangeKm: range.km,
+    preset: viewport ? 'overhead' : navigationView.preset, animate: action === 'fly', rangeKm: range.km ?? ((viewport || navigationView.preset !== 'surface') ? placeRangeKm(place.diameterKm) : undefined),
   });
   if (!result.ok) return false;
   selectPlace(place);
@@ -114,7 +114,7 @@ export function navigateToPlaceForControl(place: Place, opts: { animate: boolean
   const problem = placeNavigationProblem(place);
   if (problem) return { ok: false, error: problem };
   const view = opts.view ?? 'overhead';
-  const fit = featureRangeKm(place.diameterKm);
+  const fit = placeRangeKm(place.diameterKm);
   const { latDeg, lonDeg } = placeNavigationCoordinates(place);
   const result = goToCoordinates({ bodyName: place.layer.body, latDeg, lonDeg, latitude: 'planetocentric', longitudeDirection: 'east' }, {
     place: { ref: place.ref, name: place.name },

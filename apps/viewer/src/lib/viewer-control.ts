@@ -567,6 +567,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
           return onViewerEvent('activities', (count) => (cb as (d: ScriptEventMap['activities']) => void)({ count }));
         case 'activitySelect':
           return onViewerEvent('activitySelect', (id) => (cb as (d: ScriptEventMap['activitySelect']) => void)({ id }));
+        case 'cameraInput':
+          return onViewerEvent('cameraInput', () => (cb as (d: ScriptEventMap['cameraInput']) => void)({}));
         case 'flightEnd':
           return onViewerEvent('flightEnd', (end) => (cb as (d: ScriptEventMap['flightEnd']) => void)({ ...end }));
         default: {

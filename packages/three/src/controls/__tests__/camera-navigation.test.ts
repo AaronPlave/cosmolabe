@@ -605,3 +605,39 @@ describe('camera frames', () => {
     }
   });
 });
+
+
+describe('manual camera input notifications between flights', () => {
+  it('reports navigation keys immediately but excludes typing and unrelated keys', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const { cc } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    const keydown = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const key = (code: string, target: object = {}) => keydown({ code, target, preventDefault() {} } as unknown as Event);
+    key('KeyW', { tagName: 'TEXTAREA' });
+    key('KeyW', { isContentEditable: true });
+    key('Escape');
+    expect(input).not.toHaveBeenCalled();
+    key('KeyW');
+    expect(input).toHaveBeenCalledOnce();
+    cc.keyboard.enabled = false;
+    key('KeyA');
+    expect(input).toHaveBeenCalledOnce();
+  });
+  it('reports real wheel navigation when idle, excluding field-of-view-only input', () => {
+    const { cc, frame, fire } = setup();
+    const input = vi.fn();
+    cc.onCameraInput = input;
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: true, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    frame(0.1);
+    expect(input).not.toHaveBeenCalled();
+    fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+    expect(input).toHaveBeenCalledOnce(); // before a model reply can race the next frame
+    frame(0.1);
+    expect(input).toHaveBeenCalledOnce();
+    expect(cc.flight).toBeNull();
+  });
+});

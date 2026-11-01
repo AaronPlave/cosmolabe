@@ -79,6 +79,8 @@ export interface ViewerEventMap {
   activities: number;
   /** The selected activity changed; null when none is selected. */
   activitySelect: string | null;
+  /** The person navigated the camera, including between flights. */
+  cameraInput: Record<string, never>;
   /** A camera flight ended, and how. */
   flightEnd: { id: number; target: string | null; path: FlightPath; outcome: CameraFlightOutcome };
 }
@@ -527,6 +529,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   _sceneId++;
   _renderer = renderer;
   _universe = universe;
+  renderer.cameraController.onCameraInput = () => emit('cameraInput', {});
   renderer.cameraController.onFlightEnd = (flight, outcome) =>
     emit('flightEnd', { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path, outcome });
   if (universe.activities) _unsubscribers.push(universe.activities.subscribe(() => syncActivities(universe)));
@@ -681,7 +684,10 @@ export function unbindRenderer() {
   setCatalogActivities([]);
   for (const unsub of _unsubscribers) unsub();
   _unsubscribers = [];
-  if (_renderer) _renderer.cameraController.onFlightEnd = null;
+  if (_renderer) {
+    _renderer.cameraController.onFlightEnd = null;
+    _renderer.cameraController.onCameraInput = null;
+  }
   _renderer = null;
   _universe = null;
   vs.surfaceTarget = null;

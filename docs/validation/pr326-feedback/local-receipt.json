@@ -1,0 +1,318 @@
+{
+  "errors": [],
+  "navigation": [
+    [
+      "[surface-nav] navigate",
+      {
+        "body": "Mars",
+        "preset": "overhead",
+        "rangeKm": 1016.8579999999998,
+        "eyeLiftedKm": 0,
+        "target": {
+          "from": "reference-surface",
+          "heightKm": 0,
+          "sourceId": null,
+          "tileId": null,
+          "awaitingTerrain": true
+        },
+        "from": {
+          "eyeClearanceKm": 103.81,
+          "clearanceFrom": "display radius",
+          "clampCorrectionKm": 0,
+          "eyeToTargetKm": 105.89381,
+          "terrainRevision": 0,
+          "cube": {
+            "residentTiles": 0,
+            "detailTiles": 0,
+            "requests": 0,
+            "bytes": 0,
+            "failed": 0,
+            "inFlight": 0,
+            "version": null
+          },
+          "centreHit": {
+            "source": "ellipsoid",
+            "rangeKm": 108.83453,
+            "heightKm": -3.01688
+          }
+        },
+        "plan": {
+          "kind": "jump"
+        }
+      }
+    ],
+    [
+      "[surface-nav] navigate",
+      {
+        "body": "Mars",
+        "preset": "overhead",
+        "rangeKm": 0.4999999999999636,
+        "eyeLiftedKm": 0,
+        "target": {
+          "from": "terrain-sample",
+          "heightKm": -2.23556,
+          "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+          "tileId": "py/15/20030/10786",
+          "awaitingTerrain": false
+        },
+        "from": {
+          "eyeClearanceKm": 1016.61428,
+          "clearanceFrom": "terrain",
+          "clampCorrectionKm": 0,
+          "eyeToTargetKm": 1016.85822,
+          "terrainRevision": 155,
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 28,
+            "requests": 154,
+            "bytes": 2602600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+          },
+          "centreHit": {
+            "source": "terrain",
+            "rangeKm": 1016.61137,
+            "heightKm": -1.9887
+          }
+        },
+        "plan": {
+          "kind": "jump"
+        }
+      }
+    ],
+    [
+      "[surface-nav] navigate",
+      {
+        "body": "Mars",
+        "preset": "oblique",
+        "rangeKm": 0.49999999999989697,
+        "eyeLiftedKm": 0,
+        "target": {
+          "from": "terrain-sample",
+          "heightKm": -2.23556,
+          "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+          "tileId": "py/15/20030/10786",
+          "awaitingTerrain": false
+        },
+        "from": {
+          "eyeClearanceKm": 0.50005,
+          "clearanceFrom": "terrain",
+          "clampCorrectionKm": 0,
+          "eyeToTargetKm": 0.5,
+          "terrainRevision": 174,
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 47,
+            "requests": 176,
+            "bytes": 2923700,
+            "failed": 0,
+            "inFlight": 3,
+            "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+          },
+          "centreHit": {
+            "source": "terrain",
+            "rangeKm": 0.5,
+            "heightKm": -2.23556
+          }
+        },
+        "plan": {
+          "kind": "jump"
+        }
+      }
+    ],
+    [
+      "[surface-nav] navigate",
+      {
+        "body": "Mars",
+        "preset": "overhead",
+        "rangeKm": 71.28179699999991,
+        "eyeLiftedKm": 0,
+        "target": {
+          "from": "terrain-sample",
+          "heightKm": -2.32531,
+          "sourceId": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+          "tileId": "py/8/155/84",
+          "awaitingTerrain": false
+        },
+        "from": {
+          "eyeClearanceKm": 0.32247,
+          "clearanceFrom": "terrain",
+          "clampCorrectionKm": 0,
+          "eyeToTargetKm": 13.36043,
+          "terrainRevision": 177,
+          "cube": {
+            "residentTiles": 126,
+            "detailTiles": 50,
+            "requests": 176,
+            "bytes": 2974400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+          },
+          "centreHit": {
+            "source": "terrain",
+            "rangeKm": 0.5,
+            "heightKm": -2.23556
+          }
+        },
+        "plan": {
+          "kind": "jump"
+        }
+      }
+    ]
+  ],
+  "site": {
+    "ref": "mars:mission:ingenuity-sites/airfield-5",
+    "name": "Airfield B",
+    "body": "Mars",
+    "layer": {
+      "id": "mission:ingenuity-sites",
+      "name": "NASA/JPL MMGIS Ingenuity landing waypoints"
+    },
+    "feature": "string:airfield-5",
+    "kind": "Mission site",
+    "origin": "mission/user",
+    "latitude": 18.44266513,
+    "longitude": 77.45138829999996,
+    "fields": {
+      "origin": "NASA/JPL MMGIS Ingenuity waypoint; mission flight site, not official nomenclature.",
+      "Flight": 5,
+      "Earth_Date": "May 7, 2021",
+      "sourceFile": "data/ingenuity/m20_heli_waypoints.json",
+      "height": "Source Elev_Geoid is not used as ellipsoid height; surface anchor follows scene terrain."
+    },
+    "source": {
+      "kind": "catalog",
+      "identity": "http://127.0.0.1:5190/test-catalogs/places/ingenuity-sites.geojson"
+    },
+    "unavailable": null
+  },
+  "crater": {
+    "ref": "mars:usgs:places/gazetteer:14300",
+    "name": "Jezero",
+    "body": "Mars",
+    "layer": {
+      "id": "mars:usgs:places:001",
+      "name": "Mars places (1/1)"
+    },
+    "feature": "string:gazetteer:14300",
+    "kind": "Crater, craters",
+    "origin": "nomenclature",
+    "latitude": 18.408199999999997,
+    "longitude": 77.68730000000005,
+    "diameterKm": 47.521198,
+    "fields": {
+      "clean_name": "Jezero",
+      "approvaldt": "2007/07/25 00:00:00",
+      "origin": "Town in Bosnia-Herzegovina.",
+      "diameter": "47.521198",
+      "center_lon": "77.6873",
+      "center_lat": "18.4082",
+      "type": "Crater, craters",
+      "code": "AA",
+      "approval": "Adopted by IAU",
+      "min_lon": "77.2663",
+      "max_lon": "78.1112",
+      "min_lat": "18.0077",
+      "max_lat": "18.8094",
+      "ethnicity": "Bosnia and Herzegovina",
+      "continent": "Europe",
+      "quad_name": "Syrtis Major"
+    },
+    "source": {
+      "kind": "catalog",
+      "identity": "http://127.0.0.1:5190/test-catalogs/places/mars-001.geojson"
+    },
+    "unavailable": null
+  },
+  "genericAuto": {
+    "position": [
+      4121.35514330091,
+      -1453.0349539741949,
+      -583.5753011669163
+    ],
+    "target": [
+      3170.3559594063395,
+      -1118.0474953643836,
+      -451.7263460326346
+    ],
+    "up": [
+      0.15528725136087151,
+      0.052578455451635114,
+      0.9864691457856682
+    ],
+    "fov": 60,
+    "rangeKm": 1016.8580000000002
+  },
+  "pointOverhead": {
+    "position": [
+      3170.8233665509397,
+      -1118.2121385461626,
+      -451.79114855263805
+    ],
+    "target": [
+      3170.3557500381644,
+      -1118.0474216148855,
+      -451.72631700529547
+    ],
+    "up": [
+      0.15528725136087151,
+      0.052578455451635114,
+      0.9864691457856682
+    ],
+    "fov": 60,
+    "rangeKm": 0.5000000000003039,
+    "selectedPlace": "Airfield B"
+  },
+  "pointOblique": {
+    "position": [
+      3170.5968496706655,
+      -1118.1734383342293,
+      -452.14582952436257
+    ],
+    "target": [
+      3170.3557500381644,
+      -1118.0474216148855,
+      -451.72631700529547
+    ],
+    "up": [
+      0.9352330255498509,
+      -0.3294338625548611,
+      -0.12966309468409706
+    ],
+    "fov": 60,
+    "rangeKm": 0.5000000000003836,
+    "selectedPlace": "Airfield B"
+  },
+  "craterOverhead": {
+    "position": [
+      3240.893903817453,
+      -1128.8464612668517,
+      -464.35778951818855
+    ],
+    "target": [
+      3174.147530584082,
+      -1105.6239545134658,
+      -455.044818787552
+    ],
+    "up": [
+      0.15543929045226376,
+      0.051138697555916615,
+      0.9865208870551001
+    ],
+    "fov": 60,
+    "rangeKm": 71.2817970000003,
+    "selectedPlace": "Jezero"
+  },
+  "surfaceRead": {
+    "count": 100,
+    "totalMs": 2.200000047683716
+  },
+  "manualTakeover": {
+    "ok": false,
+    "code": "interrupted",
+    "error": "the person moved the camera during this request; leaving the view to them"
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+}
