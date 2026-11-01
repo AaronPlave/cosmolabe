@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
-import { cases, scoreState, summarizeUsage } from './ask-benchmark/cases.mjs';
+import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
 
 const models = ['claude-sonnet-5-5', 'claude-haiku-5-5'];
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
@@ -73,6 +73,7 @@ try {
       const page = await context.newPage();
       const rounds = [];
       let cancel = null;
+      const visibleResults = new Map();
       // Cancellation occurs at a real transport boundary after a write, before
       // another model request is forwarded. No hidden paid reply or retry.
       await page.route('http://127.0.0.1:8799/', async route => {
@@ -85,6 +86,7 @@ try {
           });
           return route.abort();
         }
+        for (const [id, visible] of modelVisibleResults(request.messages)) visibleResults.set(id, visible);
         rounds.push({ discoveryOffered: request.tools.some(t => t.name === 'listCapabilities'), tools: request.tools.length, schemaChars: JSON.stringify(request.tools).length,
           lastResultCodes: request.messages.at(-1)?.content.filter(c => c.type === 'tool_result').map(c => { try { return JSON.parse(c.content).code ?? null; } catch { return 'invalid-json'; } }) ?? [],
           describedSchemas: request.messages.flatMap(m => m.content).filter(c => c.type === 'tool_use' && c.name === 'describeCapabilities').length });
@@ -112,6 +114,32 @@ try {
               activity: activity ? { id: activity.id, start: activity.start, end: activity.end } : null,
               place: place ? { ref: place.ref, name: place.name } : null };
             state.stable = { selected: state.selected, tracked: state.tracked, et: state.et, playing: state.playing, camera, activity: state.activity, place: state.place };
+            if (test.viewpoint) {
+              const renderer = stateModule.getRenderer();
+              // This case uses the fixed-rotation Earth catalog viewpoint.
+              const vp = renderer.cameraController.getViewpoint(test.viewpoint);
+              state.navigation = { expectedPose: vp ? { position: vp.position.toArray().map(v => v / renderer.scaleFactor), target: vp.target.toArray().map(v => v / renderer.scaleFactor), up: vp.up.toArray() } : null };
+            }
+            if (test.place) {
+              // Resolve the catalog anchor without navigating. Compare in render
+              // coordinates, including the body's current frame and translation.
+              const renderer = stateModule.getRenderer(), ctx = renderer.getContext();
+              const place = stateModule.vs.places?.byRef.get(test.place);
+              if (place?.feature.geometry.type === 'Point') {
+                const places = await import(loaded('/src/lib/places.ts'));
+                const coords = places.placeNavigationCoordinates(place);
+                const resolved = stateModule.resolveCoordinateTarget({ bodyName: place.layer.body, ...coords, latitude: 'planetocentric', longitudeDirection: 'east' });
+                const bm = ctx.getBodyMesh(place.layer.body);
+                if (resolved.ok && bm) {
+                  const v = resolved.target.positionKm;
+                  const target = bm.position.clone().set(v[0], v[2], -v[1]).multiplyScalar(ctx.scaleFactor).applyQuaternion(bm.mesh.quaternion).add(bm.position);
+                  state.navigation = { targetErrorKm: renderer.cameraController.controls.target.distanceTo(target) / ctx.scaleFactor,
+                    eyeDistanceKm: ctx.camera.position.distanceTo(target) / ctx.scaleFactor };
+                  state.navigation.targetMatches = state.navigation.targetErrorKm < 0.5;
+                  state.navigation.nearDestination = state.navigation.eyeDistanceKm >= 0.1 && state.navigation.eyeDistanceKm <= 5;
+                }
+              }
+            }
             if (test.frame) {
               const ctx = stateModule.getRenderer().getContext(), bm = ctx.getBodyMesh('Ingenuity'), cam = ctx.camera;
               if (bm) {
@@ -136,7 +164,7 @@ try {
         run.result = await page.evaluate(async () => {
           const turn = window.__askBench.ask.turns.at(-1);
           return { status: turn.status, errorCode: turn.errorCode, reply: turn.reply, state: await window.__benchSnapshot(),
-            steps: turn.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null,
+            steps: turn.steps.map(s => ({ id: s.id, name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null,
               describedIds: s.name === 'describeCapabilities' ? s.input.ids : undefined,
               receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
               // Only model-facing public metadata, never raw control inventories.
@@ -147,6 +175,8 @@ try {
           const late = await page.evaluate(() => window.__benchSnapshot());
           run.result.cancel = { afterWrite: true, unchanged: JSON.stringify(late.stable) === JSON.stringify(cancel.before.stable) };
         }
+        for (const step of run.result.steps) { step.modelVisible = visibleResults.get(step.id) ?? null; delete step.id; }
+        if (test.viewpoint) run.result.state.navigation.poseMatches = poseMatches(run.result.state.camera, run.result.state.navigation.expectedPose);
         run.score = scoreState(test, initial, run.result);
         run.score.checks.modelIdentity = cellUsage.length > 0 && cellUsage.every(row => row.model === model);
         run.score.checks.toolMode = rounds[0]?.discoveryOffered === (mode === 'discovery');

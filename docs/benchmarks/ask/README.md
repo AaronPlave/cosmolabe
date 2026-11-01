@@ -3,7 +3,7 @@
 [2026-11-01 findings and measured limitations](2026-11-01-findings.md).
 
 This benchmark runs the regular development Ask panel against the real loaded
-viewer. It compares fixed tools and discovery on the same thirteen versioned tasks
+viewer. It compares fixed tools and discovery on the same twelve quality tasks plus one excluded diagnostic
 in `scripts/ask-benchmark/cases.mjs`, with Sonnet 5.5 and Haiku 5.5. It does not
 change defaults, route tasks, or implement mission-specific runtime workflows.
 
@@ -40,8 +40,12 @@ the completed Ask turn; catalog load is excluded.
 
 ## Acceptance and review
 
-State checks use independently read selection, activity/place references, ET,
-playback and camera pose. Framing additionally projects the loaded object's
+The clock-anchored `ambiguous-flight` task is diagnostic only: it is excluded
+from quality and comparable-suite usage denominators. State checks use independently read selection, activity/place references, ET,
+playback and camera pose. Lunar Orbit checks full position, target and up against
+the catalog viewpoint (1 km / 0.001 tolerance). Landing navigation resolves the
+catalog anchor through the current body pose and checks target error below 0.5 km
+and eye distance 0.1–5 km, allowing terrain refinement. Framing additionally projects the loaded object's
 center through the actual render camera and measures its viewport size. An
 unverified/partial receipt is retained even if this independent probe confirms a
 view. A successful host return or fluent final answer is insufficient. Unchanged
@@ -62,7 +66,9 @@ receipt status and usage counts. They exclude raw provider requests, signed
 reasoning, credentials and raw host/catalog inventories. Do not retain debug
 provider traces. Tool observations are captured before the agent loop's 6,000-character
 serialization budget: the model may instead receive `result-too-large`. A retained
-observation does not prove the model received it. The report records the source commit; reruns should use a clean
+observation does not prove the model received it. Inventory acceptance additionally
+requires a successful, nonpartial serialized payload in a subsequent provider
+request, matched by call ID; omitted or missing delivery evidence cannot pass. The report records the source commit; reruns should use a clean
 checkout of that commit.
 
 ## Pricing and bounds
@@ -110,7 +116,10 @@ silently hand partly executed work to another model. Model/default changes requi
 comparable factual correctness beyond this exploratory matrix. The $0.002 simple
 and $0.005 routine targets are aspirations, not acceptance thresholds.
 
-Compact results without dropping public evidence or treating pending reviews as success:
+Write reports outside the repository. Keep only concise findings and a small
+representative fixture in git; archive full reports and digest-bound reviews
+externally when durable raw evidence is needed. The historical findings explicitly
+state which raw evidence was omitted. Compact external results with:
 
 ```sh
 node scripts/summarize-ask-benchmark.mjs /tmp/ask-benchmark.json reviews.json > compact-results.json
@@ -119,7 +128,7 @@ node scripts/summarize-ask-benchmark.mjs /tmp/ask-benchmark.json reviews.json > 
 The compactor deduplicates exact repeated observations. `observationRef` points
 into the top-level `observations` map. Review keys are
 `task/model/mode/repeat` under a `reviews` object, with `verdict` and `reason`. Use `excluded` for a documented invalid task rubric;
-excluded probes never count as accepted outcomes.
+excluded probes are removed from quality and comparable-suite usage denominators.
 Only state-passing cells with a factual `pass` count as `fullyVerified`.
 
 Reviews can be tied to exact evidence with a `reportSha256` field calculated by

@@ -26,10 +26,11 @@ export function cellId(run) { return `${run.task}/${run.model}/${run.mode}/${run
 export function summarizeReport(report, reviews = {}) {
   const groups = [];
   for (const model of report.models) for (const mode of ['fixed', 'discovery']) {
-    const runs = report.runs.filter(r => r.model === model && r.mode === mode);
+    const allRuns = report.runs.filter(r => r.model === model && r.mode === mode);
+    const runs = allRuns.filter(r => !r.score?.excluded && reviews[cellId(r)]?.verdict !== 'excluded');
     const reviewed = run => reviews[cellId(run)]?.verdict ?? 'pending-review';
     const knownCost = runs.every(r => r.usage?.estimatedUsd !== null && r.usage?.estimatedUsd !== undefined);
-    groups.push({ model, mode, samples: runs.length, statePassed: runs.filter(r => r.score?.passed).length,
+    groups.push({ model, mode, samples: runs.length, excluded: allRuns.length - runs.length, statePassed: runs.filter(r => r.score?.passed).length,
       factualPassed: runs.filter(r => reviewed(r) === 'pass').length,
       factualPartial: runs.filter(r => reviewed(r) === 'partial').length,
       factualFailed: runs.filter(r => reviewed(r) === 'fail').length,
