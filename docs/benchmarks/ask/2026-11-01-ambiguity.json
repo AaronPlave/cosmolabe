@@ -1,0 +1,815 @@
+{
+  "version": 1,
+  "source": "ff4517a9d701af71967c21d88285c62120401284",
+  "started": "2026-11-01T20:16:43.122Z",
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5"
+  ],
+  "repetitions": 1,
+  "tasks": [
+    "unresolved-viewpoint"
+  ],
+  "renderer": "Chromium SwiftShader; software WebGL, no physical GPU acceptance",
+  "initialState": "Catalog default ET/viewpoint; deselected; rate 0 to freeze ET; playback on for pause/cancel tasks, paused otherwise",
+  "prompt": "Unmodified shipped Ask prompts; max output 1536; thinking/effort unspecified (provider defaults); no fallback",
+  "cache": {
+    "enabled": true,
+    "ttl": "5m",
+    "warmth": "uncontrolled shared provider cache; fresh browser/scene/conversation per cell",
+    "order": "task outer; model/mode order reversed on alternating tasks and repetitions"
+  },
+  "limits": {
+    "rawTokens": 8000000,
+    "estimatedUsd": 4,
+    "note": "subsequent-request guards, not account limits; cancelled upstream usage may be unobservable"
+  },
+  "actualBilling": "Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.",
+  "runs": [
+    {
+      "task": "unresolved-viewpoint",
+      "repeat": 0,
+      "model": "claude-sonnet-5-5",
+      "mode": "fixed",
+      "order": 0,
+      "rounds": [
+        {
+          "discoveryOffered": false,
+          "tools": 35,
+          "schemaChars": 13368,
+          "lastResultCodes": [],
+          "describedSchemas": 0
+        },
+        {
+          "discoveryOffered": false,
+          "tools": 35,
+          "schemaChars": 13368,
+          "lastResultCodes": [
+            null
+          ],
+          "describedSchemas": 0
+        }
+      ],
+      "result": {
+        "status": "done",
+        "errorCode": null,
+        "reply": "Which viewpoint do you mean? The scene has three: Earth Close, Lunar Orbit and Default. Nothing is selected that points to one of them.",
+        "state": {
+          "assetsReady": true,
+          "selected": null,
+          "tracked": "Earth",
+          "et": 773366469.184,
+          "playing": false,
+          "camera": {
+            "position": [
+              28977.77478867205,
+              0,
+              7764.571353075621
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "activity": null,
+          "place": null
+        },
+        "steps": [
+          {
+            "name": "describeScene",
+            "ok": true,
+            "receipt": null,
+            "code": null,
+            "observationRef": "o1"
+          }
+        ]
+      },
+      "initialState": {
+        "selected": null,
+        "tracked": "Earth",
+        "et": 773366469.184,
+        "playing": false,
+        "camera": {
+          "position": [
+            28977.77478867205,
+            0,
+            7764.571353075621
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": null,
+        "place": null
+      },
+      "latencyMs": 5380,
+      "score": {
+        "checks": {
+          "unchanged": true,
+          "finished": true,
+          "modelIdentity": true,
+          "toolMode": true
+        },
+        "passed": true,
+        "factual": {
+          "verdict": "pending-review",
+          "rubric": "Fresh conversation with no viewpoint reference; Earth Close and Lunar Orbit are both available and both center on Earth. Ask which viewpoint without changing the scene."
+        }
+      },
+      "cacheFirstRequest": "observed-cache-read",
+      "usage": {
+        "requests": 2,
+        "requestedModels": [
+          "claude-sonnet-5-5"
+        ],
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ],
+        "uncachedInput": 6,
+        "cacheReads": 14051,
+        "cacheWrites": 473,
+        "output": 113,
+        "rawProcessed": 14643,
+        "estimatedUsd": 0.0037296,
+        "actualBilledUsd": null
+      },
+      "requestUsage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 6985,
+          "cacheWriteTokens": 81,
+          "outputTokens": 27,
+          "estimatedUsd": 0.001179,
+          "stop": "tool_use",
+          "fallback": null,
+          "upstreamLatencyMs": 1226,
+          "outputCalls": [
+            "describeScene"
+          ]
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7066,
+          "cacheWriteTokens": 392,
+          "outputTokens": 86,
+          "estimatedUsd": 0.0025506,
+          "stop": "end_turn",
+          "fallback": null,
+          "upstreamLatencyMs": 1495,
+          "outputCalls": []
+        }
+      ]
+    },
+    {
+      "task": "unresolved-viewpoint",
+      "repeat": 0,
+      "model": "claude-sonnet-5-5",
+      "mode": "discovery",
+      "order": 1,
+      "rounds": [
+        {
+          "discoveryOffered": true,
+          "tools": 5,
+          "schemaChars": 2500,
+          "lastResultCodes": [],
+          "describedSchemas": 0
+        },
+        {
+          "discoveryOffered": true,
+          "tools": 5,
+          "schemaChars": 2500,
+          "lastResultCodes": [
+            null
+          ],
+          "describedSchemas": 0
+        }
+      ],
+      "result": {
+        "status": "done",
+        "errorCode": null,
+        "reply": "Which viewpoint do you mean? This scene has three: Earth Close, Lunar Orbit and Default. Nothing is selected that would tell me which one you want.",
+        "state": {
+          "assetsReady": true,
+          "selected": null,
+          "tracked": "Earth",
+          "et": 773366469.184,
+          "playing": false,
+          "camera": {
+            "position": [
+              28977.77478867205,
+              0,
+              7764.571353075621
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "activity": null,
+          "place": null
+        },
+        "steps": [
+          {
+            "name": "describeScene",
+            "ok": true,
+            "receipt": "completed",
+            "code": null,
+            "observationRef": "o1"
+          }
+        ]
+      },
+      "initialState": {
+        "selected": null,
+        "tracked": "Earth",
+        "et": 773366469.184,
+        "playing": false,
+        "camera": {
+          "position": [
+            28977.77478867205,
+            0,
+            7764.571353075621
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": null,
+        "place": null
+      },
+      "latencyMs": 3635,
+      "score": {
+        "checks": {
+          "unchanged": true,
+          "finished": true,
+          "modelIdentity": true,
+          "toolMode": true
+        },
+        "passed": true,
+        "factual": {
+          "verdict": "pending-review",
+          "rubric": "Fresh conversation with no viewpoint reference; Earth Close and Lunar Orbit are both available and both center on Earth. Ask which viewpoint without changing the scene."
+        }
+      },
+      "cacheFirstRequest": "observed-cache-read",
+      "usage": {
+        "requests": 2,
+        "requestedModels": [
+          "claude-sonnet-5-5"
+        ],
+        "answeredModels": [
+          "claude-sonnet-5-5"
+        ],
+        "uncachedInput": 6,
+        "cacheReads": 5549,
+        "cacheWrites": 814,
+        "output": 114,
+        "rawProcessed": 6483,
+        "estimatedUsd": 0.0037419000000000003,
+        "actualBilledUsd": null
+      },
+      "requestUsage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 2734,
+          "cacheWriteTokens": 81,
+          "outputTokens": 27,
+          "estimatedUsd": 0.0007539000000000001,
+          "stop": "tool_use",
+          "fallback": null,
+          "upstreamLatencyMs": 1311,
+          "outputCalls": [
+            "describeScene"
+          ]
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 2815,
+          "cacheWriteTokens": 733,
+          "outputTokens": 87,
+          "estimatedUsd": 0.002988,
+          "stop": "end_turn",
+          "fallback": null,
+          "upstreamLatencyMs": 1361,
+          "outputCalls": []
+        }
+      ]
+    },
+    {
+      "task": "unresolved-viewpoint",
+      "repeat": 0,
+      "model": "claude-haiku-5-5",
+      "mode": "fixed",
+      "order": 2,
+      "rounds": [
+        {
+          "discoveryOffered": false,
+          "tools": 35,
+          "schemaChars": 13368,
+          "lastResultCodes": [],
+          "describedSchemas": 0
+        },
+        {
+          "discoveryOffered": false,
+          "tools": 35,
+          "schemaChars": 13368,
+          "lastResultCodes": [
+            null
+          ],
+          "describedSchemas": 0
+        }
+      ],
+      "result": {
+        "status": "done",
+        "errorCode": null,
+        "reply": "I don't see a viewpoint that's been referenced or selected, so I haven't moved the camera. The catalog has three: Earth Close, Lunar Orbit, and Default. Which one should I show?",
+        "state": {
+          "assetsReady": true,
+          "selected": null,
+          "tracked": "Earth",
+          "et": 773366469.184,
+          "playing": false,
+          "camera": {
+            "position": [
+              28977.77478867205,
+              0,
+              7764.571353075621
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "activity": null,
+          "place": null
+        },
+        "steps": [
+          {
+            "name": "describeScene",
+            "ok": true,
+            "receipt": null,
+            "code": null,
+            "observationRef": "o1"
+          }
+        ]
+      },
+      "initialState": {
+        "selected": null,
+        "tracked": "Earth",
+        "et": 773366469.184,
+        "playing": false,
+        "camera": {
+          "position": [
+            28977.77478867205,
+            0,
+            7764.571353075621
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": null,
+        "place": null
+      },
+      "latencyMs": 2947,
+      "score": {
+        "checks": {
+          "unchanged": true,
+          "finished": true,
+          "modelIdentity": true,
+          "toolMode": true
+        },
+        "passed": true,
+        "factual": {
+          "verdict": "pending-review",
+          "rubric": "Fresh conversation with no viewpoint reference; Earth Close and Lunar Orbit are both available and both center on Earth. Ask which viewpoint without changing the scene."
+        }
+      },
+      "cacheFirstRequest": "observed-cache-read",
+      "usage": {
+        "requests": 2,
+        "requestedModels": [
+          "claude-haiku-5-5"
+        ],
+        "answeredModels": [
+          "claude-haiku-5-5"
+        ],
+        "uncachedInput": 6,
+        "cacheReads": 14051,
+        "cacheWrites": 520,
+        "output": 218,
+        "rawProcessed": 14795,
+        "estimatedUsd": 0.00031511000000000006,
+        "actualBilledUsd": null
+      },
+      "requestUsage": [
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 6985,
+          "cacheWriteTokens": 81,
+          "outputTokens": 74,
+          "estimatedUsd": 0.00011737500000000002,
+          "stop": "tool_use",
+          "fallback": null,
+          "upstreamLatencyMs": 853,
+          "outputCalls": [
+            "describeScene"
+          ]
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7066,
+          "cacheWriteTokens": 439,
+          "outputTokens": 144,
+          "estimatedUsd": 0.00019773500000000002,
+          "stop": "end_turn",
+          "fallback": null,
+          "upstreamLatencyMs": 1145,
+          "outputCalls": []
+        }
+      ]
+    },
+    {
+      "task": "unresolved-viewpoint",
+      "repeat": 0,
+      "model": "claude-haiku-5-5",
+      "mode": "discovery",
+      "order": 3,
+      "rounds": [
+        {
+          "discoveryOffered": true,
+          "tools": 5,
+          "schemaChars": 2500,
+          "lastResultCodes": [],
+          "describedSchemas": 0
+        },
+        {
+          "discoveryOffered": true,
+          "tools": 5,
+          "schemaChars": 2500,
+          "lastResultCodes": [
+            null
+          ],
+          "describedSchemas": 0
+        }
+      ],
+      "result": {
+        "status": "done",
+        "errorCode": null,
+        "reply": "Which viewpoint do you mean: Earth Close, Lunar Orbit, or Default? Nothing is currently selected, so I need you to name one.",
+        "state": {
+          "assetsReady": true,
+          "selected": null,
+          "tracked": "Earth",
+          "et": 773366469.184,
+          "playing": false,
+          "camera": {
+            "position": [
+              28977.77478867205,
+              0,
+              7764.571353075621
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "up": [
+              0,
+              1,
+              0
+            ],
+            "fov": 60
+          },
+          "activity": null,
+          "place": null
+        },
+        "steps": [
+          {
+            "name": "describeScene",
+            "ok": true,
+            "receipt": "completed",
+            "code": null,
+            "observationRef": "o1"
+          }
+        ]
+      },
+      "initialState": {
+        "selected": null,
+        "tracked": "Earth",
+        "et": 773366469.184,
+        "playing": false,
+        "camera": {
+          "position": [
+            28977.77478867205,
+            0,
+            7764.571353075621
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": null,
+        "place": null
+      },
+      "latencyMs": 3170,
+      "score": {
+        "checks": {
+          "unchanged": true,
+          "finished": true,
+          "modelIdentity": true,
+          "toolMode": true
+        },
+        "passed": true,
+        "factual": {
+          "verdict": "pending-review",
+          "rubric": "Fresh conversation with no viewpoint reference; Earth Close and Lunar Orbit are both available and both center on Earth. Ask which viewpoint without changing the scene."
+        }
+      },
+      "cacheFirstRequest": "observed-cache-read",
+      "usage": {
+        "requests": 2,
+        "requestedModels": [
+          "claude-haiku-5-5"
+        ],
+        "answeredModels": [
+          "claude-haiku-5-5"
+        ],
+        "uncachedInput": 6,
+        "cacheReads": 5549,
+        "cacheWrites": 847,
+        "output": 194,
+        "rawProcessed": 6596,
+        "estimatedUsd": 0.000258965,
+        "actualBilledUsd": null
+      },
+      "requestUsage": [
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 2734,
+          "cacheWriteTokens": 81,
+          "outputTokens": 60,
+          "estimatedUsd": 0.000067865,
+          "stop": "tool_use",
+          "fallback": null,
+          "upstreamLatencyMs": 1080,
+          "outputCalls": [
+            "describeScene"
+          ]
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 2815,
+          "cacheWriteTokens": 766,
+          "outputTokens": 134,
+          "estimatedUsd": 0.00019109999999999998,
+          "stop": "end_turn",
+          "fallback": null,
+          "upstreamLatencyMs": 1153,
+          "outputCalls": []
+        }
+      ]
+    }
+  ],
+  "availability": {
+    "checked": "2026-11-01T20:16:43.389Z",
+    "models": [
+      "claude-haiku-5-5",
+      "claude-sonnet-5-5"
+    ]
+  },
+  "finished": "2026-11-01T20:17:01.908Z",
+  "totalUsage": {
+    "requests": 8,
+    "requestedModels": [
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5"
+    ],
+    "answeredModels": [
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5"
+    ],
+    "uncachedInput": 24,
+    "cacheReads": 39200,
+    "cacheWrites": 2654,
+    "output": 639,
+    "rawProcessed": 42517,
+    "estimatedUsd": 0.008045575,
+    "actualBilledUsd": null
+  },
+  "observations": {
+    "o1": {
+      "scene": {
+        "id": 1,
+        "catalog": "Earth + Moon",
+        "ready": true
+      },
+      "time": {
+        "et": 773366469.184,
+        "utc": "2024-07-04 12:00:00 UTC",
+        "playing": false,
+        "rate": 0
+      },
+      "selectedObject": null,
+      "tracked": "Earth",
+      "flight": null,
+      "selectedActivity": null,
+      "selectedPlace": null,
+      "objects": {
+        "names": [
+          "Sun",
+          "Earth",
+          "Moon"
+        ],
+        "total": 3
+      },
+      "viewpoints": {
+        "names": [
+          "Earth Close",
+          "Lunar Orbit",
+          "Default"
+        ],
+        "total": 3
+      },
+      "activities": 0,
+      "focusSurfaceData": {
+        "body": "Earth",
+        "bodyFrame": null,
+        "surface": null,
+        "terrain": null,
+        "cubeImagery": null,
+        "textures": [],
+        "imageryProducts": [],
+        "overlays": []
+      },
+      "focusImagery": {
+        "body": "Earth",
+        "surface": null,
+        "imageryOnly": false,
+        "layers": []
+      },
+      "unsupported": []
+    }
+  },
+  "review": {
+    "source": "ff4517a9d701af71967c21d88285c62120401284",
+    "reviewer": "Codex; single agent review of retained state and public observations",
+    "reportSha256": "94a49538602656690a7dcb7be29f0c665a79681ce85be78ae347202c42c069de",
+    "reviews": {
+      "unresolved-viewpoint/claude-sonnet-5-5/fixed/0": {
+        "verdict": "pass",
+        "reason": "Asks which available viewpoint is intended, names real candidates and leaves the independently observed camera, clock, selection and tracking unchanged."
+      },
+      "unresolved-viewpoint/claude-sonnet-5-5/discovery/0": {
+        "verdict": "pass",
+        "reason": "Asks which available viewpoint is intended, names real candidates and leaves the independently observed camera, clock, selection and tracking unchanged."
+      },
+      "unresolved-viewpoint/claude-haiku-5-5/fixed/0": {
+        "verdict": "pass",
+        "reason": "Asks which available viewpoint is intended, names real candidates and leaves the independently observed camera, clock, selection and tracking unchanged."
+      },
+      "unresolved-viewpoint/claude-haiku-5-5/discovery/0": {
+        "verdict": "pass",
+        "reason": "Asks which available viewpoint is intended, names real candidates and leaves the independently observed camera, clock, selection and tracking unchanged."
+      }
+    }
+  },
+  "summary": [
+    {
+      "model": "claude-sonnet-5-5",
+      "mode": "fixed",
+      "samples": 1,
+      "statePassed": 1,
+      "factualPassed": 1,
+      "factualPartial": 0,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 1,
+      "requests": 2,
+      "latencyMs": 5380,
+      "rawProcessed": 14643,
+      "estimatedUsd": 0.0037296,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "mode": "discovery",
+      "samples": 1,
+      "statePassed": 1,
+      "factualPassed": 1,
+      "factualPartial": 0,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 1,
+      "requests": 2,
+      "latencyMs": 3635,
+      "rawProcessed": 6483,
+      "estimatedUsd": 0.0037419000000000003,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "mode": "fixed",
+      "samples": 1,
+      "statePassed": 1,
+      "factualPassed": 1,
+      "factualPartial": 0,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 1,
+      "requests": 2,
+      "latencyMs": 2947,
+      "rawProcessed": 14795,
+      "estimatedUsd": 0.00031511000000000006,
+      "actualBilledUsd": null
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "mode": "discovery",
+      "samples": 1,
+      "statePassed": 1,
+      "factualPassed": 1,
+      "factualPartial": 0,
+      "factualFailed": 0,
+      "factualExcluded": 0,
+      "factualPending": 0,
+      "fullyVerified": 1,
+      "requests": 2,
+      "latencyMs": 3170,
+      "rawProcessed": 6596,
+      "estimatedUsd": 0.000258965,
+      "actualBilledUsd": null
+    }
+  ]
+}

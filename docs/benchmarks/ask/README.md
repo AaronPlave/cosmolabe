@@ -1,5 +1,7 @@
 # Ask quality, latency and cost benchmark (#332)
 
+[2026-11-01 findings and measured limitations](2026-11-01-findings.md).
+
 This benchmark runs the regular development Ask panel against the real loaded
 viewer. It compares fixed tools and discovery on the same thirteen versioned tasks
 in `scripts/ask-benchmark/cases.mjs`, with Sonnet 5.5 and Haiku 5.5. It does not
@@ -31,7 +33,9 @@ models and modes share these initial conditions. Model/mode order reverses on
 alternating tasks/repetitions. Provider cache warmth remains uncontrolled: fresh
 browser contexts do not flush provider caches. Keep order and all cache token
 categories with results. One repetition is an exploratory paired matrix, not a
-statistical performance or equivalence claim. Latency starts at Send and ends at
+statistical performance or equivalence claim. The live script exits nonzero for
+harness failures; model/state/factual failures remain benchmark observations, so
+an exit code of zero is not task-quality acceptance. Latency starts at Send and ends at
 the completed Ask turn; catalog load is excluded.
 
 ## Acceptance and review
@@ -80,9 +84,10 @@ requested model; unknown pricing remains null. No fallback is requested.
 
 The benchmark separately limits 8 million raw processed tokens and $4 estimated
 USD across all cells, checking before subsequent requests; in-flight work can
-overshoot. Raw totals include all cache reads/writes and output. Each cell owns a fixed-model proxy, closed before the next cell. The proxy's
-raw-token and estimated-dollar guards are also enabled; the benchmark's global estimated-dollar guard is
-separate and fails closed after unknown usage pricing. These are not provider
+overshoot. Raw totals include all cache reads/writes and output. Each cell owns a
+fixed-model proxy, closed before the next cell. The proxy's raw-token and
+estimated-dollar guards are also enabled; the benchmark's global estimated-dollar
+guard is separate and fails closed after unknown usage pricing. These are not provider
 account spending limits. Actual billed cost is not observable from the configured
 Messages API key and remains null. Requests aborted before usage is returned may
 incur unobserved billing. Cancellation at the harness boundary avoids forwarding
@@ -113,7 +118,8 @@ node scripts/summarize-ask-benchmark.mjs /tmp/ask-benchmark.json reviews.json > 
 
 The compactor deduplicates exact repeated observations. `observationRef` points
 into the top-level `observations` map. Review keys are
-`task/model/mode/repeat` under a `reviews` object, with `verdict` and `reason`.
+`task/model/mode/repeat` under a `reviews` object, with `verdict` and `reason`. Use `excluded` for a documented invalid task rubric;
+excluded probes never count as accepted outcomes.
 Only state-passing cells with a factual `pass` count as `fullyVerified`.
 
 Reviews can be tied to exact evidence with a `reportSha256` field calculated by
