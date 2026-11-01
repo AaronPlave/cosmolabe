@@ -33,6 +33,7 @@ export function summarizeReport(report, reviews = {}) {
       factualPassed: runs.filter(r => reviewed(r) === 'pass').length,
       factualPartial: runs.filter(r => reviewed(r) === 'partial').length,
       factualFailed: runs.filter(r => reviewed(r) === 'fail').length,
+      factualExcluded: runs.filter(r => reviewed(r) === 'excluded').length,
       factualPending: runs.filter(r => reviewed(r) === 'pending-review').length,
       fullyVerified: runs.filter(r => r.score?.passed && reviewed(r) === 'pass').length,
       requests: runs.reduce((n, r) => n + r.rounds.length, 0),

@@ -26,6 +26,7 @@ it('deduplicates observations and never counts pending answer reviews as verifie
   expect(Object.keys(compact.observations)).toHaveLength(1);
   expect(compact.runs[0].result.steps[0].observationRef).toBe(compact.runs[0].result.steps[1].observationRef);
   expect(summarizeReport(compact)[0]).toMatchObject({ statePassed: 1, fullyVerified: 0, factualPending: 1, estimatedUsd: null });
+  expect(summarizeReport(compact, { 't/a/fixed/0': { verdict: 'excluded' } })[0]).toMatchObject({ fullyVerified: 0, factualExcluded: 1, factualPending: 0 });
 });
 
 it('binds reviews to actual answer evidence and preserves the digest after compaction', () => {
