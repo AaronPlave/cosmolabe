@@ -8,7 +8,7 @@
    * because plain GeoJSON would otherwise mean Earth WGS84.
    */
   import { ChevronLeft } from 'lucide-svelte';
-  import { describeGeographicCoordinates, type GeographicCoordinates } from '@cosmolabe/core';
+  import { bodyFixedFrameName, describeGeographicCoordinates, type GeographicCoordinates } from '@cosmolabe/core';
   import { Button } from '$lib/components/ui/button';
   import SegmentedControl from '$lib/components/ui/segmented-control.svelte';
   import * as Select from '$lib/components/ui/select';
@@ -23,6 +23,9 @@
 
   let body = $state(drawBody() ?? '');
   let name = $state('');
+  let frame = $state('');
+  let frameOptions = $derived([...new Set([bodyFixedFrameName(body), inferredCoordinates(body)?.frame,
+    ...(body === 'Moon' ? ['MOON_ME_DE421', 'MOON_PA_DE421'] : [])].filter((f): f is string => !!f))]);
   let latitude = $state<GeographicCoordinates['latitude']>('planetocentric');
   let direction = $state<GeographicCoordinates['longitudeDirection']>('east');
   let domain = $state<GeographicCoordinates['longitudeDomain']>('-180..180');
@@ -34,17 +37,16 @@
   $effect(() => {
     const c = body ? inferredCoordinates(body) : null;
     if (!c) return;
+    frame = importing ? '' : c.frame ?? bodyFixedFrameName(body);
     latitude = c.latitude; direction = c.longitudeDirection; domain = c.longitudeDomain;
   });
 
   const fileStem = (n: string) => n.replace(/\.(geo)?json$/i, '');
 
   function submit() {
-    if (!shape) return;
+    if (!shape || !frame) return;
     const coordinates: GeographicCoordinates = { latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: shape,
-      // Authored coordinates belong to the surface being drawn. An import
-      // retains the convention the user declared for its existing numbers.
-      ...(form.mode === 'new' ? { frame: inferredCoordinates(body)?.frame } : {}),
+      frame,
     };
     const id = form.mode === 'import'
       ? importLayerText(form.text, { body, name: name.trim() || fileStem(form.fileName), coordinates })
@@ -75,6 +77,15 @@
   <details class="disclosure" bind:open={conventionOpen}>
     <summary>Coordinate convention</summary>
     <div class="convention">
+      {#if importing}
+        <label class="field"><span class="ui-label">Coordinate frame</span>
+          <select class="text" bind:value={frame} aria-label="Coordinate frame">
+            <option value="" disabled>Choose the source frame…</option>
+            {#each frameOptions as f (f)}<option value={f}>{f}</option>{/each}
+          </select>
+        </label>
+        <p class="ui-helper">Choose the frame of the source coordinates. Import keeps their values and does not transform between frames.</p>
+      {/if}
       <SegmentedControl value={latitude} options={['planetocentric', 'planetographic']} label="Latitude convention" onValueChange={(v) => (latitude = v as typeof latitude)} />
       <div class="row">
         <SegmentedControl value={direction} options={['east', 'west']} label="Positive longitude direction" onValueChange={(v) => (direction = v as typeof direction)} />
@@ -86,7 +97,7 @@
     <p class="ui-helper muted">{describeGeographicCoordinates({ latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: shape })}.</p>
   {/if}
   <div class="row">
-    <Button size="sm" class="ui-control flex-1" onclick={submit} disabled={!shape}>{importing ? 'Import' : 'Create'}</Button>
+    <Button size="sm" class="ui-control flex-1" onclick={submit} disabled={!shape || !frame}>{importing ? 'Import' : 'Create'}</Button>
     <Button variant="secondary" size="sm" class="ui-control flex-1" onclick={() => (edits.form = null)}>Cancel</Button>
   </div>
   {#if edits.message}<p class="ui-helper warn" role="status">{edits.message}</p>{/if}

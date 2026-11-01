@@ -51,12 +51,39 @@ try {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.getByRole('button', { name: 'Draw in this layer', exact: true }).click();
   await drawPoint();
-  const final = await stored();
+  let final = await stored();
   const created = final.find(l => l.name === 'Lunar drawing regression');
   assert.equal(created.coordinates.frame, 'MOON_ME_DE421');
   assert.equal(created.features.length, 1, 'the point goes into the layer created with the form');
   assert.equal(await page.evaluate(() => window.renderer.geographicVectors.selectedFeature.layerId), created.id);
   await page.screenshot({ path: `${out}/new-layer.png` });
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Draw in this layer', exact: true }).click();
+  await page.getByLabel('Draw into', { exact: true }).click();
+  await page.getByRole('option', { name: annotations.name, exact: true }).click();
+  await drawPoint();
+  final = await stored();
+  assert.equal(final.find(l => l.id === annotations.id).features.length, 2, 'explicit dropdown target receives the point');
+  assert.equal(final.find(l => l.id === created.id).features.length, 1, 'open layer does not override the target');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  for (const frame of ['MOON_ME_DE421', 'IAU_MOON']) {
+    for (let n = 0; n < 3 && !(await page.getByRole('button', { name: 'More layer actions' }).count()); n++) await page.locator('nav button').first().click();
+    await page.locator('input[type="file"]').setInputFiles({ name: `${frame}.geojson`, mimeType: 'application/geo+json',
+      buffer: Buffer.from(JSON.stringify({ type: 'FeatureCollection', features: [
+        { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [10, 20] } },
+      ] })) });
+    const form = page.getByRole('region', { name: 'Import GeoJSON', exact: true });
+    await form.waitFor();
+    assert.equal(await form.getByRole('button', { name: 'Import', exact: true }).isDisabled(), true, 'source frame must be declared');
+    await form.getByLabel('Coordinate frame', { exact: true }).selectOption(frame);
+    await form.getByRole('button', { name: 'Import', exact: true }).click();
+    const imported = (await stored()).find(l => l.name === frame);
+    assert.equal(imported.coordinates.frame, frame);
+    assert.deepEqual(imported.features[0].geometry.coordinates, [10, 20], 'import does not transform source values');
+  }
+  final = await stored();
+  await page.screenshot({ path: `${out}/import-frame.png` });
+
   await page.reload();
   await page.waitForFunction(() => window.__cosmolabe?.assetsReady, null, { timeout: 120000 });
   assert.deepEqual(await stored(), final, 'all layers survive reload');

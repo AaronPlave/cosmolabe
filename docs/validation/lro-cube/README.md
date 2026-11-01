@@ -121,6 +121,14 @@ page errors occurred. The script writes screenshots and metrics. This is a
 drawing-flow check, not the broader deployed/near-surface acceptance above.
 See the [new-layer drawing capture](drawing-new-layer.png).
 
+Follow-up drawing regressions cover choosing a second compatible layer from the
+Draw into dropdown while the first layer remains open, including a subsequent
+tool change. Plain GeoJSON imports require an explicit source frame; lunar
+options include IAU, ME DE421 and PA DE421. Both ME and IAU imports retain the
+chosen frame and original coordinate values, without transformation. The browser
+check passed both import choices, target selection and reload persistence on the
+same physical Apple M4 Max GPU. See the [import frame capture](drawing-import-frame.png).
+
 ## Rollback
 
 Revert the `lro-moon.json` change to restore the previous `moon_v14`

@@ -133,6 +133,18 @@ describe('working copies', () => {
 });
 
 describe('import', () => {
+  it.each(['MOON_ME_DE421', 'IAU_MOON'])('preserves the declared %s frame and original values of plain lunar GeoJSON', (frame) => {
+    vi.mocked(universe!.getBody).mockImplementation(((name: string) => name === 'Moon' ? ({ name, radii: [1737.4, 1737.4, 1737.4] }) : undefined) as never);
+    const coordinates: GeographicCoordinates = { ...mars, frame, referenceShape: { kind: 'sphere', radiusKm: 1737.4 } };
+    const plain = JSON.stringify({ type: 'FeatureCollection', features: [
+      { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [10, 20] } },
+    ] });
+    const id = importLayerText(plain, { body: 'Moon', name: frame, coordinates })!;
+    expect(editLayer(id)!.coordinates.frame).toBe(frame);
+    expect(universe!.geographicLayers.get(id)!.coordinates.frame).toBe(frame);
+    expect(editLayer(id)!.features[0].geometry.coordinates).toEqual([10, 20]);
+  });
+
   it('imports exported planetary GeoJSON and refuses plain GeoJSON without conventions', () => {
     expect(importLayerText(JSON.stringify({ type: 'FeatureCollection', features: [] }))).toBeNull();
     expect(edits.message).toMatch(/WGS84/);
@@ -162,6 +174,25 @@ describe('import', () => {
 });
 
 describe('drawing flow', () => {
+  it('keeps an explicit compatible drawing target when another layer is open and tools change', () => {
+    const a = createLayer({ body: 'Mars', name: 'A', coordinates: mars })!;
+    const b = createLayer({ body: 'Mars', name: 'B', coordinates: mars })!;
+    geoLayers.openLayer(a);
+    editing.startDrawing('line');
+    expect(edits.target).toBe(a);
+    // The toolbar dropdown chooses B while the layer detail remains on A.
+    edits.target = b;
+    editing.setDrawTool('line', 'Mars');
+    expect(geoLayers.geo.activeLayerId).toBe(a);
+    expect(edits.target).toBe(b);
+    editing.setDrawTool('point', 'Mars');
+    expect(edits.target).toBe(b);
+    edits.draft!.vertices.push([77.5, 18.5]);
+    editing.finishDraft();
+    expect(editLayer(a)!.features).toHaveLength(0);
+    expect(editLayer(b)!.features).toHaveLength(1);
+  });
+
   it.each([undefined, 'IAU_MOON', 'MOON_PA_DE421'])('draws in the current lunar frame when saved annotations use %s', (savedFrame) => {
     vi.mocked(universe!.getBody).mockImplementation(((name: string) => name === 'Moon' ? ({ name, radii: [1737.4, 1737.4, 1737.4] }) : undefined) as never);
     const frame = vi.spyOn(universe!.frames, 'bodyFixedFrameFor').mockReturnValue('MOON_ME_DE421');

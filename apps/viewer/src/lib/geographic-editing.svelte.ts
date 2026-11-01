@@ -229,6 +229,8 @@ export function annotationTarget(body: string): string | null {
     const layer = id ? sessions.get(id)?.layer : undefined;
     return !!layer && layer.body === body && matchesDrawFrame(layer);
   };
+  // While drawing, keep the toolbar's chosen target across tool changes.
+  if (edits.tool && here(edits.target)) return edits.target;
   if (here(geo.activeLayerId)) return geo.activeLayerId;
   if (here(edits.target)) return edits.target;
   return [...sessions.values()].find((s) => s.layer.body === body && s.layer.name === annotationLayerName(body) && matchesDrawFrame(s.layer))?.layer.id ?? null;
