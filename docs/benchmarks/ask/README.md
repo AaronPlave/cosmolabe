@@ -1,7 +1,7 @@
 # Ask quality, latency and cost benchmark (#332)
 
 This benchmark runs the regular development Ask panel against the real loaded
-viewer. It compares fixed tools and discovery on the same twelve versioned tasks
+viewer. It compares fixed tools and discovery on the same thirteen versioned tasks
 in `scripts/ask-benchmark/cases.mjs`, with Sonnet 5.5 and Haiku 5.5. It does not
 change defaults, route tasks, or implement mission-specific runtime workflows.
 
@@ -53,10 +53,12 @@ references, estimated flight timing, synthetic MoonFall provenance, missing or
 withheld attribution, degraded imagery and unknown coverage. Missing shared
 semantic APIs remain #297 work; absent evidence is not success.
 
-Reports contain final answers, public model-facing observations, state probes,
+Reports contain final answers, public tool observations, state probes,
 receipt status and usage counts. They exclude raw provider requests, signed
 reasoning, credentials and raw host/catalog inventories. Do not retain debug
-provider traces. The report records the source commit; reruns should use a clean
+provider traces. Tool observations are captured before the agent loop's 6,000-character
+serialization budget: the model may instead receive `result-too-large`. A retained
+observation does not prove the model received it. The report records the source commit; reruns should use a clean
 checkout of that commit.
 
 ## Pricing and bounds
@@ -78,8 +80,8 @@ requested model; unknown pricing remains null. No fallback is requested.
 
 The benchmark separately limits 8 million raw processed tokens and $4 estimated
 USD across all cells, checking before subsequent requests; in-flight work can
-overshoot. Raw totals include all cache reads/writes and output. The HTTP proxy's
-raw-token cap is also enabled; the benchmark's global estimated-dollar guard is
+overshoot. Raw totals include all cache reads/writes and output. Each cell owns a fixed-model proxy, closed before the next cell. The proxy's
+raw-token and estimated-dollar guards are also enabled; the benchmark's global estimated-dollar guard is
 separate and fails closed after unknown usage pricing. These are not provider
 account spending limits. Actual billed cost is not observable from the configured
 Messages API key and remains null. Requests aborted before usage is returned may
@@ -102,3 +104,25 @@ Adding concurrent execution needs its own safety evidence; do not retry writes o
 silently hand partly executed work to another model. Model/default changes require
 comparable factual correctness beyond this exploratory matrix. The $0.002 simple
 and $0.005 routine targets are aspirations, not acceptance thresholds.
+
+Compact results without dropping public evidence or treating pending reviews as success:
+
+```sh
+node scripts/summarize-ask-benchmark.mjs /tmp/ask-benchmark.json reviews.json > compact-results.json
+```
+
+The compactor deduplicates exact repeated observations. `observationRef` points
+into the top-level `observations` map. Review keys are
+`task/model/mode/repeat` under a `reviews` object, with `verdict` and `reason`.
+Only state-passing cells with a factual `pass` count as `fullyVerified`.
+
+Reviews can be tied to exact evidence with a `reportSha256` field calculated by
+`reportDigest` in `scripts/ask-benchmark/report.mjs`. The summarizer rejects a
+nonempty review set whose digest does not match, so another run's answers cannot
+inherit old passing reviews. The digest is stable after observation deduplication.
+
+The later instrumentation records each response's semantic `outputCalls` and the
+next request's `lastResultCodes` (including `result-too-large`) without preserving
+provider text/reasoning. This makes independent-read batching and output-budget
+omissions visible. Scene readiness starts the task; asynchronous terrain/imagery
+readiness is observed rather than forced or assumed complete.

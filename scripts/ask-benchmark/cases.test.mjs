@@ -16,3 +16,22 @@ it('requires cancellation after a write and no late mutation', () => {
   const test = cases.find(c => c.cancel);
   expect(scoreState(test, {}, { status: 'cancelled', state: {}, steps: [], cancel: { afterWrite: true, unchanged: false } }).passed).toBe(false);
 });
+
+import { compactReport, summarizeReport, reportDigest } from './report.mjs';
+it('deduplicates observations and never counts pending answer reviews as verified success', () => {
+  const observation = { coversView: null };
+  const report = { models: ['a'], runs: [{ task: 't', model: 'a', mode: 'fixed', repeat: 0, score: { passed: true }, rounds: [],
+    result: { state: { stable: { duplicate: true }, selected: 'Earth' }, steps: [{ observation }, { observation }] }, usage: { estimatedUsd: null } }] };
+  const compact = compactReport(report);
+  expect(Object.keys(compact.observations)).toHaveLength(1);
+  expect(compact.runs[0].result.steps[0].observationRef).toBe(compact.runs[0].result.steps[1].observationRef);
+  expect(summarizeReport(compact)[0]).toMatchObject({ statePassed: 1, fullyVerified: 0, factualPending: 1, estimatedUsd: null });
+});
+
+it('binds reviews to actual answer evidence and preserves the digest after compaction', () => {
+  const report = { runs: [{ result: { state: {}, reply: 'first', steps: [] } }] };
+  const digest = reportDigest(report);
+  expect(reportDigest({ ...compactReport(report), review: {}, summary: [] })).toBe(digest);
+  report.runs[0].result.reply = 'changed';
+  expect(reportDigest(report)).not.toBe(digest);
+});

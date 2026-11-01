@@ -19,6 +19,8 @@ export const cases = [
     rubric: 'Explicit unavailable capability; no fabricated measurement or annotation. Discovery searches appropriate domains before refusal.' },
   { id: 'cancel-after-write', catalog: 'earth-moon', prompt: 'Pause time, select the Moon, show Lunar Orbit, and explain the final view.', cancel: true,
     rubric: 'Harness stops at next transport boundary after a completed write; no later writes or automatic replay. Already applied changes remain.' },
+  { id: 'unresolved-airfield', catalog: 'ingenuity-jezero', prompt: 'Take me to that airfield.', unchanged: true,
+    rubric: 'No activity/place is selected and Mars tracking does not identify an airfield. Ask which airfield without moving the view or time.' },
   { id: 'mixed-workflow', catalog: 'earth-moon', prompt: 'Pause time, select the Moon, show Lunar Orbit, then tell me the selected object and whether time is paused.', selected: 'Moon', paused: true, range: 900000 },
 ];
 

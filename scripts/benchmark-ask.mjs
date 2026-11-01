@@ -36,30 +36,39 @@ report.availability = { checked: new Date().toISOString(), models: listing.data.
 assert.ok(models.every(id => report.availability.models.includes(id)), 'Both reviewed model IDs must be available');
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/';
 const output = process.env.ASK_BENCHMARK_REPORT ?? '/tmp/ask-benchmark.json';
-let currentModel, upstreamLatencyMs = null, cellUsage = [], allUsage = [];
-const proxy = createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new URL(base).origin],
-  provider: { ...anthropicProvider, toRequest: (wire, options) => anthropicProvider.toRequest(wire, { ...options, model: currentModel }) },
-  // Each cell is a new conversation; model changes never replay partly executed work.
-  model: 'benchmark-selected', maxTokens: 1536, perMinute: 1000, cache: true,
-  tokenBudget: report.limits.rawTokens, costBudgetUsd: 0,
-  fetchImpl: async (...args) => {
-    const totals = summarizeUsage(allUsage);
-    assert.ok(totals.rawProcessed < report.limits.rawTokens && (!allUsage.length || totals.estimatedUsd !== null && totals.estimatedUsd < report.limits.estimatedUsd), 'Benchmark budget exhausted');
-    const started = performance.now();
-    const response = await fetch(...args);
-    upstreamLatencyMs = Math.round(performance.now() - started);
-    return response;
-  },
-  onUsage: row => { const projected = { ...row, requestedModel: currentModel, upstreamLatencyMs }; cellUsage.push(projected); allUsage.push(projected); },
-});
-await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(8799, '127.0.0.1', resolve); });
+const allUsage = [];
+function cellProxy(model, cellUsage) {
+  let upstreamLatencyMs = null, outputCalls = [];
+  return createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new URL(base).origin],
+    provider: { ...anthropicProvider, fromResponse: reply => {
+      const wire = anthropicProvider.fromResponse(reply);
+      outputCalls = wire?.content.filter(c => c.type === 'tool_use').map(c => c.name === 'invokeCapability' ? c.input.id : c.name) ?? [];
+      return wire;
+    } },
+    // A fixed-model proxy per fresh cell. Closing it drains/aborts its requests
+    // before the next cell; late usage cannot be attributed to another model.
+    model, maxTokens: 1536, perMinute: 1000, cache: true,
+    tokenBudget: report.limits.rawTokens, costBudgetUsd: report.limits.estimatedUsd,
+    fetchImpl: async (url, options) => {
+      const totals = summarizeUsage(allUsage);
+      assert.ok(totals.rawProcessed < report.limits.rawTokens && (!allUsage.length || totals.estimatedUsd !== null && totals.estimatedUsd < report.limits.estimatedUsd), 'Benchmark budget exhausted');
+      const started = performance.now();
+      const response = await fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(60000)]) });
+      upstreamLatencyMs = Math.round(performance.now() - started);
+      return response;
+    },
+    onUsage: row => { const projected = { ...row, upstreamLatencyMs, outputCalls }; cellUsage.push(projected); allUsage.push(projected); },
+  });
+}
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   for (let repeat = 0; repeat < repetitions; repeat++) for (const [index, test] of selected.entries()) {
     const cells = models.flatMap(model => ['fixed', 'discovery'].map(mode => ({ model, mode })));
     if ((index + repeat) % 2) cells.reverse();
     for (const { model, mode } of cells) {
-      currentModel = model; cellUsage = [];
+      const cellUsage = [];
+      const proxy = cellProxy(model, cellUsage);
+      await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(8799, '127.0.0.1', resolve); });
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
       const rounds = [];
@@ -77,6 +86,7 @@ try {
           return route.abort();
         }
         rounds.push({ discoveryOffered: request.tools.some(t => t.name === 'listCapabilities'), tools: request.tools.length, schemaChars: JSON.stringify(request.tools).length,
+          lastResultCodes: request.messages.at(-1)?.content.filter(c => c.type === 'tool_result').map(c => { try { return JSON.parse(c.content).code ?? null; } catch { return 'invalid-json'; } }) ?? [],
           describedSchemas: request.messages.flatMap(m => m.content).filter(c => c.type === 'tool_use' && c.name === 'describeCapabilities').length });
         await route.continue();
       });
@@ -98,7 +108,7 @@ try {
           window.__benchSnapshot = async () => {
             const activity = c.getSelectedActivity(), place = c.getSelectedPlace();
             const camera = c.getCamera();
-            const state = { selected: c.getSelected(), tracked: c.getTracked(), et: c.getTime(), playing: c.isPlaying(), camera,
+            const state = { assetsReady: window.__cosmolabe?.assetsReady ?? null, selected: c.getSelected(), tracked: c.getTracked(), et: c.getTime(), playing: c.isPlaying(), camera,
               activity: activity ? { id: activity.id, start: activity.start, end: activity.end } : null,
               place: place ? { ref: place.ref, name: place.name } : null };
             state.stable = { selected: state.selected, tracked: state.tracked, et: state.et, playing: state.playing, camera, activity: state.activity, place: state.place };
@@ -117,6 +127,7 @@ try {
           };
         }, { test });
         const initial = await page.evaluate(() => window.__benchSnapshot());
+        run.initialState = initial.stable;
         const started = performance.now();
         await page.getByRole('textbox', { name: 'Request', exact: true }).fill(test.prompt);
         await page.getByRole('button', { name: 'Send request', exact: true }).click();
@@ -142,7 +153,7 @@ try {
         run.score.passed = Object.values(run.score.checks).every(Boolean);
         run.cacheFirstRequest = cellUsage[0]?.cacheReadTokens > 0 ? 'observed-cache-read' : 'no-observed-cache-read';
         run.usage = summarizeUsage(cellUsage);
-        run.requestUsage = cellUsage.map(({ requestedModel, model, inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, stop, upstreamLatencyMs }) => ({ requestedModel, model, inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, stop, upstreamLatencyMs }));
+        run.requestUsage = cellUsage.map(({ requestedModel, model, inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, stop, fallback, upstreamLatencyMs, outputCalls }) => ({ requestedModel, model, inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, stop, fallback, upstreamLatencyMs, outputCalls }));
         console.log(JSON.stringify({ task: test.id, model, mode, statePassed: run.score.passed, rounds: rounds.length, estimatedUsd: run.usage.estimatedUsd }));
       } catch (error) {
         // Store a fixed diagnostic, not arbitrary provider/browser error text.
@@ -152,6 +163,7 @@ try {
       } finally {
         writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
         await context.close();
+        await new Promise(resolve => proxy.close(resolve));
       }
     }
   }
@@ -160,7 +172,6 @@ try {
   report.totalUsage = summarizeUsage(allUsage);
   writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   await browser.close();
-  await new Promise(resolve => proxy.close(resolve));
 }
 console.log(`Report: ${output}`);
 if (report.runs.some(r => r.failure)) process.exitCode = 1;
