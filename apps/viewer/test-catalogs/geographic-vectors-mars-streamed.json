@@ -137,10 +137,14 @@
           "errorTarget": 1,
           "imagery": [
             {
+              "id": "viking",
+              "name": "Global · Viking",
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
               "levels": 7
             },
             {
+              "id": "gale-ctx",
+              "name": "Gale · CTX",
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
               "levels": 12,
               "bounds": [
@@ -152,6 +156,8 @@
               "minZoom": 4
             },
             {
+              "id": "curiosity-hirise",
+              "name": "Curiosity · HiRISE",
               "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
               "levels": 16,
               "bounds": [
