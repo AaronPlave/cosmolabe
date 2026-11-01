@@ -212,16 +212,28 @@ export function inferredCoordinates(body: string): GeographicCoordinates | null 
 
 export const annotationLayerName = (body: string) => `My annotations · ${body}`;
 
+/** Draping and surface clicks require the layer's actual frame to match the drawn body. */
+export function matchesDrawFrame(layer: Pick<GeographicEditLayer, 'body' | 'coordinates'>): boolean {
+  const frames = getUniverse()?.frames;
+  const frame = layer.coordinates.frame ?? bodyFixedFrameName(layer.body);
+  return !!frames && frames.sameFrame(frame, frames.bodyFixedFrameFor(layer.body));
+}
+
 /**
  * Where a new shape on `body` goes: the layer being looked at if it is
- * editable, else the last-used editable layer there, else the body's
- * annotations layer. Null when none exists yet.
+ * editable in the current surface frame, else the last-used compatible layer
+ * there, else the body's compatible annotations layer. Null when none exists yet.
  */
 export function annotationTarget(body: string): string | null {
-  const here = (id: string | null) => !!id && sessions.get(id)?.layer.body === body;
+  const here = (id: string | null) => {
+    const layer = id ? sessions.get(id)?.layer : undefined;
+    return !!layer && layer.body === body && matchesDrawFrame(layer);
+  };
+  // While drawing, keep the toolbar's chosen target across tool changes.
+  if (edits.tool && here(edits.target)) return edits.target;
   if (here(geo.activeLayerId)) return geo.activeLayerId;
   if (here(edits.target)) return edits.target;
-  return [...sessions.values()].find((s) => s.layer.body === body && s.layer.name === annotationLayerName(body))?.layer.id ?? null;
+  return [...sessions.values()].find((s) => s.layer.body === body && s.layer.name === annotationLayerName(body) && matchesDrawFrame(s.layer))?.layer.id ?? null;
 }
 
 /** The annotation layer for `body`, created (and remembered as made for this draft) when there is none. */

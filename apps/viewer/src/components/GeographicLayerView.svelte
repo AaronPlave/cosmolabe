@@ -16,7 +16,7 @@
   import GeographicLayerMenuItems from './GeographicLayerMenuItems.svelte';
   import { geoStyles, openStyleEditor } from '../lib/geographic-styles.svelte';
   import { geo, layerVisible, setLayerVisible, showLayerList } from '../lib/geographic-layers.svelte';
-  import { edits, isEditable, renameLayer, deleteLayer, startDrawing, annotationLayerName } from '../lib/geographic-editing.svelte';
+  import { edits, isEditable, matchesDrawFrame, renameLayer, deleteLayer, startDrawing, annotationLayerName } from '../lib/geographic-editing.svelte';
   import { layerIssue, layerOrigin, layerSwatch } from '../lib/geographic-layer-labels';
   import { geographicSurfaceNote } from '@cosmolabe/three';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
@@ -31,6 +31,7 @@
   /** Features or Style; Style is the layer the style editor has open. */
   let tab = $derived(geoStyles.editing === layer.id ? 'style' : 'features');
   let editable = $derived((void edits.revision, isEditable(layer.id)));
+  let drawHere = $derived(editable && matchesDrawFrame(layer));
   /** Rename or delete, asked for from this layer's menu. */
   let action = $derived(edits.layerAction?.id === layer.id ? edits.layerAction.kind : null);
   let titleInput = $state<HTMLInputElement | null>(null);
@@ -90,8 +91,8 @@
       <Button variant="secondary" size="sm" class="ui-control" onclick={() => (edits.layerAction = null)}>Keep</Button>
     </div>
   {/if}
-  <Button size="sm" class="ui-control" onclick={() => startDrawing()} title={editable ? 'New shapes go into this layer' : `New shapes go into ${annotationLayerName(layer.body)}; ${layer.name} stays unchanged`}>
-    <PenLine size={13} /> {editable ? 'Draw in this layer' : 'Draw'}
+  <Button size="sm" class="ui-control" onclick={() => startDrawing()} title={drawHere ? 'New shapes go into this layer' : `New shapes go into ${annotationLayerName(layer.body)}; ${layer.name} stays unchanged`}>
+    <PenLine size={13} /> {drawHere ? 'Draw in this layer' : 'Draw'}
   </Button>
 
   <SegmentedControl value={tab} options={['features', 'style']} label="Layer section" onValueChange={(v) => openStyleEditor(v === 'style' ? layer.id : null)} />

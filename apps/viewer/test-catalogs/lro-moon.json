@@ -76,7 +76,7 @@
       "class": "moon",
       "center": "Earth",
       "trajectory": { "type": "Builtin", "name": "Moon" },
-      "rotationModel": { "type": "Builtin", "name": "IAU_MOON" },
+      "rotationModel": { "type": "Spice", "bodyFrame": "MOON_ME_DE421", "inertialFrame": "ECLIPJ2000" },
       "geometry": {
         "type": "Globe",
         "radius": 1737.4,
@@ -86,11 +86,25 @@
         "displacementScale": 20,
         "displacementBias": -9,
         "terrain": {
-          "type": "quantized-mesh",
-          "url": "https://marshub.s3.amazonaws.com/moon_v14/",
-          "imagery": {
-            "url": "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-            "levels": 8
+          "type": "3dtiles",
+          "frame": "MOON_ME_DE421",
+          "url": "data/moon-terrain-cube/tileset.json",
+          "errorTarget": 2,
+          "fadeDurationMs": 0,
+          "datum": {
+            "verticalDatum": "reference-sphere",
+            "heightConvention": "radial"
+          },
+          "sourceMetadata": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "kind": "height-grid"
+          },
+          "cubeSphere": {
+            "cpuGrids": "data/moon-terrain-cube/cpu-grids.json",
+            "imagery": {
+              "url": "data/moon-imagery-cube-wac-nac/imagery.json",
+              "maxTextureBytes": 536870912
+            }
           }
         }
       },
