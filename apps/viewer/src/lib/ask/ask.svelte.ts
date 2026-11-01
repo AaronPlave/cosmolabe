@@ -19,6 +19,7 @@
 import {
   createAgentTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport,
 } from '@cosmolabe/control';
+import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, type AskDeployment } from '../deployment';
 import { getCosmo } from '../loader';
 import { etToUtcString, onViewerEvent, sceneId } from '../viewer-state.svelte';
@@ -89,7 +90,10 @@ export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error
   const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused ? ` (${t.done} done, ${t.refused} refused)` : ''}; changes already made to the view remain.`;
   if (turn.status === 'error') {
     if (turn.errorCode === 'budget_exhausted') {
-      return { tone: 'warning', text: `Request stopped: this proxy's local model budget is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
+      return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
+    }
+    if (turn.errorCode === 'cost_budget_exhausted') {
+      return { tone: 'warning', text: `Request stopped: the proxy's estimated-cost guard was reached or pricing is unavailable.${account} Check the proxy and provider spending limits; this estimate is not a billing record.` };
     }
     if (turn.errorCode === 'rate_limited') {
       return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; wait a minute.${account}` };
@@ -145,7 +149,7 @@ function currentTransport(): AgentTransport | null {
 // ── The conversation ──
 
 let tools: AgentTools | null = null;
-const agentTools = () => (tools ??= createAgentTools(getCosmo(), { formatTime: etToUtcString }));
+const agentTools = () => (tools ??= createAgentTools(getCosmo(), { formatTime: etToUtcString, metadata: builtInAgentMetadata }));
 
 let history: AgentMessage[] = [];
 let historyScene = -1;

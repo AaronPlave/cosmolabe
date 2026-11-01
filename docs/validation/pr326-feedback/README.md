@@ -1,3 +1,18 @@
+## Current review acceptance — 2026-11-01
+
+`current-acceptance.json` records fresh real Sonnet 5.5 requests through the visible Ask form after the metadata and activity-query fixes. Each scenario started in a fresh loaded browser scene; all provider-visible tool results parsed as JSON and no page errors occurred.
+
+- Duration: all 72 flights were ranked before paging. Flight 12 (169.5 s, estimated catalog interval) was selected, paused and sought once to its start; `frameObject(Ingenuity)` presented the vehicle. No extra seeks. The answer retained estimated timing and the missing place link for Airfield H.
+- Ambiguity: “longest flight” asked duration versus distance, without selection, time or camera writes.
+- MoonFall: the selected synthetic mission landing waypoint was distinguished from the gazetteer crater and overview. The answer named LOLA terrain plus LROC WAC/NAC imagery and reported current-view coverage as unknown. The receipt retains model-visible source/revision/attribution, radial/reference-sphere datum and runtime status; no endpoints or raw traces.
+- `compact-ask.jpg` now shows the real Flight 12 answer/input at 390×844 with the overlapping inspector suppressed. `current-moonfall.jpg` shows the actual answer at the dark polar waypoint; it is dataset/interaction evidence, not a new terrain appearance claim.
+
+The exact-value built-in public policy also approves reviewed Jezero imagery attribution and NASA/JPL timing limitations. Custom catalog metadata and resource paths remain withheld. Alt navigation retains its 0.2× speed; Cmd/Ctrl shortcuts are excluded. The proxy distinguishes raw tokens processed from estimated USD, with independent optional guards and unknown-model pricing explicitly unavailable. Python bytecode is removed and ignored.
+
+Validation: 238 focused tests passed; the CI-filtered surface planner passed 9 tests (3 skipped). Package/embed builds, test/viewer/Svelte typechecks, ESLint and purity lint passed. The local full suite passed 3305 tests with 7 skipped; two unchanged local failures remain: GF-reporting progress timing at `gf-reporting.test.ts:183` (also reproduced alone) and the shipped-catalog inventory including five ignored experiment catalogs. These tests/files were preserved. Clean main-target CI is checked separately after push.
+
+The historical evidence below predates these changes.
+
 # PR #326 feedback verification
 
 2026-10-31. Loaded real Ingenuity/Jezero and MoonFall catalogs in headless Chrome with hardware ANGLE/Metal on Apple M4 Max. Data loaded through the viewer's development asset fallback. Source geometry, coordinates, physical diameters and provenance were not changed.

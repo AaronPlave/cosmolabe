@@ -79,6 +79,7 @@
     resolve: (i) => `Looked up “${text(i.query) ?? '…'}”`,
     searchPlaces: (i) => `Searched places for “${text(i.query) ?? '…'}”`,
     listActivities: () => 'Listed mission activities',
+    getActivity: () => 'Checked activity details',
     getSurfaceData: (i) => `Checked surface datasets on ${text(i.object) ?? 'a body'}`,
     getImagery: (i) => `Checked imagery on ${text(i.object) ?? 'a body'}`,
     select: (i) => `Selected ${text(i.object) ?? 'an object'}`,

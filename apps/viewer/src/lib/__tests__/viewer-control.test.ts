@@ -5,6 +5,7 @@
  * `apps/viewer` in the vitest projects list was to exercise the real rune
  * module. What is faked is the renderer below it, which needs WebGL.
  */
+import { builtInAgentMetadata } from '../ask/public-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAgentTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
@@ -1353,6 +1354,25 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(await tools.call('getSurfaceData', {})).toMatchObject({ ok: false, code: 'invalid-input' });
     expect(await tools.call('getSurfaceData', { object: 'Nowhere' })).toMatchObject({ ok: false, code: 'refused' });
     expect(control.getSurfaceData('Nowhere')).toBeUndefined();
+
+    // The built-in policy preserves exact public science metadata, never endpoints.
+    const manifest = JSON.parse(readFileSync(new URL('./fixtures/moonfall-imagery-source.json', import.meta.url), 'utf8'));
+    Object.assign(mesh, { terrainCubeImageryMetadata: manifest,
+      terrainSourceMetadata: { ...moon.geometry.terrain.sourceMetadata, version: 'cube-fused-79895697c6b6-g3-m12-b6747ec9d' } });
+    const publicTools = createAgentTools(control, { metadata: builtInAgentMetadata });
+    const wire = JSON.stringify(await publicTools.call('getSurfaceData', { object: 'Titan' }));
+    expect(wire).toContain('moon-lola-118m+south-pole-lola-10m-residual');
+    expect(wire).toContain('LRO LROC WAC global mosaic');
+    expect(wire).toContain('LRO LROC NAC South Pole');
+    expect(wire).toContain('reference-sphere');
+    expect(wire).toContain('radial');
+    expect(wire).not.toContain('endpoint');
+    Object.assign(mesh, { terrainSourceMetadata: { id: 'https://internal.example/PATH_SECRET', version: 'PRIVATE_REVISION' },
+      terrainCubeImageryMetadata: { ...manifest, source: { ...manifest.source, id: '/Users/private/catalog', attribution: 'PRIVATE_ATTRIBUTION' } } });
+    const privateWire = JSON.stringify(await publicTools.call('getSurfaceData', { object: 'Titan' }));
+    expect(privateWire).not.toMatch(/PATH_SECRET|PRIVATE_|Users\/private|endpoint/);
+    publicTools.dispose();
+    Object.assign(mesh, { terrainSourceMetadata: undefined, terrainCubeImageryMetadata: undefined });
 
     // Failed requests do not erase configuration or imply complete coverage.
     Object.assign(mesh, { terrainSurfaceStatus: { tiles: { inCache: 3, loaded: 0, cpu: 0, drawn: 0 }, network: { failed: 3 } },

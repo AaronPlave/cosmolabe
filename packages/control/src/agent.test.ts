@@ -529,7 +529,7 @@ describe('agent tools: where an activity happened', () => {
       publicValue: value => value === 'Observed horizontal path with estimated 3D playback, not precise flight telemetry.',
       publicPlaceField: (key, value) => (key === 'Flight' && value === 5) || (key === 'Earth_Date' && value === 'May 7, 2021'),
     } });
-    const { activities } = data(await tools.call('listActivities', { vehicle: 'Ingenuity' }));
+    const activities = await Promise.all(new MissionViewer().activities.map(async a => data(await tools.call('getActivity', { activity: a.id }))));
     const [five, six, seven] = activities;
     expect(five).toMatchObject({
       id: 'ingenuity:flight:5', mission: 'Mars 2020', startUtc: 'ET 673687471',
@@ -590,8 +590,9 @@ describe('agent tools: what a write leaves in place', () => {
     const tools = createAgentTools(host, { formatTime: fmt });
     const transport = new MockTransport([
       { stop: 'tool_use', content: [use('a', 'listActivities', { vehicle: 'Ingenuity' })] },
+      { stop: 'tool_use', content: [use('detail', 'getActivity', { activity: 'ingenuity:flight:5' })] },
       (req) => {
-        const listed = JSON.parse((req.messages.at(-1)!.content[0] as { content: string }).content).data.activities[0];
+        const listed = JSON.parse((req.messages.at(-1)!.content[0] as { content: string }).content).data;
         return { stop: 'tool_use', content: [
           use('b', 'selectActivity', { activity: listed.id }),
           use('c', 'seekActivity', { activity: listed.id }),
@@ -612,7 +613,7 @@ describe('agent tools: what a write leaves in place', () => {
       onEvent: (e) => { if (e.type === 'text' && e.final) answer = e.text; if (e.type === 'tool-result') results.push([e.name, e.result.ok]); },
     });
     expect(run.outcome).toEqual({ kind: 'done' });
-    expect(results).toEqual([['listActivities', true], ['selectActivity', true], ['seekActivity', true], ['gotoPlace', true], ['describeScene', true]]);
+    expect(results).toEqual([['listActivities', true], ['getActivity', true], ['selectActivity', true], ['seekActivity', true], ['gotoPlace', true], ['describeScene', true]]);
     expect(answer).toBe('Flight 5 selected; Airfield B; ET 673687471; link name match.');
     // And the viewer itself agrees.
     expect(host.getSelectedActivity()?.id).toBe('ingenuity:flight:5');
@@ -622,8 +623,7 @@ describe('agent tools: what a write leaves in place', () => {
 
   it('a flight with no place of that name gives the model nothing to navigate to', async () => {
     const tools = createAgentTools(new MissionViewer());
-    const { data } = (await tools.call('listActivities', { vehicle: 'Ingenuity' })) as { data: { activities: { id: string; site: { link: string; places: unknown[] } }[] } };
-    const six = data.activities.find((a) => a.id === 'ingenuity:flight:6')!;
+    const { data: six } = (await tools.call('getActivity', { activity: 'ingenuity:flight:6' })) as { data: { site: { link: string; places: unknown[] } } };
     expect(six.site).toMatchObject({ link: 'none', places: [] });
     expect((await tools.call('resolve', { query: 'Airfield C', kinds: ['place'] })) as { summary: string }).toMatchObject({ summary: expect.stringContaining('Nothing in this scene matches') });
   });
@@ -716,7 +716,7 @@ describe('agent tools: provider metadata boundary', () => {
       publicPlaceField: (key, value) => key === 'publicField' && value === 5,
     } });
     const calls = [use('scene', 'describeScene', {}), use('places', 'searchPlaces', { query: 'Airfield B' }),
-      use('activities', 'listActivities', {}), use('surface', 'getSurfaceData', { object: 'Titan' }), use('imagery', 'getImagery', { object: 'Titan' })];
+      use('activities', 'listActivities', {}), use('detail', 'getActivity', { activity: host.activities[0].id }), use('surface', 'getSurfaceData', { object: 'Titan' }), use('imagery', 'getImagery', { object: 'Titan' })];
     const transport = new MockTransport([{ stop: 'tool_use', content: calls }, { stop: 'end', content: [{ type: 'text', text: 'Done' }] }]);
     expect((await runAgent({ tools, transport, prompt: 'Inspect this scene' })).outcome.kind).toBe('done');
     const wire = JSON.stringify(transport.requests[1]);
@@ -726,6 +726,45 @@ describe('agent tools: provider metadata boundary', () => {
     // Filtering does not mutate trusted local records.
     expect(host.getPlace(host.places[0].ref)?.source.identity).toBe(identity);
     expect(host.getPlace(host.places[0].ref)?.fields?.PrivateMissionAttribute).toBe('PRIVATE_VALUE');
+    tools.dispose();
+  });
+});
+
+describe('compact activity collections', () => {
+  const data = (r: AgentToolResult) => (r as { data: any }).data;
+  it('ranks all 72 catalog flights, pages without repeats and keeps details on demand', async () => {
+    const { readFileSync } = await import('node:fs');
+    const catalog = JSON.parse(readFileSync(new URL('../../../apps/viewer/test-catalogs/ingenuity-jezero.json', import.meta.url), 'utf8'));
+    const host = new MissionViewer();
+    host.activities.splice(0, host.activities.length, ...catalog.activities);
+    const tools = createAgentTools(host);
+    const first = data(await tools.call('listActivities', { vehicle: 'Ingenuity', kind: 'flight', sort: 'duration', order: 'desc', limit: 1 }));
+    expect(first).toMatchObject({ total: 72, returned: 1, nextOffset: 1, complete: false, missingDuration: 0 });
+    expect(first.activities[0]).toMatchObject({ id: 'ingenuity:flight:12', durationSeconds: 169.5, timing: 'estimated' });
+    expect(JSON.stringify(first)).not.toMatch(/site|references|limitations|sourceSegment/);
+    const ids: string[] = [];
+    let offset: number | null = 0;
+    while (offset !== null) {
+      const page = data(await tools.call('listActivities', { vehicle: 'Ingenuity', sort: 'duration', order: 'desc', offset, limit: 13 }));
+      ids.push(...page.activities.map((a: { id: string }) => a.id));
+      offset = page.nextOffset;
+    }
+    expect(new Set(ids).size).toBe(72);
+    expect(ids).toHaveLength(72);
+    const detail = data(await tools.call('getActivity', { activity: first.activities[0].id }));
+    expect(detail).toMatchObject({ name: 'Flight 12', references: { trajectory: 'Ingenuity' }, provenance: { timing: 'estimated' } });
+    expect((await tools.call('getActivity', { activity: 'absent' })).ok).toBe(false);
+    tools.dispose();
+  });
+  it('reports missing duration metrics and keeps them last in either sort direction', async () => {
+    const host = new MissionViewer();
+    host.activities.splice(0, host.activities.length, { ...FLIGHT_5, id: 'point', temporality: 'instant' }, { ...FLIGHT_5, id: 'interval' });
+    const tools = createAgentTools(host);
+    for (const order of ['asc', 'desc']) {
+      const page = data(await tools.call('listActivities', { sort: 'duration', order }));
+      expect(page).toMatchObject({ missingDuration: 1, complete: true, nextOffset: null });
+      expect(page.activities.map((a: { durationSeconds: number | null }) => a.durationSeconds)).toEqual([108, null]);
+    }
     tools.dispose();
   });
 });

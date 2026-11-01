@@ -14,6 +14,7 @@
  * component styles never reach the host page and the host's never reach it.
  * Only `@font-face` and `@property` rules go to the document (`embed-css.ts`).
  */
+import { builtInAgentMetadata } from './lib/ask/public-metadata';
 import { mount, unmount } from 'svelte';
 import App from './App.svelte';
 import css from './app.css?inline';
@@ -161,7 +162,7 @@ export async function mountCosmolabe(container: HTMLElement, options: MountOptio
       },
     });
 
-    const agentTools = createAgentTools(control, { formatTime: etToUtcString });
+    const agentTools = createAgentTools(control, { formatTime: etToUtcString, metadata: builtInAgentMetadata });
 
     viewer = {
       control,

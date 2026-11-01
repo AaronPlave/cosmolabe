@@ -13,7 +13,7 @@ Write tools are verbs from the script language (`docs/scripting.md`), run throug
 
 | Effect | Tools |
 | --- | --- |
-| read | `describeScene`, `resolve`, `searchPlaces`, `listActivities`, `getSurfaceData`, `getImagery` |
+| read | `describeScene`, `resolve`, `searchPlaces`, `listActivities`, `getActivity`, `getSurfaceData`, `getImagery` |
 | camera | `flyTo`, `jumpTo`, `frameObject`, `track`, `untrack`, `pointAtObject`, `clearLookAt`, `gotoPlace`, `gotoCoordinates`, `viewpoint`, `setFrame`, `circleCenter`, `dolly`, `stopFlight` |
 | time | `setTime`, `setTimeRate`, `setPlaying`, `seekActivity` |
 | selection | `select`, `deselect`, `selectActivity`, `navigateActivity` |
@@ -42,7 +42,7 @@ The read tools give a model real names to work with, so it doesn't have to guess
   - which capabilities this viewer lacks
 - `resolve` matches a phrase against objects, viewpoints, places and activities. It returns the stable id each other tool takes, and flags ambiguity.
 - `searchPlaces` returns place coordinates, source category and explicitly approved public provenance/attributes, plus navigation availability (see "Places and imagery" in `docs/scripting.md`).
-- `listActivities`, and the selected activity in `describeScene`, carry each activity's `site` and `references` and what they come to in the scene. `site` has a `link`: `direct reference` (the record's `references.location` is a place ref, the only direct link), `name match` (the site's name equals a place's name and the record references no place) or `none`, with the `basis` in words and the matching `places`. A model states the link for what it is rather than guessing from a ref's spelling, and a site no place is named after gives it nothing to navigate to.
+- `getActivity`, and the selected activity in `describeScene`, carry each activity's `site` and `references` and what they come to in the scene. `site` has a `link`: `direct reference` (the record's `references.location` is a place ref, the only direct link), `name match` (the site's name equals a place's name and the record references no place) or `none`, with the `basis` in words and the matching `places`. A model states the link for what it is rather than guessing from a ref's spelling, and a site no place is named after gives it nothing to navigate to.
 - `getSurfaceData` inventories configured terrain elevation/LOD, cube imagery, base/normal/displacement/bump textures, other imagery products and independently managed layers. Product declarations include approved public source identity/revision, frame/datum and cube layout/levels where known. Unapproved metadata is null; its absence establishes neither accuracy nor provenance. Runtime `ready` (manager/manifest initialized), `loaded` (some data resident), `drawn` and `coversView` are separate observations. Null means unknown; resident data is not proof of full view coverage or scientific accuracy. Static texture load/coverage observations are currently unknown. Cube `coversDrawnTiles` reports mandatory-base coverage of drawn terrain blocks only; complete `coversView` remains unknown because undrawn/missing geometry is outside that measurement. Resource endpoints, source URLs and local resource paths are never included in model-facing inventory results.
 - `getImagery` describes only independently managed layers. Zero layers does not imply missing terrain, cube imagery or base textures: read `getSurfaceData` for that inventory. It returns approved attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
 
@@ -141,6 +141,7 @@ VITE_ASK_ENDPOINT=http://127.0.0.1:8787 npm run dev
 | `ASK_ANTHROPIC_FALLBACK` | Anthropic only: `1` enables the API's server-side model fallback (a beta). Default off. |
 | `RATE_PER_MINUTE` | Requests per client address. Default 20. |
 | `ASK_PROMPT_CACHE` | Anthropic only: `0` turns prompt caching off. Default on. |
+| `COST_BUDGET_USD` | Optional process estimated-USD guard (default 0/off). Stops subsequent requests after reaching the estimate; unknown pricing refuses calls when this guard is enabled. |
 | `TOKEN_BUDGET` | Tokens the process processes before it answers 429 with code `budget_exhausted`: uncached input, cache reads, cache writes and output. Default 2,000,000; 0 for none. It is a count of tokens processed, not of cost: caching lowers what a repeat costs, not this count. |
 
 The proxy:
@@ -219,3 +220,14 @@ const tools = createAgentTools(control, {
 Approval restores only the projected provenance fields, never resource endpoints or arbitrary object keys. The standalone Ask panel uses the conservative default. Existing real-provider receipts document earlier acceptance runs; they are not evidence of a new provider run after this metadata change.
 
 On compact screens, the selected activity's timeline inspector yields while the Ask sheet is active. Selection remains unchanged, and closing Ask restores the inspector.
+
+
+Activity collection reads are compact: `listActivities` returns IDs, names, vehicle/kind, start/end, computed `durationSeconds` (null for missing/instant intervals), and timing status. `sort` (`start`, `duration`, `name`) and `order` (`asc`, `desc`) apply to **all matching records before paging**. Missing durations stay last; `missingDuration` reports their count. Use `offset`/`limit` (maximum 50), `nextOffset`, `returned`, `total` and `complete` to determine scope. `getActivity` retrieves one record's site, references and public provenance without changing the scene. Duration is a catalog interval, never flight distance or guaranteed telemetry. “Longest flight” asks duration versus distance before changing selection/time.
+
+Tool result budgets never cut JSON strings. Oversized activity pages shrink by whole records and return `partial: true` plus a corrected `nextOffset`; oversized individual results are explicitly omitted with `result-too-large` and guidance to request less data. A partial prefix cannot establish an unsorted collection maximum.
+
+Built-in Ask (including the embedded workspace) uses `ask/public-metadata.ts`: a static set of exact reviewed values from built-in MoonFall/Ingenuity definitions and pinned lunar manifests, including LOLA identities/revisions, LROC WAC/NAC attribution and NASA/JPL timing limitations. It is **not populated from loaded catalogs or resource URLs**. Changed/unknown revisions and custom metadata remain withheld; endpoints and arbitrary attributes remain excluded even when their text resembles a public source. Hosts can supply their own reviewed policy through `createAgentTools`.
+
+Raw tokens processed and estimated billed cost are separate. The proxy logs both request/process cost estimates using first-party standard global rates for the **reported answering model**, with cache reads and 5-minute cache writes priced separately. Unknown models show `unknown`; no fallback price is guessed. The reviewed rate table and source links live in `examples/ask-proxy/cost.mjs` (checked 2026-11-01): [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing). Estimates exclude regional/priority/batch rates, discounts and taxes; they are not billing records. Other model IDs require a reviewed rate entry.
+
+For the reported 62,057 raw-token Sonnet 5.5 run (12 uncached input, 43,231 cache reads, 17,898 cache writes, 916 output), standard estimated cost is about **$0.0583**, rather than 62,057 tokens at uncached rates. A raw cap of 50,000 therefore stops that workflow even with effective caching: use `TOKEN_BUDGET=500000` or the 2,000,000 default, plus provider workspace spending limits. `COST_BUDGET_USD` is a separate optional convenience guard; both guards are checked before requests, so concurrent/in-flight requests can overshoot. Provider account spending limits remain the enforcement boundary.

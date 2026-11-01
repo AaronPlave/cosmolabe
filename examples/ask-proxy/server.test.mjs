@@ -152,12 +152,12 @@ describe('ask proxy server', () => {
     const refused = await post(url, WIRE);
     expect(refused.status).toBe(429);
     // A code, not wording, says it is this proxy's own budget and not the provider's.
-    expect((await refused.json()).error).toMatchObject({ code: 'budget_exhausted', message: expect.stringContaining('token budget') });
+    expect((await refused.json()).error).toMatchObject({ code: 'budget_exhausted', message: expect.stringContaining('raw-token safety cap') });
     expect(calls).toBe(2);
     // The reply names no model here, so the answering model is not claimed.
     expect(usage).toEqual([
-      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 1000, stop: 'end_turn' },
-      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 2000, stop: 'end_turn' },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 1000, stop: 'end_turn', estimatedUsd: null, estimatedSpentUsd: null },
+      { requestedModel: 'claude-sonnet-5-5', model: 'unknown', inputTokens: 700, outputTokens: 300, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 2000, stop: 'end_turn', estimatedUsd: null, estimatedSpentUsd: null },
     ]);
   });
 
@@ -177,6 +177,28 @@ describe('ask proxy server', () => {
     const refused = await post(url, WIRE);
     expect(refused.status).toBe(429);
     expect(calls).toBe(1);
+  });
+
+  it('guards estimated cost separately from the raw-token count and refuses unknown pricing', async () => {
+    const usage = [];
+    let calls = 0;
+    const url = await start(async () => {
+      calls++;
+      return new Response(JSON.stringify({ model: 'claude-sonnet-5-5', content: [], stop_reason: 'end_turn',
+        usage: { input_tokens: 12, cache_read_input_tokens: 43231, cache_creation_input_tokens: 17898, output_tokens: 916 } }), { status: 200 });
+    }, { tokenBudget: 500000, costBudgetUsd: 0.05, onUsage: u => usage.push(u) });
+    expect((await post(url, WIRE)).status).toBe(200);
+    expect(usage[0]).toMatchObject({ spent: 62057, estimatedUsd: expect.any(Number) });
+    const refused = await post(url, WIRE);
+    expect((await refused.json()).error.code).toBe('cost_budget_exhausted');
+    expect(calls).toBe(1);
+  });
+  it('makes no provider call when a configured cost guard has no reviewed model price', async () => {
+    let calls = 0;
+    const url = await start(async () => { calls++; return new Response('{}'); }, { model: 'unpriced', costBudgetUsd: 1 });
+    const refused = await post(url, WIRE);
+    expect((await refused.json()).error.code).toBe('cost_budget_exhausted');
+    expect(calls).toBe(0);
   });
 
   it('tells its own rate limit and a provider 429 apart by code', async () => {
@@ -206,7 +228,7 @@ describe('ask proxy server', () => {
       model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Hi.' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 2 },
     }), { status: 200 }), { onUsage: (u) => usage.push(u) });
     await post(url, WIRE);
-    expect(usage).toEqual([{ requestedModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 12, stop: 'end_turn' }]);
+    expect(usage).toEqual([expect.objectContaining({ requestedModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5', inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, fallback: null, spent: 12, stop: 'end_turn', estimatedUsd: 0.00008, estimatedSpentUsd: 0.00008 })]);
     // Only counts and model names: nothing of the conversation or the key.
     expect(JSON.stringify(usage)).not.toMatch(/secret|"go"|sys/);
   });

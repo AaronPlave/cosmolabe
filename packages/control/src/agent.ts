@@ -254,17 +254,25 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
     name: 'listActivities',
     effect: 'read',
     method: 'listActivities',
-    description: 'Mission activities (flights, drives, phases…) with their times, vehicle and provenance, in time order. Bounded.',
+    description: 'Compact activity page. Sort ranks the ENTIRE matching collection before paging; duration is the catalog interval in seconds, not distance or telemetry. Missing durations sort last. Use getActivity for site, navigation references and full provenance.',
     inputSchema: {
       type: 'object',
       properties: {
         vehicle: { type: 'string' },
         kind: { type: 'string' },
         limit: { type: 'number', minimum: 1, maximum: 50 },
+        offset: { type: 'number', minimum: 0 },
+        sort: { type: 'string', enum: ['start', 'duration', 'name'] },
+        order: { type: 'string', enum: ['asc', 'desc'] },
       },
       required: [],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'getActivity', effect: 'read', method: 'listActivities',
+    description: 'Details of one catalog activity: navigation references, site association, timing and available provenance. No selection or time changes.',
+    inputSchema: { type: 'object', properties: { activity: { type: 'string' } }, required: ['activity'], additionalProperties: false },
   },
   {
     name: 'getSurfaceData',
@@ -561,17 +569,34 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return { ok: true, summary: `${places.length} place${places.length === 1 ? '' : 's'} found.`, data: places.map(placeSummary) };
   }
 
+  function getActivity(input: Input): AgentToolResult {
+    const activity = host.listActivities!().find(a => a.id === input.activity);
+    return activity ? { ok: true, summary: activity.name, data: activitySummary(activity) }
+      : { ok: false, code: 'refused', error: 'No activity with that id in this scene.' };
+  }
+
   function listActivities(input: Input): AgentToolResult {
     const all = host.listActivities!({ vehicle: input.vehicle as string | undefined, kind: input.kind as string | undefined });
-    const { items, total } = bounded(all, Math.round((input.limit as number | undefined) ?? 20));
-    return {
-      ok: true,
-      summary: `${total} activit${total === 1 ? 'y' : 'ies'}${total > items.length ? `, first ${items.length} shown` : ''}.`,
-      data: {
-        total,
-        activities: items.map(activitySummary),
-      },
-    };
+    const duration = (a: ScriptActivity) => a.temporality === 'interval' && Number.isFinite(a.start) && Number.isFinite(a.end) && a.end >= a.start ? a.end - a.start : null;
+    const sort = (input.sort as string | undefined) ?? 'start';
+    const order = (input.order as string | undefined) ?? 'asc';
+    const value = (a: ScriptActivity) => sort === 'duration' ? duration(a) : sort === 'name' ? a.name : a.start;
+    const sorted = [...all].sort((a, b) => {
+      const x = value(a), y = value(b);
+      if (x === null || y === null) return x === y ? a.id.localeCompare(b.id) : x === null ? 1 : -1;
+      const cmp = typeof x === 'string' && typeof y === 'string' ? x.localeCompare(y) : Number(x) - Number(y);
+      return (order === 'desc' ? -cmp : cmp) || a.id.localeCompare(b.id);
+    });
+    const offset = Math.floor((input.offset as number | undefined) ?? 0);
+    const limit = Math.floor((input.limit as number | undefined) ?? 10);
+    const items = sorted.slice(offset, offset + limit);
+    const nextOffset = offset + items.length < all.length ? offset + items.length : null;
+    return { ok: true, summary: `${all.length} matching activities; sorted across all matches by ${sort} ${order}; ${items.length} returned.`, data: {
+      total: all.length, offset, returned: items.length, nextOffset, complete: offset === 0 && nextOffset === null,
+      sort, order, missingDuration: all.filter(a => duration(a) === null).length,
+      activities: items.map(a => ({ id: a.id, name: a.name, vehicle: a.vehicle, kind: a.kind,
+        start: a.start, end: a.end, durationSeconds: duration(a), timing: metadata.text(a.provenance.timing) })),
+    } };
   }
 
   function getSurfaceData(input: Input): AgentToolResult {
@@ -618,7 +643,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return null;
   }
 
-  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getSurfaceData, getImagery };
+  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery };
 
   /**
    * Wait for the end of flight `id`, the one a call started, unless the task or

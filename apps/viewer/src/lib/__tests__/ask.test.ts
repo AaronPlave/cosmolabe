@@ -159,7 +159,7 @@ describe('the Ask session', () => {
       expect(turn).toMatchObject({ status: 'error', errorCode: 'budget_exhausted', reply: '' });
       expect(turn.steps).toHaveLength(0);
       const note = endNote(turn)!;
-      expect(note.text).toContain('local model budget is exhausted');
+      expect(note.text).toContain('raw-token safety cap (including cached tokens) is exhausted');
       expect(note.text).not.toContain('actions ran');
       expect(note.tone).toBe('warning');
     });

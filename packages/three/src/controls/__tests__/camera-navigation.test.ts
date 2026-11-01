@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { KeyboardControls } from '../KeyboardControls.js';
 import { CameraController } from '../CameraController.js';
 import { CameraModeName } from '../CameraModes.js';
 import type { InstrumentMode } from '../modes/InstrumentMode.js';
@@ -652,16 +653,37 @@ describe('manual camera input notifications between flights', () => {
     key('KeyW', { tagName: 'TEXTAREA' });
     key('KeyW', { isContentEditable: true });
     key('Escape');
-    for (const modifiers of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }]) {
+    for (const modifiers of [{ metaKey: true }, { ctrlKey: true }]) {
       key('KeyC', {}, modifiers);
       expect(cc.keyboard.navigating).toBe(false);
     }
     expect(input).not.toHaveBeenCalled();
-    key('KeyW');
+    key('AltLeft', {}, { altKey: true });
+    expect(input).not.toHaveBeenCalled();
+    key('KeyW', {}, { altKey: true });
     expect(input).toHaveBeenCalledOnce();
     cc.keyboard.enabled = false;
     key('KeyA');
     expect(input).toHaveBeenCalledOnce();
+  });
+  it('retains Alt slow movement at 0.2 times the normal distance', () => {
+    const events = vi.spyOn(window, 'addEventListener');
+    const keyboard = new KeyboardControls();
+    const down = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
+    const up = events.mock.calls.filter(([type]) => type === 'keyup').at(-1)![1] as EventListener;
+    const key = (listener: EventListener, code: string, altKey = false) => listener({ code, altKey, target: {}, preventDefault() {} } as unknown as Event);
+    const camera = new THREE.PerspectiveCamera();
+    const target = new THREE.Vector3();
+    camera.position.set(0, 0, 10);
+    key(down, 'KeyW');
+    keyboard.update(camera, target, 0.1);
+    const normal = 10 - camera.position.z;
+    key(up, 'KeyW');
+    camera.position.set(0, 0, 10); target.set(0, 0, 0);
+    key(down, 'AltLeft', true); key(down, 'KeyW', true);
+    keyboard.update(camera, target, 0.1);
+    expect(10 - camera.position.z).toBeCloseTo(normal * 0.2, 10);
+    keyboard.dispose();
   });
   it('reports real wheel navigation when idle, excluding field-of-view-only input', () => {
     const { cc, frame, fire } = setup();

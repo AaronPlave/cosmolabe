@@ -138,7 +138,7 @@ describe('ask proxy server, OpenAI provider', () => {
     const usage = [];
     const url = await start(async () => new Response(JSON.stringify({ status: 'completed', model: 'gpt-5.1-2026-01-01', output: [message], usage: { input_tokens: 9, output_tokens: 3 } }), { status: 200 }), { onUsage: (u) => usage.push(u) });
     await post(url, WIRE);
-    expect(usage).toEqual([{ requestedModel: 'gpt-5.1', model: 'gpt-5.1-2026-01-01', inputTokens: 9, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0, spent: 12, stop: 'completed' }]);
+    expect(usage).toEqual([{ requestedModel: 'gpt-5.1', model: 'gpt-5.1-2026-01-01', inputTokens: 9, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0, spent: 12, stop: 'completed', estimatedUsd: null, estimatedSpentUsd: null }]);
     expect(usage[0].fallback).toBeUndefined(); // OpenAI has no fallback to report
   });
 

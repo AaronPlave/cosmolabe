@@ -47,7 +47,12 @@
  *   TOKEN_BUDGET       tokens this process will process (uncached input + cache
  *                      reads + cache writes + output) before it answers 429
  *                      with code budget_exhausted; default 2000000, 0 for none
+ *   COST_BUDGET_USD    optional process estimated-USD guard, default 0 (off).
+ *                      Stops subsequent requests after reaching the estimate;
+ *                      concurrent/in-flight work can exceed either guard. Use
+ *                      provider workspace spending limits for account enforcement.
  */
+import { estimatedCostUsd } from './cost.mjs';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { anthropicProvider, fromAnthropicMessage, toAnthropicRequest } from './anthropic.mjs';
@@ -90,10 +95,12 @@ function readBody(req) {
 
 export function createProxy({
   apiKey, origins, model, maxTokens, perMinute, provider = anthropicProvider, reasoningEffort, fallback = false, cache = true,
-  tokenBudget = 0, onUsage = () => {}, fetchImpl = fetch,
+  tokenBudget = 0, costBudgetUsd = 0, onUsage = () => {}, fetchImpl = fetch,
 }) {
   const allow = rateLimiter(perMinute);
   let spent = 0;
+  let estimatedSpentUsd = 0;
+  let costKnown = true;
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
     const cors = origin && origins.includes(origin)
@@ -120,7 +127,10 @@ export function createProxy({
     }
     if (req.method !== 'POST' || new URL(req.url, 'http://x').pathname !== '/') return fail(404, 'only POST /');
     if (!allow(req.socket.remoteAddress ?? 'unknown')) return fail(429, 'too many requests', 'rate_limited');
-    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has spent its token budget', 'budget_exhausted');
+    if (tokenBudget > 0 && spent >= tokenBudget) return fail(429, 'the proxy has reached its raw-token safety cap (includes cached tokens; not a billing amount)', 'budget_exhausted');
+
+    if (costBudgetUsd > 0 && (!costKnown || estimatedSpentUsd >= costBudgetUsd)) return fail(429, 'the proxy estimated-cost guard is reached or pricing is unavailable; check provider spending limits', 'cost_budget_exhausted');
+    if (costBudgetUsd > 0 && estimatedCostUsd(provider.name, { model, inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 }) === null) return fail(503, 'no reviewed pricing for this model; estimated-cost guard cannot authorize requests', 'cost_budget_exhausted');
 
     let parsed;
     try {
@@ -160,7 +170,10 @@ export function createProxy({
     spent += usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens;
     // `requestedModel` is this proxy's configuration; `model` is what the
     // provider reported, or 'unknown'. Neither is a statement about billing.
-    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent });
+    const estimatedUsd = estimatedCostUsd(provider.name, usage);
+    if (estimatedUsd === null) costKnown = false;
+    else estimatedSpentUsd += estimatedUsd;
+    onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent, estimatedUsd, estimatedSpentUsd: costKnown ? estimatedSpentUsd : null });
     send(200, wire);
   });
 }
@@ -191,9 +204,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     cache: process.env.ASK_PROMPT_CACHE !== '0',
     perMinute: Number(process.env.RATE_PER_MINUTE ?? 20),
     tokenBudget: Number(process.env.TOKEN_BUDGET ?? 2_000_000),
+    costBudgetUsd: Number(process.env.COST_BUDGET_USD ?? 0),
     onUsage: (u) => console.log(
       `usage requested=${u.requestedModel} answered=${u.model} fallback=${u.fallback === undefined || u.fallback === null ? 'unknown' : u.fallback ? 'served' : 'no'}: `
-      + `uncached ${u.inputTokens} in, cache ${u.cacheReadTokens} read / ${u.cacheWriteTokens} written, ${u.outputTokens} out (${u.spent} tokens total this run) stop=${u.stop}`,
+      + `uncached ${u.inputTokens} in, cache ${u.cacheReadTokens} read / ${u.cacheWriteTokens} written, ${u.outputTokens} out (${u.spent} raw tokens processed this run); estimated USD request=${u.estimatedUsd === null ? 'unknown' : u.estimatedUsd.toFixed(6)} process=${u.estimatedSpentUsd === null ? 'unknown' : u.estimatedSpentUsd.toFixed(6)} (estimate, not billing) stop=${u.stop}`,
     ),
   }).listen(port, '127.0.0.1', () => {
     console.log(`ask proxy (${provider.name}) on http://127.0.0.1:${port} for ${origins.join(', ')}; set VITE_ASK_ENDPOINT=http://127.0.0.1:${port}`);
