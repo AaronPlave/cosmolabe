@@ -30,12 +30,8 @@
       "origin": "mission/user",
       "latitude": -89.71,
       "longitude": -2,
-      "fields": {
-        "origin": "Fictional planned landing waypoint from the MoonFall catalog; not an observed landing site."
-      },
       "source": {
-        "kind": "catalog",
-        "identity": "http://127.0.0.1:5190/test-catalogs/places/moonfall-sites.geojson"
+        "kind": "catalog"
       },
       "unavailable": null
     },
@@ -47,13 +43,11 @@
     "surface": "streamed",
     "terrain": {
       "kind": "terrain",
-      "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-terrain-cube/tileset.json",
       "configured": true,
       "source": {
         "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
         "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
-        "kind": "height-grid",
-        "url": null
+        "kind": "height-grid"
       },
       "frame": "MOON_ME_DE421",
       "datum": {
@@ -71,14 +65,12 @@
     },
     "cubeImagery": {
       "kind": "cube-imagery",
-      "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-imagery-cube-wac-nac/imagery.json",
       "configured": true,
       "source": {
         "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
         "revision": "cube-imagery-composite-3f34a19541af7710",
         "kind": "imagery",
-        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
-        "url": null
+        "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)"
       },
       "frame": null,
       "datum": null,
@@ -101,7 +93,6 @@
     "textures": [
       {
         "kind": "baseMap",
-        "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-16k.jpg",
         "configured": true,
         "source": {
           "id": null,
@@ -121,7 +112,6 @@
       },
       {
         "kind": "normalMap",
-        "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-normal-16k.jpg",
         "configured": true,
         "source": {
           "id": null,
@@ -141,7 +131,6 @@
       },
       {
         "kind": "displacementMap",
-        "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-displacement-2k.jpg",
         "configured": true,
         "source": {
           "id": null,
@@ -163,498 +152,7 @@
     "imageryProducts": [],
     "overlays": []
   },
-  "trace": [
-    {
-      "name": "describeScene",
-      "input": {},
-      "id": "toolu_01R9NtEt1EdAw8K2WcK1Yskn",
-      "result": {
-        "summary": "MoonFall at Shackleton: 7 objects; selected nothing; tracking nothing.",
-        "data": {
-          "scene": {
-            "id": 1,
-            "catalog": "MoonFall at Shackleton",
-            "ready": true
-          },
-          "time": {
-            "et": 913759509.2320563,
-            "utc": "2028-12-15 10:04:00 UTC",
-            "playing": false,
-            "rate": 1
-          },
-          "selected": null,
-          "tracked": null,
-          "flight": null,
-          "selectedActivity": null,
-          "selectedPlace": null,
-          "objects": {
-            "names": [
-              "Sun",
-              "Earth",
-              "Moon",
-              "Polaris-A",
-              "Polaris-B",
-              "Polaris-C",
-              "Polaris-D"
-            ],
-            "total": 7
-          },
-          "viewpoints": {
-            "names": [
-              "Shackleton Overview",
-              "Polaris-A Close-up",
-              "PSR Floor View",
-              "Default"
-            ],
-            "total": 4
-          },
-          "activities": 24,
-          "focusSurfaceData": null,
-          "focusImagery": null,
-          "unsupported": []
-        }
-      }
-    },
-    {
-      "name": "resolve",
-      "input": {
-        "query": "Shackleton"
-      },
-      "id": "toolu_01VshZGYouQTNGake9v5mwVW",
-      "result": {
-        "summary": "2 candidates for \"Shackleton\".",
-        "data": {
-          "candidates": [
-            {
-              "kind": "viewpoint",
-              "id": "Shackleton Overview",
-              "label": "Shackleton Overview"
-            },
-            {
-              "kind": "place",
-              "id": "moon:usgs:places/gazetteer:5450",
-              "label": "Shackleton",
-              "detail": "Crater, craters on Moon"
-            }
-          ],
-          "ambiguous": true
-        }
-      }
-    },
-    {
-      "name": "searchPlaces",
-      "input": {
-        "query": "Shackleton"
-      },
-      "id": "toolu_01BvA1Kq28Xh6QPA9gTbcYoa",
-      "result": {
-        "summary": "1 place found.",
-        "data": [
-          {
-            "ref": "moon:usgs:places/gazetteer:5450",
-            "name": "Shackleton",
-            "body": "Moon",
-            "kind": "Crater, craters",
-            "latitude": -89.67,
-            "longitude": 129.77999999999997,
-            "diameterKm": 20.924982,
-            "fields": {
-              "clean_name": "Shackleton",
-              "approvaldt": "1994/01/01 00:00:00",
-              "origin": "Sir Ernest Henry; Irish-born British Antarctic explorer (1874-1922).",
-              "diameter": "20.924982",
-              "center_lon": "129.78",
-              "center_lat": "-89.67",
-              "type": "Crater, craters",
-              "code": "AA",
-              "approval": "Adopted by IAU",
-              "min_lon": "35.538",
-              "max_lon": "206.565",
-              "min_lat": "-89.943",
-              "max_lat": "-89.287",
-              "ethnicity": "Great Britain",
-              "continent": "Europe",
-              "quad_name": "Amundsen"
-            },
-            "source": "Moon places (3/4) (catalog: http://127.0.0.1:5190/test-catalogs/places/moon-003.geojson)"
-          }
-        ]
-      }
-    },
-    {
-      "name": "searchPlaces",
-      "input": {
-        "query": "landing"
-      },
-      "id": "toolu_01E9Wctvs9GaP38LLhgwDZYN",
-      "result": {
-        "summary": "1 place found.",
-        "data": [
-          {
-            "ref": "moon:mission:moonfall-sites/psr-landing",
-            "name": "MoonFall PSR landing (synthetic)",
-            "body": "Moon",
-            "kind": "Mission site",
-            "latitude": -89.71,
-            "longitude": -2,
-            "fields": {
-              "origin": "Fictional planned landing waypoint from the MoonFall catalog; not an observed landing site."
-            },
-            "source": "Cosmolabe MoonFall synthetic mission waypoints (catalog: http://127.0.0.1:5190/test-catalogs/places/moonfall-sites.geojson)"
-          }
-        ]
-      }
-    },
-    {
-      "name": "gotoPlace",
-      "input": {
-        "place": "moon:mission:moonfall-sites/psr-landing",
-        "how": "fly"
-      },
-      "id": "toolu_01GiHFv7s7yiSYh9vcG8YvM5",
-      "result": {
-        "summary": "gotoPlace moon:mission:moonfall-sites/psr-landing fly: arrived at Moon. The viewer now reports MoonFall PSR landing (synthetic) as the selected place."
-      }
-    },
-    {
-      "name": "getSurfaceData",
-      "input": {
-        "object": "Moon"
-      },
-      "id": "toolu_01TqBwQHzHvf9T7bSgShPB3e",
-      "result": {
-        "summary": "Moon: configured surface products and independently managed overlays; unknown runtime observations are null.",
-        "data": {
-          "body": "Moon",
-          "bodyFrame": "MOON_ME_DE421",
-          "surface": "streamed",
-          "terrain": {
-            "kind": "terrain",
-            "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-terrain-cube/tileset.json",
-            "configured": true,
-            "source": {
-              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
-              "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
-              "kind": "height-grid",
-              "url": null
-            },
-            "frame": "MOON_ME_DE421",
-            "datum": {
-              "verticalDatum": "reference-sphere",
-              "heightConvention": "radial"
-            },
-            "resolutionMeters": null,
-            "runtime": {
-              "ready": true,
-              "loaded": true,
-              "failedRequests": 0,
-              "drawn": true,
-              "coversView": null
-            }
-          },
-          "cubeImagery": {
-            "kind": "cube-imagery",
-            "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-imagery-cube-wac-nac/imagery.json",
-            "configured": true,
-            "source": {
-              "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
-              "revision": "cube-imagery-composite-3f34a19541af7710",
-              "kind": "imagery",
-              "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
-              "url": null
-            },
-            "frame": null,
-            "datum": null,
-            "resolutionMeters": null,
-            "runtime": {
-              "ready": true,
-              "manifestFailed": false,
-              "loaded": true,
-              "failedRequests": 0,
-              "drawn": true,
-              "coversView": null,
-              "coversDrawnTiles": true
-            },
-            "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
-            "lod": {
-              "minLevel": 0,
-              "maxLevel": 13
-            }
-          },
-          "textures": [
-            {
-              "kind": "baseMap",
-              "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-16k.jpg",
-              "configured": true,
-              "source": {
-                "id": null,
-                "revision": null,
-                "kind": null
-              },
-              "frame": null,
-              "datum": null,
-              "resolutionMeters": null,
-              "runtime": {
-                "ready": null,
-                "loaded": null,
-                "failedRequests": null,
-                "drawn": null,
-                "coversView": null
-              }
-            },
-            {
-              "kind": "normalMap",
-              "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-normal-16k.jpg",
-              "configured": true,
-              "source": {
-                "id": null,
-                "revision": null,
-                "kind": null
-              },
-              "frame": null,
-              "datum": null,
-              "resolutionMeters": null,
-              "runtime": {
-                "ready": null,
-                "loaded": null,
-                "failedRequests": null,
-                "drawn": null,
-                "coversView": null
-              }
-            },
-            {
-              "kind": "displacementMap",
-              "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-displacement-2k.jpg",
-              "configured": true,
-              "source": {
-                "id": null,
-                "revision": null,
-                "kind": null
-              },
-              "frame": null,
-              "datum": null,
-              "resolutionMeters": null,
-              "runtime": {
-                "ready": null,
-                "loaded": null,
-                "failedRequests": null,
-                "drawn": null,
-                "coversView": null
-              }
-            }
-          ],
-          "imageryProducts": [],
-          "overlays": []
-        }
-      }
-    },
-    {
-      "name": "getImagery",
-      "input": {
-        "object": "Moon"
-      },
-      "id": "toolu_017MwpKBrDXj7g6Jd1WF1jAw",
-      "result": {
-        "summary": "Moon has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.",
-        "data": {
-          "body": "Moon",
-          "surface": "streamed",
-          "imageryOnly": false,
-          "layers": []
-        }
-      }
-    },
-    {
-      "name": "describeScene",
-      "input": {},
-      "id": "toolu_01WsZah54kGMnAXDDytnpZxP",
-      "result": {
-        "summary": "MoonFall at Shackleton: 7 objects; selected nothing; tracking Moon.",
-        "data": {
-          "scene": {
-            "id": 1,
-            "catalog": "MoonFall at Shackleton",
-            "ready": true
-          },
-          "time": {
-            "et": 913759509.2320563,
-            "utc": "2028-12-15 10:04:00 UTC",
-            "playing": false,
-            "rate": 1
-          },
-          "selected": null,
-          "tracked": "Moon",
-          "flight": null,
-          "selectedActivity": null,
-          "selectedPlace": {
-            "ref": "moon:mission:moonfall-sites/psr-landing",
-            "name": "MoonFall PSR landing (synthetic)",
-            "body": "Moon",
-            "kind": "Mission site",
-            "latitude": -89.71,
-            "longitude": -2,
-            "fields": {
-              "origin": "Fictional planned landing waypoint from the MoonFall catalog; not an observed landing site."
-            },
-            "source": "Cosmolabe MoonFall synthetic mission waypoints (catalog: http://127.0.0.1:5190/test-catalogs/places/moonfall-sites.geojson)"
-          },
-          "objects": {
-            "names": [
-              "Sun",
-              "Earth",
-              "Moon",
-              "Polaris-A",
-              "Polaris-B",
-              "Polaris-C",
-              "Polaris-D"
-            ],
-            "total": 7
-          },
-          "viewpoints": {
-            "names": [
-              "Shackleton Overview",
-              "Polaris-A Close-up",
-              "PSR Floor View",
-              "Default"
-            ],
-            "total": 4
-          },
-          "activities": 24,
-          "focusSurfaceData": {
-            "body": "Moon",
-            "bodyFrame": "MOON_ME_DE421",
-            "surface": "streamed",
-            "terrain": {
-              "kind": "terrain",
-              "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-terrain-cube/tileset.json",
-              "configured": true,
-              "source": {
-                "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
-                "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
-                "kind": "height-grid",
-                "url": null
-              },
-              "frame": "MOON_ME_DE421",
-              "datum": {
-                "verticalDatum": "reference-sphere",
-                "heightConvention": "radial"
-              },
-              "resolutionMeters": null,
-              "runtime": {
-                "ready": true,
-                "loaded": true,
-                "failedRequests": 0,
-                "drawn": true,
-                "coversView": null
-              }
-            },
-            "cubeImagery": {
-              "kind": "cube-imagery",
-              "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-imagery-cube-wac-nac/imagery.json",
-              "configured": true,
-              "source": {
-                "id": "lroc-wac-global-100m+lroc-nac-south-pole-1m (scripts/terrain/cube_imagery.py composite)",
-                "revision": "cube-imagery-composite-3f34a19541af7710",
-                "kind": "imagery",
-                "attribution": "LRO LROC WAC global mosaic, 100 m (June 2013; LROC team, USGS Astrogeology); LRO LROC NAC South Pole controlled mosaic, 1 m (USGS control network, LROC team mosaic; released Nov 2025; PDS LRO-L-LROC-5-RDR-V1.0, doi:10.17189/1520341)",
-                "url": null
-              },
-              "frame": null,
-              "datum": null,
-              "resolutionMeters": null,
-              "runtime": {
-                "ready": true,
-                "manifestFailed": false,
-                "loaded": true,
-                "failedRequests": 0,
-                "drawn": true,
-                "coversView": null,
-                "coversDrawnTiles": true
-              },
-              "crsId": "cosmolabe:cube-gnomonic-1/IAU_MOON",
-              "lod": {
-                "minLevel": 0,
-                "maxLevel": 13
-              }
-            },
-            "textures": [
-              {
-                "kind": "baseMap",
-                "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-16k.jpg",
-                "configured": true,
-                "source": {
-                  "id": null,
-                  "revision": null,
-                  "kind": null
-                },
-                "frame": null,
-                "datum": null,
-                "resolutionMeters": null,
-                "runtime": {
-                  "ready": null,
-                  "loaded": null,
-                  "failedRequests": null,
-                  "drawn": null,
-                  "coversView": null
-                }
-              },
-              {
-                "kind": "normalMap",
-                "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-normal-16k.jpg",
-                "configured": true,
-                "source": {
-                  "id": null,
-                  "revision": null,
-                  "kind": null
-                },
-                "frame": null,
-                "datum": null,
-                "resolutionMeters": null,
-                "runtime": {
-                  "ready": null,
-                  "loaded": null,
-                  "failedRequests": null,
-                  "drawn": null,
-                  "coversView": null
-                }
-              },
-              {
-                "kind": "displacementMap",
-                "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-displacement-2k.jpg",
-                "configured": true,
-                "source": {
-                  "id": null,
-                  "revision": null,
-                  "kind": null
-                },
-                "frame": null,
-                "datum": null,
-                "resolutionMeters": null,
-                "runtime": {
-                  "ready": null,
-                  "loaded": null,
-                  "failedRequests": null,
-                  "drawn": null,
-                  "coversView": null
-                }
-              }
-            ],
-            "imageryProducts": [],
-            "overlays": []
-          },
-          "focusImagery": {
-            "body": "Moon",
-            "surface": "streamed",
-            "imageryOnly": false,
-            "layers": []
-          },
-          "unsupported": []
-        }
-      }
-    }
-  ],
   "missingManifest": {
-    "route": "**/moon-imagery-cube-wac-nac/imagery.json",
     "response": 404,
     "surface": {
       "body": "Moon",
@@ -662,13 +160,11 @@
       "surface": "waiting",
       "terrain": {
         "kind": "terrain",
-        "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-terrain-cube/tileset.json",
         "configured": true,
         "source": {
           "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
           "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
-          "kind": "height-grid",
-          "url": null
+          "kind": "height-grid"
         },
         "frame": "MOON_ME_DE421",
         "datum": {
@@ -686,14 +182,12 @@
       },
       "cubeImagery": {
         "kind": "cube-imagery",
-        "endpoint": "http://127.0.0.1:5190/test-catalogs/data/moon-imagery-cube-wac-nac/imagery.json",
         "configured": true,
         "source": {
           "id": null,
           "revision": null,
           "kind": null,
-          "attribution": null,
-          "url": null
+          "attribution": null
         },
         "frame": null,
         "datum": null,
@@ -713,7 +207,6 @@
       "textures": [
         {
           "kind": "baseMap",
-          "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-16k.jpg",
           "configured": true,
           "source": {
             "id": null,
@@ -733,7 +226,6 @@
         },
         {
           "kind": "normalMap",
-          "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-normal-16k.jpg",
           "configured": true,
           "source": {
             "id": null,
@@ -753,7 +245,6 @@
         },
         {
           "kind": "displacementMap",
-          "endpoint": "http://127.0.0.1:5190/test-catalogs/textures/moon-displacement-2k.jpg",
           "configured": true,
           "source": {
             "id": null,
@@ -803,5 +294,6 @@
       "output": 279
     }
   ],
-  "usageNote": "From the local proxy log for this four-round UI request. Prompt cache warmed by prior acceptance runs; provider fallback disabled. Reported fallback metadata absent."
+  "usageNote": "From the local proxy log for this four-round UI request. Prompt cache warmed by prior acceptance runs; provider fallback disabled. Reported fallback metadata absent.",
+  "note": "Historical real-provider receipt, summarized to omit raw tool traces and resource locations. Not a new run after metadata projection."
 }
