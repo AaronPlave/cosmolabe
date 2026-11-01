@@ -1,0 +1,2304 @@
+{
+  "passed": true,
+  "catalogInterception": false,
+  "runs": [
+    {
+      "deterministic": true,
+      "coldBrowserCache": true,
+      "products": {
+        "terrain": 250,
+        "cpu": 224,
+        "imagery": 392
+      },
+      "errors": [],
+      "transportFailures": [],
+      "views": [
+        {
+          "view": "Track LRO",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 10,
+            "requests": 136,
+            "bytes": 2298400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 172,
+            "pinnedTextures": 30,
+            "textureBytes": 63934464,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 172,
+            "bytes": 3073055,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 10,
+            "splitTiles": 0,
+            "blocks": 108,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 2,
+              "3": 1,
+              "4": 18,
+              "5": 33,
+              "6": 48
+            },
+            "wantedLevels": {
+              "3": 1,
+              "4": 30,
+              "5": 37,
+              "6": 37
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 155.10000050067902,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 34,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            0.000058663925705475,
+            -0.00035096409219424296,
+            -0.0003497150119251217
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": null
+        },
+        {
+          "view": "Moon Overview",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 21,
+            "requests": 147,
+            "bytes": 2484300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 189,
+            "pinnedTextures": 30,
+            "textureBytes": 70253568,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 189,
+            "bytes": 3390038,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 6,
+            "splitTiles": 0,
+            "blocks": 15,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "0": 5,
+              "1": 4
+            },
+            "wantedLevels": {
+              "0": 6
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 1,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.10000002384185791,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 171.00000035762787,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 34,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            -0.0018426884526818739,
+            -0.008323463634251932,
+            0.00522727963625809
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                1062.7525228963327,
+                -1062.7525189078144,
+                867.7337949113855
+              ],
+              "source": "terrain",
+              "latDeg": 29.99999986340476,
+              "lonDeg": -44.999999892484254,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 10.604757593167028,
+                "latDeg": 0.35011189716360824,
+                "lonDeg": 0.40427439559134654
+              },
+              "hit": {
+                "heightKm": -1.9324030110101376,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -1.9324030110101376,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.5998452694773616,
+                -0.6179677485273526,
+                0.5082337203154332
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": 1062.7591869201665,
+                "yKm": -1062.7591829316232,
+                "zKm": 867.7392360640209
+              },
+              "normal": [
+                0.5890952090625496,
+                -0.6323456431853554,
+                0.5030962355295954
+              ],
+              "distanceKm": 64.52152070569471,
+              "triangleIndex": 92,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "px/3/0/0"
+            }
+          }
+        },
+        {
+          "view": "LRO Close-up",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 27,
+            "requests": 153,
+            "bytes": 2585700,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 264,
+            "pinnedTextures": 30,
+            "textureBytes": 98131968,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 264,
+            "bytes": 5178835,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 8,
+            "splitTiles": 0,
+            "blocks": 67,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "3": 1,
+              "4": 13,
+              "5": 19,
+              "6": 28
+            },
+            "wantedLevels": {
+              "3": 2,
+              "4": 19,
+              "5": 24,
+              "6": 21
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.7999999523162842,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 241.09999978542328,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            -0.00003887684172411067,
+            -0.00007074785057463233,
+            -0.00005901976632136005
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": null
+        },
+        {
+          "view": "Lunar North Pole",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 41,
+            "requests": 167,
+            "bytes": 2822300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 273,
+            "pinnedTextures": 30,
+            "textureBytes": 101477376,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 273,
+            "bytes": 5469828,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 5,
+            "splitTiles": 0,
+            "blocks": 38,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 16,
+              "2": 16
+            },
+            "wantedLevels": {
+              "1": 28,
+              "2": 4
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 2,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.3999999761581421,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 250.099999666214,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            0.00023600983424928396,
+            -0.0002317798976712072,
+            0.0049890457441451805
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                151.29971956747124,
+                -1.1599900062719826e-7,
+                1729.3637074042654
+              ],
+              "source": "terrain",
+              "latDeg": 84.99999999814446,
+              "lonDeg": -4.392768460093066e-8,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 4.187924268915949,
+                "latDeg": 0.1382226889839534,
+                "lonDeg": 1.5859274968602333
+              },
+              "hit": {
+                "heightKm": -1.4304041751709065,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -1.4304041751709065,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.08248862538283225,
+                -0.007739089564903767,
+                0.99656195651608
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": 151.306777012273,
+                "yKm": -1.1600441145377696e-7,
+                "zKm": 1729.444374367443
+              },
+              "normal": [
+                0.09763694822709801,
+                0.004104872061617243,
+                0.9952136335311413
+              ],
+              "distanceKm": 63.94942907729844,
+              "triangleIndex": 8109,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "pz/3/4/3"
+            }
+          }
+        },
+        {
+          "view": "LROC WAC",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 41,
+            "requests": 167,
+            "bytes": 2822300,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 273,
+            "pinnedTextures": 30,
+            "textureBytes": 101477376,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 273,
+            "bytes": 5469828,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 10,
+            "splitTiles": 0,
+            "blocks": 114,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 2,
+              "3": 1,
+              "4": 15,
+              "5": 42,
+              "6": 48
+            },
+            "wantedLevels": {
+              "3": 1,
+              "4": 30,
+              "5": 37,
+              "6": 37
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.2999999523162842,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 250.099999666214,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            0.000058663925705475,
+            -0.0003509640921942425,
+            -0.0003497150119251217
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": null
+        },
+        {
+          "view": "Shackleton Close-up",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 98,
+            "requests": 224,
+            "bytes": 3785600,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 392,
+            "pinnedTextures": 30,
+            "textureBytes": 145711104,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 392,
+            "bytes": 6795719,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 12,
+            "splitTiles": 0,
+            "blocks": 56,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "11": 46,
+              "12": 4
+            },
+            "wantedLevels": {
+              "11": 52,
+              "12": 1
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 12,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.8999999761581421,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 373.7999999523163,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 250,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2820.100000023842
+          },
+          "camera": [
+            0.00009865012502735971,
+            0.0008049849685266892,
+            -0.003347039313329611
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.7215114085589
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                -6.392391989566249,
+                7.677835258607217,
+                -1734.5822543342895
+              ],
+              "source": "terrain",
+              "latDeg": -89.6700000004003,
+              "lonDeg": 129.77999996872563,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.006419175393696901,
+                "latDeg": 0.0002120312004602674,
+                "lonDeg": 0.03681381846401336
+              },
+              "hit": {
+                "heightKm": -2.7889747609028746,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -2.7889747609028746,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.00889523630177652,
+                -0.029748518050207028,
+                -0.9995178339804408
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": -6.392391746009852,
+                "yKm": 7.677834966074172,
+                "zKm": -1734.5821882450064
+              },
+              "normal": [
+                0.06385185936183083,
+                0.03824556962540861,
+                -0.9972262614171695
+              ],
+              "distanceKm": 65.38904085128222,
+              "triangleIndex": 583,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057"
+            }
+          }
+        }
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "instrument": {
+        "info": {
+          "sensor": "LROC WAC",
+          "spacecraft": "LRO",
+          "target": "Moon",
+          "fov": [
+            60,
+            1
+          ],
+          "viewFov": [
+            60,
+            1
+          ],
+          "pointing": "target",
+          "pointingUnavailable": null,
+          "imageRect": {
+            "x": 0,
+            "y": 83.94375,
+            "w": 438,
+            "h": 7.3
+          }
+        },
+        "ray": {
+          "origin": {
+            "xKm": 693.3496505436578,
+            "yKm": -559.3865799325772,
+            "zKm": 1584.4445112782391
+          },
+          "direction": [
+            -0.38143887619307476,
+            0.3077405292404264,
+            -0.8716651595603591
+          ],
+          "nearKm": 0,
+          "farKm": 1000
+        },
+        "intersection": {
+          "kind": "hit",
+          "position": {
+            "xKm": 661.7925654650329,
+            "yKm": -533.9266840763784,
+            "zKm": 1512.3301744417497
+          },
+          "normal": [
+            0.35682284331249225,
+            -0.2797387935151278,
+            0.8913044742920846
+          ],
+          "distanceKm": 82.73169581868076,
+          "triangleIndex": 4833,
+          "metadata": {
+            "bodyId": "Moon",
+            "frame": "MOON_ME_DE421",
+            "source": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "kind": "height-grid",
+              "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "fusion": {
+                "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                "created": "2026-10-03T17:53:10Z",
+                "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                "detail": "ldem_87s_10mpp.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+              },
+              "build": {
+                "global_level": 3,
+                "region": [
+                  "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                  "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                  "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  1737400,
+                  1737400
+                ],
+                "simplify": 0
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "sphere",
+                  "radiusKm": 1737.4
+                },
+                "verticalDatum": "reference-sphere",
+                "heightConvention": "radial"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "pz/3/5/2"
+        },
+        "clip": {
+          "clipped": true,
+          "samples": 48,
+          "hitSamples": 48,
+          "bodies": [
+            "Moon"
+          ],
+          "sources": [
+            "reference"
+          ],
+          "coarse": false,
+          "fallback": false,
+          "maxRangeKm": 1817.7215114085589
+        }
+      },
+      "southPole": {
+        "latDeg": -89.67,
+        "lonDeg": 129.78,
+        "altitudeAboveCpuGroundKm": 5,
+        "hit": {
+          "kind": "hit",
+          "position": {
+            "xKm": -6.392391757956788,
+            "yKm": 7.677834971900667,
+            "zKm": -1734.5821882455477
+          },
+          "normal": [
+            0.06385185936183083,
+            0.03824556962540861,
+            -0.9972262614171695
+          ],
+          "distanceKm": 65.38904085067082,
+          "triangleIndex": 583,
+          "metadata": {
+            "bodyId": "Moon",
+            "frame": "MOON_ME_DE421",
+            "source": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "kind": "height-grid",
+              "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "fusion": {
+                "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                "created": "2026-10-03T17:53:10Z",
+                "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                "detail": "ldem_87s_10mpp.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+              },
+              "build": {
+                "global_level": 3,
+                "region": [
+                  "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                  "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                  "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  1737400,
+                  1737400
+                ],
+                "simplify": 0
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "sphere",
+                  "radiusKm": 1737.4
+                },
+                "verticalDatum": "reference-sphere",
+                "heightConvention": "radial"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "nz/12/2055/2057"
+        }
+      }
+    },
+    {
+      "deterministic": false,
+      "coldBrowserCache": true,
+      "products": {
+        "terrain": 250,
+        "cpu": 223,
+        "imagery": 402
+      },
+      "errors": [],
+      "transportFailures": [],
+      "views": [
+        {
+          "view": "Track LRO",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 9,
+            "requests": 135,
+            "bytes": 2281500,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 171,
+            "pinnedTextures": 30,
+            "textureBytes": 63562752,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 171,
+            "bytes": 3045835,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 10,
+            "splitTiles": 0,
+            "blocks": 107,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 2,
+              "3": 1,
+              "4": 19,
+              "5": 28,
+              "6": 51
+            },
+            "wantedLevels": {
+              "3": 1,
+              "4": 31,
+              "5": 36,
+              "6": 39
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.2000000476837158,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 206.60000050067902,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 34,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            0.00005868551494342561,
+            -0.0003501177862038771,
+            -0.0003505566094812078
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": null
+        },
+        {
+          "view": "Moon Overview",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 20,
+            "requests": 146,
+            "bytes": 2467400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 193,
+            "pinnedTextures": 30,
+            "textureBytes": 71740416,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 193,
+            "bytes": 3425615,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 6,
+            "splitTiles": 0,
+            "blocks": 15,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "0": 5,
+              "1": 4
+            },
+            "wantedLevels": {
+              "0": 6
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 1,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.10000002384185791,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 227.50000047683716,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 34,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            -0.0018426258300761455,
+            -0.008323477258905197,
+            0.005227280016492729
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                1062.7525268817774,
+                -1062.7525222422287,
+                867.7337861531878
+              ],
+              "source": "terrain",
+              "latDeg": 29.999999527554344,
+              "lonDeg": -44.99999987493487,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 10.604757592901718,
+                "latDeg": 0.35011189713399316,
+                "lonDeg": 0.4042743941889837
+              },
+              "hit": {
+                "heightKm": -1.932402907629239,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -1.932402907629239,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.5998452694773616,
+                -0.6179677485273526,
+                0.5082337203154335
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": 1062.7591908749462,
+                "yKm": -1062.7591862353684,
+                "zKm": 867.7392272807099
+              },
+              "normal": [
+                0.5890952090625496,
+                -0.6323456431853554,
+                0.5030962355295954
+              ],
+              "distanceKm": 64.52152065242943,
+              "triangleIndex": 92,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "px/3/0/0"
+            }
+          }
+        },
+        {
+          "view": "LRO Close-up",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 26,
+            "requests": 152,
+            "bytes": 2568800,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 272,
+            "pinnedTextures": 30,
+            "textureBytes": 101105664,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 272,
+            "bytes": 5254131,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 9,
+            "splitTiles": 0,
+            "blocks": 73,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "3": 1,
+              "4": 15,
+              "5": 23,
+              "6": 28
+            },
+            "wantedLevels": {
+              "3": 2,
+              "4": 21,
+              "5": 26,
+              "6": 20
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.8999999761581421,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 295.60000002384186,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            -0.000038870192873023636,
+            -0.00007060948729514854,
+            -0.00005918959714282735
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": null
+        },
+        {
+          "view": "Lunar North Pole",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 40,
+            "requests": 166,
+            "bytes": 2805400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 282,
+            "pinnedTextures": 30,
+            "textureBytes": 104822784,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 282,
+            "bytes": 5583223,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 5,
+            "splitTiles": 0,
+            "blocks": 38,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "1": 16,
+              "2": 16
+            },
+            "wantedLevels": {
+              "1": 28,
+              "2": 4
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 2,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.30000007152557373,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 306.700000166893,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            0.00023601254994859148,
+            -0.0002317781454662398,
+            0.004989045697079853
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                151.29971934749176,
+                -1.4535430636897217e-8,
+                1729.3637074232624
+              ],
+              "source": "terrain",
+              "latDeg": 85.00000000543191,
+              "lonDeg": -5.504489308805205e-9,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 4.187924268916588,
+                "latDeg": 0.13822268898399426,
+                "lonDeg": 1.5859274991663057
+              },
+              "hit": {
+                "heightKm": -1.4304041754185164,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -1.4304041754185164,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.08248862538283225,
+                -0.007739089564903906,
+                0.99656195651608
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": 151.30677679247114,
+                "yKm": -1.4536108648742935e-8,
+                "zKm": 1729.4443743885886
+              },
+              "normal": [
+                0.09763694822709801,
+                0.004104872061617243,
+                0.9952136335311413
+              ],
+              "distanceKm": 63.949429075390206,
+              "triangleIndex": 8109,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "pz/3/4/3"
+            }
+          }
+        },
+        {
+          "view": "LROC WAC",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 40,
+            "requests": 166,
+            "bytes": 2805400,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 282,
+            "pinnedTextures": 30,
+            "textureBytes": 104822784,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 282,
+            "bytes": 5583223,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 10,
+            "splitTiles": 0,
+            "blocks": 116,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "2": 2,
+              "3": 1,
+              "4": 15,
+              "5": 41,
+              "6": 51
+            },
+            "wantedLevels": {
+              "3": 1,
+              "4": 31,
+              "5": 36,
+              "6": 39
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 6,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 1.2000000476837158,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 306.700000166893,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 106,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            0.000058685514943425606,
+            -0.0003501177862038771,
+            -0.0003505566094812076
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": null
+        },
+        {
+          "view": "Shackleton Close-up",
+          "frame": {
+            "kind": "available",
+            "frame": "MOON_ME_DE421"
+          },
+          "terrain": {
+            "residentTiles": 126,
+            "detailTiles": 97,
+            "requests": 223,
+            "bytes": 3768700,
+            "failed": 0,
+            "inFlight": 0,
+            "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+          },
+          "imagery": {
+            "version": "cube-imagery-composite-3f34a19541af7710",
+            "ready": true,
+            "textures": 402,
+            "pinnedTextures": 30,
+            "textureBytes": 149428224,
+            "inFlight": 0,
+            "failedTiles": 0,
+            "maxTextureBytes": 536870912,
+            "requests": 402,
+            "bytes": 6924242,
+            "failures": 0,
+            "aborted": 0,
+            "evicted": 0,
+            "blockBuildMs": 0,
+            "count": 0,
+            "budgetLimited": false,
+            "queued": 0,
+            "tiles": 12,
+            "splitTiles": 0,
+            "blocks": 56,
+            "extraDraws": 0,
+            "displayedLevels": {
+              "11": 46,
+              "12": 4
+            },
+            "wantedLevels": {
+              "11": 52,
+              "12": 1
+            },
+            "fallbackBlocks": 0,
+            "failedBlocks": 0,
+            "untexturedBlocks": 0,
+            "baseUncoveredBlocks": 0,
+            "maxDisplayedLevel": 12,
+            "committedGroups": 0,
+            "waitingGroups": 0,
+            "updateMs": 0.7000000476837158,
+            "blockGeometryBytes": 0,
+            "transitionTextureBytes": 1486848,
+            "protectedOverBudgetBytes": 0,
+            "gpuAllocatedBytes": 538255360,
+            "uploadMs": 433.900000333786,
+            "gpuError": null,
+            "inheritedGlErrors": []
+          },
+          "network": {
+            "requests": 250,
+            "queued": 0,
+            "downloading": 0,
+            "parsing": 0,
+            "failed": 0
+          },
+          "assets": {
+            "total": 5,
+            "settled": 5,
+            "loaded": 5,
+            "failed": 0,
+            "failures": [],
+            "stillPending": [],
+            "timedOut": false,
+            "durationMs": 2930.9000000953674
+          },
+          "camera": [
+            0.00009815808535494604,
+            0.0008089953184066594,
+            -0.003344887896447349
+          ],
+          "instrument": {
+            "clipped": true,
+            "samples": 48,
+            "hitSamples": 48,
+            "bodies": [
+              "Moon"
+            ],
+            "sources": [
+              "reference"
+            ],
+            "coarse": false,
+            "fallback": false,
+            "maxRangeKm": 1817.6570875685309
+          },
+          "pick": {
+            "drawn": {
+              "bodyName": "Moon",
+              "frame": "MOON_ME_DE421",
+              "bodyFixedPositionKm": [
+                -6.392392036221054,
+                7.6778352859298025,
+                -1734.5822543355189
+              ],
+              "source": "terrain",
+              "latDeg": -89.66999999872095,
+              "lonDeg": 129.78000007409105,
+              "latitudeKind": "geodetic",
+              "resolution": {
+                "surfaceKm": 0.006419175389790789,
+                "latDeg": 0.00021203120033105893,
+                "lonDeg": 0.03681381825423888
+              },
+              "hit": {
+                "heightKm": -2.788974759380608,
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "altitude": {
+                "km": -2.788974759380608,
+                "from": "rendered-hit",
+                "datum": {
+                  "referenceShape": {
+                    "kind": "sphere",
+                    "radiusKm": 1737.4
+                  },
+                  "verticalDatum": "reference-sphere",
+                  "heightConvention": "radial",
+                  "origin": "terrain"
+                }
+              },
+              "surfaceNormal": [
+                0.008895236301776577,
+                -0.02974851805020698,
+                -0.9995178339804409
+              ]
+            },
+            "physical": {
+              "kind": "hit",
+              "position": {
+                "xKm": -6.392391792667272,
+                "yKm": 7.677834993399899,
+                "zKm": -1734.5821882469456
+              },
+              "normal": [
+                0.06385185936183083,
+                0.03824556962540861,
+                -0.9972262614171695
+              ],
+              "distanceKm": 65.38904084904976,
+              "triangleIndex": 583,
+              "metadata": {
+                "bodyId": "Moon",
+                "frame": "MOON_ME_DE421",
+                "source": {
+                  "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+                  "kind": "height-grid",
+                  "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+                  "fusion": {
+                    "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                    "created": "2026-10-03T17:53:10Z",
+                    "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                    "detail": "ldem_87s_10mpp.tif"
+                  },
+                  "generator": {
+                    "script": "scripts/terrain/dem.py cube-tile",
+                    "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+                  },
+                  "build": {
+                    "global_level": 3,
+                    "region": [
+                      "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                      "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                      "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                    ],
+                    "skirt_cells": 0.1,
+                    "ellipsoid": [
+                      1737400,
+                      1737400
+                    ],
+                    "simplify": 0
+                  }
+                },
+                "shape": {
+                  "kind": "globe",
+                  "datum": {
+                    "referenceShape": {
+                      "kind": "sphere",
+                      "radiusKm": 1737.4
+                    },
+                    "verticalDatum": "reference-sphere",
+                    "heightConvention": "radial"
+                  }
+                },
+                "coverage": "partial-product"
+              },
+              "accuracy": {
+                "meshDeviationBoundKm": null
+              },
+              "detail": "coarse",
+              "tileId": "nz/12/2055/2057"
+            }
+          }
+        }
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "instrument": {
+        "info": {
+          "sensor": "LROC WAC",
+          "spacecraft": "LRO",
+          "target": "Moon",
+          "fov": [
+            60,
+            1
+          ],
+          "viewFov": [
+            60,
+            1
+          ],
+          "pointing": "target",
+          "pointingUnavailable": null,
+          "imageRect": {
+            "x": 0,
+            "y": 83.94375,
+            "w": 438,
+            "h": 7.3
+          }
+        },
+        "ray": {
+          "origin": {
+            "xKm": 696.9355851832248,
+            "yKm": -561.1125737164298,
+            "zKm": 1582.1854372072685
+          },
+          "direction": [
+            -0.3834252290763554,
+            0.30870100722189936,
+            -0.8704532048582105
+          ],
+          "nearKm": 0,
+          "farKm": 1000
+        },
+        "intersection": {
+          "kind": "hit",
+          "position": {
+            "xKm": 665.231385619803,
+            "yKm": -535.5870798359961,
+            "zKm": 1510.2104600156943
+          },
+          "normal": [
+            0.41709514214452276,
+            -0.34005450628021044,
+            0.8428490820769532
+          ],
+          "distanceKm": 82.6867852170162,
+          "triangleIndex": 4832,
+          "metadata": {
+            "bodyId": "Moon",
+            "frame": "MOON_ME_DE421",
+            "source": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "kind": "height-grid",
+              "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "fusion": {
+                "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                "created": "2026-10-03T17:53:10Z",
+                "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                "detail": "ldem_87s_10mpp.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+              },
+              "build": {
+                "global_level": 3,
+                "region": [
+                  "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                  "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                  "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  1737400,
+                  1737400
+                ],
+                "simplify": 0
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "sphere",
+                  "radiusKm": 1737.4
+                },
+                "verticalDatum": "reference-sphere",
+                "heightConvention": "radial"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "pz/3/5/2"
+        },
+        "clip": {
+          "clipped": true,
+          "samples": 48,
+          "hitSamples": 48,
+          "bodies": [
+            "Moon"
+          ],
+          "sources": [
+            "reference"
+          ],
+          "coarse": false,
+          "fallback": false,
+          "maxRangeKm": 1817.6570875685309
+        }
+      },
+      "southPole": {
+        "latDeg": -89.67,
+        "lonDeg": 129.78,
+        "altitudeAboveCpuGroundKm": 5,
+        "hit": {
+          "kind": "hit",
+          "position": {
+            "xKm": -6.392391757956788,
+            "yKm": 7.677834971900667,
+            "zKm": -1734.5821882455477
+          },
+          "normal": [
+            0.06385185936183083,
+            0.03824556962540861,
+            -0.9972262614171695
+          ],
+          "distanceKm": 65.38904085067082,
+          "triangleIndex": 583,
+          "metadata": {
+            "bodyId": "Moon",
+            "frame": "MOON_ME_DE421",
+            "source": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "kind": "height-grid",
+              "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "fusion": {
+                "sha256": "79895697c6b684225a5a12651bd6de2028934cd209c4f2585c4488afef0e7a6d",
+                "created": "2026-10-03T17:53:10Z",
+                "base": "Lunar_LRO_LOLA_Global_LDEM_118m_Mar2014.tif",
+                "detail": "ldem_87s_10mpp.tif"
+              },
+              "generator": {
+                "script": "scripts/terrain/dem.py cube-tile",
+                "sha256": "54c6b884601a8517e9bca5e2e0b8c32e8cd0dd9ee0900273d7d1db54bbd61728"
+              },
+              "build": {
+                "global_level": 3,
+                "region": [
+                  "shackleton@-89.67,129.78:4=600,5=300,6=150,7=80,8=50,9=40,10=30,11=25,12=15",
+                  "corner-px-py-nz@-35.26438968,45:4=400,5=200,6=100,7=50,8=25",
+                  "edge-px-nz@-45,0:4=400,5=200,6=100,7=50,8=25"
+                ],
+                "skirt_cells": 0.1,
+                "ellipsoid": [
+                  1737400,
+                  1737400
+                ],
+                "simplify": 0
+              }
+            },
+            "shape": {
+              "kind": "globe",
+              "datum": {
+                "referenceShape": {
+                  "kind": "sphere",
+                  "radiusKm": 1737.4
+                },
+                "verticalDatum": "reference-sphere",
+                "heightConvention": "radial"
+              }
+            },
+            "coverage": "partial-product"
+          },
+          "accuracy": {
+            "meshDeviationBoundKm": null
+          },
+          "detail": "coarse",
+          "tileId": "nz/12/2055/2057"
+        }
+      }
+    }
+  ]
+}

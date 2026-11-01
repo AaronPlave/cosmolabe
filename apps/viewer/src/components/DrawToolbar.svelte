@@ -14,7 +14,7 @@
   import * as Select from '$lib/components/ui/select';
   import { clearGeographicSelection } from '../lib/geographic-layers.svelte';
   import {
-    edits, editLayer, editLayers, setDrawTool, finishDraft, removeLastVertex, cancelDrawing, draftShape, editingFeature, selectedVertex,
+    edits, editLayer, editLayers, matchesDrawFrame, setDrawTool, finishDraft, removeLastVertex, cancelDrawing, draftShape, editingFeature, selectedVertex,
     deleteSelectedVertex, undo, redo, canUndo, canRedo, showsAllPoints, setShowAllPoints, type DrawTool,
   } from '../lib/geographic-editing.svelte';
   import { needsFineDetail, vertexCount } from '../lib/edit-handles';
@@ -38,7 +38,7 @@
   let vertex = $derived(selectedVertex());
   let hint = $derived(tools.find((t) => t.id === edits.tool)?.hint ?? '');
   /** Editable layers on the body being drawn on, to switch where shapes go. */
-  let choices = $derived(target ? editLayers().filter((l) => l.body === target!.body) : []);
+  let choices = $derived(target ? editLayers().filter((l) => l.body === target!.body && matchesDrawFrame(l)) : []);
 
   const km = (v: number) => v < 1 ? `${(v * 1000).toFixed(0)} m` : `${v.toFixed(v < 100 ? 2 : 0)} km`;
   /** Length, area or radius of the draft so far, on the reference shape. */

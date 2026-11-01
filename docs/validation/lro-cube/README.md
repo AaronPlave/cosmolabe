@@ -51,19 +51,75 @@ node scripts/test-hosted-lro.mjs VIEWER_URL work/lro-cube
 node scripts/test-instrument-window.mjs
 ```
 
-The hosted browser check requires a viewer built with the normal deployment
-rewrite and `https://data.aaronplave.com` reachable. It verifies the served
-catalog against that rewrite, observes real hosted requests, captures the four
-mission views, records picking/terrain/imagery state and repeats after reload.
-It does not certify near-surface, outage recovery or absolute alignment.
-Run the instrument-window check against the viewer as documented in that script.
+The hosted browser check requires a normally built viewer with bundled example
+catalogs and the normal deployment rewrite, plus `https://data.aaronplave.com`
+reachable from the browser. The host allows `http://localhost:5173`; arbitrary
+local ports are rejected by CORS. Build/rewrite with:
 
-In this execution environment the production host fails at CONNECT with HTTP
-403 from the enforced proxy policy. No live hosted or browser acceptance is
-claimed. Before closing #240, verify orbital and near-surface picks, all seven
-instruments, terrain/imagery interruption and recovery, missing orientation
-kernels, and the #238 alignment acceptance on the actual deployed viewer. Keep
-screenshots and metrics from that run. Passing local rewrite tests is insufficient.
+```sh
+HOSTED_DATA=1 BUNDLE_TEST_CATALOGS=1 npm --prefix apps/viewer run build
+node scripts/build-hosted-catalogs.mjs --dist apps/viewer/dist --base-url https://data.aaronplave.com --allow-unpublished terrain/mars-terrain-fused --allow-unpublished kernels/rosetta
+```
+
+### Hosted acceptance on 2026-10-31
+
+The [retained metrics](hosted-acceptance.json) passed against a local production
+preview using the real immutable hosted products, without request interception.
+Two independent cold contexts blocked service workers and disabled the browser
+cache: one deterministic `?test=1` session and one normal-rendering session.
+Both used Apple M4 Max / ANGLE Metal. All six views settled without budget
+limitation, page/console errors, transport failures, asset failures, terrain/CPU
+failures, imagery failures, GPU errors or uncovered mandatory-base blocks.
+
+| Session | Terrain GLBs | CPU height grids | Imagery payloads |
+| --- | ---: | ---: | ---: |
+| Deterministic | 250 | 224 | 392 |
+| Normal rendering | 250 | 223 | 402 |
+
+The four mission views were retained. Moon Overview, Lunar North Pole and the
+new Shackleton close-up each asserted a real rendered terrain pick and a CPU
+grid triangle intersection in `MOON_ME_DE421`. The close-up is five kilometres
+above CPU ground at 89.67°S, 129.78°E and reached imagery level 12. At this mission
+epoch its crater-floor view is dark; this is not a sunlit-terrain acceptance claim.
+
+The LROC WAC feed's actual camera ray intersected the adopted CPU terrain at
+about 82.7 km. This uses the catalog's target-pointing fallback, **not reconstructed
+CK attitude or an operational observation**. The existing drawn frustum still
+reports reference-surface clipping; its perimeter is not certified as a
+terrain-conforming footprint. CPU hits explicitly remain `coarse`, with an
+unknown mesh-deviation bound. No source uncertainty or absolute alignment bound
+is inferred from these intersections.
+
+Normal-rendering captures: [orbital Moon](normal-Moon-Overview.png),
+[Shackleton close-up](normal-Shackleton-Close-up.png), and
+[LROC WAC feed](normal-LROC-WAC.png).
+
+The earlier execution's CONNECT 403 limitation has been superseded for this
+local production-preview run. This is not a deployment. Before closing #240,
+still verify all seven instruments, terrain/imagery interruption and recovery,
+missing orientation kernels, and the #238 alignment acceptance on the actual
+deployed viewer. Run the instrument-window check as documented in that script.
+
+## Lunar drawing regression
+
+The migration exposed two drawing failures: saved annotations without an explicit
+frame resolve to `IAU_MOON`, and the New layer form also omitted the current
+frame. Surface clicks in `MOON_ME_DE421` were consequently refused. New authored
+layers now retain the selected surface frame, and drawing targets only compatible
+layers. Old annotations retain their original coordinates and frame; drawing
+creates a compatible annotation layer when needed.
+
+```sh
+node scripts/test-lunar-drawing.mjs VIEWER_URL OUTPUT_DIR
+```
+
+On 2026-10-31, this regression passed against the local PR viewer in Chrome with
+Apple M4 Max / ANGLE Metal: actual lunar terrain clicks created points both with
+a preexisting implicit-IAU annotation layer and in a layer made through New layer.
+The existing annotation remained unchanged, all layers survived reload, and no
+page errors occurred. The script writes screenshots and metrics. This is a
+drawing-flow check, not the broader deployed/near-surface acceptance above.
+See the [new-layer drawing capture](drawing-new-layer.png).
 
 ## Rollback
 

@@ -162,6 +162,38 @@ describe('import', () => {
 });
 
 describe('drawing flow', () => {
+  it.each([undefined, 'IAU_MOON', 'MOON_PA_DE421'])('draws in the current lunar frame when saved annotations use %s', (savedFrame) => {
+    vi.mocked(universe!.getBody).mockImplementation(((name: string) => name === 'Moon' ? ({ name, radii: [1737.4, 1737.4, 1737.4] }) : undefined) as never);
+    const frame = vi.spyOn(universe!.frames, 'bodyFixedFrameFor').mockReturnValue('MOON_ME_DE421');
+    try {
+      const oldId = createLayer({ body: 'Moon', name: editing.annotationLayerName('Moon'), coordinates: {
+        ...(savedFrame ? { frame: savedFrame } : {}),
+        latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '-180..180',
+        referenceShape: { kind: 'sphere', radiusKm: 1737.4 },
+      } })!;
+      applyEdit(oldId, { type: 'add', geometry: { type: 'Point', coordinates: [10, 20] } });
+      const before = JSON.stringify(editLayer(oldId));
+      geoLayers.openLayer(oldId);
+      editing.startDrawing('point');
+      const currentId = edits.target!;
+      expect(currentId).not.toBe(oldId);
+      expect(editLayer(currentId)?.coordinates.frame).toBe('MOON_ME_DE421');
+      expect(editing.matchesDrawFrame(editLayer(oldId)!)).toBe(false);
+      expect(editing.matchesDrawFrame(editLayer(currentId)!)).toBe(true);
+      expect(JSON.stringify(editLayer(oldId))).toBe(before);
+      Object.assign(renderer!, { pickScene: () => ({ kind: 'surface', point: {
+        bodyName: 'Moon', frame: 'MOON_ME_DE421', bodyFixedPositionKm: [1737.4, 0, 0],
+      } }) });
+      (pointerTool as { pick: (x: number, y: number) => void }).pick(0, 0);
+      expect(edits.tool).toBeNull();
+      expect(editLayer(currentId)?.features[0].geometry).toEqual({ type: 'Point', coordinates: [0, 0] });
+      geoLayers.openLayer(oldId);
+      editing.startDrawing('line');
+      expect(edits.target).toBe(currentId);
+      editing.setDrawTool(null);
+    } finally { frame.mockRestore(); }
+  });
+
   it('draws into "My annotations · Mars", made on first use in the body\'s convention, and selects the finished shape', () => {
     editing.startDrawing('point');
     expect(pointerTool).not.toBeNull();

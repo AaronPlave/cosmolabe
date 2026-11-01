@@ -41,7 +41,11 @@
 
   function submit() {
     if (!shape) return;
-    const coordinates: GeographicCoordinates = { latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: shape };
+    const coordinates: GeographicCoordinates = { latitude, longitudeDirection: direction, longitudeDomain: domain, referenceShape: shape,
+      // Authored coordinates belong to the surface being drawn. An import
+      // retains the convention the user declared for its existing numbers.
+      ...(form.mode === 'new' ? { frame: inferredCoordinates(body)?.frame } : {}),
+    };
     const id = form.mode === 'import'
       ? importLayerText(form.text, { body, name: name.trim() || fileStem(form.fileName), coordinates })
       : createLayer({ body, name: name.trim() || `${body} notes`, coordinates });
