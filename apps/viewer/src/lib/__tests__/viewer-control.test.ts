@@ -7,7 +7,7 @@
  */
 import { builtInAgentMetadata } from '../ask/public-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAgentTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
+import { createAgentTools, createCapabilityTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
@@ -1326,6 +1326,25 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     selectPlace(place);
     expect(isToolOpen('navigate')).toBe(true);
     closeTool('navigate');
+  });
+
+  it('discovers and reconciles two domains through the real ViewerControl adapter', async () => {
+    bind();
+    Object.assign(renderer.getBodyMesh('Titan')!, { imageryLayers: [], surfaceTransitionState: 'fallback', hasTerrain: false });
+    const control = createViewerControl();
+    const tools = createCapabilityTools(control);
+    const task = tools.begin();
+    expect(tools.list()).toHaveLength(5);
+    expect(await task.call('listCapabilities', { domain: 'surface' })).toMatchObject({ ok: true, data: { items: expect.arrayContaining([expect.objectContaining({ id: 'surface.getSurfaceData', available: true })]) } });
+    await task.call('describeCapabilities', { ids: ['scene.select', 'time.setTime', 'surface.showImagery', 'surface.getSurfaceData'] });
+    expect(await task.call('select', { object: 'Titan' })).toMatchObject({ ok: true, receipt: { status: 'completed', resolvedTarget: { object: 'Titan' } } });
+    expect(await task.call('setTime', { when: 1234 })).toMatchObject({ ok: true, receipt: { status: 'completed', observation: { state: { time: { et: 1234 } } } } });
+    expect(await task.call('showImagery', { object: 'Titan', layer: 'missing', visible: true })).toMatchObject({ ok: false, receipt: { status: 'refused' } });
+    expect(await task.call('describeScene', {})).toMatchObject({ ok: true, data: { selectedObject: 'Titan', time: { et: 1234 } } });
+    expect(await task.call('getSurfaceData', { object: 'Titan' })).toMatchObject({ ok: true, receipt: { status: 'completed' } });
+    expect(control.getSelected()).toBe('Titan');
+    expect(control.getTime()).toBe(1234);
+    tools.dispose();
   });
 
   it('inventories real MoonFall products even without managed overlays or runtime data', async () => {

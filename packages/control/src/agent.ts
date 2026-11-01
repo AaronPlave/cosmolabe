@@ -41,12 +41,13 @@ import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
 import { VERBS, type VerbParam, type VerbSpec } from './verbs.js';
+import type { OperationReceipt } from './capabilities.js';
 
 type FlightEnd = ScriptEventMap['flightEnd'];
 
 /** The JSON Schema subset the tools are described in. */
 export interface AgentJsonSchema {
-  readonly type?: 'object' | 'string' | 'number' | 'boolean' | 'array' | readonly ('string' | 'number')[];
+  readonly type?: 'object' | 'string' | 'number' | 'boolean' | 'array' | 'null' | readonly ('object' | 'array' | 'string' | 'number' | 'boolean' | 'null')[];
   readonly description?: string;
   readonly enum?: readonly string[];
   readonly properties?: Readonly<Record<string, AgentJsonSchema>>;
@@ -60,7 +61,7 @@ export interface AgentJsonSchema {
 }
 
 /** What a tool can change; `read` tools change nothing. */
-export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display';
+export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display' | 'export';
 
 export interface AgentToolDef {
   readonly name: string;
@@ -87,9 +88,10 @@ export type AgentErrorCode =
   | 'invalid-input' | 'unknown-tool' | 'refused' | 'failed' | 'no-scene'
   | 'stale' | 'superseded' | 'cancelled' | 'interrupted';
 
-export type AgentToolResult =
-  | { readonly ok: true; readonly summary: string; readonly data?: unknown }
-  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string };
+export type AgentToolResult = (
+  | { readonly ok: true; readonly summary: string; readonly data?: unknown; readonly completion?: { readonly kind: 'flight'; readonly id: number; readonly outcome: 'arrived' } }
+  | { readonly ok: false; readonly code: AgentErrorCode; readonly error: string }
+) & { readonly receipt?: OperationReceipt };
 
 /** A sequence of calls made for one request; see `AgentTools.begin`. */
 export interface AgentTask {
@@ -106,6 +108,8 @@ export interface AgentTask {
 }
 
 export interface AgentTools {
+  /** Immediate bounded observation; does not begin/supersede a task. */
+  inspect?(): AgentToolResult;
   /** The tools this viewer can run, in a stable order. */
   list(): readonly AgentToolDef[];
   /**
@@ -123,6 +127,10 @@ export interface AgentTools {
 }
 
 export interface AgentToolsOptions {
+  /** Catalog adapter only: include all registered verbs, retaining execute as the dispatcher. */
+  vocabulary?: 'curated' | 'catalog';
+  /** Trusted host permission; captures are refused by default even in catalog mode. */
+  allowExport?: boolean;
   /** Only the trusted host can approve public metadata; never derive this policy from catalog fields. */
   metadata?: AgentMetadataPolicy;
   /** Renders scene time for `describeScene` (a UTC calendar string, say). */
@@ -315,13 +323,14 @@ function typeOk(schema: AgentJsonSchema, value: unknown): boolean {
       case 'boolean': return typeof value === 'boolean';
       case 'array': return Array.isArray(value);
       case 'object': return typeof value === 'object' && value !== null && !Array.isArray(value);
+      case 'null': return value === null;
       default: return false;
     }
   });
 }
 
 /** The first way `value` violates `schema`, or null. */
-function violation(schema: AgentJsonSchema, value: unknown, path: string): string | null {
+export function violation(schema: AgentJsonSchema, value: unknown, path: string): string | null {
   if (!typeOk(schema, value)) {
     const t = Array.isArray(schema.type) ? schema.type.join(' or ') : schema.type;
     return `${path} must be a ${t}`;
@@ -346,7 +355,7 @@ function violation(schema: AgentJsonSchema, value: unknown, path: string): strin
   if (schema.properties) {
     const obj = value as Input;
     for (const key of Object.keys(obj)) {
-      if (!(key in schema.properties)) return `${path}: unknown field ${JSON.stringify(key)} (fields: ${Object.keys(schema.properties).join(', ') || 'none'})`;
+      if (!Object.hasOwn(schema.properties, key)) return `${path}: unknown field ${JSON.stringify(key)} (fields: ${Object.keys(schema.properties).join(', ') || 'none'})`;
     }
     for (const key of schema.required ?? []) {
       if (obj[key] === undefined) return `${path}: missing ${JSON.stringify(key)}`;
@@ -420,6 +429,15 @@ class TaskSignal implements ScriptCancelSignal {
 const has = (host: ViewerControl, method: keyof ViewerControl) =>
   typeof (host as unknown as Record<string, unknown>)[method] === 'function';
 
+/** Registration comes from VERBS and the bounded read implementations above. No catalog code executes. */
+export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
+  return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
+    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
+      : spec.category === 'Time' || spec.name === 'seekActivity' ? 'time'
+        : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
+  }))];
+}
+
 /** Bind the agent tools to one viewer. */
 export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = {}): AgentTools {
   const metadata = agentMetadata(opts.metadata);
@@ -432,7 +450,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return spec ? [{ spec, def: verbTool(spec, effect) }] : [];
   });
 
-  const list = (): readonly AgentToolDef[] => [
+  const list = (): readonly AgentToolDef[] => opts.vocabulary === 'catalog'
+    ? agentDefinitions().filter(t => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def)
+    : [
     ...READ_TOOLS.filter((t) => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def),
     ...verbTools.filter(({ spec }) => has(host, spec.method)).map(({ def }) => def),
   ];
@@ -444,6 +464,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   });
 
   const offInput = host.on('cameraInput', () => { if (current) current.cameraTaken = true; });
+  const offLoad = host.on('load', () => current?.end('stale'));
 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
@@ -626,6 +647,29 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
    * the sentence to append to the result.
    */
   function readBack(name: string, args: Input): { problem: string } | { note: string } | null {
+    if (name === 'select' || name === 'deselect') {
+      const expected = name === 'select' ? args.object : null;
+      return host.getSelected() === expected ? { note: `Selected object: ${host.getSelected() ?? 'none'}.` }
+        : { problem: 'the viewer does not report the requested object selection' };
+    }
+    if (name === 'track' || name === 'untrack') {
+      const expected = name === 'track' ? args.object : null;
+      return host.getTracked() === expected ? { note: `Tracked object: ${host.getTracked() ?? 'none'}.` }
+        : { problem: 'the viewer does not report the requested tracking state' };
+    }
+    if (name === 'setTimeRate' && host.getRate() !== args.rate) return { problem: 'the clock does not report the requested rate' };
+    if (name === 'setPlaying' && host.isPlaying() !== args.on) return { problem: 'the clock does not report the requested playback state' };
+    if (name === 'setTime' && !host.isPlaying() && typeof args.when === 'number' && Math.abs(host.getTime() - args.when) > 0.001) return { problem: 'the clock does not report the requested ET' };
+    if (name === 'seekActivity' && !host.isPlaying()) {
+      const activity = host.listActivities?.().find(a => a.id === args.activity);
+      const expected = args.edge === 'end' ? activity?.end : activity?.start;
+      if (expected !== undefined && Math.abs(host.getTime() - expected) > 0.001) return { problem: 'the clock does not report the requested activity edge' };
+    }
+    if (name === 'showImagery' || name === 'setImageryOpacity') {
+      const layer = host.getImagery?.(args.object as string)?.layers.find(l => l.id === args.layer);
+      const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
+      return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
+    }
     if (name === 'selectActivity' && has(host, 'getSelectedActivity')) {
       const now = attempt(() => host.getSelectedActivity!());
       return now && now.id === args.activity ? { note: `The viewer now reports ${now.name} (${now.id}) as the selected activity.` }
@@ -728,6 +772,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (problem) return { ok: false, code: 'invalid-input', error: problem };
       const refused = this.gate(def);
       if (refused) return refused;
+      if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
 
       const read = reads[name];
@@ -768,11 +813,16 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         } catch (err) {
           if (!(err instanceof ScriptRuntimeError)) return { ok: false, code: 'failed', error: String(err) };
           const p = err.problems[0];
-          const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended === 'superseded' ? 'superseded' : 'cancelled')
+          const code: AgentErrorCode = p.kind === 'cancelled' ? (this.ended ?? 'cancelled')
             : p.kind === 'unknown-target' ? 'refused'
               : 'failed';
           return { ok: false, code, error: p.message };
         }
+
+        // An asynchronous host method may finish after a scene reload or Stop.
+        // Never report that late result as completion in the new scene.
+        const late = this.gate(def);
+        if (late) return late;
 
         if (own !== null) {
           const end = await awaitFlight(this, own, seen);
@@ -780,13 +830,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
             const code = this.ended ?? 'stale';
             return { ok: false, code, error: code === 'stale' ? 'the scene changed during the flight' : `the flight was left where it was: this request was ${code}` };
           }
+          const settled = this.gate(def);
+          if (settled) return settled;
           if (end.outcome === 'interrupted') {
             return { ok: false, code: 'interrupted', error: `the person took over the camera before it reached ${end.target ?? 'the destination'}; leaving the view to them` };
           }
           if (end.outcome === 'stopped') return { ok: false, code: 'failed', error: `the flight to ${end.target ?? 'the destination'} was stopped by another camera command` };
           const back = readBack(name, args);
           if (back && 'problem' in back) return { ok: false, code: 'failed', error: `${text}: ${back.problem}` };
-          return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.${back ? ` ${back.note}` : ''}` };
+          return { ok: true, summary: `${text}: arrived${end.target ? ` at ${end.target}` : ''}.${back ? ` ${back.note}` : ''}`, completion: { kind: 'flight', id: own, outcome: 'arrived' } };
         }
         const back = readBack(name, args);
         if (back && 'problem' in back) return { ok: false, code: 'failed', error: `${text}: ${back.problem}` };
@@ -805,6 +857,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   };
 
   return {
+    inspect: describeScene,
     list,
     begin,
     call: async (name, input) => {
@@ -819,6 +872,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     dispose: () => {
       offFlight();
       offInput();
+      offLoad();
       current?.end('cancelled');
     },
   };

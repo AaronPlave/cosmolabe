@@ -69,7 +69,10 @@ export function toOpenAIRequest(wire, { model, maxTokens, reasoningEffort }) {
       max_output_tokens: maxTokens,
       store: false,
       include: ['reasoning.encrypted_content'],
-      parallel_tool_calls: false,
+      // Discovery may request several schemas/reads in one model round. The
+      // viewer still executes every requested operation sequentially, with
+      // the same cancellation/permission gates between calls.
+      parallel_tool_calls: checked.tools.some(t => t.name === 'invokeCapability'),
       ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
     },
   };

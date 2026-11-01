@@ -1,0 +1,375 @@
+{
+  "date": "2026-11-01",
+  "baseline": "5bfc3edc6a2548ddf4910d6f86615a85dd9556e5 (#326 fixed tools and original prompt)",
+  "fixture": "Earth + Moon with an explicitly synthetic test activity",
+  "renderer": "Chromium SwiftShader (software WebGL)",
+  "scope": "One real-provider run per adapter/provider; not a statistical performance benchmark. Exact credentials, provider reasoning and signatures are omitted.",
+  "acceptance": "Actual selected activity, paused activity-start ET, 900000 km authored viewpoint range and successful surface inventory read. setTime and seekActivity are equivalent when the observed ET matches the activity edge.",
+  "bounds": {
+    "maxRoundsPerRun": 20,
+    "maxOutputTokensPerRound": 1536,
+    "processTokenGuard": 300000,
+    "processEstimatedUsdGuard": 1,
+    "perCallTimeoutMs": 60000
+  },
+  "localAcceptance": {
+    "semanticLabels": true,
+    "partialResultVisible": true,
+    "desktopAnd390px": true,
+    "standaloneWorkflow": true,
+    "intentionalMissingImageryFailure": true,
+    "embeddedHost": {
+      "passed": 37,
+      "failed": 0
+    },
+    "packageConsumer": true
+  },
+  "comparison": [
+    {
+      "provider": "anthropic",
+      "mode": "full",
+      "model": "claude-sonnet-5-5",
+      "success": true,
+      "roundTrips": 6,
+      "latencyMs": 8582,
+      "initialTools": 35,
+      "initialSchemaChars": 13368,
+      "initialInputTokens": 7143,
+      "totalInputTokens": 49771,
+      "uncachedInputTokens": 14,
+      "cacheReadTokens": 40540,
+      "cacheWriteTokens": 9217,
+      "outputTokens": 610,
+      "estimatedUsd": 0.0332245,
+      "outcome": "done",
+      "observed": {
+        "selectedActivity": "capability-inspection",
+        "et": 773366469.184,
+        "playing": false,
+        "cameraRangeKm": 900000
+      },
+      "calls": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "getSurfaceData",
+          "ok": true
+        },
+        {
+          "operation": "getActivity",
+          "ok": true
+        },
+        {
+          "operation": "setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "viewpoint",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "provider": "anthropic",
+      "mode": "discovery",
+      "model": "claude-sonnet-5-5",
+      "success": true,
+      "roundTrips": 11,
+      "latencyMs": 17018,
+      "initialTools": 5,
+      "initialSchemaChars": 2500,
+      "initialInputTokens": 3319,
+      "totalInputTokens": 106505,
+      "uncachedInputTokens": 24,
+      "cacheReadTokens": 95938,
+      "cacheWriteTokens": 10543,
+      "outputTokens": 1353,
+      "estimatedUsd": 0.0495293,
+      "outcome": "done",
+      "observed": {
+        "selectedActivity": "capability-inspection",
+        "et": 773366469.184,
+        "playing": false,
+        "cameraRangeKm": 900000
+      },
+      "calls": [
+        {
+          "operation": "describeScene",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listActivities",
+          "ok": false,
+          "receipt": "refused",
+          "verification": "host-return",
+          "code": "refused"
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listActivities",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "getSurfaceData",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "getActivity",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "setPlaying",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "selectActivity",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "seekActivity",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "viewpoint",
+          "ok": true,
+          "receipt": "partial",
+          "verification": "host-return"
+        },
+        {
+          "operation": "describeScene",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        }
+      ]
+    },
+    {
+      "provider": "openai",
+      "mode": "full",
+      "model": "gpt-5.1-2025-11-13",
+      "success": true,
+      "roundTrips": 10,
+      "latencyMs": 9888,
+      "initialTools": 35,
+      "initialSchemaChars": 13368,
+      "initialInputTokens": 3153,
+      "totalInputTokens": 36313,
+      "uncachedInputTokens": 2393,
+      "cacheReadTokens": 33920,
+      "cacheWriteTokens": 0,
+      "outputTokens": 280,
+      "estimatedUsd": null,
+      "outcome": "done",
+      "observed": {
+        "selectedActivity": "capability-inspection",
+        "et": 773366469.184,
+        "playing": false,
+        "cameraRangeKm": 900000
+      },
+      "calls": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "getActivity",
+          "ok": true
+        },
+        {
+          "operation": "viewpoint",
+          "ok": true
+        },
+        {
+          "operation": "getSurfaceData",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "provider": "openai",
+      "mode": "discovery",
+      "model": "gpt-5.1-2025-11-13",
+      "success": true,
+      "roundTrips": 10,
+      "latencyMs": 9652,
+      "initialTools": 5,
+      "initialSchemaChars": 2500,
+      "initialInputTokens": 1754,
+      "totalInputTokens": 42248,
+      "uncachedInputTokens": 7816,
+      "cacheReadTokens": 34432,
+      "cacheWriteTokens": 0,
+      "outputTokens": 593,
+      "estimatedUsd": null,
+      "outcome": "done",
+      "observed": {
+        "selectedActivity": "capability-inspection",
+        "et": 773366469.184,
+        "playing": false,
+        "cameraRangeKm": 900000
+      },
+      "calls": [
+        {
+          "operation": "describeScene",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "listActivities",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "getSurfaceData",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "getActivity",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "selectActivity",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "setTime",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        },
+        {
+          "operation": "viewpoint",
+          "ok": true,
+          "receipt": "partial",
+          "verification": "host-return"
+        },
+        {
+          "operation": "describeScene",
+          "ok": true,
+          "receipt": "completed",
+          "verification": "observed"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Starting prompt size fell; total input tokens increased for both providers. No overall performance/cost improvement is claimed.",
+    "Anthropic cost is a reviewed estimate, not a provider invoice; warm cache/process state affects comparisons.",
+    "OpenAI reported snapshot gpt-5.1-2025-11-13 has no exact reviewed rate entry, so cost is unknown, not zero.",
+    "Initial native-tool schema swapping reproduced Anthropic thinking-signature HTTP 400; final fixed-five-tool surface preserves the provider prefix.",
+    "Earlier 10-round discovery runs exhausted the bound; final discovery uses a 20-round bound.",
+    "Missing semantic readbacks produce partial receipts and remain #297 gaps. The fixture geometry independently verifies this specific named-view navigation.",
+    "The original method-specific harness marked an equivalent setTime workflow as failed; acceptance was corrected to verify actual paused activity-edge state. No writes were replayed to obtain this report."
+  ]
+}

@@ -17,7 +17,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createAgentTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport,
+  createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, type AskDeployment } from '../deployment';
@@ -59,10 +59,11 @@ export interface AskTurn {
 export function tally(turn: Pick<AskTurn, 'steps'>) {
   const unrun = (s: AskStep) => !s.result;
   const stopped = (s: AskStep) => !!s.result && !s.result.ok && (s.result.code === 'superseded' || s.result.code === 'cancelled');
-  const done = turn.steps.filter((s) => s.result?.ok).length;
+  const partial = turn.steps.filter(s => s.result?.ok && s.result.receipt?.status === 'partial').length;
+  const done = turn.steps.filter((s) => s.result?.ok && s.result.receipt?.status !== 'partial').length;
   const refused = turn.steps.filter((s) => s.result && !s.result.ok && !stopped(s)).length;
   const running = turn.steps.filter(unrun).length;
-  return { total: turn.steps.length, done, refused, running, notRun: turn.steps.filter(stopped).length };
+  return { total: turn.steps.length, done, partial, refused, running, notRun: turn.steps.filter(stopped).length };
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -86,8 +87,8 @@ const ENDINGS: Partial<Record<AskStatus, string>> = {
 export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error' } | null {
   if (turn.status === 'running' || turn.status === 'done') return null;
   const t = tally(turn);
-  const ran = t.done + t.refused;
-  const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused ? ` (${t.done} done, ${t.refused} refused)` : ''}; changes already made to the view remain.`;
+  const ran = t.done + t.refused + t.partial;
+  const account = ran === 0 ? '' : ` ${plural(ran, 'action')} ran${t.refused || t.partial ? ` (${t.done} done, ${t.refused} refused${t.partial ? `, ${t.partial} unverified` : ''})` : ''}; changes already made to the view remain.`;
   if (turn.status === 'error') {
     if (turn.errorCode === 'budget_exhausted') {
       return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
@@ -116,13 +117,15 @@ resettable(ask);
 // ── Where the model is ──
 
 let hostTransport: AgentTransport | null = null;
+let hostCapabilities: CapabilityToolsOptions = {};
 let deployment: AskDeployment | null = null;
 let embedded = false;
 
 /** Embedding: the host's own transport, or null for no prompt. Replaces the deployment's. */
-export function setHostAskTransport(transport: AgentTransport | null) {
+export function setHostAskTransport(transport: AgentTransport | null, capabilities: CapabilityToolsOptions = {}) {
   embedded = true;
   hostTransport = transport;
+  hostCapabilities = capabilities;
 }
 
 function config(): AskDeployment {
@@ -149,7 +152,7 @@ function currentTransport(): AgentTransport | null {
 // ── The conversation ──
 
 let tools: AgentTools | null = null;
-const agentTools = () => (tools ??= createAgentTools(getCosmo(), { formatTime: etToUtcString, metadata: builtInAgentMetadata }));
+const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), { ...hostCapabilities, formatTime: etToUtcString, metadata: builtInAgentMetadata }));
 
 let history: AgentMessage[] = [];
 let historyScene = -1;
@@ -264,6 +267,7 @@ export function disposeAsk() {
   tools = null;
   transport = null;
   hostTransport = null;
+  hostCapabilities = {};
   embedded = false;
   conversation++;
   history = [];

@@ -63,6 +63,9 @@ export type { ViewStateV1, ViewCatalog, ViewTime } from './view-state.js';
 
 // Agent tools (#311)
 export type { AgentMetadataPolicy } from './agent-metadata.js';
+export { createCapabilityTools, CAPABILITY_VERSION, CAPABILITY_LIMITS } from './capabilities.js';
+export { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
+export type { CapabilityTools, CapabilityToolsOptions, CapabilityQuery, CapabilityPage, CapabilitySummary, CapabilityDescription, CapabilityEffect, CapabilityScope, OperationReceipt, OperationStatus } from './capabilities.js';
 export { createAgentTools } from './agent.js';
 export type {
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions,

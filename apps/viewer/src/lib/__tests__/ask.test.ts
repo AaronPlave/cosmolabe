@@ -121,7 +121,20 @@ describe('the Ask session', () => {
     expect(turn.reply).toBe('No scene is loaded.');
     expect(ask.running).toBe(false);
     // The tools offered are the adapter's.
-    expect(transport.requests[0].tools.map((t) => t.name)).toContain('resolve');
+    expect(transport.requests[0].tools.map((t) => t.name)).toEqual(['describeScene', 'listCapabilities', 'describeCapabilities', 'getOperationResult', 'invokeCapability']);
+  });
+
+  it('applies the embedding host capability omissions to Ask discovery and execution', async () => {
+    let round = 0;
+    const transport = new MockTransport(() => ++round === 1
+      ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'describe', name: 'describeCapabilities', input: { ids: ['scene.resolve'] } }] }
+      : round === 2 ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'resolve', name: 'resolve', input: { query: 'Earth' } }] }
+        : textReply('The host omitted name resolution.'));
+    setHostAskTransport(transport, { omitted: { 'scene.resolve': 'Host omitted name resolution' } });
+    await submitAsk('Find Earth');
+    expect(ask.turns[0].steps[0].result).toMatchObject({ ok: true, data: { selected: [{ id: 'scene.resolve', available: false, reason: 'Host omitted name resolution' }] } });
+    expect(ask.turns[0].steps[1].result).toMatchObject({ ok: false, code: 'refused' });
+    expect(transport.requests[1].tools.map(t => t.name)).not.toContain('resolve');
   });
 
   it('shows only the last round\'s words as the reply, not planning between tool calls', async () => {

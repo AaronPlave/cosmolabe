@@ -59,10 +59,11 @@
 
   /** "4 actions succeeded, 1 refused": what the viewer did for a request, in a line. */
   function actionsLine(turn: AskTurn): string {
-    const { total, done, refused, running, notRun } = tally(turn);
+    const { total, done, partial, refused, running, notRun } = tally(turn);
     if (total === 0) return '';
     const parts = [`${done} ${done === 1 ? 'action' : 'actions'} succeeded`];
     if (refused) parts.push(`${refused} refused`);
+    if (partial) parts.push(`${partial} unverified`);
     if (notRun) parts.push(`${notRun} not run`);
     if (running) parts.push('in progress');
     return parts.join(', ');
@@ -76,6 +77,9 @@
    */
   const LABELS: Record<string, (i: Record<string, unknown>) => string> = {
     describeScene: () => 'Checked the scene',
+    listCapabilities: () => 'Found available actions',
+    describeCapabilities: () => 'Checked action requirements',
+    getOperationResult: () => 'Checked an action result',
     resolve: (i) => `Looked up “${text(i.query) ?? '…'}”`,
     searchPlaces: (i) => `Searched places for “${text(i.query) ?? '…'}”`,
     listActivities: () => 'Listed mission activities',
@@ -115,11 +119,16 @@
 
   function stepLabel(step: AskStep): string {
     const input = step.input && typeof step.input === 'object' ? (step.input as Record<string, unknown>) : {};
+    if (step.name === 'invokeCapability') {
+      const name = typeof input.id === 'string' ? input.id.split('.').at(-1)! : '';
+      const args = input.input && typeof input.input === 'object' ? input.input as Record<string, unknown> : {};
+      return LABELS[name]?.(args) ?? 'Ran a viewer action';
+    }
     return LABELS[step.name]?.(input) ?? step.name;
   }
 
   /** Where the step stopped: the viewer's own refusal, short. */
-  const stepProblem = (step: AskStep): string | null => (step.result && !step.result.ok ? step.result.error : null);
+  const stepProblem = (step: AskStep): string | null => (step.result && !step.result.ok ? step.result.error : step.result?.receipt?.status === 'partial' ? step.result.receipt.warnings.join(' ') : null);
 
   /** The latest step, for the "Working…" line. */
   const working = (turn: AskTurn): string | null => {
@@ -198,6 +207,7 @@
                   <li class="flex items-start gap-1.5">
                     <span class="mt-0.5 shrink-0">
                       {#if !step.result}<Loader2 size={11} class="animate-spin text-text-muted" />
+                      {:else if step.result.receipt?.status === 'partial'}<Ban size={11} class="text-warning" />
                       {:else if step.result.ok}<Check size={11} class="text-success" />
                       {:else if step.result.code === 'superseded' || step.result.code === 'cancelled'}<Ban size={11} class="text-text-muted" />
                       {:else}<X size={11} class="text-error" />{/if}

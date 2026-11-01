@@ -167,6 +167,25 @@ try {
     });
     assert(ui.canvas && ui.rail && ui.timeline, `workspace pieces present: ${JSON.stringify(ui)}`);
   });
+  await check('discovers shared capabilities and reconciles an embedded surface read', async () => {
+    const r = await inPage(async () => {
+      const { viewer } = window.host;
+      const tools = viewer.capabilities;
+      const initial = tools.list().map(tool => tool.name);
+      const descriptors = tools.describeCapabilities(['camera.flyTo', 'activities.listActivities', 'surface.getSurfaceData', 'capture.screenshot']);
+      const task = tools.begin();
+      await task.call('describeCapabilities', { ids: ['surface.getSurfaceData'] });
+      const surface = await task.call('getSurfaceData', { object: 'Earth' });
+      const state = await task.call('describeScene', {});
+      task.finish();
+      return { initial, descriptors, surface, state };
+    });
+    assert(r.initial.join() === 'describeScene,listCapabilities,describeCapabilities,getOperationResult,invokeCapability', JSON.stringify(r.initial));
+    assert(r.descriptors.slice(0, 3).every(d => d.available), 'shared viewer operations unavailable');
+    assert(!r.descriptors[3].available, 'export permission must be explicit');
+    assert(r.surface.ok && r.surface.receipt.status === 'completed', JSON.stringify(r.surface));
+    assert(r.state.ok && r.state.data.scene.ready, 'embedded state read');
+  });
   await check('refuses a second concurrent mount', async () => {
     const message = await inPage(async () => {
       try { await window.host.mountCosmolabe(document.querySelector('.host-footer')); return 'mounted'; } catch (e) { return e.message; }
@@ -570,6 +589,7 @@ try {
           track: () => old.control.track('SC-2'),
           on: () => old.control.on('time', () => {}),
           getTime: () => old.control.getTime(),
+          capabilities: () => old.capabilities.listCapabilities(),
           addSource: () => old.missionState.addSource({ id: 'x', position: { timeScale: 'TDB', frame: 'J2000', center: 'Earth', positionUnits: 'km', velocityUnits: 'km/s', maxSampleSpacing: 60 } }),
           removeActivities: () => old.activities.remove('mission-plan'),
           loadCatalog: () => old.loadCatalog({ json: window.host.sceneCatalog(false) }),
