@@ -265,12 +265,24 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
     },
   },
   {
+    name: 'getSurfaceData',
+    effect: 'read',
+    method: 'getSurfaceData',
+    description: 'Configured surface products: terrain elevation/LOD, cube imagery, base/normal/displacement textures, other imagery, and independently managed overlays. Declared provenance and runtime readiness, residency and current-view coverage are separate; null means unknown. Use for dataset inventory even when getImagery reports zero overlays.',
+    inputSchema: {
+      type: 'object',
+      properties: { object: { type: 'string', description: PARAM_HELP.object } },
+      required: ['object'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'getImagery',
     effect: 'read',
     method: 'getImagery',
     description:
       'An object\'s streamed imagery layers: id, attribution (provenance), resolution, coverage, load status and whether it draws in the current view. '
-      + 'A body without streamed imagery reports no layers; imageryOnly means there is no terrain elevation behind it.',
+      + 'Only independently managed layers are listed. Zero layers does not mean no surface datasets: use getSurfaceData for terrain, cube imagery and textures.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -484,7 +496,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const place = has(host, 'getSelectedPlace') ? attempt(() => host.getSelectedPlace!()) : undefined;
     const activityCount = has(host, 'listActivities') ? attempt(() => host.listActivities!().length) : undefined;
     const lacks = [
-      ['places', 'searchPlaces'], ['mission activities', 'listActivities'], ['imagery', 'getImagery'], ['scene identity', 'getScene'],
+      ['places', 'searchPlaces'], ['mission activities', 'listActivities'], ['imagery', 'getImagery'], ['surface datasets', 'getSurfaceData'], ['scene identity', 'getScene'],
     ].filter(([, m]) => !has(host, m as keyof ViewerControl)).map(([label]) => label);
     const data = {
       scene,
@@ -497,6 +509,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       objects: { names: objects.items, total: objects.total },
       viewpoints: { names: viewpoints.items, total: viewpoints.total },
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
+      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => host.getSurfaceData!(focus)) ?? null : null,
       focusImagery: imagery
         ? {
           body: imagery.body, surface: imagery.surface, imageryOnly: imagery.imageryOnly,
@@ -565,6 +578,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     };
   }
 
+  function getSurfaceData(input: Input): AgentToolResult {
+    const name = input.object as string;
+    const data = host.getSurfaceData!(name);
+    if (!data) return { ok: false, code: 'refused', error: `surface data unavailable for ${JSON.stringify(name)}` };
+    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data };
+  }
+
   function getImagery(input: Input): AgentToolResult {
     const name = input.object as string;
     const imagery = host.getImagery!(name);
@@ -573,7 +593,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       return { ok: false, code: 'refused', error: `no object named ${JSON.stringify(name)}${s ? ` (did you mean ${JSON.stringify(s)}?)` : ''}` };
     }
     const summary = imagery.layers.length === 0
-      ? `${imagery.body} has no streamed imagery.`
+      ? `${imagery.body} has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.`
       : `${imagery.body}: ${imagery.layers.length} imagery layer${imagery.layers.length === 1 ? '' : 's'}${imagery.imageryOnly ? ' (imagery only, no terrain elevation)' : ''}.`;
     return { ok: true, summary, data: imagery };
   }
@@ -602,7 +622,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return null;
   }
 
-  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getImagery };
+  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getSurfaceData, getImagery };
 
   /**
    * Wait for the end of flight `id`, the one a call started, unless the task or

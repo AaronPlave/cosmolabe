@@ -13,7 +13,7 @@ Write tools are verbs from the script language (`docs/scripting.md`), run throug
 
 | Effect | Tools |
 | --- | --- |
-| read | `describeScene`, `resolve`, `searchPlaces`, `listActivities`, `getImagery` |
+| read | `describeScene`, `resolve`, `searchPlaces`, `listActivities`, `getSurfaceData`, `getImagery` |
 | camera | `flyTo`, `jumpTo`, `frameObject`, `track`, `untrack`, `pointAtObject`, `clearLookAt`, `gotoPlace`, `gotoCoordinates`, `viewpoint`, `setFrame`, `circleCenter`, `dolly`, `stopFlight` |
 | time | `setTime`, `setTimeRate`, `setPlaying`, `seekActivity` |
 | selection | `select`, `deselect`, `selectActivity`, `navigateActivity` |
@@ -43,7 +43,8 @@ The read tools give a model real names to work with, so it doesn't have to guess
 - `resolve` matches a phrase against objects, viewpoints, places and activities. It returns the stable id each other tool takes, and flags ambiguity.
 - `searchPlaces` returns places with their source, the source's own attributes (`fields`: a mission site's `Flight`, `Earth_Date`, …) and an `unavailable` reason (see "Places and imagery" in `docs/scripting.md`).
 - `listActivities`, and the selected activity in `describeScene`, carry each activity's `site` and `references` and what they come to in the scene. `site` has a `link`: `direct reference` (the record's `references.location` is a place ref, the only direct link), `name match` (the site's name equals a place's name and the record references no place) or `none`, with the `basis` in words and the matching `places`. A model states the link for what it is rather than guessing from a ref's spelling, and a site no place is named after gives it nothing to navigate to.
-- `getImagery` returns layer attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
+- `getSurfaceData` inventories configured terrain elevation/LOD, cube imagery, base/normal/displacement/bump textures, other imagery products and independently managed layers. Product declarations include source identity/revision, frame, datum and cube layout/levels where known. Runtime `ready` (manager/manifest initialized), `loaded` (some data resident), `drawn` and `coversView` are separate observations. Null means unknown; resident data is not proof of full view coverage or scientific accuracy. Static texture load/coverage observations are currently unknown. Cube `coversDrawnTiles` reports mandatory-base coverage of drawn terrain blocks only; complete `coversView` remains unknown because undrawn/missing geometry is outside that measurement. Endpoints omit credentials, queries and fragments.
+- `getImagery` describes only independently managed layers. Zero layers does not imply missing terrain, cube imagery or base textures: read `getSurfaceData` for that inventory. It returns layer attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
 
 ### What a write leaves in place
 

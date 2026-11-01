@@ -331,6 +331,48 @@ export interface ScriptImagery {
   readonly layers: readonly ScriptImageryLayer[];
 }
 
+/** One configured surface product. Null observations mean the runtime does not know. */
+export interface ScriptSurfaceProduct {
+  readonly kind: 'terrain' | 'cube-imagery' | 'baseMap' | 'normalMap' | 'displacementMap' | 'bumpMap' | 'imagery';
+  readonly endpoint: string | null;
+  readonly configured: true;
+  /** Declared product metadata only; filenames do not establish scientific provenance. */
+  readonly source: { readonly id: string | null; readonly revision: string | null; readonly kind: string | null; readonly attribution?: string | null; readonly url?: string | null };
+  readonly frame: string | null;
+  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null } | null;
+  readonly resolutionMeters: number | null;
+  /** Declared cube layout identifier; distinct from the body's render frame. */
+  readonly crsId?: string | null;
+  /** Pyramid levels describe representation detail, not source accuracy. */
+  readonly lod?: { readonly minLevel: number; readonly maxLevel: number } | null;
+  readonly runtime: {
+    /** Manager/manifest initialized; does not mean every tile loaded. */
+    readonly ready: boolean | null;
+    /** At least some product data resident; does not establish complete coverage. */
+    readonly loaded: boolean | null;
+    readonly manifestFailed?: boolean | null;
+    readonly failedRequests: number | null;
+    readonly drawn: boolean | null;
+    /** Complete current-view coverage, when explicitly observable. */
+    readonly coversView: boolean | null;
+    /** Cube base imagery covers every currently drawn terrain block; excludes missing geometry. */
+    readonly coversDrawnTiles?: boolean | null;
+  };
+}
+
+export interface ScriptSurfaceData {
+  readonly body: string;
+  readonly bodyFrame: string | null;
+  readonly surface: ScriptImagery['surface'];
+  readonly terrain: ScriptSurfaceProduct | null;
+  readonly cubeImagery: ScriptSurfaceProduct | null;
+  readonly textures: readonly ScriptSurfaceProduct[];
+  /** Other configured imagery products, including those not initialized yet. */
+  readonly imageryProducts: readonly ScriptSurfaceProduct[];
+  /** Independently managed layers; an empty list says nothing about products above. */
+  readonly overlays: readonly ScriptImageryLayer[];
+}
+
 export interface ViewerControl {
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
   getActivity?(id: string): ScriptActivity | undefined;
@@ -595,10 +637,9 @@ export interface ViewerControl {
 
   // ── Imagery (#123) ──
 
-  /**
-   * A body's streamed imagery stack and surface state. A body without a
-   * streamed surface reports no layers. Undefined for no such object.
-   */
+  /** Configured products and observed resource state. Undefined for no such object. */
+  getSurfaceData?(body: string): ScriptSurfaceData | undefined;
+  /** Independently managed imagery layers only; not a full surface inventory. */
   getImagery?(body: string): ScriptImagery | undefined;
   /** False for no such object or layer, or for turning off a non-optional base. */
   setImageryVisible?(body: string, layer: string, visible: boolean, opts?: { scene?: number }): boolean;

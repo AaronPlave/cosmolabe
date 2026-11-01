@@ -19,6 +19,7 @@
  * the line number; the interpreter does, and turns the `false` into a located
  * error with a suggestion drawn from the scene actually loaded.
  */
+import { surfaceData } from './surface-data';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
@@ -491,6 +492,12 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       return true;
     },
 
+    getSurfaceData: (name) => {
+      if (!hasBody(name)) return undefined;
+      const bm = getRenderer()?.getBodyMesh(name);
+      const body = bm?.body ?? getSceneUniverse()?.getBody(name);
+      return body ? surfaceData(body, bm, bm ? scriptImagery(bm).layers : []) : undefined;
+    },
     getImagery: (name) => {
       if (!hasBody(name)) return undefined;
       const bm = getRenderer()?.getBodyMesh(name);

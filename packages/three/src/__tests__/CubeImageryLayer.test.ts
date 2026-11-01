@@ -101,6 +101,32 @@ function compile(material: THREE.Material) {
 }
 
 describe('CubeImageryLayer paged imagery', () => {
+  it('reports product declarations only after its manifest loads, independently of texture residency', async () => {
+    const loader = controlledLoader();
+    let finish!: (m: CubeImageryManifest) => void;
+    const layer = new CubeImageryLayer({ url: 'http://test/imagery.json' }, {
+      fetchManifest: () => new Promise(resolve => { finish = resolve; }), loadTexture: loader.loadTexture,
+    });
+    expect(layer.productMetadata).toBeNull();
+    finish(manifest(1));
+    await layer.ready;
+    expect(layer.productMetadata).toEqual({ source: manifest(1).source, registration: manifest(1).registration, minLevel: 0, maxLevel: 1 });
+    expect(layer.stats.textures).toBe(0);
+    layer.productMetadata!.source.id = 'changed copy';
+    expect(layer.productMetadata!.source.id).toBe('test');
+    layer.dispose();
+  });
+
+  it('separates a failed mandatory manifest from texture request failures', async () => {
+    const layer = new CubeImageryLayer({ url: 'http://test/missing.json' }, {
+      fetchManifest: async () => { throw new Error('HTTP 404'); }, loadTexture: controlledLoader().loadTexture,
+    });
+    await expect(layer.ready).rejects.toThrow('HTTP 404');
+    expect(layer.productMetadata).toBeNull();
+    expect(layer.stats).toMatchObject({ ready: false, manifestFailed: true, textures: 0, failures: 0 });
+    layer.dispose();
+  });
+
   it('accepts only audited legacy lunar imagery in the declared DE421 terrain frame', async () => {
     const m = manifest(1), loader = controlledLoader();
     const unknown = new CubeImageryLayer({ url: 'http://test/imagery.json' }, { frame: 'MOON_ME_DE421', fetchManifest: async () => m, loadTexture: loader.loadTexture });

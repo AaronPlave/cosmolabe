@@ -6,7 +6,7 @@
  * module. What is faked is the renderer below it, which needs WebGL.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
+import { createAgentTools, execute, parse, FRAME_MODES, LAYERS, VERB_LIST, type ScriptEventMap } from '@cosmolabe/control';
 import { PlaceIndex, parseGeographicGeoJson, parseCoordinatePair, resolveGeographicTarget, type Universe, parseMissionActivities } from '@cosmolabe/core';
 import { placeCoordinates, selectPlace } from '../places';
 import * as placeActions from '../places';
@@ -35,7 +35,7 @@ const curiosityCatalog = readCatalog('msl-dingo-gap');
 // ── A renderer with no WebGL behind it ──
 
 interface FakeBodyMesh {
-  body: { name: string; classification?: string; parentName?: string };
+  body: { name: string; classification?: string; parentName?: string; geometryData?: Record<string, unknown> };
   displayRadius: number;
   position: { x: number; y: number; z: number; clone(): FakeVec; sub(v: FakeVec): FakeVec };
   visible: boolean;
@@ -1311,6 +1311,49 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     selectPlace(place);
     expect(isToolOpen('navigate')).toBe(true);
     closeTool('navigate');
+  });
+
+  it('inventories real MoonFall products even without managed overlays or runtime data', async () => {
+    bind();
+    const mesh = renderer.getBodyMesh('Titan')!;
+    const moon = moonfallCatalog.items.find((item: { name: string }) => item.name === 'Moon');
+    Object.assign(mesh.body, { geometryData: moon.geometry, rotation: { bodyFixedFrame: moon.rotationModel.bodyFrame } });
+    Object.assign(mesh, { imageryLayers: [], surfaceTransitionState: 'fallback', hasTerrain: true });
+    const control = createViewerControl();
+    const data = control.getSurfaceData('Titan')!;
+    expect(data).toMatchObject({
+      bodyFrame: 'MOON_ME_DE421', surface: 'fallback', overlays: [],
+      terrain: { endpoint: 'data/moon-terrain-cube/tileset.json', frame: 'MOON_ME_DE421',
+        source: { id: expect.stringContaining('moon-lola-118m'), revision: null },
+        datum: { verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+        resolutionMeters: null, runtime: { ready: true, loaded: null, coversView: null } },
+      cubeImagery: { endpoint: 'data/moon-imagery-cube-wac-nac/imagery.json', source: { revision: null }, runtime: { ready: null, loaded: null, coversView: null } },
+    });
+    expect(data.textures.map(t => t.kind)).toEqual(['baseMap', 'normalMap', 'displacementMap']);
+    expect(data.textures.every(t => t.runtime.loaded === null && t.source.id === null)).toBe(true);
+    const tools = createAgentTools(control);
+    expect(await tools.call('getSurfaceData', { object: 'Titan' })).toMatchObject({ ok: true, data });
+    expect(await tools.call('getImagery', { object: 'Titan' })).toMatchObject({ ok: true, summary: expect.stringContaining('no independently managed overlays') });
+    expect(await tools.call('getSurfaceData', {})).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(await tools.call('getSurfaceData', { object: 'Nowhere' })).toMatchObject({ ok: false, code: 'refused' });
+    expect(control.getSurfaceData('Nowhere')).toBeUndefined();
+
+    // Failed requests do not erase configuration or imply complete coverage.
+    Object.assign(mesh, { terrainMetrics: { tiles: { inCache: 3, loaded: 0, cpu: 0, drawn: 0 }, network: { failed: 3 } },
+      terrainCubeImageryStats: { ready: false, textures: 0, failures: 1, tiles: 0, version: null, baseUncoveredBlocks: 0 } });
+    expect(control.getSurfaceData('Titan')).toMatchObject({
+      terrain: { configured: true, runtime: { loaded: false, failedRequests: 3, drawn: false, coversView: null } },
+      cubeImagery: { configured: true, runtime: { ready: false, loaded: false, failedRequests: 1, drawn: false, coversView: null } },
+    });
+    Object.assign(mesh, { surfaceTransitionState: 'streamed',
+      terrainCubeImageryStats: { ready: true, textures: 6, failures: 1, tiles: 2, version: 'test-revision', baseUncoveredBlocks: 1 } });
+    expect(control.getSurfaceData('Titan')!.cubeImagery).toMatchObject({ source: { revision: 'test-revision' }, runtime: { ready: true, loaded: true, drawn: true, coversView: null, coversDrawnTiles: false } });
+    mesh.visible = false;
+    expect(control.getSurfaceData('Titan')!.cubeImagery!.runtime).toMatchObject({ drawn: false, coversDrawnTiles: null });
+    // Snapshot data is independent of the next frame's state.
+    expect(data.cubeImagery!.runtime.loaded).toBeNull();
+    mesh.body.geometryData = { baseMap: 'https://user:secret@example.test/map.jpg?token=secret#private', terrain: { url: '//user:secret@example.test/tiles?key=secret' } };
+    expect(JSON.stringify(control.getSurfaceData('Titan'))).not.toContain('secret');
   });
 
   it('reads a body\'s imagery and toggles it, keeping the base on', () => {

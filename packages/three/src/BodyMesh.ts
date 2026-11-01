@@ -1266,6 +1266,10 @@ export class BodyMesh extends THREE.Object3D {
 
   get terrainFrameAvailability(): TerrainManager['frameAvailability'] | null { return this.terrainManager?.frameAvailability ?? null; }
 
+  /** Product declarations from the loaded terrain and cube imagery sources. */
+  get terrainSourceMetadata() { return this.terrainManager ? { ...this.terrainManager.cpuSource } : null; }
+  get terrainCubeImageryMetadata() { return this.terrainManager?.cubeImageryMetadata ?? null; }
+
   /** Immutable revision of the active physical terrain, when declared. */
   get terrainSourceRevision(): string | undefined { return this.terrainManager?.cpuSource.version; }
 

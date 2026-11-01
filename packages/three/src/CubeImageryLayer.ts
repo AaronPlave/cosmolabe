@@ -44,6 +44,8 @@ export interface CubeImageryConfig {
 export interface CubeImageryStats {
   version: string | null;
   ready: boolean;
+  /** The mandatory base manifest failed to initialize. */
+  manifestFailed: boolean;
   /** Resident textures (all levels) and how many are pinned coarse levels. */
   textures: number;
   pinnedTextures: number;
@@ -871,13 +873,21 @@ export class CubeImageryLayer {
     });
   }
 
+  /** Declared identity/registration of the loaded base product; never inferred from its URL. */
+  get productMetadata() {
+    return this.manifest ? {
+      source: { ...this.manifest.source }, registration: { ...this.manifest.registration },
+      minLevel: this.manifest.minLevel, maxLevel: this.manifest.maxLevel,
+    } : null;
+  }
+
   get stats(): CubeImageryStats {
     let textures = 0, pinnedTextures = 0, textureBytes = 0, inFlight = 0, failedTiles = 0;
     for (const e of this.entries.values()) {
       if (e.state === 'ready') { textures++; textureBytes += e.bytes; if (e.pinned) pinnedTextures++; }
       else if (e.state === 'loading') inFlight++; else failedTiles++;
     }
-    return { version: this.manifest?.source.version ?? null, ready: !!this.manifest, textures, pinnedTextures, textureBytes, inFlight, failedTiles,
+    return { version: this.manifest?.source.version ?? null, ready: !!this.manifest, manifestFailed: this.sources[0]?.setupFailed ?? false, textures, pinnedTextures, textureBytes, inFlight, failedTiles,
       maxTextureBytes: this.options.maxTextureBytes, ...this.counters, ...this.last, blockGeometryBytes: 0,
       transitionTextureBytes: this.pages ? Math.round(this.pages.span ** 2 * 4 * 4 / 3) * 4 : 0,
       protectedOverBudgetBytes: this.pages ? Math.max(0, Math.round(this.pages.span ** 2 * 4 * 4 / 3) * (this.pages.capacity - 4) - this.options.maxTextureBytes) : 0,

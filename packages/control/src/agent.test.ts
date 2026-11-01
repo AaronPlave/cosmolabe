@@ -105,7 +105,7 @@ describe('agent tools: scene context', () => {
     expect(data.objects.total).toBe(100);
     expect(data.objects.names).toHaveLength(40);
     expect(data.selected).toBe('Object 3');
-    expect(data.unsupported).toEqual([]);
+    expect(data.unsupported).toEqual(['surface datasets']);
   });
 
   it('reports the imagery of the body in focus', async () => {
@@ -138,7 +138,7 @@ describe('agent tools: scene context', () => {
 
   it('says plainly when a body has no imagery', async () => {
     const tools = createAgentTools(new FakeViewer());
-    expect(await tools.call('getImagery', { object: 'Saturn' })).toMatchObject({ ok: true, summary: 'Saturn has no streamed imagery.' });
+    expect(await tools.call('getImagery', { object: 'Saturn' })).toMatchObject({ ok: true, summary: 'Saturn has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.' });
     expect(fail(await tools.call('getImagery', { object: 'Satrun' })).error).toContain('did you mean "Saturn"');
   });
 });
