@@ -93,6 +93,8 @@ export class KeyboardControls {
 
     this._onKeyDown = (e: KeyboardEvent) => {
       if (!this.enabled || !keyEventInScope(e, scope)) return;
+      // OS/browser shortcuts are not camera commands (KeyC also means descend).
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;

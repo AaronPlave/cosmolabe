@@ -62,6 +62,7 @@ export { applyViewState, decodeViewState, encodeViewState, validateViewState, vi
 export type { ViewStateV1, ViewCatalog, ViewTime } from './view-state.js';
 
 // Agent tools (#311)
+export type { AgentMetadataPolicy } from './agent-metadata.js';
 export { createAgentTools } from './agent.js';
 export type {
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions,

@@ -134,7 +134,7 @@ describe('agent tools: scene context', () => {
 
   it('carries place provenance and availability', async () => {
     const r = await createAgentTools(new FakeViewer()).call('searchPlaces', { query: 'ligeia' });
-    expect((r as { data: any }).data[0]).toMatchObject({ name: 'Ligeia Mare', unavailable: 'frame mismatch', source: expect.stringContaining('titan-names.geojson') });
+    expect((r as { data: any }).data[0]).toMatchObject({ name: 'Ligeia Mare', unavailable: expect.stringContaining('unavailable'), source: { kind: 'catalog', identity: null, revision: null } });
   });
 
   it('says plainly when a body has no imagery', async () => {
@@ -486,7 +486,7 @@ class MissionViewer extends FakeViewer {
   readonly activities: ScriptActivity[] = [
     {
       ...FLIGHT_5, id: 'ingenuity:flight:5', name: 'Flight 5', start: 673687471, end: 673687579.2, site: 'Airfield B', mission: 'Mars 2020',
-      references: { trajectory: 'Ingenuity', sourceSegment: 'data/ingenuity/flight_05.xyzv' },
+      references: { trajectory: 'Ingenuity' },
       provenance: { source: 'https://mars.nasa.gov/maps/location/?mission=M20', version: 'pinned', authority: 'estimated', timing: 'estimated', limitations: 'Observed horizontal path with estimated 3D playback, not precise flight telemetry.' },
     },
     { ...FLIGHT_5, id: 'ingenuity:flight:6', name: 'Flight 6', site: 'Airfield C', start: 675019097.7, end: 675019200 },
@@ -525,12 +525,15 @@ describe('agent tools: where an activity happened', () => {
   const data = (r: AgentToolResult) => (r as { data: any }).data;
 
   it('lists an activity\'s site and references, and the places its name matches, saying it is a name match', async () => {
-    const tools = createAgentTools(new MissionViewer(), { formatTime: fmt });
+    const tools = createAgentTools(new MissionViewer(), { formatTime: fmt, metadata: {
+      publicValue: value => value === 'Observed horizontal path with estimated 3D playback, not precise flight telemetry.',
+      publicPlaceField: (key, value) => (key === 'Flight' && value === 5) || (key === 'Earth_Date' && value === 'May 7, 2021'),
+    } });
     const { activities } = data(await tools.call('listActivities', { vehicle: 'Ingenuity' }));
     const [five, six, seven] = activities;
     expect(five).toMatchObject({
       id: 'ingenuity:flight:5', mission: 'Mars 2020', startUtc: 'ET 673687471',
-      references: { trajectory: 'Ingenuity', sourceSegment: 'data/ingenuity/flight_05.xyzv' },
+      references: { trajectory: 'Ingenuity' },
       provenance: { timing: 'estimated', limitations: expect.stringContaining('not precise flight telemetry') },
       site: { name: 'Airfield B', link: 'name match', basis: expect.stringContaining('no direct place reference') },
     });
@@ -684,5 +687,45 @@ describe('review regressions: camera and clock ownership', () => {
     const result = await tools.call('describeScene', {});
     expect(result).toMatchObject({ ok: true, summary: expect.stringContaining('selected activity Flight 5') });
     expect(data(result)).toMatchObject({ selectedObject: null, selectedActivity: { name: 'Flight 5' }, selectedPlace: { name: 'Airfield B' } });
+  });
+});
+
+describe('agent tools: provider metadata boundary', () => {
+  it.each(['https://internal.example/PATH_EMBEDDED_SECRET/catalog.json', '/Users/private/PATH_EMBEDDED_SECRET/catalog.json', 'relative/PATH_EMBEDDED_SECRET/catalog.json'])('withholds private metadata on every nested read and the next provider wire request: %s', async (identity) => {
+    const host = new MissionViewer();
+    const secret = 'PATH_EMBEDDED_SECRET';
+    host.places[0] = { ...host.places[0], source: { kind: 'catalog', identity, revision: 'PRIVATE_REVISION' },
+      fields: { PrivateMissionAttribute: 'PRIVATE_VALUE', Flight: 'PRIVATE_FIELD_VALUE', publicField: 5 } };
+    host.selectedPlace = host.places[0].ref;
+    host.selectedActivityId = host.activities[0].id;
+    host.activities[0] = { ...host.activities[0], provenance: { ...host.activities[0].provenance,
+      source: identity, version: 'PRIVATE_VERSION', limitations: '/Users/private/mission-data' } };
+    host.tracked = 'Titan';
+    const originalImagery = host.getImagery('Titan')!;
+    host.getImagery = () => ({ ...originalImagery, layers: originalImagery.layers.map(l => ({ ...l,
+      description: 'PRIVATE_DESCRIPTION', attribution: 'PRIVATE_ATTRIBUTION', source: { ...l.source, endpoint: identity } })) });
+    const runtime = { ready: true, loaded: true, failedRequests: 0, drawn: true, coversView: null };
+    const surface = { body: 'Titan', bodyFrame: 'IAU_MOON', surface: 'streamed' as const,
+      terrain: { kind: 'terrain' as const, configured: true as const, endpoint: identity,
+        source: { id: 'PUBLIC_DATASET', revision: 'PUBLIC_REVISION', kind: 'PRIVATE_KIND', attribution: 'PUBLIC_ATTRIBUTION', url: identity },
+        frame: 'IAU_MOON', datum: { verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' }, resolutionMeters: 10, runtime },
+      cubeImagery: null, textures: [], imageryProducts: [], overlays: host.getImagery('Titan')!.layers };
+    (host as ViewerControl).getSurfaceData = () => surface;
+    const tools = createAgentTools(host, { metadata: {
+      publicValue: value => ['PUBLIC_DATASET', 'PUBLIC_REVISION', 'PUBLIC_ATTRIBUTION'].includes(value),
+      publicPlaceField: (key, value) => key === 'publicField' && value === 5,
+    } });
+    const calls = [use('scene', 'describeScene', {}), use('places', 'searchPlaces', { query: 'Airfield B' }),
+      use('activities', 'listActivities', {}), use('surface', 'getSurfaceData', { object: 'Titan' }), use('imagery', 'getImagery', { object: 'Titan' })];
+    const transport = new MockTransport([{ stop: 'tool_use', content: calls }, { stop: 'end', content: [{ type: 'text', text: 'Done' }] }]);
+    expect((await runAgent({ tools, transport, prompt: 'Inspect this scene' })).outcome.kind).toBe('done');
+    const wire = JSON.stringify(transport.requests[1]);
+    for (const value of [secret, 'internal.example', 'PRIVATE_', '/Users/private', 'PrivateMissionAttribute', 'sourceSegment']) expect(wire).not.toContain(value);
+    for (const value of ['PUBLIC_DATASET', 'PUBLIC_REVISION', 'PUBLIC_ATTRIBUTION', 'publicField', 'ellipsoid', 'geodetic-normal', 'estimated']) expect(wire).toContain(value);
+    expect(wire).not.toContain('endpoint');
+    // Filtering does not mutate trusted local records.
+    expect(host.getPlace(host.places[0].ref)?.source.identity).toBe(identity);
+    expect(host.getPlace(host.places[0].ref)?.fields?.PrivateMissionAttribute).toBe('PRIVATE_VALUE');
+    tools.dispose();
   });
 });

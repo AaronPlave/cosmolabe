@@ -57,9 +57,9 @@ describe('resolveGlobeSurfaceConfig', () => {
 });
 
 describe('describeImageryLayers', () => {
-  it('names layers after the product in the tile URL', () => {
-    expect(defaultLayerName({ url: VIKING })).toBe('Mars_Viking_MDIM21_ClrMosaic_global_232m');
-    expect(defaultLayerName({ url: CTX })).toBe('CTX');
+  it('names layers from explicit labels or provider hosts, never URL paths', () => {
+    expect(defaultLayerName({ url: VIKING })).toBe('trek.nasa.gov');
+    expect(defaultLayerName({ url: CTX })).toBe('astro.arcgis.com');
     expect(defaultLayerName({ url: 'https://tiles.example.org/{z}/{x}/{y}.png' })).toBe('tiles.example.org');
     expect(defaultLayerName({ type: 'wmts-capabilities', url: 'https://gibs/x.xml', layer: 'BlueMarble' })).toBe('BlueMarble');
   });
@@ -84,15 +84,21 @@ describe('describeImageryLayers', () => {
 
   it("names each layer's source without anything that could be a credential", () => {
     const [a, b, c] = describeImageryLayers([
-      { type: 'wmts-capabilities', url: 'https://user:secret@gibs.example/wmts/caps.xml?api_key=abc#frag', layer: 'BlueMarble', tileMatrixSet: '500m' },
+      { type: 'wmts-capabilities', url: 'https://user:secret@gibs.example/private-token/1.0.0/caps.xml?api_key=abc#frag', layer: 'BlueMarble', tileMatrixSet: '500m' },
       { url: 'https://tiles.example/mars/{z}/{x}/{y}.png?token=xyz' },
-      { type: 'cube', url: 'cube/imagery.json' },
+      { type: 'cube', url: '/private/private-token/imagery.json' },
     ], MARS_EQ_KM);
-    expect(a.source).toEqual({ type: 'wmts-capabilities', endpoint: 'https://gibs.example/wmts/caps.xml', layer: 'BlueMarble', tileMatrixSet: '500m' });
+    expect(a.source).toEqual({ type: 'wmts-capabilities', endpoint: 'https://gibs.example', layer: 'BlueMarble', tileMatrixSet: '500m' });
     expect(a.attribution).toBe('gibs.example'); // not user:secret@gibs.example
-    expect(b.source).toEqual({ type: 'xyz', endpoint: 'https://tiles.example/mars/{z}/{x}/{y}.png', layer: null, tileMatrixSet: null });
-    expect(c.source).toEqual({ type: 'cube', endpoint: 'cube/imagery.json', layer: null, tileMatrixSet: null });
-    expect(JSON.stringify([a, b, c])).not.toMatch(/secret|api_key|token=/);
+    expect(b.source).toEqual({ type: 'xyz', endpoint: 'https://tiles.example', layer: null, tileMatrixSet: null });
+    expect(c.source).toEqual({ type: 'cube', endpoint: null, layer: null, tileMatrixSet: null });
+    expect(JSON.stringify([a, b, c])).not.toMatch(/secret|private-token|api_key|token=/);
+  });
+
+  it.each(['file:///Users/private-token/map.json', 'data:private-token', 'blob:https://example.test/private-token', 'relative/private-token.json', 'not a URL'])('omits non-provider locations: %s', (url) => {
+    const [layer] = describeImageryLayers([{ url }], MARS_EQ_KM);
+    expect(layer.source.endpoint).toBeNull();
+    expect(layer.name).not.toContain('private-token');
   });
 
   it('keeps ids unique', () => {

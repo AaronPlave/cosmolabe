@@ -1,0 +1,19 @@
+{
+  "selectedActivity": "ingenuity:flight:5",
+  "selectedPlace": "Airfield B",
+  "answerRect": {
+    "x": 17.25,
+    "y": 561.5625,
+    "width": 355.5,
+    "height": 72.75
+  },
+  "sheetScrollTop": 0,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "inspectorRestored": true,
+  "transport": "local scripted response; no provider calls",
+  "requests": 1,
+  "errors": []
+}

@@ -25,7 +25,7 @@ function fakeElement(width = 800, height = 600) {
     addEventListener: add,
     removeEventListener() {},
     style: {},
-    ownerDocument: { ...noop, defaultView: noop, documentElement: { clientLeft: 0, clientTop: 0 } },
+    ownerDocument: { ...noop, defaultView: { ...noop, addEventListener: add }, documentElement: { clientLeft: 0, clientTop: 0 } },
     clientWidth: width,
     clientHeight: height,
     getBoundingClientRect: () => ({ left: 0, top: 0, width, height, right: width, bottom: height, x: 0, y: 0 }),
@@ -446,6 +446,40 @@ describe('onFlightEnd', () => {
     expect(camera.position.length()).toBeGreaterThan(0);
   });
 
+  it.each(['land', 'replace', 'drag', 'wheel', 'drag-before-update'] as const)(
+    'does not report success on pointer travel before landing: %s', async (action) => {
+      const { cc, moon, earth, fire, frame } = setup();
+      const seen = ends(cc);
+      cc.flyTo(moon, { scaleFactor: 1, duration: 0.5 });
+      let now = performance.now();
+      for (let i = 0; i < 10; i++) {
+        now += 100;
+        vi.spyOn(performance, 'now').mockImplementation(() => now);
+        cc.update();
+      }
+      expect(cc.animating).toBe(false);
+      const pointer = { pointerId: 1, pointerType: 'mouse', button: 2, clientX: 0, clientY: 0,
+        pageX: 0, pageY: 0, preventDefault() {}, stopPropagation() {} };
+      fire('pointerdown', pointer);
+      fire('pointermove', { ...pointer, clientX: 1 }); // below the drag threshold
+      await told();
+      expect(seen).toEqual([]);
+      expect(cc.originBody).toBe(earth);
+      expect(cc.trackedBody).not.toBe(moon);
+      if (action === 'replace') cc.flyTo(earth, { scaleFactor: 1, duration: 2 });
+      if (action === 'drag' || action === 'drag-before-update') fire('pointermove', { ...pointer, clientX: 20 });
+      if (action === 'wheel') fire('wheel', { shiftKey: false, deltaY: 100, deltaX: 0, deltaMode: 0, preventDefault() {}, stopPropagation() {} });
+      // Cover both a normal renderer frame and an update before it applies landing.
+      if (action === 'drag-before-update') cc.update();
+      frame(0.1);
+      await told();
+      expect(seen).toEqual([`Moon direct ${action === 'land' ? 'arrived' : action === 'replace' ? 'stopped' : 'interrupted'}`]);
+      if (action === 'land') expect(cc.originBody).toBe(moon);
+      frame(0.1);
+      await told();
+      expect(seen).toHaveLength(1);
+    });
+
   it('reports a landing a later command took back as stopped', async () => {
     const { cc, moon, earth } = setup();
     const seen = ends(cc);
@@ -614,10 +648,14 @@ describe('manual camera input notifications between flights', () => {
     const input = vi.fn();
     cc.onCameraInput = input;
     const keydown = events.mock.calls.filter(([type]) => type === 'keydown').at(-1)![1] as EventListener;
-    const key = (code: string, target: object = {}) => keydown({ code, target, preventDefault() {} } as unknown as Event);
+    const key = (code: string, target: object = {}, modifiers: object = {}) => keydown({ code, target, ...modifiers, preventDefault() {} } as unknown as Event);
     key('KeyW', { tagName: 'TEXTAREA' });
     key('KeyW', { isContentEditable: true });
     key('Escape');
+    for (const modifiers of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }]) {
+      key('KeyC', {}, modifiers);
+      expect(cc.keyboard.navigating).toBe(false);
+    }
     expect(input).not.toHaveBeenCalled();
     key('KeyW');
     expect(input).toHaveBeenCalledOnce();

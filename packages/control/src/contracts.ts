@@ -264,8 +264,8 @@ export interface ScriptPlace {
    * is; absent when the layer carries none.
    */
   readonly fields?: Readonly<Record<string, string | number | boolean>>;
-  /** Where the layer's data came from: a catalog URL, a local file, or this session. */
-  readonly source: { readonly kind: 'catalog' | 'local-file' | 'user'; readonly identity: string; readonly revision?: string };
+  /** Trusted local provenance: may contain private URLs/paths. Model-facing reads must project it separately. */
+  readonly source: { readonly kind: 'catalog' | 'local-file' | 'user'; readonly identity?: string; readonly revision?: string };
   /** Null when the place can be navigated to; otherwise why not. */
   readonly unavailable: string | null;
 }
@@ -289,12 +289,14 @@ export interface ScriptImageryLayer {
   readonly resolutionMeters: number | null;
   /**
    * Which product the layer is, as the catalog names it, apart from its
-   * display name and who serves it. The endpoint is reduced to scheme, host
-   * and path: a signed URL's query, credentials and fragment never appear.
+   * display name and who serves it. The endpoint is an HTTP(S) provider origin
+   * only (null for other resources), never a path, userinfo, query or fragment.
+   * It identifies the provider, not the dataset. Catalog layer IDs identify datasets
+   * only when explicitly supplied by the catalog author.
    */
   readonly source: {
     readonly type: string;
-    readonly endpoint: string;
+    readonly endpoint: string | null;
     /** The service's layer identifier; null when the catalog gives none. */
     readonly layer: string | null;
     readonly tileMatrixSet: string | null;

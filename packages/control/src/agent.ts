@@ -29,7 +29,6 @@ import type {
   ScriptActivity,
   ScriptCancelSignal,
   ScriptEventMap,
-  ScriptPlace,
   ScriptTime,
   ScriptVec3,
   Statement,
@@ -38,6 +37,7 @@ import type {
 } from './contracts.js';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
 import { VERBS, type VerbParam, type VerbSpec } from './verbs.js';
@@ -123,6 +123,8 @@ export interface AgentTools {
 }
 
 export interface AgentToolsOptions {
+  /** Only the trusted host can approve public metadata; never derive this policy from catalog fields. */
+  metadata?: AgentMetadataPolicy;
   /** Renders scene time for `describeScene` (a UTC calendar string, say). */
   formatTime?(et: number): string;
 }
@@ -386,16 +388,6 @@ function bounded<T>(items: readonly T[], max: number): { items: T[]; total: numb
   return { items: items.slice(0, max), total: items.length };
 }
 
-function placeSummary(p: ScriptPlace) {
-  return {
-    ref: p.ref, name: p.name, body: p.body, kind: p.kind, latitude: p.latitude, longitude: p.longitude,
-    ...(p.diameterKm !== undefined ? { diameterKm: p.diameterKm } : {}),
-    ...(p.fields ? { fields: p.fields } : {}),
-    source: `${p.layer.name} (${p.source.kind}: ${p.source.identity})`,
-    ...(p.unavailable ? { unavailable: p.unavailable } : {}),
-  };
-}
-
 function attempt<T>(read: () => T): T | undefined {
   try {
     return read();
@@ -422,6 +414,8 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 
 /** Bind the agent tools to one viewer. */
 export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = {}): AgentTools {
+  const metadata = agentMetadata(opts.metadata);
+  const placeSummary = metadata.place;
   let taskSeq = 0;
   let current: TaskImpl | null = null;
 
@@ -479,9 +473,14 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       id: a.id, name: a.name, kind: a.kind, vehicle: a.vehicle, body: a.body, ...(a.mission ? { mission: a.mission } : {}),
       start: a.start, end: a.end,
       ...(opts.formatTime ? { startUtc: attempt(() => opts.formatTime!(a.start)), endUtc: attempt(() => opts.formatTime!(a.end)) } : {}),
-      ...(a.references ? { references: a.references } : {}),
+      ...(a.references ? { references: { trajectory: a.references.trajectory, location: a.references.location, viewpoint: a.references.viewpoint, objects: a.references.objects } } : {}),
       site: activitySite(a),
-      provenance: a.provenance,
+      provenance: {
+        source: metadata.text(a.provenance.source), version: metadata.text(a.provenance.version),
+        authority: metadata.text(a.provenance.authority), timing: metadata.text(a.provenance.timing),
+        limitations: metadata.text(a.provenance.limitations), uncertaintySeconds: a.provenance.uncertaintySeconds,
+        withheld: 'Unapproved provenance is null; timing and source accuracy must not be inferred from missing metadata.',
+      },
     };
   }
 
@@ -511,13 +510,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       objects: { names: objects.items, total: objects.total },
       viewpoints: { names: viewpoints.items, total: viewpoints.total },
       ...(activityCount !== undefined ? { activities: activityCount } : {}),
-      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => host.getSurfaceData!(focus)) ?? null : null,
-      focusImagery: imagery
-        ? {
-          body: imagery.body, surface: imagery.surface, imageryOnly: imagery.imageryOnly,
-          layers: imagery.layers.map((l) => ({ id: l.id, name: l.name, visible: l.visible, status: l.status, attribution: l.attribution })),
-        }
-        : null,
+      focusSurfaceData: focus && has(host, 'getSurfaceData') ? attempt(() => { const data = host.getSurfaceData!(focus); return data ? metadata.surface(data) : null; }) ?? null : null,
+      focusImagery: imagery ? metadata.imagery(imagery) : null,
       unsupported: lacks,
     };
     const summary = scene === null && has(host, 'getScene')
@@ -544,7 +538,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     }
     if (kinds.has('place') && has(host, 'searchPlaces')) {
       for (const p of attempt(() => host.searchPlaces!(query, { limit: 5 })) ?? []) {
-        candidates.push({ kind: 'place', id: p.ref, label: p.name, detail: `${p.kind} on ${p.body}${p.unavailable ? ` — unavailable: ${p.unavailable}` : ''}` });
+        candidates.push({ kind: 'place', id: p.ref, label: p.name, detail: `${p.kind} on ${p.body}${p.unavailable ? ' — navigation unavailable' : ''}` });
       }
     }
     if (kinds.has('activity') && has(host, 'listActivities')) {
@@ -584,7 +578,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const name = input.object as string;
     const data = host.getSurfaceData!(name);
     if (!data) return { ok: false, code: 'refused', error: `surface data unavailable for ${JSON.stringify(name)}` };
-    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data };
+    return { ok: true, summary: `${data.body}: configured surface products and independently managed overlays; unknown runtime observations are null.`, data: metadata.surface(data) };
   }
 
   function getImagery(input: Input): AgentToolResult {
@@ -597,7 +591,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     const summary = imagery.layers.length === 0
       ? `${imagery.body} has no independently managed overlays. Use getSurfaceData for terrain, cube imagery and textures.`
       : `${imagery.body}: ${imagery.layers.length} imagery layer${imagery.layers.length === 1 ? '' : 's'}${imagery.imageryOnly ? ' (imagery only, no terrain elevation)' : ''}.`;
-    return { ok: true, summary, data: imagery };
+    return { ok: true, summary, data: metadata.imagery(imagery) };
   }
 
   /**

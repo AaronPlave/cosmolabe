@@ -41,10 +41,10 @@ The read tools give a model real names to work with, so it doesn't have to guess
   - the imagery stack of the body in focus
   - which capabilities this viewer lacks
 - `resolve` matches a phrase against objects, viewpoints, places and activities. It returns the stable id each other tool takes, and flags ambiguity.
-- `searchPlaces` returns places with their source, the source's own attributes (`fields`: a mission site's `Flight`, `Earth_Date`, …) and an `unavailable` reason (see "Places and imagery" in `docs/scripting.md`).
+- `searchPlaces` returns place coordinates, source category and explicitly approved public provenance/attributes, plus navigation availability (see "Places and imagery" in `docs/scripting.md`).
 - `listActivities`, and the selected activity in `describeScene`, carry each activity's `site` and `references` and what they come to in the scene. `site` has a `link`: `direct reference` (the record's `references.location` is a place ref, the only direct link), `name match` (the site's name equals a place's name and the record references no place) or `none`, with the `basis` in words and the matching `places`. A model states the link for what it is rather than guessing from a ref's spelling, and a site no place is named after gives it nothing to navigate to.
-- `getSurfaceData` inventories configured terrain elevation/LOD, cube imagery, base/normal/displacement/bump textures, other imagery products and independently managed layers. Product declarations include source identity/revision, frame, datum and cube layout/levels where known. Runtime `ready` (manager/manifest initialized), `loaded` (some data resident), `drawn` and `coversView` are separate observations. Null means unknown; resident data is not proof of full view coverage or scientific accuracy. Static texture load/coverage observations are currently unknown. Cube `coversDrawnTiles` reports mandatory-base coverage of drawn terrain blocks only; complete `coversView` remains unknown because undrawn/missing geometry is outside that measurement. Endpoints omit credentials, queries and fragments.
-- `getImagery` describes only independently managed layers. Zero layers does not imply missing terrain, cube imagery or base textures: read `getSurfaceData` for that inventory. It returns layer attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
+- `getSurfaceData` inventories configured terrain elevation/LOD, cube imagery, base/normal/displacement/bump textures, other imagery products and independently managed layers. Product declarations include approved public source identity/revision, frame/datum and cube layout/levels where known. Unapproved metadata is null; its absence establishes neither accuracy nor provenance. Runtime `ready` (manager/manifest initialized), `loaded` (some data resident), `drawn` and `coversView` are separate observations. Null means unknown; resident data is not proof of full view coverage or scientific accuracy. Static texture load/coverage observations are currently unknown. Cube `coversDrawnTiles` reports mandatory-base coverage of drawn terrain blocks only; complete `coversView` remains unknown because undrawn/missing geometry is outside that measurement. Resource endpoints, source URLs and local resource paths are never included in model-facing inventory results.
+- `getImagery` describes only independently managed layers. Zero layers does not imply missing terrain, cube imagery or base textures: read `getSurfaceData` for that inventory. It returns approved attribution, resolution, coverage and load status, and `imageryOnly` when there is no terrain elevation behind the imagery.
 
 ### What a write leaves in place
 
@@ -199,3 +199,23 @@ const found = await task.call('resolve', { query: 'imaging window', kinds: ['act
   - Activity times carry their own provenance.
   - External mission state can be unavailable.
   - There is no Event Finder tool yet: the model cannot claim event results.
+
+### Model-visible metadata
+
+`ViewerControl` retains trusted local catalog metadata. Agent reads use an explicit projection shared by scene descriptions, place search, nested activity sites, surface inventories and imagery. Raw resource endpoints/URLs, activity source segments and arbitrary place attributes are omitted. Provenance values are withheld by default, apart from a closed vocabulary of scientific conventions and timing terms. A withheld limitation does not mean no limitations: the model must consult the local record rather than infer accuracy. Display labels, scene-scoped references, coordinates, declared extents, time bounds and runtime status remain available to perform the requested scene operations. Treat those scene contents and the user's prompt as information being shared when enabling a provider.
+
+Trusted hosts can approve exact public metadata values and complete public attribute pairs. Do not construct this policy from arbitrary catalog fields, URL hostnames, or query stripping:
+
+```ts
+const publicValues = new Set(['Public dataset DOI', 'public revision 2', 'Public attribution']);
+const tools = createAgentTools(control, {
+  metadata: {
+    publicValue: value => publicValues.has(value),
+    publicPlaceField: (key, value) => key === 'Flight' && value === 5,
+  },
+});
+```
+
+Approval restores only the projected provenance fields, never resource endpoints or arbitrary object keys. The standalone Ask panel uses the conservative default. Existing real-provider receipts document earlier acceptance runs; they are not evidence of a new provider run after this metadata change.
+
+On compact screens, the selected activity's timeline inspector yields while the Ask sheet is active. Selection remains unchanged, and closing Ask restores the inspector.
