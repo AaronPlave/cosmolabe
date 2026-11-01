@@ -1210,7 +1210,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({
       ref: '["names","string:b"]', name: 'Kraken b', body: 'Titan', layer: { id: 'names', name: 'Names' }, feature: 'string:b',
-      origin: 'nomenclature', diameterKm: 200, source: { kind: 'catalog', identity: 'https://example.test/names.json', revision: 'r1' }, unavailable: null,
+      origin: 'nomenclature', diameterKm: 200, source: { kind: 'catalog' }, unavailable: null,
     });
     expect(found[0].latitude).toBeCloseTo(20, 9);
     expect(found[0].longitude).toBeCloseTo(10, 9);
@@ -1218,6 +1218,20 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.searchPlaces('krak', { body: 'Saturn' })).toEqual([]);
     expect(control.getPlace('["names","string:a"]')?.name).toBe('Kraken a');
     expect(control.getPlace('Kraken a')).toBeUndefined();
+  });
+
+  it.each(['https://example.test/private-token/names.json?signature=secret', '/Users/alice/private/names.json', 'file:///private/names.json'])('omits raw place source locations from every control read: %s', (identity) => {
+    const layer = sites(['a']);
+    layer.source.identity = identity;
+    layer.source.revision = 'private-revision';
+    vs.places = new PlaceIndex([layer]);
+    const control = createViewerControl();
+    const [place] = control.searchPlaces('krak');
+    selectPlace(vs.places.byRef.get(place.ref)!, { reveal: false });
+    for (const result of [place, control.getPlace(place.ref), control.getSelectedPlace()]) {
+      expect(result?.source).toEqual({ kind: 'catalog' });
+      expect(JSON.stringify(result)).not.toMatch(/private|signature|secret/);
+    }
   });
 
   it('does not search, or navigate to, a source the person excluded', () => {
@@ -1287,9 +1301,9 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
   it('reads a body\'s imagery and toggles it, keeping the base on', () => {
     const layers = [
       { id: 'base', name: 'Base', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1, bounds: null,
-        resolutionMeters: 100, source: { type: 'xyz', endpoint: 'https://tiles.example/base', layer: null, tileMatrixSet: null }, status: 'ok', minZoom: 0, view: { inCoverage: true, zoomLevel: 4, missingTiles: 0, degradedTiles: 0, cacheFull: false } },
+        resolutionMeters: 100, source: { type: 'xyz', endpoint: 'https://tiles.example', layer: null, tileMatrixSet: null }, status: 'ok', minZoom: 0, view: { inCoverage: true, zoomLevel: 4, missingTiles: 0, degradedTiles: 0, cacheFull: false } },
       { id: 'hirise', name: 'HiRISE', attribution: 'UA', description: 'HiRISE ortho', role: 'overlay', optional: true, visible: false, opacity: 1,
-        bounds: [77, 18, 78, 19], resolutionMeters: 0.25, source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' }, status: 'idle', minZoom: 12, view: null },
+        bounds: [77, 18, 78, 19], resolutionMeters: 0.25, source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example', layer: 'HiRISE_ortho', tileMatrixSet: '1m' }, status: 'idle', minZoom: 12, view: null },
     ];
     Object.assign(renderer.getBodyMesh('Titan')!, {
       imageryLayers: layers, surfaceTransitionState: 'streamed', isImageryOnlySurface: false,
@@ -1302,7 +1316,7 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(imagery).toMatchObject({ body: 'Titan', surface: 'streamed', imageryOnly: false });
     expect(imagery.layers[0].view).toEqual({ inCoverage: true, zoomLevel: 4, minZoom: 0, missingTiles: 0, degradedTiles: 0, cacheFull: false });
     expect(imagery.layers[1]).toMatchObject({ id: 'hirise', attribution: 'UA', description: 'HiRISE ortho', bounds: [77, 18, 78, 19], resolutionMeters: 0.25, view: null,
-      source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example/caps.xml', layer: 'HiRISE_ortho', tileMatrixSet: '1m' } });
+      source: { type: 'wmts-capabilities', endpoint: 'https://gibs.example', layer: 'HiRISE_ortho', tileMatrixSet: '1m' } });
     expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);
     // Already on is where it was asked to be, not a refusal.
     expect(control.setImageryVisible('Titan', 'hirise', true)).toBe(true);

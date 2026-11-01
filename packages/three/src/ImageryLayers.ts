@@ -58,7 +58,7 @@ export interface ImageryLayerInfo {
   resolutionMeters: number | null;
   /** The full product name, for details. Null when the catalog gives none. */
   description: string | null;
-  /** Which product this is, as the catalog names it; safe to show or send (no credentials or query). */
+  /** Provider origin and explicit service identifiers; never a raw resource location. */
   source: ImageryLayerSource;
   /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
   view: ImageryLayerView | null;
@@ -66,14 +66,14 @@ export interface ImageryLayerInfo {
 
 /**
  * The catalog's own identity for a layer's data, apart from its display name:
- * what a person or an agent can cite to say which product is drawn. Nothing
- * here can carry a credential: a URL is reduced to its scheme, host and path.
+ * explicit service identifiers may name the product. Raw resource locations
+ * are omitted: only an HTTP(S) provider origin is exposed.
  */
 export interface ImageryLayerSource {
   /** The source type as configured: `xyz`, `wms`, `wmts`, `tms`, `wmts-capabilities` or `cube`. */
   readonly type: string;
-  /** The tile endpoint, capabilities document or manifest, without credentials, query or fragment. */
-  readonly endpoint: string;
+  /** HTTP(S) provider origin only; null for local, relative or non-HTTP resources. */
+  readonly endpoint: string | null;
   /** The service's layer identifier (WMS, WMTS); null when the config has none. */
   readonly layer: string | null;
   readonly tileMatrixSet: string | null;
@@ -140,19 +140,9 @@ export function resolveGlobeSurfaceConfig(
   return streamable(merged) ? merged : null;
 }
 
-/**
- * A readable name for a layer the catalog did not name. Tile services put the
- * product name in the path: Trek and other WMTS REST endpoints as the segment
- * before the `1.0.0` version, ArcGIS as the segment before `MapServer`.
- */
+/** Use deliberate catalog labels or a provider host, never resource-path segments. */
 export function defaultLayerName(cfg: TerrainImageryConfig): string {
-  if (cfg.layer) return cfg.layer;
-  const path = cfg.url.split(/[?#]/)[0].split('/').filter(Boolean);
-  const version = path.findIndex((s) => /^\d+\.\d+\.\d+$/.test(s));
-  if (version > 0) return path[version - 1];
-  const mapServer = path.findIndex((s) => /^(Map|Image)Server$/i.test(s));
-  if (mapServer > 0) return path[mapServer - 1];
-  return hostOf(cfg.url) ?? cfg.url;
+  return cfg.layer || hostOf(cfg.url) || 'Imagery';
 }
 
 function hostOf(url: string): string | null {
@@ -161,10 +151,14 @@ function hostOf(url: string): string | null {
   return m ? m[1].slice(m[1].lastIndexOf('@') + 1) : null;
 }
 
-/** A source URL with the parts that can carry a credential removed: userinfo, query and fragment. */
-export function publicEndpoint(url: string): string {
-  const bare = url.replace(/[?#].*$/s, '');
-  return bare.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/]*@/i, '$1');
+/** Only an HTTP(S) provider origin is public; paths can contain private tokens too. */
+export function publicEndpoint(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

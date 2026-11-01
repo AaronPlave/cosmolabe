@@ -618,13 +618,13 @@ is the drawn bodies, and a crater is not one of them.
 ```js
 const [jezero] = cosmo.searchPlaces('jezero', { body: 'Mars', limit: 5 });
 // { ref, name, body, layer: { id, name }, feature, kind, origin, latitude, longitude,
-//   diameterKm?, source: { kind, identity, revision? }, unavailable: null | reason }
+//   diameterKm?, source: { kind }, unavailable: null | reason }
 cosmo.gotoPlace(jezero.ref);                         // fly; { animate: false } cuts; { view: 'oblique' }
 cosmo.getPlace(jezero.ref);                          // undefined for a ref this scene does not have
 cosmo.getSelectedPlace();
 ```
 
-Search matches every word of the query against names and aliases by prefix, ranked an exact name first, then by extent. It is bounded (10 by default, at most 100) and skips sources the person excluded from search in the Navigate panel. A place is identified by its `ref` — the layer and feature IDs, or the source's own `placeRef` — never its display name, which need not be unique. `gotoPlace` is false for an unknown ref and throws with the reason when the place exists but cannot be navigated to (its source excluded, or its frame not the rendered surface's); `unavailable` reports the same reason in advance. In a script, a name where the ref belongs is answered with the refs that name finds:
+Search matches every word of the query against names and aliases by prefix, ranked an exact name first, then by extent. It is bounded (10 by default, at most 100) and skips sources the person excluded from search in the Navigate panel. A place is identified by its `ref` — the layer and feature IDs, or the source's own `placeRef` — never its display name, which need not be unique. `gotoPlace` is false for an unknown ref and throws with the reason when the place exists but cannot be navigated to (its source excluded, or its frame not the rendered surface's); `unavailable` reports the same reason in advance. Place `source` exposes only its category (`kind`); the internal resource identity and revision may contain private locations and are omitted from all three place reads. `layer.id` is catalog-scoped, not a public dataset identifier. In a script, a name where the ref belongs is answered with the refs that name finds:
 
 ```text
 gotoPlace "Jezero"
@@ -642,7 +642,9 @@ cosmo.setImageryVisible('Mars', 'hirise', true);
 cosmo.setImageryOpacity('Mars', 'hirise', 0.6);
 ```
 
-The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `source` is the catalog's own identity for the product — `{ type, endpoint, layer, tileMatrixSet }` — apart from the display name and `attribution`; the endpoint is reduced to scheme, host and path, so a signed URL's query and any credentials never appear. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
+The read side reports what is true now, including what is missing: `status` is the request outcome so far (`failed` for a source that could not load); `view`, null while the layer is not drawn, says whether any tile in view is inside its coverage, which zoom the view asks for against the layer's `minZoom`, and how many tiles in view are missing or degraded. A layer that is on can still draw nothing here. `source` reports `{ type, endpoint, layer, tileMatrixSet }`. `endpoint` is only the HTTP(S) provider origin, or null for relative, local and non-HTTP resources. Resource paths, userinfo, queries and fragments are omitted because any of them can hold private tokens. `layer` and `tileMatrixSet` are explicit catalog service identifiers; an origin alone does not identify a dataset. Default display names use the provider host rather than URL path segments. `imageryOnly` means the surface is imagery draped on the ellipsoid with no physical terrain: imagery resolution is not elevation. A body without a streamed surface reports no layers. These settings are transient, like the panel's, and are not in `snapshot()` yet.
+
+The `ViewerControl` boundary omits raw imagery resource locations and place source identities. It does **not** certify arbitrary catalog text (names, descriptions, attribution or service IDs) as public. External agent adapters (#311) must construct their model context from an explicit allowlist of public metadata, treating catalog text as untrusted input; they must not serialize entire scene/control responses by default. Public provider/dataset identifiers should be deliberately supplied and approved at that boundary, never inferred from a resource path. These reads do not claim dataset-level provenance where the catalog has supplied none.
 
 ## Mission activities
 

@@ -1639,7 +1639,7 @@ export class CameraController {
     // Origin, tracking, pivot and mode now all hold the landing the flight promised.
     if (this._landingApplied) {
       this._landingApplied = false;
-      this._settleLanding('arrived');
+      this._settleLanding(this._manualInput || this.keyboard.navigating ? 'interrupted' : 'arrived');
     }
   }
 
@@ -1647,8 +1647,6 @@ export class CameraController {
   private _notePressTravel(dx: number, dy: number): void {
     this._pressTravelPx += Math.abs(dx) + Math.abs(dy);
     if (this._pressTravelPx > MANUAL_DRAG_THRESHOLD_PX) this._manualInput = true;
-    // The camera, tracking and pivot now hold the landing the flight promised.
-    if (this._landing) this._settleLanding('arrived');
   }
 
   /**
@@ -1666,6 +1664,7 @@ export class CameraController {
     (this.controls as unknown as { _lastAngle: number })._lastAngle = 0;
     if (destination) this._pendingOriginSwitch = destination;
     if (surface) this._pendingSurfacePivot = surface.endTarget.clone();
+    if (this._landing) this._settleLanding('interrupted');
     this._flightEnded(anim, 'interrupted');
   }
 
@@ -2003,7 +2002,7 @@ export class CameraController {
     // controllers taking turns with the camera is the alternative.
     const manual = this._manualInput || this.keyboard.navigating;
     this._manualInput = false;
-    if (manual && (this._anim || this._move)) this._yieldToManualInput();
+    if (manual && (this._anim || this._move || this._landing)) this._yieldToManualInput();
 
     // Advance fly-to animation if active (works in all modes)
     if (this._anim) {

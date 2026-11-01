@@ -144,7 +144,7 @@ function scriptPlace(place: Place): ScriptPlace {
     layer: { id: place.layer.id, name: place.layer.name }, feature: place.feature.id,
     kind: place.kind, origin: place.origin, latitude: latDeg, longitude: lonDeg,
     ...(place.diameterKm === undefined ? {} : { diameterKm: place.diameterKm }),
-    source: { kind: source.kind, identity: source.identity, ...(source.revision ? { revision: source.revision } : {}) },
+    source: { kind: source.kind },
     unavailable: placeNavigationProblem(place),
   };
 }

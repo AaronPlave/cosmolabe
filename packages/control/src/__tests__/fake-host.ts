@@ -49,12 +49,12 @@ export class FakeViewer implements ViewerControl {
     {
       ref: '["titan-names","42"]', name: 'Kraken Mare', body: 'Titan', layer: { id: 'titan-names', name: 'Titan nomenclature' },
       feature: '42', kind: 'Mare, maria', origin: 'nomenclature', latitude: 68, longitude: 310, diameterKm: 1170,
-      source: { kind: 'catalog', identity: 'https://example.test/titan-names.geojson' }, unavailable: null,
+      source: { kind: 'catalog' }, unavailable: null,
     },
     {
       ref: '["titan-names","43"]', name: 'Ligeia Mare', body: 'Titan', layer: { id: 'titan-names', name: 'Titan nomenclature' },
       feature: '43', kind: 'Mare, maria', origin: 'nomenclature', latitude: 79, longitude: 248,
-      source: { kind: 'catalog', identity: 'https://example.test/titan-names.geojson' }, unavailable: 'frame mismatch',
+      source: { kind: 'catalog' }, unavailable: 'frame mismatch',
     },
   ];
   selectedPlace: string | null = null;
@@ -80,9 +80,9 @@ export class FakeViewer implements ViewerControl {
       body: 'Titan', surface: 'streamed', imageryOnly: true,
       layers: [
         { id: 'iss', name: 'ISS mosaic', attribution: 'USGS', description: null, role: 'base', optional: false, visible: true, opacity: 1,
-          bounds: null, resolutionMeters: 4000, source: { type: 'xyz', endpoint: 'https://tiles.example/iss/{z}/{x}/{y}.png', layer: null, tileMatrixSet: null }, status: 'ok', view: null },
+          bounds: null, resolutionMeters: 4000, source: { type: 'xyz', endpoint: 'https://tiles.example', layer: null, tileMatrixSet: null }, status: 'ok', view: null },
         { id: 'radar', name: 'RADAR SAR', attribution: 'JPL', description: 'Cassini RADAR swaths', role: 'overlay', optional: true, visible: false,
-          opacity: 1, bounds: [-180, 60, 180, 90], resolutionMeters: 300, source: { type: 'wms', endpoint: 'https://wms.example/radar', layer: 'RADAR_SAR', tileMatrixSet: null }, status: 'idle', view: null },
+          opacity: 1, bounds: [-180, 60, 180, 90], resolutionMeters: 300, source: { type: 'wms', endpoint: 'https://wms.example', layer: 'RADAR_SAR', tileMatrixSet: null }, status: 'idle', view: null },
       ],
     },
   };
