@@ -193,3 +193,5 @@ glyph is draw-enabled. It does not claim unoccluded marker pixels or weaken the
 renderer readiness predicate to force success.
 
 The final loaded Chrome/Metal receipt has `passed: true`, no page errors, 12 native all-vehicle candidates, three Polaris-C candidates, correct minimum ordering, two budget-limited partial candidates with the visible warning, and the full modern script/discovery run. The final focused run passed 79 tests; the independent pinned terrain/SPICE run passed both scientific checks. Embed build also passed.
+
+The same-count kernel replacement regression uses the bound viewer state module and increments its kernel revision signal while retaining the count; navigation to the prior candidate refuses. It does not load or invent replacement kernel data. Both direct numerical queries and modern event runs now retain that revision in their validity checks.

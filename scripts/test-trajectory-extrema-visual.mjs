@@ -177,12 +177,26 @@ try {
     const response=await c.findTrajectoryExtrema(q);
     const item=c.listEventQueries().find(item=>item.query.trajectoryAnalysis?.maxEvaluations===20);
     c.openEventQuery(item.id);
-    return {status:response.status,count:response.results.length};
+    return {status:response.status,count:response.results.length,resultId:response.results[0]?.id};
   });
   assert.equal(report.partial.status,'partial');
   if(!await page.getByRole('button',{name:'Find events',exact:true}).isVisible()) await page.getByRole('button',{name:'Events',exact:true}).click();
   await page.getByText('Incomplete search — candidates only; no overall winner established.',{exact:true}).waitFor();
   await page.screenshot({path:`${out}/trajectory-partial.png`});
+  report.kernelRevision=await page.evaluate(async resultId=>{
+    // Use the exact module URL loaded by this Vite page, including its HMR
+    // revision. An unversioned dynamic import can instantiate a second store.
+    const urls=performance.getEntriesByType('resource').map(entry=>entry.name).filter(url=>new URL(url).pathname.endsWith('/viewer-state.svelte.ts'));
+    let state;
+    for(const url of urls) { const candidate=await import(url); if(candidate.getRenderer()===window.renderer) { state=candidate; break; } }
+    if(!state) throw new Error('No bound viewer state module found');
+    const {vs}=state,before=vs.kernelCount;
+    // Exercise the same-count kernel-replacement invalidation signal.
+    vs.kernelRevision++;
+    return {sameCount:before===vs.kernelCount,navigated:window.cosmo.navigateToAnalysisResult(resultId)};
+  },report.partial.resultId);
+  assert.equal(report.kernelRevision.sameCount,true);
+  assert.equal(report.kernelRevision.navigated,false);
   assert.equal(report.errors.length,0,report.errors.join('\n'));
   report.passed=true;
 } finally {

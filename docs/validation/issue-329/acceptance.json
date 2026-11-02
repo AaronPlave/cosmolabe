@@ -2175,6 +2175,11 @@
   },
   "partial": {
     "status": "partial",
-    "count": 2
+    "count": 2,
+    "resultId": "trajectory-analysis-37"
+  },
+  "kernelRevision": {
+    "sameCount": true,
+    "navigated": false
   }
 }

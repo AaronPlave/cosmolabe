@@ -49,7 +49,7 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
     return { status: 'unavailable', results: [], faults: [{ code: 'unavailable', message: 'No loaded scene.' }] };
   // Capture identities, not runtime cache revisions (loading finest grids must
   // not invalidate the operation that requested them).
-  const activities = universe.activities.list(), kernels = vs.kernelCount;
+  const activities = universe.activities.list(), kernels = vs.kernelCount, kernelRevision = vs.kernelRevision;
   const bodies = universe.getAllBodies().map(b => ({ body: b, trajectory: b.trajectory, rotation: b.rotation }));
   const frameDefinitions = universe.frames.definitions();
   const sameFrames = () => {
@@ -59,7 +59,7 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
   const terrainBody = renderer.getBodyMesh(query.body);
   const terrainRevision = terrainBody?.terrainSourceRevision;
   const terrainId = terrainBody?.terrainSourceId;
-  const current = () => sceneId() === scene && getSceneUniverse() === universe && universe.getAllBodies().length === bodies.length && universe.activities.list() === activities && vs.kernelCount === kernels
+  const current = () => sceneId() === scene && getSceneUniverse() === universe && universe.getAllBodies().length === bodies.length && universe.activities.list() === activities && vs.kernelCount === kernels && vs.kernelRevision === kernelRevision
     && sameFrames()
     && bodies.every(b => universe.getBody(b.body.name) === b.body && b.body.trajectory === b.trajectory && b.body.rotation === b.rotation)
     && (query.metric !== 'heightAbovePhysicalTerrain' || (getRenderer()?.getBodyMesh(query.body) === terrainBody && terrainBody?.terrainSourceRevision === terrainRevision && terrainBody?.terrainSourceId === terrainId));
