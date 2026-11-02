@@ -30,7 +30,15 @@ The measurement is Mars-centre distance, **not terrain clearance**. The tour
 retains the catalog's estimated path/timing limitations. Cube-base readiness
 establishes mandatory imagery on drawn blocks; it excludes missing geometry,
 target LOD completeness, source accuracy and regional/planetary coverage.
-Complete-view terrain geometry readiness remains explicitly unavailable.
+The separate terrain predicate requires fresh successful physical geometry coverage
+within the configured product footprint, no pending requests and the screen-space
+LOD target. It makes no assertion about source regions outside that footprint.
+The fixture also restores ViewState v1, refuses wrong-catalog and malformed
+analysis restores, replays imagery ordering and preserves session bookmarks.
+A real Cassini case runs Event Finder through the existing SPICE worker and
+selects ISS NAC with truthful pointing/epoch reporting.
+The migrated README Event Finder recipe also passed using only public query,
+measurement and timeline-window operations for those features.
 
 Validation also covers abort/timeout/reload/disposal, stale IDs, atomic domain
 validation, shared annotation undo, creation-draft preservation, source failures,

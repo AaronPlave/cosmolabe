@@ -90,6 +90,9 @@ export type ParamType =
   | 'place'
   /** An imagery layer ID on the body the verb names. Passed verbatim. */
   | 'imagery'
+  | 'event-query'
+  | 'event-result'
+  | 'instrument'
   | 'measurement'
   | 'geographic-layer'
   | 'geographic-feature'
@@ -491,6 +494,54 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
 
   {
+    name: 'restoreViewState', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'restoreViewState',
+    help: 'Restore existing ViewState v1 in the same catalog. Explicit analysis envelopes replace; absent ones preserve.',
+    invoke: (host, a, signal) => host.restoreViewState!(data(a[0]), { signal }),
+  },
+  {
+    name: 'selectInstrument', params: [{ name: 'name', type: 'instrument' }], category: 'Display', method: 'selectInstrument',
+    help: 'Open an existing synthetic instrument feed; empty name closes it. Does not manufacture pointing or observations.',
+    invoke: (host, a) => host.selectInstrument!(str(a[0]) || null),
+  },
+  {
+    name: 'saveBookmark', params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'saveBookmark',
+    help: 'Save the current camera using the session viewpoint model; catalog/default names are protected.', invoke: (host, a) => host.saveBookmark!(str(a[0])),
+  },
+  {
+    name: 'upsertBookmark', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertBookmark',
+    help: 'Merge one portable session viewpoint definition by name, preserving unrelated views.', invoke: (host, a) => host.upsertBookmark!(data(a[0])),
+  },
+  {
+    name: 'removeBookmark', params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'removeBookmark',
+    help: 'Remove one session viewpoint; catalog/default views are protected.', invoke: (host, a) => host.removeBookmark!(str(a[0])),
+  },
+  {
+    name: 'upsertEventQuery', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertEventQuery',
+    help: 'Create or replace a validated Event Finder definition by stable ID; cached results are invalidated.',
+    invoke: (host, a) => host.upsertEventQuery!(data(a[0])),
+  },
+  {
+    name: 'openEventQuery', params: [{ name: 'id', type: 'event-query' }], category: 'Analysis', method: 'openEventQuery',
+    help: 'Open an existing configured search for inspection/editing without seeking time.', invoke: (host, a) => host.openEventQuery!(str(a[0])),
+  },
+  {
+    name: 'removeEventQuery', params: [{ name: 'id', type: 'event-query' }], category: 'Authoring', method: 'removeEventQuery',
+    help: 'Remove one configured event query and its computed results.', invoke: (host, a) => host.removeEventQuery!(str(a[0])),
+  },
+  {
+    name: 'runEventQuery', params: [{ name: 'id', type: 'event-query' }, { name: 'timeoutMs', type: 'number', optional: true }], category: 'Analysis', method: 'runEventQuery',
+    help: 'Run an existing Event Finder search; refuse failure, cancellation, timeout or scene replacement.',
+    invoke: async (host, a, signal) => { const result = await host.runEventQuery!(str(a[0]), { timeoutMs: optNum(a[1]), signal }); if (result.status !== 'complete') throw new Error(result.error?.message ?? `Event search ${result.status}`); },
+  },
+  {
+    name: 'cancelEventQuery', params: [], category: 'Analysis', method: 'cancelEventQuery',
+    help: 'Cancel the existing Event Finder search.', invoke: host => host.cancelEventQuery!(),
+  },
+  {
+    name: 'selectEventResult', params: [{ name: 'query', type: 'event-query' }, { name: 'id', type: 'event-result' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'selectEventResult',
+    help: 'Inspect or seek an exact query/result pair through Event Finder selection.', invoke: (host, a) => host.selectEventResult!(str(a[0]), str(a[1]), optStr(a[2]) as 'inspect' | 'start' | 'middle' | 'end' | undefined),
+  },
+  {
     name: 'showImagery',
     params: [
       { name: 'object', type: 'object' },
@@ -502,6 +553,13 @@ export const VERB_LIST: readonly VerbSpec[] = [
     resolvesName: 'imagery',
     help: "Show or hide one layer of a body's imagery stack, by layer ID.",
     invoke: (host, a) => host.setImageryVisible!(str(a[0]), str(a[1]), bool(a[2])),
+  },
+  {
+    name: 'moveImageryLayer',
+    params: [{ name: 'object', type: 'object' }, { name: 'layer', type: 'imagery' }, { name: 'index', type: 'number' }],
+    category: 'Display', method: 'moveImageryLayer', resolvesName: 'imagery',
+    help: 'Move an imagery overlay to a bottom-to-top index. The mandatory base stays at zero.',
+    invoke: (host, a) => host.moveImageryLayer!(str(a[0]), str(a[1]), num(a[2])),
   },
   {
     name: 'setImageryOpacity',

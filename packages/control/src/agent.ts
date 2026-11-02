@@ -184,6 +184,9 @@ const PARAM_HELP: Partial<Record<VerbParam['type'], string>> = {
   object: 'An object name exactly as describeScene or resolve reports it.',
   viewpoint: 'A viewpoint name exactly as describeScene reports it.',
   place: 'A place ref from searchPlaces or resolve — not the display name.',
+  'event-query': 'An exact query ID from listEventQueries.',
+  'event-result': 'An exact result ID within the named query from listEventResults.',
+  instrument: 'A sensor name from listInstruments; empty closes the synthetic feed.',
   imagery: "A layer id from getImagery for the object named in this call.",
   activity: 'An activity id from listActivities, resolve or describeScene.',
   time: 'A UTC calendar string (e.g. "2021-04-30T19:00:00"), or seconds past J2000 as a number.',
@@ -222,12 +225,18 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'listEventQueries', effect: 'read', method: 'listEventQueries', description: 'Bounded configured Event Finder identities/kinds and flags; no result arrays or private query metadata.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getEventSearch', effect: 'read', method: 'getEventSearch', description: 'Event search status, current-call progress, error code and exact selection. Error text is withheld.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listEventResults', effect: 'read', method: 'listEventResults', description: 'A bounded page of exact query/result identities and event times; no private solver metadata.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'listInstruments', effect: 'read', method: 'listInstruments', description: 'Bounded available sensor names for synthetic scene feeds; not calibrated observation inventory.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getInstrument', effect: 'read', method: 'getInstrument', description: 'Selected synthetic scene instrument with native FOV and truthful pointing authority; no pixel data.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listBookmarks', effect: 'read', method: 'listBookmarks', description: 'Bounded session bookmark names. Full portable poses are available to trusted hosts.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listPlaceSources', effect: 'read', method: 'listPlaceSources', description: 'A bounded page of source IDs with body, search inclusion and label visibility; no resource locations.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
   { name: 'listMeasurements', effect: 'read', method: 'listMeasurements', description: 'Saved semantic measurement IDs, kinds and visibility. Endpoints/provenance are withheld from model transport; trusted hosts use the typed port.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listGeographicLayers', effect: 'read', method: 'listGeographicLayers', description: 'A bounded page of geographic layer IDs, body/frame, editability, visibility and availability.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
   { name: 'listGeographicFeatures', effect: 'read', method: 'listGeographicFeatures', description: 'A bounded page of stable feature IDs and geometry types in an exact layer.', inputSchema: { type: 'object', properties: { layer: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['layer'], additionalProperties: false } },
   { name: 'getSurfaceAppearance', effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
-  { name: 'getReadiness', effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, or explicit unsupported terrain coverage. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain'] }, body: { type: 'string' }, layer: { type: 'string' } }, required: ['kind'], additionalProperties: false } },
+  { name: 'getReadiness', effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, or current-view physical terrain coverage with explicit footprint and target-LOD limitations. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain'] }, body: { type: 'string' }, layer: { type: 'string' } }, required: ['kind'], additionalProperties: false } },
   {
     name: 'describeScene',
     effect: 'read',
@@ -443,7 +452,7 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
   return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
     ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
-      : spec.category === 'Time' || spec.name === 'seekActivity' ? 'time'
+      : spec.category === 'Time' || spec.name === 'seekActivity' || spec.name === 'selectEventResult' ? 'time'
         : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
   }))];
 }
@@ -699,6 +708,21 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   const reads: Record<string, (input: Input) => AgentToolResult> = {
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    listEventQueries: () => ({ ok: true, summary: 'Configured event searches.', data: { items: host.listEventQueries!().slice(0, 32).map(q => ({ id: q.id, kind: q.query.kind, enabled: q.enabled, visible: q.visible })) } }),
+    getEventSearch: () => {
+      const s = host.getEventSearch!();
+      return { ok: true, summary: 'Event search state.', data: { scene: s.scene, query: s.query, status: s.status, progress: s.progress, error: s.error ? { code: s.error.code } : null, selected: s.selected } };
+    },
+    listEventResults: input => {
+      const page = host.listEventResults!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
+      return { ok: true, summary: 'Event result identities and times.', data: { total: page.total, items: page.items.map(e => ({ id: e.id, query: e.queryId, kind: e.kind, temporality: e.temporality, ...(e.temporality === 'instant' ? { et: e.et } : { start: e.start, end: e.end }) })) } };
+    },
+    listInstruments: () => ({ ok: true, summary: 'Synthetic scene sensors.', data: { items: host.listInstruments!().slice(0, 64) } }),
+    getInstrument: () => {
+      const i = host.getInstrument!();
+      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, observedEt: i.observedEt, observation: i.observation } : null };
+    },
+    listBookmarks: () => ({ ok: true, summary: 'Session bookmarks.', data: { items: host.listBookmarks!().slice(0, 64).map(b => ({ name: b.name })) } }),
     listPlaceSources: input => {
       const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
       if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };

@@ -17,7 +17,7 @@ import {
   resolveContinuousProfile,
 } from '@cosmolabe/core';
 import { untrack } from 'svelte';
-import { vs } from './viewer-state.svelte';
+import { vs, emit } from './viewer-state.svelte';
 import { resetTimeline } from './timeline.svelte';
 import { resettable } from './session.svelte';
 
@@ -65,9 +65,15 @@ export function createConfiguredEventQuery(
   query: EventQueryConfiguration,
   label: string,
   windowMode: ConfiguredEventQuery['windowMode'] = 'automatic',
+  id?: string,
 ): ConfiguredEventQuery {
+  let identity = id;
+  if (identity === undefined) {
+    do { identity = `event-query-${++itemSequence}`; } while (analysis.items.some(item => item.id === identity));
+  }
+  if (Object.hasOwn(Object.prototype, identity) || analysis.items.some(item => item.id === identity)) throw new Error('Event query ID is reserved or already in use');
   const item: ConfiguredEventQuery = {
-    id: `event-query-${++itemSequence}`,
+    id: identity,
     type: 'event-query',
     label,
     enabled: true,
@@ -76,6 +82,7 @@ export function createConfiguredEventQuery(
     windowMode,
   };
   analysis.items.push(item);
+  emit('events', {});
   return item;
 }
 
@@ -92,6 +99,7 @@ export function createConfiguredProfile(
     profile,
   };
   analysis.items.push(item);
+  emit('events', {});
   return item;
 }
 
@@ -107,6 +115,7 @@ export function updateConfiguredEventQuery(
   item.query = query;
   if (label !== undefined) item.label = label;
   if (windowMode !== undefined) item.windowMode = windowMode;
+  emit('events', {});
   return item;
 }
 
@@ -165,6 +174,7 @@ export function removeConfiguredItem(id: string) {
   const i = analysis.items.findIndex((item) => item.id === id);
   if (i >= 0) analysis.items.splice(i, 1);
   delete analysis.eventResults[id];
+  emit('events', {});
 }
 
 /**
@@ -188,15 +198,18 @@ export function resolveProfile(item: ConfiguredContinuousProfile): ResolvedConti
 export function setConfiguredItemEnabled(id: string, enabled: boolean) {
   const item = configuredItem(id);
   if (item) item.enabled = enabled;
+  emit('events', {});
 }
 
 export function setConfiguredItemVisible(id: string, visible: boolean) {
   const item = configuredItem(id);
   if (item) item.visible = visible;
+  emit('events', {});
 }
 
 export function setEventResults(id: string, events: readonly GeometryEvent[]) {
   analysis.eventResults[id] = [...events];
+  emit('events', {});
 }
 
 /** Events the timeline should draw; disabled and hidden items remain configured. */

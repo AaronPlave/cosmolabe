@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-  import { emit } from '../lib/viewer-state.svelte';
+  import { setImageryVisible, setImageryOpacity, moveImageryLayer } from '../lib/appearance-control';
   /**
    * The selected body's streamed imagery stack (#123): which sources it has,
    * which are on, their opacity and order. The settings are transient, scoped
@@ -80,14 +80,12 @@
   }
 
   function setVisible(layer: ImageryLayerInfo, visible: boolean) {
-    bodyMesh()?.setImageryLayerVisible(layer.id, visible);
-    emit('surface', { body: bodyMesh()!.body.name });
+    if (surface) setImageryVisible(surface.body, layer.id, visible);
     rev++;
   }
 
   function setOpacity(layer: ImageryLayerInfo, value: number) {
-    bodyMesh()?.setImageryLayerOpacity(layer.id, value);
-    emit('surface', { body: bodyMesh()!.body.name });
+    if (surface) setImageryOpacity(surface.body, layer.id, value);
     rev++;
   }
 
@@ -95,7 +93,7 @@
   function move(layer: ImageryLayerInfo, up: boolean) {
     if (!surface) return;
     const index = surface.layers.findIndex((l) => l.id === layer.id);
-    bodyMesh()?.moveImageryLayer(layer.id, index + (up ? 1 : -1));
+    moveImageryLayer(surface.body, layer.id, index + (up ? 1 : -1));
     rev++;
   }
 

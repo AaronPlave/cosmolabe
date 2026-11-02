@@ -122,7 +122,7 @@
         placeholder: 'gotoObject Moon\nsetFrame body-fixed Moon\ndisplayNote "The Moon"',
         getNames: () => {
           const cosmo = getCosmo();
-          return { measurements: safe(() => cosmo.listMeasurements?.().map(m => m.id) ?? []), geographicLayers: safe(() => cosmo.listGeographicLayers?.().map(l => l.id) ?? []), geographicFeatures: (layer: string) => safe(() => cosmo.listGeographicFeatures?.(layer)?.features.map(f => f.id) ?? []), activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()), imagery: (body: string) => safe(() => cosmo.getImagery?.(body)?.layers.map(l => l.id) ?? []) };
+          return { eventQueries: safe(() => cosmo.listEventQueries?.().map(q => q.id) ?? []), eventResults: (query: string) => safe(() => cosmo.listEventResults?.(query).items.map(e => e.id) ?? []), instruments: safe(() => cosmo.listInstruments?.() ?? []), measurements: safe(() => cosmo.listMeasurements?.().map(m => m.id) ?? []), geographicLayers: safe(() => cosmo.listGeographicLayers?.().map(l => l.id) ?? []), geographicFeatures: (layer: string) => safe(() => cosmo.listGeographicFeatures?.(layer)?.features.map(f => f.id) ?? []), activities: safe(() => cosmo.listActivities?.().map(a => a.id) ?? []), objects: safe(() => cosmo.listObjects()), viewpoints: safe(() => cosmo.listViewpoints()), imagery: (body: string) => safe(() => cosmo.getImagery?.(body)?.layers.map(l => l.id) ?? []) };
         },
         onChange: (doc) => {
           source = doc;

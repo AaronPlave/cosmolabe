@@ -35,7 +35,16 @@ try {
       const measurement = c.listMeasurements().find(m => m.id === 'tour:mars-centre-distance');
       const placeBefore = c.getSelectedPlace()?.ref;
       const before = { camera: c.getCamera(), definitions: c.listMeasurements(), imagery: c.getImagery('Mars').layers.map(l => ({ id: l.id, visible: l.visible, opacity: l.opacity })), appearance: c.getSurfaceAppearance('Mars').settings };
+      c.saveBookmark('destination-preserved');
+      const bookmarksBefore = c.listBookmarks();
+      const terrainReady = await c.waitUntilReady({ kind: 'terrain', body: 'Mars' }, { scene, timeoutMs: 60000 });
+      const portable = await c.getViewState();
+      let wrongCatalogRefused = false, invalidAnalysisRefused = false;
+      try { await c.restoreViewState({ ...portable, catalog: { catalog: 'wrong' } }, { scene }); } catch { wrongCatalogRefused = true; }
+      try { await c.restoreViewState({ ...portable, events: { version: 99 } }, { scene }); } catch { invalidAnalysisRefused = true; }
+      await c.restoreViewState(portable, { scene });
       const snapshot = c.snapshot();
+      c.moveImageryLayer('Mars', 'jezero-hirise', 1, { scene });
       c.showMeasurement(measurement.id, false, { scene });
       c.setImageryOpacity('Mars', 'jezero-hirise', 0.2, { scene });
       c.setSurfaceAppearance('Mars', { hillshade: false }, { scene });
@@ -50,7 +59,7 @@ try {
       catch (error) { captureRefused = true; captureRefusalReason = error.message; }
       const gl = window.renderer.getContext().webglRenderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
       return { scene: c.getScene(), activity: c.getSelectedActivity()?.id, place: c.getSelectedPlace()?.ref, selectedMeasurement: c.getSelectedMeasurement(),
-        measurement, placeBefore, before, after, ready, restoredReady, imageryReady, unavailable, captureRefused, captureRefusalReason, snapshot,
+        measurement, placeBefore, before, after, ready, terrainReady, wrongCatalogRefused, invalidAnalysisRefused, bookmarksBefore, bookmarksAfter: c.listBookmarks(), restoredReady, imageryReady, unavailable, captureRefused, captureRefusalReason, snapshot,
         gpu: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown',
         drawingDiagnostics: window.renderer.geographicVectors.diagnostics,
         geographic: c.listGeographicLayers(), page: c.listGeographicFeatures('mission:ingenuity-sites', { limit: 1 }),
@@ -67,6 +76,9 @@ try {
     for (const key of ['position', 'target', 'up']) for (let i = 0; i < 3; i++) assert.ok(Math.abs(result.before.camera[key][i] - result.after.camera[key][i]) < 1e-6, `camera ${key}[${i}]`);
     assert.equal(result.unavailable.status, 'unavailable'); assert.equal(result.captureRefused, true); assert.match(result.captureRefusalReason, /unavailable: No imagery layer/);
     assert.equal(result.imageryReady.status, 'ready');
+    assert.equal(result.terrainReady.status, 'ready');
+    assert.equal(result.wrongCatalogRefused, true); assert.equal(result.invalidAnalysisRefused, true);
+    assert.deepEqual(result.bookmarksAfter, result.bookmarksBefore);
     assert.equal(result.restoredReady.status, 'ready'); assert.equal(result.ready.status, 'ready');
     assert.ok(result.ready.limitations.some(line => line.includes('Missing geometry')));
     assert.ok(result.page.total >= 2); assert.equal(result.page.features.length, 1);
@@ -76,6 +88,37 @@ try {
     await page.screenshot({ path: `${out}/${name}.png` });
     await writeFile(`${out}/${name}.cosmo`, result.snapshot);
     console.log(JSON.stringify({ mode: name, gpu: result.gpu, readiness: result.ready.status, snapshot: 'round-trip passed' }));
+    await context.close();
+  }
+  // A second real catalog exercises the existing SPICE search and sensor feed.
+  {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    page = await context.newPage();
+    await page.goto(new URL('?catalog=test-catalogs/cassini-soi', base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 240000 });
+    const result = await page.evaluate(async () => {
+      const c = window.cosmo, id = 'acceptance:approach', scene = c.getScene().id;
+      c.setPlaying(false);
+      c.upsertEventQuery({ id, label: 'Closest approach', enabled: true, visible: true,
+        query: { id, kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Saturn' },
+          window: { start: 141912064.184, end: 141955264.184 }, step: 60, abcorr: 'LT+S' } }, { scene });
+      const search = await c.runEventQuery(id, { scene, timeoutMs: 120000 });
+      const results = c.listEventResults(id, { scene });
+      if (results.items.length !== 1) throw new Error('Unexpected Cassini result count');
+      c.selectEventResult(id, results.items[0].id, 'start', { scene });
+      const names = c.listInstruments();
+      const selected = c.selectInstrument('ISS NAC', { scene });
+      return { mode: 'cassini', search, total: results.total, selectedResult: c.getEventSearch().selected, names, selected };
+    });
+    assert.equal(result.search.status, 'complete'); assert.equal(result.total, 1); assert.equal(result.selected, true);
+    await page.waitForFunction(() => window.cosmo.getInstrument()?.observedEt === window.cosmo.getTime(), null, { timeout: 30000 });
+    result.instrument = await page.evaluate(() => window.cosmo.getInstrument());
+    assert.equal(result.instrument.sensor, 'ISS NAC'); assert.equal(result.instrument.observation, 'synthetic-scene-view');
+    assert.ok(['spice', 'attitude', 'unavailable', 'target', 'none'].includes(result.instrument.pointing));
+    const stale = await page.evaluate(() => { const c = window.cosmo; c.setTime({ kind: 'et', et: c.getTime() + 1 }); return c.getInstrument(); });
+    assert.equal(stale.pointing, 'unavailable');
+    report.scenarios.push(result);
+    console.log(JSON.stringify({ mode: 'cassini', search: result.search.status, sensor: result.instrument.sensor, pointing: result.instrument.pointing }));
     await context.close();
   }
   report.passed = true;

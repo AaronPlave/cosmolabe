@@ -190,6 +190,9 @@ function coerce(spec: VerbSpec, param: VerbParam, token: Token): Coerced {
     case 'object':
     case 'viewpoint':
     case 'place':
+    case 'event-query':
+    case 'event-result':
+    case 'instrument':
     case 'measurement':
     case 'geographic-layer':
     case 'geographic-feature':

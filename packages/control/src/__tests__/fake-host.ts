@@ -39,6 +39,19 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
+  restoreViewState(_input: unknown) { return Promise.resolve(true); }
+  selectInstrument(name: string | null) { this.log('selectInstrument', name); return true; }
+  saveBookmark(name: string) { this.log('saveBookmark', name); return true; }
+  upsertBookmark(input: import('../contracts.js').ScriptBookmark) { this.log('upsertBookmark', input.name); return true; }
+  removeBookmark(name: string) { this.log('removeBookmark', name); return true; }
+  upsertEventQuery(input: import('../contracts.js').ScriptEventQuery) { this.log('upsertEventQuery', input.id); return true; }
+  openEventQuery(id: string) { this.log('openEventQuery', id); return true; }
+  removeEventQuery(id: string) { this.log('removeEventQuery', id); return true; }
+  runEventQuery(id: string): Promise<import('../contracts.js').ScriptEventSearch> { this.log('runEventQuery', id); return Promise.resolve({ scene: this.scene?.id ?? null, query: id, status: 'complete', progress: null, error: null, selected: null }); }
+  cancelEventQuery() { return true; }
+  selectEventResult(query: string, id: string) { this.log('selectEventResult', query, id); return true; }
+  moveImageryLayer(body: string, layer: string, index: number) { this.log('moveImageryLayer', body, layer, index); return true; }
+
   selectPlace(ref: string | null) { if (ref && !this.places.some(p => p.ref === ref)) return false; this.selectedPlace = ref; return true; }
   listPlaceSources() { return []; }
   setPlaceSourceEnabled(_id: string, _enabled: boolean) { return false; }

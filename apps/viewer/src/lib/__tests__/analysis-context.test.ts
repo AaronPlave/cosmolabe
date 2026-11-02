@@ -76,6 +76,16 @@ describe('viewer analysis state', () => {
     } finally { unsubscribe(); }
   });
 
+  it('keeps UI-generated query IDs unique after a host supplied a matching ID', () => {
+    const host = createConfiguredEventQuery({ kind: 'closest-approach' }, 'Host', 'explicit', 'event-query-100');
+    const ids = new Set([host.id]);
+    for (let i = 0; i < 120; i++) {
+      const item = createConfiguredEventQuery({ kind: 'closest-approach' }, 'UI');
+      expect(ids.has(item.id)).toBe(false); ids.add(item.id);
+    }
+    expect(() => createConfiguredEventQuery({ kind: 'closest-approach' }, 'Invalid', 'explicit', '__proto__')).toThrow('reserved');
+  });
+
   it('keeps configured items stable while their configuration changes', () => {
     const item = createConfiguredEventQuery(
       { kind: 'closest-approach', bodies: { observer: 'EARTH', target: 'MOON' } },

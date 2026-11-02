@@ -104,8 +104,12 @@ export function snapshotScript(state: ViewerSnapshotState): string {
     for (const definition of state.measurements.items) lines.push(`upsertMeasurement ${quote(JSON.stringify(definition))}`);
     if (state.measurements.selected) lines.push(`selectMeasurement ${quote(state.measurements.selected)}`);
   }
+  for (const bookmark of state.bookmarks ?? []) lines.push(`upsertBookmark ${quote(JSON.stringify(bookmark))}`);
+  if (state.instrument) lines.push(`selectInstrument ${quote(state.instrument)}`);
+  for (const query of state.eventQueries ?? []) lines.push(`upsertEventQuery ${quote(JSON.stringify(query))}`);
   for (const layer of state.imagery ?? []) {
     lines.push(`showImagery ${quote(layer.body)} ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
+    if (layer.index !== undefined) lines.push(`moveImageryLayer ${quote(layer.body)} ${quote(layer.id)} ${layer.index}`);
     lines.push(`setImageryOpacity ${quote(layer.body)} ${quote(layer.id)} ${num(layer.opacity)}`);
   }
   for (const layer of state.geographic ?? []) {

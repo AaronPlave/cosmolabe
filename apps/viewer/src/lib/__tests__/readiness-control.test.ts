@@ -10,6 +10,7 @@ vi.mock('../viewer-state.svelte', () => ({
 }));
 import { getReadiness, waitUntilReady } from '../readiness-control';
 const body = () => ({ visible: true, surfaceTransitionState: 'streamed',
+  terrainViewCoverage: { physical: true, frameAvailable: true, observed: true, coverageTiles: 1, drawn: 1, missing: 0, failed: 0, pending: 0, targetLod: true },
   imageryLayers: [{ id: 'base', visible: true, opacity: 1, minZoom: 0, status: 'ok', view: { inCoverage: true, zoomLevel: 5, missingTiles: 0, degradedTiles: 0, cacheFull: false } }],
   terrainCubeImageryStats: { ready: true, manifestFailed: false, tiles: 1, baseUncoveredBlocks: 0 },
 });
@@ -31,7 +32,7 @@ describe('explicit readiness predicates', () => {
     expect(getReadiness({ kind: 'assets' }).status).toBe('failed');
     state.assetSummary.timedOut = true;
     expect(getReadiness({ kind: 'assets' }).status).toBe('timed-out');
-    expect(getReadiness({ kind: 'terrain', body: 'Mars' })).toMatchObject({ status: 'unavailable', missing: [expect.stringContaining('coverage predicate')] });
+    expect(getReadiness({ kind: 'terrain', body: 'Mars' }).status).toBe('ready');
   });
   it('refuses missing sources, hidden data, out-of-coverage and insufficient zoom', () => {
     expect(getReadiness({ kind: 'imagery', body: 'wrong', layer: 'base' }).status).toBe('unavailable');
@@ -53,6 +54,28 @@ describe('explicit readiness predicates', () => {
     expect(getReadiness({ kind: 'cube-base', body: 'Mars' }).status).toBe('partial');
     bm.terrainCubeImageryStats.baseUncoveredBlocks = 0;
     expect(getReadiness({ kind: 'cube-base', body: 'Mars' })).toMatchObject({ status: 'ready', limitations: expect.arrayContaining([expect.stringContaining('Missing geometry')]) });
+  });
+  it('never promotes resident counters across streamed/static/preloading/waiting/fallback transitions', () => {
+    const request = { kind: 'imagery' as const, body: 'Mars', layer: 'base' };
+    expect(getReadiness(request).status).toBe('ready');
+    for (const transition of ['static', 'preloading', 'waiting']) {
+      bm.surfaceTransitionState = transition;
+      expect(getReadiness(request).status).toBe('partial');
+      expect(getReadiness({ kind: 'cube-base', body: 'Mars' }).status).toBe('partial');
+      expect(getReadiness({ kind: 'terrain', body: 'Mars' }).status).toBe('partial');
+    }
+    bm.surfaceTransitionState = 'fallback'; expect(getReadiness(request).status).toBe('failed');
+    bm.surfaceTransitionState = 'streamed'; expect(getReadiness(request).status).toBe('ready');
+  });
+  it('distinguishes footprint coverage, missing physical geometry and target LOD', () => {
+    const request = { kind: 'terrain' as const, body: 'Mars' }, coverage = bm.terrainViewCoverage;
+    coverage.physical = false; expect(getReadiness(request).status).toBe('unavailable'); coverage.physical = true;
+    coverage.missing = 1; expect(getReadiness(request).status).toBe('partial'); coverage.missing = 0;
+    coverage.targetLod = false; expect(getReadiness(request).missing).toContain('Drawn geometry has not reached the configured screen-space target LOD.'); coverage.targetLod = true;
+    coverage.failed = 1; expect(getReadiness(request).status).toBe('failed'); coverage.failed = 0;
+    coverage.drawn = 0; expect(getReadiness(request).status).toBe('partial'); coverage.drawn = 1;
+    coverage.observed = false; expect(getReadiness(request).status).toBe('partial'); coverage.observed = true;
+    expect(getReadiness(request)).toMatchObject({ status: 'ready', limitations: expect.arrayContaining([expect.stringContaining('product footprint')]) });
   });
   it('refuses old view counters immediately after a camera or source change', () => {
     vi.spyOn(state.renderer!, 'surfaceViewIsCurrent').mockReturnValue(false);

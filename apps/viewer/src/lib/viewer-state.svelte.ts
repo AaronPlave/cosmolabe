@@ -68,6 +68,9 @@ export interface ViewerEventMap {
   places: Record<string, never>;
   measurements: Record<string, never>;
   geographic: Record<string, never>;
+  instrument: string | null;
+  events: Record<string, never>;
+  bookmarks: Record<string, never>;
   surface: { body: string };
   unload: Record<string, never>;
   /** The selection changed; null when it cleared. */
@@ -570,6 +573,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // instrument view, so a sensor chosen anywhere else — a script, the console —
   // shows in the window, and clearing it closes the window.
   _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    emit('instrument', sensor);
+
     if (sensor == null) {
       closeTool('instrument');
     } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
@@ -730,6 +735,7 @@ export function showNextInstrument() {
   if (sensors.length === 0) return;
   const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
   vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  _renderer?.setInstrumentView(vs.instrumentSensor);
   openTool('instrument'); // raise it, so the change is seen
 }
 
@@ -1559,6 +1565,7 @@ export function setCameraPose(
   // frame otherwise turns the camera on the next frame by the rotation since
   // the last one drawn — after a seek in the same script, hours of it.
   if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
+  cc.syncOrbitTargetFromCamera();
   return true;
 }
 

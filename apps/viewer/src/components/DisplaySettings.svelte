@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { presentationControl } from '../lib/presentation-control';
   import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
   import { vs, setGridSettings, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
 
@@ -218,7 +219,7 @@
             if (r) {
               vpCounter++;
               const name = `Saved ${vpCounter}`;
-              r.cameraController.saveViewpoint(name);
+              presentationControl.saveBookmark(name);
               viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
               selectedViewpoint = name;
             }

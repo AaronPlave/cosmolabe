@@ -79,7 +79,7 @@ const objectSchema = (properties: Record<string, AgentJsonSchema>, required: str
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
   { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs before calling them.',
-    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
+    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
@@ -89,6 +89,9 @@ const DISCOVERY: readonly AgentToolDef[] = [
 ];
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
+  if (/Event/.test(name)) return 'events';
+  if (/Instrument/.test(name)) return 'instruments';
+  if (/Bookmark|ViewState/.test(name)) return 'bookmarks';
   if (/Measurement/.test(name)) return 'measurements';
   if (/Geographic|Annotation/.test(name)) return 'geographic';
   if (/Readiness|Ready/.test(name)) return 'readiness';
@@ -111,6 +114,10 @@ const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
+  listEventResults: objectSchema({ total: NUMBER, items: RECORDS }),
+  listInstruments: objectSchema({ items: STRINGS }), getInstrument: NULLABLE_RECORD,
+  listBookmarks: objectSchema({ items: RECORDS }),
   listPlaceSources: objectSchema({ total: NUMBER, offset: NUMBER, sources: RECORDS }),
   listMeasurements: objectSchema({ selected: { type: ['string', 'null'] }, items: RECORDS }),
   listGeographicLayers: objectSchema({ total: NUMBER, offset: NUMBER, layers: RECORDS }),
@@ -206,7 +213,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const { method, ...tool } = def;
       const referenceKinds: Record<string, string> = { object: 'object', body: 'object', activity: 'activity', place: 'place', layer: 'imagery' };
       const parameters = VERBS.get(def.name)?.params ?? Object.keys(def.inputSchema.properties ?? {}).flatMap(name => referenceKinds[name] ? [{ name, type: referenceKinds[name] }] : []);
-      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery', 'measurement', 'geographic-layer', 'geographic-feature'].includes(p.type))
+      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery', 'measurement', 'geographic-layer', 'geographic-feature', 'event-query', 'event-result', 'instrument'].includes(p.type))
         .map(p => ({ field: p.name, kind: p.type, scope: 'scene' as const }));
       return { ...summary(def), tool, outputSchema: { ...RECEIPT_SCHEMA, properties: { ...RECEIPT_SCHEMA.properties, data: READ_OUTPUTS[def.name] ?? { description: 'Writes report their resulting state through receipt.observation.' } } }, scope: scope(), references,
         dependencies: method ? [method] : [],

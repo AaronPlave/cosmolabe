@@ -28,8 +28,19 @@ export function getReadiness(request: ScriptReadinessRequest, opts?: ScriptScene
   if (!bm) return result('unavailable', [`No rendered body ${request.body}.`], limitations);
   if (!bm.visible) return result('unavailable', ['The body is hidden.'], limitations);
   if (request.kind === 'terrain') {
-    // The available terrain counters count resident/drawn tiles, not complete view coverage.
-    return result('unavailable', ['The terrain manager does not expose a complete current-view geometry coverage predicate.'], limitations);
+    const coverage = bm.terrainViewCoverage;
+    const notes = [...limitations, 'Coverage is within the declared product footprint and streamer replacement hierarchy; no guarantee outside that footprint, of source accuracy, or CPU analytical sample residency. Target LOD is required separately from coarse coverage.'];
+    if (!coverage || !coverage.physical) return result('unavailable', ['No physical streamed terrain product or coverage predicate.'], notes);
+    if (!coverage.frameAvailable) return result('unavailable', ['The terrain frame is unavailable.'], notes);
+    if (bm.surfaceTransitionState === 'fallback' || coverage.failed) return result('failed', ['Required geometry failed; the view may use a static fallback.'], notes);
+    const missing: string[] = [];
+    if (bm.surfaceTransitionState !== 'streamed') missing.push('Physical streamed terrain is not drawn.');
+    if (!coverage.observed || !renderer.surfaceViewIsCurrent(request.body)) missing.push('The current view has not been observed by a successful streaming update.');
+    if (!coverage.coverageTiles || !coverage.drawn) missing.push('No product geometry coverage is drawn in this view.');
+    if (coverage.missing) missing.push(`${coverage.missing} required coverage tiles are missing.`);
+    if (coverage.pending) missing.push(`${coverage.pending} geometry requests are pending.`);
+    if (!coverage.targetLod) missing.push('Drawn geometry has not reached the configured screen-space target LOD.');
+    return result(missing.length ? 'partial' : 'ready', missing, notes);
   }
   if (request.kind === 'cube-base') {
     const stats = bm.terrainCubeImageryStats;
@@ -45,6 +56,8 @@ export function getReadiness(request: ScriptReadinessRequest, opts?: ScriptScene
   if (!layer) return result('unavailable', [`No imagery layer ${request.layer}.`], limitations);
   if (layer.status === 'failed') return result('failed', ['The imagery source failed.'], limitations);
   if (!layer.visible || layer.opacity === 0) return result('unavailable', ['The imagery layer is hidden or transparent.'], limitations);
+  if (bm.surfaceTransitionState === 'fallback') return result('failed', ['The streamed surface failed; the static map is drawn.'], limitations);
+  if (bm.surfaceTransitionState !== 'streamed') return result('partial', ['Streamed imagery is resident or loading but is not drawn.'], limitations);
   if (!renderer.surfaceViewIsCurrent(request.body)) return result('partial', ['The current camera/time/source settings have not been observed by a streaming update.'], limitations);
   const view = layer.view;
   if (!view) return result('partial', ['The imagery layer has no drawn-view observation yet.'], limitations);

@@ -1,4 +1,5 @@
-import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates } from '@cosmolabe/core';
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
  * The `ViewerControl` port — the contract a Cosmolabe viewer offers a host.
@@ -102,6 +103,9 @@ export interface ScriptCamera {
  * catalog loads, and end only with their disposer (or the viewer's disposal).
  */
 export interface ScriptEventMap {
+  events: { scene: number };
+  instruments: { scene: number; selected: string | null };
+  bookmarks: { scene: number };
   places: { scene: number; selected: string | null };
   measurements: { scene: number; selected: string | null; count: number };
   geographic: { scene: number; selected: { layer: string; feature: string } | null };
@@ -685,6 +689,27 @@ export interface ViewerControl {
    * model of it.
    */
   snapshot(): string;
+  /** Same configured Event Finder searches as the panel; no cached results in snapshots. */
+  listEventQueries?(): readonly ConfiguredEventQuery[];
+  upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
+  openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;
+  removeEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;
+  getEventSearch?(): ScriptEventSearch;
+  runEventQuery?(id: string, opts?: ScriptSceneOptions & { timeoutMs?: number; signal?: ScriptCancelSignal }): Promise<ScriptEventSearch>;
+  cancelEventQuery?(opts?: ScriptSceneOptions): boolean;
+  listEventResults?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): { total: number; items: GeometryEvent[] };
+  selectEventResult?(query: string, id: string, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions): boolean;
+  resolvePlace?(query: { body: string; layer?: string; feature: string | number }, opts?: ScriptSceneOptions): { status: 'available' | 'missing' | 'ambiguous' | 'unlinked'; matches: ScriptPlace[] };
+  listInstruments?(): readonly string[];
+  getInstrument?(): ScriptInstrument | null;
+  selectInstrument?(name: string | null, opts?: ScriptSceneOptions): boolean;
+  listBookmarks?(): readonly ScriptBookmark[];
+  saveBookmark?(name: string, opts?: ScriptSceneOptions): boolean;
+  upsertBookmark?(bookmark: ScriptBookmark, opts?: ScriptSceneOptions): boolean;
+  removeBookmark?(name: string, opts?: ScriptSceneOptions): boolean;
+  /** Capture uses the existing ViewState v1 serializer and optional analysis envelopes. */
+  getViewState?(): Promise<ViewStateV1>;
+  restoreViewState?(state: unknown, opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<boolean>;
   /** The scene bound now; null before any scene is up. */
   getScene?(): ScriptScene | null;
 
@@ -720,7 +745,34 @@ export interface ViewerControl {
   setImageryOpacity?(body: string, layer: string, opacity: number, opts?: { scene?: number }): boolean;
 
   /** Subscribe to an event. Returns a disposer. */
+  /** Move an overlay to its bottom-to-top stack index; the base remains at zero. */
+  moveImageryLayer?(body: string, layer: string, index: number, opts?: ScriptSceneOptions): boolean;
+
   on<K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void): () => void;
+}
+
+export interface ScriptEventQuery { id: string; label: string; query: EventQuery; enabled: boolean; visible: boolean }
+export interface ScriptEventSearch {
+  scene: number | null;
+  query: string | null;
+  status: 'idle' | 'running' | 'complete' | 'failed' | 'cancelled' | 'stale' | 'timed-out';
+  /** Progress of the current solver call, not an ETA for the whole search. */
+  progress: number | null;
+  error: { code: string; message: string } | null;
+  selected: { query: string; id: string } | null;
+}
+export interface ScriptInstrument {
+  sensor: string; spacecraft: string | null; target: string | null;
+  fov: [number, number] | null; viewFov: [number, number];
+  pointing: 'spice' | 'attitude' | 'unavailable' | 'target' | 'none';
+  pointingUnavailable: string | null;
+  /** Presentation only: never a calibrated observation or pixel export. */
+  observation: 'synthetic-scene-view';
+  observedEt: number | null;
+}
+export interface ScriptBookmark {
+  name: string; camera: ScriptCamera; origin: string | null; tracked: string | null;
+  lookAt: string | null; time?: number;
 }
 
 /** The state `snapshotScript` renders. Every field comes off the read side. */
@@ -741,11 +793,14 @@ export interface ViewerSnapshotState {
   readonly layers: Readonly<Record<string, boolean>>;
   readonly grid?: GridSettings;
   readonly selectedPlace?: string;
+  readonly eventQueries?: readonly ScriptEventQuery[];
+  readonly bookmarks?: readonly ScriptBookmark[];
+  readonly instrument?: string;
   readonly omitted?: readonly string[];
   readonly placeSources?: readonly { id: string; enabled: boolean; labelsVisible: boolean }[];
   /** Present => merge by stable ID; absent => preserve. No cached results or drafts. */
   readonly measurements?: { version: 1; items: MeasurementDefinition[]; selected?: string };
-  readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number }[];
+  readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number; index?: number }[];
   readonly geographic?: readonly { id: string; visible: boolean; style: GeographicLayerStyle }[];
   readonly appearance?: readonly { body: string; settings: ScriptSurfaceAppearance }[];
   /**

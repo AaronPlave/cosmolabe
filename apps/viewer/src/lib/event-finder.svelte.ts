@@ -530,10 +530,13 @@ export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>
   return ef.selectedId == null ? undefined : events.find(isSelectedEvent);
 }
 
+export function eventSearchGeneration() { return inFlight; }
+
 export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
   const before = selectedActivityId();
   ef.selectedId = event?.id ?? null;
   ef.selectedQueryId = event?.queryId ?? null;
+  emit('events', {});
   const after = selectedActivityId();
   if (after !== before) emit('activitySelect', after);
 }
@@ -1096,6 +1099,7 @@ export async function runSearch() {
     ef.events = [];
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
+    emit('events', {});
     return;
   }
 
@@ -1112,13 +1116,18 @@ export async function runSearch() {
     registry,
     provider: withSpiceNames(running.provider, sceneSpiceName),
     onProgress: (fraction) => {
-      if (active === running) ef.progress = { fraction };
+      if (active === running) { ef.progress = { fraction }; emit('events', {}); }
     },
   });
   const token = ++inFlight;
 
   ef.running = true;
+  ef.searched = false;
+  ef.fault = null;
+  ef.events = [];
+  setEventResults(item.id, []);
   ef.progress = null;
+  emit('events', {});
   dropSelectionIn(item.id);
   syncEventResultsInScene();
   try {
@@ -1156,6 +1165,7 @@ export async function runSearch() {
       active = null;
       ef.running = false;
       ef.progress = null;
+      emit('events', {});
     }
   }
 }
@@ -1391,3 +1401,5 @@ onViewerEvent('load', () => {
     previewEvent(event ?? null, hit?.boundary);
   }) ?? null;
 });
+
+onViewerEvent('unload', resetForScene);

@@ -1,8 +1,11 @@
+import { validateViewState } from '@cosmolabe/control';
+import { presentationControl } from './presentation-control';
+import { eventControl, snapshotEventQueries } from './event-control';
 import { definitionEndpoints } from './measurement-link-state';
 import { setPlaceSourceEnabled, showPlaceDataset, selectPlace } from './places';
 import { analysisControl } from './analysis-control';
 import { getReadiness, waitUntilReady } from './readiness-control';
-import { getSurfaceAppearance, setSurfaceAppearance } from './appearance-control';
+import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImageryOpacity, moveImageryLayer } from './appearance-control';
 /**
  * The viewer's implementation of `ViewerControl`.
  *
@@ -85,7 +88,6 @@ import {
   setScrubberWindow,
   extendTimelineBase,
   sceneId,
-  emit,
 } from './viewer-state.svelte';
 import type { Place } from '@cosmolabe/core';
 import type { BodyMesh } from '@cosmolabe/three';
@@ -229,9 +231,12 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       grid: vs.grid,
       ...(portable.length ? { measurements: { version: 1 as const, items: portable, ...(portable.some(m => m.id === analysisControl.getSelectedMeasurement()) ? { selected: analysisControl.getSelectedMeasurement()! } : {}) } } : {}),
       ...(vs.selectedPlaceRef && placeByRef(vs.selectedPlaceRef)?.layer.source.kind === 'catalog' ? { selectedPlace: vs.selectedPlaceRef } : {}),
+      eventQueries: snapshotEventQueries(),
+      bookmarks: presentationControl.listBookmarks(),
+      instrument: getRenderer()?.activeInstrumentView,
       omitted: allMeasurements.length > portable.length ? ['Measurements with captured terrain sample provenance require the original product; omitted from portable snapshots.'] : [],
       placeSources: [...new Map((vs.places?.places ?? []).filter(p => p.layer.source.kind === 'catalog').map(p => [p.layer.id, { id: p.layer.id, enabled: !vs.excludedPlaceLayers.includes(p.layer.id), labelsVisible: !vs.hiddenPlaceLayers.includes(p.layer.id) }])).values()],
-      imagery: bodyNames().flatMap(body => getRenderer()?.getBodyMesh(body)?.imageryLayers?.map(l => ({ body, id: l.id, visible: l.visible, opacity: l.opacity })) ?? []),
+      imagery: bodyNames().flatMap(body => getRenderer()?.getBodyMesh(body)?.imageryLayers?.map((l, index) => ({ body, id: l.id, visible: l.visible, opacity: l.opacity, index })) ?? []),
       geographic: analysisControl.listGeographicLayers().filter(l => !l.editable && getSceneUniverse()?.geographicLayers.get(l.id)?.source.kind === 'catalog').map(l => ({ id: l.id, visible: l.visible, style: l.style })),
       appearance: bodyNames().flatMap(body => { const settings = getSurfaceAppearance(body)?.settings; return settings ? [{ body, settings }] : []; }),
       layers: {
@@ -276,7 +281,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
       showPlaceDataset(id, visible); return true;
     },
-    ...analysisControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
+    ...analysisControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
@@ -511,6 +516,13 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       const activeBody = getRenderer()?.cameraController.focusBody?.body.name;
       return searchPlaces(query, { body: opts?.body, limit, activeBody }).map(scriptPlace);
     },
+    resolvePlace: (query, opts) => {
+      inScene(opts?.scene);
+      if (!query || typeof query.body !== 'string' || !['string', 'number'].includes(typeof query.feature)) throw new Error('Place resolution requires an exact body and feature ID');
+      const matches = (vs.places?.places ?? []).filter(p => p.layer.body === query.body &&
+        (query.layer === undefined || p.layer.id === query.layer) && p.feature.id === query.feature).map(scriptPlace);
+      return { status: matches.length === 0 ? 'missing' : matches.length > 1 ? 'ambiguous' : matches[0].unavailable ? 'unlinked' : 'available', matches };
+    },
     getPlace: (ref) => {
       const place = placeByRef(ref);
       return place ? scriptPlace(place) : undefined;
@@ -539,33 +551,42 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       const bm = getRenderer()?.getBodyMesh(name);
       return bm ? scriptImagery(bm) : { body: name, surface: null, imageryOnly: false, layers: [] };
     },
-    setImageryVisible: (name, layer, visible, opts) => {
-      inScene(opts?.scene);
-      const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
-      const info = bm?.imageryLayers.find((l) => l.id === layer);
-      if (!bm || !info) return false;
-      // The base keeps the globe textured; it is not the caller's to remove.
-      if (!visible && !info.optional) return false;
-      const changed = bm.setImageryLayerVisible(layer, visible) || info.visible === visible;
-      if (changed) emit('surface', { body: name });
-      return changed;
-    },
-    setImageryOpacity: (name, layer, opacity, opts) => {
-      inScene(opts?.scene);
-      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) return false;
-      const bm = hasBody(name) ? getRenderer()?.getBodyMesh(name) : undefined;
-      if (!bm?.imageryLayers.some((l) => l.id === layer)) return false;
-      const changed = bm.setImageryLayerOpacity(layer, opacity) || bm.imageryLayers.find((l) => l.id === layer)?.opacity === opacity;
-      if (changed) emit('surface', { body: name });
-      return changed;
-    },
+    setImageryVisible, setImageryOpacity, moveImageryLayer,
 
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
+    getViewState: async () => (await import('./view-link')).captureViewState(),
+    restoreViewState: async (input, opts = {}) => {
+      inScene(opts.scene);
+      if (!input || JSON.stringify(input).length > 32768) throw new Error('Invalid bounded view state');
+      const expected = sceneId();
+      const { captureViewState, restoreView } = await import('./view-link');
+      inScene(opts.scene ?? expected);
+      const base = validateViewState(input);
+      const current = captureViewState();
+      if (JSON.stringify(base.catalog) !== JSON.stringify(current.catalog)) throw new Error('View state belongs to a different catalog');
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      const offLoad = onViewerEvent('load', abort), offUnload = onViewerEvent('unload', abort);
+      opts.signal?.addEventListener('abort', abort);
+      if (opts.signal?.aborted) abort();
+      try {
+        // Explicit envelopes replace their domains; absent optional analysis is preserved.
+        await restoreView({ ...(input as typeof current), ...base }, controller.signal, { preserveAbsent: true });
+        if (controller.signal.aborted || expected !== sceneId()) throw new Error('View restore cancelled or scene replaced');
+        return true;
+      } finally { offLoad(); offUnload(); opts.signal?.removeEventListener('abort', abort); }
+    },
 
     on: <K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void) => {
       switch (event) {
+        case 'bookmarks':
+          return onViewerEvent('bookmarks', () => (cb as (d: ScriptEventMap['bookmarks']) => void)({ scene: sceneId() }));
+        case 'instruments':
+          return onViewerEvent('instrument', selected => (cb as (d: ScriptEventMap['instruments']) => void)({ scene: sceneId(), selected }));
+        case 'events':
+          return onViewerEvent('events', () => (cb as (d: ScriptEventMap['events']) => void)({ scene: sceneId() }));
         case 'places':
           return onViewerEvent('places', () => (cb as (d: ScriptEventMap['places']) => void)({ scene: sceneId(), selected: vs.selectedPlaceRef }));
         case 'measurements':

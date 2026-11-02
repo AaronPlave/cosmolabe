@@ -2,6 +2,7 @@ export type { MeasurementDefinition, SpatialEndpoint, ReferenceVector, Geographi
 // The port
 export type {
   ViewerControl,
+  ScriptEventQuery, ScriptEventSearch, ScriptInstrument, ScriptBookmark,
   ScriptSceneOptions, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSurfaceAppearance, ScriptReadiness, ScriptReadinessRequest,
   ScriptActivity,
   ScriptActivityFilter,

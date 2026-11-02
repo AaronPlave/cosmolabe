@@ -1154,6 +1154,17 @@ export class CameraController {
     this.camera.up.copy(pose.up);
     this._prevTargetPos.copy(pose.target);
     this.camera.lookAt(pose.target);
+    this.syncOrbitTargetFromCamera();
+  }
+
+  /** Preserve an explicitly authored orbit target across the next tracking update.
+   * This is a scene-axis offset, not a terrain anchor or a new surface registration. */
+  syncOrbitTargetFromCamera(): void {
+    this._clearSurfacePivot();
+    if (this._activeMode.name === CameraModeName.FREE_ORBIT && this._trackTarget) {
+      this._orbitOffset = { body: this._trackTarget, offset: this.controls.target.clone().sub(this._trackTarget.position) };
+    }
+    this._prevTargetPos.copy(this.controls.target);
   }
 
   /** Save current camera state as a named viewpoint */
@@ -1179,6 +1190,9 @@ export class CameraController {
   addViewpoint(vp: CameraViewpoint): void {
     this._viewpoints.set(vp.name, vp);
   }
+
+  /** Remove a session viewpoint. Catalog ownership is enforced by the UI/control adapter. */
+  removeViewpoint(name: string): boolean { return this._viewpoints.delete(name); }
 
   /** Get all registered viewpoints */
   getViewpoints(): CameraViewpoint[] {

@@ -1230,11 +1230,12 @@ export class BodyMesh extends THREE.Object3D {
   private imagerySettingsRevision = 0;
   private surfaceViewKey(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): string {
     return JSON.stringify([et, camera.position.toArray(), camera.quaternion.toArray(), camera.projectionMatrix.elements,
-      renderer.domElement.width, renderer.domElement.height, this.position.toArray(), this.mesh.quaternion.toArray(), this.visible, this.imagerySettingsRevision]);
+      renderer.domElement.width, renderer.domElement.height, this.position.toArray(), this.mesh.quaternion.toArray(), this.visible, this.surfaceTransitionState, this.imagerySettingsRevision]);
   }
   /** Record the camera/configuration used by the main view's actual streaming update. */
   observeSurfaceView(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): void {
-    this.surfaceObservation = this.surfaceViewKey(camera, renderer, et);
+    this.surfaceObservation = this.terrainVisible && this.terrainManager?.viewUpdateSucceeded
+      ? this.surfaceViewKey(camera, renderer, et) : null;
   }
   /** A camera/time/viewport/source change invalidates old counters until another streaming update. */
   surfaceViewIsCurrent(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): boolean {
@@ -1242,6 +1243,8 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   /** Lightweight surface inventory observations, without memory accounting. */
+  get terrainViewCoverage() { return this.terrainManager?.viewCoverage ?? null; }
+
   get terrainSurfaceStatus() { return this.terrainManager?.surfaceStatus ?? null; }
 
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */

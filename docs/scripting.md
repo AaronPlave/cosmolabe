@@ -758,8 +758,8 @@ setSurfaceAppearance Mars "{\"hillshade\":true,\"contrast\":1.2}"
 UI and control changes, with scene identity and relevant selection/body. They
 survive reloads; disposers remove them. These are semantic change notifications,
 not per-tile streaming progress. Geographic notifications include style and
-layer-data changes. Surface notifications cover visibility/opacity and appearance
-writes; use readiness reads/waits for streaming state.
+layer-data changes. Surface notifications cover visibility/opacity/order and appearance
+writes, including UI reordering and elevation-bound picking; use readiness reads/waits for streaming state.
 
 ### Readiness guarantees and limits
 
@@ -775,9 +775,9 @@ observes those inputs. They do not start a second streaming manager, prefetch or
 | Request | A `ready` result guarantees | Excluded or unavailable |
 |---|---|---|
 | `{kind:'assets'}` | Initial models, textures and trajectories settled without reported failures or asset timeout | Streamed surfaces; source scientific adequacy |
-| `{kind:'imagery',body,layer}` | Enabled, nontransparent layer intersects the current view at its minimum zoom; no observed missing/degraded tiles or full cache | Other sources, other views, planetary coverage, source accuracy |
+| `{kind:'imagery',body,layer}` | A successful streaming update observed an actually drawn streamed surface; enabled, nontransparent layer intersects the view at minimum zoom with no observed missing/degraded tiles or full cache | Other sources, other views, planetary coverage, source accuracy |
 | `{kind:'cube-base',body}` | Mandatory base imagery covers every currently drawn terrain block | Missing geometry, completeness of target LOD, regions outside the view, optional overlays |
-| `{kind:'terrain',body}` | No complete-coverage predicate is currently supported | Returns `unavailable`; loaded/drawn tile counts cannot prove geometry coverage |
+| `{kind:'terrain',body}` | Successful fresh physical-terrain update; required coverage tiles in the product replacement hierarchy are loaded, geometry is drawn, no pending requests, and drawn geometry meets the configured screen-space LOD target | Only within the product footprint; absent source regions, CPU samples, source accuracy and planet-wide coverage are excluded. Imagery-only surfaces and unavailable frames are `unavailable`; terminal source detail below the LOD target remains `partial` |
 
 Results contain `scene`, `request`, `status`, `missing`, and `limitations`.
 Statuses are `ready`, `partial`, `unavailable`, `failed`, `timed-out`, `cancelled`
@@ -795,8 +795,8 @@ waitUntilReady "{\"kind\":\"cube-base\",\"body\":\"Mars\"}" 60
 ### Portable snapshots and permissions
 
 Snapshots now include portable measurement definitions/selection, catalog place selection, place-source
-choices, managed imagery visibility/opacity, catalog geographic layer visibility
-and styles, and supported terrain appearance settings. Measurement snapshots
+choices, managed imagery visibility/opacity/order, catalog geographic layer visibility
+and styles, supported terrain appearance settings, event-query definitions, session bookmarks, and selected synthetic instrument feed. Measurement snapshots
 **merge by ID**: matching definitions are upserted, unrelated user work is kept,
 and omitted analysis state preserves it. `restoreMeasurements <json> replace`
 is the explicit replacement operation. A supplied selection is restored;
@@ -806,7 +806,7 @@ unchanged.
 
 User annotation layers, local-file geographic layers, captured terrain-sample
 provenance, pointer drafts, timed notes, panel geometry, Event Finder results,
-instrument state, surface target anchoring/refinement metadata, and bookmarks are not reproduced by script snapshots. A
+calibrated observation data and instrument pointing results, and surface target anchoring/refinement metadata are not reproduced by script snapshots. A
 measurement carrying a captured terrain sample is omitted with a comment because
 its original product provenance is not a portable resource contract. Other
 surface anchors retain their coordinates/frame/datum. Layer and imagery settings
@@ -824,10 +824,69 @@ plugins or execute arbitrary JavaScript. Agent measurement reads withhold endpoi
 and resource provenance; trusted local hosts receive complete definitions.
 Operations without verified receipt readback remain explicitly `partial`.
 
-Event Finder orchestration, instrument/observation operations, portable authored
-layer transport and bookmark CRUD remain explicit coverage gaps. P2 plugin hooks
-remain deferred until there is a concrete domain contract; no generic registry or
-new solver is introduced here.
+### Event Finder, instruments and session views
+
+`listEventQueries`, `upsertEventQuery`, `removeEventQuery` and `openEventQuery`
+operate on the same configured searches as Event Finder. A definition carries
+`id`, `label`, `enabled`, `visible` and the core `EventQuery` (`kind`, `bodies`,
+`window`, `step`, `abcorr`, optional `params`). Validation uses the existing
+registry and view-link validator, including the bounded work budget. Unknown
+bodies are refused before mutation. Updating a query invalidates its old results
+and selection. Unrelated queries remain intact.
+
+`runEventQuery(id, {scene, signal, timeoutMs})` runs the existing solver and returns
+structured `idle/running/complete/failed/cancelled/stale/timed-out` state. The
+30-second default and 120-second ceiling bound the wait; workers are cancelled
+through the existing worker path. Main-thread synchronous SPICE cannot be
+preempted until its call yields. `getEventSearch()` exposes current-call progress
+(not an ETA), fault, and exact selected `(query,id)`. `cancelEventQuery` cancels
+shared work. `listEventResults(query,{offset,limit,scene})` pages at most 100
+results; `selectEventResult(query,id,anchor)` inspects without seeking or seeks
+`start/middle/end` through the native selection path. Missing kernels and #329's
+unimplemented numerical kinds remain explicit domain failures, never empty
+successful searches. `events` notifications include UI edits, results, progress,
+selection and search completion; subscriptions survive reloads.
+
+`listInstruments()` lists the renderer's existing sensors. `selectInstrument(name)`
+opens that synthetic scene feed, and `null` closes it; the text verb takes an
+empty string to close. `getInstrument()` reports FOV (nullable when unknown),
+pointing authority, unavailable reason and `observedEt`. An epoch without a
+fresh pointing observation is explicitly unavailable. This is a
+`synthetic-scene-view`, never calibrated observation data. The UI and hosts use
+the same selection and `instruments` notifications. Actual observation ingest and
+calibration remain owned by #28/#192–#195.
+
+`saveBookmark`, `upsertBookmark`, `removeBookmark` and `listBookmarks` use the
+existing camera viewpoint store. `viewpoint <name>` applies one. Catalog and
+`Default` names are protected; other names merge individually, preserving
+unrelated session views. Bookmark definitions hold a camera pose, origin,
+tracking/look-at and optional epoch; they contain no imagery caches or source
+locations. `bookmarks` notifications cover UI and host edits. Snapshot replay
+preserves an off-centre orbit target through subsequent rendering using the
+camera controller's existing scene-axis offset, without reconstructing a terrain
+anchor or transforming imported source coordinates.
+
+`await getViewState()` captures the existing ViewState v1 format and validated
+optional analysis envelopes. It refuses local/opaque catalog resources which
+have no portable catalog location. `restoreViewState(state,{scene,signal})` is a
+same-catalog operation: all envelopes and body references validate before camera
+changes. Supplied analysis envelopes replace their domains, absent envelopes
+preserve them; explicit empty envelopes clear them. Existing permalink restore
+keeps its original replacement semantics. Snapshots instead merge definitions by
+stable ID. Neither serializes computed event results; view links rerun explicitly
+marked searches through the existing solver. Cancel/reload/disposal prevents the
+restore's final camera action from affecting another scene.
+
+The new text verbs generate help and completion from `VERBS`; query/result and
+instrument completion uses stable runtime identities. Typed hosts get full
+scientific definitions. Agent discovery offers bounded allowlisted summaries
+without endpoint/resource metadata or solver fault text; raw ViewState capture
+is trusted-host-only. Query/bookmark definitions and view restore require the
+same authoring permission and exact-call confirmation as annotation edits.
+Capture/export keeps its separate trusted host policy. Registered consumers are
+the existing capability adapter, embedding hosts, ScriptConsole and catalog
+tours; no plugin installation, catalog JavaScript, generic extension registry,
+chat/MCP/voice transport or new solver is introduced.
 
 ### Mission tour and capture fixture
 
