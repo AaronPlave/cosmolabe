@@ -8,12 +8,13 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
+  import { trajectorySourceWindow } from '../lib/trajectory-analysis.svelte';
   import { analysis } from '../lib/analysis.svelte';
   import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
   import * as Select from '$lib/components/ui/select/index.js';
   import * as Popover from '$lib/components/ui/popover';
-  import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent } from '@cosmolabe/core';
+  import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent, type EventParamSpec } from '@cosmolabe/core';
   import { vs, etToUtcString } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -53,6 +54,10 @@
     untrack(ensureCoverageCurrent);
   });
 
+  let advancedOpen = $state(false);
+  let availableActivities = $derived(vs.activities.filter(a => a.enabled !== false && a.body === form?.bodies.center && (!form?.bodies.observer || a.vehicle === form.bodies.observer) && (!form?.params.activityKind || form.params.activityKind === 'all' || a.kind === form.params.activityKind) && a.start <= (form?.endEt ?? Infinity) && a.end >= (form?.startEt ?? -Infinity)));
+  const visibleParam = (param: EventParamSpec) => !param.when || param.when.values.includes(form?.params[param.when.key] ?? '');
+  let incomplete = $derived(ef.events.some(event => event.trajectoryAnalysis?.coverage === 'partial'));
   let kind = $derived(currentKind());
   let form = $derived(ef.form);
   /** Display order is a view concern: the search's own order is chronological. */
@@ -67,6 +72,7 @@
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
   let unavailable = $derived(currentSearchUnavailable());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
+  let sourceWindow = $derived.by(() => { void vs.kernelCount; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectorySourceWindow(form?.bodies.center, form?.bodies.observer) : null; });
   let coverage = $derived(ef.coverage);
   /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
   let coverageSubject = $derived(
@@ -168,7 +174,10 @@
   function chooseWindow(value: string) {
     startBad = false;
     endBad = false;
-    if (value.startsWith('available:')) {
+    if (value === 'source' && sourceWindow) {
+      setWindow(sourceWindow.start, sourceWindow.end);
+      ef.windowSource = 'custom';
+    } else if (value.startsWith('available:')) {
       useAvailableWindow(Number(value.slice('available:'.length)));
     } else if (value === 'visible') {
       setWindow(vs.scrubMin, vs.scrubMax);
@@ -254,12 +263,19 @@
       </div>
     {/each}
 
-    <!-- Kind-specific parameters -->
-    {#each kind.params ?? [] as param}
+    {#snippet parameter(param: EventParamSpec)}
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="ui-label w-20 shrink-0" title={param.help}>{param.label}</span>
-        {#if param.kind === 'choice'}
-          <select
+        <label for={`event-param-${param.key}`} class="ui-label w-20 shrink-0" title={param.help}>{param.label}</label>
+        {#if param.kind === 'activities'}
+          <select id={`event-param-${param.key}`} multiple size={Math.min(5, Math.max(2, availableActivities.length))}
+            class="ui-control min-w-0 flex-1 bg-surface-3 border border-border rounded px-1.5"
+            onchange={(e) => setParam(param.key, JSON.stringify([...((e.target as HTMLSelectElement).selectedOptions)].map(option => option.value)))}>
+            {#each availableActivities as activity}
+              <option value={activity.id} selected={(JSON.parse(form!.params[param.key] || '[]') as string[]).includes(activity.id)}>{activity.vehicle} — {activity.name}</option>
+            {/each}
+          </select>
+        {:else if param.kind === 'choice'}
+          <select id={`event-param-${param.key}`}
             class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
             value={form.params[param.key] ?? ''}
             onchange={(e) => setParam(param.key, (e.target as HTMLSelectElement).value)}
@@ -269,14 +285,14 @@
             {/each}
           </select>
         {:else if param.kind === 'boolean'}
-          <input
+          <input id={`event-param-${param.key}`}
             type="checkbox"
             class="accent-accent"
             checked={form.params[param.key] === 'true'}
             onchange={(e) => setParam(param.key, (e.target as HTMLInputElement).checked ? 'true' : 'false')}
           />
         {:else if param.kind === 'text'}
-          <input
+          <input id={`event-param-${param.key}`}
             type="text"
             class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 outline-none"
             placeholder={param.required === false ? 'declared by source' : ''}
@@ -284,7 +300,7 @@
             oninput={(e) => setParam(param.key, (e.target as HTMLInputElement).value)}
           />
         {:else}
-          <input
+          <input id={`event-param-${param.key}`}
             type="number"
             class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 font-mono outline-none"
             placeholder={param.required === false ? 'optional' : ''}
@@ -297,7 +313,13 @@
           {#if param.unit}<span class="ui-meta w-6">{param.unit}</span>{/if}
         {/if}
       </div>
+    {/snippet}
+    {#each (kind.params ?? []).filter(p => !p.advanced && visibleParam(p)) as param}
+      {@render parameter(param)}
     {/each}
+    {#if kind.engine === 'trajectory-analysis' && form.params.scope !== 'window' && availableActivities.length === 0}
+      <p class="ui-helper mb-2" role="status">No explicit mission activities match. Choose another kind, vehicle or time window. Activities are not inferred from trajectory arcs.</p>
+    {/if}
 
     <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
@@ -329,6 +351,7 @@
         {#each coverage?.windows ?? [] as w, index (w.start)}
           <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
         {/each}
+        {#if sourceWindow}<option value="source">Complete trajectory coverage · {compactRange(sourceWindow.start, sourceWindow.end)}</option>{/if}
         <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
         <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
         <option value="custom">Custom…</option>
@@ -387,6 +410,13 @@
       </details>
     {/if}
 
+    {#if kind.engine === 'trajectory-analysis'}
+      <details class="mb-2 ui-helper" bind:open={advancedOpen}>
+        <summary class="cursor-pointer">Advanced search options</summary>
+        <div class="mt-2">
+          {#each (kind.params ?? []).filter(p => p.advanced && visibleParam(p)) as param}
+            {@render parameter(param)}
+          {/each}
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">Step</span>
       <select
@@ -403,6 +433,28 @@
         {/if}
       </select>
     </div>
+
+        </div>
+      </details>
+    {:else}
+    <div class="flex items-center gap-2 mb-2">
+      <span class="ui-label w-20 shrink-0">Step</span>
+      <select
+        class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        value={String(form.step)}
+        onchange={(e) => setStep(Number((e.target as HTMLSelectElement).value))}
+        title="Sampling interval. An event shorter than the step can be missed."
+      >
+        {#each STEP_PRESETS as preset}
+          <option value={String(preset.seconds)}>{preset.label}</option>
+        {/each}
+        {#if !STEP_PRESETS.some((p) => p.seconds === form.step)}
+          <option value={String(form.step)}>{formatSeconds(form.step)}</option>
+        {/if}
+      </select>
+    </div>
+
+    {/if}
 
     <!-- Run. A long search is survivable now that it runs off the main thread,
          so it is also worth being able to give up on. -->
@@ -578,7 +630,10 @@
     </div>
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
-      {#if ef.hint}<p class="ui-helper mb-2" role="status">{ef.hint}</p>{/if}
+      {#if kind.engine === 'trajectory-analysis'}
+        <p class="ui-helper mb-2" class:text-warning={incomplete} role="status">{incomplete ? 'Incomplete search — candidates only; no overall winner established.' : 'Sampled candidates — one per vehicle and matching interval; not certified global extrema.'}</p>
+        {#if ef.hint}<details class="ui-helper mb-2"><summary>Search coverage and limits</summary><p>{ef.hint}</p></details>{/if}
+      {:else if ef.hint}<p class="ui-helper mb-2" role="status">{ef.hint}</p>{/if}
       <div class="flex items-center justify-between gap-2 mb-1">
         <span class="ui-section-label">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
@@ -594,7 +649,7 @@
               class:on={ef.sort === 'metric'}
               aria-pressed={ef.sort === 'metric'}
               onclick={() => setSort('metric')}
-              title="Smallest first"
+              title={ef.events[0]?.trajectoryAnalysis?.extremum === 'maximum' ? 'Highest first' : 'Lowest first'}
             >{metricSortLabel}</button>
           </div>
         {/if}
@@ -620,6 +675,11 @@
             onblur={() => previewEvent(null)}
             title={event.label}
           >
+            {#if event.trajectoryAnalysis}
+              {@const result = event.trajectoryAnalysis}
+              <div class="event-summary"><span class="font-medium">{result.object} — {result.activityName ?? 'Time window'}</span><span class="ui-readout event-value">{headline ? formatMetric(headline) : ''}</span></div>
+              <p class="ui-helper">{headline?.label} · {result.coverage === 'partial' ? 'incomplete coverage' : 'sampled coverage'}</p>
+            {/if}
             <div class="flex justify-between gap-2 items-baseline">
               <span class="ui-readout event-time">{eventTime(event)}</span>
               <!-- A bare "2.5 d" beside a date reads as an offset from it.
@@ -637,12 +697,12 @@
                 {/if}
               </span>
             </div>
-            {#if headline}
+            {#if headline && !event.trajectoryAnalysis}
               <div class="event-summary">
                 <span>{headline.label}</span>
                 <span class="ui-readout event-value">{formatMetric(headline)}</span>
               </div>
-            {:else}
+            {:else if !event.trajectoryAnalysis}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
             {#if isSelectedEvent(event)}

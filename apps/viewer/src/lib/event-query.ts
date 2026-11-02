@@ -84,7 +84,7 @@ export function formForKind(
     params,
     startEt: window.start,
     endEt: window.end,
-    step: previous?.step ?? kind.defaultStep,
+    step: kind.engine === 'trajectory-analysis' && previous?.kind !== kind.kind ? kind.defaultStep : previous?.step ?? kind.defaultStep,
   };
 }
 
@@ -111,6 +111,7 @@ export function buildQuery(
   const params: Record<string, unknown> = {};
   for (const spec of kind.params ?? []) {
     const raw = form.params[spec.key];
+    if (spec.when && !spec.when.values.includes(form.params[spec.when.key] ?? '')) continue;
     const value = parseParam(spec, raw);
     if (value !== undefined) params[spec.key] = value;
   }
@@ -134,6 +135,8 @@ function parseParam(spec: EventParamSpec, raw: string | undefined): unknown {
     }
     case 'boolean':
       return raw === 'true';
+    case 'activities':
+      try { return JSON.parse(raw); } catch { return []; }
     case 'choice':
     case 'text':
       return raw;
@@ -354,7 +357,8 @@ export function sortEvents(
     // it sorts last rather than as if it were zero.
     if (va === undefined) return 1;
     if (vb === undefined) return -1;
-    return va - vb || compareEvents(a, b);
+    const direction = a.trajectoryAnalysis?.extremum === 'maximum' && b.trajectoryAnalysis?.extremum === 'maximum' ? -1 : 1;
+    return direction * (va - vb) || compareEvents(a, b);
   });
 }
 

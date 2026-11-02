@@ -137,15 +137,21 @@ export async function runTrajectoryEventQuery(eventQuery: import('@cosmolabe/cor
   const unavailable = (message: string): TrajectoryExtremaResponse => ({ status: 'unavailable', results: [], faults: [{ code: 'unavailable', message }] });
   if (!body || !universe)
     return unavailable('The central body is unavailable.');
-  const scope = String(p.scope ?? 'flights');
+  const scope = String(p.scope ?? 'window');
   const activities = universe.activities.list().filter(a => a.enabled !== false && a.body === bodyName && (!eventQuery.bodies.observer || a.vehicle === eventQuery.bodies.observer)
-    && (scope !== 'flights' || a.kind === 'flight' || a.kind === 'hop') && a.start <= eventQuery.window.end && a.end >= eventQuery.window.start);
+    && (!p.activityKind || p.activityKind === 'all' || a.kind === p.activityKind)
+    && (scope !== 'selected-activities' || (Array.isArray(p.activityIds) && p.activityIds.includes(a.id))) && a.start <= eventQuery.window.end && a.end >= eventQuery.window.start);
+  if (scope !== 'window' && !activities.length)
+    return unavailable('No explicit mission activities match this restriction and time window. Choose other activities or Time window.');
+  const objects = eventQuery.bodies.observer ? [eventQuery.bodies.observer] : scope !== 'window' ? [...new Set(activities.map(a => a.vehicle))] : universe.getAllBodies().filter(b => b.name !== bodyName && b.parentName === bodyName).map(b => b.name);
+  if (!objects.length)
+    return unavailable('Choose a trajectory object for this time-window search. No child objects are declared for the central body.');
   const metric = p.metric as TrajectoryExtremaQuery['metric'];
   const datum = terrain?.terrainDatum;
   let reference: TrajectoryExtremaQuery['reference'];
   if (metric === 'heightAbovePhysicalTerrain') {
     if (!datum || !terrain?.terrainSourceId || !terrain.terrainSourceRevision)
-      return unavailable('A versioned physical CPU terrain source is required for AGL.');
+      return unavailable('Physical terrain clearance is unavailable: a versioned CPU terrain source is required. Choose Radial height above reference sphere or Height above reference ellipsoid explicitly to search a reference surface.');
     reference = datum.referenceShape;
     if (p.radiusKm !== undefined && (reference.kind !== 'sphere' || p.radiusKm !== reference.radiusKm))
       return unavailable('The requested radius does not match the physical terrain datum.');
@@ -162,7 +168,7 @@ export async function runTrajectoryEventQuery(eventQuery: import('@cosmolabe/cor
     reference = { kind: 'sphere', radiusKm: radius };
   }
   const query: TrajectoryExtremaQuery = {
-    objects: eventQuery.bodies.observer ? [eventQuery.bodies.observer] : [...new Set(activities.map(a => a.vehicle))],
+    objects,
     body: bodyName, frame: typeof p.frame === 'string' ? p.frame : universe.frames.bodyFixedFrameFor(bodyName),
     metric, extremum: p.extremum as TrajectoryExtremaQuery['extremum'], reference,
     scope: scope === 'window' ? { kind: 'windows', windows: [eventQuery.window] } : { kind: 'activities', ids: activities.map(a => a.id), window: eventQuery.window },
@@ -183,4 +189,16 @@ function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtr
   if (a.kind === 'sphere')
     return b.kind === 'sphere' && a.radiusKm === b.radiusKm;
   return b.kind === 'ellipsoid' && a.radiiKm.every((radius, index) => radius === b.radiiKm[index]);
+}
+
+/** Source coverage is independent of semantic mission activities. The core
+ * still intersects every object's exact intervals and probes unknown coverage. */
+export function trajectorySourceWindow(bodyName?: string, object?: string): { start: number; end: number } | null {
+  const universe = getSceneUniverse();
+  if (!universe || !bodyName) return null;
+  const objects = object ? [object] : universe.getAllBodies().filter(b => b.name !== bodyName && b.parentName === bodyName).map(b => b.name);
+  const provider = universeTrajectoryAnalysisProvider(universe, () => universe);
+  const windows = objects.flatMap(name => provider.coverage?.(name) ?? []);
+  if (!windows.length || windows.some(w => !Number.isFinite(w.start) || !Number.isFinite(w.end))) return null;
+  return { start: Math.min(...windows.map(w => w.start)), end: Math.max(...windows.map(w => w.end)) };
 }

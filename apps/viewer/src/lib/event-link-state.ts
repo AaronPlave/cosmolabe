@@ -99,6 +99,7 @@ export function validateEventLinkState(value: unknown): EventLinkState {
       if (spec.kind === 'number') check(typeof param === 'number' && Number.isFinite(param) &&
         (spec.min === undefined || param >= spec.min) && (spec.max === undefined || param <= spec.max), `invalid ${spec.key}.`);
       else if (spec.kind === 'boolean') check(typeof param === 'boolean', `invalid ${spec.key}.`);
+      else if (spec.kind === 'activities') check(Array.isArray(param) && param.length <= 128 && param.every(text), `invalid ${spec.key}.`);
       else if (spec.kind === 'text') check(text(param), `invalid ${spec.key}.`);
       else check(spec.options.some(o => o.value === param), `invalid ${spec.key}.`);
       params[spec.key] = param;

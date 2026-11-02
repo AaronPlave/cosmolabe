@@ -983,7 +983,7 @@ function openQuery(id: string) {
   const form = formForKind(kind, window);
   form.bodies = { ...(item.query.bodies ?? {}) };
   form.params = Object.fromEntries(
-    Object.entries(item.query.params ?? {}).map(([key, value]) => [key, String(value)]),
+    Object.entries(item.query.params ?? {}).map(([key, value]) => [key, Array.isArray(value) ? JSON.stringify(value) : String(value)]),
   );
   for (const [key, value] of Object.entries(defaultParams(kind))) {
     if (form.params[key] === undefined) form.params[key] = String(value);
@@ -1153,6 +1153,7 @@ export async function runSearch() {
     if (token !== inFlight || running.cancelled) return;
 
     if (result.ok) {
+      if (numerical) ef.sort = 'metric';
       ef.events = result.events;
       setEventResults(item.id, result.events);
       ef.fault = null;

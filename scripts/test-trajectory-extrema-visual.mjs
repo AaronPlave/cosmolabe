@@ -53,19 +53,27 @@ try {
   // The registered kind uses the standard form and results controls.
   await page.getByRole('button',{name:'Events',exact:true}).click();
   await page.locator('[data-slot="select-trigger"]').filter({hasText:'Closest approach'}).click();
-  await page.getByText('Trajectory height extrema',{exact:true}).last().click();
+  await page.getByText('Altitude / terrain clearance',{exact:true}).last().click();
   assert.equal(await page.locator('details summary').filter({hasText:'Trajectory height extrema'}).count(),0);
   const bodyPickers=page.locator('select').filter({has:page.locator('option[value="Moon"]')});
   await bodyPickers.nth(0).selectOption('Moon');
+  assert.equal(await page.locator('#event-param-scope').inputValue(),'window');
+  assert.equal(await page.locator('#event-param-frame').isVisible(),false);
+  await page.locator('#event-param-scope').selectOption('activities');
+  await page.locator('#event-param-activityKind').selectOption('hop');
   await page.getByRole('button',{name:'Find events',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===12,null,{timeout:120000});
   report.native={allRows:await page.locator('button.event-result').allTextContents()};
   assert.equal(report.native.allRows.length,12);
+  assert.ok(report.native.allRows[0].includes('Polaris-D — Long traverse to Sverdrup'));
+  assert.ok(report.native.allRows[0].includes('Physical terrain clearance'));
+  assert.ok(report.native.allRows[0].includes('sampled coverage'));
   // Same form, now one vehicle. Only the normal result list is rendered.
   await bodyPickers.nth(1).selectOption('Polaris-C');
   await page.getByRole('button',{name:'Find events',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   report.native.cRows=await page.locator('button.event-result').allTextContents();
+  assert.ok(report.native.cRows[0].includes('Polaris-C — Crater inner-wall transect'));
   await page.screenshot({path:`${out}/trajectory-form.png`});
   await page.locator('button.event-result[title="Polaris-C: Crater inner-wall transect"]').click();
   report.native.selected=await page.evaluate(()=>({object:window.cosmo.getSelected(),activity:window.cosmo.getSelectedActivity()?.name,et:window.cosmo.getTime(),tracked:window.cosmo.getTracked()}));

@@ -74,7 +74,12 @@ export interface EventRoleSpec {
  *
  * The `key` is the property the kind reads out of `EventQuery.params`.
  */
-export type EventParamSpec =
+export type EventParamSpec = {
+  advanced?: boolean;
+  /** Show only for these values of another parameter. */
+  when?: { key: string; values: readonly string[] };
+} & (
+  | { kind: 'activities'; default?: never; key: string; label: string; required?: boolean; help?: string }
   | {
       kind: 'text'; key: string; label: string; default?: string;
       required?: boolean; help?: string;
@@ -110,7 +115,7 @@ export type EventParamSpec =
       label: string;
       default?: boolean;
       help?: string;
-    };
+    });
 
 /**
  * A displayable quantity attached to an event — range at closest approach,

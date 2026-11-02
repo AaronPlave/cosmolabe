@@ -92,13 +92,13 @@ describe('native trajectory Event Finder kind',()=>{
     const found=await search.run({id:'height-search',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}});
     expect(found).toMatchObject({ok:true,faults:[{code:'unavailable'}],events:[{kind:'trajectory-extremum',queryId:'height-search',primaryRole:'observer',trajectoryAnalysis:{coverage:'partial'}}]});
   });
-  it('refuses entire-window searches with no vehicle, and reports unavailable ports',async()=>{
+  it('allows activity-independent windows and reports unavailable host ports',async()=>{
     const {EventSearch}=await import('../geometry/events/search.js');
     const {builtinEventKinds}=await import('../geometry/events/kinds/index.js');
     const unavailable=()=>{throw Error('GF must not be called');};
     const search=new EventSearch({registry:builtinEventKinds(),provider:{gfdist:unavailable,gfsep:unavailable,gfposc:unavailable,gfoclt:unavailable}});
     const q={id:'height',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:10}};
-    expect(await search.run({...q,params:{scope:'window'}})).toMatchObject({ok:false,fault:{code:'missing-body',role:'observer'}});
+    expect(await search.run({...q,params:{scope:'window'}})).toMatchObject({ok:false,fault:{code:'unavailable'}});
     expect(await search.run(q)).toMatchObject({ok:false,fault:{code:'unavailable'}});
   });
 });
@@ -152,5 +152,21 @@ describe('trajectory provider boundaries',()=>{
     const found=await findTrajectoryExtrema(query({objects:['drone','missing'],scope:{kind:'activities'}}),p);
     expect(found.status).toBe('partial'); expect(found.faults[0].object).toBe('missing');
     expect(found.results[0].source.classification).toBe('source-observed');
+  });
+});
+
+
+describe('general activity-independent height scope',()=>{
+  it('searches a source with no activities and keeps empty activity restrictions explicit',async()=>{
+    const p=provider(t=>[10+t,0,0]);p.activities=[];
+    expect(await findTrajectoryExtrema(query(),p)).toMatchObject({status:'complete',results:[{et:10,activityId:null}]});
+    expect(await findTrajectoryExtrema(query({scope:{kind:'activities',activityKind:'flight'}}),p)).toMatchObject({status:'unavailable',results:[]});
+  });
+  it('filters rover drives and descent independently and clips explicit selected IDs',async()=>{
+    const provenance={source:'fixture',version:'v1',authority:'authored' as const,timing:'exact' as const,limitations:'synthetic'};
+    const p=provider(t=>[10+t,0,0]);
+    p.activities=[{version:1,id:'drive',name:'Traverse',kind:'drive',vehicle:'drone',body:'Moon',temporality:'interval',start:2,end:4,provenance},{version:1,id:'descent',name:'Descent',kind:'descent',vehicle:'drone',body:'Moon',temporality:'interval',start:6,end:8,provenance}];
+    expect(await findTrajectoryExtrema(query({scope:{kind:'activities',activityKind:'drive'}}),p)).toMatchObject({status:'complete',results:[{et:4,activityId:'drive'}]});
+    expect(await findTrajectoryExtrema(query({scope:{kind:'activities',ids:['descent'],window:{start:0,end:7}}}),p)).toMatchObject({status:'complete',results:[{et:7,activityId:'descent'}]});
   });
 });

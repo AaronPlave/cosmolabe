@@ -404,9 +404,29 @@ describe('native height event form',()=>{
     expect(before.params.scope).toBe('local');
     const height=builtinEventKinds().get('trajectory-extremum')!;
     const after=formForKind(height,WINDOW,before);
-    expect(after.params.scope).toBe('flights');
-    expect(buildQuery(height,after,'height').params).toMatchObject({scope:'flights',metric:'heightAbovePhysicalTerrain'});
+    expect(after.params.scope).toBe('window');
+    expect(buildQuery(height,after,'height').params).toMatchObject({scope:'window',metric:'heightAbovePhysicalTerrain'});
     after.params.scope='window';
     expect(formForKind(height,WINDOW,after).params.scope).toBe('window');
+  });
+});
+
+
+describe('height candidate ranking and activity form',()=>{
+  const height=builtinEventKinds().get('trajectory-extremum')!;
+  const candidate=(object:string,value:number,extremum:'maximum'|'minimum',et:number)=>({id:object,queryId:'h',kind:'trajectory-extremum',temporality:'instant',et,bodies:{observer:object,center:'Moon'},label:object,metrics:[{key:'height',label:'Physical terrain clearance',value,unit:'km'}],trajectoryAnalysis:{object,extremum}} as GeometryEvent);
+  it('ranks highest maxima first for multiple and single vehicles, and lowest minima first',()=>{
+    const all=[candidate('C',.184,'maximum',1),candidate('D',.311,'maximum',2)];
+    expect(sortEvents(all,'metric').map(e=>e.bodies.observer)).toEqual(['D','C']);
+    expect(sortEvents([candidate('C',.1,'maximum',1),candidate('C',.184,'maximum',2)],'metric').map(e=>e.temporality === 'instant' ? e.et : e.start)).toEqual([2,1]);
+    expect(sortEvents(all.map(e=>({...e,trajectoryAnalysis:{...e.trajectoryAnalysis!,extremum:'minimum' as const}})),'metric').map(e=>e.bodies.observer)).toEqual(['C','D']);
+    expect(sortEvents(all,'time').map(e=>e.temporality === 'instant' ? e.et : e.start)).toEqual([1,2]);
+  });
+  it('keeps activity IDs as an explicit list and ignores hidden restrictions in Time window',()=>{
+    const form=formForKind(height,WINDOW);form.params.scope='selected-activities';form.params.activityKind='drive';form.params.activityIds=JSON.stringify(['drive-1','drive-2']);
+    expect(buildQuery(height,form,'h').params).toMatchObject({activityKind:'drive',activityIds:['drive-1','drive-2']});
+    form.params.scope='window';
+    expect(buildQuery(height,form,'h').params).not.toHaveProperty('activityIds');
+    expect(buildQuery(height,form,'h').params).not.toHaveProperty('activityKind');
   });
 });

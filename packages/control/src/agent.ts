@@ -485,7 +485,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   });
 
   const offInput = host.on('cameraInput', () => { if (current) current.cameraTaken = true; });
-  const offLoad = host.on('load', () => current?.end('stale'));
+  const offLoad = host.on('load', () => { measuredResults.clear(); current?.end('stale'); });
 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
@@ -802,6 +802,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const args = (input ?? {}) as Input;
 
       if (name === 'findTrajectoryExtrema') {
+        measuredResults.clear();
         try {
           const response = await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
           const late = this.gate(def);
@@ -814,15 +815,16 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         } catch { return { ok: false, code: 'failed', error: 'Height analysis failed; inspect the local source and coverage.' }; }
       }
       if (name === 'navigateToAnalysisResult') {
+        const expected = measuredResults.get(args.resultId as string);
+        if (!expected) return { ok:false,code:'refused',error:'Unknown or superseded analysis result. Run the analysis in this session before navigating.' };
         const done = host.navigateToAnalysisResult!(args.resultId as string);
         if (!done) return { ok:false,code:'refused',error:'The result is unavailable or stale.' };
         const late = this.gate(def);
         if (late) return late;
-        const expected = measuredResults.get(args.resultId as string);
         const observed = {et:host.getTime(),object:host.getSelected(),tracked:host.getTracked(),playing:host.isPlaying(),activityId:host.getSelectedActivity?.()?.id ?? null};
         const verified = !!expected && Math.abs(observed.et-expected.et)<1e-5 && observed.object===expected.object && observed.tracked===expected.object && !observed.playing && (!expected.activityId || observed.activityId===expected.activityId);
-        if (expected && !verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
-        return { ok:true,summary:verified ? 'Selected and framed the measured vehicle at the observed result epoch.' : `Result navigation accepted; the viewer reports ${observed.object ?? 'no object'} at ET ${observed.et}.`,data:{verified,observed} };
+        if (!verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
+        return { ok:true,summary:'Selected and framed the measured vehicle at the observed result epoch.',data:{verified,observed} };
       }
 
       const read = reads[name];

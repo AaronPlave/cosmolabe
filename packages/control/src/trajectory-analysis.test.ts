@@ -66,3 +66,17 @@ describe('shared height analysis agent boundary',()=>{
     tools.dispose();
   });
 });
+
+
+it('refuses unknown, superseded and scene-stale analysis IDs before host navigation',async()=>{
+  const h=host(),tools=createAgentTools(h);
+  expect(await tools.call('navigateToAnalysisResult',{resultId:'foreign'})).toMatchObject({ok:false,code:'refused'});
+  expect(h.navigateToAnalysisResult).not.toHaveBeenCalled();
+  await tools.call('findTrajectoryExtrema',query);
+  const next=response();next.results[0].id='next';h.findTrajectoryExtrema.mockResolvedValue(next);
+  await tools.call('findTrajectoryExtrema',query);
+  expect(await tools.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:false,code:'refused'});
+  h.emit('load',{objects:[]});
+  expect(await tools.call('navigateToAnalysisResult',{resultId:'next'})).toMatchObject({ok:false});
+  expect(h.navigateToAnalysisResult).not.toHaveBeenCalled();tools.dispose();
+});
