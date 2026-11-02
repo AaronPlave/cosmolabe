@@ -1,3 +1,4 @@
+import { spatialControl } from './spatial-control';
 import { validateViewState } from '@cosmolabe/control';
 import { presentationControl } from './presentation-control';
 import { eventControl, snapshotEventQueries } from './event-control';
@@ -285,7 +286,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       if (typeof visible !== 'boolean' || !getRenderer() || !vs.places?.places.some(p => p.layer.id === id)) return false;
       showPlaceDataset(id, visible); return true;
     },
-    ...analysisControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
+    ...analysisControl, ...spatialControl, ...eventControl, ...presentationControl, getReadiness, waitUntilReady, getSurfaceAppearance, setSurfaceAppearance,
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
@@ -585,6 +586,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
 
     on: <K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void) => {
       switch (event) {
+        case 'probe':
+          return onViewerEvent('probe', () => (cb as (d: ScriptEventMap['probe']) => void)({ scene: sceneId() }));
         case 'bookmarks':
           return onViewerEvent('bookmarks', () => (cb as (d: ScriptEventMap['bookmarks']) => void)({ scene: sceneId() }));
         case 'instruments':

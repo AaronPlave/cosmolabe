@@ -5,6 +5,7 @@ import { VERBS } from './verbs.js';
 
 const UI: Readonly<Record<string, string>> = {
   analysis: 'EventFinder / EventDetails / TimelineDock',
+  spatial: 'Point Probe / DrawToolbar',
   scene: 'BodyDrawer / NavigationView / ScriptConsole', camera: 'NavigationActions / NavigationView / ScriptConsole',
   time: 'TimeScrubber / TimelineDock / ScriptConsole', activities: 'MissionActivityTimeline / SelectedEventInspector',
   places: 'NavigatePanel', surface: 'SurfaceLayersPanel / ImageryLayersSection', grids: 'SurfaceLayersPanel / ScriptConsole',
@@ -19,7 +20,6 @@ export const CONTROL_CONTRACT_GAPS = {
   getSelectedMeasurement: 'Observed by listMeasurements; trusted hosts receive full definitions.',
   getSelectedGeographicFeature: 'Scene-scoped geographic selection read; included in notifications.',
   getActivity: 'Activity detail is currently derived from listActivities; direct lookup is not a separate tool.',
-  getObjectState: '#297: scientific state query schema and availability/provenance projection missing.',
   getTimelineWindow: '#297: timeline window read/write schemas missing.',
   setTimelineWindow: '#297: timeline window read/write schemas missing.',
   getCamera: 'Used by UI and snapshot; explicit pose read schema missing (#297).',

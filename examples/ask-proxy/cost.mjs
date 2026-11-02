@@ -8,7 +8,6 @@ const PRICES = {
   anthropic: {
     'claude-sonnet-5-5': [2, 0.1, 2.5, 10],
     'claude-opus-5-5': [4, 0.2, 5, 20],
-    'claude-haiku-5-5': [0.1, 0.01, 0.125, 0.5],
   },
   openai: { 'gpt-5.1': [1.25, 0.125, 0, 10] },
 };

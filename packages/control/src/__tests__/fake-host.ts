@@ -39,6 +39,8 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
+  pinGroundPoint(_object: string, policy: import('../contracts.js').ScriptSurfacePolicy = 'rendered'): import('../contracts.js').ScriptGroundProjection { return { scene: 1, et: 0, object: _object, body: null, frame: null, policy, status: 'unavailable', reason: 'missing-parent', point: null, annotation: null, referenceOnly: false, limitations: [] }; }
+  clearProbePoint() { this.log('clearProbePoint'); }
   restoreViewState(_input: unknown) { return Promise.resolve(true); }
   selectInstrument(name: string | null) { this.log('selectInstrument', name); return true; }
   saveBookmark(name: string) { this.log('saveBookmark', name); return true; }

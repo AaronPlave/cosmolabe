@@ -152,7 +152,7 @@ that assertion passed in the final run. These checks are not weakened.
 
 ## Review follow-up and #297 integration
 
-Integrated PR #334 at `c382553d533e4823cacf3dc4fc136b6bb04c4bc6`, preserving
+Integrated PR #334 at `3f6ed32c1f8ebb6d4beafc3b6479408ea16f710d`, preserving
 its modern script/control/capability-discovery and event-to-visualization path.
 The numerical operation remains the same shared service. The modern event
 transport now includes height metrics and the same allowlisted scientific
@@ -199,3 +199,5 @@ The same-count kernel replacement regression uses the bound viewer state module 
 Modern `focusEventResult` and `selectEventResult` preserve their seek/inspect-only camera contract for numerical events. The loaded discovery workflow verifies tracking is unchanged by focus, then explicitly invokes `camera.frameObject` before visualization readiness. Native result clicks and `navigateToAnalysisResult` retain measured-vehicle framing. The final control integration run passed 104 tests.
 
 The current #334 default Ask / exact-call approval integration at `c382553d` is included. The loaded modern workflow uses its fixed Ask surface, while numerical operations remain discoverable from the same catalog. Legacy direct result navigation remains available, and the committed Ask routing matrix is regenerated to include both height operations. The latest Ask/control regression set passes after matrix regeneration; build, lint and typechecks also pass. No external model calls or model-authored approval actions are made by the height acceptance harness.
+
+The final integrated #334 snapshot is `3f6ed32c`, including semantic ground-point controls and its merge of main. The height/spatial metadata projections and capability domains are retained together; the shared routing matrix is regenerated. The latest loaded Chrome/Metal replay passes with no page errors, and 183 focused Ask/control/spatial tests pass, along with build, lint and typechecks. The preceding integration head `2b9bcac8` passed all seven CI jobs in [run 41493763582](https://github.com/AaronPlave/cosmolabe/actions/runs/41493763582); the final integrated head has its own PR CI run.

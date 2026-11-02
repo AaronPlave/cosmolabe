@@ -1,3 +1,4 @@
+import { probePoint } from './surface-point-fixture';
 /**
  * The adapter, driven against a fake renderer.
  *
@@ -337,6 +338,19 @@ afterEach(() => {
 // `@cosmolabe/control` restates these two lists rather than importing them,
 // because it takes no dependency on a renderer or on the app. This is the one
 // workspace that can see both sides, so it is where the duplication is checked.
+
+describe('native Point Probe UI readback', () => {
+  it('notifies shared hosts and reads a UI-originated pin without creating an annotation', () => {
+    bind(); const r = renderer;
+    const host = createViewerControl(), changed = vi.fn(); host.on('probe', changed);
+    const listener = r.events.on.mock.calls.find(([name]) => name === 'probe:pin')?.[1];
+    expect(listener).toBeDefined();
+    const point = probePoint('Titan'); listener!(point);
+    expect(host.getProbePoint!()).toMatchObject({ point, drawn: false, observedEt: null });
+    expect(changed).toHaveBeenCalledWith({ scene: expect.any(Number) });
+    listener!(null); expect(host.getProbePoint!()).toBeNull();
+  });
+});
 
 describe('the shared vocabulary', () => {
   it('lists exactly the camera modes the renderer has', () => {
