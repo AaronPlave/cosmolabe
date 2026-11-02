@@ -8,6 +8,8 @@ vi.mock('../viewer-state.svelte', () => ({
     return () => set.delete(handler);
   },
 }));
+vi.mock('../event-control', () => ({ validEventReference: () => true, getEventReadiness: vi.fn() }));
+import { getEventReadiness } from '../event-control';
 import { getReadiness, waitUntilReady } from '../readiness-control';
 const body = () => ({ visible: true, surfaceTransitionState: 'streamed',
   terrainViewCoverage: { physical: true, frameAvailable: true, observed: true, coverageTiles: 1, drawn: 1, missing: 0, failed: 0, pending: 0, targetLod: true },
@@ -100,6 +102,36 @@ describe('explicit readiness predicates', () => {
     expect((await reloaded).status).toBe('stale'); expect(listeners()).toBe(0);
     const disposed = waitUntilReady({ kind: 'assets' }); state.renderer = null; emit('unload');
     expect((await disposed).status).toBe('stale'); expect(listeners()).toBe(0); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('waits on shared event observations and cleans up on stale, timeout, abort and scene replacement', async () => {
+    const request = { kind: 'event' as const, reference: { scene: 1, query: 'q', id: 'e', revision: 2 }, et: 42, policy: 'native-draw' as const };
+    const read = vi.mocked(getEventReadiness);
+    const partial = { scene: 1, request, status: 'partial' as const, missing: ['No native observation'], limitations: [] };
+    read.mockReturnValue(partial);
+    const observed = waitUntilReady(request);
+    // The caller cannot silently retarget an outstanding wait to a newer run.
+    request.reference.revision = 3;
+    read.mockReturnValue({ ...partial, status: 'ready' });
+    await vi.advanceTimersByTimeAsync(50);
+    expect((await observed).status).toBe('ready');
+    expect(read.mock.lastCall?.[0].reference.revision).toBe(2);
+    request.reference.revision = 2;
+    read.mockReturnValue(partial);
+    const stale = waitUntilReady(request);
+    read.mockReturnValue({ ...partial, status: 'stale' });
+    await vi.advanceTimersByTimeAsync(50);
+    expect((await stale).status).toBe('stale');
+    read.mockReturnValue(partial);
+    const timeout = waitUntilReady(request, { timeoutMs: 10 });
+    await vi.advanceTimersByTimeAsync(10);
+    expect((await timeout).status).toBe('timed-out');
+    const controller = new AbortController();
+    const cancelled = waitUntilReady(request, { signal: controller.signal });
+    controller.abort(); expect((await cancelled).status).toBe('cancelled');
+    const reloaded = waitUntilReady(request); state.scene++; emit('load');
+    expect((await reloaded).status).toBe('stale');
+    expect(listeners()).toBe(0); expect(vi.getTimerCount()).toBe(0);
+    expect(() => getReadiness({ ...request, policy: 'anything' as never })).toThrow('capture policy');
   });
   it('validates bounds and malformed requests, and returns unavailable without a renderer', async () => {
     expect(() => waitUntilReady({ kind: 'assets' }, { timeoutMs: Infinity })).toThrow('timeout');

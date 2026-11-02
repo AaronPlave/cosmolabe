@@ -797,6 +797,7 @@ describe('events on the future lead (#105)', () => {
       trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
       eventMarkerGroups: new Map(), trajectoryPlotFrames: new WeakMap(), bodyMeshes: new Map(), _eventPreview: null,
       timeController: { et: day / 2 }, _eventObservedEt: day / 2,
+      camera: new THREE.PerspectiveCamera(), renderer: { domElement: { clientWidth: 800, clientHeight: 600 } },
     });
     const event: GeometryEvent = {
       id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',
@@ -804,6 +805,16 @@ describe('events on the future lead (#105)', () => {
     };
     renderer.setEventResults([event], event);
     expect(renderer.getEventVisualization()).toMatchObject({ observedEt: null, selected: { query: 'q', id: 'future' }, visibleGlyphs: 0 });
+    const observation = renderer as unknown as { _eventObservedEt: number; _eventObservedView: string; eventViewSignature(): string };
+    observation._eventObservedEt = day / 2;
+    observation._eventObservedView = observation.eventViewSignature();
+    expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
+    renderer.camera.position.x++;
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
+    observation._eventObservedView = observation.eventViewSignature();
+    renderer.camera.fov++;
+    renderer.camera.updateProjectionMatrix();
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
     for (const line of lines) line.update(day / 2, 1);
     expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 1800, kind: 'continuous' }]);
     expect(lines[1].leadWindows()).toEqual([]);

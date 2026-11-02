@@ -350,6 +350,7 @@ export class UniverseRenderer {
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
   private _eventObservedEt: number | null = null;
+  private _eventObservedView: string | null = null;
   private _hoveredSceneEvent: string | null = null;
   /** Epoch under the pointer when the scene hover is on an interval span. */
   private _sceneEventHit: { id: string; queryId: string; et: number } | null = null;
@@ -1520,6 +1521,7 @@ export class UniverseRenderer {
       this.renderer.render(this._markerScene, this.camera);
     }
     this._eventObservedEt = et;
+    this._eventObservedView = this.eventViewSignature();
 
     // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
     // Skip when an instrument PiP fully covers the canvas.
@@ -2006,7 +2008,12 @@ export class UniverseRenderer {
     this.refreshEventLineColors();
   }
 
-  /** Native event draw state, observed only after a render pass at this epoch. */
+  private eventViewSignature(): string {
+    return [...this.camera.position.toArray(), ...this.camera.quaternion.toArray(), ...this.camera.projectionMatrix.elements,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight, !!this.instrumentView?.fullScreen].join(',');
+  }
+
+  /** Native event draw state, observed only after a render pass at this epoch and camera/viewport. */
   getEventVisualization() {
     const selected = this._selectedEvent;
     let markerGroups = 0, visibleGlyphs = 0, visibleSpans = 0;
@@ -2016,7 +2023,7 @@ export class UniverseRenderer {
       const visible = group.markers.visibilityFor(selected.id, selected.queryId);
       visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
     }
-    const observedEt = this._eventObservedEt === this.timeController.et ? this._eventObservedEt : null;
+    const observedEt = this._eventObservedEt === this.timeController.et && this._eventObservedView === this.eventViewSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
     return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
       markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
       occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };

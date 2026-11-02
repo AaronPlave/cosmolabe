@@ -54,3 +54,15 @@ metadata regressions verify private geographic names, properties, provenance,
 diagnostics and thrown local error details are withheld from model transport,
 while trusted geographic reads retain their complete records. Exact
 host-approved text fields are projected; pages and diagnostics remain bounded.
+
+
+Combined review closeout: PR #334 also includes the full P2 Event Finder
+analysis-to-visualization acceptance previously reviewed in #335. See
+[the P2 matrix](../297-event-visualization/README.md), including the bounded
+script/host event observation predicate and an actual script-produced screenshot.
+Both ordinary/harness Ingenuity and Cassini fixtures passed against the combined
+implementation on the owned port 5697, including the loaded Script panel Run
+control and the original measurement editor open/clear regression. Viewer:
+54 files / 732 tests; focused control/native: 8 files / 146 tests; configured type
+checks, production/embed builds, changed-file lint and purity checks passed.
+Current-head remote CI is required before merge; no merge/deploy is part of this closeout.

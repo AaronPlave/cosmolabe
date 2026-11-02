@@ -37,9 +37,24 @@ try {
       c.setLayer('trajectories', true); c.showTrajectory('Cassini', true);
       c.upsertMeasurement({ id: 'p2:range', kind: 'distance', source: { kind: 'entity', bodyName: 'Cassini' }, target: { kind: 'entity', bodyName: 'Saturn' }, vertex: null, color: '#e69f00', visible: true });
       c.displayNote('Cassini closest approach · SPICE GF. Range is centre to centre; rendered event marker is explanatory.');
+      const captureRequest = { kind: 'event', reference, et: event.et, policy: 'native-draw' };
+      const captureSource = `waitUntilReady ${quote(JSON.stringify(captureRequest))} 60\nscreenshot p2-event-observed`;
+      // The Script runner itself waits and captures, using the same public port as the Script panel.
+      const capture = await execute(parse(captureSource), c);
+      if (capture.images.length !== 1) throw new Error('Script did not produce its capture');
+      const scriptedObservation = c.getEventVisualization();
       const snapshot = c.snapshot(), view = await c.getViewState();
-      return { scene, id, definition, source, info, results, reference, event, before, afterInspection, inspection, snapshot, view };
+      return { scene, id, definition, source, info, results, reference, event, before, afterInspection, inspection, snapshot, view, captureSource, capture: { ran: capture.ran, image: capture.images[0] }, scriptedObservation };
     }, { controlModule });
+    // Exercise the real Script panel/editor/Run control, including its own cancellation/error propagation.
+    await page.keyboard.press('`');
+    await page.locator('.cm-content').fill(workflow.captureSource);
+    const uiDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await (await uiDownload).saveAs(`${out}/${harness ? 'harness' : 'ordinary'}-panel-script.png`);
+    await page.waitForFunction(() => /Completed/.test(document.querySelector('[aria-label="Script status"]')?.textContent ?? ''));
+    workflow.panelStatus = await page.getByRole('status', { name: 'Script status' }).innerText();
+    await page.keyboard.press('Escape');
     assert.deepEqual(workflow.before, workflow.afterInspection, 'inspection must preserve epoch and camera');
     assert.equal(workflow.info.status, 'available');
     assert.equal(workflow.info.provenance.source, 'loaded-spice-kernels');
@@ -47,9 +62,11 @@ try {
     assert.equal(workflow.info.provenance.abcorr, 'LT+S');
     assert.ok(workflow.event.metrics.some(m => m.key === 'range' && m.unit === 'km'));
     assert.match(workflow.snapshot, /Computed event selection is not replayed/);
-    try { await page.waitForFunction(() => window.cosmo.getEventVisualization().status === 'observed', null, { timeout: 60000 }); }
-    catch (error) { report.readback = await page.evaluate(() => window.cosmo.getEventVisualization()); throw error; }
-    const observed = await page.evaluate(() => window.cosmo.getEventVisualization());
+    const observed = workflow.scriptedObservation;
+    assert.equal(observed.status, 'observed');
+    assert.equal(workflow.capture.ran, 2);
+    await writeFile(`${out}/${harness ? 'harness' : 'ordinary'}-script.png`, Buffer.from(workflow.capture.image.dataUrl.split(',')[1], 'base64'));
+    delete workflow.capture.image.dataUrl;
     assert.equal(observed.et, workflow.event.et);
     assert.equal(observed.selected.query, workflow.id);
     assert.equal(observed.timeline.selectedInVisibleLane, true);

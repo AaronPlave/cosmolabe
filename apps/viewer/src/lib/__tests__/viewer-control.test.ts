@@ -1564,6 +1564,53 @@ describe('reviewed modern feature adapters', () => {
     expect(host.getTime()).toBe(180);
   });
 
+  it('gates script capture on an exact current run/epoch and the chosen native observation policy', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    const event = { id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 150, label: '', bodies: { observer: 'Cassini', target: 'Titan' } };
+    model.setEventResults(item.id, [event]);
+    const ref = host.getEventResultPage!(item.id).items[0].reference;
+    host.setPlaying(false); host.focusEventResult!(ref, 'start');
+    const request = { kind: 'event' as const, reference: ref, et: 150, policy: 'native-draw' as const };
+    expect(host.getReadiness!(request).status).toBe('unavailable'); // Fake renderer has no native observation API.
+    const native = { observedEt: null as number | null, selected: { query: ref.query, id: ref.id }, markerGroups: 1, visibleGlyphs: 0, visibleSpans: 0, occultationVisible: false };
+    Object.assign(renderer, { getEventVisualization: () => ({ ...native }) });
+    const capture = vi.fn(() => ({ dataUrl: 'data:image/png;base64,dGVzdA==' }));
+    host.screenshot = capture;
+    const source = `waitUntilReady ${JSON.stringify(JSON.stringify(request))} 0.1\nscreenshot`;
+    vi.useFakeTimers();
+    try {
+      // Actual Script runner + shared adapter wait. No capture until native readback becomes current.
+      const pending = execute(parse(source), host);
+      await vi.advanceTimersByTimeAsync(50); expect(capture).not.toHaveBeenCalled();
+      native.observedEt = 150; native.visibleGlyphs = 1;
+      await vi.advanceTimersByTimeAsync(50); await pending;
+      expect(capture).toHaveBeenCalledOnce(); capture.mockClear();
+      native.visibleGlyphs = 0;
+      expect(host.getReadiness!({ ...request, policy: 'timeline' }).status).toBe('ready');
+      expect(host.getReadiness!(request).status).toBe('partial');
+      const timeout = expect(execute(parse(source), host)).rejects.toThrow('timed-out');
+      await vi.advanceTimersByTimeAsync(100); await timeout;
+      expect(capture).not.toHaveBeenCalled();
+      const controller = new AbortController();
+      const cancelled = expect(execute(parse(source), host, { signal: controller.signal })).rejects.toThrow(/cancelled|stopped/);
+      controller.abort(); await cancelled; expect(capture).not.toHaveBeenCalled();
+      const superseded = host.waitUntilReady!(request);
+      model.setEventResults(item.id, [event]);
+      await vi.advanceTimersByTimeAsync(50); expect((await superseded).status).toBe('stale');
+      await expect(execute(parse(source), host)).rejects.toThrow('stale'); expect(capture).not.toHaveBeenCalled();
+      const fresh = host.getEventResultPage!(item.id).items[0].reference;
+      host.focusEventResult!(fresh, 'start');
+      host.setTime({ kind: 'et', et: 151 });
+      expect(host.getReadiness!({ ...request, reference: fresh }).status).toBe('stale');
+      host.setTime({ kind: 'et', et: 150 });
+      model.setConfiguredItemVisible(item.id, false);
+      expect(host.getReadiness!({ ...request, reference: fresh, policy: 'timeline' }).status).toBe('partial');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('reports empty, unavailable, missing, hidden and unobserved states without manufacturing geometry or portable result identity', async () => {
     const model = await import('../analysis.svelte');
     const host = createViewerControl();

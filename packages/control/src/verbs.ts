@@ -199,7 +199,7 @@ const modernVerbs: readonly VerbSpec[] = [
   { name: 'createAnnotationLayer', category: 'Authoring', method: 'createAnnotationLayer', params: [{ name: 'body', type: 'object' }, { name: 'name', type: 'text' }, json], help: 'Create a user annotation layer with explicit body/frame/coordinate conventions.', invoke: (h,a) => h.createAnnotationLayer!(str(a[0]), str(a[1]), data<GeographicCoordinates>(a[2])) },
   { name: 'editAnnotation', category: 'Authoring', method: 'editAnnotation', params: [geoLayer, json], help: 'Apply one bounded core annotation edit, with normal validation and undo. Catalog layers remain read-only.', invoke: (h,a) => h.editAnnotation!(str(a[0]), data<GeographicEditOperation>(a[1])) },
   { name: 'setSurfaceAppearance', category: 'Display', method: 'setSurfaceAppearance', params: [{ name: 'body', type: 'object' }, json], help: 'Patch supported physical terrain appearance. Changes no terrain geometry or scientific data.', invoke: (h,a) => h.setSurfaceAppearance!(str(a[0]), data(a[1])) },
-  { name: 'waitUntilReady', category: 'Sequencing', method: 'waitUntilReady', params: [json, { name: 'timeoutSeconds', type: 'number', optional: true }], help: 'Wait for an explicit observed readiness predicate, failing transparently unless ready; no wall-clock fallback.', invoke: async (h,a,signal) => {
+  { name: 'waitUntilReady', category: 'Sequencing', method: 'waitUntilReady', params: [json, { name: 'timeoutSeconds', type: 'number', optional: true }], help: 'Wait for an explicit observed readiness predicate, failing transparently unless ready; no wall-clock fallback. Event predicates bind a result/run, epoch and explicit timeline/native-draw policy.', invoke: async (h,a,signal) => {
     const result = await h.waitUntilReady!(data<ScriptReadinessRequest>(a[0]), { timeoutMs: a[1] === undefined ? undefined : num(a[1]) * 1000, signal });
     if (result.status !== 'ready') throw new Error(`${result.status}: ${result.missing.join('; ')}`);
     return result;
@@ -539,7 +539,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'focusEventResult', params: [{ name: 'reference', type: 'text' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'focusEventResult',
-    help: 'Inspect or seek a scene/query/result/run reference from getEventResultPage. Refuse stale references; camera framing stays separate. Read getEventVisualization for observed/partial draw state.',
+    help: 'Inspect or seek a scene/query/result/run reference from getEventResultPage. Refuse stale references; camera framing stays separate. Use waitUntilReady with an event predicate before deterministic capture.',
     invoke: (host, a, signal) => { const result = host.focusEventResult!(data(a[0]), optStr(a[1]) as 'inspect' | 'start' | 'middle' | 'end' | undefined, { signal }); if (!['observed', 'partial'].includes(result.status)) throw new Error(`Event focus ${result.status}`); },
   },
   {

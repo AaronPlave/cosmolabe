@@ -108,7 +108,15 @@
       },
       "cancelled": "cancelled",
       "manualEpochPreserved": true,
-      "errors": []
+      "errors": [],
+      "scriptCapture": {
+        "source": "waitUntilReady \"{\\\"kind\\\":\\\"event\\\",\\\"reference\\\":{\\\"scene\\\":1,\\\"query\\\":\\\"p2:closest-approach\\\",\\\"id\\\":\\\"p2:closest-approach:0\\\",\\\"revision\\\":2},\\\"et\\\":141921566.6511854,\\\"policy\\\":\\\"native-draw\\\"}\" 60\nscreenshot p2-event-observed",
+        "statementsRan": 2,
+        "imageLabel": "p2-event-observed",
+        "panelStatus": "Completed\n\u00b7 2 steps \u00b7 0.0s\n\u00b7 1 capture",
+        "scriptRunnerImage": "ordinary-script.png",
+        "panelDownloadVerified": true
+      }
     },
     {
       "mode": "harness",
@@ -217,7 +225,25 @@
       },
       "cancelled": "cancelled",
       "manualEpochPreserved": true,
-      "errors": []
+      "errors": [],
+      "scriptCapture": {
+        "source": "waitUntilReady \"{\\\"kind\\\":\\\"event\\\",\\\"reference\\\":{\\\"scene\\\":1,\\\"query\\\":\\\"p2:closest-approach\\\",\\\"id\\\":\\\"p2:closest-approach:0\\\",\\\"revision\\\":2},\\\"et\\\":141921566.6511854,\\\"policy\\\":\\\"native-draw\\\"}\" 60\nscreenshot p2-event-observed",
+        "statementsRan": 2,
+        "imageLabel": "p2-event-observed",
+        "panelStatus": "Completed\n\u00b7 2 steps \u00b7 0.0s\n\u00b7 1 capture",
+        "scriptRunnerImage": "harness-script.png",
+        "panelDownloadVerified": true
+      }
     }
+  ],
+  "combinedPr": 334,
+  "scriptWaitRegression": [
+    "exact scene/query/result/run and epoch",
+    "timeline versus native-draw policy",
+    "stale rerun, selection, kernel and epoch",
+    "unsupported native observer",
+    "timeout/abort stop script before capture",
+    "wait timers/listeners removed",
+    "camera/viewport invalidation"
   ]
 }

@@ -1,8 +1,13 @@
 import type { ScriptReadiness, ScriptReadinessRequest, ScriptSceneOptions, ScriptCancelSignal } from '@cosmolabe/control';
+import { getEventReadiness, validEventReference } from './event-control';
 import { getRenderer, sceneId, vs, onViewerEvent } from './viewer-state.svelte';
 
 function validateRequest(request: ScriptReadinessRequest): void {
-  if (!request || !['assets', 'imagery', 'cube-base', 'terrain'].includes(request.kind)) throw new Error('Unknown readiness predicate');
+  if (!request || !['assets', 'imagery', 'cube-base', 'terrain', 'event'].includes(request.kind)) throw new Error('Unknown readiness predicate');
+  if (request.kind === 'event') {
+    if (!validEventReference(request.reference) || !Number.isFinite(request.et) || !['timeline', 'native-draw'].includes(request.policy)) throw new Error('Event readiness needs an exact reference, finite epoch and explicit capture policy');
+    return;
+  }
   if (request.kind !== 'assets' && (typeof request.body !== 'string' || !request.body)) throw new Error('Readiness needs an exact body name');
   if (request.kind === 'imagery' && (typeof request.layer !== 'string' || !request.layer)) throw new Error('Imagery readiness needs an exact layer ID');
 }
@@ -16,6 +21,7 @@ export function getReadiness(request: ScriptReadinessRequest, opts?: ScriptScene
   const limitations = ['Observation of the current view only; no regional or planetary coverage or source-accuracy guarantee.'];
   if (opts?.scene !== undefined && opts.scene !== scene) return result('stale', ['The requested scene is no longer bound.'], limitations);
   if (!renderer) return result('unavailable', ['No renderer is bound.'], limitations);
+  if (request.kind === 'event') return getEventReadiness(request);
   if (request.kind === 'assets') {
     const summary = vs.assetSummary;
     const notes = ['Initial models, textures and trajectories only; streamed terrain/imagery is excluded.'];
@@ -75,7 +81,8 @@ export function waitUntilReady(request: ScriptReadinessRequest, opts: ScriptScen
   validateRequest(request);
   const timeoutMs = opts.timeoutMs ?? 15000;
   if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 120000) throw new Error('Readiness timeout must be 0–120000 ms');
-  const predicate = { ...request };
+  // Freeze caller-owned reference fields for the entire wait.
+  const predicate = request.kind === 'event' ? { ...request, reference: { ...request.reference } } : { ...request };
   const renderer = getRenderer();
   if (!renderer) return Promise.resolve(getReadiness(predicate, opts));
   const expected = opts.scene ?? sceneId();

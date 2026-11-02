@@ -412,7 +412,9 @@ export type ScriptReadinessRequest =
   | { kind: 'assets' }
   | { kind: 'imagery'; body: string; layer: string }
   | { kind: 'cube-base'; body: string }
-  | { kind: 'terrain'; body: string };
+  | { kind: 'terrain'; body: string }
+  /** Exact transient result and epoch; timeline permits absent glyphs, native-draw requires explanatory draw state. */
+  | { kind: 'event'; reference: ScriptEventReference; et: number; policy: 'timeline' | 'native-draw' };
 export interface ScriptReadiness {
   readonly scene: number | null;
   readonly status: 'ready' | 'partial' | 'unavailable' | 'failed' | 'timed-out' | 'cancelled' | 'stale';

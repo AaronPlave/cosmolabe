@@ -777,6 +777,8 @@ observes those inputs. They do not start a second streaming manager, prefetch or
 | `{kind:'assets'}` | Initial models, textures and trajectories settled without reported failures or asset timeout | Streamed surfaces; source scientific adequacy |
 | `{kind:'imagery',body,layer}` | A successful streaming update observed an actually drawn streamed surface; enabled, nontransparent layer intersects the view at minimum zoom with no observed missing/degraded tiles or full cache | Other sources, other views, planetary coverage, source accuracy |
 | `{kind:'cube-base',body}` | Mandatory base imagery covers every currently drawn terrain block | Missing geometry, completeness of target LOD, regions outside the view, optional overlays |
+| `{kind:'event',reference,et,policy:'timeline'}` | Exact selected scene/query/result/run reference at the requested frozen epoch, in a visible timeline lane, matching a native render pass at the current camera/viewport | No explanatory geometry requirement; no timeline pixels or unoccluded-pixels promise |
+| `{kind:'event',reference,et,policy:'native-draw'}` | The timeline predicate plus at least one selected draw-enabled native glyph/span/active explanatory geometry | Hidden/occluded/missing geometry may stay partial; no calibrated geometry or unoccluded-pixels promise |
 | `{kind:'terrain',body}` | Successful fresh physical-terrain update; required coverage tiles in the product replacement hierarchy are loaded, geometry is drawn, no pending requests, and drawn geometry meets the configured screen-space LOD target | Only within the product footprint; absent source regions, CPU samples, source accuracy and planet-wide coverage are excluded. Imagery-only surfaces and unavailable frames are `unavailable`; terminal source detail below the LOD target remains `partial` |
 
 Results contain `scene`, `request`, `status`, `missing`, and `limitations`.
@@ -791,6 +793,32 @@ or timed-out result. Script cancellation is forwarded into the wait.
 waitUntilReady "{\"kind\":\"assets\"}" 60
 waitUntilReady "{\"kind\":\"cube-base\",\"body\":\"Mars\"}" 60
 ```
+
+Event capture uses the existing shared wait, not a settling delay. Obtain `reference`
+from `getEventResultPage` after a successful run, pause playback, focus the result,
+and compose the camera/layers first. Supply its desired epoch and explicitly choose
+`timeline` (permits absent glyphs) or `native-draw` (requires explanatory draw state):
+
+```ts
+const { reference, event } = c.getEventResultPage(query).items[0];
+c.setPlaying(false);
+c.focusEventResult(reference, 'start');
+c.gotoObject('Saturn'); c.frameObject('Saturn');
+const request = { kind: 'event', reference, et: event.et, policy: 'native-draw' };
+// quote is the ordinary script-string quoting helper, not interpolation/eval.
+await execute(parse(`waitUntilReady ${quote(JSON.stringify(request))} 60\nscreenshot event`), c);
+```
+
+`getReadiness(request)` also supports this predicate. A run/query/kernel/context
+change or different selected reference is `stale`; changed epoch or active playback
+is `stale`; absent native observation support is `unavailable`. A current result
+with a hidden timeline lane or absent draw geometry remains `partial`, so its wait
+ends `timed-out` unless inputs change. Abort returns `cancelled`; scene replacement
+returns `stale`. All non-ready outcomes stop the text program before `screenshot`.
+Camera/viewport changes invalidate native observation until another render pass;
+these read-only waits never reselect, seek, frame, restart a query or override
+manual control. Keep the view frozen through capture. There is no atomic scene lock
+against another user/host changing it after the wait completes.
 
 ### Portable snapshots and permissions
 

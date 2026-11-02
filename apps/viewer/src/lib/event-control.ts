@@ -1,5 +1,5 @@
 /** The host adapter for Event Finder's existing configuration, solver and selection. */
-import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt } from '@cosmolabe/control';
+import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt, ScriptReadinessRequest, ScriptReadiness } from '@cosmolabe/control';
 import { resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
 import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery, visibleTimelineEvents, currentEventResultRun } from './analysis.svelte';
 import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, inspectEventQuery, recordEventSearchOutcome } from './event-finder.svelte';
@@ -65,6 +65,37 @@ export function getEventVisualization(): ScriptEventVisualization {
     timeline: { min: vs.scrubMin, max: vs.scrubMax, selectedInResults: inResults, selectedInVisibleLane: inLane },
     renderer: drawn, status: observed ? 'observed' : 'partial', limitations };
 }
+/** Shared capture predicate: reads native observations, never seeks or starts a search. */
+export function validEventReference(ref: ScriptEventReference): boolean {
+  return !!ref && Number.isInteger(ref.scene) && Number.isInteger(ref.revision) && ref.revision > 0
+    && typeof ref.query === 'string' && !!ref.query && ref.query.length <= 512
+    && typeof ref.id === 'string' && !!ref.id && ref.id.length <= 512
+    && Object.keys(ref).every(key => ['scene', 'query', 'id', 'revision'].includes(key));
+}
+export function getEventReadiness(request: Extract<ScriptReadinessRequest, { kind: 'event' }>): ScriptReadiness {
+  const observation = getEventVisualization(), ref = request.reference;
+  const result = (status: ScriptReadiness['status'], missing: string[]): ScriptReadiness => ({
+    scene: observation.scene, request, status, missing,
+    limitations: [...observation.limitations, 'Readiness requires the exact selected run reference and requested epoch in a visible timeline lane, observed by a native render pass. Timeline policy permits absent explanatory geometry; native-draw additionally requires a draw-enabled glyph, span or active geometry. No unoccluded-pixels guarantee.'],
+  });
+  if (ref.scene !== observation.scene) return result('stale', ['The result belongs to another scene.']);
+  const run = currentRun(ref.query);
+  if (!run || run.revision !== ref.revision) return result('stale', ['The query/result run is no longer current.']);
+  if (!getRenderer()?.getEventVisualization) return result('unavailable', ['Native event observation is unsupported.']);
+  if (ef.restoring) return result('unavailable', ['A view restore owns Event Finder.']);
+  if (!analysisContext().eventResults.some(e => e.queryId === ref.query && e.id === ref.id)) return result('unavailable', ['The result is unavailable.']);
+  if (!observation.selected || observation.selected.query !== ref.query || observation.selected.id !== ref.id || observation.selected.revision !== ref.revision)
+    return result('stale', ['The selected event was changed.']);
+  if (observation.et !== request.et || observation.playing) return result('stale', ['The epoch changed or playback is active. Freeze time before capture.']);
+  const missing: string[] = [];
+  if (!observation.timeline.selectedInVisibleLane) missing.push('The selected event is not in a visible timeline lane.');
+  const drawn = observation.renderer;
+  if (drawn?.observedEt !== request.et || drawn.selected?.query !== ref.query || drawn.selected?.id !== ref.id)
+    missing.push('The selected event has not been observed at the requested epoch and current camera.');
+  if (request.policy === 'native-draw' && !drawn?.visibleGlyphs && !drawn?.visibleSpans && !drawn?.occultationVisible)
+    missing.push('No selected explanatory geometry is draw-enabled.');
+  return result(missing.length ? 'partial' : 'ready', missing);
+}
 export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult'> = {
   listEventQueries: () => copy(configuredEventQueries()), getEventSearch, getEventVisualization,
   getEventQueryInfo: (id, opts) => queryInfo(id, opts?.scene),
@@ -85,9 +116,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
   },
   focusEventResult: (ref, anchor = 'inspect', opts) => {
     const result = (status: ScriptEventFocusReceipt['status']): ScriptEventFocusReceipt => ({ status, reference: ref, anchor, observation: getEventVisualization() });
-    if (!ref || !Number.isInteger(ref.scene) || !Number.isInteger(ref.revision) || ref.revision < 1 || typeof ref.query !== 'string' || !ref.query || ref.query.length > 512 || typeof ref.id !== 'string' || !ref.id || ref.id.length > 512
-      || Object.keys(ref).some(key => !['scene', 'query', 'id', 'revision'].includes(key))
-      || !['inspect', 'start', 'middle', 'end'].includes(anchor)) return result('invalid-reference');
+    if (!validEventReference(ref) || !['inspect', 'start', 'middle', 'end'].includes(anchor)) return result('invalid-reference');
     if (opts?.signal?.aborted) return result('cancelled');
     if (!getSceneUniverse() || ref.scene !== sceneId() || (opts?.scene !== undefined && opts.scene !== sceneId())) return result('scene-reloaded');
     if (ef.restoring) return result('unavailable');
