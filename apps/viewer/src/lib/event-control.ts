@@ -130,7 +130,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     if (!event) return result('missing-result');
     // Entirely synchronous: inspection and optional seek use the UI action.
     // No later continuation can reassert time/camera after manual takeover.
-    if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor);
+    if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor, { frame: false });
     return result(getEventVisualization().status);
   },
   upsertEventQuery: (input, opts) => {
@@ -221,7 +221,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     const event = analysisContext().eventResults.find(e => e.queryId === query && e.id === id);
     if (!event) return false;
     if (anchor === 'inspect') selectEventForInspection(event);
-    else if (['start', 'middle', 'end'].includes(anchor)) selectEvent(event, anchor);
+    else if (['start', 'middle', 'end'].includes(anchor)) selectEvent(event, anchor, { frame: false });
     else throw new Error('Unknown event boundary');
     return true;
   },

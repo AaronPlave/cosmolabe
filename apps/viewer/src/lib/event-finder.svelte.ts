@@ -1265,7 +1265,7 @@ export function cancelSearch() {
  * panel's — every kind gets the same behavior, including the ones that do not
  * exist yet.
  */
-export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
+export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start', options: { frame?: boolean } = {}) {
   if (event.trajectoryAnalysis && !analysisResultGuards.get(`${event.queryId}/${event.id}`)?.()) return false;
   if (event.trajectoryAnalysis) setPlaying(false);
   // Overview marks and shared inspectors use the same operations as scripts.
@@ -1289,7 +1289,7 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
     selectBody,
     highlightBodies,
   });
-  const framed = event.trajectoryAnalysis ? frameBody(event.trajectoryAnalysis.object) : true;
+  const framed = event.trajectoryAnalysis && options.frame !== false ? frameBody(event.trajectoryAnalysis.object) : true;
   syncEventResultsInScene();
   syncOccultationGeometryAtTime();
   return framed;

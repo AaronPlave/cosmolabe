@@ -146,18 +146,22 @@ try {
     const capabilities=createCapabilityTools(c,{metadata:builtInAgentMetadata}),task=capabilities.begin();
     try {
       const discovered=capabilities.listCapabilities({domain:'events',query:'EventResult',limit:12});
-      await task.call('describeCapabilities',{ids:['events.getEventResultPage','events.focusEventResult','events.getEventVisualization']});
+      await task.call('describeCapabilities',{ids:['events.getEventResultPage','events.focusEventResult','events.getEventVisualization','camera.frameObject']});
       const transport=await task.call('getEventResultPage',{query:id,limit:1});
       if(!transport.ok) return {transport};
       const first=transport.data.items[0];
+      const trackedBefore=c.getTracked();
       const focus=await task.call('focusEventResult',{reference:JSON.stringify(first.reference),anchor:'start'});
+      const trackedAfterFocus=c.getTracked();
+      const framing=await task.call('frameObject',{object:first.bodies.observer});
+      if(!framing.ok) throw new Error(JSON.stringify(framing));
       await execute(parse(`waitUntilReady ${quote(JSON.stringify({kind:'event',reference:first.reference,et:first.et,policy:'timeline'}))} 30`),c);
       const visual=await task.call('getEventVisualization',{});
       const fresh=c.getEventResultPage(id,{limit:1}).items[0].reference;
       const nativeReadiness=c.getReadiness({kind:'event',reference:fresh,et:first.et,policy:'native-draw'});
       await c.runEventQuery(id);
       const stale=c.focusEventResult(fresh,'start');
-      return {source,discovered:discovered.items.map(item=>item.id),count:page.total,info,transport,focus,visual,nativeReadiness,stale:stale.status};
+      return {source,discovered:discovered.items.map(item=>item.id),count:page.total,info,transport,focus,trackedBefore,trackedAfterFocus,framing,visual,nativeReadiness,stale:stale.status};
     } finally {capabilities.dispose();}
   },'/@fs'+new URL('../packages/control/src/index.ts',import.meta.url).pathname);
   assert.equal(report.modern.count,12,JSON.stringify(report.modern));
@@ -166,6 +170,8 @@ try {
   assert.equal(report.modern.transport.data.items[0].trajectoryAnalysis.metric,'heightAbovePhysicalTerrain');
   assert.ok(report.modern.transport.data.items[0].metrics.some(m=>m.key==='heightAbovePhysicalTerrain'));
   assert.equal(report.modern.focus.ok,true);
+  assert.equal(report.modern.trackedBefore,report.modern.trackedAfterFocus);
+  assert.equal(report.modern.framing.ok,true);
   assert.ok(['observed','partial'].includes(report.modern.visual.data.status));
   assert.equal(report.modern.visual.data.timeline.selectedInVisibleLane,true);
   assert.equal(report.modern.visual.data.renderer.observedEt,report.modern.transport.data.items[0].et);

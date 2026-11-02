@@ -1941,6 +1941,116 @@
               "rate": 1
             },
             "selectedObject": "Polaris-D",
+            "tracked": "Polaris-C",
+            "flight": null,
+            "selectedActivity": {
+              "id": "moonfall:Polaris-D:hop:1",
+              "name": "Connector hop to de Gerlache"
+            },
+            "selectedPlace": null,
+            "camera": {
+              "position": [
+                0.000452725912256737,
+                -0.002203410725146517,
+                0.00005020383133394546
+              ],
+              "target": [
+                0,
+                0,
+                0
+              ],
+              "up": [
+                0.3351897971591565,
+                0.9421193025987609,
+                -0.00768241831900343
+              ],
+              "fov": 60
+            },
+            "cameraReference": "Polaris-C",
+            "events": {
+              "scene": 1,
+              "status": "partial",
+              "selected": {
+                "scene": 1,
+                "query": "review:height",
+                "id": "trajectory-analysis-14",
+                "revision": 7
+              },
+              "et": 913759555.7649068,
+              "playing": false,
+              "selectedObject": "Polaris-D",
+              "highlightedBodies": [
+                "Polaris-D",
+                "Moon"
+              ],
+              "timeline": {
+                "min": 913672869.1834563,
+                "max": 914912179.183804,
+                "selectedInResults": true,
+                "selectedInVisibleLane": true
+              },
+              "renderer": {
+                "observedEt": null,
+                "selected": {
+                  "query": "review:height",
+                  "id": "trajectory-analysis-14"
+                },
+                "markerGroups": 1,
+                "visibleGlyphs": 0,
+                "visibleSpans": 0,
+                "occultationVisible": false
+              },
+              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+            }
+          }
+        },
+        "warnings": [
+          "Event selection was applied; timeline or rendered event geometry has only partial readback. Inspect getEventVisualization before capture."
+        ],
+        "provenance": "viewer-observation",
+        "verification": "observed"
+      }
+    },
+    "trackedBefore": "Polaris-C",
+    "trackedAfterFocus": "Polaris-C",
+    "framing": {
+      "ok": true,
+      "summary": "frameObject Polaris-D: done.",
+      "receipt": {
+        "id": "1:3",
+        "operation": "camera.frameObject",
+        "version": 1,
+        "scope": {
+          "viewer": "viewer-1",
+          "scene": 1,
+          "revision": 0
+        },
+        "task": 1,
+        "status": "partial",
+        "requestedTarget": {
+          "object": "Polaris-D"
+        },
+        "resolvedTarget": {
+          "object": "Polaris-D"
+        },
+        "observation": {
+          "scope": {
+            "viewer": "viewer-1",
+            "scene": 1,
+            "revision": 0
+          },
+          "state": {
+            "scene": {
+              "id": 1,
+              "catalog": "MoonFall at Shackleton",
+              "ready": true
+            },
+            "time": {
+              "et": 913759555.7649068,
+              "playing": false,
+              "rate": 1
+            },
+            "selectedObject": "Polaris-D",
             "tracked": "Polaris-D",
             "flight": null,
             "selectedActivity": {
@@ -2005,10 +2115,10 @@
           }
         },
         "warnings": [
-          "Event selection was applied; timeline or rendered event geometry has only partial readback. Inspect getEventVisualization before capture."
+          "Host returned successfully; this operation lacks a shared semantic readback. See #297."
         ],
         "provenance": "viewer-observation",
-        "verification": "observed"
+        "verification": "host-return"
       }
     },
     "visual": {
@@ -2050,7 +2160,7 @@
         "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
       },
       "receipt": {
-        "id": "1:3",
+        "id": "1:4",
         "operation": "events.getEventVisualization",
         "version": 1,
         "scope": {
