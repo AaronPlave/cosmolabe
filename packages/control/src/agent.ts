@@ -27,6 +27,7 @@
  */
 import type {
   ScriptActivity,
+  ScriptEventReference,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -37,6 +38,7 @@ import type {
 } from './contracts.js';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
@@ -225,6 +227,9 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'Bounded computed events, metrics and run-scoped references for focusEventResult. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listEventQueries', effect: 'read', method: 'listEventQueries', description: 'Bounded configured Event Finder identities/kinds and flags; no result arrays or private query metadata.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getEventSearch', effect: 'read', method: 'getEventSearch', description: 'Event search status, current-call progress, error code and exact selection. Error text is withheld.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listEventResults', effect: 'read', method: 'listEventResults', description: 'A bounded page of exact query/result identities and event times; no private solver metadata.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
@@ -452,7 +457,7 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
   return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
     ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
-      : spec.category === 'Time' || spec.name === 'seekActivity' || spec.name === 'selectEventResult' ? 'time'
+      : spec.category === 'Time' || spec.name === 'seekActivity' || spec.name === 'selectEventResult' || spec.name === 'focusEventResult' ? 'time'
         : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
   }))];
 }
@@ -689,6 +694,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
       return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
     }
+    if (name === 'focusEventResult' && host.getEventVisualization) {
+      const ref = JSON.parse(args.reference as string) as ScriptEventReference;
+      const v = host.getEventVisualization();
+      if (!v.selected || v.selected.scene !== ref.scene || v.selected.query !== ref.query || v.selected.id !== ref.id || v.selected.revision !== ref.revision)
+        return { problem: 'the viewer does not report the requested run-scoped event selection' };
+      return { note: `Event selection is observed; visualization is ${v.status}. Camera framing was not requested.` };
+    }
     if (name === 'selectActivity' && has(host, 'getSelectedActivity')) {
       const now = attempt(() => host.getSelectedActivity!());
       return now && now.id === args.activity ? { note: `The viewer now reports ${now.name} (${now.id}) as the selected activity.` }
@@ -708,6 +720,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   const reads: Record<string, (input: Input) => AgentToolResult> = {
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    getEventQueryInfo: input => ({ ok: true, summary: 'Shared query availability and provenance.', data: eventQueryMetadata(host.getEventQueryInfo!(input.query as string), metadata.text) }),
+    getEventResultPage: input => ({ ok: true, summary: 'Run-scoped event results; inspect status before focusing.', data: eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined }), metadata.text) }),
+    getEventVisualization: () => ({ ok: true, summary: 'Event visualization readback; partial is not drawn acceptance.', data: eventVisualizationMetadata(host.getEventVisualization!()) }),
     listEventQueries: () => ({ ok: true, summary: 'Configured event searches.', data: { items: host.listEventQueries!().slice(0, 32).map(q => ({ id: q.id, kind: q.query.kind, enabled: q.enabled, visible: q.visible })) } }),
     getEventSearch: () => {
       const s = host.getEventSearch!();

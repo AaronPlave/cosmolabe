@@ -538,6 +538,11 @@ export const VERB_LIST: readonly VerbSpec[] = [
     help: 'Cancel the existing Event Finder search.', invoke: host => host.cancelEventQuery!(),
   },
   {
+    name: 'focusEventResult', params: [{ name: 'reference', type: 'text' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'focusEventResult',
+    help: 'Inspect or seek a scene/query/result/run reference from getEventResultPage. Refuse stale references; camera framing stays separate. Read getEventVisualization for observed/partial draw state.',
+    invoke: (host, a, signal) => { const result = host.focusEventResult!(data(a[0]), optStr(a[1]) as 'inspect' | 'start' | 'middle' | 'end' | undefined, { signal }); if (!['observed', 'partial'].includes(result.status)) throw new Error(`Event focus ${result.status}`); },
+  },
+  {
     name: 'selectEventResult', params: [{ name: 'query', type: 'event-query' }, { name: 'id', type: 'event-result' }, { name: 'anchor', type: 'enum', values: ['inspect', 'start', 'middle', 'end'], optional: true }], category: 'Analysis', method: 'selectEventResult',
     help: 'Inspect or seek an exact query/result pair through Event Finder selection.', invoke: (host, a) => host.selectEventResult!(str(a[0]), str(a[1]), optStr(a[2]) as 'inspect' | 'start' | 'middle' | 'end' | undefined),
   },

@@ -137,6 +137,7 @@ export const vs = $state({
   activities: [] as MissionActivity[],
   activityMetadataAvailable: false,
   kernelCount: 0,
+  kernelRevision: 0,
 
   // Display
   showTrajectories: true,
@@ -281,7 +282,8 @@ export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null 
   vs.assetSummary = summary;
   if (became) emit('ready', vs.bodies.map((b) => b.name));
 }
-export function setKernelCount(v: number) { vs.kernelCount = v; }
+/** Changes even when a replacement kernel set has the same file count. */
+export function setKernelCount(v: number) { vs.kernelCount = v; vs.kernelRevision++; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);

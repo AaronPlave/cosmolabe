@@ -50,6 +50,10 @@ export class FakeViewer implements ViewerControl {
   runEventQuery(id: string): Promise<import('../contracts.js').ScriptEventSearch> { this.log('runEventQuery', id); return Promise.resolve({ scene: this.scene?.id ?? null, query: id, status: 'complete', progress: null, error: null, selected: null }); }
   cancelEventQuery() { return true; }
   selectEventResult(query: string, id: string) { this.log('selectEventResult', query, id); return true; }
+  getEventVisualization(): import('../contracts.js').ScriptEventVisualization { return { scene: this.scene?.id ?? null, selected: null, et: this.getTime(), playing: this.isPlaying(), selectedObject: this.selected, highlightedBodies: [], timeline: { min: 0, max: 1000, selectedInResults: false, selectedInVisibleLane: false }, renderer: null, status: 'partial', limitations: ['No renderer'] }; }
+  getEventQueryInfo(): import('../contracts.js').ScriptEventQueryInfo { return { status: 'missing-query', definition: null, coverage: null, error: null, provenance: null }; }
+  getEventResultPage(): import('../contracts.js').ScriptEventResultPage { return { status: 'missing-query', total: 0, offset: 0, nextOffset: null, items: [], query: this.getEventQueryInfo() }; }
+  focusEventResult(reference: import('../contracts.js').ScriptEventReference, anchor: 'inspect' | 'start' | 'middle' | 'end' = 'inspect'): import('../contracts.js').ScriptEventFocusReceipt { this.log('focusEventResult', reference.query, reference.id, anchor); return { status: 'partial', reference, anchor, observation: this.getEventVisualization() }; }
   moveImageryLayer(body: string, layer: string, index: number) { this.log('moveImageryLayer', body, layer, index); return true; }
 
   selectPlace(ref: string | null) { if (ref && !this.places.some(p => p.ref === ref)) return false; this.selectedPlace = ref; return true; }

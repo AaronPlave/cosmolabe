@@ -1,5 +1,6 @@
 /** Discoverable, instance-bound rendering of the existing control vocabulary (#328). */
 import { agentDefinitions, createAgentTools, violation, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolEffect, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
+import { eventVisualizationMetadata } from './event-agent-metadata.js';
 import type { ViewerControl } from './contracts.js';
 import { VERBS } from './verbs.js';
 
@@ -114,6 +115,7 @@ const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
   listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
   listEventResults: objectSchema({ total: NUMBER, items: RECORDS }),
   listInstruments: objectSchema({ items: STRINGS }), getInstrument: NULLABLE_RECORD,
@@ -171,6 +173,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const camera = host.getCamera();
       state.camera = { position: camera.position.slice(0, 3), target: camera.target.slice(0, 3), up: camera.up.slice(0, 3), fov: camera.fov };
       state.cameraReference = host.getCameraReference?.() ?? null;
+      if (host.getEventVisualization) state.events = eventVisualizationMetadata(host.getEventVisualization());
       return { scope: scope(), state: JSON.parse(JSON.stringify(state)) as unknown };
     }
     catch { return { scope: scope(), state: null }; }
@@ -306,9 +309,11 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
           || ['select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
-          || (name === 'seekActivity' && typeof host.listActivities === 'function');
+          || (name === 'seekActivity' && typeof host.listActivities === 'function')
+          || (name === 'focusEventResult' && typeof host.getEventVisualization === 'function');
         const verified = observation.state !== null && hasReadback;
-        const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
+        const eventPartial = name === 'focusEventResult' && (observation.state as { events?: { status: string } } | null)?.events?.status !== 'observed';
+        const status: OperationStatus = result.ok ? verified && !eventPartial ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
             : result.code === 'failed' ? 'partial' : 'refused';
         const resolvedTarget: Record<string, string> = {};
@@ -325,7 +330,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             } catch { referenceWarnings.push(`Could not verify reference field ${field}`); }
           }
         }
-        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
+        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(eventPartial && result.ok ? ['Event selection was applied; timeline or rendered event geometry has only partial readback. Inspect getEventVisualization before capture.'] : []), ...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
         remember(receipt);
         return { ...result, receipt };
       },

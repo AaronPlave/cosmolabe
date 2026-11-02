@@ -36,6 +36,7 @@ import {
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
+  type EventQuery,
   type EventParticipants,
   type EventSearchFault,
   type GeometryEvent,
@@ -85,6 +86,7 @@ import { getActivity, selectActivity, seekActivity } from './activity-control';
 import { emit, etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 import { resettable } from './session.svelte';
 import { activityEvent } from './mission-activities';
+import { eventQuerySignature } from './event-query-signature';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -276,8 +278,12 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
  * scene or moving the window re-evaluates it.
  */
 export function currentSearchUnavailable(): EventSearchFault | null {
+  ensureCoverageCurrent();
+  return searchUnavailable(ef.form, currentKind(), ef.coverage);
+}
+
+function searchUnavailable(form: EventQueryForm | null, kind: EventKind<never>, coverage: CoverageAssessment | null, abcorr = searchAbcorr(kind)): EventSearchFault | null {
   const spice = getSpice();
-  const form = ef.form;
   // Searches run on SPICE kernels; a host-supplied state is not in them, and
   // is not quietly replaced by whatever the kernels hold under that name.
   const external = Object.values(form?.bodies ?? {}).find((name) => name && getUniverse()?.getBody(name)?.trajectory instanceof MissionStateTrajectory);
@@ -287,8 +293,6 @@ export function currentSearchUnavailable(): EventSearchFault | null {
       message: `${external}'s state comes from a host mission-state source. Event searches run on SPICE kernels and cannot use it.`,
     };
   }
-  ensureCoverageCurrent();
-  const coverage = ef.coverage;
   if (spice && vs.kernelCount > 0 && form && coverage?.exact && coverage.status !== 'unknown') {
     const outside = windowOutsideCoverage(
       { start: form.startEt, end: form.endEt }, coverage.windows,
@@ -307,7 +311,7 @@ export function currentSearchUnavailable(): EventSearchFault | null {
   // window's edges (including GF's derivative margin) before applying it.
   if (spice && vs.kernelCount > 0 && form && coverage?.status === 'available'
     && windowOutsideCoverage({ start: form.startEt, end: form.endEt }, coverage.windows).length === 0) {
-    const dependencies = geometryForBodies(currentKind(), form.bodies);
+    const dependencies = geometryForBodies(kind, form.bodies, abcorr);
     if (dependencies) {
       try {
         const source = spiceCoverageSource(spice);
@@ -328,7 +332,7 @@ export function currentSearchUnavailable(): EventSearchFault | null {
     form?.bodies ?? {},
     form ? { start: form.startEt, end: form.endEt } : null,
     (name) => (spice ? spiceEphemeris(spice, sceneSpiceName(name)) : 'unknown'),
-    searchAbcorr(currentKind()),
+    abcorr,
     (target, observer, et) =>
       spice ? spiceLightTime(spice, sceneSpiceName(target), sceneSpiceName(observer), et) : undefined,
   );
@@ -668,9 +672,9 @@ function catalogWindow(): EtInterval {
  * on them, and the ones that will (an instrument, a frame) are a matter for
  * the kind's own `geometry`.
  */
-function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants) {
+function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants, abcorr = searchAbcorr(kind), query?: EventQuery) {
   const geometry = eventGeometry(
-    { id: 'coverage', kind: kind.kind, bodies, abcorr: searchAbcorr(kind), window: { start: 0, end: 1 } },
+    query ?? { id: 'coverage', kind: kind.kind, bodies, abcorr, window: { start: 0, end: 1 } },
     kind,
   );
   if (!geometry) return null;
@@ -685,10 +689,10 @@ function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants) {
   };
 }
 
-function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageAssessment | null {
+function assessFor(kind: EventKind<never>, bodies: EventParticipants, abcorr = searchAbcorr(kind), query?: EventQuery): CoverageAssessment | null {
   const spice = getSpice();
   if (!spice) return null;
-  const geometry = geometryForBodies(kind, bodies);
+  const geometry = geometryForBodies(kind, bodies, abcorr, query);
   if (!geometry) return null;
   try {
     return assessEventCoverage(geometry, spiceCoverageSource(spice), {
@@ -699,6 +703,19 @@ function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageA
     // the plain per-body coverage, as before there was one.
     return null;
   }
+}
+
+/** Non-mutating host inspection uses the same coverage/availability policy as the form. */
+export function inspectEventQuery(query: EventQuery) {
+  const kind = registry.get(query.kind);
+  if (!kind) return { coverage: null, unavailable: { code: 'unknown-kind', message: 'Unknown event kind' } as EventSearchFault, frames: [] as readonly string[] };
+  const abcorr = query.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+  const coverage = assessFor(kind, query.bodies, abcorr, query);
+  const missing = kind.roles.find(role => role.required !== false && !query.bodies[role.role]);
+  const form = { ...formForKind(kind, query.window), bodies: query.bodies, startEt: query.window.start, endEt: query.window.end };
+  const unavailable = missing ? { code: 'missing-body' as const, message: `Missing ${missing.role}`, role: missing.role }
+    : searchUnavailable(form, kind, coverage, abcorr);
+  return { coverage, unavailable, frames: geometryForBodies(kind, query.bodies, abcorr, query)?.frames ?? [] };
 }
 
 /** Recompute the suggestion for the form as it now stands. */
@@ -1094,7 +1111,7 @@ function clearResults() {
   ef.hint = null;
   ef.searched = false;
   dropSelectionIn(ef.configuredId);
-  if (ef.configuredId) setEventResults(ef.configuredId, []);
+  if (ef.configuredId) setEventResults(ef.configuredId, [], false);
   syncEventResultsInScene();
 }
 
@@ -1111,6 +1128,9 @@ export async function runSearch() {
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
     if (ef.configuredId) recordEventSearchOutcome(ef.configuredId, ++inFlight, 'failed');
+
+    if (ef.configuredId) { setEventResults(ef.configuredId, [], false); dropSelectionIn(ef.configuredId); }
+    syncEventResultsInScene();
     emit('events', {});
     return;
   }
@@ -1138,7 +1158,7 @@ export async function runSearch() {
   ef.searched = false;
   ef.fault = null;
   ef.events = [];
-  setEventResults(item.id, []);
+  setEventResults(item.id, [], false);
   ef.progress = null;
   emit('events', {});
   dropSelectionIn(item.id);
@@ -1146,7 +1166,11 @@ export async function runSearch() {
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
-    const result = await search.run(resolveEventQuery(item, analysisContext()));
+    const query = resolveEventQuery(item, analysisContext());
+    const kernels = vs.kernelRevision;
+    const contextFrame = analysis.reference.frame;
+    const result = await search.run(query);
+    if (kernels !== vs.kernelRevision || contextFrame !== analysis.reference.frame || eventQuerySignature(query) !== eventQuerySignature(resolveEventQuery(item, analysisContext()))) return;
     // A later search already answered, or this one was abandoned. Either way
     // there is nothing to show — and a cancelled search's provider error is
     // the cancellation, not a fault worth putting on screen.
@@ -1159,7 +1183,7 @@ export async function runSearch() {
       ef.hint = result.hint ?? null;
     } else {
       ef.events = [];
-      setEventResults(item.id, []);
+      setEventResults(item.id, [], false);
       ef.fault = result.fault;
       ef.hint = null;
     }

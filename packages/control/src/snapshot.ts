@@ -107,6 +107,7 @@ export function snapshotScript(state: ViewerSnapshotState): string {
   for (const bookmark of state.bookmarks ?? []) lines.push(`upsertBookmark ${quote(JSON.stringify(bookmark))}`);
   if (state.instrument) lines.push(`selectInstrument ${quote(state.instrument)}`);
   for (const query of state.eventQueries ?? []) lines.push(`upsertEventQuery ${quote(JSON.stringify(query))}`);
+  if (state.eventSelection) lines.push('# Computed event selection is not replayed. Rerun the preserved query and inspect new run-scoped references before focusing a result.');
   for (const layer of state.imagery ?? []) {
     lines.push(`showImagery ${quote(layer.body)} ${quote(layer.id)} ${layer.visible ? 'on' : 'off'}`);
     if (layer.index !== undefined) lines.push(`moveImageryLayer ${quote(layer.body)} ${quote(layer.id)} ${layer.index}`);

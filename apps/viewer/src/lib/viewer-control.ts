@@ -232,6 +232,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       ...(portable.length ? { measurements: { version: 1 as const, items: portable, ...(portable.some(m => m.id === analysisControl.getSelectedMeasurement()) ? { selected: analysisControl.getSelectedMeasurement()! } : {}) } } : {}),
       ...(vs.selectedPlaceRef && placeByRef(vs.selectedPlaceRef)?.layer.source.kind === 'catalog' ? { selectedPlace: vs.selectedPlaceRef } : {}),
       eventQueries: snapshotEventQueries(),
+      eventSelection: eventControl.getEventSearch().selected,
       bookmarks: presentationControl.listBookmarks(),
       instrument: getRenderer()?.activeInstrumentView,
       omitted: allMeasurements.length > portable.length ? ['Measurements with captured terrain sample provenance require the original product; omitted from portable snapshots.'] : [],

@@ -1530,6 +1530,64 @@ it('snapshots the controller frame even before the UI mode mirror updates', () =
 });
 
 describe('reviewed modern feature adapters', () => {
+  it('scopes result references to a computed batch and refuses stale seeks after reruns, edits, kernel replacement and reload', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 }, step: 10 }, 'Approach', 'explicit');
+    const event = { id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } };
+    expect(host.getEventResultPage!(item.id).status).toBe('not-searched');
+    model.setEventResults(item.id, [event]);
+    const first = host.getEventResultPage!(item.id).items[0].reference;
+    const before = host.getTime();
+    expect(host.focusEventResult!(first, 'inspect')).toMatchObject({ status: 'partial', observation: { et: before, selected: first, timeline: { selectedInVisibleLane: true } } });
+    const next = { ...event, et: 175 };
+    model.setEventResults(item.id, [next]);
+    expect(host.focusEventResult!(first, 'start').status).toBe('stale-result');
+    expect(host.getTime()).toBe(before);
+    const second = host.getEventResultPage!(item.id).items[0].reference;
+    expect(second.revision).not.toBe(first.revision);
+    const aborted = new AbortController(); aborted.abort();
+    expect(host.focusEventResult!(second, 'start', { signal: aborted.signal }).status).toBe('cancelled');
+    expect(host.getTime()).toBe(before);
+    expect(host.focusEventResult!(second, 'start')).toMatchObject({ status: 'partial', observation: { et: 175, selectedObject: 'Titan', highlightedBodies: ['Cassini', 'Titan'] } });
+    host.setTime({ kind: 'et', et: 180 }); // Later manual/host time ownership is not reasserted.
+    await Promise.resolve(); expect(host.getTime()).toBe(180);
+    model.updateConfiguredEventQuery(item.id, { ...item.query, step: 20 }, 'Edited');
+    expect(host.getEventResultPage!(item.id).status).toBe('stale-result');
+    expect(host.focusEventResult!(second, 'start').status).toBe('stale-result');
+    model.setEventResults(item.id, [event]);
+    const third = host.getEventResultPage!(item.id).items[0].reference;
+    viewerState.setKernelCount(vs.kernelCount); // Same count can be a different kernel set.
+    expect(host.focusEventResult!(third, 'start').status).toBe('stale-result');
+    expect(host.focusEventResult!({ ...third, scene: -1 }, 'start').status).toBe('scene-reloaded');
+    expect(host.getEventResultPage!(item.id, { scene: -1 }).status).toBe('scene-reloaded');
+    expect(host.getTime()).toBe(180);
+  });
+
+  it('reports empty, unavailable, missing, hidden and unobserved states without manufacturing geometry or portable result identity', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    expect(host.getEventQueryInfo!(item.id)).toMatchObject({ status: 'unavailable', error: { code: 'unavailable' }, provenance: { source: 'loaded-spice-kernels', timeUnit: 'ET seconds past J2000' } });
+    expect(host.getEventQueryInfo!('missing').status).toBe('missing-query');
+    model.setEventResults(item.id, []);
+    expect(host.getEventResultPage!(item.id)).toMatchObject({ status: 'no-results', total: 0, items: [] });
+    model.setEventResults(item.id, [{ id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } }]);
+    const ref = host.getEventResultPage!(item.id, { limit: 1 }).items[0].reference;
+    model.setConfiguredItemVisible(item.id, false);
+    expect(host.focusEventResult!(ref)).toMatchObject({ status: 'partial', observation: { renderer: null, timeline: { selectedInResults: true, selectedInVisibleLane: false } } });
+    expect(host.focusEventResult!({ ...ref, id: 'missing' }).status).toBe('missing-result');
+    expect(host.focusEventResult!({ ...ref, query: 'missing' }).status).toBe('missing-query');
+    expect(() => host.getEventResultPage!(item.id, { limit: 101 })).toThrow('Invalid result page');
+    const snapshot = host.snapshot();
+    expect(snapshot).toContain('Computed event selection is not replayed');
+    expect(parse(snapshot).statements.some(s => s.verb === 'upsertEventQuery')).toBe(true);
+    expect(parse(snapshot).statements.some(s => s.verb === 'focusEventResult' || s.verb === 'selectEventResult')).toBe(false);
+    expect(snapshot).not.toContain('"revision"');
+    model.setConfiguredItemEnabled(item.id, false);
+    expect(host.focusEventResult!(ref).status).toBe('unavailable');
+  });
+
   it('shares event definitions with the UI, invalidates results, reports no kernels and keeps exact query/result identity', async () => {
     const { analysis, updateConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
     const host = createViewerControl();

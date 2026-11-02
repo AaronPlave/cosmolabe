@@ -698,6 +698,10 @@ export interface ViewerControl {
   runEventQuery?(id: string, opts?: ScriptSceneOptions & { timeoutMs?: number; signal?: ScriptCancelSignal }): Promise<ScriptEventSearch>;
   cancelEventQuery?(opts?: ScriptSceneOptions): boolean;
   listEventResults?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): { total: number; items: GeometryEvent[] };
+  getEventQueryInfo?(query: string, opts?: ScriptSceneOptions): ScriptEventQueryInfo;
+  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): ScriptEventResultPage;
+  getEventVisualization?(): ScriptEventVisualization;
+  focusEventResult?(reference: ScriptEventReference, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): ScriptEventFocusReceipt;
   selectEventResult?(query: string, id: string, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions): boolean;
   resolvePlace?(query: { body: string; layer?: string; feature: string | number }, opts?: ScriptSceneOptions): { status: 'available' | 'missing' | 'ambiguous' | 'unlinked'; matches: ScriptPlace[] };
   listInstruments?(): readonly string[];
@@ -752,6 +756,39 @@ export interface ViewerControl {
 }
 
 export interface ScriptEventQuery { id: string; label: string; query: EventQuery; enabled: boolean; visible: boolean }
+/** IDs alone are positional within a search. A reference is valid for one live result batch. */
+export interface ScriptEventReference { scene: number; query: string; id: string; revision: number }
+export interface ScriptEventProvenance {
+  source: 'loaded-spice-kernels'; kernelRevision: number; kernelCount: number;
+  contextFrame: string; calculationFrames: readonly string[];
+  timeUnit: 'ET seconds past J2000'; stepUnit: 's'; abcorr: string;
+  limitations: string[];
+}
+export interface ScriptEventQueryInfo {
+  status: 'available' | 'unavailable' | 'missing-query' | 'scene-reloaded';
+  definition: ScriptEventQuery | null;
+  coverage: import('@cosmolabe/core').CoverageAssessment | null;
+  error: { code: string; message: string } | null;
+  provenance: ScriptEventProvenance | null;
+}
+export interface ScriptEventResultPage {
+  status: 'ready' | 'no-results' | 'not-searched' | 'searching' | 'failed' | 'stale-result' | 'missing-query' | 'scene-reloaded';
+  total: number; offset: number; nextOffset: number | null;
+  items: { reference: ScriptEventReference; event: GeometryEvent }[];
+  query: ScriptEventQueryInfo;
+}
+export interface ScriptEventVisualization {
+  scene: number | null; selected: ScriptEventReference | null;
+  et: number; playing: boolean; selectedObject: string | null; highlightedBodies: string[];
+  timeline: { min: number; max: number; selectedInResults: boolean; selectedInVisibleLane: boolean };
+  renderer: { observedEt: number | null; selected: { query: string; id: string } | null; markerGroups: number; visibleGlyphs: number; visibleSpans: number; occultationVisible: boolean } | null;
+  status: 'observed' | 'partial'; limitations: string[];
+}
+export interface ScriptEventFocusReceipt {
+  status: 'observed' | 'partial' | 'stale-result' | 'missing-result' | 'missing-query' | 'scene-reloaded' | 'cancelled' | 'invalid-reference' | 'unavailable';
+  reference: ScriptEventReference; anchor: 'inspect' | 'start' | 'middle' | 'end';
+  observation: ScriptEventVisualization;
+}
 export interface ScriptEventSearch {
   scene: number | null;
   query: string | null;
@@ -794,6 +831,8 @@ export interface ViewerSnapshotState {
   readonly grid?: GridSettings;
   readonly selectedPlace?: string;
   readonly eventQueries?: readonly ScriptEventQuery[];
+  /** Diagnostic only: computed IDs are never replayed as portable result identities. */
+  readonly eventSelection?: { query: string; id: string } | null;
   readonly bookmarks?: readonly ScriptBookmark[];
   readonly instrument?: string;
   readonly omitted?: readonly string[];

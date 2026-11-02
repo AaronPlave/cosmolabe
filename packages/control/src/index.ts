@@ -3,6 +3,7 @@ export type { MeasurementDefinition, SpatialEndpoint, ReferenceVector, Geographi
 export type {
   ViewerControl,
   ScriptEventQuery, ScriptEventSearch, ScriptInstrument, ScriptBookmark,
+  ScriptEventReference, ScriptEventProvenance, ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization, ScriptEventFocusReceipt,
   ScriptSceneOptions, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSurfaceAppearance, ScriptReadiness, ScriptReadinessRequest,
   ScriptActivity,
   ScriptActivityFilter,

@@ -349,6 +349,7 @@ export class UniverseRenderer {
   private _eventPreview: { id: string; queryId: string } | null = null;
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
+  private _eventObservedEt: number | null = null;
   private _hoveredSceneEvent: string | null = null;
   /** Epoch under the pointer when the scene hover is on an interval span. */
   private _sceneEventHit: { id: string; queryId: string; et: number } | null = null;
@@ -1518,6 +1519,7 @@ export class UniverseRenderer {
     if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
+    this._eventObservedEt = et;
 
     // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
     // Skip when an instrument PiP fully covers the canvas.
@@ -1933,6 +1935,7 @@ export class UniverseRenderer {
     selected: Pick<GeometryEvent, 'id' | 'queryId'> | null = null,
     selectedAnnotation = '',
   ): void {
+    this._eventObservedEt = null;
     this._selectedEvent = selected;
     this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
@@ -2001,6 +2004,22 @@ export class UniverseRenderer {
       (this.trajectoryPlotFrames.has(line) ? this.scene : this._markerScene).add(markers);
     }
     this.refreshEventLineColors();
+  }
+
+  /** Native event draw state, observed only after a render pass at this epoch. */
+  getEventVisualization() {
+    const selected = this._selectedEvent;
+    let markerGroups = 0, visibleGlyphs = 0, visibleSpans = 0;
+    if (selected) for (const group of this.eventMarkerGroups.values()) {
+      if (!group.events.some(e => e.id === selected.id && e.queryId === selected.queryId)) continue;
+      markerGroups++;
+      const visible = group.markers.visibilityFor(selected.id, selected.queryId);
+      visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
+    }
+    const observedEt = this._eventObservedEt === this.timeController.et ? this._eventObservedEt : null;
+    return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
+      markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
+      occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };
   }
 
   /**

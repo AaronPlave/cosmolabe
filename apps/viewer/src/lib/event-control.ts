@@ -1,10 +1,10 @@
 /** The host adapter for Event Finder's existing configuration, solver and selection. */
-import type { ViewerControl, ScriptEventSearch, ScriptEventQuery } from '@cosmolabe/control';
-import { resolveEventQuery } from '@cosmolabe/core';
-import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery } from './analysis.svelte';
-import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, recordEventSearchOutcome } from './event-finder.svelte';
+import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt } from '@cosmolabe/control';
+import { resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
+import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery, visibleTimelineEvents, currentEventResultRun } from './analysis.svelte';
+import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, inspectEventQuery, recordEventSearchOutcome } from './event-finder.svelte';
 import { validateEventLinkState } from './event-link-state';
-import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit } from './viewer-state.svelte';
+import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit, vs } from './viewer-state.svelte';
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 function guard(expected?: number) {
   if (!getSceneUniverse()) throw new Error('No scene is loaded');
@@ -22,8 +22,87 @@ export function getEventSearch(): ScriptEventSearch {
     error: ef.fault ? { code: ef.fault.code, message: ef.fault.message } : null,
     selected: ef.selectedId && ef.selectedQueryId ? { query: ef.selectedQueryId, id: ef.selectedId } : null };
 }
-export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult'> = {
-  listEventQueries: () => copy(configuredEventQueries()), getEventSearch,
+function queryInfo(id: string, expected?: number): ScriptEventQueryInfo {
+  const empty = { definition: null, coverage: null, provenance: null, error: null };
+  if (!getSceneUniverse() || (expected !== undefined && expected !== sceneId())) return { ...empty, status: 'scene-reloaded' };
+  const definition = snapshotEventQueries().find(q => q.id === id);
+  if (!definition) return { ...empty, status: 'missing-query' };
+  const inspected = inspectEventQuery(definition.query);
+  const missingCoverage = inspected.unavailable?.code === 'unavailable' && vs.kernelCount > 0 && inspected.coverage
+    && (inspected.coverage.status === 'none' || inspected.coverage.status === 'available' && windowOutsideCoverage(definition.query.window, inspected.coverage.windows).length > 0);
+  return { status: inspected.unavailable || !definition.enabled ? 'unavailable' : 'available', definition,
+    coverage: copy(inspected.coverage), error: inspected.unavailable ? { code: missingCoverage ? 'missing-coverage' : inspected.unavailable.code, message: inspected.unavailable.message } : !definition.enabled ? { code: 'disabled', message: 'Query is disabled' } : null,
+    provenance: { source: 'loaded-spice-kernels', kernelRevision: vs.kernelRevision, kernelCount: vs.kernelCount,
+      contextFrame: analysis.reference.frame ?? 'J2000', calculationFrames: inspected.frames,
+      timeUnit: 'ET seconds past J2000', stepUnit: 's', abcorr: definition.query.abcorr ?? 'NONE',
+      limitations: ['Results apply only to the loaded kernel set and declared window. Search step limits completeness.',
+        'Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.',
+        '3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation.'] } };
+}
+const currentRun = currentEventResultRun;
+function reference(query: string, id: string): ScriptEventReference | null {
+  const run = currentRun(query);
+  return run ? { scene: run.scene, query, id, revision: run.revision } : null;
+}
+export function getEventVisualization(): ScriptEventVisualization {
+  const selected = ef.selectedQueryId && ef.selectedId ? reference(ef.selectedQueryId, ef.selectedId) : null;
+  const inResults = !!selected && analysisContext().eventResults.some(e => e.queryId === selected.query && e.id === selected.id);
+  const inLane = !!selected && visibleTimelineEvents().some(e => e.queryId === selected.query && e.id === selected.id);
+  const renderer = getRenderer();
+  const native = renderer?.getEventVisualization?.() ?? null;
+  const drawn = native ? { ...native, occultationVisible: native.occultationVisible && ef.activeId === selected?.id && ef.activeQueryId === selected?.query } : null;
+  const et = renderer?.timeController.et ?? vs.et;
+  const limitations = ['Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. No camera framing is applied.'];
+  if (!renderer) limitations.push('No renderer is attached.');
+  if (ef.selectedId && !selected) limitations.push('Selection has no current computed result provenance.');
+  if (!inLane) limitations.push('Selected result is not in a visible timeline lane.');
+  if (!drawn || drawn.observedEt !== et) limitations.push('Event visualization has not been observed at the current epoch.');
+  if (drawn && !drawn.visibleGlyphs && !drawn.visibleSpans && !drawn.occultationVisible) limitations.push('No selected event marker/span/geometry is draw-enabled; trajectory availability, visibility and view can limit it.');
+  const observed = inResults && inLane && drawn?.observedEt === et && drawn.selected?.query === selected?.query && drawn.selected?.id === selected?.id
+    && !!(drawn.visibleGlyphs || drawn.visibleSpans || drawn.occultationVisible);
+  return { scene: getSceneUniverse() ? sceneId() : null, selected, et, playing: renderer?.timeController.playing ?? vs.playing,
+    selectedObject: vs.selectedBodyName, highlightedBodies: [...vs.highlightedBodies],
+    timeline: { min: vs.scrubMin, max: vs.scrubMax, selectedInResults: inResults, selectedInVisibleLane: inLane },
+    renderer: drawn, status: observed ? 'observed' : 'partial', limitations };
+}
+export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult'> = {
+  listEventQueries: () => copy(configuredEventQueries()), getEventSearch, getEventVisualization,
+  getEventQueryInfo: (id, opts) => queryInfo(id, opts?.scene),
+  getEventResultPage: (id, opts) => {
+    const query = queryInfo(id, opts?.scene);
+    const offset = opts?.offset ?? 0, limit = opts?.limit ?? 50;
+    if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid result page');
+    const empty = { total: 0, offset, nextOffset: null, items: [], query };
+    if (query.status === 'missing-query' || query.status === 'scene-reloaded') return { ...empty, status: query.status };
+    if (ef.configuredId === id && ef.running) return { ...empty, status: 'searching' };
+    if (ef.configuredId === id && ef.fault) return { ...empty, status: 'failed' };
+    const run = currentRun(id);
+    if (!run) return { ...empty, status: analysis.eventResultRuns[id]?.complete ? 'stale-result' : 'not-searched' };
+    const events = analysis.eventResults[id] ?? [];
+    return { ...empty, status: events.length ? 'ready' : 'no-results', total: events.length,
+      nextOffset: offset + limit < events.length ? offset + limit : null,
+      items: events.slice(offset, offset + limit).map(event => ({ reference: reference(id, event.id)!, event: copy(event) })) };
+  },
+  focusEventResult: (ref, anchor = 'inspect', opts) => {
+    const result = (status: ScriptEventFocusReceipt['status']): ScriptEventFocusReceipt => ({ status, reference: ref, anchor, observation: getEventVisualization() });
+    if (!ref || !Number.isInteger(ref.scene) || !Number.isInteger(ref.revision) || ref.revision < 1 || typeof ref.query !== 'string' || !ref.query || ref.query.length > 512 || typeof ref.id !== 'string' || !ref.id || ref.id.length > 512
+      || Object.keys(ref).some(key => !['scene', 'query', 'id', 'revision'].includes(key))
+      || !['inspect', 'start', 'middle', 'end'].includes(anchor)) return result('invalid-reference');
+    if (opts?.signal?.aborted) return result('cancelled');
+    if (!getSceneUniverse() || ref.scene !== sceneId() || (opts?.scene !== undefined && opts.scene !== sceneId())) return result('scene-reloaded');
+    if (ef.restoring) return result('unavailable');
+    const query = configuredEventQueries().find(q => q.id === ref.query);
+    if (!query) return result('missing-query');
+    if (!query.enabled) return result('unavailable');
+    const run = currentRun(ref.query);
+    if (!run || run.revision !== ref.revision) return result('stale-result');
+    const event = analysisContext().eventResults.find(e => e.queryId === ref.query && e.id === ref.id);
+    if (!event) return result('missing-result');
+    // Entirely synchronous: inspection and optional seek use the UI action.
+    // No later continuation can reassert time/camera after manual takeover.
+    if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor);
+    return result(getEventVisualization().status);
+  },
   upsertEventQuery: (input, opts) => {
     guard(opts?.scene);
     if (!input || JSON.stringify(input).length > 32768 || typeof input.id !== 'string' || !input.id || input.id.length > 512 || Object.hasOwn(Object.prototype, input.id)) throw new Error('Invalid bounded query definition');
@@ -40,6 +119,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
       updateConfiguredEventQuery(existing.id, query, validated.label, 'explicit');
       delete analysis.eventResults[existing.id];
       delete ef.searchOutcomes[existing.id];
+      delete analysis.eventResultRuns[existing.id];
       if (ef.selectedQueryId === existing.id) clearSelection();
     } else createConfiguredEventQuery(query, validated.label, 'explicit', input.id);
     openConfiguredQuery(input.id);
@@ -60,11 +140,11 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     if (!configuredEventQueries().some(q => q.id === id && q.enabled)) throw new Error('Event query is missing or disabled');
     const timeout = opts.timeoutMs ?? 30000;
     if (!Number.isFinite(timeout) || timeout < 0 || timeout > 120000) throw new Error('Search timeout must be 0–120000 ms');
-    const scene = sceneId(), renderer = getRenderer();
+    const scene = sceneId(), renderer = getRenderer(), kernels = vs.kernelRevision;
     let generation = -1;
     const receipt = (status: ScriptEventSearch['status']): ScriptEventSearch => {
-      if (scene === sceneId() && renderer === getRenderer()) recordEventSearchOutcome(id, generation, status);
-      return { ...getEventSearch(), scene, query: id, status, progress: null };
+      if (scene === sceneId() && renderer === getRenderer() && kernels === vs.kernelRevision) recordEventSearchOutcome(id, generation, status);
+      return { ...getEventSearch(), scene, query: id, status, progress: null, error: ef.configuredId === id && ef.fault ? { code: ef.fault.code, message: ef.fault.message } : null };
     };
     if (opts.signal?.aborted) return receipt('cancelled');
     openConfiguredQuery(id);
@@ -82,11 +162,13 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     opts.signal?.addEventListener('abort', abort);
     const timer = setTimeout(() => stop('timed-out'), timeout);
     try {
+      // runSearch emits its running notification synchronously. Own the
+      // expected generation before an observer can abort from that callback.
       generation = eventSearchGeneration() + 1;
       const run = runSearch();
       if (!outcome) generation = eventSearchGeneration();
       await Promise.race([run, stopping]);
-      if (scene !== sceneId() || renderer !== getRenderer()) return receipt('stale');
+      if (scene !== sceneId() || renderer !== getRenderer() || kernels !== vs.kernelRevision) return receipt('stale');
       if (generation !== eventSearchGeneration()) return receipt(outcome ?? 'cancelled');
       return receipt(outcome ?? (ef.fault ? 'failed' : ef.searched ? 'complete' : 'cancelled'));
     } catch (error) {
@@ -100,11 +182,12 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     if (!configuredEventQueries().some(q => q.id === query)) throw new Error('No such event query');
     const offset = opts?.offset ?? 0, limit = opts?.limit ?? 50;
     if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid result page');
-    const results = analysis.eventResults[query] ?? [];
+    const results = currentRun(query) ? analysis.eventResults[query] ?? [] : [];
     return { total: results.length, items: copy(results.slice(offset, offset + limit)) };
   },
   selectEventResult: (query, id, anchor = 'inspect', opts) => {
     guard(opts?.scene);
+    if (!currentRun(query)) return false;
     const event = analysisContext().eventResults.find(e => e.queryId === query && e.id === id);
     if (!event) return false;
     if (anchor === 'inspect') selectEventForInspection(event);

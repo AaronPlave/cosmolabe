@@ -862,6 +862,95 @@ annotation payloads, provenance objects and local exception details are never
 spread into model output. Trusted local geographic control reads retain their
 full data.
 
+For analysis-to-visualization workflows, prefer the run-scoped path:
+
+```ts
+const scene = control.getScene()!.id;
+control.upsertEventQuery({
+  id: 'soi', label: 'Cassini closest approach', enabled: true, visible: true,
+  query: { id: 'soi', kind: 'closest-approach',
+    bodies: { observer: 'Cassini', target: 'Saturn' },
+    window: { start: 141912064.184, end: 141955264.184 },
+    step: 60, abcorr: 'LT+S' },
+}, { scene });
+const info = control.getEventQueryInfo('soi', { scene });
+if (info.status !== 'available') throw new Error(info.error?.code ?? info.status);
+const run = await control.runEventQuery('soi', { scene, signal, timeoutMs: 120000 });
+if (run.status !== 'complete') throw new Error(run.status);
+const page = control.getEventResultPage('soi', { scene, limit: 10 });
+if (page.status !== 'ready') throw new Error(page.status); // includes no-results
+const receipt = control.focusEventResult(page.items[0].reference, 'start', { scene });
+// Framing is an independent, explicit camera operation.
+control.frameObject('Saturn');
+const observation = control.getEventVisualization();
+```
+
+`getEventQueryInfo` reads the resolved specification, shared coverage assessment
+(including disjoint windows, exact/estimated status and caveats), ET/step units,
+correction, analysis context frame and kind-declared calculation frames. Scalar
+range is frame independent; the context frame is not a claim that every metric
+was evaluated in it. Metric values retain their own native units. The provenance
+identifies the live kernel revision/count, not file identities or scientific
+accuracy. An unsupported kernel set, missing body or uncovered window remains
+unavailable (`missing-coverage` when the shared coverage assessment establishes
+it). Reads do not open another query or change the form. Body/query/result IDs
+are exact: use existing discovery/`resolve` to disambiguate before authoring;
+an ambiguous display label never chooses a plausible body automatically.
+
+`getEventResultPage` returns at most 100 `{reference,event}` records with an
+offset and `nextOffset`. Its status distinguishes `ready`, `no-results`,
+`not-searched`, `searching`, `failed`, `stale-result`, `missing-query` and
+`scene-reloaded`. A reference contains `{scene,query,id,revision}`: result IDs
+are positional within a search, so a rerun invalidates its old references even
+when IDs repeat. Query/context/kernel changes also invalidate cached computation.
+The existing `listEventResults`/`selectEventResult` convenience operations use
+only current results, but their bare IDs do not protect a caller holding an ID
+across a rerun; use the reference API for that boundary.
+
+`focusEventResult(reference,anchor)` and the generated
+`focusEventResult "<JSON reference>" inspect|start|middle|end` verb invoke the
+same selection/seek actions as Event Finder. `inspect` preserves time and camera;
+the other anchors seek the event and update the ordinary timeline, primary
+object and body highlights. The call is synchronous and never schedules a later
+seek or camera motion: finishing a search does not reclaim manual/host time or
+camera ownership. Abort, stale/missing results, invalid references, disabled
+queries and replaced scenes return explicit refusal states. Existing host effect
+permissions and exact authoring confirmations remain authoritative.
+
+Focus returns an `observed` or `partial` receipt. `getEventVisualization` reads
+the selected run reference, current epoch/playback, timeline membership/window,
+selected object, highlighted bodies, and native renderer observation. Renderer
+state separates configured marker groups from draw-enabled glyphs/spans and the
+selected active occultation overlay; an epoch without a matching render pass is
+unobserved. Hidden/absent trajectories, body occlusion, missing renderers and
+unobserved frames stay partial. Counts are not a pixel-visibility or calibrated
+geometry guarantee. Existing occultation geometry remains an explanatory
+rendered-position construction; GF owns timing and classification.
+
+These reads and the focus verb are discoverable in the `events` capability
+domain. Ask receives an allowlisted projection: known query parameters,
+bounded numeric metrics/units, coverage windows/status and run references;
+private fault text, arbitrary parameters and unapproved frame/provenance strings
+are withheld. Capability receipts include event readback and remain partial
+until the visualization observation is sufficient. No model/provider call is
+required to use or test this workflow.
+
+Compose event selection with existing camera, measurement, annotation and
+appearance operations. Snapshots preserve query and supported portable display
+definitions, and explicitly report that computed event selection is not replayed.
+They serialize no result arrays or run revisions. Rerun and inspect fresh
+references before focusing a snapshot's query. Existing ViewState v1 sharing
+recomputes searched queries against the receiving kernels and uniquely matches
+the selected event by times/state; failure to reproduce it is an error, never a
+revived old run reference. Local annotation resources and transient geometry
+retain their documented portability limits.
+
+Run `node scripts/test-event-visualization-integration.mjs` against a viewer at
+port 5397 (or set `CL_VIEWER_URL`) for the real Cassini GF workflow, ordinary and
+`?test=1` viewers, native readback, snapshots/share, no-results, uncovered-window,
+stale-reference and cancellation/manual-takeover acceptance. It waits on state
+predicates, never a fixed settling delay.
+
 `listInstruments()` lists the renderer's existing sensors. `selectInstrument(name)`
 opens that synthetic scene feed, and `null` closes it; the text verb takes an
 empty string to close. `getInstrument()` reports FOV (nullable when unknown),
