@@ -449,245 +449,145 @@
     {
       "scenario": "ingenuity",
       "mode": "fixed",
-      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and turn on the highest-resolution Jezero imagery available. Explain the estimated timing and that centre distance is not terrain clearance.",
-      "latencyMs": 19067,
-      "modelRounds": 5,
-      "rawTokens": 68533,
-      "estimatedUsd": 0.0615994,
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and enable the highest-resolution Jezero imagery available separately. Keep elevation coloring as the final base color, with that imagery layer enabled for later use. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 21009,
+      "modelRounds": 9,
+      "rawTokens": 140246,
+      "estimatedUsd": 0.0749731,
       "schemaBytes": [
-        8006,
-        8006,
-        8006,
-        8006,
-        8006
-      ],
-      "toolCalls": 19,
-      "refusals": 0,
-      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
-      "downloads": 0,
-      "model": "claude-sonnet-5-5",
-      "status": "done",
-      "approvalKinds": [
-        "authoring"
-      ],
-      "operations": [
-        {
-          "operation": "describeScene",
-          "ok": true
-        },
-        {
-          "operation": "resolve",
-          "ok": true
-        },
-        {
-          "operation": "resolve",
-          "ok": true
-        },
-        {
-          "operation": "resolve",
-          "ok": true
-        },
-        {
-          "operation": "activities.getActivity",
-          "ok": true
-        },
-        {
-          "operation": "surface.getImagery",
-          "ok": true
-        },
-        {
-          "operation": "surface.getSurfaceAppearance",
-          "ok": true
-        },
-        {
-          "operation": "describeCapabilities",
-          "ok": true
-        },
-        {
-          "operation": "time.setPlaying",
-          "ok": true
-        },
-        {
-          "operation": "activities.selectActivity",
-          "ok": true
-        },
-        {
-          "operation": "activities.seekActivity",
-          "ok": true
-        },
-        {
-          "operation": "camera.frameObject",
-          "ok": true
-        },
-        {
-          "operation": "measurements.upsertMeasurement",
-          "ok": true
-        },
-        {
-          "operation": "surface.setSurfaceAppearance",
-          "ok": true
-        },
-        {
-          "operation": "surface.showImagery",
-          "ok": true
-        },
-        {
-          "operation": "measurements.listMeasurements",
-          "ok": true
-        },
-        {
-          "operation": "surface.getSurfaceAppearance",
-          "ok": true
-        },
-        {
-          "operation": "surface.getImagery",
-          "ok": true
-        },
-        {
-          "operation": "describeScene",
-          "ok": true
-        }
-      ],
-      "observed": {
-        "et": 673687579.2,
-        "playing": false,
-        "selected": null,
-        "tracked": "Ingenuity",
-        "camera": {
-          "position": [
-            0.002620034840125629,
-            -0.000317554124055347,
-            -0.00045787801222535625
-          ],
-          "target": [
-            0,
-            0,
-            0
-          ],
-          "up": [
-            0,
-            1,
-            0
-          ],
-          "fov": 60
-        },
-        "activity": "ingenuity:flight:5",
-        "measurements": [
-          {
-            "id": "flight5-distance",
-            "kind": "distance",
-            "source": {
-              "kind": "entity",
-              "bodyName": "Ingenuity"
-            },
-            "target": {
-              "kind": "entity",
-              "bodyName": "Mars"
-            },
-            "vertex": null,
-            "visible": true
-          }
-        ],
-        "appearance": {
-          "hillshade": true,
-          "baseColor": "imagery",
-          "azimuthDeg": 315,
-          "elevationDeg": 45,
-          "contrast": 1,
-          "imageryAmount": 0.25,
-          "palette": "blue-gold",
-          "contours": false,
-          "contourOpacity": 0.35,
-          "contourDensity": 1,
-          "contourIntervalKm": 0,
-          "contourLabels": false,
-          "contourColor": "#f2e6c9",
-          "minKm": -10,
-          "maxKm": 15
-        },
-        "imagery": [
-          {
-            "id": "viking",
-            "visible": true
-          },
-          {
-            "id": "ctx-global",
-            "visible": false
-          },
-          {
-            "id": "jezero-ctx",
-            "visible": false
-          },
-          {
-            "id": "jezero-hirise",
-            "visible": true
-          }
-        ]
-      },
-      "usage": [
-        {
-          "model": "claude-sonnet-5-5",
-          "inputTokens": 4,
-          "cacheReadTokens": 6024,
-          "cacheWriteTokens": 0,
-          "outputTokens": 172,
-          "estimatedUsd": 0.0023304000000000003
-        },
-        {
-          "model": "claude-sonnet-5-5",
-          "inputTokens": 2,
-          "cacheReadTokens": 6024,
-          "cacheWriteTokens": 3257,
-          "outputTokens": 360,
-          "estimatedUsd": 0.0123489
-        },
-        {
-          "model": "claude-sonnet-5-5",
-          "inputTokens": 2,
-          "cacheReadTokens": 9281,
-          "cacheWriteTokens": 3919,
-          "outputTokens": 845,
-          "estimatedUsd": 0.019179599999999998
-        },
-        {
-          "model": "claude-sonnet-5-5",
-          "inputTokens": 2,
-          "cacheReadTokens": 13200,
-          "cacheWriteTokens": 4000,
-          "outputTokens": 282,
-          "estimatedUsd": 0.014144
-        },
-        {
-          "model": "claude-sonnet-5-5",
-          "inputTokens": 2,
-          "cacheReadTokens": 17200,
-          "cacheWriteTokens": 3693,
-          "outputTokens": 264,
-          "estimatedUsd": 0.0135965
-        }
-      ]
-    },
-    {
-      "scenario": "ingenuity",
-      "mode": "discovery",
-      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and turn on the highest-resolution Jezero imagery available. Explain the estimated timing and that centre distance is not terrain clearance.",
-      "latencyMs": 19408,
-      "modelRounds": 7,
-      "rawTokens": 97338,
-      "estimatedUsd": 0.07765659999999999,
-      "schemaBytes": [
-        6306,
-        6306,
-        6306,
-        6306,
-        6306,
-        6306,
-        6306
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
       ],
       "toolCalls": 20,
       "refusals": 0,
       "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
       "downloads": 0,
+      "usage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "outputTokens": 81,
+          "cacheReadTokens": 7458,
+          "cacheWriteTokens": 236,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 7779,
+          "estimatedUsd": 0.0021538,
+          "estimatedSpentUsd": 0.0021538
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 150,
+          "cacheReadTokens": 7694,
+          "cacheWriteTokens": 873,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 16498,
+          "estimatedUsd": 0.0044559,
+          "estimatedSpentUsd": 0.0066097
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 266,
+          "cacheReadTokens": 8567,
+          "cacheWriteTokens": 3274,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 28607,
+          "estimatedUsd": 0.011705700000000001,
+          "estimatedSpentUsd": 0.018315400000000003
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 143,
+          "cacheReadTokens": 11841,
+          "cacheWriteTokens": 2464,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 43057,
+          "estimatedUsd": 0.0087781,
+          "estimatedSpentUsd": 0.027093500000000003
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 174,
+          "cacheReadTokens": 14305,
+          "cacheWriteTokens": 1886,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 59424,
+          "estimatedUsd": 0.0078895,
+          "estimatedSpentUsd": 0.034983
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 102,
+          "cacheReadTokens": 16191,
+          "cacheWriteTokens": 1209,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 76928,
+          "estimatedUsd": 0.005665600000000001,
+          "estimatedSpentUsd": 0.0406486
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 527,
+          "cacheReadTokens": 17400,
+          "cacheWriteTokens": 399,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 95256,
+          "estimatedUsd": 0.0080115,
+          "estimatedSpentUsd": 0.0486601
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 333,
+          "cacheReadTokens": 17799,
+          "cacheWriteTokens": 2452,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 115842,
+          "estimatedUsd": 0.0112439,
+          "estimatedSpentUsd": 0.059904
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 355,
+          "cacheReadTokens": 20251,
+          "cacheWriteTokens": 3796,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 140246,
+          "estimatedUsd": 0.0150691,
+          "estimatedSpentUsd": 0.0749731
+        }
+      ],
       "model": "claude-sonnet-5-5",
       "status": "done",
       "approvalKinds": [
@@ -699,15 +599,19 @@
           "ok": true
         },
         {
-          "operation": "listCapabilities",
+          "operation": "resolve",
           "ok": true
         },
         {
-          "operation": "activities.listActivities",
+          "operation": "listActivities",
           "ok": true
         },
         {
-          "operation": "describeCapabilities",
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
           "ok": true
         },
         {
@@ -715,7 +619,15 @@
           "ok": true
         },
         {
-          "operation": "activities.listActivities",
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
           "ok": true
         },
         {
@@ -735,19 +647,7 @@
           "ok": true
         },
         {
-          "operation": "describeCapabilities",
-          "ok": true
-        },
-        {
           "operation": "measurements.upsertMeasurement",
-          "ok": true
-        },
-        {
-          "operation": "surface.getSurfaceAppearance",
-          "ok": true
-        },
-        {
-          "operation": "surface.getImagery",
           "ok": true
         },
         {
@@ -771,7 +671,7 @@
           "ok": true
         },
         {
-          "operation": "describeScene",
+          "operation": "scene.describeScene",
           "ok": true
         }
       ],
@@ -798,7 +698,30 @@
           ],
           "fov": 60
         },
-        "activity": "ingenuity:flight:5",
+        "activity": {
+          "version": 1,
+          "id": "ingenuity:flight:5",
+          "name": "Flight 5",
+          "kind": "flight",
+          "vehicle": "Ingenuity",
+          "body": "Mars",
+          "mission": "Mars 2020",
+          "temporality": "interval",
+          "start": 673687471,
+          "end": 673687579.2,
+          "site": "Airfield B",
+          "provenance": {
+            "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+            "version": "pinned-MMGIS-flights-index-v1",
+            "authority": "estimated",
+            "timing": "estimated",
+            "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+          },
+          "references": {
+            "trajectory": "Ingenuity",
+            "sourceSegment": "data/ingenuity/flight_05.xyzv"
+          }
+        },
         "measurements": [
           {
             "id": "flight5-distance",
@@ -835,80 +758,357 @@
         "imagery": [
           {
             "id": "viking",
-            "visible": true
+            "visible": true,
+            "resolutionMeters": 325.60563825058347,
+            "status": "ok"
           },
           {
             "id": "ctx-global",
-            "visible": false
+            "visible": false,
+            "resolutionMeters": 5.087588097665367,
+            "status": "idle"
           },
           {
             "id": "jezero-ctx",
-            "visible": false
+            "visible": false,
+            "resolutionMeters": 6,
+            "status": "idle"
           },
           {
             "id": "jezero-hirise",
-            "visible": true
+            "visible": true,
+            "resolutionMeters": 0.25,
+            "status": "ok"
           }
         ]
       },
+      "supersedes": "Earlier palette-only acceptance without elevation base-color assertion"
+    },
+    {
+      "scenario": "ingenuity",
+      "mode": "discovery",
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and enable the highest-resolution Jezero imagery available separately. Keep elevation coloring as the final base color, with that imagery layer enabled for later use. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 21323,
+      "modelRounds": 9,
+      "rawTokens": 114818,
+      "estimatedUsd": 0.07677729999999999,
+      "schemaBytes": [
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529
+      ],
+      "toolCalls": 17,
+      "refusals": 1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
       "usage": [
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 4,
-          "cacheReadTokens": 5154,
-          "cacheWriteTokens": 206,
-          "outputTokens": 106,
-          "estimatedUsd": 0.0020984000000000003
+          "outputTokens": 54,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 6796,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 147100,
+          "estimatedUsd": 0.017538,
+          "estimatedSpentUsd": 0.0925111
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 5360,
-          "cacheWriteTokens": 643,
-          "outputTokens": 167,
-          "estimatedUsd": 0.0038175
+          "outputTokens": 30,
+          "cacheReadTokens": 6796,
+          "cacheWriteTokens": 1337,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 155265,
+          "estimatedUsd": 0.0043261,
+          "estimatedSpentUsd": 0.0968372
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 6003,
-          "cacheWriteTokens": 3126,
-          "outputTokens": 248,
-          "estimatedUsd": 0.010899299999999999
+          "outputTokens": 330,
+          "cacheReadTokens": 8133,
+          "cacheWriteTokens": 421,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 164151,
+          "estimatedUsd": 0.0051698000000000004,
+          "estimatedSpentUsd": 0.102007
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 9129,
-          "cacheWriteTokens": 3969,
-          "outputTokens": 539,
-          "estimatedUsd": 0.016229399999999998
+          "outputTokens": 144,
+          "cacheReadTokens": 8554,
+          "cacheWriteTokens": 2528,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 175379,
+          "estimatedUsd": 0.0086194,
+          "estimatedSpentUsd": 0.1106264
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 13098,
-          "cacheWriteTokens": 4388,
-          "outputTokens": 376,
-          "estimatedUsd": 0.0160438
+          "outputTokens": 174,
+          "cacheReadTokens": 11082,
+          "cacheWriteTokens": 1956,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 188593,
+          "estimatedUsd": 0.007742199999999999,
+          "estimatedSpentUsd": 0.1183686
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 17486,
-          "cacheWriteTokens": 2255,
-          "outputTokens": 514,
-          "estimatedUsd": 0.0125301
+          "outputTokens": 102,
+          "cacheReadTokens": 13038,
+          "cacheWriteTokens": 1227,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 202962,
+          "estimatedUsd": 0.0053953000000000004,
+          "estimatedSpentUsd": 0.12376390000000001
         },
         {
+          "requestedModel": "claude-sonnet-5-5",
           "model": "claude-sonnet-5-5",
           "inputTokens": 2,
-          "cacheReadTokens": 19741,
-          "cacheWriteTokens": 4544,
-          "outputTokens": 270,
-          "estimatedUsd": 0.0160381
+          "outputTokens": 527,
+          "cacheReadTokens": 14265,
+          "cacheWriteTokens": 399,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 218155,
+          "estimatedUsd": 0.007698,
+          "estimatedSpentUsd": 0.13146190000000002
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 260,
+          "cacheReadTokens": 14664,
+          "cacheWriteTokens": 2452,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 235533,
+          "estimatedUsd": 0.0102004,
+          "estimatedSpentUsd": 0.14166230000000002
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 312,
+          "cacheReadTokens": 17116,
+          "cacheWriteTokens": 2101,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 255064,
+          "estimatedUsd": 0.010088100000000001,
+          "estimatedSpentUsd": 0.1517504
         }
-      ]
+      ],
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "activities.listActivities",
+          "ok": true
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": false
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "activities.selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "activities.seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "measurements.upsertMeasurement",
+          "ok": true
+        },
+        {
+          "operation": "surface.setSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.showImagery",
+          "ok": true
+        },
+        {
+          "operation": "measurements.listMeasurements",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 673687579.2,
+        "playing": false,
+        "selected": null,
+        "tracked": "Ingenuity",
+        "camera": {
+          "position": [
+            0.002620034840125629,
+            -0.000317554124055347,
+            -0.00045787801222535625
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": {
+          "version": 1,
+          "id": "ingenuity:flight:5",
+          "name": "Flight 5",
+          "kind": "flight",
+          "vehicle": "Ingenuity",
+          "body": "Mars",
+          "mission": "Mars 2020",
+          "temporality": "interval",
+          "start": 673687471,
+          "end": 673687579.2,
+          "site": "Airfield B",
+          "provenance": {
+            "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+            "version": "pinned-MMGIS-flights-index-v1",
+            "authority": "estimated",
+            "timing": "estimated",
+            "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+          },
+          "references": {
+            "trajectory": "Ingenuity",
+            "sourceSegment": "data/ingenuity/flight_05.xyzv"
+          }
+        },
+        "measurements": [
+          {
+            "id": "flight5-distance",
+            "kind": "distance",
+            "source": {
+              "kind": "entity",
+              "bodyName": "Ingenuity"
+            },
+            "target": {
+              "kind": "entity",
+              "bodyName": "Mars"
+            },
+            "vertex": null,
+            "visible": true
+          }
+        ],
+        "appearance": {
+          "hillshade": true,
+          "baseColor": "elevation",
+          "azimuthDeg": 315,
+          "elevationDeg": 45,
+          "contrast": 1,
+          "imageryAmount": 0.25,
+          "palette": "blue-gold",
+          "contours": false,
+          "contourOpacity": 0.35,
+          "contourDensity": 1,
+          "contourIntervalKm": 0,
+          "contourLabels": false,
+          "contourColor": "#f2e6c9",
+          "minKm": -10,
+          "maxKm": 15
+        },
+        "imagery": [
+          {
+            "id": "viking",
+            "visible": true,
+            "resolutionMeters": 325.60563825058347,
+            "status": "ok"
+          },
+          {
+            "id": "ctx-global",
+            "visible": false,
+            "resolutionMeters": 5.087588097665367,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-ctx",
+            "visible": false,
+            "resolutionMeters": 6,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-hirise",
+            "visible": true,
+            "resolutionMeters": 0.25,
+            "status": "ok"
+          }
+        ]
+      },
+      "supersedes": "Earlier palette-only acceptance without elevation base-color assertion"
     },
     {
       "scenario": "instrument-capture",

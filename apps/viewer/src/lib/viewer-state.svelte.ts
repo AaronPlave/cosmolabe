@@ -1027,6 +1027,35 @@ export function frameBody(name?: string): boolean {
   return true;
 }
 
+/** Fit a pair using the existing frame/orbit-target ownership. No animation can
+ * reassert the pose after a person takes over. World positions are refreshed
+ * after changing floating origin; no scientific/body coordinates are altered. */
+export function frameBodyPair(target: string, observer: string): boolean {
+  if (!_renderer?.getBodyMesh(target) || !_renderer.getBodyMesh(observer)) return false;
+  if (!frameBody(target)) return false;
+  const r = _renderer, a = navigableMesh(target)!, b = navigableMesh(observer)!;
+  const cc = r.cameraController;
+  if (cc.mode !== CameraModeName.FREE_ORBIT) cc.setMode(CameraModeName.FREE_ORBIT);
+  r.refreshBodyPose(target); r.refreshBodyPose(observer);
+  const pa = a.position.clone(), pb = b.position.clone();
+  const axis = pb.clone().sub(pa), separation = axis.length();
+  if (!Number.isFinite(separation)) return false;
+  if (separation === 0) return true;
+  axis.normalize();
+  const center = pa.clone().add(pb).multiplyScalar(.5);
+  const direction = cc.camera.position.clone().sub(cc.controls.target);
+  direction.addScaledVector(axis, -direction.dot(axis));
+  if (direction.lengthSq() < 1e-20) direction.crossVectors(axis, Math.abs(axis.y) < .9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0));
+  direction.normalize();
+  // Leave margin around the pair for the ordinary docked inspection panels.
+  const radius = separation / 2 + Math.max(a.displayRadius, b.displayRadius) * r.scaleFactor;
+  const halfFov = Math.min(cc.camera.fov * Math.PI / 360, Math.atan(Math.tan(cc.camera.fov * Math.PI / 360) * cc.camera.aspect));
+  cc.camera.position.copy(center).addScaledVector(direction, 2 * radius / Math.sin(halfFov));
+  cc.controls.target.copy(center); cc.camera.lookAt(center); cc.camera.updateMatrixWorld(true);
+  cc.syncOrbitTargetFromCamera(); syncCameraState();
+  return true;
+}
+
 /**
  * Fly: animate to the view `frameBody` would cut to, then track the body.
  * `path` defaults to `DEFAULT_FLIGHT_PATH`; `seconds` to the path's own

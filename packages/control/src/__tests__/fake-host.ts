@@ -55,6 +55,7 @@ export class FakeViewer implements ViewerControl {
   getEventVisualization(): import('../contracts.js').ScriptEventVisualization { return { scene: this.scene?.id ?? null, selected: null, et: this.getTime(), playing: this.isPlaying(), selectedObject: this.selected, highlightedBodies: [], timeline: { min: 0, max: 1000, selectedInResults: false, selectedInVisibleLane: false }, renderer: null, status: 'partial', limitations: ['No renderer'] }; }
   getEventQueryInfo(): import('../contracts.js').ScriptEventQueryInfo { return { status: 'missing-query', definition: null, coverage: null, error: null, provenance: null }; }
   getEventResultPage(): import('../contracts.js').ScriptEventResultPage { return { status: 'missing-query', total: 0, offset: 0, nextOffset: null, items: [], query: this.getEventQueryInfo() }; }
+  async presentEventResult(reference: import('../contracts.js').ScriptEventReference) { return this.focusEventResult(reference, 'middle'); }
   focusEventResult(reference: import('../contracts.js').ScriptEventReference, anchor: 'inspect' | 'start' | 'middle' | 'end' = 'inspect'): import('../contracts.js').ScriptEventFocusReceipt { this.log('focusEventResult', reference.query, reference.id, anchor); return { status: 'partial', reference, anchor, observation: this.getEventVisualization() }; }
   moveImageryLayer(body: string, layer: string, index: number) { this.log('moveImageryLayer', body, layer, index); return true; }
 

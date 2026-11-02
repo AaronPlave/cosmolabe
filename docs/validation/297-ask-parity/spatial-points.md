@@ -46,10 +46,13 @@ clock/playback/camera ownership. Playback continued normally throughout.
   transient probe without authoring approval. The initial model read could not
   confirm draw visibility and said so. Later native readback and the screenshot
   showed the pin; no camera movement was requested to force visibility.
-- The literal `can you place a point then` created an approved persistent point.
-  A further explicit save-and-select request verified selection, convention
-  conversion and readback of the existing pinned location. Two features remained;
-  the second saved the terrain-refined pin rather than silently moving the first.
+- The literal `can you place a point then` created and selected one approved
+  persistent point, independently checked immediately after that turn. No third
+  coaching prompt was sent. The authored coordinates match the pin conversion
+  already supplied to the conversation, and the native draw group contains exactly
+  one feature. The original pin placement epoch and radial direction are preserved.
+  This supersedes the earlier two-point acceptance; it does not use a second saved
+  point to rescue the natural follow-up.
 
 See [compact evidence](spatial-acceptance.json), [Saturn screenshot](saturn-point-panel.png)
 and [Ingenuity screenshot](ground-pin-panel.png). Complete provider dumps stay
@@ -72,3 +75,5 @@ Repeat only with explicit live inference authorization and a viewer started with
 ```sh
 ASK_MISSION_LIVE=1 node scripts/test-ask-spatial-points.mjs
 ```
+
+The latest encounter/style/point re-review and current validation are recorded in [review-followup.md](review-followup.md).

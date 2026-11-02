@@ -930,6 +930,22 @@ it). Reads do not open another query or change the form. Body/query/result IDs
 are exact: use existing discovery/`resolve` to disambiguate before authoring;
 an ambiguous display label never chooses a plausible body automatically.
 
+`getEventResultPage(query, {order: 'range-ascending'})` ranks all measured
+closest-approach candidates in the current completed run before pagination,
+returns `ranking.compared`, and refuses ranking if any candidate lacks a measured
+range. Chronological first is not necessarily closest. Results apply only to the
+actual query window and loaded kernels; search step still limits completeness.
+
+`presentEventResult(reference, 'pair')` pauses, seeks and fits the two event
+participants using the existing frame/orbit-target path, then waits up to 1.5 s
+for native observation. `'target'` explicitly requests target-only framing. Its
+script form is `presentEventResult "<JSON reference>" pair|target`. Manual camera,
+time, scene or selection changes interrupt observation without reasserting the
+view. Inspect `getEventVisualization().presentation` for the actual tracked
+object/reference, projected participant centers and native group visibility;
+these observations do not guarantee unoccluded pixels. `focusEventResult`
+remains the lower-level inspect/seek operation without framing.
+
 `getEventResultPage` returns at most 100 `{reference,event}` records with an
 offset and `nextOffset`. Its status distinguishes `ready`, `no-results`,
 `not-searched`, `searching`, `failed`, `stale-result`, `missing-query` and

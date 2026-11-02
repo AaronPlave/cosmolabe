@@ -1135,6 +1135,19 @@
     },
     {
       "feature": "events",
+      "operation": "events.presentEventResult",
+      "ui": "EventFinder / EventDetails / TimelineDock",
+      "semantic": "presentEventResult",
+      "script": "presentEventResult",
+      "discovery": true,
+      "defaultAsk": "discovery",
+      "effect": "camera",
+      "permission": "direct",
+      "status": "registered",
+      "missingReason": null
+    },
+    {
+      "feature": "events",
       "operation": "events.selectEventResult",
       "ui": "EventFinder / EventDetails / TimelineDock",
       "semantic": "selectEventResult",

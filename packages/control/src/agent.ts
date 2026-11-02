@@ -210,7 +210,7 @@ function paramSchema(p: VerbParam): AgentJsonSchema {
 
 function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
   const properties: Record<string, AgentJsonSchema> = {};
-  for (const p of spec.params) properties[p.name] = paramSchema(p);
+  for (const p of spec.params) properties[p.name] = p.name === 'reference' ? { ...paramSchema(p), description: 'JSON text of the complete run reference {scene,query,id,revision} returned by getEventResultPage; never a bare event ID.' } : paramSchema(p);
   const description = spec.name === 'flyTo' || spec.name === 'gotoPlace'
     ? `${spec.help} Returns when the flight ends, saying whether it arrived or the person took over.`
     : spec.help;
@@ -232,9 +232,9 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
   { name: 'getObjectState', effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations separately require approval.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['reference','rendered','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'Discover built-in event kinds, required participant roles, defaults, and loaded-kernel coverage before configuring a new search. Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} and requires saved-definition approval.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} and requires saved-definition approval.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
-  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one), metrics and run-scoped references for focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 5 } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listEventQueries', effect: 'read', method: 'listEventQueries', description: 'Bounded configured Event Finder identities/kinds and flags; no result arrays or private query metadata.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getEventSearch', effect: 'read', method: 'getEventSearch', description: 'Event search status, current-call progress, error code and exact selection. Error text is withheld.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -673,7 +673,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
    * only when the viewer says it is. Returns a refusal when it is not, else
    * the sentence to append to the result.
    */
-  function readBack(name: string, args: Input): { problem: string } | { note: string } | null {
+  function readBack(name: string, args: Input): { problem: string } | { note: string; data?: unknown } | null {
     if (name === 'select' || name === 'deselect') {
       const expected = name === 'select' ? args.object : null;
       return host.getSelected() === expected ? { note: `Selected object: ${host.getSelected() ?? 'none'}.` }
@@ -696,6 +696,30 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const layer = host.getImagery?.(args.object as string)?.layers.find(l => l.id === args.layer);
       const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
       return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
+    }
+    if (name === 'frameObject') {
+      const camera = host.getCamera(), target = args.object ?? host.getTracked();
+      return target && host.getTracked() === target && [...camera.position,...camera.target,...camera.up].every(Number.isFinite) && Math.hypot(...camera.position.map((v,i)=>v-camera.target[i])) > 0 ? { note: 'Requested tracked object and resulting camera pose are observed. This is not an occlusion or visible-pixels guarantee.' } : { problem: 'the requested framing target and valid camera pose are not observed' };
+    }
+    if (name === 'presentEventResult' && host.getEventVisualization) {
+      const ref = JSON.parse(args.reference as string) as ScriptEventReference, v = host.getEventVisualization();
+      const selected = v.selected;
+      if (!selected || selected.scene !== ref.scene || selected.query !== ref.query || selected.id !== ref.id || selected.revision !== ref.revision || v.playing) return { problem: 'the requested paused event presentation is not held' };
+      const p = v.presentation, target = host.getEventQueryInfo?.(ref.query).definition?.query.bodies.target;
+      const requested = args.framing === 'target' ? p?.participants.filter(b => b.object === target) : p?.participants;
+      return requested?.length && requested.every(b => b.inView && b.drawEnabled) && p?.participants.some(b => b.object === p.tracked) ? { note: `Requested encounter framing is observed; projected participant centers are inside the view with native body groups enabled. Native event drawing is ${v.status}; projected centers are not visible-pixel proof.` } : { problem: 'the event was selected but the encounter could not be framed; inspect camera/participant availability' };
+    }
+    if (name === 'upsertEventQuery' && host.getEventQueryInfo) {
+      const expected = JSON.parse(args.definition as string), info = host.getEventQueryInfo(expected.id);
+      const matches = (actual: unknown, desired: unknown): boolean => desired !== null && typeof desired === 'object'
+        ? actual !== null && typeof actual === 'object' && Object.entries(desired).every(([key,value]) => matches((actual as Record<string,unknown>)[key],value))
+        : actual === desired;
+      return info.definition !== null && matches(info.definition.query, expected.query) && info.definition.enabled === expected.enabled && info.definition.visible === expected.visible
+        ? { note: `Saved query specification is observed. Search availability: ${info.status}.${info.status !== 'available' ? ' Inspect the returned coverage and correct the window before running; saving a definition does not establish computability.' : ''}`, data: { query: eventQueryMetadata(info, metadata.text) } } : { problem: 'Event Finder does not report the saved query specification' };
+    }
+    if (name === 'runEventQuery' && host.getEventSearch && host.getEventResultPage) {
+      const search = host.getEventSearch(), page = host.getEventResultPage(args.id as string, { limit: 1 });
+      return search.query === args.id && search.status === 'complete' && ['ready','no-results'].includes(page.status) ? { note: 'Completed search and current result run verified through Event Finder.' } : { problem: 'Event Finder does not report a completed search/current result run' };
     }
     if (name === 'focusEventResult' && host.getEventVisualization) {
       const ref = JSON.parse(args.reference as string) as ScriptEventReference;
@@ -735,7 +759,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       } };
     },
     getEventQueryInfo: input => ({ ok: true, summary: 'Shared query availability and provenance.', data: eventQueryMetadata(host.getEventQueryInfo!(input.query as string), metadata.text) }),
-    getEventResultPage: input => ({ ok: true, summary: 'Run-scoped event results; inspect status before focusing.', data: eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined ?? 1 }), metadata.text) }),
+    getEventResultPage: input => {
+      const data = eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: Math.min(5, input.limit as number | undefined ?? 1), ...(input.order ? { order: input.order as 'chronological' | 'range-ascending' } : {}) }), metadata.text);
+      const window = data.query.definition?.windowUtc;
+      return { ok: true, summary: `Run-scoped results${data.ranking ? `; compared all ${data.ranking.compared} measured candidates` : ''}.${window ? ` Searched window: ${window.start} through ${window.end}. Report these actual bounds; closest is within this window, never an all-time claim. ${data.query.definition?.params.scope === 'global' ? 'This is a deepest-only query: one returned global minimum does NOT mean only one local approach occurred.' : 'Counts describe the measured local candidates returned by this query.'}` : ''}`, data };
+    },
     getEventVisualization: () => ({ ok: true, summary: 'Event visualization readback; partial is not drawn acceptance.', data: eventVisualizationMetadata(host.getEventVisualization!()) }),
     listEventQueries: () => ({ ok: true, summary: 'Configured event searches.', data: { items: host.listEventQueries!().slice(0, 32).map(q => ({ id: q.id, kind: q.query.kind, enabled: q.enabled, visible: q.visible })) } }),
     getEventSearch: () => {
@@ -936,7 +964,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         }
         const back = readBack(name, args);
         if (back && 'problem' in back) return { ok: false, code: 'failed', error: `${text}: ${back.problem}` };
-        return { ok: true, summary: `${text}: done.${back ? ` ${back.note}` : ''}` };
+        return { ok: true, summary: `${text}: done.${back ? ` ${back.note}` : ''}`, ...(back && back.data !== undefined ? { data: back.data } : {}) };
       } finally {
         offSeen();
         if (this.ownFlight === own) this.ownFlight = null;
