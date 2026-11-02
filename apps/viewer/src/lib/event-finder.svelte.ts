@@ -88,7 +88,7 @@ import { resettable } from './session.svelte';
 import { activityEvent } from './mission-activities';
 import { analysisResultGuards } from './trajectory-analysis-identity';
 import { frameBody, setPlaying } from './viewer-state.svelte';
-import { runTrajectoryEventQuery } from './trajectory-analysis.svelte';
+import { runTrajectoryEventQuery, trajectoryMetricAvailability } from './trajectory-analysis.svelte';
 import { eventQuerySignature } from './event-query-signature';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
@@ -300,8 +300,11 @@ export function currentSearchUnavailable(): EventSearchFault | null {
 }
 
 function searchUnavailable(form: EventQueryForm | null, kind: EventKind<never>, coverage: CoverageAssessment | null, abcorr = searchAbcorr(kind)): EventSearchFault | null {
-  if (kind.engine === 'trajectory-analysis') return getUniverse()
-    ? null : { code:'unavailable',message:'Load a catalog with trajectory states first.' };
+  if (kind.engine === 'trajectory-analysis') {
+    if (!getUniverse()) return { code:'unavailable',message:'Load a catalog with trajectory states first.' };
+    const reason = trajectoryMetricAvailability(form?.bodies.center, form?.params.frame, form?.params.radiusKm)[form?.params.metric ?? ''];
+    return reason ? { code:'unavailable',message:reason } : null;
+  }
   const spice = getSpice();
   // Searches run on SPICE kernels; a host-supplied state is not in them, and
   // is not quietly replaced by whatever the kernels hold under that name.
@@ -577,7 +580,12 @@ export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null
 
 /** The selected mission activity's ID, when the selection is one. */
 function selectedActivityId(): string | null {
-  return ef.selectedQueryId?.startsWith('activity:') ? ef.selectedId : selectedEventOf(analysisContext().eventResults)?.trajectoryAnalysis?.activityId ?? null;
+  return ef.selectedQueryId?.startsWith('activity:') ? ef.selectedId : selectedNumericalResult()?.activityId ?? null;
+}
+// Read the selected identity before applying validity guards: a stale source
+// must clear that identity, rather than hiding it from the cleanup handler.
+function selectedNumericalResult() {
+  return ef.selectedQueryId ? analysis.eventResults[ef.selectedQueryId]?.find(event => event.id === ef.selectedId)?.trajectoryAnalysis : undefined;
 }
 
 // An activity whose record went (its source was replaced or removed) is no
@@ -586,7 +594,11 @@ function selectedActivityId(): string | null {
 onViewerEvent('activities', () => {
   const id = selectedActivityId();
   if (id === null) return;
-  const still = vs.activities.some((a) => a.id === id && activityEvent(a).queryId === ef.selectedQueryId);
+  const numerical = selectedNumericalResult();
+  const still = numerical
+    ? vs.activities.some(a => a.id === id && a.vehicle === numerical.object && a.body === numerical.body)
+      && analysisResultGuards.get(`${ef.selectedQueryId}/${ef.selectedId}`)?.() === true
+    : vs.activities.some((a) => a.id === id && activityEvent(a).queryId === ef.selectedQueryId);
   if (!still) setSelection(null);
 });
 

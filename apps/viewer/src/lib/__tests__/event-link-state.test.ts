@@ -157,7 +157,7 @@ describe('event link restoration through Event Finder', () => {
 
 describe('portable native trajectory event definitions',()=>{
   it('preserves a closed typed numerical request and bounds replay by the evaluation budget',()=>{
-    const request={objects:['Polaris-A','Polaris-C'],body:'Moon',frame:'MOON_ME_DE421',metric:'heightAbovePhysicalTerrain',extremum:'maximum',reference:{kind:'sphere',radiusKm:1737.4},scope:{kind:'activities',activityKind:'hop'},stepSeconds:.1,timeToleranceSeconds:.005,terrain:{id:'lunar-grid',revision:'pinned-v1'}};
+    const request={objects:['Polaris-A','Polaris-C'],body:'Moon',frame:'MOON_ME_DE421',metric:'heightAbovePhysicalTerrain',extremum:'maximum',reference:{kind:'sphere',radiusKm:1737.4},scope:{kind:'activities',activityKind:'hop'},sampling:'adaptive',stepSeconds:.1,timeToleranceSeconds:.005,terrain:{id:'lunar-grid',revision:'pinned-v1'}};
     const state={version:1,current:0,queries:[{query:{id:'height',kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:0,end:1e7},step:.1,abcorr:'NONE',params:{metric:request.metric,extremum:request.extremum,scope:'activities',timeToleranceSeconds:.005},trajectoryAnalysis:{...request,secret:'do-not-share'}},label:'Height extrema',enabled:true,visible:true,windowMode:'explicit',searched:true}]};
     const portable=validateEventLinkState(state);
     expect(portable.queries[0].query.trajectoryAnalysis).toEqual(request);

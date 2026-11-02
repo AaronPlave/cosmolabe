@@ -34,6 +34,9 @@ export interface TrajectoryExtremaQuery {
     }[];
   };
   stepSeconds: number;
+  /** Fixed preserves the explicit maximum step (also the legacy default).
+   * Adaptive treats stepSeconds as a lower limit and reports the actual spacing. */
+  sampling?: 'adaptive' | 'fixed';
   timeToleranceSeconds: number;
   maxEvaluations?: number;
   terrain?: {

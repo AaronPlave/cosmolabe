@@ -68,6 +68,7 @@ export function validateEventLinkState(value: unknown): EventLinkState {
           kind:'activities',...(raw.scope.ids ? {ids:[...raw.scope.ids]} : {}),...(raw.scope.activityKind ? {activityKind:raw.scope.activityKind} : {}),...(raw.scope.window ? {window:{start:raw.scope.window.start,end:raw.scope.window.end}} : {}),
         },
         stepSeconds:raw.stepSeconds,timeToleranceSeconds:raw.timeToleranceSeconds,
+        ...(raw.sampling ? {sampling:raw.sampling} : {}),
         ...(raw.maxEvaluations !== undefined ? {maxEvaluations:raw.maxEvaluations} : {}),
         ...(raw.terrain ? {terrain:{id:raw.terrain.id,revision:raw.terrain.revision}} : {}),
       };

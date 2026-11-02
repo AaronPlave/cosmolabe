@@ -21,6 +21,8 @@ export interface TrajectoryAnalysisProvider {
   /** Undefined means unknown, NOT unlimited known coverage. State probes still apply. */
   coverage?(object: string): readonly Window[] | undefined;
   knots?(object: string, window: Window): readonly number[];
+  /** Declared source period, when known; never inferred from mission activities. */
+  period?(object: string): number | undefined;
   position(object: string, et: number, body: string, frame: string): readonly [
     number,
     number,
@@ -50,6 +52,7 @@ function validFields(q: TrajectoryExtremaQuery): boolean {
     && (q.metric !== 'radialHeightAboveReferenceSphere' || ref.kind === 'sphere')
     && (q.metric !== 'heightAboveReferenceEllipsoid' || ref.kind === 'ellipsoid')
     && Number.isFinite(q.stepSeconds) && q.stepSeconds > 0 && Number.isFinite(q.timeToleranceSeconds) && q.timeToleranceSeconds > 0 && q.timeToleranceSeconds <= q.stepSeconds
+    && (q.sampling === undefined || q.sampling === 'adaptive' || q.sampling === 'fixed')
     && (q.maxEvaluations === undefined || (Number.isInteger(q.maxEvaluations) && q.maxEvaluations >= 1 && q.maxEvaluations <= 200000))
     && (q.scope?.kind === 'activities' || (q.scope?.kind === 'windows' && Array.isArray(intervals) && intervals.length > 0 && intervals.length <= 128 && intervals.every(w => Number.isFinite(w.start) && Number.isFinite(w.end) && w.start <= w.end)))
     && (q.scope.kind !== 'activities' || ((!q.scope.ids || (Array.isArray(q.scope.ids) && q.scope.ids.length <= 128 && q.scope.ids.every(id => typeof id === 'string'))) && (!q.scope.window || Number.isFinite(q.scope.window.start) && Number.isFinite(q.scope.window.end) && q.scope.window.start <= q.scope.window.end)))
@@ -185,29 +188,45 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
       return sample;
     };
     const before = evaluations;
-    for (const piece of pieces) {
-      const knots = [piece.start, ...(provider.knots?.(object, piece) ?? []).filter(t => t > piece.start && t < piece.end), piece.end].sort((a, b) => a - b);
+    let actualStep = 0;
+    for (const [pieceIndex, piece] of pieces.entries()) {
+      const knots = [...new Set([piece.start, ...(provider.knots?.(object, piece) ?? []).filter(t => Number.isFinite(t) && t > piece.start && t < piece.end), piece.end])].sort((a, b) => a - b);
       const times = new Set<number>(knots);
+      // Leave room for local refinement and later objects/coverage intervals.
+      // Known interpolation boundaries always survive the adaptive grid. A
+      // declared period asks for at least 32 samples/orbit when budget permits.
+      const remaining = maximum - evaluations;
+      const share = Math.max(4, Math.floor(remaining / (jobs.length - index) / (pieces.length - pieceIndex) / 2));
+      const target = Math.max(4, Math.min(4096, share) - 4 * knots.length);
+      const period = provider.period?.(object);
+      const scaleStep = Math.min((piece.end - piece.start) / target, period && Number.isFinite(period) && period > 0 ? period / 32 : Infinity);
+      const step = q.sampling === 'adaptive' ? Math.max(q.stepSeconds, scaleStep) : q.stepSeconds;
+      let undersampled = false;
       for (let k = 1; k < knots.length; k++) {
         const a = knots[k - 1], b = knots[k];
         // Four subdivisions per interpolation segment detect interior spline peaks,
         // even when the requested regular step exceeds a whole segment.
-        const n = Math.max(4, Math.ceil((b - a) / q.stepSeconds));
-        if (n > maximum || times.size + n > maximum) {
-          budget = true;
-          break;
+        let n = Math.max(4, Math.ceil((b - a) / step));
+        // An insufficient budget still yields useful candidates. Never reject
+        // a long segment before evaluating any states, or silently coarsen a
+        // fixed override and call it complete.
+        if (times.size + n - 1 > remaining) {
+          undersampled = true;
+          n = Math.max(1, remaining - times.size + 1);
         }
         for (let j = 1; j < n; j++)
           times.add(a + (b - a) * j / n);
       }
-      if (budget)
-        break;
       const sampled: (Sample | null)[] = [];
+      let previousTime: number | undefined;
       for (const t of [...times].sort((a, b) => a - b)) {
+        if (previousTime !== undefined) actualStep = Math.max(actualStep, t - previousTime);
+        previousTime = t;
         sampled.push(await evaluate(t));
         if (budget || interrupted())
           break;
       }
+      if (undersampled) budget = true;
       // Refine every bracketed local candidate, rather than only the largest knot.
       for (let k = 1; k < sampled.length - 1 && !budget && !interrupted(); k++) {
         const a = sampled[k - 1], m = sampled[k], b = sampled[k + 1];
@@ -242,7 +261,7 @@ export async function findTrajectoryExtrema(q: TrajectoryExtremaQuery, provider:
         metric: q.metric, extremum: q.extremum, value: best.value, units: 'km', et: best.et, utc: etToDate(best.et).toISOString(),
         location: { positionKm: [...p], latitudeDeg: Math.atan2(p[2], Math.hypot(p[0], p[1])) * 180 / Math.PI, longitudeDeg: Math.atan2(p[1], p[0]) * 180 / Math.PI, convention: 'planetocentric' },
         datum: q.reference, heightConvention: q.reference.kind === 'sphere' ? 'radial' : 'geodetic-normal', window, source: provider.source(object, best.et), terrain: q.metric === 'heightAbovePhysicalTerrain' ? { ...q.terrain!, sourceUncertaintyKm: best.uncertainty } : null,
-        coverage: missing || budget ? 'partial' : 'sampled-complete', method: { guarantee: 'sampled-and-locally-refined', stepSeconds: q.stepSeconds, timeToleranceSeconds: q.timeToleranceSeconds, evaluations: evaluations - before, heightErrorBoundKm: null,
+        coverage: missing || budget ? 'partial' : 'sampled-complete', method: { guarantee: 'sampled-and-locally-refined', stepSeconds: actualStep, timeToleranceSeconds: q.timeToleranceSeconds, evaluations: evaluations - before, heightErrorBoundKm: null,
           limits: 'Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error.' } });
     }
     report((index + 1) / jobs.length);
@@ -298,6 +317,7 @@ export function universeTrajectoryAnalysisProvider(universe: Universe, revision:
       });
     },
     knots: (object, window) => { const b = universe.getBody(object); return b ? arcs(b.trajectory).flatMap(a => [a.start, a.end, ...(a.trajectory.samplingBreakpoints?.(window.start, window.end) ?? [])]).filter(t => t >= window.start && t <= window.end) : []; },
+    period: object => universe.getBody(object)?.trajectory.period,
     position: (object, et, body, frame) => {
       const b = universe.getBody(object);
       if (!b || !arcs(b.trajectory).some(a => et >= a.start && et <= a.end))

@@ -8,6 +8,49 @@ function provider(position: (et: number) => readonly [number,number,number] | nu
 }
 
 describe('shared trajectory height extrema', () => {
+  it.each([86400, 30 * 86400, 365 * 86400])('adapts a %i-second default window without rejecting long segments', async duration => {
+    const p = provider(t => [14 - ((t / duration - .4137) ** 2), 0, 0]);
+    const r = await findTrajectoryExtrema(query({ sampling: 'adaptive', stepSeconds: .1, scope: { kind: 'windows', windows: [{ start: 0, end: duration }] } }), p);
+    expect(r.status).toBe('complete');
+    expect(r.results[0].et / duration).toBeCloseTo(.4137, 6);
+    expect(r.results[0].value).toBeCloseTo(4, 10);
+    expect(r.results[0].method.evaluations).toBeLessThan(5000);
+    expect(r.results[0].method.stepSeconds).toBeGreaterThan(.1);
+    expect(r.results[0].method.heightErrorBoundKm).toBeNull();
+  });
+  it('uses declared periods and retains a short source segment in a year-long search', async () => {
+    const duration = 365 * 86400, peak = 200 * 86400;
+    const p = provider(t => [12 + Math.max(0, 1 - ((t - peak) / .1) ** 2), 0, 0]);
+    p.knots = () => [peak - .1, peak + .1];
+    const r = await findTrajectoryExtrema(query({ sampling: 'adaptive', scope: { kind: 'windows', windows: [{ start: 0, end: duration }] } }), p);
+    expect(r.status).toBe('complete');
+    expect(r.results[0].et).toBeCloseTo(peak, 4);
+    expect(r.results[0].value).toBeCloseTo(3, 7);
+    const orbit = provider(t => [12 + Math.cos(2 * Math.PI * (t - 123) / 5400), 0, 0]);
+    orbit.period = () => 5400;
+    const day = await findTrajectoryExtrema(query({ sampling: 'adaptive', scope: { kind: 'windows', windows: [{ start: 0, end: 86400 }] } }), orbit);
+    expect(day.status).toBe('complete');
+    expect(day.results[0].value).toBeCloseTo(3, 8);
+    expect(day.results[0].method.stepSeconds).toBeLessThanOrEqual(5400 / 32);
+  });
+  it('keeps fixed steps explicit and returns partial candidates when the budget cannot meet them', async () => {
+    const p = provider(t => [12 + t / 86400, 0, 0]);
+    const q = query({ scope: { kind: 'windows', windows: [{ start: 0, end: 86400 }] }, stepSeconds: .1, maxEvaluations: 100 });
+    const fixed = await findTrajectoryExtrema(q, p);
+    expect(fixed).toMatchObject({ status: 'partial', results: [{ coverage: 'partial' }], faults: [{ code: 'budget' }] });
+    expect(fixed.results[0].method.evaluations).toBeLessThanOrEqual(100);
+    const insufficient = await findTrajectoryExtrema({ ...q, sampling: 'adaptive', maxEvaluations: 2 }, p);
+    expect(insufficient).toMatchObject({ status: 'partial', results: [{ coverage: 'partial' }], faults: [{ code: 'budget' }] });
+  });
+  it.each([[86400, 5400], [30 * 86400, 5400], [365 * 86400, 86400]])('samples periodic sources over %i seconds using their %i-second period', async (duration, period) => {
+    const p = provider(t => [12 + Math.cos(2 * Math.PI * (t - 123) / period), 0, 0]);
+    p.period = () => period;
+    const r = await findTrajectoryExtrema(query({ sampling: 'adaptive', stepSeconds: .1, timeToleranceSeconds: .005, scope: { kind: 'windows', windows: [{ start: 0, end: duration }] } }), p);
+    expect(r.status).toBe('complete');
+    expect(r.results[0].value).toBeCloseTo(3, 8);
+    expect(r.results[0].method.evaluations).toBeLessThan(200000);
+    expect(r.results[0].method.heightErrorBoundKm).toBeNull();
+  });
   it('refines an interior maximum and keeps numerical uncertainty distinct from tolerance', async () => {
     const response = await findTrajectoryExtrema(query(), provider(t => [14-(t-4.123)**2/10,0,0]));
     expect(response.status).toBe('complete');

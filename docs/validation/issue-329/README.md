@@ -2,11 +2,12 @@
 
 The ordinary **Event Finder → Event → Altitude / terrain clearance** form uses
 its normal Find events, progress/cancel, results, selection and timeline lanes.
-Leave Vehicle(s) blank for matching trajectory objects around the central body,
+Leave Vehicle(s) blank for objects with probeable states relative to the central body,
 or choose one. **Time window** is the default: it requires no activities and
 uses authoritative source coverage, independent of semantic operations. The
-Window menu offers complete trajectory coverage when finite bounds are known;
-gaps remain explicit to the solver. **Mission activities** optionally restricts
+Window menu offers a **Trajectory envelope (may include gaps)** when finite bounds
+are known. This combines source intervals across objects, not a promise of usable
+relative states or terrain throughout; gaps remain explicit to the solver. **Mission activities** optionally restricts
 to a declared kind (flight, drive, hop, descent, landing, phase, other).
 **Specific activities** selects explicit IDs. Both clip records to the chosen
 time window and report empty sets without falling back to parked time.
@@ -14,7 +15,8 @@ time window and report empty sets without falling back to parked time.
 Highest/Lowest and Height relative to describe the scientific question.
 Frame, datum radius/source pins, sample step and refinement tolerance live under
 Advanced search options. No physical terrain source means AGL is unavailable;
-the error offers explicitly named sphere/ellipsoid alternatives with no fallback.
+the form disables unavailable metrics and explains explicitly named sphere/ellipsoid
+alternatives before search, with no fallback or silent datum change.
 Closest Approach minimizes center-to-center distance and annotates altitude at
 that encounter; this kind optimizes the selected height/clearance itself.
 
@@ -84,6 +86,25 @@ unsupported physical products return unavailable/partial faults, never a
 reference-sphere replacement.
 
 ## Numerical limits and identity
+
+Native searches default to **adaptive sampling**. It starts with up to roughly
+4,096 regular subdivisions per coverage piece, apportions a bounded evaluation
+budget across objects and intervals, retains source interpolation breakpoints
+and at least four subdivisions per segment, and uses a declared period to ask
+for 32 samples per orbit when the budget permits. It then refines every detected
+local bracket. Duration alone no longer rejects a one-day/month/year segment.
+This is a heuristic search, not evidence that unresolved source dynamics or
+small terrain features cannot hide a narrower extremum.
+
+Advanced → Sampling → **Fixed maximum step** honors explicit resolution requests.
+Typed `TrajectoryExtremaQuery.sampling` accepts `adaptive` or `fixed`; omission
+retains fixed-step compatibility for existing explicit typed callers. In adaptive
+mode `stepSeconds` is a preferred minimum spacing (source boundaries may force
+finer sampling). `method.stepSeconds` reports the actual largest initial sample
+spacing, not the requested setting. A genuinely insufficient budget returns
+partial candidates and a budget fault; it does not silently certify a coarsened
+fixed-step search. Global height error remains unknown under both policies.
+
 
 - Maximum 32 objects, 128 interval results and 200,000 evaluations per request.
   This is sampled, locally refined analysis, **not a certified global extremum**.
@@ -201,3 +222,34 @@ Modern `focusEventResult` and `selectEventResult` preserve their seek/inspect-on
 The current #334 default Ask / exact-call approval integration at `c382553d` is included. The loaded modern workflow uses its fixed Ask surface, while numerical operations remain discoverable from the same catalog. Legacy direct result navigation remains available, and the committed Ask routing matrix is regenerated to include both height operations. The latest Ask/control regression set passes after matrix regeneration; build, lint and typechecks also pass. No external model calls or model-authored approval actions are made by the height acceptance harness.
 
 The final integrated #334 snapshot is `3f6ed32c`, including semantic ground-point controls and its merge of main. The height/spatial metadata projections and capability domains are retained together; the shared routing matrix is regenerated. The latest loaded Chrome/Metal replay passes with no page errors, and 183 focused Ask/control/spatial tests pass, along with build, lint and typechecks. The preceding integration head `2b9bcac8` passed all seven CI jobs in [run 41493763582](https://github.com/AaronPlave/cosmolabe/actions/runs/41493763582); the final integrated head has its own PR CI run.
+
+## Numerical/coverage follow-up review
+
+The follow-up review on `ee7506c1` approved the UX direction. That exact head
+passed all seven CI jobs, including the full suite and hosted terrain replay
+([run 41497844755](https://github.com/AaronPlave/cosmolabe/actions/runs/41497844755)).
+This revision additionally tests adaptive day/month/year searches, periodic
+sources, a short interpolation segment inside a year, and genuinely insufficient
+budgets. Fixed overrides and adaptive policy survive typed view-link projection.
+
+Time-window candidate discovery probes relative state in intersecting source
+intervals; catalog parentage no longer excludes flybys. This is eligibility,
+not proof of continuous coverage. The explicitly labeled envelope may contain
+gaps or disjoint vehicle coverage; each object's exact intervals remain in the
+solver. A selection attached to a numerical query survives activity presentation
+refresh while the source identity is valid; activity removal or authoritative
+source replacement clears it, even when invalid results are already hidden by
+the normal read guards. Direct mission-activity query checks remain intact.
+
+Follow-up local validation: build, full lint, purity and test/viewer/Svelte checks
+passed. The focused numerical/control/viewer/pinned-grid and real-SPICE run
+passed 63 tests. The broad applicable suite passed 3,465 tests with 7 skipped;
+its only failure was the unchanged inventory assertion seeing the same five
+ignored experiment catalogs listed above. CSPICE progress passed in this run.
+The final loaded Chrome/Metal receipt passed with no page errors. It verifies
+that AGL is disabled on Earth without changing the selected datum, available on
+Moon with the pinned physical source, and that the source menu says envelope
+with possible gaps. It also confirms selection survives activity presentation
+refresh, then clears and refuses navigation after authoritative activity-store
+replacement. Earlier browser attempts were interrupted by concurrent Vite
+rebuilds; the stable final run passed. No live external provider was called.

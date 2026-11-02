@@ -143,9 +143,9 @@ export async function runTrajectoryEventQuery(eventQuery: import('@cosmolabe/cor
     && (scope !== 'selected-activities' || (Array.isArray(p.activityIds) && p.activityIds.includes(a.id))) && a.start <= eventQuery.window.end && a.end >= eventQuery.window.start);
   if (scope !== 'window' && !activities.length)
     return unavailable('No explicit mission activities match this restriction and time window. Choose other activities or Time window.');
-  const objects = eventQuery.bodies.observer ? [eventQuery.bodies.observer] : scope !== 'window' ? [...new Set(activities.map(a => a.vehicle))] : universe.getAllBodies().filter(b => b.name !== bodyName && b.parentName === bodyName).map(b => b.name);
+  const objects = eventQuery.bodies.observer ? [eventQuery.bodies.observer] : scope !== 'window' ? [...new Set(activities.map(a => a.vehicle))] : trajectoryCandidates(universe, bodyName, eventQuery.window);
   if (!objects.length)
-    return unavailable('Choose a trajectory object for this time-window search. No child objects are declared for the central body.');
+    return unavailable('No objects have probeable relative states in this time window. Choose a trajectory object or another window.');
   const metric = p.metric as TrajectoryExtremaQuery['metric'];
   const datum = terrain?.terrainDatum;
   let reference: TrajectoryExtremaQuery['reference'];
@@ -173,16 +173,34 @@ export async function runTrajectoryEventQuery(eventQuery: import('@cosmolabe/cor
     metric, extremum: p.extremum as TrajectoryExtremaQuery['extremum'], reference,
     scope: scope === 'window' ? { kind: 'windows', windows: [eventQuery.window] } : { kind: 'activities', ids: activities.map(a => a.id), window: eventQuery.window },
     stepSeconds: eventQuery.step ?? .1, timeToleranceSeconds: Number(p.timeToleranceSeconds ?? .005),
+    sampling: p.sampling === 'fixed' ? 'fixed' : 'adaptive',
     ...(metric === 'heightAbovePhysicalTerrain' ? { terrain: { id: typeof p.terrainId === 'string' ? p.terrainId : terrain!.terrainSourceId!, revision: typeof p.terrainRevision === 'string' ? p.terrainRevision : terrain!.terrainSourceRevision! } } : {}),
   };
   return runAnalysis(query, options, eventQuery);
+}
+/** Availability is shown before execution; choosing another datum is explicit. */
+export function trajectoryMetricAvailability(bodyName?: string, frameOverride?: string, radiusOverride?: string): Record<string, string | null> {
+  const universe = getSceneUniverse(), body = bodyName ? universe?.getBody(bodyName) : undefined;
+  if (!body || !universe) return {};
+  const terrain = getRenderer()?.getBodyMesh(body.name);
+  const frame = frameOverride || universe.frames.bodyFixedFrameFor(body.name);
+  const shape = terrain?.terrainDatum?.referenceShape;
+  const datum = terrain?.terrainDatum;
+  const terrainFrame = terrain?.terrainFrameAvailability;
+  const compatible = shape?.kind === 'sphere' ? datum?.verticalDatum === 'reference-sphere' : shape?.kind === 'ellipsoid' && datum?.verticalDatum === 'ellipsoid' && datum?.heightConvention === 'geodetic-normal';
+  return {
+    heightAbovePhysicalTerrain: !terrain?.terrainSourceId || !terrain.terrainSourceRevision ? 'A versioned physical CPU terrain source is unavailable. Choose a labeled reference surface explicitly.'
+      : !compatible || terrainFrame?.kind !== 'available' || !terrainFrame.frame || !universe.frames.sameFrame(terrainFrame.frame, frame) ? 'Physical terrain datum/frame is unavailable or incompatible with the selected frame.' : null,
+    radialHeightAboveReferenceSphere: Number(radiusOverride) > 0 || (body.radii && body.radii.every(r => r === body.radii![0])) || shape?.kind === 'sphere' ? null : 'Set an explicit sphere radius in Advanced, or choose the declared ellipsoid.',
+    heightAboveReferenceEllipsoid: body.radii && body.radii[0] === body.radii[1] && body.radii[2] <= body.radii[0] ? null : 'No supported oblate reference ellipsoid is declared.',
+  };
 }
 function eventConfiguration(query: TrajectoryExtremaQuery, activities: readonly import('@cosmolabe/core').MissionActivity[]): import('@cosmolabe/core').EventQueryConfiguration {
   const scope = query.scope;
   const windows = scope.kind === 'windows' ? scope.windows : activities.filter(a => query.objects.includes(a.vehicle) && (!scope.ids || scope.ids.includes(a.id))).map(a => ({ start: a.start, end: a.end }));
   return { kind: 'trajectory-extremum', bodies: { center: query.body, ...(query.objects.length === 1 ? { observer: query.objects[0] } : {}) },
     window: { start: Math.min(...windows.map(w => w.start)), end: Math.max(...windows.map(w => w.end)) }, step: query.stepSeconds, abcorr: 'NONE',
-    params: { metric: query.metric, extremum: query.extremum, scope: query.scope.kind === 'windows' ? 'window' : 'activities', timeToleranceSeconds: query.timeToleranceSeconds, frame: query.frame,
+    params: { metric: query.metric, extremum: query.extremum, scope: query.scope.kind === 'windows' ? 'window' : 'activities', timeToleranceSeconds: query.timeToleranceSeconds, sampling: query.sampling ?? 'fixed', frame: query.frame,
       ...(query.reference.kind === 'sphere' ? { radiusKm: query.reference.radiusKm } : {}), ...(query.terrain ? { terrainId: query.terrain.id, terrainRevision: query.terrain.revision } : {}) } };
 }
 function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtremaQuery['reference']): boolean {
@@ -191,12 +209,27 @@ function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtr
   return b.kind === 'ellipsoid' && a.radiiKm.every((radius, index) => radius === b.radiiKm[index]);
 }
 
-/** Source coverage is independent of semantic mission activities. The core
- * still intersects every object's exact intervals and probes unknown coverage. */
+/** Candidate discovery uses relative state/coverage, not catalog parentage.
+ * These probes establish eligibility only; the solver checks the entire scope. */
+export function trajectoryCandidates(universe: import('@cosmolabe/core').Universe, bodyName: string, window?: { start: number; end: number }): string[] {
+  const provider = universeTrajectoryAnalysisProvider(universe, () => universe);
+  const frame = universe.frames.bodyFixedFrameFor(bodyName);
+  return universe.getAllBodies().filter(body => {
+    if (body.name === bodyName) return false;
+    const coverage = provider.coverage?.(body.name);
+    const intervals = window ? coverage ? coverage.map(w => ({ start: Math.max(w.start, window.start), end: Math.min(w.end, window.end) })).filter(w => w.start <= w.end) : [window] : coverage ?? [];
+    return intervals.some(w => [w.start, (w.start + w.end) / 2, w.end].filter(Number.isFinite).some(et => {
+      try { const p = provider.position(body.name, et, bodyName, frame); return p !== null && p.every(Number.isFinite) && Math.hypot(...p) > 0; }
+      catch { return false; }
+    }));
+  }).map(body => body.name);
+}
+/** Finite source envelope, possibly containing gaps and disjoint vehicles.
+ * It is not a guarantee of relative-state or terrain coverage. */
 export function trajectorySourceWindow(bodyName?: string, object?: string): { start: number; end: number } | null {
   const universe = getSceneUniverse();
   if (!universe || !bodyName) return null;
-  const objects = object ? [object] : universe.getAllBodies().filter(b => b.name !== bodyName && b.parentName === bodyName).map(b => b.name);
+  const objects = object ? [object] : trajectoryCandidates(universe, bodyName);
   const provider = universeTrajectoryAnalysisProvider(universe, () => universe);
   const windows = objects.flatMap(name => provider.coverage?.(name) ?? []);
   if (!windows.length || windows.some(w => !Number.isFinite(w.start) || !Number.isFinite(w.end))) return null;

@@ -56,7 +56,13 @@ try {
   await page.getByText('Altitude / terrain clearance',{exact:true}).last().click();
   assert.equal(await page.locator('details summary').filter({hasText:'Trajectory height extrema'}).count(),0);
   const bodyPickers=page.locator('select').filter({has:page.locator('option[value="Moon"]')});
+  await bodyPickers.nth(0).selectOption('Earth');
+  assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isDisabled(),true);
+  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAbovePhysicalTerrain');
   await bodyPickers.nth(0).selectOption('Moon');
+  assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),false);
+  assert.match(await page.locator('#event-window option[value="source"]').innerText(),/envelope \(may include gaps\)/);
   assert.equal(await page.locator('#event-param-scope').inputValue(),'window');
   assert.equal(await page.locator('#event-param-frame').isVisible(),false);
   await page.locator('#event-param-scope').selectOption('activities');
@@ -203,6 +209,27 @@ try {
   },report.partial.resultId);
   assert.equal(report.kernelRevision.sameCount,true);
   assert.equal(report.kernelRevision.navigated,false);
+  report.activityRefresh=await page.evaluate(async()=>{
+    const urls=performance.getEntriesByType('resource').map(entry=>entry.name).filter(url=>new URL(url).pathname.endsWith('/viewer-state.svelte.ts'));
+    let state;
+    for(const url of urls) { const candidate=await import(url); if(candidate.getRenderer()===window.renderer) { state=candidate; break; } }
+    if(!state) throw new Error('No bound viewer state module found');
+    const bm=window.renderer.getBodyMesh('Moon');
+    const response=await window.cosmo.findTrajectoryExtrema({objects:['Polaris-C'],body:'Moon',frame:'MOON_ME_DE421',metric:'heightAbovePhysicalTerrain',extremum:'maximum',reference:{kind:'sphere',radiusKm:1737.4},scope:{kind:'activities',activityKind:'hop'},stepSeconds:.1,timeToleranceSeconds:.005,terrain:{id:bm.terrainSourceId,revision:bm.terrainSourceRevision}});
+    const first=response.results[0];
+    if(!first||!window.cosmo.navigateToAnalysisResult(first.id)) throw new Error('Fresh measured result must navigate');
+    const selectedBefore=window.cosmo.getSelectedActivity()?.id;
+    state.vs.activities=[...state.vs.activities];
+    state.emit('activities',state.vs.activities.length);
+    const selectedAfterRefresh=window.cosmo.getSelectedActivity()?.id;
+    state.getSceneUniverse().activities.replace('review-refresh',[]);
+    const selectedAfterReplacement=window.cosmo.getSelectedActivity()?.id ?? null;
+    return {selectedBefore,selectedAfterRefresh,selectedAfterReplacement,navigationAfterReplacement:window.cosmo.navigateToAnalysisResult(first.id)};
+  });
+  assert.ok(report.activityRefresh.selectedBefore);
+  assert.equal(report.activityRefresh.selectedAfterRefresh,report.activityRefresh.selectedBefore);
+  assert.equal(report.activityRefresh.selectedAfterReplacement,null);
+  assert.equal(report.activityRefresh.navigationAfterReplacement,false);
   assert.equal(report.errors.length,0,report.errors.join('\n'));
   report.passed=true;
 } finally {

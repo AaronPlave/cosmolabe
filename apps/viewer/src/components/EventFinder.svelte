@@ -8,7 +8,7 @@
    * panel growing a branch for each. Only the results list knows anything
    * concrete, and only that an event has a time, a label and metrics.
    */
-  import { trajectorySourceWindow } from '../lib/trajectory-analysis.svelte';
+  import { trajectorySourceWindow, trajectoryMetricAvailability } from '../lib/trajectory-analysis.svelte';
   import { analysis } from '../lib/analysis.svelte';
   import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
   import { tick, untrack } from 'svelte';
@@ -73,6 +73,7 @@
   let unavailable = $derived(currentSearchUnavailable());
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
   let sourceWindow = $derived.by(() => { void vs.kernelCount; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectorySourceWindow(form?.bodies.center, form?.bodies.observer) : null; });
+  let metricAvailability = $derived.by(() => { void vs.kernelRevision; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectoryMetricAvailability(form?.bodies.center, form?.params.frame, form?.params.radiusKm) : {}; });
   let coverage = $derived(ef.coverage);
   /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
   let coverageSubject = $derived(
@@ -281,7 +282,7 @@
             onchange={(e) => setParam(param.key, (e.target as HTMLSelectElement).value)}
           >
             {#each param.options as option}
-              <option value={option.value}>{option.label}</option>
+              <option value={option.value} disabled={param.key === 'metric' && !!metricAvailability[option.value]} title={param.key === 'metric' ? metricAvailability[option.value] ?? '' : ''}>{option.label}{param.key === 'metric' && metricAvailability[option.value] ? ' (unavailable)' : ''}</option>
             {/each}
           </select>
         {:else if param.kind === 'boolean'}
@@ -351,12 +352,15 @@
         {#each coverage?.windows ?? [] as w, index (w.start)}
           <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
         {/each}
-        {#if sourceWindow}<option value="source">Complete trajectory coverage · {compactRange(sourceWindow.start, sourceWindow.end)}</option>{/if}
+        {#if sourceWindow}<option value="source">Trajectory envelope (may include gaps) · {compactRange(sourceWindow.start, sourceWindow.end)}</option>{/if}
         <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
         <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
         <option value="custom">Custom…</option>
       </select>
     </div>
+    {#if sourceWindow && isCurrentWindow(sourceWindow)}
+      <p class="ui-helper mb-2" role="note">Source envelope across objects and intervals; gaps and relative-state or terrain coverage are checked during search. This span is not guaranteed usable throughout.</p>
+    {/if}
     {#if windowSelection === 'custom'}
       <div class="flex items-center gap-2 mb-1.5">
         <label for="event-from" class="ui-label w-20 shrink-0">From</label>
@@ -418,12 +422,12 @@
             {@render parameter(param)}
           {/each}
     <div class="flex items-center gap-2 mb-2">
-      <span class="ui-label w-20 shrink-0">Step</span>
+      <span class="ui-label w-20 shrink-0">{form.params.sampling === 'fixed' ? 'Max step' : 'Min step'}</span>
       <select
         class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
         value={String(form.step)}
         onchange={(e) => setStep(Number((e.target as HTMLSelectElement).value))}
-        title="Sampling interval. An event shorter than the step can be missed."
+        title="Adaptive uses this as a minimum spacing and reports actual spacing; Fixed uses it as a maximum. Source breakpoints are retained. Narrow unsampled extrema may be missed."
       >
         {#each STEP_PRESETS as preset}
           <option value={String(preset.seconds)}>{preset.label}</option>

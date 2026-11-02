@@ -50,7 +50,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09868431091308594,
             "timeToleranceSeconds": 0.005,
             "evaluations": 14329,
             "heightErrorBoundKm": null,
@@ -102,7 +102,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 10388,
             "heightErrorBoundKm": null,
@@ -154,7 +154,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 5693,
             "heightErrorBoundKm": null,
@@ -206,7 +206,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 5391,
             "heightErrorBoundKm": null,
@@ -258,7 +258,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09842526912689209,
             "timeToleranceSeconds": 0.005,
             "evaluations": 6642,
             "heightErrorBoundKm": null,
@@ -310,7 +310,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 6515,
             "heightErrorBoundKm": null,
@@ -362,7 +362,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09876549243927002,
             "timeToleranceSeconds": 0.005,
             "evaluations": 9272,
             "heightErrorBoundKm": null,
@@ -414,7 +414,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09756100177764893,
             "timeToleranceSeconds": 0.005,
             "evaluations": 5984,
             "heightErrorBoundKm": null,
@@ -466,7 +466,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 6764,
             "heightErrorBoundKm": null,
@@ -518,7 +518,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09966790676116943,
             "timeToleranceSeconds": 0.005,
             "evaluations": 8358,
             "heightErrorBoundKm": null,
@@ -570,7 +570,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.09803926944732666,
             "timeToleranceSeconds": 0.005,
             "evaluations": 7526,
             "heightErrorBoundKm": null,
@@ -622,7 +622,7 @@
           "coverage": "sampled-complete",
           "method": {
             "guarantee": "sampled-and-locally-refined",
-            "stepSeconds": 0.1,
+            "stepSeconds": 0.10000002384185791,
             "timeToleranceSeconds": 0.005,
             "evaluations": 7541,
             "heightErrorBoundKm": null,
@@ -689,7 +689,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 8758,
           "heightErrorBoundKm": null,
@@ -737,7 +737,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09868431091308594,
           "timeToleranceSeconds": 0.005,
           "evaluations": 11456,
           "heightErrorBoundKm": null,
@@ -785,7 +785,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 6021,
           "heightErrorBoundKm": null,
@@ -833,7 +833,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 5205,
           "heightErrorBoundKm": null,
@@ -881,7 +881,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09803926944732666,
           "timeToleranceSeconds": 0.005,
           "evaluations": 5616,
           "heightErrorBoundKm": null,
@@ -929,7 +929,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09842526912689209,
           "timeToleranceSeconds": 0.005,
           "evaluations": 5032,
           "heightErrorBoundKm": null,
@@ -977,7 +977,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09966790676116943,
           "timeToleranceSeconds": 0.005,
           "evaluations": 6328,
           "heightErrorBoundKm": null,
@@ -1025,7 +1025,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 5824,
           "heightErrorBoundKm": null,
@@ -1073,7 +1073,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09756100177764893,
           "timeToleranceSeconds": 0.005,
           "evaluations": 4864,
           "heightErrorBoundKm": null,
@@ -1121,7 +1121,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 4851,
           "heightErrorBoundKm": null,
@@ -1169,7 +1169,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 5033,
           "heightErrorBoundKm": null,
@@ -1217,7 +1217,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09876549243927002,
           "timeToleranceSeconds": 0.005,
           "evaluations": 6572,
           "heightErrorBoundKm": null,
@@ -1275,7 +1275,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.10000002384185791,
           "timeToleranceSeconds": 0.005,
           "evaluations": 6515,
           "heightErrorBoundKm": null,
@@ -1327,7 +1327,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09876549243927002,
           "timeToleranceSeconds": 0.005,
           "evaluations": 9272,
           "heightErrorBoundKm": null,
@@ -1379,7 +1379,7 @@
         "coverage": "sampled-complete",
         "method": {
           "guarantee": "sampled-and-locally-refined",
-          "stepSeconds": 0.1,
+          "stepSeconds": 0.09803926944732666,
           "timeToleranceSeconds": 0.005,
           "evaluations": 7526,
           "heightErrorBoundKm": null,
@@ -1396,7 +1396,7 @@
       "Polaris-A — Ridge climb to rim peak242.7 m Physical terrain clearance · sampled coverage 2028-12-22 14:02:51    ",
       "Polaris-B — Sun-illuminated peak sampling234.5 m Physical terrain clearance · sampled coverage 2028-12-19 06:01:52    ",
       "Polaris-B — Long hop to neighboring rim site222.5 m Physical terrain clearance · sampled coverage 2028-12-26 11:04:41    ",
-      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32 at playhead   ",
+      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32    ",
       "Polaris-C — Rim south-arc survey162.6 m Physical terrain clearance · sampled coverage 2028-12-25 02:07:33    ",
       "Polaris-A — PSR floor sample run147.5 m Physical terrain clearance · sampled coverage 2028-12-15 10:05:44    ",
       "Polaris-A — PSR transect — west half140.1 m Physical terrain clearance · sampled coverage 2028-12-17 22:07:24    ",
@@ -1405,7 +1405,7 @@
       "Polaris-D — PSR oblique entry114.0 m Physical terrain clearance · sampled coverage 2028-12-21 07:37:34    "
     ],
     "cRows": [
-      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32 at playhead   ",
+      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32    ",
       "Polaris-C — Rim south-arc survey162.6 m Physical terrain clearance · sampled coverage 2028-12-25 02:07:33    ",
       "Polaris-C — PSR floor exploration125.8 m Physical terrain clearance · sampled coverage 2028-12-20 15:07:00    "
     ],
@@ -1417,16 +1417,16 @@
     "selected": {
       "object": "Polaris-C",
       "activity": "Crater inner-wall transect",
-      "et": 913759662.0442767,
+      "et": 913759662.0447361,
       "tracked": "Polaris-C"
     }
   },
   "share": {
-    "urlLength": 3524,
+    "urlLength": 3589,
     "restored": {
       "object": "Polaris-C",
       "tracked": "Polaris-C",
-      "et": 913759662.0442767,
+      "et": 913759662.0447361,
       "activity": "Crater inner-wall transect"
     }
   },
@@ -1496,7 +1496,7 @@
             },
             "method": {
               "guarantee": "sampled-and-locally-refined",
-              "stepSeconds": 0.1,
+              "stepSeconds": 0.10000002384185791,
               "timeToleranceSeconds": 0.005,
               "evaluations": 6515,
               "heightErrorBoundKm": null,
@@ -1548,7 +1548,7 @@
             },
             "method": {
               "guarantee": "sampled-and-locally-refined",
-              "stepSeconds": 0.1,
+              "stepSeconds": 0.09876549243927002,
               "timeToleranceSeconds": 0.005,
               "evaluations": 9272,
               "heightErrorBoundKm": null,
@@ -1600,7 +1600,7 @@
             },
             "method": {
               "guarantee": "sampled-and-locally-refined",
-              "stepSeconds": 0.1,
+              "stepSeconds": 0.09803926944732666,
               "timeToleranceSeconds": 0.005,
               "evaluations": 7526,
               "heightErrorBoundKm": null,
@@ -1657,7 +1657,8 @@
             "extremum": "maximum",
             "scope": "activities",
             "activityKind": "hop",
-            "timeToleranceSeconds": 0.005
+            "timeToleranceSeconds": 0.005,
+            "sampling": "adaptive"
           },
           "abcorr": "NONE",
           "id": "review:height"
@@ -1711,7 +1712,8 @@
               "extremum": "maximum",
               "scope": "activities",
               "activityKind": "hop",
-              "timeToleranceSeconds": 0.005
+              "timeToleranceSeconds": 0.005,
+              "sampling": "adaptive"
             },
             "abcorr": "NONE"
           },
@@ -1741,7 +1743,7 @@
             },
             "kind": "trajectory-extremum",
             "temporality": "instant",
-            "et": 913759555.7649068,
+            "et": 913759555.7645857,
             "bodies": {
               "observer": "Polaris-D",
               "center": "Moon"
@@ -1755,18 +1757,18 @@
               "frame": "MOON_ME_DE421",
               "metric": "heightAbovePhysicalTerrain",
               "extremum": "maximum",
-              "value": 0.276092393310298,
+              "value": 0.27609193575074165,
               "units": "km",
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "utc": "2028-12-15T10:04:46.580Z",
               "location": {
                 "positionKm": [
-                  -21.304826802992505,
-                  -8.323440022313868,
-                  -1738.332844450119
+                  -21.304812405939412,
+                  -8.323440761442441,
+                  -1738.3328481394742
                 ],
-                "latitudeDeg": -89.24614425252739,
-                "longitudeDeg": -158.66024268466404,
+                "latitudeDeg": -89.24614468718228,
+                "longitudeDeg": -158.66022783654893,
                 "convention": "planetocentric"
               },
               "datum": {
@@ -1791,9 +1793,9 @@
               },
               "method": {
                 "guarantee": "sampled-and-locally-refined",
-                "stepSeconds": 0.1,
+                "stepSeconds": 0.38461554050445557,
                 "timeToleranceSeconds": 0.005,
-                "evaluations": 10388,
+                "evaluations": 5513,
                 "heightErrorBoundKm": null,
                 "limits": "Sampled and locally refined; no certified global height error. Source accuracy is separate."
               }
@@ -1801,7 +1803,7 @@
             "metrics": [
               {
                 "key": "heightAbovePhysicalTerrain",
-                "value": 0.276092393310298,
+                "value": 0.27609193575074165,
                 "unit": "km"
               }
             ]
@@ -1936,7 +1938,7 @@
               "ready": true
             },
             "time": {
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "rate": 1
             },
@@ -1976,7 +1978,7 @@
                 "id": "trajectory-analysis-14",
                 "revision": 7
               },
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "selectedObject": "Polaris-D",
               "highlightedBodies": [
@@ -2046,7 +2048,7 @@
               "ready": true
             },
             "time": {
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "rate": 1
             },
@@ -2060,9 +2062,9 @@
             "selectedPlace": null,
             "camera": {
               "position": [
-                -0.0003476829700636051,
-                0.002222931265371529,
-                -0.000013897545160404938
+                -0.0003476835085807824,
+                0.0022229311831915804,
+                -0.00001389721754300369
               ],
               "target": [
                 0,
@@ -2086,7 +2088,7 @@
                 "id": "trajectory-analysis-14",
                 "revision": 7
               },
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "selectedObject": "Polaris-D",
               "highlightedBodies": [
@@ -2133,7 +2135,7 @@
           "id": "trajectory-analysis-14",
           "revision": 7
         },
-        "et": 913759555.7649068,
+        "et": 913759555.7645857,
         "playing": false,
         "selectedObject": "Polaris-D",
         "highlightedBodies": [
@@ -2147,7 +2149,7 @@
           "selectedInVisibleLane": true
         },
         "renderer": {
-          "observedEt": 913759555.7649068,
+          "observedEt": 913759555.7645857,
           "selected": {
             "query": "review:height",
             "id": "trajectory-analysis-14"
@@ -2185,7 +2187,7 @@
               "ready": true
             },
             "time": {
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "rate": 1
             },
@@ -2199,9 +2201,9 @@
             "selectedPlace": null,
             "camera": {
               "position": [
-                -0.0003476829700636051,
-                0.002222931265371529,
-                -0.000013897545160404938
+                -0.0003476835085807824,
+                0.0022229311831915804,
+                -0.00001389721754300369
               ],
               "target": [
                 0,
@@ -2225,7 +2227,7 @@
                 "id": "trajectory-analysis-14",
                 "revision": 7
               },
-              "et": 913759555.7649068,
+              "et": 913759555.7645857,
               "playing": false,
               "selectedObject": "Polaris-D",
               "highlightedBodies": [
@@ -2239,7 +2241,7 @@
                 "selectedInVisibleLane": true
               },
               "renderer": {
-                "observedEt": 913759555.7649068,
+                "observedEt": 913759555.7645857,
                 "selected": {
                   "query": "review:height",
                   "id": "trajectory-analysis-14"
@@ -2268,7 +2270,7 @@
           "id": "trajectory-analysis-14",
           "revision": 7
         },
-        "et": 913759555.7649068,
+        "et": 913759555.7645857,
         "policy": "native-draw"
       },
       "status": "partial",
@@ -2285,11 +2287,17 @@
   },
   "partial": {
     "status": "partial",
-    "count": 2,
+    "count": 1,
     "resultId": "trajectory-analysis-37"
   },
   "kernelRevision": {
     "sameCount": true,
     "navigated": false
+  },
+  "activityRefresh": {
+    "selectedBefore": "moonfall:Polaris-C:hop:1",
+    "selectedAfterRefresh": "moonfall:Polaris-C:hop:1",
+    "selectedAfterReplacement": null,
+    "navigationAfterReplacement": false
   }
 }
