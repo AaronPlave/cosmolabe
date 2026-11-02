@@ -62,8 +62,8 @@ Model/cache variability prevents a fixed round-count or cost guarantee.
 Deterministic validation includes missing coverage, wrong scene/frame, zero
 position, unsupported shape, no physical terrain, UI-originated probe readback,
 privacy/result bounds and display-versus-authoring permissions. Viewer: 55 files /
-751 tests; control: 14 files / 193 tests; native semantic surface: 3 tests; proxy:
-34 tests. TypeScript, Svelte (zero warnings), production/embed builds, changed-file
+751 tests; control: 14 files / 193 tests; renderer: 95 files / 1,098 tests; proxy:
+35 tests (including both pricing boundary cases after merging current main). TypeScript, Svelte (zero warnings), production/embed builds, changed-file
 ESLint, purity and generated capability coverage checks passed.
 
 Repeat only with explicit live inference authorization and a viewer started with

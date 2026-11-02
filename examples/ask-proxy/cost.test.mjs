@@ -11,3 +11,9 @@ it('prices Haiku 5.5 by each request prompt length including cache reads/writes'
   expect(estimatedCostUsd('anthropic', { ...usage, cacheWriteTokens: 40001 })).toBeCloseTo((60000 * 0.05 + 40001 * 0.625 + 1000 * 2.5) / 1000000, 10);
   expect(estimatedCostUsd('anthropic', { ...usage, model: 'unreviewed-haiku' })).toBeNull();
 });
+it('uses the Haiku 5.5 full prompt length for both input and output tiers', () => {
+  const usage = { model: 'claude-haiku-5-5', inputTokens: 1, cacheReadTokens: 89999, cacheWriteTokens: 10000, outputTokens: 1000 };
+  expect(estimatedCostUsd('anthropic', usage)).toBeCloseTo(0.00265009, 10);
+  expect(estimatedCostUsd('anthropic', { ...usage, inputTokens: 2 })).toBeCloseTo(0.01325095, 10);
+  expect(estimatedCostUsd('openai', usage)).toBeNull();
+});
