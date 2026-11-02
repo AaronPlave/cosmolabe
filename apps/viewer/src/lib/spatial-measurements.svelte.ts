@@ -121,7 +121,10 @@ export function applyMeasurementFields(): void {
     const endpoint = measurements.draft[slot];
     if (JSON.stringify(item[slot]) !== JSON.stringify(endpoint)) item[slot] = endpoint && cloneEndpoint(endpoint);
   }
-  if (measurements.draftFrame) item.frame = measurements.draftFrame; else delete item.frame;
+  if (measurements.draftFrame) item.frame = measurements.draftFrame;
+  // Deleting even an absent property invalidates Svelte's proxy iteration
+  // dependencies. The panel effect reads the definition, so only delete once.
+  else if ('frame' in item) delete item.frame;
   for (const operand of ['first', 'second'] as const) {
     const vector = measurements.draftOperands[operand];
     if (JSON.stringify(item[operand] ?? null) !== JSON.stringify(vector)) item[operand] = vector && cloneVector(vector);

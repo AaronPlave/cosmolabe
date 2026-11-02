@@ -87,6 +87,18 @@ try {
     const name = harness ? 'test-harness' : 'ordinary';
     await page.screenshot({ path: `${out}/${name}.png` });
     await writeFile(`${out}/${name}.cosmo`, result.snapshot);
+    // Opening the editor for a script-selected definition must settle even
+    // when optional fields (notably frame) are absent. Exercise edits and
+    // deletion through Open in Reference Geometry and the native editor.
+    await page.getByRole('button', { name: 'Open in Reference Geometry', exact: true }).click();
+    await page.getByRole('button', { name: 'Select distance geometry', exact: true }).click();
+    await page.getByLabel('Target entity', { exact: true }).selectOption('');
+    await page.getByText('Incomplete endpoints', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Actions for distance', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    assert.deepEqual(await page.evaluate(() => window.cosmo.listMeasurements()), []);
+    assert.equal(await page.evaluate(() => window.cosmo.getSelectedMeasurement()), null);
+    assert.deepEqual(errors, []);
     console.log(JSON.stringify({ mode: name, gpu: result.gpu, readiness: result.ready.status, snapshot: 'round-trip passed' }));
     await context.close();
   }
