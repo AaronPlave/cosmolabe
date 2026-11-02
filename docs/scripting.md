@@ -373,6 +373,11 @@ cosmo.listViewpoints();
 cosmo.getCamera();        // { position, target, up, fov } — all in km
 
 cosmo.getObjectState('SC-1', { frame: 'J2000', center: 'Earth' }); // position, attitude, availability
+cosmo.getSpatialContext('SC-1'); // current epoch, parent fixed-frame state, shape/conventions, editable target
+cosmo.projectGroundPoint('SC-1', 'reference'); // read-only radial sub-point; rendered/terrain also supported
+cosmo.pinGroundPoint('SC-1', 'rendered'); // transient native Point Probe snapshot; no camera/clock change
+cosmo.getProbePoint(); // point, placement epoch, fresh native draw observation, Draw-compatible annotation coords
+cosmo.clearProbePoint(); // persistent geographic annotation edits remain separate authoring operations
 cosmo.getTimelineWindow();  // { start, end } ET; setTimelineWindow(start, end) navigates it
 
 cosmo.getScene();         // { id, catalog, ready } — id changes with every scene bound; null with none

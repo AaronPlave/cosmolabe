@@ -52,6 +52,8 @@ export interface PointerResolution {
  * describes the hit surface.
  */
 export interface SurfacePoint {
+  /** Semantic placement has display precision, not a pointer footprint/accuracy estimate. */
+  placement?: 'semantic';
   bodyName: string;
   /** Explicit physical frame. Omitted only by legacy snapshots. */
   frame?: string;

@@ -1,7 +1,7 @@
 # Default Ask access to #297 controls
 
 PR #334 uses the same capability adapter in ordinary Fixed Ask and development
-Discovery Ask. Fixed offers three small direct read schemas plus the four registry tools.
+Discovery Ask. Fixed offers four small direct read schemas plus the four registry tools.
 The invocation tool includes a compact index of all operation IDs. Schema
 hydration/validation is automatic; prior list/describe calls are optional.
 Malformed input returns the exact expected schema for immediate correction.
@@ -97,3 +97,5 @@ Haiku rates and its >100,000-token *per-request prompt* tier were checked agains
 [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) on
 2026-11-02. Cumulative process tokens do not select the long-context price tier.
 Current remote-head CI remains required before merge.
+
+The additional semantic-point review is covered by [spatial-points.md](spatial-points.md) and [compact live evidence](spatial-acceptance.json). The generated matrix now covers 107 operations. The final expanded-catalog Haiku smoke completed in 12 calls / 166,692 tokens with four corrected schema/coverage refusals; the earlier six-call result above is historical evidence, not a fixed token or round guarantee.

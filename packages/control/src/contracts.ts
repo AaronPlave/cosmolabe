@@ -103,6 +103,7 @@ export interface ScriptCamera {
  * catalog loads, and end only with their disposer (or the viewer's disposal).
  */
 export interface ScriptEventMap {
+  probe: { scene: number };
   events: { scene: number };
   instruments: { scene: number; selected: string | null };
   bookmarks: { scene: number };
@@ -692,6 +693,11 @@ export interface ViewerControl {
    */
   snapshot(): string;
   /** Same configured Event Finder searches as the panel; no cached results in snapshots. */
+  getSpatialContext?(object: string): ScriptSpatialContext;
+  projectGroundPoint?(object: string, policy?: ScriptSurfacePolicy, opts?: ScriptSceneOptions): ScriptGroundProjection;
+  pinGroundPoint?(object: string, policy?: ScriptSurfacePolicy, opts?: ScriptSceneOptions): ScriptGroundProjection;
+  getProbePoint?(): ScriptProbePoint | null;
+  clearProbePoint?(opts?: ScriptSceneOptions): void;
   /** Read-only registry and loaded-kernel window discovery, before saving a query. */
   getEventSearchOptions?(input?: { kind?: string; bodies?: EventQuery['bodies']; abcorr?: string }): {
     kinds: readonly { kind: string; label: string; roles: readonly { role: string; required?: boolean }[]; params: readonly unknown[]; step: number; abcorr: string }[];
@@ -766,6 +772,32 @@ export interface ViewerControl {
 }
 
 export interface ScriptEventQuery { id: string; label: string; query: EventQuery; enabled: boolean; visible: boolean }
+export type ScriptSurfacePolicy = 'reference' | 'rendered' | 'terrain';
+export interface ScriptSpatialContext {
+  status: 'available' | 'no-scene' | 'scene-changing' | 'missing-entity';
+  scene: number | null; et: number; object: string; parent: string | null;
+  coordinates: GeographicCoordinates | null; parentCoordinates: GeographicCoordinates | null;
+  state: ScriptObjectState | null;
+  editableLayers: readonly { id: string; body: string; frame: string | null }[];
+  selectedFeature: { layer: string; feature: string } | null;
+  drawing: readonly { layers: readonly string[]; features: number; terrainCoverage: string }[];
+}
+export interface ScriptAnnotationPosition {
+  layer: string | null; coordinates: GeographicCoordinates; position: readonly [number, number];
+}
+export interface ScriptGroundProjection {
+  scene: number | null; et: number; object: string; body: string | null; frame: string | null;
+  policy: ScriptSurfacePolicy; status: 'available' | 'unavailable' | 'stale';
+  reason: string | null; referenceOnly: boolean;
+  point: import('@cosmolabe/core').SurfacePoint | null;
+  annotation: ScriptAnnotationPosition | null;
+  limitations: readonly string[];
+}
+export interface ScriptProbePoint {
+  scene: number | null; observedEt: number | null; placedEt: number | null; drawn: boolean;
+  point: import('@cosmolabe/core').SurfacePoint;
+  annotation: ScriptAnnotationPosition | null;
+}
 /** IDs alone are positional within a search. A reference is valid for one live result batch. */
 export interface ScriptEventReference { scene: number; query: string; id: string; revision: number }
 export interface ScriptEventProvenance {

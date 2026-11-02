@@ -65,6 +65,7 @@ export function isDisplayOption(value: string): value is DisplayOption {
 
 /** Events the app publishes, independent of which renderer is mounted. */
 export interface ViewerEventMap {
+  probe: Record<string, never>;
   places: Record<string, never>;
   measurements: Record<string, never>;
   geographic: Record<string, never>;
@@ -567,7 +568,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // A pinned point belongs to the scene it was probed in; the mode carries over.
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
-  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; emit('probe', {}); }));
   // An instrument belongs to the scene it was chosen in.
   vs.instrumentSensor = null;
 

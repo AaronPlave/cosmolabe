@@ -1,3 +1,4 @@
+import { datumRadiusAtLat } from './TerrainSampler.js';
 import { DEFAULT_GRID_SETTINGS, gridBodyState, normalizeGridSettings, type GridSettings } from '@cosmolabe/control';
 import * as THREE from 'three';
 import { ContourOcclusion } from './ContourOcclusion.js';
@@ -1521,7 +1522,7 @@ export class UniverseRenderer {
       this.renderer.render(this._markerScene, this.camera);
     }
     this._eventObservedEt = et;
-    this._eventObservedView = this.eventViewSignature();
+    this._eventObservedView = this.viewObservationSignature();
 
     // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
     // Skip when an instrument PiP fully covers the canvas.
@@ -2008,7 +2009,7 @@ export class UniverseRenderer {
     this.refreshEventLineColors();
   }
 
-  private eventViewSignature(): string {
+  private viewObservationSignature(): string {
     return [...this.camera.position.toArray(), ...this.camera.quaternion.toArray(), ...this.camera.projectionMatrix.elements,
       this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight, !!this.instrumentView?.fullScreen].join(',');
   }
@@ -2023,7 +2024,7 @@ export class UniverseRenderer {
       const visible = group.markers.visibilityFor(selected.id, selected.queryId);
       visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
     }
-    const observedEt = this._eventObservedEt === this.timeController.et && this._eventObservedView === this.eventViewSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
+    const observedEt = this._eventObservedEt === this.timeController.et && this._eventObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
     return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
       markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
       occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };
@@ -2756,10 +2757,52 @@ export class UniverseRenderer {
   get probePin(): SurfacePoint | null { return this._probe.pinned; }
 
   /** Pin (or clear, with null) a surface point. Emits `probe:pin` when it changes. */
-  setProbePin(point: SurfacePoint | null): void {
+  private _probePinRefines = true;
+  private _probeObservedEt: number | null = null;
+  private _probeObservedView: string | null = null;
+  private _probePlacedEt: number | null = null;
+  setProbePin(point: SurfacePoint | null, options: { refine?: boolean } = {}): void {
+    this._probePinRefines = options.refine !== false;
+    this._probeObservedEt = null;
+    this._probePlacedEt = point ? this.timeController.et : null;
     if (point === this._probe.pinned) return;
     this._probe.setPin(point);
     this.events.emit('probe:pin', point);
+  }
+
+  /** Observed native pin state; draw-enabled is not an unoccluded-pixels guarantee. */
+  getProbeVisualization() {
+    const fresh = this._probeObservedView === this.viewObservationSignature() && this._probeObservedEt === this.timeController.et && !this.instrumentView?.fullScreen;
+    return { observedEt: fresh ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: fresh && this._probe.pinnedVisible };
+  }
+
+  /** Body-fixed radial projection, independent of camera pixels. Reference
+   * points remain fixed to the declared shape; rendered/terrain points use the
+   * exact same authoritative surface cast and conversion as Point Probe. */
+  projectSurfacePoint(bodyName: string, latDeg: number, lonDeg: number, policy: 'reference' | 'rendered' | 'terrain'): SurfacePoint | null {
+    if (!['reference', 'rendered', 'terrain'].includes(policy)) return null;
+    const bm = this.bodyMeshes.get(bodyName), radii = bm?.body.radii;
+    if (!bm || !radii || !radii.every(r => Number.isFinite(r) && r > 0)
+      || radii[0] !== radii[1] || radii[2] > radii[0] || !Number.isFinite(latDeg) || Math.abs(latDeg) > 90 || !Number.isFinite(lonDeg)) return null;
+    const referenceShape: TerrainDatum['referenceShape'] = radii[0] === radii[2]
+      ? { kind: 'sphere', radiusKm: radii[0] } : { kind: 'ellipsoid', radiiKm: [...radii] };
+    const datum = { referenceShape, verticalDatum: referenceShape.kind === 'sphere' ? 'reference-sphere' as const : 'ellipsoid' as const,
+      heightConvention: 'radial' as const, origin: 'body-shape' as const };
+    const r = datumRadiusAtLat(datum, latDeg), lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
+    const fixed: [number, number, number] = [r * Math.cos(lat) * Math.cos(lon), r * Math.cos(lat) * Math.sin(lon), r * Math.sin(lat)];
+    if (policy === 'reference') return { placement: 'semantic', bodyName, frame: bm.bodyFixedFrame, source: 'ellipsoid', bodyFixedPositionKm: fixed,
+      latDeg, lonDeg, latitudeKind: 'planetocentric', resolution: { surfaceKm: 0, latDeg: 0, lonDeg: 0 },
+      hit: { heightKm: 0, datum }, ...resolveSurfaceAltitude('ellipsoid', { heightKm: 0, datum }) };
+    if (!bm.visible) return null;
+    const center = bm.getWorldPosition(new THREE.Vector3());
+    const direction = new THREE.Vector3(fixed[0], fixed[2], -fixed[1]).normalize().applyQuaternion(bm.mesh.quaternion);
+    const span = (Math.max(...radii) * 2 + 30) * this.scaleFactor;
+    const ray = new THREE.Raycaster(center.clone().addScaledVector(direction, span), direction.clone().negate(), 0, span * 2);
+    const hit = castRenderedSurfaces(ray, [bm], this.scaleFactor);
+    if (!hit || hit.renderedSkirt || hit.annotationBlocker) return null;
+    const point = this._surfacePointFromHit(hit, () => ({ surfaceKm: 0, latDeg: 0, lonDeg: 0 }));
+    if (!point || policy === 'terrain' && (point.source !== 'terrain' || !point.terrainSample?.describesHit)) return null;
+    return { ...point, placement: 'semantic' };
   }
 
   /** @deprecated Use `setProbePin(result?.point ?? null)`. */
@@ -2847,6 +2890,8 @@ export class UniverseRenderer {
       }, { rects: [], path: [], discs: [] });
       this.probeCalloutRects = [];
     }
+    this._probeObservedEt = this.timeController.et;
+    this._probeObservedView = this.viewObservationSignature();
     this.applyReservedRects();
   }
 
@@ -2978,7 +3023,7 @@ export class UniverseRenderer {
     const state = this._pinRefine;
     // DSK plates are a stable body-fixed surface, not a streamed heightfield.
     // A radial recast can hit another lobe of a concave shape and move the pin.
-    if (!pin || pin.source === 'dsk') return;
+    if (!pin || pin.source === 'dsk' || this._probePinRefines === false) return;
     const now = performance.now();
     // A pin its own refined surface now covers is re-seated at once.
     const interval = this._pinOcclusion.point === pin && this._pinOcclusion.hidden
@@ -3009,6 +3054,7 @@ export class UniverseRenderer {
     const restated = point.source !== pin.source || heightChanged ||
       point.terrainSample?.tileId !== pin.terrainSample?.tileId;
     if (moved <= UniverseRenderer._pinRefineEpsKm && !restated) return;
+    point.placement = pin.placement;
     this._probe.setPin(point, true);
     this.events.emit('probe:pin', point);
   }

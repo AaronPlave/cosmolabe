@@ -1808,5 +1808,5 @@
       "bytes": 6306
     }
   },
-  "additionalPointAcceptance": "New review comment 6578748042 is being implemented in the same PR; this matrix is core Ask parity evidence, not a claim that the point cases are complete."
+  "additionalPointAcceptance": "Completed in spatial-acceptance.json and spatial-points.md; the earlier core parity runs remain separate evidence."
 }

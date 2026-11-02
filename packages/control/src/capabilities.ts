@@ -80,7 +80,7 @@ export interface CapabilityTools extends AgentTools {
 
 /** A small schema shortlist, never an authorization allowlist. All other
  * registry operations are invocable through the same validated dispatcher. */
-export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions'] as const;
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext'] as const;
 export function defaultAskDefinitions() {
   return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
 }
@@ -89,7 +89,7 @@ const objectSchema = (properties: Record<string, AgentJsonSchema>, required: str
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
   { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs when you need their schemas; prior description is optional.',
-    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
+    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'spatial', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
@@ -99,6 +99,7 @@ const DISCOVERY: readonly AgentToolDef[] = [
 ];
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
+  if (/SpatialContext|GroundPoint|ProbePoint|ObjectState/.test(name)) return 'spatial';
   if (/Event/.test(name)) return 'events';
   if (/Instrument/.test(name)) return 'instruments';
   if (/Bookmark|ViewState/.test(name)) return 'bookmarks';
@@ -124,6 +125,7 @@ const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
   listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
   listEventResults: objectSchema({ total: NUMBER, items: RECORDS }),

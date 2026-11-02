@@ -28,7 +28,7 @@ import {
   geographicPositionInConvention, importGeographicEditLayer, normalizeGeographicPosition, parseGeographicEditDocument,
   serializeGeographicEditDocument, GEOGRAPHIC_EDIT_MAX_LAYERS, GEOGRAPHIC_GEOJSON_EXTENSION,
   type GeographicCoordinates, type GeographicEditFeature, type GeographicEditLayer, type GeographicEditOperation,
-  type GeographicGeometry, type GeographicLayer, type GeographicLayerLoad, type GeographicShapeParameters, type GeoPosition, type JsonValue,
+  type SurfacePoint, type GeographicGeometry, type GeographicLayer, type GeographicLayerLoad, type GeographicShapeParameters, type GeoPosition, type JsonValue,
 } from '@cosmolabe/core';
 import type { GeographicFeatureRef, UniverseRenderer } from '@cosmolabe/three';
 import { excludeFromProbe, getRenderer, onViewerEvent, setProbeActive } from './viewer-state.svelte';
@@ -306,16 +306,21 @@ export function duplicateFeature(layerId: string, featureId: string | number): v
 
 // ── Pointer to coordinates ──
 
+/** Shared pointer/semantic conversion. Reference-frame equivalence is required;
+ * this never transforms imported coordinates into another realization. */
+export function pointPositionInCoordinates(point: SurfacePoint, coordinates: GeographicCoordinates): GeoPosition | null {
+  if (point.frame && !getUniverse()?.frames.sameFrame(point.frame, coordinates.frame ?? bodyFixedFrameName(point.bodyName))) return null;
+  const [xKm, yKm, zKm] = point.bodyFixedPositionKm;
+  const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, geographicDatum(coordinates));
+  const [lon, lat] = geographicPositionInConvention({ latDeg: p.latDeg, lonDeg: p.lonDeg }, coordinates);
+  return [lon, lat];
+}
+
 /** The surface under a canvas point, in a layer's declared convention; null off its body. */
 export function surfacePosition(renderer: UniverseRenderer, layer: GeographicEditLayer, x: number, y: number): GeoPosition | null {
   const hit = renderer.pickScene(x, y, 'probe', { renderedOnly: true });
   if (hit?.kind !== 'surface' || hit.point.bodyName !== layer.body) return null;
-  if (hit.point.frame && hit.point.frame !== (layer.coordinates.frame ?? bodyFixedFrameName(layer.body))) return null;
-  const [xKm, yKm, zKm] = hit.point.bodyFixedPositionKm;
-  // Through the layer's own datum, whatever latitude the hit was reported in; heights are not kept.
-  const p = bodyFixedToGeodetic({ xKm, yKm, zKm }, geographicDatum(layer.coordinates));
-  const [lon, lat] = geographicPositionInConvention({ latDeg: p.latDeg, lonDeg: p.lonDeg }, layer.coordinates);
-  return [lon, lat];
+  return pointPositionInCoordinates(hit.point, layer.coordinates);
 }
 
 // ── Drawing ──

@@ -805,13 +805,13 @@ describe('events on the future lead (#105)', () => {
     };
     renderer.setEventResults([event], event);
     expect(renderer.getEventVisualization()).toMatchObject({ observedEt: null, selected: { query: 'q', id: 'future' }, visibleGlyphs: 0 });
-    const observation = renderer as unknown as { _eventObservedEt: number; _eventObservedView: string; eventViewSignature(): string };
+    const observation = renderer as unknown as { _eventObservedEt: number; _eventObservedView: string; viewObservationSignature(): string };
     observation._eventObservedEt = day / 2;
-    observation._eventObservedView = observation.eventViewSignature();
+    observation._eventObservedView = observation.viewObservationSignature();
     expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
     renderer.camera.position.x++;
     expect(renderer.getEventVisualization().observedEt).toBeNull();
-    observation._eventObservedView = observation.eventViewSignature();
+    observation._eventObservedView = observation.viewObservationSignature();
     renderer.camera.fov++;
     renderer.camera.updateProjectionMatrix();
     expect(renderer.getEventVisualization().observedEt).toBeNull();
