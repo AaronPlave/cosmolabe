@@ -97,7 +97,7 @@ export { bodyRotationFrame, spiceFrame, lvlhFrame, frameToWorldQuat } from './co
 export type { FrameOrientationSource } from './controls/frameOrientation.js';
 
 // Terrain
-export { DEFAULT_SURFACE_APPEARANCE, ELEVATION_PALETTES } from './SurfaceAppearance.js';
+export { DEFAULT_SURFACE_APPEARANCE, normalizeSurfaceAppearance, ELEVATION_PALETTES } from './SurfaceAppearance.js';
 export type { SurfaceAppearanceSettings, SurfaceBaseColor, ElevationPalette } from './SurfaceAppearance.js';
 export { TerrainManager, TERRAIN_DEBUG_MODES } from './TerrainManager.js';
 export type { TerrainConfig, TerrainImageryConfig, TerrainDebugMode, TerrainPerformanceMetrics, TerrainTiming, SurfaceAppearanceStatus } from './TerrainManager.js';

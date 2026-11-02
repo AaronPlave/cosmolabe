@@ -1,0 +1,23 @@
+# Ingenuity Flight 5: estimated reconstruction, not complete 3D telemetry.
+# Vector styling uses the compatible USGS/IAU layer; mission waypoints keep their declared spherical convention.
+# The distance definition below is Mars-centre distance, never terrain clearance.
+setPlaying off
+waitUntilReady "{\"kind\":\"assets\"}" 60
+selectActivity ingenuity:flight:5
+seekActivity ingenuity:flight:5 start
+gotoPlace mars:mission:ingenuity-sites/airfield-5 jump
+gotoCoordinates Mars 18.44266513 77.4513883 overhead 0 5
+selectPlace mars:mission:ingenuity-sites/airfield-5
+saveBookmark "Flight 5 analysis"
+showImagery Mars viking on
+showImagery Mars jezero-hirise on
+setImageryOpacity Mars jezero-hirise 0.8
+showGeographicLayer mars:usgs:places:001 on
+setGeographicLayerStyle mars:usgs:places:001 "{\"version\":1,\"point\":{\"color\":\"#e69f00\",\"sizePx\":8}}"
+upsertMeasurement "{\"id\":\"tour:mars-centre-distance\",\"kind\":\"distance\",\"source\":{\"kind\":\"entity\",\"bodyName\":\"Mars\"},\"target\":{\"kind\":\"entity\",\"bodyName\":\"Ingenuity\"},\"vertex\":null,\"color\":\"#e69f00\",\"visible\":true}"
+selectMeasurement tour:mars-centre-distance
+waitUntilReady "{\"kind\":\"cube-base\",\"body\":\"Mars\"}" 60
+waitUntilReady "{\"kind\":\"terrain\",\"body\":\"Mars\"}" 60
+setSurfaceAppearance Mars "{\"hillshade\":true,\"contrast\":1.2}"
+waitUntilReady "{\"kind\":\"imagery\",\"body\":\"Mars\",\"layer\":\"jezero-hirise\"}" 60
+displayNote "Flight 5 · estimated path and timing. Centre distance is not terrain clearance."

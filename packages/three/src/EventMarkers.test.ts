@@ -21,6 +21,23 @@ function marker(overrides: Partial<EventMarker> = {}): EventMarker {
 afterEach(() => vi.restoreAllMocks());
 
 describe('EventMarkers', () => {
+  it('reads draw-enabled selected geometry without counting unavailable, occluded or hidden glyphs', () => {
+    let available = false;
+    const group = new EventMarkers(body, { sampleAvailable: () => available });
+    group.setMarkers([marker({ selected: true })]);
+    group.update(1, [0, 0, 0], (_name, et) => [et, 0, 0], [0, 100]);
+    expect(group.visibilityFor('e1', 'q1')).toEqual({ glyphs: 0, spans: 0 });
+    available = true;
+    group.update(1, [0, 0, 0], (_name, et) => [et, 0, 0], [0, 100]);
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(1);
+    expect(group.visibilityFor('e1', 'different-query').glyphs).toBe(0);
+    group.applyAnchorOpacity(() => 0);
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(0);
+    group.applyAnchorOpacity(() => 1);
+    group.visible = false;
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(0);
+    group.dispose();
+  });
   it('keeps cached glyphs and span anchors registered as a local plot rotates and translates', () => {
     const transform = new THREE.Matrix4().makeRotationZ(Math.PI/2).setPosition(10,20,30);
     const positions = new Float32Array([1,0,0,2,0,0,3,0,0]);
@@ -779,12 +796,25 @@ describe('events on the future lead (#105)', () => {
       universe, scene: new THREE.Scene(), _markerScene: new THREE.Scene(),
       trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
       eventMarkerGroups: new Map(), trajectoryPlotFrames: new WeakMap(), bodyMeshes: new Map(), _eventPreview: null,
+      timeController: { et: day / 2 }, _eventObservedEt: day / 2,
+      camera: new THREE.PerspectiveCamera(), renderer: { domElement: { clientWidth: 800, clientHeight: 600 } },
     });
     const event: GeometryEvent = {
       id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',
       start: 2 * day + 7200, end: 2 * day + 10800, bodies: { observer: 'Craft' }, label: '',
     };
     renderer.setEventResults([event], event);
+    expect(renderer.getEventVisualization()).toMatchObject({ observedEt: null, selected: { query: 'q', id: 'future' }, visibleGlyphs: 0 });
+    const observation = renderer as unknown as { _eventObservedEt: number; _eventObservedView: string; eventViewSignature(): string };
+    observation._eventObservedEt = day / 2;
+    observation._eventObservedView = observation.eventViewSignature();
+    expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
+    renderer.camera.position.x++;
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
+    observation._eventObservedView = observation.eventViewSignature();
+    renderer.camera.fov++;
+    renderer.camera.updateProjectionMatrix();
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
     for (const line of lines) line.update(day / 2, 1);
     expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 1800, kind: 'continuous' }]);
     expect(lines[1].leadWindows()).toEqual([]);

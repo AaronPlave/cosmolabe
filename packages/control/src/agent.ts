@@ -27,6 +27,7 @@
  */
 import type {
   ScriptActivity,
+  ScriptEventReference,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,
@@ -38,6 +39,7 @@ import type {
 import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
+import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
 import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
@@ -62,7 +64,7 @@ export interface AgentJsonSchema {
 }
 
 /** What a tool can change; `read` tools change nothing. */
-export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display' | 'export';
+export type AgentToolEffect = 'read' | 'camera' | 'time' | 'selection' | 'display' | 'export' | 'authoring';
 
 export interface AgentToolDef {
   readonly name: string;
@@ -134,6 +136,8 @@ export interface AgentToolsOptions {
   omittedTools?: Readonly<Record<string, string>>;
   /** Trusted host permission; captures are refused by default even in catalog mode. */
   allowExport?: boolean;
+  /** Trusted host permission for saved definitions and annotation mutations. */
+  allowAuthoring?: boolean;
   /** Only the trusted host can approve public metadata; never derive this policy from catalog fields. */
   metadata?: AgentMetadataPolicy;
   /** Renders scene time for `describeScene` (a UTC calendar string, say). */
@@ -183,6 +187,9 @@ const PARAM_HELP: Partial<Record<VerbParam['type'], string>> = {
   object: 'An object name exactly as describeScene or resolve reports it.',
   viewpoint: 'A viewpoint name exactly as describeScene reports it.',
   place: 'A place ref from searchPlaces or resolve — not the display name.',
+  'event-query': 'An exact query ID from listEventQueries.',
+  'event-result': 'An exact result ID within the named query from listEventResults.',
+  instrument: 'A sensor name from listInstruments; empty closes the synthetic feed.',
   imagery: "A layer id from getImagery for the object named in this call.",
   activity: 'An activity id from listActivities, resolve or describeScene.',
   time: 'A UTC calendar string (e.g. "2021-04-30T19:00:00"), or seconds past J2000 as a number.',
@@ -221,6 +228,21 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'Bounded computed events, metrics and run-scoped references for focusEventResult. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listEventQueries', effect: 'read', method: 'listEventQueries', description: 'Bounded configured Event Finder identities/kinds and flags; no result arrays or private query metadata.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getEventSearch', effect: 'read', method: 'getEventSearch', description: 'Event search status, current-call progress, error code and exact selection. Error text is withheld.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listEventResults', effect: 'read', method: 'listEventResults', description: 'A bounded page of exact query/result identities and event times; no private solver metadata.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'listInstruments', effect: 'read', method: 'listInstruments', description: 'Bounded available sensor names for synthetic scene feeds; not calibrated observation inventory.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'getInstrument', effect: 'read', method: 'getInstrument', description: 'Selected synthetic scene instrument with native FOV and truthful pointing authority; no pixel data.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listBookmarks', effect: 'read', method: 'listBookmarks', description: 'Bounded session bookmark names. Full portable poses are available to trusted hosts.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listPlaceSources', effect: 'read', method: 'listPlaceSources', description: 'A bounded page of source IDs with body, search inclusion and label visibility; no resource locations.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
+  { name: 'listMeasurements', effect: 'read', method: 'listMeasurements', description: 'Saved semantic measurement IDs, kinds and visibility. Endpoints/provenance are withheld from model transport; trusted hosts use the typed port.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listGeographicLayers', effect: 'read', method: 'listGeographicLayers', description: 'A bounded page of geographic layer IDs, body/frame, editability, visibility and availability.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
+  { name: 'listGeographicFeatures', effect: 'read', method: 'listGeographicFeatures', description: 'A bounded page of stable feature IDs and geometry types in an exact layer.', inputSchema: { type: 'object', properties: { layer: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['layer'], additionalProperties: false } },
+  { name: 'getSurfaceAppearance', effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
+  { name: 'getReadiness', effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, current-view physical terrain coverage, or an exact event/run/epoch with explicit timeline/native-draw policy and limitations. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain', 'event'] }, body: { type: 'string' }, layer: { type: 'string' }, reference: { type: 'object', properties: { scene: { type: 'number' }, query: { type: 'string' }, id: { type: 'string' }, revision: { type: 'number' } }, required: ['scene', 'query', 'id', 'revision'], additionalProperties: false }, et: { type: 'number' }, policy: { type: 'string', enum: ['timeline', 'native-draw'] } }, required: ['kind'], additionalProperties: false } },
   {
     name: 'findTrajectoryExtrema', effect: 'read', method: 'findTrajectoryExtrema',
     description: 'Compute height extrema using the shared numerical analysis. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner. May offer Show me with navigateToAnalysisResult.',
@@ -452,8 +474,8 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 /** Registration comes from VERBS and the bounded read implementations above. No catalog code executes. */
 export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
   return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
-    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
-      : spec.category === 'Time' || spec.name === 'seekActivity' ? 'time'
+    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
+      : spec.category === 'Time' || spec.name === 'seekActivity' || spec.name === 'selectEventResult' || spec.name === 'focusEventResult' ? 'time'
         : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
   }))];
 }
@@ -691,6 +713,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
       return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
     }
+    if (name === 'focusEventResult' && host.getEventVisualization) {
+      const ref = JSON.parse(args.reference as string) as ScriptEventReference;
+      const v = host.getEventVisualization();
+      if (!v.selected || v.selected.scene !== ref.scene || v.selected.query !== ref.query || v.selected.id !== ref.id || v.selected.revision !== ref.revision)
+        return { problem: 'the viewer does not report the requested run-scoped event selection' };
+      return { note: `Event selection is observed; visualization is ${v.status}. Camera framing was not requested.` };
+    }
     if (name === 'selectActivity' && has(host, 'getSelectedActivity')) {
       const now = attempt(() => host.getSelectedActivity!());
       return now && now.id === args.activity ? { note: `The viewer now reports ${now.name} (${now.id}) as the selected activity.` }
@@ -708,7 +737,53 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     return null;
   }
 
-  const reads: Record<string, (input: Input) => AgentToolResult> = { describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery };
+  const reads: Record<string, (input: Input) => AgentToolResult> = {
+    describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    getEventQueryInfo: input => ({ ok: true, summary: 'Shared query availability and provenance.', data: eventQueryMetadata(host.getEventQueryInfo!(input.query as string), metadata.text) }),
+    getEventResultPage: input => ({ ok: true, summary: 'Run-scoped event results; inspect status before focusing.', data: eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined }), metadata.text) }),
+    getEventVisualization: () => ({ ok: true, summary: 'Event visualization readback; partial is not drawn acceptance.', data: eventVisualizationMetadata(host.getEventVisualization!()) }),
+    listEventQueries: () => ({ ok: true, summary: 'Configured event searches.', data: { items: host.listEventQueries!().slice(0, 32).map(q => ({ id: q.id, kind: q.query.kind, enabled: q.enabled, visible: q.visible })) } }),
+    getEventSearch: () => {
+      const s = host.getEventSearch!();
+      return { ok: true, summary: 'Event search state.', data: { scene: s.scene, query: s.query, status: s.status, progress: s.progress, error: s.error ? { code: s.error.code } : null, selected: s.selected } };
+    },
+    listEventResults: input => {
+      const page = host.listEventResults!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
+      return { ok: true, summary: 'Event result identities and times.', data: { total: page.total, items: page.items.map(e => ({ id: e.id, query: e.queryId, kind: e.kind, temporality: e.temporality, ...(e.temporality === 'instant' ? { et: e.et } : { start: e.start, end: e.end }) })) } };
+    },
+    listInstruments: () => ({ ok: true, summary: 'Synthetic scene sensors.', data: { items: host.listInstruments!().slice(0, 64) } }),
+    getInstrument: () => {
+      const i = host.getInstrument!();
+      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, observedEt: i.observedEt, observation: i.observation } : null };
+    },
+    listBookmarks: () => ({ ok: true, summary: 'Session bookmarks.', data: { items: host.listBookmarks!().slice(0, 64).map(b => ({ name: b.name })) } }),
+    listPlaceSources: input => {
+      const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
+      if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
+      const sources = host.listPlaceSources!();
+      return { ok: true, summary: 'Place source inclusion and labels.', data: { total: sources.length, offset, sources: sources.slice(offset, offset + limit) } };
+    },
+    listMeasurements: () => ({ ok: true, summary: 'Saved measurement definitions (endpoint metadata withheld).', data: {
+      selected: host.getSelectedMeasurement?.() ?? null,
+      items: host.listMeasurements!().slice(0, 32).map(m => ({ id: m.id, kind: m.kind, visible: m.visible !== false })),
+    } }),
+    listGeographicLayers: input => {
+      const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
+      if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
+      const all = host.listGeographicLayers!();
+      return { ok: true, summary: 'Geographic layer identities and status; unapproved metadata is withheld.', data: { total: all.length, offset, layers: all.slice(offset, offset + limit).map(metadata.geographicLayer) } };
+    },
+    listGeographicFeatures: input => {
+      if (!Number.isInteger(input.offset ?? 0) || !Number.isInteger(input.limit ?? 25)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
+      const page = host.listGeographicFeatures!(input.layer as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
+      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
+    },
+    getSurfaceAppearance: input => {
+      const appearance = host.getSurfaceAppearance!(input.body as string);
+      return appearance ? { ok: true, summary: 'Terrain appearance.', data: appearance } : { ok: false, code: 'refused', error: 'Unknown rendered body' };
+    },
+    getReadiness: input => ({ ok: true, summary: 'Observed readiness with explicit limitations.', data: host.getReadiness!(input as unknown as import('./contracts.js').ScriptReadinessRequest) }),
+  };
 
   /**
    * Wait for the end of flight `id`, the one a call started, unless the task or
@@ -798,6 +873,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (problem) return { ok: false, code: 'invalid-input', error: problem };
       const refused = this.gate(def);
       if (refused) return refused;
+      if (def.effect === 'authoring' && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
 
@@ -832,6 +908,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         try {
           return read(args);
         } catch (err) {
+          if (name === 'listGeographicLayers' || name === 'listGeographicFeatures') return { ok: false, code: 'failed', error: 'Geographic data could not be read; inspect the local viewer for details.' };
           return { ok: false, code: 'failed', error: err instanceof Error ? err.message : String(err) };
         }
       }

@@ -75,6 +75,21 @@ try {
   report.native.cRows=await page.locator('button.event-result').allTextContents();
   assert.ok(report.native.cRows[0].includes('Polaris-C — Crater inner-wall transect'));
   await page.screenshot({path:`${out}/trajectory-form.png`});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:`${out}/trajectory-form-compact.png`});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.locator('#event-param-extremum').selectOption('minimum');
+  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
+  const minimumOrder=await page.evaluate(()=>{
+    const c=window.cosmo,q=c.listEventQueries().find(q=>q.query.kind==='trajectory-extremum'&&q.query.params.extremum==='minimum');
+    return c.listEventResults(q.id,{limit:100}).items.sort((a,b)=>a.trajectoryAnalysis.value-b.trajectoryAnalysis.value).map(e=>e.label);
+  });
+  assert.deepEqual(await page.locator('button.event-result').evaluateAll(rows=>rows.map(row=>row.title)),minimumOrder);
+  report.native.minimumOrder=minimumOrder;
+  await page.locator('#event-param-extremum').selectOption('maximum');
+  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   await page.locator('button.event-result[title="Polaris-C: Crater inner-wall transect"]').click();
   report.native.selected=await page.evaluate(()=>({object:window.cosmo.getSelected(),activity:window.cosmo.getSelectedActivity()?.name,et:window.cosmo.getTime(),tracked:window.cosmo.getTracked()}));
   assert.equal(report.native.selected.object,'Polaris-C');
@@ -120,6 +135,54 @@ try {
   assert.equal(report.agent.computed.data.results.length,3);
   assert.equal(report.agent.navigation.ok,true,JSON.stringify(report.agent.navigation));
   assert.equal(report.agent.navigation.data.verified,true);
+  report.modern=await page.evaluate(async controlModule=>{
+    const {parse,execute,quote,createCapabilityTools}=await import(controlModule);
+    const {builtInAgentMetadata}=await import('/src/lib/ask/public-metadata.ts');
+    const c=window.cosmo,id='review:height',activities=c.listActivities().filter(a=>a.kind==='hop');
+    const definition={id,label:'Highest physical clearance by hop',enabled:true,visible:true,query:{id,kind:'trajectory-extremum',bodies:{center:'Moon'},window:{start:Math.min(...activities.map(a=>a.start)),end:Math.max(...activities.map(a=>a.end))},step:.1,abcorr:'NONE',params:{scope:'activities',activityKind:'hop',metric:'heightAbovePhysicalTerrain',extremum:'maximum',timeToleranceSeconds:.005}}};
+    const source=`upsertEventQuery ${quote(JSON.stringify(definition))}\nrunEventQuery ${quote(id)} 120000`;
+    await execute(parse(source),c);
+    const page=c.getEventResultPage(id,{limit:100}),info=c.getEventQueryInfo(id);
+    const capabilities=createCapabilityTools(c,{metadata:builtInAgentMetadata}),task=capabilities.begin();
+    try {
+      const discovered=capabilities.listCapabilities({domain:'events',query:'EventResult',limit:12});
+      await task.call('describeCapabilities',{ids:['events.getEventResultPage','events.focusEventResult','events.getEventVisualization']});
+      const transport=await task.call('getEventResultPage',{query:id,limit:1});
+      if(!transport.ok) return {transport};
+      const first=transport.data.items[0];
+      const focus=await task.call('focusEventResult',{reference:JSON.stringify(first.reference),anchor:'start'});
+      await execute(parse(`waitUntilReady ${quote(JSON.stringify({kind:'event',reference:first.reference,et:first.et,policy:'timeline'}))} 30`),c);
+      const visual=await task.call('getEventVisualization',{});
+      const fresh=c.getEventResultPage(id,{limit:1}).items[0].reference;
+      const nativeReadiness=c.getReadiness({kind:'event',reference:fresh,et:first.et,policy:'native-draw'});
+      await c.runEventQuery(id);
+      const stale=c.focusEventResult(fresh,'start');
+      return {source,discovered:discovered.items.map(item=>item.id),count:page.total,info,transport,focus,visual,nativeReadiness,stale:stale.status};
+    } finally {capabilities.dispose();}
+  },'/@fs'+new URL('../packages/control/src/index.ts',import.meta.url).pathname);
+  assert.equal(report.modern.count,12,JSON.stringify(report.modern));
+  assert.equal(report.modern.info.provenance.source,'authoritative-trajectories');
+  assert.equal(report.modern.transport.ok,true);
+  assert.equal(report.modern.transport.data.items[0].trajectoryAnalysis.metric,'heightAbovePhysicalTerrain');
+  assert.ok(report.modern.transport.data.items[0].metrics.some(m=>m.key==='heightAbovePhysicalTerrain'));
+  assert.equal(report.modern.focus.ok,true);
+  assert.ok(['observed','partial'].includes(report.modern.visual.data.status));
+  assert.equal(report.modern.visual.data.timeline.selectedInVisibleLane,true);
+  assert.equal(report.modern.visual.data.renderer.observedEt,report.modern.transport.data.items[0].et);
+  if(report.modern.visual.data.renderer.visibleGlyphs===0) assert.equal(report.modern.nativeReadiness.status,'partial');
+  assert.equal(report.modern.stale,'stale-result');
+  report.partial=await page.evaluate(async()=>{
+    const c=window.cosmo,bm=window.renderer.getBodyMesh('Moon');
+    const q={objects:['Polaris-C'],body:'Moon',frame:'MOON_ME_DE421',metric:'heightAbovePhysicalTerrain',extremum:'maximum',reference:{kind:'sphere',radiusKm:1737.4},scope:{kind:'activities',activityKind:'hop'},stepSeconds:.1,timeToleranceSeconds:.005,maxEvaluations:20,terrain:{id:bm.terrainSourceId,revision:bm.terrainSourceRevision}};
+    const response=await c.findTrajectoryExtrema(q);
+    const item=c.listEventQueries().find(item=>item.query.trajectoryAnalysis?.maxEvaluations===20);
+    c.openEventQuery(item.id);
+    return {status:response.status,count:response.results.length};
+  });
+  assert.equal(report.partial.status,'partial');
+  if(!await page.getByRole('button',{name:'Find events',exact:true}).isVisible()) await page.getByRole('button',{name:'Events',exact:true}).click();
+  await page.getByText('Incomplete search — candidates only; no overall winner established.',{exact:true}).waitFor();
+  await page.screenshot({path:`${out}/trajectory-partial.png`});
   assert.equal(report.errors.length,0,report.errors.join('\n'));
   report.passed=true;
 } finally {

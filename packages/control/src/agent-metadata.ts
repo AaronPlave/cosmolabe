@@ -1,5 +1,5 @@
 /** Model-visible metadata is a projection, never a serialization of a local resource. */
-import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct } from './contracts.js';
+import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct, ScriptGeographicLayer, ScriptGeographicFeature } from './contracts.js';
 import type { TrajectoryExtremum } from '@cosmolabe/interop';
 
 export interface AgentMetadataPolicy {
@@ -68,5 +68,17 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     method:{guarantee:r.method.guarantee,stepSeconds:r.method.stepSeconds,timeToleranceSeconds:r.method.timeToleranceSeconds,evaluations:r.method.evaluations,heightErrorBoundKm:r.method.heightErrorBoundKm,
       limits:'Sampled and locally refined; no certified global height error. Source accuracy is separate.'},
   });
-  return { text, place, imagery, surface, trajectoryExtremum };
+  const geographicLayer = (l: ScriptGeographicLayer) => ({
+    id: l.id, name: text(l.name)?.slice(0, 512) ?? null, body: l.body, frame: text(l.frame), features: l.features,
+    status: l.status, visible: l.visible, editable: l.editable, navigable: l.navigationUnavailable === null,
+    diagnosticsTotal: l.diagnostics.length,
+    diagnostics: l.diagnostics.slice(0, 16).map(d => ({ code: text(d.code)?.slice(0, 160) ?? null, severity: d.severity === 'warning' || d.severity === 'error' ? d.severity : 'unknown' })),
+  });
+  const geographicFeature = (f: ScriptGeographicFeature) => ({
+    id: f.id, name: text(f.name)?.slice(0, 512) ?? null,
+    type: ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'].includes(f.type) ? f.type : 'unknown',
+    sourceId: typeof f.sourceId === 'number' ? f.sourceId : text(f.sourceId),
+    // No object spread: imported properties, provenance and annotation payloads stay local.
+  });
+  return { text, place, imagery, surface, trajectoryExtremum, geographicLayer, geographicFeature };
 }

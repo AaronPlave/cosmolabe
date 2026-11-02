@@ -430,3 +430,13 @@ describe('height candidate ranking and activity form',()=>{
     expect(buildQuery(height,form,'h').params).not.toHaveProperty('activityKind');
   });
 });
+
+
+it('invalidates numerical run identity when precise typed scope changes',async()=>{
+  const {eventQuerySignature}=await import('../event-query-signature');
+  const base={id:'q',kind:'trajectory-extremum',bodies:{center:'Moon'},window:WINDOW};
+  const request={objects:['C'],body:'Moon',frame:'MOON_ME_DE421',metric:'radialHeightAboveReferenceSphere' as const,extremum:'maximum' as const,reference:{kind:'sphere' as const,radiusKm:1737.4},scope:{kind:'activities' as const,ids:['c1']},stepSeconds:.1,timeToleranceSeconds:.005};
+  const first=eventQuerySignature({...base,trajectoryAnalysis:request});
+  expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,scope:{kind:'activities',ids:['c2']}}})).not.toBe(first);
+  expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,reference:{radiusKm:1737.4,kind:'sphere'}}})).toBe(first);
+});

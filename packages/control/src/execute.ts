@@ -137,6 +137,7 @@ export async function execute(
   host: ViewerControl,
   opts: ExecuteOptions = {},
 ): Promise<ExecutionReport> {
+  const boundScene = host.getScene?.()?.id;
   const images: ScriptImage[] = [];
   let ran = 0;
   let recording = false;
@@ -194,6 +195,9 @@ export async function execute(
       }
     }
 
+    if (boundScene !== undefined && host.getScene?.()?.id !== boundScene) {
+      throw abort(statement, { kind: 'failed', line: statement.line, verb: spec.name, message: 'the scene was replaced or disposed during this script', text: statement.text });
+    }
     opts.onStatement?.(statement);
 
     // An optional method the host did not implement is a capability it does not
@@ -212,7 +216,7 @@ export async function execute(
 
     let result: unknown;
     try {
-      result = await untilSettledOrAborted(spec.invoke(host, statement.args), opts.signal);
+      result = await untilSettledOrAborted(spec.invoke(host, statement.args, opts.signal), opts.signal);
     } catch (err) {
       if (err === CANCELLED) {
         // `abort` stops a recording this script started — now, not when the

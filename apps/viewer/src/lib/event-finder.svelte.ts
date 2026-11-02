@@ -36,6 +36,7 @@ import {
   type ConfiguredEventQuery,
   type EtInterval,
   type EventKind,
+  type EventQuery,
   type EventParticipants,
   type EventSearchFault,
   type GeometryEvent,
@@ -79,7 +80,7 @@ import {
   updateConfiguredEventQuery,
 } from './analysis.svelte';
 import { matchSharedEvent, validateEventLinkState, type EventLinkState, type SharedEventQuery } from './event-link-state';
-import { ViewStateError } from '@cosmolabe/control';
+import { ViewStateError, type ScriptEventSearch } from '@cosmolabe/control';
 import { faultMessage } from './event-query';
 import { getActivity, selectActivity, seekActivity } from './activity-control';
 import { emit, etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
@@ -88,6 +89,7 @@ import { activityEvent } from './mission-activities';
 import { analysisResultGuards } from './trajectory-analysis-identity';
 import { frameBody, setPlaying } from './viewer-state.svelte';
 import { runTrajectoryEventQuery } from './trajectory-analysis.svelte';
+import { eventQuerySignature } from './event-query-signature';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -289,10 +291,18 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
  * scene or moving the window re-evaluates it.
  */
 export function currentSearchUnavailable(): EventSearchFault | null {
-  if (currentKind().engine === 'trajectory-analysis') return getUniverse()
+  // This is read inside the form's derived state. Cache refresh belongs to
+  // ensureCoverageCurrent's effect/search caller, never a reactive read.
+  const kind = currentKind();
+  const coverage = ef.form && (ef.coverageKernelCount !== vs.kernelCount || ef.coverageAbcorr !== searchAbcorr(kind))
+    ? assessFor(kind, ef.form.bodies) : ef.coverage;
+  return searchUnavailable(ef.form, kind, coverage);
+}
+
+function searchUnavailable(form: EventQueryForm | null, kind: EventKind<never>, coverage: CoverageAssessment | null, abcorr = searchAbcorr(kind)): EventSearchFault | null {
+  if (kind.engine === 'trajectory-analysis') return getUniverse()
     ? null : { code:'unavailable',message:'Load a catalog with trajectory states first.' };
   const spice = getSpice();
-  const form = ef.form;
   // Searches run on SPICE kernels; a host-supplied state is not in them, and
   // is not quietly replaced by whatever the kernels hold under that name.
   const external = Object.values(form?.bodies ?? {}).find((name) => name && getUniverse()?.getBody(name)?.trajectory instanceof MissionStateTrajectory);
@@ -302,8 +312,6 @@ export function currentSearchUnavailable(): EventSearchFault | null {
       message: `${external}'s state comes from a host mission-state source. Event searches run on SPICE kernels and cannot use it.`,
     };
   }
-  ensureCoverageCurrent();
-  const coverage = ef.coverage;
   if (spice && vs.kernelCount > 0 && form && coverage?.exact && coverage.status !== 'unknown') {
     const outside = windowOutsideCoverage(
       { start: form.startEt, end: form.endEt }, coverage.windows,
@@ -322,7 +330,7 @@ export function currentSearchUnavailable(): EventSearchFault | null {
   // window's edges (including GF's derivative margin) before applying it.
   if (spice && vs.kernelCount > 0 && form && coverage?.status === 'available'
     && windowOutsideCoverage({ start: form.startEt, end: form.endEt }, coverage.windows).length === 0) {
-    const dependencies = geometryForBodies(currentKind(), form.bodies);
+    const dependencies = geometryForBodies(kind, form.bodies, abcorr);
     if (dependencies) {
       try {
         const source = spiceCoverageSource(spice);
@@ -343,7 +351,7 @@ export function currentSearchUnavailable(): EventSearchFault | null {
     form?.bodies ?? {},
     form ? { start: form.startEt, end: form.endEt } : null,
     (name) => (spice ? spiceEphemeris(spice, sceneSpiceName(name)) : 'unknown'),
-    searchAbcorr(currentKind()),
+    abcorr,
     (target, observer, et) =>
       spice ? spiceLightTime(spice, sceneSpiceName(target), sceneSpiceName(observer), et) : undefined,
   );
@@ -361,7 +369,9 @@ export function currentSearchUnavailable(): EventSearchFault | null {
  * check deriving from it would then re-run its SPICE lookups on every tick.
  */
 export function searchAbcorr(kind: EventKind<never>): string {
-  return analysis.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+  const configured = currentConfiguredQuery();
+  const explicit = configured?.query.kind === kind.kind ? configured.query.abcorr : undefined;
+  return explicit ?? analysis.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
 }
 
 /**
@@ -452,6 +462,8 @@ export const ef = $state({
   form: null as EventQueryForm | null,
   /** True while a search is in flight. */
   running: false,
+  /** Per-query terminal outcomes survive worker cleanup; newer generations replace them. */
+  searchOutcomes: {} as Record<string, { generation: number; status: ScriptEventSearch['status'] }>,
   /** A permalink is rebuilding query results; not an editable draft yet. */
   restoring: false,
   /**
@@ -545,10 +557,20 @@ export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>
   return ef.selectedId == null ? undefined : events.find(isSelectedEvent);
 }
 
+export function eventSearchGeneration() { return inFlight; }
+/** Only the currently owned search generation may publish a terminal outcome. */
+export function recordEventSearchOutcome(id: string, generation: number, status: ScriptEventSearch['status']): void {
+  if (generation !== inFlight || ef.configuredId !== id) return;
+  ef.searchOutcomes[id] = { generation, status };
+  emit('events', {});
+}
+
+
 export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
   const before = selectedActivityId();
   ef.selectedId = event?.id ?? null;
   ef.selectedQueryId = event?.queryId ?? null;
+  emit('events', {});
   const after = selectedActivityId();
   if (after !== before) emit('activitySelect', after);
 }
@@ -671,9 +693,9 @@ function catalogWindow(): EtInterval {
  * on them, and the ones that will (an instrument, a frame) are a matter for
  * the kind's own `geometry`.
  */
-function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants) {
+function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants, abcorr = searchAbcorr(kind), query?: EventQuery) {
   const geometry = eventGeometry(
-    { id: 'coverage', kind: kind.kind, bodies, abcorr: searchAbcorr(kind), window: { start: 0, end: 1 } },
+    query ?? { id: 'coverage', kind: kind.kind, bodies, abcorr, window: { start: 0, end: 1 } },
     kind,
   );
   if (!geometry) return null;
@@ -688,10 +710,10 @@ function geometryForBodies(kind: EventKind<never>, bodies: EventParticipants) {
   };
 }
 
-function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageAssessment | null {
+function assessFor(kind: EventKind<never>, bodies: EventParticipants, abcorr = searchAbcorr(kind), query?: EventQuery): CoverageAssessment | null {
   const spice = getSpice();
   if (!spice) return null;
-  const geometry = geometryForBodies(kind, bodies);
+  const geometry = geometryForBodies(kind, bodies, abcorr, query);
   if (!geometry) return null;
   try {
     return assessEventCoverage(geometry, spiceCoverageSource(spice), {
@@ -702,6 +724,19 @@ function assessFor(kind: EventKind<never>, bodies: EventParticipants): CoverageA
     // the plain per-body coverage, as before there was one.
     return null;
   }
+}
+
+/** Non-mutating host inspection uses the same coverage/availability policy as the form. */
+export function inspectEventQuery(query: EventQuery) {
+  const kind = registry.get(query.kind);
+  if (!kind) return { coverage: null, unavailable: { code: 'unknown-kind', message: 'Unknown event kind' } as EventSearchFault, frames: [] as readonly string[] };
+  const abcorr = query.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+  const coverage = assessFor(kind, query.bodies, abcorr, query);
+  const missing = kind.roles.find(role => role.required !== false && !query.bodies[role.role]);
+  const form = { ...formForKind(kind, query.window), bodies: query.bodies, startEt: query.window.start, endEt: query.window.end };
+  const unavailable = missing ? { code: 'missing-body' as const, message: `Missing ${missing.role}`, role: missing.role }
+    : searchUnavailable(form, kind, coverage, abcorr);
+  return { coverage, unavailable, frames: geometryForBodies(kind, query.bodies, abcorr, query)?.frames ?? [] };
 }
 
 /** Recompute the suggestion for the form as it now stands. */
@@ -919,6 +954,7 @@ function removeQuery(id: string) {
     inFlight++;
     ef.configuredId = null;
   }
+  delete ef.searchOutcomes[id];
   removeConfiguredItem(id);
   if (wasCurrent) {
     const next = queries[index + 1] ?? queries[index - 1];
@@ -976,7 +1012,7 @@ function openQuery(id: string) {
   const kind = registry.get(item.query.kind);
   if (!kind) return;
 
-  active?.cancel();
+  cancelSearch();
   inFlight++;
   ef.kind = kind.kind;
   const window = item.query.window ?? catalogWindow();
@@ -992,7 +1028,7 @@ function openQuery(id: string) {
   ef.form = form;
   ef.configuredId = id;
   ef.events = [...(analysis.eventResults[id] ?? [])];
-  ef.searched = Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
+  ef.searched = ef.searchOutcomes[id] ? ef.searchOutcomes[id].status === 'complete' : Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
   ef.fault = null;
   ef.hint = null;
   // Opening a search to edit leaves the selection alone: it may belong to
@@ -1089,6 +1125,7 @@ export function setStep(step: number) {
  * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  if (ef.configuredId) delete ef.searchOutcomes[ef.configuredId];
   previewEvent(null);
   active?.cancel();
   inFlight++;
@@ -1097,7 +1134,7 @@ function clearResults() {
   ef.hint = null;
   ef.searched = false;
   dropSelectionIn(ef.configuredId);
-  if (ef.configuredId) setEventResults(ef.configuredId, []);
+  if (ef.configuredId) setEventResults(ef.configuredId, [], false);
   syncEventResultsInScene();
 }
 
@@ -1114,6 +1151,11 @@ export async function runSearch() {
     ef.events = [];
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
+    if (ef.configuredId) recordEventSearchOutcome(ef.configuredId, ++inFlight, 'failed');
+
+    if (ef.configuredId) { setEventResults(ef.configuredId, [], false); dropSelectionIn(ef.configuredId); }
+    syncEventResultsInScene();
+    emit('events', {});
     return;
   }
 
@@ -1134,19 +1176,29 @@ export async function runSearch() {
       return runTrajectoryEventQuery(query,options);
     },
     onProgress: (fraction) => {
-      if (active === running) ef.progress = { fraction };
+      if (active === running) { ef.progress = { fraction }; emit('events', {}); }
     },
   });
   const token = ++inFlight;
+  recordEventSearchOutcome(item.id, token, 'running');
 
   ef.running = true;
+  ef.searched = false;
+  ef.fault = null;
+  ef.events = [];
+  setEventResults(item.id, [], false);
   ef.progress = null;
+  emit('events', {});
   dropSelectionIn(item.id);
   syncEventResultsInScene();
   try {
     // Resolution applies the shared context defaults but preserves this item's
     // explicit bodies/window, then enters the unchanged EventQuery boundary.
-    const result = await search.run(resolveEventQuery(item, analysisContext()));
+    const query = resolveEventQuery(item, analysisContext());
+    const kernels = vs.kernelRevision;
+    const contextFrame = analysis.reference.frame;
+    const result = await search.run(query);
+    if (kernels !== vs.kernelRevision || contextFrame !== analysis.reference.frame || eventQuerySignature(query) !== eventQuerySignature(resolveEventQuery(item, analysisContext()))) return;
     // A later search already answered, or this one was abandoned. Either way
     // there is nothing to show — and a cancelled search's provider error is
     // the cancellation, not a fault worth putting on screen.
@@ -1160,11 +1212,12 @@ export async function runSearch() {
       ef.hint = result.hint ?? null;
     } else {
       ef.events = [];
-      setEventResults(item.id, []);
+      setEventResults(item.id, [], false);
       ef.fault = result.fault;
       ef.hint = null;
     }
     ef.searched = result.ok;
+    recordEventSearchOutcome(item.id, token, result.ok ? 'complete' : 'failed');
     syncEventResultsInScene();
   } finally {
     // Ownership of the spinner follows `active`, not the token: a search
@@ -1175,10 +1228,12 @@ export async function runSearch() {
     // the claim on the worker is this search's to release either way, and the
     // newer one has already made its own.
     running.finish();
+    if (ef.searchOutcomes[item.id]?.status === 'running') recordEventSearchOutcome(item.id, token, 'cancelled');
     if (active === running) {
       active = null;
       ef.running = false;
       ef.progress = null;
+      emit('events', {});
     }
   }
 }
@@ -1199,6 +1254,7 @@ export async function runSearch() {
  */
 export function cancelSearch() {
   active?.cancel();
+  if (ef.configuredId && ef.searchOutcomes[ef.configuredId]?.status === 'running') recordEventSearchOutcome(ef.configuredId, inFlight, 'cancelled');
 }
 
 /**
@@ -1351,7 +1407,7 @@ export async function restoreSharedEvents(input: EventLinkState | undefined, sig
         ef.kind = kind.kind;
         ef.form = formForKind(kind, draft.query.window);
         ef.form.bodies = { ...draft.query.bodies };
-        ef.form.params = Object.fromEntries(Object.entries(draft.query.params ?? {}).map(([k, v]) => [k, String(v)]));
+        ef.form.params = Object.fromEntries(Object.entries(draft.query.params ?? {}).map(([k, v]) => [k, Array.isArray(v) ? JSON.stringify(v) : String(v)]));
         ef.form.step = draft.query.step!;
         ef.windowPinned = draft.windowMode === 'explicit';
         ef.windowSource = ef.windowPinned ? 'custom' : 'suggested';
@@ -1399,6 +1455,7 @@ export function resetForScene() {
   ef.windowSource = 'suggested';
   ef.windowTrimmed = false;
   ef.configuredId = null;
+  ef.searchOutcomes = {};
   ef.coverage = null;
   ef.coverageKernelCount = null;
   ef.coverageAbcorr = null;
@@ -1419,3 +1476,5 @@ onViewerEvent('load', () => {
     previewEvent(event ?? null, hit?.boundary);
   }) ?? null;
 });
+
+onViewerEvent('unload', resetForScene);

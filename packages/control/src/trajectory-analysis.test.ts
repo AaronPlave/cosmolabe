@@ -48,6 +48,8 @@ describe('shared height analysis agent boundary',()=>{
     h.emit('cameraInput',{});
     expect(await task.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:false,code:'interrupted'});
     expect(h.navigateToAnalysisResult).not.toHaveBeenCalled(); tools.dispose();
+    const cameraOwned=createAgentTools(h,{omittedTools:{frameObject:'Host owns the camera'}});
+    expect(await cameraOwned.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:false,code:'refused'});cameraOwned.dispose();
     const restricted=createAgentTools(h,{omittedTools:{setTime:'Host owns the clock'}});
     expect(await restricted.call('navigateToAnalysisResult',{resultId:'peak'})).toMatchObject({ok:false,code:'refused'});
     const capabilities=createCapabilityTools(h,{omitted:{'time.setTime':'Host owns the clock'}});
@@ -79,4 +81,14 @@ it('refuses unknown, superseded and scene-stale analysis IDs before host navigat
   h.emit('load',{objects:[]});
   expect(await tools.call('navigateToAnalysisResult',{resultId:'next'})).toMatchObject({ok:false});
   expect(h.navigateToAnalysisResult).not.toHaveBeenCalled();tools.dispose();
+});
+
+
+it('keeps scientific height results in the modern Event Finder transport without leaking source metadata',async()=>{
+  const {eventPageMetadata}=await import('./event-agent-metadata.js');
+  const r=response().results[0];
+  const page={status:'ready' as const,total:1,offset:0,nextOffset:null,query:{status:'available' as const,definition:null,coverage:null,error:null,provenance:{source:'authoritative-trajectories' as const,kernelRevision:0,kernelCount:0,contextFrame:'IAU_SATURN',calculationFrames:['IAU_SATURN'],timeUnit:'ET seconds past J2000' as const,stepUnit:'s' as const,abcorr:'NONE',limitations:[]}},items:[{reference:{scene:1,query:'q',id:r.id,revision:1},event:{id:r.id,queryId:'q',kind:'trajectory-extremum',label:r.object,bodies:{observer:r.object,center:r.body},temporality:'instant' as const,et:r.et,metrics:[{key:r.metric,label:'Radial sphere height',value:r.value,unit:'km'}],trajectoryAnalysis:r}}]};
+  const transport=eventPageMetadata(page,()=>null);
+  expect(transport).toMatchObject({query:{provenance:{source:'authoritative-trajectories'}},items:[{metrics:[{key:r.metric,value:2,unit:'km'}],trajectoryAnalysis:{object:'Titan',source:{id:null,revision:null}}}]});
+  expect(JSON.stringify(transport)).not.toContain('/private');expect(JSON.stringify(transport)).not.toContain('token=');
 });

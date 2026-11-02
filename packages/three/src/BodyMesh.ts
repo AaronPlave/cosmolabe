@@ -1226,7 +1226,25 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.metrics ?? null;
   }
 
+  private surfaceObservation: string | null = null;
+  private imagerySettingsRevision = 0;
+  private surfaceViewKey(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): string {
+    return JSON.stringify([et, camera.position.toArray(), camera.quaternion.toArray(), camera.projectionMatrix.elements,
+      renderer.domElement.width, renderer.domElement.height, this.position.toArray(), this.mesh.quaternion.toArray(), this.visible, this.surfaceTransitionState, this.imagerySettingsRevision]);
+  }
+  /** Record the camera/configuration used by the main view's actual streaming update. */
+  observeSurfaceView(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): void {
+    this.surfaceObservation = this.terrainVisible && this.terrainManager?.viewUpdateSucceeded
+      ? this.surfaceViewKey(camera, renderer, et) : null;
+  }
+  /** A camera/time/viewport/source change invalidates old counters until another streaming update. */
+  surfaceViewIsCurrent(camera: THREE.Camera, renderer: THREE.WebGLRenderer, et: number): boolean {
+    return this.surfaceObservation !== null && this.surfaceObservation === this.surfaceViewKey(camera, renderer, et);
+  }
+
   /** Lightweight surface inventory observations, without memory accounting. */
+  get terrainViewCoverage() { return this.terrainManager?.viewCoverage ?? null; }
+
   get terrainSurfaceStatus() { return this.terrainManager?.surfaceStatus ?? null; }
 
   /** Sample decoded CPU terrain. Null is the explicit unloaded-data fallback. */
@@ -1489,15 +1507,21 @@ export class BodyMesh extends THREE.Object3D {
   }
 
   setImageryLayerVisible(id: string, visible: boolean): boolean {
-    return this.terrainManager?.setImageryLayerVisible(id, visible) ?? false;
+    const changed = this.terrainManager?.setImageryLayerVisible(id, visible) ?? false;
+    if (changed) this.imagerySettingsRevision++;
+    return changed;
   }
 
   setImageryLayerOpacity(id: string, opacity: number): boolean {
-    return this.terrainManager?.setImageryLayerOpacity(id, opacity) ?? false;
+    const changed = this.terrainManager?.setImageryLayerOpacity(id, opacity) ?? false;
+    if (changed) this.imagerySettingsRevision++;
+    return changed;
   }
 
   moveImageryLayer(id: string, toIndex: number): boolean {
-    return this.terrainManager?.moveImageryLayer(id, toIndex) ?? false;
+    const changed = this.terrainManager?.moveImageryLayer(id, toIndex) ?? false;
+    if (changed) this.imagerySettingsRevision++;
+    return changed;
   }
 
   /** Whether the streamed surface is imagery on the ellipsoid (no physical terrain). */

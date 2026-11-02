@@ -349,6 +349,8 @@ export class UniverseRenderer {
   private _eventPreview: { id: string; queryId: string } | null = null;
   private _eventPreviewBoundary: 'start' | 'end' | undefined;
   private _selectedEvent: { id: string; queryId: string } | null = null;
+  private _eventObservedEt: number | null = null;
+  private _eventObservedView: string | null = null;
   private _hoveredSceneEvent: string | null = null;
   /** Epoch under the pointer when the scene hover is on an interval span. */
   private _sceneEventHit: { id: string; queryId: string; et: number } | null = null;
@@ -395,6 +397,7 @@ export class UniverseRenderer {
    *  frame. The pick is cheap (label-only, against cached screen boxes). */
   private static readonly _hoverPickIntervalMs = 33;
   private instrumentView: InstrumentView | null = null;
+  private instrumentObservedEt: number | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
   /** Separate scene rendered last so the probe markers are never overdrawn by tileScene/models. */
@@ -819,6 +822,11 @@ export class UniverseRenderer {
   }
 
 
+  /** Whether the main view's streaming counters describe its current camera, epoch and source configuration. */
+  surfaceViewIsCurrent(body: string): boolean {
+    return this.bodyMeshes.get(body)?.surfaceViewIsCurrent(this.camera, this.renderer, this.timeController.et) ?? false;
+  }
+
   /** Render a single frame at current time */
   renderFrame(): void {
     const et = this.timeController.et;
@@ -1163,7 +1171,10 @@ export class UniverseRenderer {
         const dist = bm.position.distanceTo(this.camera.position);
         const realSceneRadius = bm.displayRadius * this.scaleFactor;
         const screenPx = dist > 0 ? (realSceneRadius / dist) * canvasHeight / (2 * halfFovTan) : 1000;
-        if (bm.hasTerrain) bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+        if (bm.hasTerrain) {
+          bm.updateTerrain(this.camera, this.renderer, screenPx, null);
+          bm.observeSurfaceView(this.camera, this.renderer, et);
+        }
         if (bm.hasSurfaceTiles) bm.updateSurfaceTiles(this.camera, this.renderer, screenPx);
       }
     }
@@ -1509,6 +1520,8 @@ export class UniverseRenderer {
     if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
+    this._eventObservedEt = et;
+    this._eventObservedView = this.eventViewSignature();
 
     // Bloom / Sun glare overlay — additive composite of BLOOM_LAYER objects.
     // Skip when an instrument PiP fully covers the canvas.
@@ -1579,8 +1592,9 @@ export class UniverseRenderer {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       const pointing = sensorPointing(this.universe, sf, et, spiceInst);
       const unavailable = pointing.unavailable ?? (sf.present ? null : `${sf.body.name} or its spacecraft has no state or attitude at this time.`);
-      if (unavailable) { iv.markUnavailable(unavailable); return; }
+      if (unavailable) { iv.markUnavailable(unavailable); this.instrumentObservedEt = et; return; }
       iv.update(et, this.scaleFactor, originRelResolver, targetBody, pointing.rotation, pointing.from === 'attitude' ? 'attitude' : 'spice');
+      this.instrumentObservedEt = et;
       // The terrain draw cull is the main camera's.
       for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
       // The instrument has its own observer position and may be inside a
@@ -1923,6 +1937,7 @@ export class UniverseRenderer {
     selected: Pick<GeometryEvent, 'id' | 'queryId'> | null = null,
     selectedAnnotation = '',
   ): void {
+    this._eventObservedEt = null;
     this._selectedEvent = selected;
     this._selectedEventAnnotation = selected ? selectedAnnotation : '';
     for (const { markers } of this.eventMarkerGroups.values()) {
@@ -1991,6 +2006,27 @@ export class UniverseRenderer {
       (this.trajectoryPlotFrames.has(line) ? this.scene : this._markerScene).add(markers);
     }
     this.refreshEventLineColors();
+  }
+
+  private eventViewSignature(): string {
+    return [...this.camera.position.toArray(), ...this.camera.quaternion.toArray(), ...this.camera.projectionMatrix.elements,
+      this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight, !!this.instrumentView?.fullScreen].join(',');
+  }
+
+  /** Native event draw state, observed only after a render pass at this epoch and camera/viewport. */
+  getEventVisualization() {
+    const selected = this._selectedEvent;
+    let markerGroups = 0, visibleGlyphs = 0, visibleSpans = 0;
+    if (selected) for (const group of this.eventMarkerGroups.values()) {
+      if (!group.events.some(e => e.id === selected.id && e.queryId === selected.queryId)) continue;
+      markerGroups++;
+      const visible = group.markers.visibilityFor(selected.id, selected.queryId);
+      visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
+    }
+    const observedEt = this._eventObservedEt === this.timeController.et && this._eventObservedView === this.eventViewSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
+    return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
+      markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
+      occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };
   }
 
   /**
@@ -2287,6 +2323,7 @@ export class UniverseRenderer {
   setInstrumentView(sensorName: string | null, options?: InstrumentViewOptions): void {
     // An explicit choice replaces whatever the Instrument camera mode activated.
     this.instrumentModeSensor = null;
+    this.instrumentObservedEt = null;
     if (options?.surface !== undefined) this.setInstrumentViewSurface(options.surface);
     if (sensorName == null) {
       if (!this.instrumentView?.active) return;
@@ -2364,6 +2401,7 @@ export class UniverseRenderer {
     /** Why the instrument has no pointing (`pointing === 'unavailable'`). */
     pointingUnavailable: string | null;
     imageRect: import('./InstrumentView.js').Rect | null;
+    observedEt: number | null;
   } | null {
     const iv = this.instrumentView;
     if (!iv?.active) return null;
@@ -2374,8 +2412,9 @@ export class UniverseRenderer {
       target: sf?.targetName ?? null,
       fov: iv.fov,
       viewFov: iv.viewFov,
-      pointing: iv.pointing,
-      pointingUnavailable: iv.unavailableReason,
+      observedEt: this.instrumentObservedEt,
+      pointing: this.instrumentObservedEt === this.timeController.et ? iv.pointing : 'unavailable',
+      pointingUnavailable: this.instrumentObservedEt === this.timeController.et ? iv.unavailableReason : 'This instrument has not been observed at the current epoch.',
       imageRect: iv.imageRect,
     };
   }

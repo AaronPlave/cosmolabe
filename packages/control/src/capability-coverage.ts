@@ -8,10 +8,16 @@ const UI: Readonly<Record<string, string>> = {
   scene: 'BodyDrawer / NavigationView / ScriptConsole', camera: 'NavigationActions / NavigationView / ScriptConsole',
   time: 'TimeScrubber / TimelineDock / ScriptConsole', activities: 'MissionActivityTimeline / SelectedEventInspector',
   places: 'NavigatePanel', surface: 'SurfaceLayersPanel / ImageryLayersSection', grids: 'SurfaceLayersPanel / ScriptConsole',
+  measurements: 'MeasurementPanel', geographic: 'SurfaceLayersPanel / DrawToolbar', readiness: 'Scene loading / SurfaceLayersPanel',
+  events: 'EventFinder / EventDetails / TimelineDock', instruments: 'InstrumentViewPanel', bookmarks: 'DisplaySettings / view-link',
   display: 'BodyDrawer / ScriptConsole', capture: 'Command palette / ScriptConsole',
 };
 /** Existing port methods which have no catalog operation. A new method must be classified here or registered. */
 export const CONTROL_CONTRACT_GAPS = {
+  resolvePlace: 'Trusted exact body/layer/feature resolver. Agents resolve through bounded searchPlaces and exact refs, which withhold private source identities.',
+  getViewState: 'Trusted portable export through existing ViewState v1. Raw catalog/resource state is withheld from agent transport; snapshot/restore uses typed host operations.',
+  getSelectedMeasurement: 'Observed by listMeasurements; trusted hosts receive full definitions.',
+  getSelectedGeographicFeature: 'Scene-scoped geographic selection read; included in notifications.',
   getActivity: 'Activity detail is currently derived from listActivities; direct lookup is not a separate tool.',
   getObjectState: '#297: scientific state query schema and availability/provenance projection missing.',
   getTimelineWindow: '#297: timeline window read/write schemas missing.',
@@ -36,13 +42,12 @@ export const CONTROL_CONTRACT_GAPS = {
 } as const;
 
 export const UI_CAPABILITY_GAPS = [
-  { feature: 'Event Finder', ui: 'EventFinder / EventDetails', reason: 'Trajectory height extrema and result navigation are shared. #297 owns generic GF search/results/selection/readiness APIs.' },
-  { feature: 'Measurements', ui: 'MeasurementPanel', reason: '#297 owns measurement create/read/edit/delete APIs and authoring permissions.' },
-  { feature: 'Geographic shapes', ui: 'DrawToolbar', reason: '#297 owns shape import/create/read/edit/delete and frame/provenance semantics.' },
-  { feature: 'Instruments', ui: 'InstrumentViewPanel', reason: '#297 owns instrument selection, observation, visibility and readiness APIs.' },
-  { feature: 'Bookmarks / view sharing', ui: 'NavigationView / camera bookmark and permalink actions', reason: '#297 owns semantic bookmark CRUD and share/export contract. Existing portable view-state functions are not instance-bound catalog operations.' },
+  { feature: 'Event Finder', ui: 'EventFinder / EventDetails', reason: 'Existing query configuration, run/progress/cancel/results/selection are registered. Trajectory height extrema uses the shared #329 solver, typed operation and native event-to-visualization path.' },
+  { feature: 'Geographic file import/export', ui: 'DrawToolbar', reason: 'Bounded annotation edits are supported; local file import/export and authored layer snapshot transport require an explicit portable-resource contract.' },
+  { feature: 'Instruments', ui: 'InstrumentViewPanel', reason: 'Synthetic sensor feeds and truthful pointing inspection are registered. Calibrated observation ingestion/authority is owned by #28/#192-195; no calibrated measurements are fabricated.' },
+  { feature: 'Bookmarks / view sharing', ui: 'NavigationView / camera bookmark and permalink actions', reason: 'Session bookmark CRUD and same-catalog ViewState v1 restore are registered. Raw portable state capture is trusted-host-only; automatic file/clipboard/network export is withheld.' },
   { feature: 'Surface planner', ui: 'SurfaceLayersPanel / external plan:surface CLI', reason: 'CLI planning/building is outside ViewerControl; no browser filesystem/network tool. #297 owns any future viewer contract.' },
-  { feature: 'Terrain appearance / readiness', ui: 'SurfaceAppearanceControls / SurfaceLayersPanel', reason: 'getSurfaceData inventories existing configuration/runtime observations. #297 owns missing appearance writes and complete readiness APIs.' },
+  { feature: 'Terrain appearance / readiness', ui: 'SurfaceAppearanceControls / SurfaceLayersPanel', reason: 'getSurfaceData inventories existing configuration/runtime observations. Appearance writes and bounded readiness predicates are supported. Current-view product-footprint geometry coverage and target LOD are exposed. Arbitrary-region/planet-wide coverage is not a supported predicate.' },
 ] as const;
 
 export function capabilityCoverage() {

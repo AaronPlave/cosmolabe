@@ -14,7 +14,7 @@ import {
   type GeographicFeatureStyleOverride, type GeographicLayer, type GeographicLayerStyle,
 } from '@cosmolabe/core';
 import type { GeographicFeatureRef } from '@cosmolabe/three';
-import { getRenderer, onViewerEvent } from './viewer-state.svelte';
+import { getRenderer, onViewerEvent, emit } from './viewer-state.svelte';
 import { getUniverse } from './loader';
 import { resettable } from './session.svelte';
 
@@ -49,6 +49,7 @@ resettable(geoStyles);
 let snapshot: { layerId: string; style: GeographicLayerStyle | null } | null = null;
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let pending = new Set<string>();
+const transient = new Set<string>();
 
 function storageKey(layer: GeographicLayer): string {
   return `${layer.source.catalog ?? layer.source.identity}::${layer.id}`;
@@ -90,7 +91,7 @@ function layerOf(id: string): GeographicLayer | undefined {
 }
 
 /** Push pending styles to the renderer after the debounce; persist them at the same time. */
-function flush(): void {
+export function flushLayerStyles(): void {
   clearTimeout(previewTimer);
   previewTimer = undefined;
   const renderer = getRenderer();
@@ -98,14 +99,14 @@ function flush(): void {
     const style = geoStyles.byLayer[id] ?? null;
     renderer?.geographicVectors.setStyle(id, style ? $state.snapshot(style) as GeographicLayerStyle : null);
     const layer = layerOf(id);
-    if (layer) writeStored(layer, style ? $state.snapshot(style) as GeographicLayerStyle : null);
+    if (layer && !transient.has(id)) writeStored(layer, style ? $state.snapshot(style) as GeographicLayerStyle : null);
   }
   pending = new Set();
 }
 
 function schedule(id: string): void {
   pending.add(id);
-  if (previewTimer === undefined) previewTimer = setTimeout(flush, PREVIEW_MS);
+  if (previewTimer === undefined) previewTimer = setTimeout(flushLayerStyles, PREVIEW_MS);
 }
 
 export function layerStyle(id: string): GeographicLayerStyle {
@@ -113,11 +114,13 @@ export function layerStyle(id: string): GeographicLayerStyle {
 }
 
 /** Replace a layer's style; null or a default style returns it to the catalog defaults. */
-export function setLayerStyle(id: string, style: GeographicLayerStyle | null): void {
+export function setLayerStyle(id: string, style: GeographicLayerStyle | null, options: { persist?: boolean } = {}): void {
+  if (options.persist === false) transient.add(id); else transient.delete(id);
   if (!style || geographicStyleIsDefault(style)) delete geoStyles.byLayer[id];
   else geoStyles.byLayer[id] = style;
   delete geoStyles.warnings[id];
   schedule(id);
+  emit('geographic', {});
 }
 
 /** Change part of a layer's style. */
@@ -194,7 +197,7 @@ export function setLayerLineWidth(id: string, widthPx: number): void {
 
 export function openStyleEditor(id: string | null): void {
   if (geoStyles.editing === id) return;
-  flush();
+  flushLayerStyles();
   geoStyles.editing = id;
   snapshot = id ? { layerId: id, style: geoStyles.byLayer[id] ? structuredClone($state.snapshot(geoStyles.byLayer[id])) as GeographicLayerStyle : null } : null;
 }
@@ -210,13 +213,13 @@ export function editedSinceOpen(): boolean {
 export function revertStyleEdits(): void {
   if (!snapshot || snapshot.layerId !== geoStyles.editing) return;
   setLayerStyle(snapshot.layerId, snapshot.style ? structuredClone(snapshot.style) : null);
-  flush();
+  flushLayerStyles();
 }
 
 /** Back to the catalog's display defaults, single features' colours included. */
 export function resetLayerStyle(id: string): void {
   setLayerStyle(id, null);
-  flush();
+  flushLayerStyles();
 }
 
 // ── Draw order ──
@@ -291,6 +294,7 @@ onViewerEvent('load', () => {
   geoStyles.editing = null;
   geoStyles.order = [];
   restored = new Set();
+  transient.clear();
   stopWatching?.();
   stopWatching = getUniverse()?.events.on('geographic:changed', restoreNewLayers);
   restoreNewLayers();

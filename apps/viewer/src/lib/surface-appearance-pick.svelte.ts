@@ -1,6 +1,7 @@
 import type { SurfaceAppearanceSettings, UniverseRenderer } from '@cosmolabe/three';
 import { excludeFromProbe, getRenderer, setProbeActive } from './viewer-state.svelte';
 import { cancelMeasurementPick } from './spatial-measurements.svelte';
+import { applySurfaceAppearance } from './appearance-control';
 import { resettable } from './session.svelte';
 
 let owner: UniverseRenderer | null = null;
@@ -72,7 +73,7 @@ export function handleAppearancePick(renderer: UniverseRenderer, x: number, y: n
     appearancePick.feedback = `Picked ${height.toFixed(3)} km. Choose a ${bound === 'minKm' ? 'minimum below the current maximum' : 'maximum above the current minimum'} within −1000 to 1000 km (at least 0.001 km apart).`;
     return true;
   }
-  mesh.setSurfaceAppearance({ ...settings, [bound]: height });
+  applySurfaceAppearance(mesh, { [bound]: height });
   cancelAppearancePick();
   appearancePick.bodyName = bodyName;
   appearancePick.feedback = `${bound === 'minKm' ? 'Minimum' : 'Maximum'} set to ${height.toFixed(3)} km from the rendered terrain.`;

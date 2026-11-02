@@ -1,13 +1,33 @@
 # Trajectory height extrema (#329)
 
-The ordinary **Event Finder → Event → Trajectory height extrema** form uses
+The ordinary **Event Finder → Event → Altitude / terrain clearance** form uses
 its normal Find events, progress/cancel, results, selection and timeline lanes.
-There is no separate height-search panel or results store. Leave Vehicle blank
-for all matching catalog activity vehicles, or choose one vehicle. The default
-scope searches catalog flight/hop intervals, clipped by the shared search
-window; parked intervals are excluded. Entire-window searches require a vehicle.
+Leave Vehicle(s) blank for matching trajectory objects around the central body,
+or choose one. **Time window** is the default: it requires no activities and
+uses authoritative source coverage, independent of semantic operations. The
+Window menu offers complete trajectory coverage when finite bounds are known;
+gaps remain explicit to the solver. **Mission activities** optionally restricts
+to a declared kind (flight, drive, hop, descent, landing, phase, other).
+**Specific activities** selects explicit IDs. Both clip records to the chosen
+time window and report empty sets without falling back to parked time.
+
+Highest/Lowest and Height relative to describe the scientific question.
+Frame, datum radius/source pins, sample step and refinement tolerance live under
+Advanced search options. No physical terrain source means AGL is unavailable;
+the error offers explicitly named sphere/ellipsoid alternatives with no fallback.
+Closest Approach minimizes center-to-center distance and annotates altitude at
+that encounter; this kind optimizes the selected height/clearance itself.
+
+Results visibly lead with vehicle, activity (or time window), and measured
+value, then UTC and datum. Metric sorting puts maxima highest first and minima
+lowest first, including single-vehicle searches. Each result is one sampled,
+locally refined candidate per matching interval. Partial searches retain usable
+candidates with a visible incomplete-search warning; no overall winner is
+established. Science/provenance details expand separately.
 
 ![Native Event Finder height type](trajectory-form.png)
+
+[Compact form](trajectory-form-compact.png) · [Partial candidates](trajectory-partial.png)
 
 ## One numerical operation
 
@@ -30,9 +50,9 @@ if (!terrain?.frame || !terrain.datum?.referenceShape ||
     !terrain.source.id || !terrain.source.revision) {
   throw new Error('The physical terrain definition is not available yet');
 }
+// This catalog-specific question explicitly requests authored hop records.
 const flights = control.listActivities().filter(activity =>
-  activity.body === 'Moon' &&
-  (activity.kind === 'hop' || activity.kind === 'flight'));
+  activity.body === 'Moon' && activity.kind === 'hop');
 const response = await control.findTrajectoryExtrema({
   objects: [...new Set(flights.map(activity => activity.vehicle))],
   body: 'Moon', frame: terrain.frame,
@@ -128,3 +148,48 @@ The final broader package/viewer run passed 3,224 tests, with the inventory of
 five ignored experiment catalogs failing separately. An earlier broad run also
 hit the intermittent local CSPICE progress assertion (`gf-reporting.test.ts:183`);
 that assertion passed in the final run. These checks are not weakened.
+
+
+## Review follow-up and #297 integration
+
+Integrated PR #334 at `fccd31e79e3f31733f609c2e52ce5e44eb7302d4`, preserving
+its modern script/control/capability-discovery and event-to-visualization path.
+The numerical operation remains the same shared service. The modern event
+transport now includes height metrics and the same allowlisted scientific
+result projection; provenance identifies authoritative trajectories/terrain
+instead of mislabeling numerical searches as loaded-SPICE-only. The generic
+work bound recognizes numerical queries' evaluation cap. Run identity includes
+the full typed numerical request, and stale source guards invalidate modern
+result pages as well as direct navigation.
+
+The loaded acceptance script exercises ordinary `.cosmo` upsert/run commands,
+discovers and invokes modern result-page/focus/readback capabilities, waits for
+timeline event readiness backed by a native render-pass observation, and refuses an old run reference after a rerun.
+It also checks highest/lowest native ordering, the compact form, hidden advanced
+options and the visible partial-search warning. Navigation requires a result
+from the current agent analysis run before touching the host, then verifies
+observed epoch, object, tracking, activity and paused playback. Unknown,
+superseded, scene-stale, manual-takeover and host-owned operations are tested.
+
+Review validation: build, lint, test and viewer/Svelte typechecks passed. The
+integrated broad package/viewer run passed 3,274 tests, with 7 skipped and two
+unchanged local failures: the five ignored experiment catalogs in the inventory
+assertion and intermittent CSPICE progress timing at `gf-reporting.test.ts:183`.
+The original exact PR head `cfcd22de` passed all seven CI jobs, including the
+full suite, pinned hosted terrain replay, GPU fixtures and embed acceptance
+([CI run 41450716551](https://github.com/AaronPlave/cosmolabe/actions/runs/41450716551)).
+The final revised head is checked separately in PR CI. No tests were weakened,
+no ignored local catalog was deleted, and no live external model/provider call
+was made. This covers the real local Ask tools and discovery dispatch, not
+model quality or external-provider acceptance.
+
+
+At the exact measured vehicle epoch, native marker readback can be **partial**:
+the marker's ordinary trajectory placement is available but anchor opacity can
+hide it at the vehicle model. The modern acceptance uses the explicit `timeline`
+readiness policy (selected run, paused measured epoch, visible lane, native pass
+observed at that epoch). It separately records `native-draw` as partial when no
+glyph is draw-enabled. It does not claim unoccluded marker pixels or weaken the
+renderer readiness predicate to force success.
+
+The final loaded Chrome/Metal receipt has `passed: true`, no page errors, 12 native all-vehicle candidates, three Polaris-C candidates, correct minimum ordering, two budget-limited partial candidates with the visible warning, and the full modern script/discovery run. The final focused run passed 79 tests; the independent pinned terrain/SPICE run passed both scientific checks. Embed build also passed.

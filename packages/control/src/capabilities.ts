@@ -1,5 +1,6 @@
 /** Discoverable, instance-bound rendering of the existing control vocabulary (#328). */
 import { agentDefinitions, createAgentTools, violation, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolEffect, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
+import { eventVisualizationMetadata } from './event-agent-metadata.js';
 import type { ViewerControl } from './contracts.js';
 import { VERBS } from './verbs.js';
 
@@ -58,10 +59,12 @@ export interface CapabilityPage {
   readonly total: number;
   readonly nextOffset: number | null;
 }
-export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabulary' | 'allowExport'> {
+export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabulary' | 'allowExport' | 'allowAuthoring'> {
   /** Trusted host policy only; never populated from a scene or model argument. */
   readonly omitted?: Readonly<Record<string, string>>;
   readonly allowExternal?: boolean;
+  readonly allowAuthoring?: boolean;
+  readonly confirmAuthoring?: (operation: string, input: unknown) => Promise<boolean>;
   /** A trusted UI/host confirmation, bound to this exact call. Model text cannot grant it. */
   readonly confirmExternal?: (operation: string, input: unknown) => Promise<boolean>;
   /** Observe accepted/running/final progress; callback failures do not change execution. */
@@ -77,7 +80,7 @@ const objectSchema = (properties: Record<string, AgentJsonSchema>, required: str
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
   { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs before calling them.',
-    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'analysis'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
+    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks', 'analysis'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
@@ -88,6 +91,12 @@ const DISCOVERY: readonly AgentToolDef[] = [
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
   if (name === 'findTrajectoryExtrema' || name === 'navigateToAnalysisResult') return 'analysis';
+  if (/Event/.test(name)) return 'events';
+  if (/Instrument/.test(name)) return 'instruments';
+  if (/Bookmark|ViewState/.test(name)) return 'bookmarks';
+  if (/Measurement/.test(name)) return 'measurements';
+  if (/Geographic|Annotation/.test(name)) return 'geographic';
+  if (/Readiness|Ready/.test(name)) return 'readiness';
   if (/Activity|Activities/.test(name)) return 'activities';
   if (/Place|Coordinates/.test(name)) return 'places';
   if (/Imagery|Surface/.test(name)) return 'surface';
@@ -98,7 +107,7 @@ export function capabilityDomain(name: string, effect: AgentToolEffect): string 
   return effect === 'read' || effect === 'selection' ? 'scene' : 'display';
 }
 const idOf = (def: AgentToolDef) => `${capabilityDomain(def.name, def.effect)}.${def.name}`;
-const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : 'viewer';
+const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : def.effect === 'authoring' ? 'authoring' : 'viewer';
 const fail = (error: string, code: AgentErrorCode = 'invalid-input'): AgentToolResult => ({ ok: false, code, error });
 const SCOPE_SCHEMA = objectSchema({ viewer: { type: 'string' }, scene: { type: ['number', 'null'] }, revision: { type: 'number' } }, ['viewer', 'scene', 'revision']);
 const TEXT: AgentJsonSchema = { type: 'string' }, NUMBER: AgentJsonSchema = { type: 'number' };
@@ -108,6 +117,17 @@ const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
+  getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
+  listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
+  listEventResults: objectSchema({ total: NUMBER, items: RECORDS }),
+  listInstruments: objectSchema({ items: STRINGS }), getInstrument: NULLABLE_RECORD,
+  listBookmarks: objectSchema({ items: RECORDS }),
+  listPlaceSources: objectSchema({ total: NUMBER, offset: NUMBER, sources: RECORDS }),
+  listMeasurements: objectSchema({ selected: { type: ['string', 'null'] }, items: RECORDS }),
+  listGeographicLayers: objectSchema({ total: NUMBER, offset: NUMBER, layers: RECORDS }),
+  listGeographicFeatures: objectSchema({ total: NUMBER, features: RECORDS }),
+  getSurfaceAppearance: objectSchema({ settings: NULLABLE_RECORD, unavailable: { type: ['string', 'null'] } }),
+  getReadiness: objectSchema({ scene: { type: ['number', 'null'] }, status: TEXT, request: { type: 'object' }, missing: STRINGS, limitations: STRINGS }),
   describeScene: objectSchema({ scene: NULLABLE_RECORD, time: objectSchema({ et: NUMBER, utc: TEXT, playing: { type: 'boolean' }, rate: NUMBER }),
     selectedObject: { type: ['string', 'null'] }, tracked: { type: ['string', 'null'] }, flight: NULLABLE_RECORD,
     selectedActivity: NULLABLE_RECORD, selectedPlace: NULLABLE_RECORD, objects: objectSchema({ names: STRINGS, total: NUMBER }),
@@ -133,7 +153,7 @@ let instanceSeq = 0;
 
 /** No alternate dispatcher, state store or model-driven permission mechanism. */
 export function createCapabilityTools(host: ViewerControl, opts: CapabilityToolsOptions = {}): CapabilityTools {
-  const raw = createAgentTools(host, { ...opts, vocabulary: 'catalog', allowExport: true });
+  const raw = createAgentTools(host, { ...opts, vocabulary: 'catalog', allowExport: true, allowAuthoring: true });
   const instance = ++instanceSeq;
   let revision = 0, sequence = 0, disposed = false;
   const receipts = new Map<string, OperationReceipt>();
@@ -155,6 +175,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const camera = host.getCamera();
       state.camera = { position: camera.position.slice(0, 3), target: camera.target.slice(0, 3), up: camera.up.slice(0, 3), fov: camera.fov };
       state.cameraReference = host.getCameraReference?.() ?? null;
+      if (host.getEventVisualization) state.events = eventVisualizationMetadata(host.getEventVisualization());
       return { scope: scope(), state: JSON.parse(JSON.stringify(state)) as unknown };
     }
     catch { return { scope: scope(), state: null }; }
@@ -169,6 +190,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     const blockedNavigation = def.name === 'navigateToAnalysisResult' ? ['time.setTime','time.setPlaying','scene.select','camera.frameObject'].find(operation => opts.omitted?.[operation]) : undefined;
     const reason = opts.omitted?.[id] ?? (blockedNavigation ? `Result navigation requires ${blockedNavigation}: ${opts.omitted![blockedNavigation]}` : undefined) ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
       : effectOf(def) !== 'read' && (!host.getScene || scope().scene === null) ? 'Scene identity is required for writes'
+        : effectOf(def) === 'authoring' && (!opts.allowAuthoring || !opts.confirmAuthoring) ? 'Host authoring permission and confirmation required'
         : effectOf(def) === 'external' && (!opts.allowExternal || !opts.confirmExternal) ? 'Host permission and confirmation required' : null);
     return { id, version: CAPABILITY_VERSION, domain: capabilityDomain(def.name, def.effect), description: def.description.slice(0, 640), effect: effectOf(def), available: reason === null, reason: reason?.slice(0, 640) ?? null };
   };
@@ -197,13 +219,13 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const { method, ...tool } = def;
       const referenceKinds: Record<string, string> = { object: 'object', body: 'object', activity: 'activity', place: 'place', layer: 'imagery' };
       const parameters = VERBS.get(def.name)?.params ?? Object.keys(def.inputSchema.properties ?? {}).flatMap(name => referenceKinds[name] ? [{ name, type: referenceKinds[name] }] : []);
-      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery'].includes(p.type))
+      const references = parameters.filter(p => ['object', 'viewpoint', 'place', 'activity', 'imagery', 'measurement', 'geographic-layer', 'geographic-feature', 'event-query', 'event-result', 'instrument'].includes(p.type))
         .map(p => ({ field: p.name, kind: p.type, scope: 'scene' as const }));
       return { ...summary(def), tool, outputSchema: { ...RECEIPT_SCHEMA, properties: { ...RECEIPT_SCHEMA.properties, data: READ_OUTPUTS[def.name] ?? { description: 'Writes report their resulting state through receipt.observation.' } } }, scope: scope(), references,
         dependencies: method ? [method] : [],
         conventions: 'Time: ET seconds past J2000 or UTC calendar; angles: degrees; distances and camera poses: km. Scene body/frame conventions are authoritative; no implicit coordinate transform. Consult verb parameter descriptions.',
         provenance: 'Scene/catalog declarations and observed runtime state are distinct. Null/withheld provenance, accuracy and coverage remain unknown.',
-        permission: effectOf(def) === 'external' ? 'host-and-confirmation' : 'none' };
+        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : 'none' };
     });
   };
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -274,6 +296,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         let result: AgentToolResult;
         try {
           let confirmed = true;
+          if (effectOf(def) === 'authoring') confirmed = await opts.confirmAuthoring!(idOf(def), JSON.parse(serialized));
           if (effectOf(def) === 'external') confirmed = await opts.confirmExternal!(idOf(def), JSON.parse(serialized));
           if (!confirmed) result = fail('Host confirmation declined', 'refused');
           else if (task.ended || bound.revision !== revision) result = fail('Task ended while awaiting confirmation', task.ended ?? 'stale');
@@ -290,9 +313,11 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
           || ['select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
-          || (name === 'seekActivity' && typeof host.listActivities === 'function');
+          || (name === 'seekActivity' && typeof host.listActivities === 'function')
+          || (name === 'focusEventResult' && typeof host.getEventVisualization === 'function');
         const verified = observation.state !== null && hasReadback;
-        const status: OperationStatus = result.ok ? verified ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
+        const eventPartial = name === 'focusEventResult' && (observation.state as { events?: { status: string } } | null)?.events?.status !== 'observed';
+        const status: OperationStatus = result.ok ? verified && !eventPartial ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
             : result.code === 'failed' ? 'partial' : 'refused';
         const resolvedTarget: Record<string, string> = {};
@@ -309,7 +334,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
             } catch { referenceWarnings.push(`Could not verify reference field ${field}`); }
           }
         }
-        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
+        receipt = { ...receipt, status: result.ok && referenceWarnings.length ? 'partial' : status, resolvedTarget, observation, verification: verified ? 'observed' : 'host-return', warnings: [...(eventPartial && result.ok ? ['Event selection was applied; timeline or rendered event geometry has only partial readback. Inspect getEventVisualization before capture.'] : []), ...(observation.state === null ? ['Resulting viewer state could not be observed; the underlying tool result is retained but does not establish verified state.'] : []), ...(result.ok ? hasReadback ? [] : ['Host returned successfully; this operation lacks a shared semantic readback. See #297.'] : [result.error]), ...referenceWarnings] };
         remember(receipt);
         return { ...result, receipt };
       },
