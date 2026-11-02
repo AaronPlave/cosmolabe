@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { closestApproachKind, distanceRangeKind, type EventKind, type GeometryEvent } from '@cosmolabe/core';
+import { closestApproachKind, distanceRangeKind, builtinEventKinds, type EventKind, type GeometryEvent } from '@cosmolabe/core';
 import {
   buildQuery,
   activeEventAtTime,
@@ -394,5 +394,19 @@ describe('scene callout copy', () => {
       .toBe('2026-05-13 04:00 → 05-18 08:00 UTC');
     expect(eventCalloutLines({ ...event, start: 0, end: 1e7 }, { utc: days, selected: true })[2])
       .toBe('2026-05-13 04:00 → 2027-01-02 00:00 UTC');
+  });
+});
+
+
+describe('native height event form',()=>{
+  it('uses its own scope default when the previous event has an incompatible scope choice',()=>{
+    const before=formForKind(closest,WINDOW);
+    expect(before.params.scope).toBe('local');
+    const height=builtinEventKinds().get('trajectory-extremum')!;
+    const after=formForKind(height,WINDOW,before);
+    expect(after.params.scope).toBe('flights');
+    expect(buildQuery(height,after,'height').params).toMatchObject({scope:'flights',metric:'heightAbovePhysicalTerrain'});
+    after.params.scope='window';
+    expect(formForKind(height,WINDOW,after).params.scope).toBe('window');
   });
 });

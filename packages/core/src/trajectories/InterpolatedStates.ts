@@ -22,6 +22,10 @@ export class InterpolatedStatesTrajectory implements Trajectory {
   get startTime(): number { return this.records[0].et; }
   get endTime(): number { return this.records[this.records.length - 1].et; }
 
+  samplingBreakpoints(start: number, end: number): readonly number[] {
+    return this.records.filter(record => record.et >= start && record.et <= end).map(record => record.et);
+  }
+
   stateAt(et: number): CartesianState {
     const { records } = this;
 

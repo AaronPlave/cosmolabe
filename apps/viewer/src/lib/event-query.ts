@@ -73,7 +73,9 @@ export function formForKind(
   // across a kind switch for the same reason roles do.
   for (const spec of kind.params ?? []) {
     const carried = previous?.params[spec.key];
-    if (carried !== undefined) params[spec.key] = carried;
+    // A shared key need not share its vocabulary: closest approach's
+    // local/global scope is unrelated to flight/activity/window scope.
+    if (carried !== undefined && (spec.kind !== 'choice' || spec.options.some(option => option.value === carried))) params[spec.key] = carried;
   }
 
   return {
@@ -133,6 +135,7 @@ function parseParam(spec: EventParamSpec, raw: string | undefined): unknown {
     case 'boolean':
       return raw === 'true';
     case 'choice':
+    case 'text':
       return raw;
   }
 }

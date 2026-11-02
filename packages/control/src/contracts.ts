@@ -343,7 +343,7 @@ export interface ScriptSurfaceProduct {
   /** Declared product metadata only; filenames do not establish scientific provenance. */
   readonly source: { readonly id: string | null; readonly revision: string | null; readonly kind: string | null; readonly attribution?: string | null; readonly url?: string | null };
   readonly frame: string | null;
-  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null } | null;
+  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null; readonly referenceShape?: TrajectoryExtremaQuery['reference'] | null } | null;
   readonly resolutionMeters: number | null;
   /** Declared cube layout identifier; distinct from the body's render frame. */
   readonly crsId?: string | null;
@@ -365,6 +365,8 @@ export interface ScriptSurfaceProduct {
 }
 
 export interface ScriptSurfaceData {
+  /** Physical catalog radii, independent of render scale and terrain heights. */
+  readonly referenceShape?: TrajectoryExtremaQuery['reference'] | null;
   readonly body: string;
   readonly bodyFrame: string | null;
   readonly surface: ScriptImagery['surface'];
@@ -378,6 +380,9 @@ export interface ScriptSurfaceData {
 }
 
 export interface ViewerControl {
+  findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
+  /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
+  navigateToAnalysisResult?(resultId: string): boolean;
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
   getActivity?(id: string): ScriptActivity | undefined;
   getSelectedActivity?(): ScriptActivity | undefined;
@@ -755,3 +760,4 @@ export interface ExecutionReport {
   /** Frames the script captured, in the order it captured them. */
   readonly images: readonly ScriptImage[];
 }
+import type { TrajectoryExtremaQuery, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

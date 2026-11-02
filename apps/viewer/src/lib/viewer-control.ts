@@ -20,6 +20,7 @@
  * error with a suggestion drawn from the scene actually loaded.
  */
 import { surfaceData } from './surface-data';
+import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
@@ -241,6 +242,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
   };
 
   return {
+    findTrajectoryExtrema: findViewerTrajectoryExtrema,
+    navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
     listActivities: filter => JSON.parse(JSON.stringify(listActivities(filter))),
     getActivity: id => { const a = getActivity(id); return a ? JSON.parse(JSON.stringify(a)) : undefined; },
     getSelectedActivity: () => { const a = getSelectedActivity(); return a ? JSON.parse(JSON.stringify(a)) : undefined; },

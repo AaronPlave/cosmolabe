@@ -184,6 +184,9 @@
   }
 
   const STEP_PRESETS = [
+    { label: '0.01 s', seconds: .01 },
+    { label: '0.1 s', seconds: .1 },
+    { label: '1 s', seconds: 1 },
     { label: '1 min', seconds: 60 },
     { label: '10 min', seconds: 600 },
     { label: '1 hr', seconds: 3600 },
@@ -243,7 +246,7 @@
           value={form.bodies[role.role] ?? ''}
           onchange={(e) => setRole(role.role, (e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select body...</option>
+          <option value="">{role.emptyLabel ?? 'Select body...'}</option>
           {#each vs.bodies as body}
             <option value={body.name}>{body.name}{body.name === vs.trackedBodyName ? ' (tracked)' : ''}</option>
           {/each}
@@ -271,6 +274,14 @@
             class="accent-accent"
             checked={form.params[param.key] === 'true'}
             onchange={(e) => setParam(param.key, (e.target as HTMLInputElement).checked ? 'true' : 'false')}
+          />
+        {:else if param.kind === 'text'}
+          <input
+            type="text"
+            class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 outline-none"
+            placeholder={param.required === false ? 'declared by source' : ''}
+            value={form.params[param.key] ?? ''}
+            oninput={(e) => setParam(param.key, (e.target as HTMLInputElement).value)}
           />
         {:else}
           <input
@@ -567,6 +578,7 @@
     </div>
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
+      {#if ef.hint}<p class="ui-helper mb-2" role="status">{ef.hint}</p>{/if}
       <div class="flex items-center justify-between gap-2 mb-1">
         <span class="ui-section-label">
           {ef.events.length} event{ef.events.length === 1 ? '' : 's'}

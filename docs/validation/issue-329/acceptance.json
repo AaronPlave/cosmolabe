@@ -1,0 +1,1624 @@
+{
+  "passed": true,
+  "errors": [],
+  "results": {
+    "all": {
+      "status": "complete",
+      "results": [
+        {
+          "id": "trajectory-analysis-1",
+          "object": "Polaris-D",
+          "activityId": "moonfall:Polaris-D:hop:3",
+          "activityName": "Long traverse to Sverdrup",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.31090914928738766,
+          "units": "km",
+          "et": 914825084.1119012,
+          "utc": "2028-12-27T18:03:34.927Z",
+          "location": {
+            "positionKm": [
+              -12.353668144136048,
+              -20.07591107423206,
+              -1738.315493970878
+            ],
+            "latitudeDeg": -89.22309100022804,
+            "longitudeDeg": -121.60597314514288,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914824869.1838037,
+            "end": 914825779.183804
+          },
+          "source": {
+            "id": "Polaris-D",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 14329,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-2",
+          "object": "Polaris-D",
+          "activityId": "moonfall:Polaris-D:hop:1",
+          "activityName": "Connector hop to de Gerlache",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.276092393310298,
+          "units": "km",
+          "et": 913759555.7649068,
+          "utc": "2028-12-15T10:04:46.580Z",
+          "location": {
+            "positionKm": [
+              -21.304826802992505,
+              -8.323440022313868,
+              -1738.332844450119
+            ],
+            "latitudeDeg": -89.24614425252739,
+            "longitudeDeg": -158.66024268466404,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 913759269.1834563,
+            "end": 913760049.1834565
+          },
+          "source": {
+            "id": "Polaris-D",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 10388,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-3",
+          "object": "Polaris-A",
+          "activityId": "moonfall:Polaris-A:hop:3",
+          "activityName": "Ridge climb to rim peak",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.24269502175554314,
+          "units": "km",
+          "et": 914378640.5003746,
+          "utc": "2028-12-22T14:02:51.316Z",
+          "location": {
+            "positionKm": [
+              6.387577808050665,
+              -13.755839364457167,
+              -1736.9987915422032
+            ],
+            "latitudeDeg": -89.49973639612776,
+            "longitudeDeg": -65.0920168063455,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914378469.1836561,
+            "end": 914378959.1836562
+          },
+          "source": {
+            "id": "Polaris-A",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 5693,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-4",
+          "object": "Polaris-B",
+          "activityId": "moonfall:Polaris-B:hop:2",
+          "activityName": "Sun-illuminated peak sampling",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.23446530278182864,
+          "units": "km",
+          "et": 914090581.4179513,
+          "utc": "2028-12-19T06:01:52.233Z",
+          "location": {
+            "positionKm": [
+              18.902538902294186,
+              5.406565449244717,
+              -1736.89433700591
+            ],
+            "latitudeDeg": -89.35147580902316,
+            "longitudeDeg": 15.961760437426895,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914090469.1835623,
+            "end": 914090899.1835624
+          },
+          "source": {
+            "id": "Polaris-B",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 5391,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-5",
+          "object": "Polaris-B",
+          "activityId": "moonfall:Polaris-B:hop:3",
+          "activityName": "Long hop to neighboring rim site",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.22251187508176518,
+          "units": "km",
+          "et": 914713550.8886102,
+          "utc": "2028-12-26T11:04:41.704Z",
+          "location": {
+            "positionKm": [
+              -1.9489600375191571,
+              20.55692640691504,
+              -1737.7979367911882
+            ],
+            "latitudeDeg": -89.31922403175288,
+            "longitudeDeg": 95.41590702973069,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914713269.1837666,
+            "end": 914713689.1837667
+          },
+          "source": {
+            "id": "Polaris-B",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 6642,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-6",
+          "object": "Polaris-C",
+          "activityId": "moonfall:Polaris-C:hop:1",
+          "activityName": "Crater inner-wall transect",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.18424685463771234,
+          "units": "km",
+          "et": 913759662.0442767,
+          "utc": "2028-12-15T10:06:32.860Z",
+          "location": {
+            "positionKm": [
+              1.8695632246179699,
+              7.329558236064045,
+              -1737.9185366866413
+            ],
+            "latitudeDeg": -89.75062343586713,
+            "longitudeDeg": 75.69058839946207,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 913759269.1834563,
+            "end": 913759769.1834564
+          },
+          "source": {
+            "id": "Polaris-C",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 6515,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-7",
+          "object": "Polaris-C",
+          "activityId": "moonfall:Polaris-C:hop:3",
+          "activityName": "Rim south-arc survey",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.16260342041762854,
+          "units": "km",
+          "et": 914594922.2800955,
+          "utc": "2028-12-25T02:07:33.096Z",
+          "location": {
+            "positionKm": [
+              -4.394372213895849,
+              4.156055312417097,
+              -1735.4817207493893
+            ],
+            "latitudeDeg": -89.80031645099429,
+            "longitudeDeg": 136.5965305156611,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914594469.1837273,
+            "end": 914595079.1837274
+          },
+          "source": {
+            "id": "Polaris-C",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 9272,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-8",
+          "object": "Polaris-A",
+          "activityId": "moonfall:Polaris-A:hop:1",
+          "activityName": "PSR floor sample run",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.14749608765594413,
+          "units": "km",
+          "et": 913759613.553089,
+          "utc": "2028-12-15T10:05:44.369Z",
+          "location": {
+            "positionKm": [
+              10.00216691243614,
+              -6.697207383098114,
+              -1736.6009522079005
+            ],
+            "latitudeDeg": -89.60285990510619,
+            "longitudeDeg": -33.80530117459883,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 913759269.1834563,
+            "end": 913759699.1834564
+          },
+          "source": {
+            "id": "Polaris-A",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 5984,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-9",
+          "object": "Polaris-A",
+          "activityId": "moonfall:Polaris-A:hop:2",
+          "activityName": "PSR transect — west half",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.14007473152307237,
+          "units": "km",
+          "et": 913975713.336746,
+          "utc": "2028-12-17T22:07:24.152Z",
+          "location": {
+            "positionKm": [
+              8.77622618502032,
+              -6.30687247593454,
+              -1736.6680902446442
+            ],
+            "latitudeDeg": -89.64345088155441,
+            "longitudeDeg": -35.70221384963354,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 913975269.1835251,
+            "end": 913975809.1835253
+          },
+          "source": {
+            "id": "Polaris-A",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 6764,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-10",
+          "object": "Polaris-B",
+          "activityId": "moonfall:Polaris-B:hop:1",
+          "activityName": "Rim traverse east",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.13989525955902893,
+          "units": "km",
+          "et": 913759654.1320109,
+          "utc": "2028-12-15T10:06:24.948Z",
+          "location": {
+            "positionKm": [
+              10.547272488294636,
+              14.13916659270842,
+              -1736.7497371949912
+            ],
+            "latitudeDeg": -89.41808034150462,
+            "longitudeDeg": 53.27848233919844,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 913759269.1834563,
+            "end": 913759759.1834564
+          },
+          "source": {
+            "id": "Polaris-B",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 8358,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-11",
+          "object": "Polaris-C",
+          "activityId": "moonfall:Polaris-C:hop:2",
+          "activityName": "PSR floor exploration",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.12584835906669511,
+          "units": "km",
+          "et": 914209689.3763298,
+          "utc": "2028-12-20T15:07:00.192Z",
+          "location": {
+            "positionKm": [
+              2.8030747428334095,
+              6.753531416468633,
+              -1738.4542534527702
+            ],
+            "latitudeDeg": -89.75900868212676,
+            "longitudeDeg": 67.45895030892477,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914209269.1836008,
+            "end": 914209779.183601
+          },
+          "source": {
+            "id": "Polaris-C",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 7526,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        },
+        {
+          "id": "trajectory-analysis-12",
+          "object": "Polaris-D",
+          "activityId": "moonfall:Polaris-D:hop:2",
+          "activityName": "PSR oblique entry",
+          "body": "Moon",
+          "frame": "MOON_ME_DE421",
+          "metric": "heightAbovePhysicalTerrain",
+          "extremum": "maximum",
+          "value": 0.11396138370872877,
+          "units": "km",
+          "et": 914269124.1578832,
+          "utc": "2028-12-21T07:37:34.973Z",
+          "location": {
+            "positionKm": [
+              -6.82648234871365,
+              -10.585880602015685,
+              -1738.2775605695078
+            ],
+            "latitudeDeg": -89.58482423069324,
+            "longitudeDeg": -122.81662386188302,
+            "convention": "planetocentric"
+          },
+          "datum": {
+            "kind": "sphere",
+            "radiusKm": 1737.4
+          },
+          "heightConvention": "radial",
+          "window": {
+            "start": 914268669.1836202,
+            "end": 914269229.1836203
+          },
+          "source": {
+            "id": "Polaris-D",
+            "revision": null,
+            "classification": "synthetic"
+          },
+          "terrain": {
+            "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+            "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+            "sourceUncertaintyKm": null
+          },
+          "coverage": "sampled-complete",
+          "method": {
+            "guarantee": "sampled-and-locally-refined",
+            "stepSeconds": 0.1,
+            "timeToleranceSeconds": 0.005,
+            "evaluations": 7541,
+            "heightErrorBoundKm": null,
+            "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+          }
+        }
+      ],
+      "faults": []
+    },
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "terrain": {
+      "kind": "available",
+      "frame": "MOON_ME_DE421"
+    }
+  },
+  "navigation": {
+    "et": 914825084.1119012,
+    "selected": "Polaris-D",
+    "activity": "moonfall:Polaris-D:hop:3",
+    "tracked": "Polaris-D",
+    "playing": false
+  },
+  "radial": {
+    "status": "complete",
+    "results": [
+      {
+        "id": "trajectory-analysis-13",
+        "object": "Polaris-D",
+        "activityId": "moonfall:Polaris-D:hop:1",
+        "activityName": "Connector hop to de Gerlache",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 2.0493986990506983,
+        "units": "km",
+        "et": 913759334.0760064,
+        "utc": "2028-12-15T10:01:04.892Z",
+        "location": {
+          "positionKm": [
+            -11.930935770564599,
+            -10.312489904543938,
+            -1739.3779106215236
+          ],
+          "latitudeDeg": -89.48054249294529,
+          "longitudeDeg": -139.16154397811013,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913759269.1834563,
+          "end": 913760049.1834565
+        },
+        "source": {
+          "id": "Polaris-D",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 8758,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-14",
+        "object": "Polaris-D",
+        "activityId": "moonfall:Polaris-D:hop:3",
+        "activityName": "Long traverse to Sverdrup",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 1.8806724872233644,
+        "units": "km",
+        "et": 914824899.644852,
+        "utc": "2028-12-27T18:00:30.460Z",
+        "location": {
+          "positionKm": [
+            -10.7361080873318,
+            -10.749351866348228,
+            -1739.2143183360695
+          ],
+          "latitudeDeg": -89.49951827448695,
+          "longitudeDeg": -134.9646825086372,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914824869.1838037,
+          "end": 914825779.183804
+        },
+        "source": {
+          "id": "Polaris-D",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 11456,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-15",
+        "object": "Polaris-D",
+        "activityId": "moonfall:Polaris-D:hop:2",
+        "activityName": "PSR oblique entry",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 1.862231690741055,
+        "units": "km",
+        "et": 914268693.8836442,
+        "utc": "2028-12-21T07:30:24.699Z",
+        "location": {
+          "positionKm": [
+            -10.871748939712063,
+            -10.738763928987431,
+            -1739.195099639522
+          ],
+          "latitudeDeg": -89.49659044709952,
+          "longitudeDeg": -135.3525776423129,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914268669.1836202,
+          "end": 914269229.1836203
+        },
+        "source": {
+          "id": "Polaris-D",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 6021,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-16",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:1",
+        "activityName": "Crater inner-wall transect",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 1.4736291664351029,
+        "units": "km",
+        "et": 913759615.5127324,
+        "utc": "2028-12-15T10:05:46.328Z",
+        "location": {
+          "positionKm": [
+            3.900337836642187,
+            6.784047322831611,
+            -1738.8560211464116
+          ],
+          "latitudeDeg": -89.74215468319967,
+          "longitudeDeg": 60.10420438346216,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913759269.1834563,
+          "end": 913759769.1834564
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 5205,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-17",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:2",
+        "activityName": "PSR floor exploration",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 1.4632520913155531,
+        "units": "km",
+        "et": 914209665.891955,
+        "utc": "2028-12-20T15:06:36.707Z",
+        "location": {
+          "positionKm": [
+            3.9473785948762483,
+            6.51523215554716,
+            -1738.846565809006
+          ],
+          "latitudeDeg": -89.74899344898097,
+          "longitudeDeg": 58.78961795227289,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914209269.1836008,
+          "end": 914209779.183601
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 5616,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-18",
+        "object": "Polaris-B",
+        "activityId": "moonfall:Polaris-B:hop:3",
+        "activityName": "Long hop to neighboring rim site",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 1.2468649426043612,
+        "units": "km",
+        "et": 914713642.9607329,
+        "utc": "2028-12-26T11:06:13.776Z",
+        "location": {
+          "positionKm": [
+            -10.209686977878398,
+            18.50624709716219,
+            -1738.5183927945484
+          ],
+          "latitudeDeg": -89.30347115488559,
+          "longitudeDeg": 118.88502412277342,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914713269.1837666,
+          "end": 914713689.1837667
+        },
+        "source": {
+          "id": "Polaris-B",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 5032,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-19",
+        "object": "Polaris-B",
+        "activityId": "moonfall:Polaris-B:hop:1",
+        "activityName": "Rim traverse east",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": 0.6886378761344076,
+        "units": "km",
+        "et": 913759476.4742073,
+        "utc": "2028-12-15T10:03:27.290Z",
+        "location": {
+          "positionKm": [
+            1.1304328903649754,
+            16.703458678325298,
+            -1738.0080062254542
+          ],
+          "latitudeDeg": -89.44810542599248,
+          "longitudeDeg": 86.12832153830388,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913759269.1834563,
+          "end": 913759759.1834564
+        },
+        "source": {
+          "id": "Polaris-B",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 6328,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-20",
+        "object": "Polaris-A",
+        "activityId": "moonfall:Polaris-A:hop:2",
+        "activityName": "PSR transect — west half",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": -0.14134655381303673,
+        "units": "km",
+        "et": 913975616.5132976,
+        "utc": "2028-12-17T22:05:47.329Z",
+        "location": {
+          "positionKm": [
+            6.316624590364756,
+            -1.4809859073371356,
+            -1737.2465386087797
+          ],
+          "latitudeDeg": -89.78602430987951,
+          "longitudeDeg": -13.19514210223353,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913975269.1835251,
+          "end": 913975809.1835253
+        },
+        "source": {
+          "id": "Polaris-A",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 5824,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-21",
+        "object": "Polaris-A",
+        "activityId": "moonfall:Polaris-A:hop:1",
+        "activityName": "PSR floor sample run",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": -0.15418125134215188,
+        "units": "km",
+        "et": 913759514.6976413,
+        "utc": "2028-12-15T10:04:05.513Z",
+        "location": {
+          "positionKm": [
+            8.698841148607219,
+            0.07788443259428135,
+            -1737.2240381874703
+          ],
+          "latitudeDeg": -89.71309244851828,
+          "longitudeDeg": 0.5129798285274136,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913759269.1834563,
+          "end": 913759699.1834564
+        },
+        "source": {
+          "id": "Polaris-A",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 4864,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-22",
+        "object": "Polaris-B",
+        "activityId": "moonfall:Polaris-B:hop:2",
+        "activityName": "Sun-illuminated peak sampling",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": -0.2727501280078286,
+        "units": "km",
+        "et": 914090747.8075055,
+        "utc": "2028-12-19T06:04:38.623Z",
+        "location": {
+          "positionKm": [
+            19.15081251901352,
+            4.429663754660005,
+            -1737.0160352474336
+          ],
+          "latitudeDeg": -89.35165661990276,
+          "longitudeDeg": 13.023716159000282,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914090469.1835623,
+          "end": 914090899.1835624
+        },
+        "source": {
+          "id": "Polaris-B",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 4851,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-23",
+        "object": "Polaris-A",
+        "activityId": "moonfall:Polaris-A:hop:3",
+        "activityName": "Ridge climb to rim peak",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": -0.33256117904602434,
+        "units": "km",
+        "et": 914378637.137913,
+        "utc": "2028-12-22T14:02:47.953Z",
+        "location": {
+          "positionKm": [
+            6.438598713273954,
+            -13.708514594289403,
+            -1737.0014128048995
+          ],
+          "latitudeDeg": -89.50043936073284,
+          "longitudeDeg": -64.84155087822242,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914378469.1836561,
+          "end": 914378959.1836562
+        },
+        "source": {
+          "id": "Polaris-A",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 5033,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-24",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:3",
+        "activityName": "Rim south-arc survey",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "radialHeightAboveReferenceSphere",
+        "extremum": "maximum",
+        "value": -0.39359233448590203,
+        "units": "km",
+        "et": 914594810.0755198,
+        "utc": "2028-12-25T02:05:40.891Z",
+        "location": {
+          "positionKm": [
+            -6.723756262033206,
+            0.9552080994600911,
+            -1736.9931315207525
+          ],
+          "latitudeDeg": -89.7759870185523,
+          "longitudeDeg": 171.91440077845962,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914594469.1837273,
+          "end": 914595079.1837274
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": null,
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 6572,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      }
+    ],
+    "faults": []
+  },
+  "c": {
+    "status": "complete",
+    "results": [
+      {
+        "id": "trajectory-analysis-25",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:1",
+        "activityName": "Crater inner-wall transect",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "heightAbovePhysicalTerrain",
+        "extremum": "maximum",
+        "value": 0.18424685463771234,
+        "units": "km",
+        "et": 913759662.0442767,
+        "utc": "2028-12-15T10:06:32.860Z",
+        "location": {
+          "positionKm": [
+            1.8695632246179699,
+            7.329558236064045,
+            -1737.9185366866413
+          ],
+          "latitudeDeg": -89.75062343586713,
+          "longitudeDeg": 75.69058839946207,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 913759269.1834563,
+          "end": 913759769.1834564
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": {
+          "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+          "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+          "sourceUncertaintyKm": null
+        },
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 6515,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-26",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:3",
+        "activityName": "Rim south-arc survey",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "heightAbovePhysicalTerrain",
+        "extremum": "maximum",
+        "value": 0.16260342041762854,
+        "units": "km",
+        "et": 914594922.2800955,
+        "utc": "2028-12-25T02:07:33.096Z",
+        "location": {
+          "positionKm": [
+            -4.394372213895849,
+            4.156055312417097,
+            -1735.4817207493893
+          ],
+          "latitudeDeg": -89.80031645099429,
+          "longitudeDeg": 136.5965305156611,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914594469.1837273,
+          "end": 914595079.1837274
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": {
+          "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+          "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+          "sourceUncertaintyKm": null
+        },
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 9272,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      },
+      {
+        "id": "trajectory-analysis-27",
+        "object": "Polaris-C",
+        "activityId": "moonfall:Polaris-C:hop:2",
+        "activityName": "PSR floor exploration",
+        "body": "Moon",
+        "frame": "MOON_ME_DE421",
+        "metric": "heightAbovePhysicalTerrain",
+        "extremum": "maximum",
+        "value": 0.12584835906669511,
+        "units": "km",
+        "et": 914209689.3763298,
+        "utc": "2028-12-20T15:07:00.192Z",
+        "location": {
+          "positionKm": [
+            2.8030747428334095,
+            6.753531416468633,
+            -1738.4542534527702
+          ],
+          "latitudeDeg": -89.75900868212676,
+          "longitudeDeg": 67.45895030892477,
+          "convention": "planetocentric"
+        },
+        "datum": {
+          "kind": "sphere",
+          "radiusKm": 1737.4
+        },
+        "heightConvention": "radial",
+        "window": {
+          "start": 914209269.1836008,
+          "end": 914209779.183601
+        },
+        "source": {
+          "id": "Polaris-C",
+          "revision": null,
+          "classification": "synthetic"
+        },
+        "terrain": {
+          "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+          "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+          "sourceUncertaintyKm": null
+        },
+        "coverage": "sampled-complete",
+        "method": {
+          "guarantee": "sampled-and-locally-refined",
+          "stepSeconds": 0.1,
+          "timeToleranceSeconds": 0.005,
+          "evaluations": 7526,
+          "heightErrorBoundKm": null,
+          "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+        }
+      }
+    ],
+    "faults": []
+  },
+  "native": {
+    "allRows": [
+      "2028-12-15 10:04:46   Physical terrain clearance 276.1 m ",
+      "2028-12-15 10:05:44   Physical terrain clearance 147.5 m ",
+      "2028-12-15 10:06:24   Physical terrain clearance 139.9 m ",
+      "2028-12-15 10:06:32 at playhead  Physical terrain clearance 184.2 m ",
+      "2028-12-17 22:07:24   Physical terrain clearance 140.1 m ",
+      "2028-12-19 06:01:52   Physical terrain clearance 234.5 m ",
+      "2028-12-20 15:07:00   Physical terrain clearance 125.8 m ",
+      "2028-12-21 07:37:34   Physical terrain clearance 114.0 m ",
+      "2028-12-22 14:02:51   Physical terrain clearance 242.7 m ",
+      "2028-12-25 02:07:33   Physical terrain clearance 162.6 m ",
+      "2028-12-26 11:04:41   Physical terrain clearance 222.5 m ",
+      "2028-12-27 18:03:34   Physical terrain clearance 310.9 m "
+    ],
+    "cRows": [
+      "2028-12-15 10:06:32 at playhead  Physical terrain clearance 184.2 m ",
+      "2028-12-20 15:07:00   Physical terrain clearance 125.8 m ",
+      "2028-12-25 02:07:33   Physical terrain clearance 162.6 m "
+    ],
+    "selected": {
+      "object": "Polaris-C",
+      "activity": "Crater inner-wall transect",
+      "et": 913759662.0442767,
+      "tracked": "Polaris-C"
+    }
+  },
+  "share": {
+    "urlLength": 3483,
+    "restored": {
+      "object": "Polaris-C",
+      "tracked": "Polaris-C",
+      "et": 913759662.0442767,
+      "activity": "Crater inner-wall transect"
+    }
+  },
+  "cancellation": {
+    "status": "cancelled",
+    "results": [],
+    "faults": [
+      {
+        "code": "cancelled",
+        "message": "Analysis cancelled or its authoritative inputs changed."
+      }
+    ]
+  },
+  "agent": {
+    "surfaceReference": {
+      "kind": "sphere",
+      "radiusKm": 1737.4
+    },
+    "computed": {
+      "ok": true,
+      "summary": "Height analysis complete; 3 results. Global height error unknown.",
+      "data": {
+        "status": "complete",
+        "results": [
+          {
+            "id": "trajectory-analysis-10",
+            "object": "Polaris-C",
+            "activityId": "moonfall:Polaris-C:hop:1",
+            "activityName": "Crater inner-wall transect",
+            "body": "Moon",
+            "frame": "MOON_ME_DE421",
+            "metric": "heightAbovePhysicalTerrain",
+            "extremum": "maximum",
+            "value": 0.18424685463771234,
+            "units": "km",
+            "et": 913759662.0442767,
+            "utc": "2028-12-15T10:06:32.860Z",
+            "location": {
+              "positionKm": [
+                1.8695632246179699,
+                7.329558236064045,
+                -1737.9185366866413
+              ],
+              "latitudeDeg": -89.75062343586713,
+              "longitudeDeg": 75.69058839946207,
+              "convention": "planetocentric"
+            },
+            "datum": {
+              "kind": "sphere",
+              "radiusKm": 1737.4
+            },
+            "heightConvention": "radial",
+            "window": {
+              "start": 913759269.1834563,
+              "end": 913759769.1834564
+            },
+            "coverage": "sampled-complete",
+            "source": {
+              "id": null,
+              "revision": null,
+              "classification": "synthetic"
+            },
+            "terrain": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "sourceUncertaintyKm": null
+            },
+            "method": {
+              "guarantee": "sampled-and-locally-refined",
+              "stepSeconds": 0.1,
+              "timeToleranceSeconds": 0.005,
+              "evaluations": 6515,
+              "heightErrorBoundKm": null,
+              "limits": "Sampled and locally refined; no certified global height error. Source accuracy is separate."
+            }
+          },
+          {
+            "id": "trajectory-analysis-11",
+            "object": "Polaris-C",
+            "activityId": "moonfall:Polaris-C:hop:3",
+            "activityName": "Rim south-arc survey",
+            "body": "Moon",
+            "frame": "MOON_ME_DE421",
+            "metric": "heightAbovePhysicalTerrain",
+            "extremum": "maximum",
+            "value": 0.16260342041762854,
+            "units": "km",
+            "et": 914594922.2800955,
+            "utc": "2028-12-25T02:07:33.096Z",
+            "location": {
+              "positionKm": [
+                -4.394372213895849,
+                4.156055312417097,
+                -1735.4817207493893
+              ],
+              "latitudeDeg": -89.80031645099429,
+              "longitudeDeg": 136.5965305156611,
+              "convention": "planetocentric"
+            },
+            "datum": {
+              "kind": "sphere",
+              "radiusKm": 1737.4
+            },
+            "heightConvention": "radial",
+            "window": {
+              "start": 914594469.1837273,
+              "end": 914595079.1837274
+            },
+            "coverage": "sampled-complete",
+            "source": {
+              "id": null,
+              "revision": null,
+              "classification": "synthetic"
+            },
+            "terrain": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "sourceUncertaintyKm": null
+            },
+            "method": {
+              "guarantee": "sampled-and-locally-refined",
+              "stepSeconds": 0.1,
+              "timeToleranceSeconds": 0.005,
+              "evaluations": 9272,
+              "heightErrorBoundKm": null,
+              "limits": "Sampled and locally refined; no certified global height error. Source accuracy is separate."
+            }
+          },
+          {
+            "id": "trajectory-analysis-12",
+            "object": "Polaris-C",
+            "activityId": "moonfall:Polaris-C:hop:2",
+            "activityName": "PSR floor exploration",
+            "body": "Moon",
+            "frame": "MOON_ME_DE421",
+            "metric": "heightAbovePhysicalTerrain",
+            "extremum": "maximum",
+            "value": 0.12584835906669511,
+            "units": "km",
+            "et": 914209689.3763298,
+            "utc": "2028-12-20T15:07:00.192Z",
+            "location": {
+              "positionKm": [
+                2.8030747428334095,
+                6.753531416468633,
+                -1738.4542534527702
+              ],
+              "latitudeDeg": -89.75900868212676,
+              "longitudeDeg": 67.45895030892477,
+              "convention": "planetocentric"
+            },
+            "datum": {
+              "kind": "sphere",
+              "radiusKm": 1737.4
+            },
+            "heightConvention": "radial",
+            "window": {
+              "start": 914209269.1836008,
+              "end": 914209779.183601
+            },
+            "coverage": "sampled-complete",
+            "source": {
+              "id": null,
+              "revision": null,
+              "classification": "synthetic"
+            },
+            "terrain": {
+              "id": "moon-lola-118m+south-pole-lola-10m-residual (scripts/build-moon-terrain/cube.sh)",
+              "revision": "cube-fused-79895697c6b6-g3-m12-b6747ec9d",
+              "sourceUncertaintyKm": null
+            },
+            "method": {
+              "guarantee": "sampled-and-locally-refined",
+              "stepSeconds": 0.1,
+              "timeToleranceSeconds": 0.005,
+              "evaluations": 7526,
+              "heightErrorBoundKm": null,
+              "limits": "Sampled and locally refined; no certified global height error. Source accuracy is separate."
+            }
+          }
+        ],
+        "faults": []
+      }
+    },
+    "navigation": {
+      "ok": true,
+      "summary": "Selected and framed the measured vehicle at the observed result epoch.",
+      "data": {
+        "verified": true,
+        "observed": {
+          "et": 913759662.0442767,
+          "object": "Polaris-C",
+          "tracked": "Polaris-C",
+          "playing": false,
+          "activityId": "moonfall:Polaris-C:hop:1"
+        }
+      }
+    }
+  }
+}

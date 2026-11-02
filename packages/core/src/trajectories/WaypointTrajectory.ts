@@ -128,4 +128,8 @@ export class WaypointTrajectory implements Trajectory {
     ];
     return { position, velocity };
   }
+
+  samplingBreakpoints(start: number, end: number): readonly number[] {
+    return this.waypoints.filter(w => w.et >= start && w.et <= end).map(w => w.et);
+  }
 }

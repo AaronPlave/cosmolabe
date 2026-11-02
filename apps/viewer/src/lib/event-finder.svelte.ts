@@ -85,6 +85,9 @@ import { getActivity, selectActivity, seekActivity } from './activity-control';
 import { emit, etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
 import { resettable } from './session.svelte';
 import { activityEvent } from './mission-activities';
+import { analysisResultGuards } from './trajectory-analysis-identity';
+import { frameBody, setPlaying } from './viewer-state.svelte';
+import { runTrajectoryEventQuery } from './trajectory-analysis.svelte';
 
 /** The kinds the panel offers. Registered once; the picker reads this. */
 const registry = builtinEventKinds();
@@ -183,6 +186,7 @@ export function spiceGeometryFinder(spice: HeritageSpice): GeometryFinderProvide
  * running to completion and having its answer thrown away.
  */
 interface RunningSearch {
+  signal?: AbortSignal;
   provider: GeometryFinderProvider;
   cancel(): void;
   /**
@@ -207,6 +211,15 @@ interface RunningSearch {
  * is what every search showed before.
  */
 export type SearchProgress = { readonly fraction: number } | null;
+
+/** Same job/progress/cancel lifecycle; this provider is never used by the
+ * registered numerical kind. No SPICE solver is substituted for catalog data. */
+function beginNumericalSearch(): RunningSearch {
+  const controller = new AbortController();
+  const unavailable = (): never => { throw new Error('SPICE GF is unavailable for this numerical job.'); };
+  return { signal: controller.signal, get cancelled() { return controller.signal.aborted; }, cancel() { controller.abort(); }, finish() {},
+    provider: { gfdist: unavailable, gfsep: unavailable, gfoclt: unavailable, gfposc: unavailable } };
+}
 
 /**
  * The provider this search will use: the worker's when there is one, the main
@@ -276,6 +289,8 @@ function beginSearch(spice: HeritageSpice, window: EtInterval): RunningSearch {
  * scene or moving the window re-evaluates it.
  */
 export function currentSearchUnavailable(): EventSearchFault | null {
+  if (currentKind().engine === 'trajectory-analysis') return getUniverse()
+    ? null : { code:'unavailable',message:'Load a catalog with trajectory states first.' };
   const spice = getSpice();
   const form = ef.form;
   // Searches run on SPICE kernels; a host-supplied state is not in them, and
@@ -540,7 +555,7 @@ export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null
 
 /** The selected mission activity's ID, when the selection is one. */
 function selectedActivityId(): string | null {
-  return ef.selectedQueryId?.startsWith('activity:') ? ef.selectedId : null;
+  return ef.selectedQueryId?.startsWith('activity:') ? ef.selectedId : selectedEventOf(analysisContext().eventResults)?.trajectoryAnalysis?.activityId ?? null;
 }
 
 // An activity whose record went (its source was replaced or removed) is no
@@ -560,7 +575,7 @@ function dropSelectionIn(id: string | null): boolean {
   return true;
 }
 
-function syncEventResultsInScene(): void {
+export function syncEventResultsInScene(): void {
   const renderer = getRenderer();
   if (!renderer) return;
   const selected = selectedEventOf(analysisContext().eventResults) ?? null;
@@ -727,6 +742,7 @@ function bestUsableWithin(
  */
 function defaultWindow(bodies: EventParticipants = {}): EtInterval {
   const span = catalogWindow();
+  if (currentKind().engine === 'trajectory-analysis') return span;
   const spice = getSpice();
   if (!spice) return span;
 
@@ -822,7 +838,8 @@ function syncConfiguredQuery(persist = false): ConfiguredEventQuery | undefined 
   const kind = currentKind();
   const concrete = buildQuery(kind, ef.form, ef.configuredId ?? 'draft');
   const previous = currentConfiguredQuery();
-  if (previous?.query.abcorr !== undefined) concrete.abcorr = previous.query.abcorr;
+  if (kind.engine === 'trajectory-analysis') concrete.abcorr = 'NONE';
+  else if (previous?.query.abcorr !== undefined) concrete.abcorr = previous.query.abcorr;
   if (previous?.query.label !== undefined) concrete.label = previous.query.label;
   const { id: _id, ...query } = concrete;
   const label = concrete.label ?? `${kind.label}: ${Object.values(concrete.bodies).join(' / ')}`;
@@ -1092,7 +1109,8 @@ export async function runSearch() {
   ensureCoverageCurrent();
   const spice = getSpice();
   const unavailable = currentSearchUnavailable();
-  if (!spice || unavailable) {
+  const numerical = currentKind().engine === 'trajectory-analysis';
+  if ((!spice && !numerical) || unavailable) {
     ef.events = [];
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
@@ -1106,11 +1124,15 @@ export async function runSearch() {
   // frees the worker for the one they do want.
   active?.cancel();
 
-  const running = beginSearch(spice, { start: ef.form.startEt, end: ef.form.endEt });
+  const running = numerical ? beginNumericalSearch() : beginSearch(spice!, { start: ef.form.startEt, end: ef.form.endEt });
   active = running;
   const search = new EventSearch({
     registry,
     provider: withSpiceNames(running.provider, sceneSpiceName),
+    trajectoryAnalysis: query => {
+      const options = { signal: running.signal ?? { get aborted() { return running.cancelled; } }, onProgress: (fraction: number) => { if (active === running) ef.progress = { fraction }; } };
+      return runTrajectoryEventQuery(query,options);
+    },
     onProgress: (fraction) => {
       if (active === running) ef.progress = { fraction };
     },
@@ -1187,6 +1209,8 @@ export function cancelSearch() {
  * exist yet.
  */
 export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'middle' | number = 'start') {
+  if (event.trajectoryAnalysis && !analysisResultGuards.get(`${event.queryId}/${event.id}`)?.()) return false;
+  if (event.trajectoryAnalysis) setPlaying(false);
   // Overview marks and shared inspectors use the same operations as scripts.
   // Stale activity projections never seek a fallback epoch.
   if (event.kind === 'mission-activity') {
@@ -1208,12 +1232,15 @@ export function selectEvent(event: GeometryEvent, anchor: 'start' | 'end' | 'mid
     selectBody,
     highlightBodies,
   });
+  const framed = event.trajectoryAnalysis ? frameBody(event.trajectoryAnalysis.object) : true;
   syncEventResultsInScene();
   syncOccultationGeometryAtTime();
+  return framed;
 }
 
 /** Shared inspection path; never seeks or moves the camera. */
 export function selectEventForInspection(event: GeometryEvent) {
+  if (event.trajectoryAnalysis && !analysisResultGuards.get(`${event.queryId}/${event.id}`)?.()) return;
   setSelection(event);
   highlightBodies(event.kind === 'mission-activity' ? [] : focusForEvent(event).bodies);
   syncEventResultsInScene();

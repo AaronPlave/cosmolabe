@@ -1,5 +1,6 @@
 import { builtinEventKinds, defaultParams, eventStart, eventEnd, type ConfiguredEventQuery, type EventQuery, type GeometryEvent } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
+import { validateTrajectoryExtremaQuery, type TrajectoryExtremaQuery } from '@cosmolabe/core';
 
 /** Compact definitions and a result locator, never a serialized result list. */
 export interface SharedEventQuery {
@@ -53,6 +54,24 @@ export function validateEventLinkState(value: unknown): EventLinkState {
     const entry = object(raw), q = object(entry.query), w = object(q.window);
     const kind = typeof q.kind === 'string' ? kinds.get(q.kind) : undefined;
     check(kind, `event type "${String(q.kind)}" is unavailable.`);
+    let trajectoryAnalysis: TrajectoryExtremaQuery | undefined;
+    if (q.trajectoryAnalysis !== undefined) {
+      check(kind.engine === 'trajectory-analysis', 'trajectory request attached to another event kind.');
+      check(!validateTrajectoryExtremaQuery(q.trajectoryAnalysis), 'invalid trajectory analysis request.');
+      const raw = q.trajectoryAnalysis as TrajectoryExtremaQuery;
+      // Closed projection: a portable request contains no arbitrary source
+      // metadata, runtime callbacks or serialized numerical results.
+      trajectoryAnalysis = {
+        objects:[...raw.objects],body:raw.body,frame:raw.frame,metric:raw.metric,extremum:raw.extremum,
+        reference:raw.reference.kind === 'sphere' ? {kind:'sphere',radiusKm:raw.reference.radiusKm} : {kind:'ellipsoid',radiiKm:[...raw.reference.radiiKm]},
+        scope:raw.scope.kind === 'windows' ? {kind:'windows',windows:raw.scope.windows.map(w => ({start:w.start,end:w.end}))} : {
+          kind:'activities',...(raw.scope.ids ? {ids:[...raw.scope.ids]} : {}),...(raw.scope.activityKind ? {activityKind:raw.scope.activityKind} : {}),...(raw.scope.window ? {window:{start:raw.scope.window.start,end:raw.scope.window.end}} : {}),
+        },
+        stepSeconds:raw.stepSeconds,timeToleranceSeconds:raw.timeToleranceSeconds,
+        ...(raw.maxEvaluations !== undefined ? {maxEvaluations:raw.maxEvaluations} : {}),
+        ...(raw.terrain ? {terrain:{id:raw.terrain.id,revision:raw.terrain.revision}} : {}),
+      };
+    }
     check(text(q.id) && text(entry.label), 'invalid query identity or label.');
     check(typeof entry.enabled === 'boolean' && typeof entry.visible === 'boolean' && typeof entry.searched === 'boolean', 'invalid query flags.');
     check(entry.windowMode === 'explicit' || entry.windowMode === 'automatic', 'missing window interpretation.');
@@ -61,7 +80,7 @@ export function validateEventLinkState(value: unknown): EventLinkState {
     check(et(w.start) && et(w.end) && w.end > w.start, 'invalid search window.');
     check(typeof q.step === 'number' && Number.isFinite(q.step) && q.step > 0, 'invalid search step.');
     if (entry.searched && entry.enabled) {
-      const steps = (w.end - w.start) / q.step;
+      const steps = kind.engine === 'trajectory-analysis' ? trajectoryAnalysis?.maxEvaluations ?? 200000 : (w.end - w.start) / q.step;
       totalSteps += steps;
       check(steps <= MAX_STEPS_PER_QUERY && totalSteps <= MAX_STEPS_TOTAL,
         `"${entry.label}" is too large to rerun from a link; use a coarser step or shorter window.`);
@@ -80,10 +99,11 @@ export function validateEventLinkState(value: unknown): EventLinkState {
       if (spec.kind === 'number') check(typeof param === 'number' && Number.isFinite(param) &&
         (spec.min === undefined || param >= spec.min) && (spec.max === undefined || param <= spec.max), `invalid ${spec.key}.`);
       else if (spec.kind === 'boolean') check(typeof param === 'boolean', `invalid ${spec.key}.`);
+      else if (spec.kind === 'text') check(text(param), `invalid ${spec.key}.`);
       else check(spec.options.some(o => o.value === param), `invalid ${spec.key}.`);
       params[spec.key] = param;
     }
-    const query: EventQuery = { id: q.id, kind: kind.kind, bodies, window: { start: w.start, end: w.end }, step: q.step, abcorr: q.abcorr, params };
+    const query: EventQuery = { id: q.id, kind: kind.kind, bodies, window: { start: w.start, end: w.end }, step: q.step, abcorr: q.abcorr, params, ...(trajectoryAnalysis ? {trajectoryAnalysis} : {}) };
     if (q.label !== undefined) { check(text(q.label), 'invalid result label.'); query.label = q.label; }
     if (entry.searched) {
       const fault = kind.validate?.({ ...query, params: { ...defaultParams(kind), ...params } } as unknown as EventQuery<never>);

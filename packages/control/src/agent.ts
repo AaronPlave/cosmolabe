@@ -35,6 +35,7 @@ import type {
   VerbValue,
   ViewerControl,
 } from './contracts.js';
+import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
 import { agentMetadata, type AgentMetadataPolicy } from './agent-metadata.js';
@@ -221,6 +222,23 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
   {
+    name: 'findTrajectoryExtrema', effect: 'read', method: 'findTrajectoryExtrema',
+    description: 'Compute height extrema using the shared numerical analysis. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner. May offer Show me with navigateToAnalysisResult.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['objects', 'body', 'frame', 'metric', 'extremum', 'reference', 'scope', 'stepSeconds', 'timeToleranceSeconds'], properties: {
+      objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' }, frame: { type: 'string' },
+      metric: { type: 'string', enum: ['radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'] }, extremum: { type: 'string', enum: ['maximum', 'minimum'] },
+      reference: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['sphere', 'ellipsoid'] }, radiusKm: { type: 'number' }, radiiKm: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 } } },
+      scope: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['activities', 'windows'] }, activityKind: { type: 'string' }, window: { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: { type: 'number' }, end: { type: 'number' } } }, ids: { type: 'array', items: { type: 'string' }, maxItems: 128 }, windows: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: { type: 'number' }, end: { type: 'number' } } } } } },
+      stepSeconds: { type: 'number', minimum: 0.000001 }, timeToleranceSeconds: { type: 'number', minimum: 0.000001 }, maxEvaluations: { type: 'number', minimum: 1, maximum: 200000 },
+      terrain: { type: 'object', additionalProperties: false, required: ['id', 'revision'], properties: { id: { type: 'string' }, revision: { type: 'string' } } },
+    } },
+  },
+  {
+    name: 'navigateToAnalysisResult', effect: 'camera', method: 'navigateToAnalysisResult',
+    description: 'Show a current measured height result: seek its epoch, select its actual vehicle/activity and frame the vehicle. Uses only an ID returned by findTrajectoryExtrema. Stale results refuse.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['resultId'], properties: { resultId: { type: 'string' } } },
+  },
+  {
     name: 'describeScene',
     effect: 'read',
     description:
@@ -288,7 +306,7 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
     name: 'getSurfaceData',
     effect: 'read',
     method: 'getSurfaceData',
-    description: 'Configured surface products: terrain elevation/LOD, cube imagery, base/normal/displacement textures, other imagery, and independently managed overlays. Declared provenance and runtime readiness, residency and current-view coverage are separate; null means unknown. Use for dataset inventory even when getImagery reports zero overlays.',
+    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -446,6 +464,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   const placeSummary = metadata.place;
   let taskSeq = 0;
   let current: TaskImpl | null = null;
+  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null }>();
 
   const verbTools = AGENT_VERBS.flatMap(({ verb, effect }) => {
     const spec = VERBS.get(verb);
@@ -766,6 +785,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
     async call(name: string, input: unknown): Promise<AgentToolResult> {
       if (opts.omittedTools?.[name]) return { ok: false, code: 'refused', error: opts.omittedTools[name] };
+      if (name === 'navigateToAnalysisResult') {
+        const blocked = ['setTime','setPlaying','select','frameObject'].find(operation => opts.omittedTools?.[operation]);
+        if (blocked) return { ok:false,code:'refused',error:`Result navigation requires ${blocked}: ${opts.omittedTools![blocked]}` };
+      }
       const def = list().find((t) => t.name === name);
       if (!def) {
         const s = suggest(name, list().map((t) => t.name));
@@ -777,6 +800,30 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (refused) return refused;
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
+
+      if (name === 'findTrajectoryExtrema') {
+        try {
+          const response = await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
+          const late = this.gate(def);
+          if (late) return late;
+          measuredResults.clear();
+          for (const result of response.results.slice(0,128)) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          // Closed projection: provenance may contain private source paths.
+          const data = { status: response.status, results: response.results.slice(0,128).map(metadata.trajectoryExtremum), faults: response.faults.slice(0,128).map(f => ({ code: f.code, object: f.object, activityId: f.activityId, window: f.window ? {start:f.window.start,end:f.window.end} : undefined, message: 'Analysis unavailable, incomplete or interrupted; inspect the local result for details.' })) };
+          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data };
+        } catch { return { ok: false, code: 'failed', error: 'Height analysis failed; inspect the local source and coverage.' }; }
+      }
+      if (name === 'navigateToAnalysisResult') {
+        const done = host.navigateToAnalysisResult!(args.resultId as string);
+        if (!done) return { ok:false,code:'refused',error:'The result is unavailable or stale.' };
+        const late = this.gate(def);
+        if (late) return late;
+        const expected = measuredResults.get(args.resultId as string);
+        const observed = {et:host.getTime(),object:host.getSelected(),tracked:host.getTracked(),playing:host.isPlaying(),activityId:host.getSelectedActivity?.()?.id ?? null};
+        const verified = !!expected && Math.abs(observed.et-expected.et)<1e-5 && observed.object===expected.object && observed.tracked===expected.object && !observed.playing && (!expected.activityId || observed.activityId===expected.activityId);
+        if (expected && !verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
+        return { ok:true,summary:verified ? 'Selected and framed the measured vehicle at the observed result epoch.' : `Result navigation accepted; the viewer reports ${observed.object ?? 'no object'} at ET ${observed.et}.`,data:{verified,observed} };
+      }
 
       const read = reads[name];
       if (read) {

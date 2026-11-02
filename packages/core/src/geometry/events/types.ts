@@ -53,6 +53,7 @@ export type EventParticipants = Partial<Record<EventRole, string>>;
 
 /** One role an event kind consumes, as UI needs to present it. */
 export interface EventRoleSpec {
+  emptyLabel?: string;
   role: EventRole;
   /** Human label for the picker, e.g. "Occulting body". */
   label: string;
@@ -74,6 +75,10 @@ export interface EventRoleSpec {
  * The `key` is the property the kind reads out of `EventQuery.params`.
  */
 export type EventParamSpec =
+  | {
+      kind: 'text'; key: string; label: string; default?: string;
+      required?: boolean; help?: string;
+    }
   | {
       kind: 'number';
       key: string;
@@ -127,6 +132,7 @@ export interface EventMetric {
 export type EventTemporality = 'instant' | 'interval';
 
 interface GeometryEventBase {
+  trajectoryAnalysis?: TrajectoryExtremum;
   /** Unique within one search result. Not an identity across searches. */
   id: string;
   /** The query that produced this event. */
@@ -173,6 +179,9 @@ export type GeometryEvent = InstantEvent | IntervalEvent;
  * validates it.
  */
 export interface EventQuery<P = Record<string, unknown>> {
+  /** Full typed definition when a host supplies a richer numerical scope than
+   * the form's single-vehicle/all-activities controls. Never raw state points. */
+  trajectoryAnalysis?: import('@cosmolabe/interop').TrajectoryExtremaQuery;
   /** Caller-assigned; events carry it back so results can be grouped. */
   id: string;
   /** Registered {@link EventKind} name. */
@@ -240,6 +249,8 @@ export type EventSearchResult =
        * {@link EventKind.explainEmpty}.
        */
       hint?: string;
+      /** Partial numerical coverage or evaluation-budget faults. */
+      faults?: EventSearchFault[];
     }
   | { ok: false; queryId: string; fault: EventSearchFault };
 
@@ -288,3 +299,4 @@ export function eventBodies(event: GeometryEvent): string[] {
 export function compareEvents(a: GeometryEvent, b: GeometryEvent): number {
   return eventStart(a) - eventStart(b) || eventEnd(a) - eventEnd(b);
 }
+import type { TrajectoryExtremum } from '@cosmolabe/interop';

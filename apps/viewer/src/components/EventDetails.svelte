@@ -41,6 +41,15 @@
 </script>
 
 <div class="event-details flex flex-col gap-0.5">
+  {#if event.trajectoryAnalysis}
+    {@const result = event.trajectoryAnalysis}
+    <p class="ui-helper">{event.metrics?.[0]?.label} · {result.frame} · {result.source.classification} · {result.coverage}</p>
+    <p class="ui-helper">{result.location.latitudeDeg.toFixed(6)}° N, {result.location.longitudeDeg.toFixed(6)}° E · {result.location.convention} · {result.heightConvention} height.</p>
+    <p class="ui-helper">Reference {result.datum.kind}: {result.datum.kind === 'sphere' ? result.datum.radiusKm : result.datum.radiiKm.join(' × ')} km.</p>
+    <p class="ui-helper">Trajectory source: {result.source.id ?? 'identity unknown'}; revision {result.source.revision ?? 'unknown'}.</p>
+    {#if result.terrain}<p class="ui-helper">Terrain: {result.terrain.id} · {result.terrain.revision}; source uncertainty {result.terrain.sourceUncertaintyKm ?? 'unknown'} km.</p>{/if}
+    <p class="ui-helper">Step {result.method.stepSeconds} s; refinement {result.method.timeToleranceSeconds} s. Global height error unknown. {result.method.limits}</p>
+  {/if}
   {#if event.state}
     <div class="ui-data-row">
       <span class="ui-label">State</span>
