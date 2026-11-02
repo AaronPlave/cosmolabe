@@ -1,6 +1,6 @@
 /** Machine-checkable UI/control/script/discovery inventory. No assertion of complete UI parity. */
 import { agentDefinitions } from './agent.js';
-import { capabilityDomain } from './capabilities.js';
+import { capabilityDomain, defaultAskDefinitions } from './capabilities.js';
 import { VERBS } from './verbs.js';
 
 const UI: Readonly<Record<string, string>> = {
@@ -50,12 +50,13 @@ export const UI_CAPABILITY_GAPS = [
 ] as const;
 
 export function capabilityCoverage() {
+  const direct = new Set(defaultAskDefinitions().map(d => d.name));
   return [
     ...agentDefinitions().map(def => {
       const domain = capabilityDomain(def.name, def.effect);
       return { feature: domain, operation: `${domain}.${def.name}`, ui: UI[domain],
         semantic: def.method ?? 'bounded composite read', script: VERBS.has(def.name) ? def.name : null,
-        discovery: true, status: 'registered', missingReason: null };
+        discovery: true, defaultAsk: direct.has(def.name) ? 'direct' : 'discovery', effect: def.effect, permission: def.effect === 'authoring' ? 'approve-authoring' : def.effect === 'export' ? 'approve-external' : 'direct', status: 'registered', missingReason: null };
     }),
     ...UI_CAPABILITY_GAPS.map(gap => ({ ...gap, operation: null, semantic: null, script: null,
       discovery: false, status: 'gap', missingReason: gap.reason })),

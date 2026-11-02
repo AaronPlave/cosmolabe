@@ -15,7 +15,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, endNote, tally, type AskStep, type AskTurn,
+    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, tally, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import { parseAnswer, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
@@ -151,7 +151,7 @@
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if import.meta.env.DEV}
-      <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} title="Development Ask tool mode">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
+      <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} data-ask-catalog="shared-capability-v1" title="Shared capability catalog: Fixed uses a compact direct schema shortlist; Discovery uses registry tools">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
     {/if}
     {#if ask.turns.length > 0}
       <button
@@ -238,6 +238,19 @@
       {/if}
     </ol>
 
+    {#if ask.serviceBlocked}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
+    {#if askApproval.pending}
+      <div class="mx-3 mb-2 rounded border border-border p-2" role="group" aria-label="Approve Ask action">
+        <p class="ui-body">{askApproval.pending.kind === 'authoring' ? 'Save or edit scene definitions?' : 'Export or record viewer output?'}</p>
+        <p class="ui-meta">{askApproval.pending.operation}</p>
+        <details><summary class="ui-helper cursor-pointer">Review exact changes</summary><pre class="max-h-40 overflow-auto whitespace-pre-wrap text-[10px]">{askApproval.pending.input}</pre></details>
+        <div class="mt-2 flex gap-2">
+          <button class="ask-btn" onclick={() => answerAskApproval(true)}>Approve once</button>
+          <button class="ask-btn" onclick={() => answerAskApproval(false)}>Decline</button>
+        </div>
+      </div>
+    {/if}
+
     <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
       <textarea
         bind:value={prompt}
@@ -253,7 +266,7 @@
           <Square size={11} /> Stop
         </button>
       {:else}
-        <button class="ask-btn" onclick={send} disabled={prompt.trim() === ''} aria-label="Send request" title="Send (Enter)">
+        <button class="ask-btn" onclick={send} disabled={prompt.trim() === '' || !!ask.serviceBlocked} aria-label="Send request" title="Send (Enter)">
           <CornerDownLeft size={12} />
         </button>
       {/if}

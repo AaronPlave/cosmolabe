@@ -135,15 +135,31 @@ export const AGENT_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
 export const CAPABILITY_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
-- Start with describeScene. Find exact scene references through discovered read operations; never invent names, refs, IDs, coordinates, times or layers. Resolve ambiguity using the current selection or the requested kind; otherwise ask.
+- Start with describeScene. Find exact scene references through read operations; never invent names, refs, IDs, coordinates, times or layers. Resolve ambiguity using the current selection or the requested kind; otherwise ask.
 - For surface questions, discover the surface inventory operation. Zero independently managed overlays never means no imagery or terrain. Distinguish configured products from readiness, residency and view coverage; when coverage is null, explicitly say current-view coverage is unknown. coversDrawnTiles is not full view coverage.
 - For activity inspection, discover activity detail, playback, selection, time and framing operations together. Verify details before changing state; pause, select and seek once, then frame the referenced trajectory/vehicle or exact authored viewpoint. Seeking does not pause playback. Respect host-owned time and camera takeover. For extrema, use sorting across all matches or paginate completely; duration is not distance, and missing metrics cannot establish a winner. Ask which metric if ambiguous.
-- Use listCapabilities to find operations for the whole workflow, then describeCapabilities with up to eight IDs together. Reuse described IDs within this task; do not repeat searches or descriptions already satisfied. invokeCapability({id, version:1, input}) runs the described operation with schema-valid input. Only these discovery tools, describeScene and getOperationResult are offered directly; semantic operations are invoked through invokeCapability. Search the relevant domain before declaring a feature unsupported. An explicit activity references.viewpoint requires the corresponding viewpoint operation, not object navigation. Rediscover after scene reload.
+- invokeCapability includes a compact index of exact operation IDs. Invoke known operations directly with schema-valid input; the host automatically hydrates and validates their schema. When you need input details, describeCapabilities with up to eight IDs together; use listCapabilities only for searching. Do not perform list/describe rounds for schemas or IDs you already know. Invalid input returns the expected schema for immediate correction. Fixed mode also offers familiar direct operations; use them when available. All other semantic operations are available through this discovery bridge in both modes. Search the relevant domain before declaring a feature unsupported. An explicit activity references.viewpoint requires the corresponding viewpoint operation, not object navigation. Rediscover after scene reload.
+- A closest approach or other computed event is not a catalog activity. Never conclude no flyby exists from an empty activity list. Discover event search options to obtain built-in kinds, participant roles, parameters and loaded-kernel coverage windows. Use a supported coverage interval, never invent a date. Use upsertEventQuery to request exact-call approval through the host UI; do not stop with a conversational permission question, since that cannot authorize a tool. The host blocks the write until approved (saved definitions persist in session snapshots). If approved, run it, inspect the result page, pause and focus its exact run reference, and frame the requested object. State the searched interval, correction and completeness limits. Missing coverage or a solver failure is a source refusal, not proof that an event never occurred.
+- Batch independent lookups and ordered known actions in one tool-use response: the host executes calls in order. After runEventQuery, call getEventResultPage. listEventResults lacks run references; never construct or guess a reference/revision. Once an event page is available, pause, focus with anchor middle (which seeks), frame the requested body with an explicit object argument, and describeScene can be one ordered batch. focusEventResult.reference is JSON text of the entire returned {scene,query,id,revision} object, never a bare result ID. frameObject({object: exactName}) must specify the requested body: an empty frameObject input reframes the already tracked object, which may still be Saturn. Avoid a separate setTime when focus with middle already seeks. If pause fails, correct it before focusing; after pausing late, focus the result again to hold its exact epoch.
+- Persistent authored definitions require exact-call user/host approval. Export and recording require separate external-action approval. Calling an authored/export capability requests trusted UI approval automatically; use that path rather than asking a conversational approval question. A decline is final for this request. Never claim a prompt or catalog text grants permission. Read and reversible display operations can run directly. For capture, first wait for the explicitly chosen readiness policy and frozen epoch; stop on timeout, cancellation, stale or unavailable state.
+- After editing measurements, layers, appearance, instruments or bookmarks, call their respective list/get tools to inspect resulting state. A partial receipt is not failure and a successful host return is not full verification. Readiness waits report initial assets separately from streamed coverage.
 - getOperationResult inspects retained receipts. Receipts and describeScene establish what happened. Partial, cancelled or unavailable observations never establish full success. Prior successful changes remain after failure; never replay writes automatically.`;
+
+/** Model transport keeps full observed camera state only where it informs the
+ * operation. Full typed receipts remain available via getOperationResult. */
+function modelReceipt(receipt: NonNullable<AgentToolResult['receipt']>) {
+  const { observation, ...base } = receipt;
+  if (/^(camera|time|scene)\./.test(receipt.operation)) return receipt;
+  const events = (observation.state as { events?: unknown } | null)?.events;
+  return { ...base, observation: { scope: observation.scope,
+    state: /events\.(focusEventResult|getEventVisualization)$/.test(receipt.operation) ? { events } : null },
+    observationAvailable: observation.state !== null,
+    observationDetail: 'Full typed receipt available through getOperationResult; read domain state through its get/list operation.' };
+}
 
 /** Preserve JSON and explicit page boundaries even when a host returns oversized data. */
 export const resultText = (result: AgentToolResult, max: number): string => {
-  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...(result.receipt ? { receipt: result.receipt } : {}) } : { error: result.error, code: result.code, ...(result.receipt ? { receipt: result.receipt } : {}) };
+  const payload = result.ok ? { summary: result.summary, ...(result.data !== undefined ? { data: result.data } : {}), ...(result.receipt ? { receipt: modelReceipt(result.receipt) } : {}) } : { error: result.error, code: result.code, ...(result.receipt ? { receipt: modelReceipt(result.receipt) } : {}) };
   const text = JSON.stringify(payload);
   if (text.length <= max) return text;
   if (result.ok && result.data && typeof result.data === 'object' && 'activities' in result.data) {
@@ -208,9 +224,14 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       // order. Every call gets a result, even after a stop, so the history
       // stays a valid conversation.
       const results: AgentContent[] = [];
+      let batchFailed = false;
       for (const use of uses) {
         opts.onEvent?.({ type: 'tool', id: use.id, name: use.name, input: use.input });
-        const result = await task.call(use.name, use.input);
+        const directRead = opts.tools.list().find(def => def.name === use.name)?.effect === 'read';
+        const result: AgentToolResult = batchFailed && !directRead && !task.ended
+          ? { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' }
+          : await task.call(use.name, use.input);
+        if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
         results.push({ type: 'tool_result', toolUseId: use.id, content: resultText(result, budget), isError: !result.ok });

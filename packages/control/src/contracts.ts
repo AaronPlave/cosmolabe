@@ -692,6 +692,14 @@ export interface ViewerControl {
    */
   snapshot(): string;
   /** Same configured Event Finder searches as the panel; no cached results in snapshots. */
+  /** Read-only registry and loaded-kernel window discovery, before saving a query. */
+  getEventSearchOptions?(input?: { kind?: string; bodies?: EventQuery['bodies']; abcorr?: string }): {
+    kinds: readonly { kind: string; label: string; roles: readonly { role: string; required?: boolean }[]; params: readonly unknown[]; step: number; abcorr: string }[];
+    catalogWindow: { start: number; end: number };
+    coverage: ScriptEventQueryInfo['coverage'];
+    suggestedWindow: { start: number; end: number } | null;
+    error: { code: string } | null;
+  };
   listEventQueries?(): readonly ConfiguredEventQuery[];
   upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
   openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;

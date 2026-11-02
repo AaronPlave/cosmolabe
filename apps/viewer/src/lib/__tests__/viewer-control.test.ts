@@ -1617,6 +1617,13 @@ describe('reviewed modern feature adapters', () => {
     const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
     expect(host.getEventQueryInfo!(item.id)).toMatchObject({ status: 'unavailable', error: { code: 'unavailable' }, provenance: { source: 'loaded-spice-kernels', timeUnit: 'ET seconds past J2000' } });
     expect(host.getEventQueryInfo!('missing').status).toBe('missing-query');
+    const options = host.getEventSearchOptions!({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' } });
+    expect(options.kinds.find(k => k.kind === 'closest-approach')).toMatchObject({ step: 3600, roles: expect.arrayContaining([{ role: 'observer', required: undefined }, { role: 'target', required: undefined }]) });
+    expect(options.suggestedWindow).toBeNull();
+    expect(options.coverage).toBeNull();
+    expect(host.getEventSearchOptions!({ kind: 'invented-kind' }).error?.code).toBe('unknown-kind');
+    expect(host.listEventQueries!()).toHaveLength(1); // discovery does not author a query
+
     model.setEventResults(item.id, []);
     expect(host.getEventResultPage!(item.id)).toMatchObject({ status: 'no-results', total: 0, items: [] });
     model.setEventResults(item.id, [{ id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } }]);

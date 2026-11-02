@@ -1,7 +1,7 @@
 /** Discoverable, instance-bound rendering of the existing control vocabulary (#328). */
 import { agentDefinitions, createAgentTools, violation, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolEffect, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
 import { eventVisualizationMetadata } from './event-agent-metadata.js';
-import type { ViewerControl } from './contracts.js';
+import type { ScriptReadinessRequest, ViewerControl } from './contracts.js';
 import { VERBS } from './verbs.js';
 
 export const CAPABILITY_VERSION = 1;
@@ -60,6 +60,8 @@ export interface CapabilityPage {
   readonly nextOffset: number | null;
 }
 export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabulary' | 'allowExport' | 'allowAuthoring'> {
+  /** Fixed mode retains familiar direct schemas plus the small discovery bridge. */
+  readonly surface?: 'fixed' | 'discovery';
   /** Trusted host policy only; never populated from a scene or model argument. */
   readonly omitted?: Readonly<Record<string, string>>;
   readonly allowExternal?: boolean;
@@ -76,16 +78,23 @@ export interface CapabilityTools extends AgentTools {
   getOperationResult(id: string): OperationReceipt | null;
 }
 
+/** A small schema shortlist, never an authorization allowlist. All other
+ * registry operations are invocable through the same validated dispatcher. */
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions'] as const;
+export function defaultAskDefinitions() {
+  return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
+}
+
 const objectSchema = (properties: Record<string, AgentJsonSchema>, required: string[] = []): AgentToolDef['inputSchema'] =>
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
-  { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs before calling them.',
+  { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs when you need their schemas; prior description is optional.',
     inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
     inputSchema: objectSchema({ id: { type: 'string' } }, ['id']) },
-  { name: 'invokeCapability', effect: 'display', description: 'Run one previously described capability by exact namespaced ID, version 1, and its schema-valid input object. The viewer validates its selected schema, permissions and scene before execution. Returns a verified receipt; never retries writes.',
+  { name: 'invokeCapability', effect: 'display', description: 'Run one known capability by exact namespaced ID, version 1, and its schema-valid input object. The viewer automatically resolves and validates its schema, permissions and scene before execution. Returns a verified receipt; never retries writes.',
     inputSchema: objectSchema({ id: { type: 'string' }, version: { type: 'number' }, input: { type: 'object' } }, ['id', 'input']) },
 ];
 
@@ -236,10 +245,10 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
   const getOperationResult = (id: string) => { versionCheck(); return copy(receipts.get(id) ?? null); };
   const begin = (): AgentTask => {
     versionCheck();
-    const described = new Set<string>();
     const task = raw.begin();
     const bound = scope();
     let busy = false;
+    let captureReadiness: { request: ScriptReadinessRequest; ready: boolean } | null = null;
     const wrapped: AgentTask = {
       id: task.id, signal: task.signal, get ended() { return task.ended; }, cancel: () => task.cancel(), finish: () => task.finish(),
       async call(name, input) {
@@ -251,6 +260,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         let serialized: string;
         try { serialized = JSON.stringify(input); } catch { return fail('Input must be JSON'); }
         if (!serialized || serialized.length > CAPABILITY_LIMITS.inputChars) return fail('Input exceeds JSON size budget');
+        const named = definitions().find(d => idOf(d) === name);
+        if (named) name = named.name;
         const discovery = DISCOVERY.find(d => d.name === name);
         if (discovery) {
           const problem = violation(discovery.inputSchema, input, 'input');
@@ -265,7 +276,6 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
               return def ? wrapped.call(def.name, args.input) : fail('Unknown capability ID', 'unknown-tool');
             }
             const descriptions = describeCapabilities(args.ids as string[], args.version as number | undefined);
-            for (const d of descriptions) if (d.available) described.add(d.tool.name);
             return { ok: true, summary: 'Selected schemas. Use invokeCapability with the exact ID and schema-valid input. Described IDs remain usable for this task.', data: {
               version: CAPABILITY_VERSION, scope: scope(),
               selected: descriptions.map(({ id, tool, outputSchema, effect, available, reason, references, permission }) => ({ id, name: tool.name, description: tool.description.slice(0, 640), inputSchema: tool.inputSchema, outputDataSchema: outputSchema.properties?.data, effect, available, reason, references, permission })),
@@ -276,11 +286,22 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         }
         const def = definitions().find(d => d.name === name);
         if (!def) return fail('Unknown capability tool', 'unknown-tool');
-        if (name !== 'describeScene' && !described.has(name)) return fail('Describe this capability before calling it', 'refused');
+        // Schema hydration is deterministic. Discovery is optional, never a
+        // model-maintained permission prerequisite. Permissions below still apply.
         const availability = summary(def);
         if (!availability.available) return fail(availability.reason!, 'refused');
         const problem = violation(def.inputSchema, input, 'input');
-        if (problem) return fail(problem);
+        if (problem) return fail(`${problem}. Expected input schema: ${JSON.stringify(def.inputSchema)}`);
+        if (name === 'waitUntilReady') {
+          try { captureReadiness = { request: JSON.parse((input as { json: string }).json) as ScriptReadinessRequest, ready: false }; }
+          catch { return fail('Invalid readiness JSON'); }
+        }
+        if (effectOf(def) === 'external' && captureReadiness) {
+          // A model cannot bypass a failed wait with a later export call. Recheck
+          // freshness after approval as well, since the person may move/time-seek.
+          if (!captureReadiness.ready || host.getReadiness?.(captureReadiness.request).status !== 'ready')
+            return fail('Required readiness did not succeed or is no longer current; capture refused', 'refused');
+        }
         // Copy only validated primitive reference fields; never retain arbitrary inputs.
         const args = input as Record<string, unknown>;
         const requestedTarget: Record<string, string> = {};
@@ -297,12 +318,17 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
           if (effectOf(def) === 'external') confirmed = await opts.confirmExternal!(idOf(def), JSON.parse(serialized));
           if (!confirmed) result = fail('Host confirmation declined', 'refused');
           else if (task.ended || bound.revision !== revision) result = fail('Task ended while awaiting confirmation', task.ended ?? 'stale');
+          else if (effectOf(def) === 'external' && captureReadiness && host.getReadiness?.(captureReadiness.request).status !== 'ready') result = fail('Readiness changed while awaiting approval; capture refused', 'refused');
           else {
             receipt = { ...receipt, status: 'running' }; remember(receipt);
             result = await task.call(name, JSON.parse(serialized));
+            if (result.ok && ['authoring', 'external'].includes(effectOf(def))) result = {
+              ...result, summary: `${result.summary} Trusted UI/host approval was granted for this exact call.`,
+            };
           }
         } catch { result = fail('Operation could not complete', 'failed'); }
         finally { busy = false; }
+        if (name === 'waitUntilReady' && captureReadiness) captureReadiness.ready = result.ok;
         const observation = observe();
         // Features without a shared semantic read remain explicitly unverified (#297).
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
@@ -355,7 +381,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     return wrapped;
   };
   const api: CapabilityTools = {
-    list: () => { versionCheck(); return [definitions().find(d => d.name === 'describeScene')!, ...DISCOVERY]; },
+    list: () => { versionCheck(); return [...(opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!]), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} Compact registry IDs: ${definitions().map(def => `${idOf(def)}(${Object.keys(def.inputSchema.properties ?? {}).map(key => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}`).join(',')})`).join(', ')}.` } : d)]; },
     inspect: () => { versionCheck(); return raw.inspect!(); }, listCapabilities, describeCapabilities, getOperationResult, begin,
     call: async (name, input) => { const task = begin(); try { return await task.call(name, input); } finally { task.finish(); } },
     cancel: () => raw.cancel(),

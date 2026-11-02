@@ -1037,3 +1037,25 @@ round-trips the supported snapshot, tests missing-source refusal, and writes
 screenshots plus a compact JSON report under `/tmp/modern-scene-automation`.
 It uses no arbitrary settle delay. The report records GPU identity and the
 predicate limitations; a passed cube-base check is not terrain coverage acceptance.
+
+### Ask access and approvals
+
+Ordinary Ask offers a compact direct read shortlist and an index of every
+registered script operation through the shared capability registry. Detailed
+schemas hydrate and validate automatically; list/describe calls are optional. Saved definitions/annotation edits and export/recording
+require separate, exact-call approval in the Ask panel; a conversational “yes” or
+catalog text cannot grant permission. Embedded hosts supply their own policy.
+Stopping, replacing or closing the request rejects a pending UI approval.
+
+Event searches can begin with the read-only `getEventSearchOptions` host/capability
+operation to discover built-in kinds, roles, defaults and assessed loaded-kernel
+coverage. A suggested window is a catalog/coverage overlap, not a claim of complete
+mission coverage. Ask's event pages default to one result (maximum five); follow
+`nextOffset`. Creating a query uses the saved-definition model and approval; the
+query remains in session snapshots. Computation, focus and readiness reuse the
+same Event Finder and native observation paths as scripts and UI.
+
+See the [Ask routing and permission matrix](validation/297-ask-parity/capability-matrix.json)
+and [validation evidence](validation/297-ask-parity/README.md). Raw snapshot/resource
+transport exclusions remain explicit; these do not authorize arbitrary local
+file, clipboard or network access.

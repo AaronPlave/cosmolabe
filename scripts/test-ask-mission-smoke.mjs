@@ -92,7 +92,8 @@ try {
             inventory: /getSurfaceData|getImagery/.test(step.name === 'invokeCapability' ? step.input.id : step.name) && step.result?.ok ? step.result.data : undefined,
           })) };
       });
-      assert.equal(offered[0]?.includes('listCapabilities'), mode === 'discovery', 'URL selects actual offered tool schemas');
+      assert.equal(offered[0]?.includes('listCapabilities'), true, 'both modes reach the shared catalog');
+      assert.equal(offered[0]?.includes('resolve'), mode === 'fixed', 'fixed retains familiar direct schemas');
       const rows = usage.slice(startUsage);
       const run = { catalog: scenario.catalog, mode, prompt: scenario.prompt, latencyMs: Math.round(performance.now() - started),
         modelRounds: offered.length, usage: rows, result };

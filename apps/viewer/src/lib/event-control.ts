@@ -1,6 +1,6 @@
 /** The host adapter for Event Finder's existing configuration, solver and selection. */
 import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt, ScriptReadinessRequest, ScriptReadiness } from '@cosmolabe/control';
-import { resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
+import { builtinEventKinds, resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
 import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery, visibleTimelineEvents, currentEventResultRun } from './analysis.svelte';
 import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, inspectEventQuery, recordEventSearchOutcome } from './event-finder.svelte';
 import { validateEventLinkState } from './event-link-state';
@@ -96,7 +96,22 @@ export function getEventReadiness(request: Extract<ScriptReadinessRequest, { kin
     missing.push('No selected explanatory geometry is draw-enabled.');
   return result(missing.length ? 'partial' : 'ready', missing);
 }
-export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult'> = {
+export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions' | 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult'> = {
+  getEventSearchOptions: (input = {}) => {
+    guard();
+    const kinds = builtinEventKinds().list();
+    const context = analysisContext(), kind = kinds.find(k => k.kind === input.kind);
+    const abcorr = input.abcorr ?? kind?.defaultAbcorr ?? 'NONE';
+    const inspected = kind && input.bodies ? inspectEventQuery({ id: 'coverage', kind: kind.kind, bodies: input.bodies, abcorr, window: context.window }) : null;
+    const coverage = inspected?.coverage ?? null;
+    // A declared catalog window is not proof of kernel coverage. Suggest only
+    // an assessed overlap; callers retain exact/approximate coverage caveats.
+    const overlaps = coverage?.windows.map(w => ({ start: Math.max(w.start, context.window.start), end: Math.min(w.end, context.window.end) })).filter(w => w.end > w.start) ?? [];
+    const suggestedWindow = overlaps.find(w => w.start <= context.currentTime && w.end >= context.currentTime) ?? overlaps.sort((a,b) => (b.end-b.start)-(a.end-a.start))[0] ?? null;
+    return { kinds: kinds.map(k => ({ kind: k.kind, label: k.label, roles: k.roles.map(r => ({ role: r.role, required: r.required })), params: k.params ?? [], step: k.defaultStep, abcorr: k.defaultAbcorr ?? 'NONE' })),
+      catalogWindow: context.window, coverage: copy(coverage), suggestedWindow,
+      error: input.kind && !kind ? { code: 'unknown-kind' } : inspected?.unavailable ? { code: inspected.unavailable.code } : null };
+  },
   listEventQueries: () => copy(configuredEventQueries()), getEventSearch, getEventVisualization,
   getEventQueryInfo: (id, opts) => queryInfo(id, opts?.scene),
   getEventResultPage: (id, opts) => {

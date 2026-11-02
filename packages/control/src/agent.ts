@@ -1,3 +1,4 @@
+import { EVENT_ROLES } from '@cosmolabe/core';
 /**
  * Agent tools — the `ViewerControl` port as typed tools a language model can
  * call (#311): `{ name, description, inputSchema }`, the shape MCP and the
@@ -227,17 +228,18 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'Discover built-in event kinds, required participant roles, defaults, and loaded-kernel coverage before configuring a new search. Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} and requires saved-definition approval.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
-  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'Bounded computed events, metrics and run-scoped references for focusEventResult. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one), metrics and run-scoped references for focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 5 } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listEventQueries', effect: 'read', method: 'listEventQueries', description: 'Bounded configured Event Finder identities/kinds and flags; no result arrays or private query metadata.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getEventSearch', effect: 'read', method: 'getEventSearch', description: 'Event search status, current-call progress, error code and exact selection. Error text is withheld.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'listEventResults', effect: 'read', method: 'listEventResults', description: 'A bounded page of exact query/result identities and event times; no private solver metadata.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
+  { name: 'listEventResults', effect: 'read', method: 'listEventResults', description: 'Legacy query/result IDs and times only, without run references. For focusing a computed search, use getEventResultPage; never invent a run revision.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false } },
   { name: 'listInstruments', effect: 'read', method: 'listInstruments', description: 'Bounded available sensor names for synthetic scene feeds; not calibrated observation inventory.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'getInstrument', effect: 'read', method: 'getInstrument', description: 'Selected synthetic scene instrument with native FOV and truthful pointing authority; no pixel data.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listBookmarks', effect: 'read', method: 'listBookmarks', description: 'Bounded session bookmark names. Full portable poses are available to trusted hosts.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listPlaceSources', effect: 'read', method: 'listPlaceSources', description: 'A bounded page of source IDs with body, search inclusion and label visibility; no resource locations.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
-  { name: 'listMeasurements', effect: 'read', method: 'listMeasurements', description: 'Saved semantic measurement IDs, kinds and visibility. Endpoints/provenance are withheld from model transport; trusted hosts use the typed port.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'listMeasurements', effect: 'read', method: 'listMeasurements', description: 'Saved semantic definitions, selected ID, source/target positions and visibility. Free-form labels, private frames and terrain-source provenance are withheld. Entity distances are centre distances, never surface clearance.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'listGeographicLayers', effect: 'read', method: 'listGeographicLayers', description: 'A bounded page of geographic layer IDs, body/frame, editability, visibility and availability.', inputSchema: { type: 'object', properties: { offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 50 } }, additionalProperties: false } },
   { name: 'listGeographicFeatures', effect: 'read', method: 'listGeographicFeatures', description: 'A bounded page of stable feature IDs and geometry types in an exact layer.', inputSchema: { type: 'object', properties: { layer: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['layer'], additionalProperties: false } },
   { name: 'getSurfaceAppearance', effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
@@ -462,6 +464,12 @@ export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof Vi
   }))];
 }
 
+/** Familiar direct schemas; all other operations remain discoverable from the same catalog. */
+export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
+  const direct = new Set(AGENT_VERBS.map(v => v.verb));
+  return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
+}
+
 /** Bind the agent tools to one viewer. */
 export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = {}): AgentTools {
   const metadata = agentMetadata(opts.metadata);
@@ -469,17 +477,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   let taskSeq = 0;
   let current: TaskImpl | null = null;
 
-  const verbTools = AGENT_VERBS.flatMap(({ verb, effect }) => {
-    const spec = VERBS.get(verb);
-    return spec ? [{ spec, def: verbTool(spec, effect) }] : [];
-  });
-
-  const list = (): readonly AgentToolDef[] => opts.vocabulary === 'catalog'
-    ? agentDefinitions().filter(t => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def)
-    : [
-    ...READ_TOOLS.filter((t) => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def),
-    ...verbTools.filter(({ spec }) => has(host, spec.method)).map(({ def }) => def),
-  ];
+  const list = (): readonly AgentToolDef[] => (opts.vocabulary === 'catalog' ? agentDefinitions() : fixedAgentDefinitions())
+    .filter(t => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def);
 
   // The person's own navigation, observed for every task: a flight they
   // interrupted leaves the camera theirs for the rest of that task.
@@ -720,8 +719,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   const reads: Record<string, (input: Input) => AgentToolResult> = {
     describeScene, resolve, searchPlaces, listActivities, getActivity, getSurfaceData, getImagery,
+    getEventSearchOptions: input => {
+      const options = host.getEventSearchOptions!(input as Parameters<NonNullable<ViewerControl['getEventSearchOptions']>>[0]);
+      const coverage = options.coverage;
+      return { ok: true, summary: 'Registry defaults and assessed kernel coverage; saved queries require approval. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
+        ...options, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
+      } };
+    },
     getEventQueryInfo: input => ({ ok: true, summary: 'Shared query availability and provenance.', data: eventQueryMetadata(host.getEventQueryInfo!(input.query as string), metadata.text) }),
-    getEventResultPage: input => ({ ok: true, summary: 'Run-scoped event results; inspect status before focusing.', data: eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined }), metadata.text) }),
+    getEventResultPage: input => ({ ok: true, summary: 'Run-scoped event results; inspect status before focusing.', data: eventPageMetadata(host.getEventResultPage!(input.query as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined ?? 1 }), metadata.text) }),
     getEventVisualization: () => ({ ok: true, summary: 'Event visualization readback; partial is not drawn acceptance.', data: eventVisualizationMetadata(host.getEventVisualization!()) }),
     listEventQueries: () => ({ ok: true, summary: 'Configured event searches.', data: { items: host.listEventQueries!().slice(0, 32).map(q => ({ id: q.id, kind: q.query.kind, enabled: q.enabled, visible: q.visible })) } }),
     getEventSearch: () => {
@@ -744,9 +750,9 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const sources = host.listPlaceSources!();
       return { ok: true, summary: 'Place source inclusion and labels.', data: { total: sources.length, offset, sources: sources.slice(offset, offset + limit) } };
     },
-    listMeasurements: () => ({ ok: true, summary: 'Saved measurement definitions (endpoint metadata withheld).', data: {
+    listMeasurements: () => ({ ok: true, summary: 'Semantic measurement definitions; free-form labels and source provenance withheld. Centre distance is not clearance.', data: {
       selected: host.getSelectedMeasurement?.() ?? null,
-      items: host.listMeasurements!().slice(0, 32).map(m => ({ id: m.id, kind: m.kind, visible: m.visible !== false })),
+      items: host.listMeasurements!().slice(0, 32).map(metadata.measurement),
     } }),
     listGeographicLayers: input => {
       const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;

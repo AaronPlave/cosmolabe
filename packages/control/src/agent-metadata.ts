@@ -1,3 +1,4 @@
+import type { MeasurementDefinition, SpatialEndpoint, ReferenceVector } from '@cosmolabe/core';
 /** Model-visible metadata is a projection, never a serialization of a local resource. */
 import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct, ScriptGeographicLayer, ScriptGeographicFeature } from './contracts.js';
 
@@ -10,7 +11,7 @@ export interface AgentMetadataPolicy {
 
 // Closed scientific vocabulary; this does not approve arbitrary catalog text.
 const PUBLIC_TERMS = new Set(['estimated', 'reconstructed', 'observed', 'planned', 'unknown', 'exact',
-  'ellipsoid', 'areoid', 'reference-sphere', 'height-grid', 'radial', 'geodetic-normal', 'planetocentric', 'IAU_MARS', 'IAU_MOON', 'MOON_ME_DE421', 'MOON_PA_DE421']);
+  'ellipsoid', 'areoid', 'reference-sphere', 'height-grid', 'radial', 'geodetic-normal', 'planetocentric', 'ECLIPJ2000', 'J2000', 'IAU_MARS', 'IAU_MOON', 'MOON_ME_DE421', 'MOON_PA_DE421']);
 
 export function agentMetadata(policy: AgentMetadataPolicy = {}) {
   const text = (value: string | null | undefined) => value != null && (PUBLIC_TERMS.has(value) || policy.publicValue?.(value) === true) ? value : null;
@@ -61,5 +62,21 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     sourceId: typeof f.sourceId === 'number' ? f.sourceId : text(f.sourceId),
     // No object spread: imported properties, provenance and annotation payloads stay local.
   });
-  return { text, place, imagery, surface, geographicLayer, geographicFeature };
+  const endpoint = (e: SpatialEndpoint | null | undefined): unknown => {
+    if (!e) return null;
+    if (e.kind === 'entity') return { kind: e.kind, bodyName: e.bodyName };
+    if (e.kind === 'coordinate') return { kind: e.kind, positionKm: e.positionKm.slice(0,3), frame: text(e.frame ?? 'ECLIPJ2000') };
+    if (e.kind === 'body-fixed') return { kind: e.kind, bodyName: e.bodyName, positionKm: e.positionKm.slice(0,3) };
+    return { kind: e.kind, bodyName: e.point.bodyName, frame: text(e.point.frame), latDeg: e.point.latDeg, lonDeg: e.point.lonDeg,
+      latitudeKind: e.point.latitudeKind, source: e.point.source,
+      limitations: 'Rendered surface anchor; physical datum/source evidence stays local. No terrain-clearance authority inferred.' };
+  };
+  const vector = (v: ReferenceVector | null | undefined): unknown => !v ? null : v.kind === 'direction'
+    ? { kind: v.kind, source: endpoint(v.source), target: endpoint(v.target) }
+    : v.kind === 'velocity' ? { kind: v.kind, object: endpoint(v.object), relativeTo: endpoint(v.relativeTo) }
+      : { kind: v.kind, frame: text(v.frame), origin: endpoint(v.origin), axis: v.axis };
+  const measurement = (m: MeasurementDefinition) => ({ id: m.id, kind: m.kind, visible: m.visible !== false,
+    source: endpoint(m.source), target: endpoint(m.target), vertex: endpoint(m.vertex),
+    frame: text(m.frame), first: vector(m.first), second: vector(m.second), showDistance: m.showDistance, fullLength: m.fullLength });
+  return { text, place, measurement, imagery, surface, geographicLayer, geographicFeature };
 }
