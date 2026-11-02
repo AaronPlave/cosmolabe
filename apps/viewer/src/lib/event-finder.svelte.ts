@@ -79,7 +79,7 @@ import {
   updateConfiguredEventQuery,
 } from './analysis.svelte';
 import { matchSharedEvent, validateEventLinkState, type EventLinkState, type SharedEventQuery } from './event-link-state';
-import { ViewStateError } from '@cosmolabe/control';
+import { ViewStateError, type ScriptEventSearch } from '@cosmolabe/control';
 import { faultMessage } from './event-query';
 import { getActivity, selectActivity, seekActivity } from './activity-control';
 import { emit, etToUtcString, getRenderer, highlightBodies, onViewerEvent, selectBody, setTime, vs } from './viewer-state.svelte';
@@ -437,6 +437,8 @@ export const ef = $state({
   form: null as EventQueryForm | null,
   /** True while a search is in flight. */
   running: false,
+  /** Per-query terminal outcomes survive worker cleanup; newer generations replace them. */
+  searchOutcomes: {} as Record<string, { generation: number; status: ScriptEventSearch['status'] }>,
   /** A permalink is rebuilding query results; not an editable draft yet. */
   restoring: false,
   /**
@@ -531,6 +533,13 @@ export function selectedEventOf<T extends Pick<GeometryEvent, 'id' | 'queryId'>>
 }
 
 export function eventSearchGeneration() { return inFlight; }
+/** Only the currently owned search generation may publish a terminal outcome. */
+export function recordEventSearchOutcome(id: string, generation: number, status: ScriptEventSearch['status']): void {
+  if (generation !== inFlight || ef.configuredId !== id) return;
+  ef.searchOutcomes[id] = { generation, status };
+  emit('events', {});
+}
+
 
 export function setSelection(event: Pick<GeometryEvent, 'id' | 'queryId'> | null) {
   const before = selectedActivityId();
@@ -905,6 +914,7 @@ function removeQuery(id: string) {
     inFlight++;
     ef.configuredId = null;
   }
+  delete ef.searchOutcomes[id];
   removeConfiguredItem(id);
   if (wasCurrent) {
     const next = queries[index + 1] ?? queries[index - 1];
@@ -962,7 +972,7 @@ function openQuery(id: string) {
   const kind = registry.get(item.query.kind);
   if (!kind) return;
 
-  active?.cancel();
+  cancelSearch();
   inFlight++;
   ef.kind = kind.kind;
   const window = item.query.window ?? catalogWindow();
@@ -978,7 +988,7 @@ function openQuery(id: string) {
   ef.form = form;
   ef.configuredId = id;
   ef.events = [...(analysis.eventResults[id] ?? [])];
-  ef.searched = Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
+  ef.searched = ef.searchOutcomes[id] ? ef.searchOutcomes[id].status === 'complete' : Object.prototype.hasOwnProperty.call(analysis.eventResults, id);
   ef.fault = null;
   ef.hint = null;
   // Opening a search to edit leaves the selection alone: it may belong to
@@ -1075,6 +1085,7 @@ export function setStep(step: number) {
  * old answer to land afterwards, against a query nobody asked.
  */
 function clearResults() {
+  if (ef.configuredId) delete ef.searchOutcomes[ef.configuredId];
   previewEvent(null);
   active?.cancel();
   inFlight++;
@@ -1099,6 +1110,7 @@ export async function runSearch() {
     ef.events = [];
     ef.searched = false;
     ef.fault = unavailable ?? { code: 'unavailable', message: NO_KERNELS_MESSAGE };
+    if (ef.configuredId) recordEventSearchOutcome(ef.configuredId, ++inFlight, 'failed');
     emit('events', {});
     return;
   }
@@ -1120,6 +1132,7 @@ export async function runSearch() {
     },
   });
   const token = ++inFlight;
+  recordEventSearchOutcome(item.id, token, 'running');
 
   ef.running = true;
   ef.searched = false;
@@ -1151,6 +1164,7 @@ export async function runSearch() {
       ef.hint = null;
     }
     ef.searched = result.ok;
+    recordEventSearchOutcome(item.id, token, result.ok ? 'complete' : 'failed');
     syncEventResultsInScene();
   } finally {
     // Ownership of the spinner follows `active`, not the token: a search
@@ -1161,6 +1175,7 @@ export async function runSearch() {
     // the claim on the worker is this search's to release either way, and the
     // newer one has already made its own.
     running.finish();
+    if (ef.searchOutcomes[item.id]?.status === 'running') recordEventSearchOutcome(item.id, token, 'cancelled');
     if (active === running) {
       active = null;
       ef.running = false;
@@ -1186,6 +1201,7 @@ export async function runSearch() {
  */
 export function cancelSearch() {
   active?.cancel();
+  if (ef.configuredId && ef.searchOutcomes[ef.configuredId]?.status === 'running') recordEventSearchOutcome(ef.configuredId, inFlight, 'cancelled');
 }
 
 /**
@@ -1381,6 +1397,7 @@ export function resetForScene() {
   ef.windowSource = 'suggested';
   ef.windowTrimmed = false;
   ef.configuredId = null;
+  ef.searchOutcomes = {};
   ef.coverage = null;
   ef.coverageKernelCount = null;
   ef.coverageAbcorr = null;

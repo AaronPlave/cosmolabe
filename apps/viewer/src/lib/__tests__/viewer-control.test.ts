@@ -120,6 +120,7 @@ function makeFakeRenderer(objects: string[]) {
     setHoveredBody: vi.fn(),
     setLabelPinned: vi.fn(),
     setEventResults: vi.fn(),
+    setEventPreview: vi.fn(),
     setOccultationGeometry: vi.fn(),
     camera,
     // The production renderer emits initial-asset progress and readiness here.
@@ -1560,17 +1561,33 @@ describe('reviewed modern feature adapters', () => {
     const model = await import('../analysis.svelte');
     const host = createViewerControl();
     model.createConfiguredEventQuery({ kind: 'closest-approach' }, 'pending', 'explicit', 'pending');
-    const run = vi.spyOn(finder, 'runSearch').mockImplementation(() => new Promise(() => {}));
+    const run = vi.spyOn(finder, 'runSearch').mockImplementation(() => {
+      finder.recordEventSearchOutcome('pending', finder.eventSearchGeneration(), 'running');
+      return new Promise(() => {});
+    });
     const cancel = vi.spyOn(finder, 'cancelSearch').mockImplementation(() => {});
     vi.useFakeTimers();
     try {
       const controller = new AbortController();
       const pending = host.runEventQuery!('pending', { signal: controller.signal });
       controller.abort(); expect((await pending).status).toBe('cancelled');
+      expect(host.getEventSearch!().status).toBe('cancelled');
+      await Promise.resolve(); expect(host.getEventSearch!().status).toBe('cancelled');
       const timed = host.runEventQuery!('pending', { timeoutMs: 5 });
       await vi.advanceTimersByTimeAsync(5); expect((await timed).status).toBe('timed-out');
+      expect(host.getEventSearch!().status).toBe('timed-out');
+      const older = host.runEventQuery!('pending', { timeoutMs: 5 });
+      const replacement = new AbortController();
+      const newer = host.runEventQuery!('pending', { signal: replacement.signal });
+      expect(host.getEventSearch!().status).toBe('running');
+      await vi.advanceTimersByTimeAsync(5); expect((await older).status).toBe('timed-out');
+      expect(host.getEventSearch!().status).toBe('running');
+      replacement.abort(); await newer;
+      expect(host.getEventSearch!().status).toBe('cancelled');
       const stale = host.runEventQuery!('pending'); emit('unload', {});
       expect((await stale).status).toBe('stale');
+      expect(host.getEventSearch!()).toMatchObject({ query: null, status: 'idle' });
+      expect(finder.ef.searchOutcomes).toEqual({});
       expect(vi.getTimerCount()).toBe(0); expect(cancel).toHaveBeenCalled();
     } finally { vi.useRealTimers(); run.mockRestore(); cancel.mockRestore(); }
   });

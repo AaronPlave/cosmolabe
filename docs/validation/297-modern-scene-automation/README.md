@@ -45,3 +45,12 @@ validation, shared annotation undo, creation-draft preservation, source failures
 portable JSON replay, optional methods, and authoring permission/confirmation.
 The normal build, viewer build, test/viewer type checks, Svelte check and changed
 file lint passed. This is functional acceptance, not a latency benchmark.
+
+Re-review closeout: the same physical-GPU fixture passed again on 2026-11-02
+against this checkout on port 5497. Real Cassini searches now check cancellation,
+timeout and supersession followed by settled `getEventSearch()` reads. The
+replacement's completed outcome survives the older run's cancellation. Focused
+metadata regressions verify private geographic names, properties, provenance,
+diagnostics and thrown local error details are withheld from model transport,
+while trusted geographic reads retain their complete records. Exact
+host-approved text fields are projected; pages and diagnostics remain bounded.

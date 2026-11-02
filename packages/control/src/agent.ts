@@ -737,13 +737,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const offset = input.offset as number ?? 0, limit = input.limit as number ?? 25;
       if (!Number.isInteger(offset) || !Number.isInteger(limit)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
       const all = host.listGeographicLayers!();
-      return { ok: true, summary: 'Geographic layers.', data: { total: all.length, offset, layers: all.slice(offset, offset + limit).map(l => ({
-        id: l.id, name: l.name, body: l.body, frame: metadata.text(l.frame), features: l.features, status: l.status, diagnostics: l.diagnostics, visible: l.visible, editable: l.editable, navigable: l.navigationUnavailable === null,
-      })) } };
+      return { ok: true, summary: 'Geographic layer identities and status; unapproved metadata is withheld.', data: { total: all.length, offset, layers: all.slice(offset, offset + limit).map(metadata.geographicLayer) } };
     },
     listGeographicFeatures: input => {
+      if (!Number.isInteger(input.offset ?? 0) || !Number.isInteger(input.limit ?? 25)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
       const page = host.listGeographicFeatures!(input.layer as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
-      return page ? { ok: true, summary: 'Geographic features.', data: page } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
+      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
     },
     getSurfaceAppearance: input => {
       const appearance = host.getSurfaceAppearance!(input.body as string);
@@ -845,6 +844,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         try {
           return read(args);
         } catch (err) {
+          if (name === 'listGeographicLayers' || name === 'listGeographicFeatures') return { ok: false, code: 'failed', error: 'Geographic data could not be read; inspect the local viewer for details.' };
           return { ok: false, code: 'failed', error: err instanceof Error ? err.message : String(err) };
         }
       }

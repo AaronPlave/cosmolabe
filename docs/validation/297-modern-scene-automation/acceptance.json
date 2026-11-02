@@ -155,5 +155,19 @@
         "observation": "synthetic-scene-view"
       }
     }
-  ]
+  ],
+  "reviewCloseout": {
+    "gpu": "Apple M4 Max / ANGLE Metal",
+    "ordinaryAndHarnessPassed": true,
+    "terminalOutcomes": {
+      "cancelled": "cancelled",
+      "afterCancel": "cancelled",
+      "timed": "timed-out",
+      "afterTimeout": "timed-out",
+      "superseded": "cancelled",
+      "replacement": "complete",
+      "current": "complete"
+    },
+    "geographicPrivacy": "geographic-agent-metadata.test.ts: private names/properties/provenance/diagnostics withheld, approved fields projected, trusted reads preserved; bounded pages and thrown-error redaction"
+  }
 }

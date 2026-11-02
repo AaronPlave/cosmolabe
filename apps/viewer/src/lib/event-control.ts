@@ -2,7 +2,7 @@
 import type { ViewerControl, ScriptEventSearch, ScriptEventQuery } from '@cosmolabe/control';
 import { resolveEventQuery } from '@cosmolabe/core';
 import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery } from './analysis.svelte';
-import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible } from './event-finder.svelte';
+import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, recordEventSearchOutcome } from './event-finder.svelte';
 import { validateEventLinkState } from './event-link-state';
 import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit } from './viewer-state.svelte';
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -16,9 +16,10 @@ export function snapshotEventQueries(): ScriptEventQuery[] {
     visible: item.visible, query: copy(resolveEventQuery(item, analysisContext())) }));
 }
 export function getEventSearch(): ScriptEventSearch {
+  const status = (ef.configuredId ? ef.searchOutcomes[ef.configuredId]?.status : undefined) ?? (ef.running ? 'running' : ef.fault ? 'failed' : ef.searched ? 'complete' : 'idle');
   return { scene: getSceneUniverse() ? sceneId() : null, query: ef.configuredId,
-    status: ef.running ? 'running' : ef.fault ? 'failed' : ef.searched ? 'complete' : 'idle',
-    progress: ef.progress?.fraction ?? null, error: ef.fault ? { code: ef.fault.code, message: ef.fault.message } : null,
+    status, progress: status === 'running' ? ef.progress?.fraction ?? null : null,
+    error: ef.fault ? { code: ef.fault.code, message: ef.fault.message } : null,
     selected: ef.selectedId && ef.selectedQueryId ? { query: ef.selectedQueryId, id: ef.selectedId } : null };
 }
 export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult'> = {
@@ -38,6 +39,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
       openConfiguredQuery(existing.id);
       updateConfiguredEventQuery(existing.id, query, validated.label, 'explicit');
       delete analysis.eventResults[existing.id];
+      delete ef.searchOutcomes[existing.id];
       if (ef.selectedQueryId === existing.id) clearSelection();
     } else createConfiguredEventQuery(query, validated.label, 'explicit', input.id);
     openConfiguredQuery(input.id);
@@ -59,11 +61,14 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     const timeout = opts.timeoutMs ?? 30000;
     if (!Number.isFinite(timeout) || timeout < 0 || timeout > 120000) throw new Error('Search timeout must be 0–120000 ms');
     const scene = sceneId(), renderer = getRenderer();
-    const receipt = (status: ScriptEventSearch['status']): ScriptEventSearch => ({ ...getEventSearch(), scene, query: id, status });
+    let generation = -1;
+    const receipt = (status: ScriptEventSearch['status']): ScriptEventSearch => {
+      if (scene === sceneId() && renderer === getRenderer()) recordEventSearchOutcome(id, generation, status);
+      return { ...getEventSearch(), scene, query: id, status, progress: null };
+    };
     if (opts.signal?.aborted) return receipt('cancelled');
     openConfiguredQuery(id);
     let outcome: ScriptEventSearch['status'] | undefined;
-    let generation = -1;
     let stopped!: () => void;
     const stopping = new Promise<void>(resolve => { stopped = resolve; });
     const stop = (status: ScriptEventSearch['status']) => {
@@ -77,7 +82,9 @@ export const eventControl: Pick<Required<ViewerControl>, 'openEventQuery' | 'lis
     opts.signal?.addEventListener('abort', abort);
     const timer = setTimeout(() => stop('timed-out'), timeout);
     try {
-      const run = runSearch(); generation = eventSearchGeneration();
+      generation = eventSearchGeneration() + 1;
+      const run = runSearch();
+      if (!outcome) generation = eventSearchGeneration();
       await Promise.race([run, stopping]);
       if (scene !== sceneId() || renderer !== getRenderer()) return receipt('stale');
       if (generation !== eventSearchGeneration()) return receipt(outcome ?? 'cancelled');

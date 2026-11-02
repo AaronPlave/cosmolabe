@@ -847,6 +847,21 @@ unimplemented numerical kinds remain explicit domain failures, never empty
 successful searches. `events` notifications include UI edits, results, progress,
 selection and search completion; subscriptions survive reloads.
 
+Terminal search outcomes remain observable through `getEventSearch()` after
+the call and worker cleanup settle, including cancellation and timeout. They
+belong to the query and owning search generation: a superseded run cannot
+overwrite a newer outcome. Query edits/removal and catalog replacement clear
+the corresponding history; the original in-flight call still reports `stale`
+when its scene is replaced. Final status changes emit `events` notifications.
+
+Agent geographic reads project stable IDs, known geometry types, counts and
+availability. Free-form layer/feature names, string source IDs, frames and
+diagnostic codes require exact `AgentMetadataPolicy.publicValue` approval;
+diagnostic and result pages are bounded. Arbitrary imported properties,
+annotation payloads, provenance objects and local exception details are never
+spread into model output. Trusted local geographic control reads retain their
+full data.
+
 `listInstruments()` lists the renderer's existing sensors. `selectInstrument(name)`
 opens that synthetic scene feed, and `null` closes it; the text verb takes an
 empty string to close. `getInstrument()` reports FOV (nullable when unknown),

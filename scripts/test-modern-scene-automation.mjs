@@ -129,6 +129,24 @@ try {
     assert.ok(['spice', 'attitude', 'unavailable', 'target', 'none'].includes(result.instrument.pointing));
     const stale = await page.evaluate(() => { const c = window.cosmo; c.setTime({ kind: 'et', et: c.getTime() + 1 }); return c.getInstrument(); });
     assert.equal(stale.pointing, 'unavailable');
+    result.terminalOutcomes = await page.evaluate(async () => {
+      const c = window.cosmo, id = 'acceptance:approach', abort = new AbortController();
+      const off = c.on('events', () => { if (c.getEventSearch().status === 'running') abort.abort(); });
+      const cancelled = await c.runEventQuery(id, { signal: abort.signal }); off();
+      const afterCancel = c.getEventSearch();
+      const timed = await c.runEventQuery(id, { timeoutMs: 0 });
+      const afterTimeout = c.getEventSearch();
+      const first = c.runEventQuery(id), second = c.runEventQuery(id);
+      const [superseded, replacement] = await Promise.all([first, second]);
+      return { cancelled, afterCancel, timed, afterTimeout, superseded, replacement, current: c.getEventSearch() };
+    });
+    assert.equal(result.terminalOutcomes.cancelled.status, 'cancelled');
+    assert.equal(result.terminalOutcomes.afterCancel.status, 'cancelled');
+    assert.equal(result.terminalOutcomes.timed.status, 'timed-out');
+    assert.equal(result.terminalOutcomes.afterTimeout.status, 'timed-out');
+    assert.equal(result.terminalOutcomes.superseded.status, 'cancelled');
+    assert.equal(result.terminalOutcomes.replacement.status, 'complete');
+    assert.equal(result.terminalOutcomes.current.status, 'complete');
     report.scenarios.push(result);
     console.log(JSON.stringify({ mode: 'cassini', search: result.search.status, sensor: result.instrument.sensor, pointing: result.instrument.pointing }));
     await context.close();
