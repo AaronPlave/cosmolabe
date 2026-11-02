@@ -350,7 +350,9 @@ function searchUnavailable(form: EventQueryForm | null, kind: EventKind<never>, 
  * check deriving from it would then re-run its SPICE lookups on every tick.
  */
 export function searchAbcorr(kind: EventKind<never>): string {
-  return analysis.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
+  const configured = currentConfiguredQuery();
+  const explicit = configured?.query.kind === kind.kind ? configured.query.abcorr : undefined;
+  return explicit ?? analysis.reference.abcorr ?? kind.defaultAbcorr ?? 'NONE';
 }
 
 /**

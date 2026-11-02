@@ -1599,6 +1599,8 @@ describe('reviewed modern feature adapters', () => {
     expect(() => host.upsertEventQuery!({ ...definition, id: '__proto__' })).toThrow('Invalid');
     expect(host.upsertEventQuery!(definition)).toBe(true);
     expect(host.listEventQueries!()).toMatchObject([{ id: 'script-search' }]);
+    const finder = await import('../event-finder.svelte');
+    expect(finder.searchAbcorr(finder.currentKind())).toBe('NONE');
     updateConfiguredEventQuery('script-search', { ...definition.query, step: 20 }, 'UI edit');
     expect(host.listEventQueries!()[0].label).toBe('UI edit'); expect(events).toHaveBeenCalled();
     setEventResults('script-search', [{ id: 'shared-id', queryId: 'script-search', kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Result', bodies: definition.query.bodies }]);

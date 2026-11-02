@@ -38,7 +38,7 @@ Reproduce with a clean viewer on port 5397 and
 to `/tmp/event-visualization-integration`; they are not required runtime assets.
 
 Validation: viewer suite 54 files / 729 tests; focused control/native suites
-143 tests, plus targeted draw-state and metadata regressions; repository
+146 tests, including targeted draw-state and metadata regressions; repository
 `npm run typecheck`, changed-file lint, purity and diff checks. Production/embed
 build results and remote CI are reported in the PR, separately from this
 browser evidence. The P2 follow-up does not merge or deploy PR #334.
