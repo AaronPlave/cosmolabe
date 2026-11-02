@@ -3,7 +3,7 @@ import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { agentDefinitions } from './agent.js';
-import { createCapabilityTools, CAPABILITY_LIMITS } from './capabilities.js';
+import { createCapabilityTools, defaultAskDefinitions, CAPABILITY_LIMITS } from './capabilities.js';
 import { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
 import { VERB_LIST } from './verbs.js';
 import { CAPABILITY_SYSTEM_PROMPT, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
@@ -28,6 +28,73 @@ describe('capability catalog contract', () => {
     expect(new Set(coverage.map(row => row.operation).filter(Boolean)).size).toBe(defs.length);
   });
 
+  it('keeps fixed Ask compact while every registered verb has a discoverable permission classification', async () => {
+    const host = new FakeViewer();
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const names = tools.list().map(t => t.name);
+    expect(names).toEqual([...defaultAskDefinitions().filter(d => !d.method || typeof (host as unknown as import('./contracts.js').ViewerControl)[d.method] === 'function').map(d => d.name), 'listCapabilities', 'describeCapabilities', 'getOperationResult', 'invokeCapability']);
+    expect(names).not.toContain('upsertMeasurement');
+    expect(names).not.toContain('screenshot');
+    const task = tools.begin();
+    expect((await task.call('resolve', { query: 'Titan' })).ok).toBe(true);
+    for (const verb of VERB_LIST) {
+      const row = capabilityCoverage().find(r => r.script === verb.name)!;
+      expect(row).toMatchObject({ defaultAsk: defaultAskDefinitions().some(d => d.name === verb.name) ? 'direct' : 'discovery', status: 'registered' });
+      const described = tools.describeCapabilities([row.operation!])[0];
+      expect(described.tool.name).toBe(verb.name);
+      expect(described.permission).toBe(['authoring','external'].includes(described.effect) ? 'host-and-confirmation' : 'none');
+    }
+    await task.call('describeCapabilities', { ids: ['measurements.upsertMeasurement', 'capture.screenshot'] });
+    expect(await task.call('invokeCapability', { id: 'measurements.upsertMeasurement', input: { json: '{}' } })).toMatchObject({ ok: false, code: 'refused' });
+    expect(await task.call('invokeCapability', { id: 'capture.screenshot', input: {} })).toMatchObject({ ok: false, code: 'refused' });
+    expect(host.calls.filter(c => c.startsWith('screenshot'))).toHaveLength(0);
+    tools.dispose();
+  });
+
+  it('keeps the committed default Ask routing matrix synchronized with the actual registry', () => {
+    const matrix = JSON.parse(readFileSync(new URL('../../../docs/validation/297-ask-parity/capability-matrix.json', import.meta.url), 'utf8'));
+    expect(matrix.routes).toEqual(capabilityCoverage());
+    expect(matrix.trustedHostOrProjectedReads).toEqual(CONTROL_CONTRACT_GAPS);
+  });
+
+  it('auto-hydrates a skipped event schema while retaining exact confirmation, schema validation and stale-scene guards', async () => {
+    const host = new FakeViewer();
+    let approvals = 0;
+    const tools = createCapabilityTools(host, { allowAuthoring: true, confirmAuthoring: async () => { approvals++; return true; } });
+    const task = tools.begin();
+    const call = { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'q', label: 'Approach', enabled: true, visible: true,
+      query: { id: 'q', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 0, end: 100 } } }) } };
+    expect(await task.call('invokeCapability', call)).toMatchObject({ ok: true });
+    expect(approvals).toBe(1);
+    expect(await task.call('invokeCapability', { id: call.id, input: {} })).toMatchObject({ ok: false, code: 'invalid-input', error: expect.stringContaining('Expected input schema') });
+    expect(approvals).toBe(1);
+    host.scene = { id: 2, catalog: 'Other', ready: true };
+    expect(await task.call('invokeCapability', call)).toMatchObject({ ok: false, code: 'stale' });
+    expect(approvals).toBe(1);
+    tools.dispose();
+    const denied = createCapabilityTools(host);
+    expect(await denied.call('invokeCapability', call)).toMatchObject({ ok: false, code: 'refused', error: expect.stringContaining('permission') });
+    denied.dispose();
+  });
+
+  it('stops later changes in a failed model batch while allowing observation and a corrected next round', async () => {
+    const host = new FakeViewer(), tools = createCapabilityTools(host, { surface: 'fixed' });
+    let round = 0;
+    const run = await runAgent({ tools, prompt: 'pause then seek', transport: { send: async () => ++round === 1
+      ? { stop: 'tool_use', content: [
+        { type: 'tool_use', id: 'bad-pause', name: 'invokeCapability', input: { id: 'time.setPlaying', input: { playing: false } } },
+        { type: 'tool_use', id: 'seek', name: 'invokeCapability', input: { id: 'time.setTime', input: { when: 42 } } },
+        { type: 'tool_use', id: 'observe', name: 'describeScene', input: {} },
+      ] } : { stop: 'end', content: [{ type: 'text', text: 'Pause failed; clock left alone.' }] } } });
+    expect(run.outcome.kind).toBe('done');
+    expect(host.getTime()).not.toBe(42);
+    const results = run.messages.flatMap(m => m.content.filter(b => b.type === 'tool_result'));
+    expect(results).toHaveLength(3);
+    expect(results[1].content).toContain('later changes were not run');
+    expect(results[2].isError).toBe(false);
+    tools.dispose();
+  });
+
   it('has a fixed initial schema, bounded search, pagination, and atomic selection', async () => {
     const tools = createCapabilityTools(new FakeViewer());
     expect(tools.list().map(t => t.name)).toEqual(['describeScene', 'listCapabilities', 'describeCapabilities', 'getOperationResult', 'invokeCapability']);
@@ -40,7 +107,7 @@ describe('capability catalog contract', () => {
     expect(() => tools.listCapabilities({ limit: 13 })).toThrow();
     expect(() => tools.listCapabilities({ offset: 0.5 })).toThrow();
     const task = tools.begin();
-    expect(await task.call('select', { object: 'Titan' })).toMatchObject({ ok: false, receipt: { status: 'refused' } });
+    expect(await task.call('select', { object: 'Titan' })).toMatchObject({ ok: true });
     expect((await choose(task, 'scene.select')).ok).toBe(true);
     expect(tools.list()).toHaveLength(5);
     expect((await choose(task, 'scene.resolve', 'absent.id')).ok).toBe(false);
@@ -141,8 +208,8 @@ describe('verified receipts and partial workflows', () => {
     tools.dispose();
   });
 
-  it('offers discovery instructions without direct semantic-tool workflows', () => {
-    for (const name of ['Use resolve,', 'When resolve', 'searchPlaces', 'listActivities', 'getSurfaceData', 'getImagery', 'seekActivity', 'setPlaying', 'frameObject']) {
+  it('keeps shared registry routing, provenance and coverage instructions explicit', () => {
+    for (const name of ['Use resolve,', 'When resolve', 'searchPlaces', 'listActivities', 'getSurfaceData', 'getImagery', 'seekActivity', 'setPlaying']) {
       expect(CAPABILITY_SYSTEM_PROMPT).not.toContain(name);
     }
     for (const name of ['describeScene', 'listCapabilities', 'describeCapabilities', 'invokeCapability', 'getOperationResult']) expect(CAPABILITY_SYSTEM_PROMPT).toContain(name);
@@ -280,7 +347,7 @@ describe('verified receipts and partial workflows', () => {
     const before = host.calls.length;
     expect(await task.call('invokeCapability', { id: 'scene.select', version: 2, input: { object: 'Saturn' } })).toMatchObject({ ok: false, code: 'invalid-input' });
     expect(await task.call('invokeCapability', { id: 'scene.select', input: { object: 'Saturn', extra: true } })).toMatchObject({ ok: false, code: 'invalid-input', receipt: { status: 'refused' } });
-    expect(await task.call('invokeCapability', { id: 'surface.getImagery', input: { object: 'Titan' } })).toMatchObject({ ok: false, code: 'refused' });
+    expect(await task.call('invokeCapability', { id: 'surface.getImagery', input: { object: 'Titan' } })).toMatchObject({ ok: true });
     expect(host.calls).toHaveLength(before);
     tools.dispose();
   });

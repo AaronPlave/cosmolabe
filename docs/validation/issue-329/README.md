@@ -152,7 +152,7 @@ that assertion passed in the final run. These checks are not weakened.
 
 ## Review follow-up and #297 integration
 
-Integrated PR #334 at `fccd31e79e3f31733f609c2e52ce5e44eb7302d4`, preserving
+Integrated PR #334 at `c382553d533e4823cacf3dc4fc136b6bb04c4bc6`, preserving
 its modern script/control/capability-discovery and event-to-visualization path.
 The numerical operation remains the same shared service. The modern event
 transport now includes height metrics and the same allowlisted scientific
@@ -197,3 +197,5 @@ The final loaded Chrome/Metal receipt has `passed: true`, no page errors, 12 nat
 The same-count kernel replacement regression uses the bound viewer state module and increments its kernel revision signal while retaining the count; navigation to the prior candidate refuses. It does not load or invent replacement kernel data. Both direct numerical queries and modern event runs now retain that revision in their validity checks.
 
 Modern `focusEventResult` and `selectEventResult` preserve their seek/inspect-only camera contract for numerical events. The loaded discovery workflow verifies tracking is unchanged by focus, then explicitly invokes `camera.frameObject` before visualization readiness. Native result clicks and `navigateToAnalysisResult` retain measured-vehicle framing. The final control integration run passed 104 tests.
+
+The current #334 default Ask / exact-call approval integration at `c382553d` is included. The loaded modern workflow uses its fixed Ask surface, while numerical operations remain discoverable from the same catalog. Legacy direct result navigation remains available, and the committed Ask routing matrix is regenerated to include both height operations. The latest Ask/control regression set passes after matrix regeneration; build, lint and typechecks also pass. No external model calls or model-authored approval actions are made by the height acceptance harness.

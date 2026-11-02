@@ -17,7 +17,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createAgentTools, createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -94,13 +94,13 @@ export function endNote(turn: AskTurn): { text: string; tone: 'warning' | 'error
   const account = inspections + (ran === 0 ? '' : ` ${plural(ran, 'step')} ran${t.refused || t.partial ? ` (${t.done} done, ${t.refused} refused${t.partial ? `, ${t.partial} unverified` : ''})` : ''}; changes already made to the view remain.`);
   if (turn.status === 'error') {
     if (turn.errorCode === 'budget_exhausted') {
-      return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} Restart the proxy or raise TOKEN_BUDGET to continue.` };
+      return { tone: 'warning', text: `Request stopped: this proxy's raw-token safety cap (including cached tokens) is exhausted, so no answer was written.${account} No further steps were sent. Completed view changes remain; inspect the action list before starting a new request.` };
     }
     if (turn.errorCode === 'cost_budget_exhausted') {
-      return { tone: 'warning', text: `Request stopped: the proxy's estimated-cost guard was reached or pricing is unavailable.${account} Check the proxy and provider spending limits; this estimate is not a billing record.` };
+      return { tone: 'warning', text: `Request stopped: the proxy's estimated-cost guard was reached or pricing is unavailable.${account} No further steps were sent. This estimate is not a billing record.` };
     }
     if (turn.errorCode === 'rate_limited') {
-      return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; wait a minute.${account}` };
+      return { tone: 'warning', text: `Request stopped: the proxy's rate limit was reached; no further steps were sent. Prior changes remain; inspect the action list.${account}` };
     }
     return { tone: 'error', text: `${turn.error ?? 'The request failed.'}${account}` };
   }
@@ -114,11 +114,19 @@ const MAX_SHOWN = 50;
 export const ask = $state({
   turns: [] as AskTurn[],
   running: false,
+  serviceBlocked: null as string | null,
   toolMode: standaloneToolMode(),
 });
 resettable(ask);
 
 // ── Where the model is ──
+
+let serviceTimer: ReturnType<typeof setTimeout> | null = null;
+function resetServiceBlock() {
+  if (serviceTimer !== null) clearTimeout(serviceTimer);
+  serviceTimer = null;
+  ask.serviceBlocked = null;
+}
 
 let hostTransport: AgentTransport | null = null;
 let hostCapabilities: CapabilityToolsOptions = {};
@@ -127,7 +135,12 @@ let embedded = false;
 
 /** Embedding: the host's own transport, or null for no prompt. Replaces the deployment's. */
 export function setHostAskTransport(transport: AgentTransport | null, capabilities: CapabilityToolsOptions = {}, mode: 'fixed' | 'discovery' = 'fixed') {
+  stopAsk();
+  resetServiceBlock();
+  tools?.dispose();
+  tools = null;
   changeToolMode(mode);
+  startOver();
   embedded = true;
   hostTransport = transport;
   hostCapabilities = capabilities;
@@ -157,11 +170,29 @@ function currentTransport(): AgentTransport | null {
 // ── The conversation ──
 
 let tools: AgentTools | null = null;
-const agentTools = () => (tools ??= ask.toolMode === 'discovery'
-  ? createCapabilityTools(getCosmo(), { ...hostCapabilities, formatTime: etToUtcString, metadata: builtInAgentMetadata })
-  : createAgentTools(getCosmo(), { formatTime: etToUtcString, metadata: builtInAgentMetadata,
-    omittedTools: Object.fromEntries(Object.entries(hostCapabilities.omitted ?? {}).map(([id, reason]) => [id.slice(id.lastIndexOf('.') + 1), reason])),
-  }));
+const agentTools = () => (tools ??= createCapabilityTools(getCosmo(), {
+  ...(embedded ? hostCapabilities : {
+    allowAuthoring: true, allowExternal: true,
+    confirmAuthoring: (operation: string, input: unknown) => requestApproval('authoring', operation, input),
+    confirmExternal: (operation: string, input: unknown) => requestApproval('external', operation, input),
+  }),
+  surface: ask.toolMode, formatTime: etToUtcString, metadata: builtInAgentMetadata,
+}));
+
+/** Exact-call approval owned by the visible Ask UI, never by model/catalog text. */
+export const askApproval = $state({ pending: null as null | { kind: 'authoring' | 'external'; operation: string; input: string } });
+let approvalResolve: ((approved: boolean) => void) | null = null;
+function requestApproval(kind: 'authoring' | 'external', operation: string, input: unknown): Promise<boolean> {
+  answerAskApproval(false);
+  askApproval.pending = { kind, operation, input: JSON.stringify(input, null, 2) };
+  return new Promise(resolve => { approvalResolve = resolve; });
+}
+export function answerAskApproval(approved: boolean) {
+  const resolve = approvalResolve;
+  approvalResolve = null;
+  askApproval.pending = null;
+  resolve?.(approved);
+}
 
 let history: AgentMessage[] = [];
 let historyScene = -1;
@@ -207,11 +238,13 @@ function startOver() {
  * refuse, and its reply, if one comes, is dropped.
  */
 export async function submitAsk(prompt: string): Promise<void> {
+  if (ask.serviceBlocked) return;
   const text = prompt.trim();
   const t = currentTransport();
   if (!text || !t) return;
 
   if (!embedded) changeToolMode(standaloneToolMode());
+  answerAskApproval(false);
   const toolkit = agentTools();
   const mine = toolkit.begin(); // supersedes the running task, if any
   task = mine;
@@ -266,6 +299,12 @@ export async function submitAsk(prompt: string): Promise<void> {
     view.status = outcome.kind;
     view.error = outcome.kind === 'error' ? outcome.message : null;
     view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
+    if (outcome.kind === 'error' && ['budget_exhausted', 'cost_budget_exhausted', 'rate_limited'].includes(outcome.code ?? '')) {
+      ask.serviceBlocked = outcome.code === 'rate_limited'
+        ? 'The model service is rate-limited. Requests are paused for one minute; earlier view changes remain.'
+        : 'The model service stopped this conversation. Earlier view changes remain; inspect the action list before starting a new conversation.';
+      if (outcome.code === 'rate_limited') serviceTimer = setTimeout(resetServiceBlock, 60000);
+    }
   }
   if (task === mine) {
     task = null;
@@ -275,12 +314,14 @@ export async function submitAsk(prompt: string): Promise<void> {
 
 /** Stop the running request: a flight it started stops where it is; nothing else is undone. */
 export function stopAsk() {
+  answerAskApproval(false);
   task?.cancel();
 }
 
 /** Forget the conversation. */
 export function clearAsk() {
   stopAsk();
+  resetServiceBlock();
   startOver();
   ask.turns = [];
 }
@@ -294,6 +335,7 @@ onToolClose('ask', () => stopAsk());
 /** Embedding: release everything when the workspace is disposed. */
 export function disposeAsk() {
   stopAsk();
+  resetServiceBlock();
   tools?.dispose();
   tools = null;
   transport = null;

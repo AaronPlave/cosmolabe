@@ -41,8 +41,36 @@ describe('modern scene automation', () => {
     const allowed = createCapabilityTools(host, { allowAuthoring: true, confirmAuthoring: confirm });
     const task = allowed.begin(); await task.call('describeCapabilities', { ids: ['measurements.upsertMeasurement'] });
     const result = await task.call('invokeCapability', { id: 'measurements.upsertMeasurement', input: { json: JSON.stringify(definition) } });
-    expect(result.ok).toBe(true); expect(confirm).toHaveBeenCalledOnce(); expect(host.listMeasurements()).toEqual([definition]);
+    expect(result.ok).toBe(true); if (result.ok) expect(result.summary).toContain('approval was granted for this exact call'); expect(confirm).toHaveBeenCalledOnce(); expect(host.listMeasurements()).toEqual([definition]);
     blocked.dispose(); allowed.dispose();
+  });
+  it.each(['fixed', 'discovery'] as const)('blocks export after a failed wait and rechecks freshness after approval in %s mode', async surface => {
+    const host = new FakeViewer(), capture = vi.spyOn(host, 'screenshot');
+    const tools = createCapabilityTools(host, { surface, allowExternal: true, confirmExternal: async () => {
+      host.getReadiness = request => ({ request, scene: 1, status: 'stale', missing: ['camera changed'], limitations: [] });
+      return true;
+    } });
+    const task = tools.begin();
+    await task.call('describeCapabilities', { ids: ['readiness.waitUntilReady', 'capture.screenshot'] });
+    host.waitUntilReady = async request => ({ request, scene: 1, status: 'timed-out', missing: ['no data'], limitations: [] });
+    expect(await task.call('invokeCapability', { id: 'readiness.waitUntilReady', input: { json: '{"kind":"assets"}', timeoutSeconds: 0 } })).toMatchObject({ ok: false });
+    expect(await task.call('invokeCapability', { id: 'capture.screenshot', input: {} })).toMatchObject({ ok: false, code: 'refused' });
+    expect(capture).not.toHaveBeenCalled();
+    host.waitUntilReady = async request => ({ request, scene: 1, status: 'ready', missing: [], limitations: [] });
+    expect(await task.call('invokeCapability', { id: 'readiness.waitUntilReady', input: { json: '{"kind":"assets"}' } })).toMatchObject({ ok: true });
+    expect(await task.call('invokeCapability', { id: 'capture.screenshot', input: {} })).toMatchObject({ ok: false, code: 'refused', error: expect.stringContaining('while awaiting approval') });
+    expect(capture).not.toHaveBeenCalled();
+    tools.dispose();
+  });
+  it('projects measurement semantics without labels, private frames or surface provenance', async () => {
+    const host = new FakeViewer();
+    host.upsertMeasurement({ ...definition, source: { kind: 'entity', bodyName: 'Earth', label: '/private/labels?token=secret' },
+      target: { kind: 'coordinate', positionKm: [1,2,3], frame: 'PRIVATE_FRAME', label: 'private target' } });
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const result = await tools.call('listMeasurements', {});
+    expect(result).toMatchObject({ ok: true, data: { items: [{ source: { kind: 'entity', bodyName: 'Earth' }, target: { kind: 'coordinate', positionKm: [1,2,3], frame: null } }] } });
+    expect(JSON.stringify(result)).not.toMatch(/private|PRIVATE_FRAME|secret/);
+    tools.dispose();
   });
   it('stops before a command can use an ID from a replaced catalog', async () => {
     const host = new FakeViewer();

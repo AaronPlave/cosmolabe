@@ -1,0 +1,1812 @@
+{
+  "publicFixturesOnly": true,
+  "hardware": "ANGLE Metal Renderer: Apple M4 Max",
+  "cache": "uncontrolled; estimates are not billing",
+  "runs": [
+    {
+      "scenario": "cassini",
+      "mode": "fixed",
+      "prompt": "show cassini at closest approach to mimas",
+      "latencyMs": 22189,
+      "modelRounds": 7,
+      "rawTokens": 71748,
+      "estimatedUsd": 0.054208,
+      "schemaBytes": [
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006
+      ],
+      "toolCalls": 9,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "events.focusEventResult",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 141913876.86703587,
+        "playing": false,
+        "selected": "Mimas",
+        "tracked": "Cassini",
+        "camera": {
+          "position": [
+            0.007008037139961565,
+            0.0026601144554830782,
+            -0.0002473995324355523
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "event": {
+          "scene": 1,
+          "query": "cassini-mimas-ca",
+          "id": "cassini-mimas-ca:0",
+          "revision": 2
+        },
+        "result": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-ca",
+            "id": "cassini-mimas-ca:0",
+            "revision": 2
+          },
+          "kind": "closest-approach",
+          "temporality": "instant",
+          "et": 141913876.86703587,
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Mimas"
+          },
+          "metrics": [
+            {
+              "key": "altitude",
+              "value": 76486.66154906705,
+              "unit": "km"
+            },
+            {
+              "key": "range",
+              "value": 76685.77172363873,
+              "unit": "km"
+            }
+          ]
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": "Loaded kernels and window only; step limits completeness. Rendered geometry is explanatory. Unapproved frame names are withheld."
+        }
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 5903,
+          "outputTokens": 124,
+          "estimatedUsd": 0.0160055
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5903,
+          "cacheWriteTokens": 2640,
+          "outputTokens": 367,
+          "estimatedUsd": 0.010864299999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8543,
+          "cacheWriteTokens": 950,
+          "outputTokens": 94,
+          "estimatedUsd": 0.0041733000000000004
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9493,
+          "cacheWriteTokens": 355,
+          "outputTokens": 95,
+          "estimatedUsd": 0.0027908000000000004
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9848,
+          "cacheWriteTokens": 877,
+          "outputTokens": 82,
+          "estimatedUsd": 0.0040013
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 10725,
+          "cacheWriteTokens": 723,
+          "outputTokens": 259,
+          "estimatedUsd": 0.005474
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 11448,
+          "cacheWriteTokens": 3104,
+          "outputTokens": 199,
+          "estimatedUsd": 0.010898799999999998
+        }
+      ]
+    },
+    {
+      "scenario": "cassini",
+      "mode": "discovery",
+      "prompt": "show cassini at closest approach to mimas",
+      "latencyMs": 35092,
+      "modelRounds": 11,
+      "rawTokens": 129111,
+      "estimatedUsd": 0.07787969999999998,
+      "schemaBytes": [
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306
+      ],
+      "toolCalls": 15,
+      "refusals": 2,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring",
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": false
+        },
+        {
+          "operation": "events.listEventQueries",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventSearchOptions",
+          "ok": false
+        },
+        {
+          "operation": "events.getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "events.focusEventResult",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 141913876.86703587,
+        "playing": false,
+        "selected": "Mimas",
+        "tracked": "Cassini",
+        "camera": {
+          "position": [
+            0.007008037139961565,
+            0.0026601144554830782,
+            -0.0002473995324355523
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "event": {
+          "scene": 1,
+          "query": "cassini-mimas-ca",
+          "id": "cassini-mimas-ca:0",
+          "revision": 2
+        },
+        "result": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-ca",
+            "id": "cassini-mimas-ca:0",
+            "revision": 2
+          },
+          "kind": "closest-approach",
+          "temporality": "instant",
+          "et": 141913876.86703587,
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Mimas"
+          },
+          "metrics": [
+            {
+              "key": "altitude",
+              "value": 76486.66154906705,
+              "unit": "km"
+            },
+            {
+              "key": "range",
+              "value": 76685.77172363873,
+              "unit": "km"
+            }
+          ]
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": "Loaded kernels and window only; step limits completeness. Rendered geometry is explanatory. Unapproved frame names are withheld."
+        }
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 5239,
+          "outputTokens": 106,
+          "estimatedUsd": 0.0141655
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5239,
+          "cacheWriteTokens": 2523,
+          "outputTokens": 64,
+          "estimatedUsd": 0.007475399999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7762,
+          "cacheWriteTokens": 588,
+          "outputTokens": 248,
+          "estimatedUsd": 0.0047301999999999995
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8350,
+          "cacheWriteTokens": 514,
+          "outputTokens": 167,
+          "estimatedUsd": 0.003794
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8864,
+          "cacheWriteTokens": 1715,
+          "outputTokens": 137,
+          "estimatedUsd": 0.0065479
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 10579,
+          "cacheWriteTokens": 1017,
+          "outputTokens": 131,
+          "estimatedUsd": 0.004914399999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 11596,
+          "cacheWriteTokens": 1205,
+          "outputTokens": 429,
+          "estimatedUsd": 0.0084661
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 12801,
+          "cacheWriteTokens": 1012,
+          "outputTokens": 94,
+          "estimatedUsd": 0.004754100000000001
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13813,
+          "cacheWriteTokens": 355,
+          "outputTokens": 95,
+          "estimatedUsd": 0.0032228
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 14168,
+          "cacheWriteTokens": 877,
+          "outputTokens": 338,
+          "estimatedUsd": 0.0069933
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 15045,
+          "cacheWriteTokens": 3847,
+          "outputTokens": 169,
+          "estimatedUsd": 0.012816
+        }
+      ]
+    },
+    {
+      "scenario": "ingenuity",
+      "mode": "fixed",
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and turn on the highest-resolution Jezero imagery available. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 19067,
+      "modelRounds": 5,
+      "rawTokens": 68533,
+      "estimatedUsd": 0.0615994,
+      "schemaBytes": [
+        8006,
+        8006,
+        8006,
+        8006,
+        8006
+      ],
+      "toolCalls": 19,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "activities.selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "activities.seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "measurements.upsertMeasurement",
+          "ok": true
+        },
+        {
+          "operation": "surface.setSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.showImagery",
+          "ok": true
+        },
+        {
+          "operation": "measurements.listMeasurements",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 673687579.2,
+        "playing": false,
+        "selected": null,
+        "tracked": "Ingenuity",
+        "camera": {
+          "position": [
+            0.002620034840125629,
+            -0.000317554124055347,
+            -0.00045787801222535625
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": "ingenuity:flight:5",
+        "measurements": [
+          {
+            "id": "flight5-distance",
+            "kind": "distance",
+            "source": {
+              "kind": "entity",
+              "bodyName": "Ingenuity"
+            },
+            "target": {
+              "kind": "entity",
+              "bodyName": "Mars"
+            },
+            "vertex": null,
+            "visible": true
+          }
+        ],
+        "appearance": {
+          "hillshade": true,
+          "baseColor": "imagery",
+          "azimuthDeg": 315,
+          "elevationDeg": 45,
+          "contrast": 1,
+          "imageryAmount": 0.25,
+          "palette": "blue-gold",
+          "contours": false,
+          "contourOpacity": 0.35,
+          "contourDensity": 1,
+          "contourIntervalKm": 0,
+          "contourLabels": false,
+          "contourColor": "#f2e6c9",
+          "minKm": -10,
+          "maxKm": 15
+        },
+        "imagery": [
+          {
+            "id": "viking",
+            "visible": true
+          },
+          {
+            "id": "ctx-global",
+            "visible": false
+          },
+          {
+            "id": "jezero-ctx",
+            "visible": false
+          },
+          {
+            "id": "jezero-hirise",
+            "visible": true
+          }
+        ]
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 6024,
+          "cacheWriteTokens": 0,
+          "outputTokens": 172,
+          "estimatedUsd": 0.0023304000000000003
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 6024,
+          "cacheWriteTokens": 3257,
+          "outputTokens": 360,
+          "estimatedUsd": 0.0123489
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9281,
+          "cacheWriteTokens": 3919,
+          "outputTokens": 845,
+          "estimatedUsd": 0.019179599999999998
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13200,
+          "cacheWriteTokens": 4000,
+          "outputTokens": 282,
+          "estimatedUsd": 0.014144
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 17200,
+          "cacheWriteTokens": 3693,
+          "outputTokens": 264,
+          "estimatedUsd": 0.0135965
+        }
+      ]
+    },
+    {
+      "scenario": "ingenuity",
+      "mode": "discovery",
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and turn on the highest-resolution Jezero imagery available. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 19408,
+      "modelRounds": 7,
+      "rawTokens": 97338,
+      "estimatedUsd": 0.07765659999999999,
+      "schemaBytes": [
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306
+      ],
+      "toolCalls": 20,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "activities.listActivities",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": true
+        },
+        {
+          "operation": "activities.listActivities",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "activities.selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "activities.seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "measurements.upsertMeasurement",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.setSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.showImagery",
+          "ok": true
+        },
+        {
+          "operation": "measurements.listMeasurements",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 673687579.2,
+        "playing": false,
+        "selected": null,
+        "tracked": "Ingenuity",
+        "camera": {
+          "position": [
+            0.002620034840125629,
+            -0.000317554124055347,
+            -0.00045787801222535625
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "activity": "ingenuity:flight:5",
+        "measurements": [
+          {
+            "id": "flight5-distance",
+            "kind": "distance",
+            "source": {
+              "kind": "entity",
+              "bodyName": "Ingenuity"
+            },
+            "target": {
+              "kind": "entity",
+              "bodyName": "Mars"
+            },
+            "vertex": null,
+            "visible": true
+          }
+        ],
+        "appearance": {
+          "hillshade": true,
+          "baseColor": "elevation",
+          "azimuthDeg": 315,
+          "elevationDeg": 45,
+          "contrast": 1,
+          "imageryAmount": 0.25,
+          "palette": "blue-gold",
+          "contours": false,
+          "contourOpacity": 0.35,
+          "contourDensity": 1,
+          "contourIntervalKm": 0,
+          "contourLabels": false,
+          "contourColor": "#f2e6c9",
+          "minKm": -10,
+          "maxKm": 15
+        },
+        "imagery": [
+          {
+            "id": "viking",
+            "visible": true
+          },
+          {
+            "id": "ctx-global",
+            "visible": false
+          },
+          {
+            "id": "jezero-ctx",
+            "visible": false
+          },
+          {
+            "id": "jezero-hirise",
+            "visible": true
+          }
+        ]
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 5154,
+          "cacheWriteTokens": 206,
+          "outputTokens": 106,
+          "estimatedUsd": 0.0020984000000000003
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5360,
+          "cacheWriteTokens": 643,
+          "outputTokens": 167,
+          "estimatedUsd": 0.0038175
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 6003,
+          "cacheWriteTokens": 3126,
+          "outputTokens": 248,
+          "estimatedUsd": 0.010899299999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9129,
+          "cacheWriteTokens": 3969,
+          "outputTokens": 539,
+          "estimatedUsd": 0.016229399999999998
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13098,
+          "cacheWriteTokens": 4388,
+          "outputTokens": 376,
+          "estimatedUsd": 0.0160438
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 17486,
+          "cacheWriteTokens": 2255,
+          "outputTokens": 514,
+          "estimatedUsd": 0.0125301
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 19741,
+          "cacheWriteTokens": 4544,
+          "outputTokens": 270,
+          "estimatedUsd": 0.0160381
+        }
+      ]
+    },
+    {
+      "scenario": "instrument-capture",
+      "mode": "fixed",
+      "prompt": "Select the ISS NAC synthetic instrument feed and inspect its pointing limitations. Then close the feed, save this camera as Ask verification, frame Mimas, and restore Ask verification. After assets readiness succeeds with a bounded wait, capture a screenshot named ask-approved-capture.",
+      "latencyMs": 31201,
+      "modelRounds": 10,
+      "rawTokens": 119741,
+      "estimatedUsd": 0.0560556,
+      "schemaBytes": [
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006,
+        8006
+      ],
+      "toolCalls": 15,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 1,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring",
+        "external"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "instruments.listInstruments",
+          "ok": true
+        },
+        {
+          "operation": "instruments.selectInstrument",
+          "ok": true
+        },
+        {
+          "operation": "instruments.getInstrument",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "instruments.selectInstrument",
+          "ok": true
+        },
+        {
+          "operation": "bookmarks.saveBookmark",
+          "ok": true
+        },
+        {
+          "operation": "bookmarks.listBookmarks",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "camera.viewpoint",
+          "ok": true
+        },
+        {
+          "operation": "readiness.waitUntilReady",
+          "ok": true
+        },
+        {
+          "operation": "readiness.getReadiness",
+          "ok": true
+        },
+        {
+          "operation": "capture.screenshot",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 141922171.18560135,
+        "playing": true,
+        "selected": null,
+        "tracked": "Saturn",
+        "camera": {
+          "position": [
+            287194.2249895438,
+            -59969.534061135215,
+            62634.9113286325
+          ],
+          "target": [
+            79783.47044479847,
+            -155502.36578536034,
+            72422.0142105231
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        }
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 5818,
+          "cacheWriteTokens": 171,
+          "outputTokens": 104,
+          "estimatedUsd": 0.0020573
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5989,
+          "cacheWriteTokens": 1834,
+          "outputTokens": 221,
+          "estimatedUsd": 0.0073979
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7823,
+          "cacheWriteTokens": 1669,
+          "outputTokens": 204,
+          "estimatedUsd": 0.0069988
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9492,
+          "cacheWriteTokens": 818,
+          "outputTokens": 167,
+          "estimatedUsd": 0.0046682
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 10310,
+          "cacheWriteTokens": 1119,
+          "outputTokens": 127,
+          "estimatedUsd": 0.0051025
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 11429,
+          "cacheWriteTokens": 1620,
+          "outputTokens": 266,
+          "estimatedUsd": 0.0078569
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13049,
+          "cacheWriteTokens": 926,
+          "outputTokens": 130,
+          "estimatedUsd": 0.004923899999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13975,
+          "cacheWriteTokens": 413,
+          "outputTokens": 104,
+          "estimatedUsd": 0.003474
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 14388,
+          "cacheWriteTokens": 405,
+          "outputTokens": 115,
+          "estimatedUsd": 0.0036053
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 14793,
+          "cacheWriteTokens": 1855,
+          "outputTokens": 385,
+          "estimatedUsd": 0.009970799999999998
+        }
+      ]
+    },
+    {
+      "scenario": "instrument-capture",
+      "mode": "discovery",
+      "prompt": "Select the ISS NAC synthetic instrument feed and inspect its pointing limitations. Then close the feed, save this camera as Ask verification, frame Mimas, and restore Ask verification. After assets readiness succeeds with a bounded wait, capture a screenshot named ask-approved-capture.",
+      "latencyMs": 35555,
+      "modelRounds": 12,
+      "rawTokens": 134518,
+      "estimatedUsd": 0.05923080000000001,
+      "schemaBytes": [
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306
+      ],
+      "toolCalls": 17,
+      "refusals": 1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 1,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring",
+        "external"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "instruments.listInstruments",
+          "ok": true
+        },
+        {
+          "operation": "instruments.selectInstrument",
+          "ok": false
+        },
+        {
+          "operation": "instruments.selectInstrument",
+          "ok": true
+        },
+        {
+          "operation": "instruments.getInstrument",
+          "ok": true
+        },
+        {
+          "operation": "instruments.selectInstrument",
+          "ok": true
+        },
+        {
+          "operation": "bookmarks.saveBookmark",
+          "ok": true
+        },
+        {
+          "operation": "bookmarks.listBookmarks",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "getOperationResult",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "camera.viewpoint",
+          "ok": true
+        },
+        {
+          "operation": "readiness.waitUntilReady",
+          "ok": true
+        },
+        {
+          "operation": "readiness.getReadiness",
+          "ok": true
+        },
+        {
+          "operation": "capture.screenshot",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 141922175.60680172,
+        "playing": true,
+        "selected": null,
+        "tracked": "Saturn",
+        "camera": {
+          "position": [
+            287194.2249895438,
+            -59969.534061135215,
+            62634.9113286325
+          ],
+          "target": [
+            79875.81642192602,
+            -155468.93678188324,
+            72392.45631958917
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        }
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 5154,
+          "cacheWriteTokens": 171,
+          "outputTokens": 56,
+          "estimatedUsd": 0.0015109000000000001
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5325,
+          "cacheWriteTokens": 1789,
+          "outputTokens": 33,
+          "estimatedUsd": 0.005339
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7114,
+          "cacheWriteTokens": 487,
+          "outputTokens": 169,
+          "estimatedUsd": 0.0036229
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7601,
+          "cacheWriteTokens": 828,
+          "outputTokens": 201,
+          "estimatedUsd": 0.0048441000000000005
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8429,
+          "cacheWriteTokens": 815,
+          "outputTokens": 167,
+          "estimatedUsd": 0.004554399999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9244,
+          "cacheWriteTokens": 1119,
+          "outputTokens": 129,
+          "estimatedUsd": 0.005015899999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 10363,
+          "cacheWriteTokens": 1622,
+          "outputTokens": 155,
+          "estimatedUsd": 0.0066453
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 11985,
+          "cacheWriteTokens": 775,
+          "outputTokens": 117,
+          "estimatedUsd": 0.00431
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 12760,
+          "cacheWriteTokens": 620,
+          "outputTokens": 231,
+          "estimatedUsd": 0.00514
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 13380,
+          "cacheWriteTokens": 1226,
+          "outputTokens": 120,
+          "estimatedUsd": 0.005607
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 14606,
+          "cacheWriteTokens": 421,
+          "outputTokens": 115,
+          "estimatedUsd": 0.0036671000000000004
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 15027,
+          "cacheWriteTokens": 1855,
+          "outputTokens": 283,
+          "estimatedUsd": 0.0089742
+        }
+      ]
+    },
+    {
+      "scenario": "geographic",
+      "mode": "fixed",
+      "prompt": "Inspect the editable annotation layer I just created by copying a shape in the UI. Tell me how many features it contains, and delete its first feature using the original typed source ID. Request approval for the deletion.",
+      "latencyMs": 13121,
+      "modelRounds": 5,
+      "rawTokens": 44358,
+      "estimatedUsd": 0.0280236,
+      "schemaBytes": [
+        8006,
+        8006,
+        8006,
+        8006,
+        8006
+      ],
+      "toolCalls": 7,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicLayers",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicFeatures",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "geographic.editAnnotation",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicFeatures",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 12.69789999997615,
+        "playing": true,
+        "selected": null,
+        "tracked": "Mars",
+        "camera": {
+          "position": [
+            702.8786424993865,
+            3157.4385508818827,
+            1079.1864580892086
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "editableLayers": [
+          {
+            "id": "user:mars:my-annotations-mars",
+            "features": 0
+          }
+        ]
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 5818,
+          "cacheWriteTokens": 135,
+          "outputTokens": 107,
+          "estimatedUsd": 0.0019973
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5953,
+          "cacheWriteTokens": 1654,
+          "outputTokens": 164,
+          "estimatedUsd": 0.0063743
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7607,
+          "cacheWriteTokens": 1205,
+          "outputTokens": 568,
+          "estimatedUsd": 0.0094572
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8812,
+          "cacheWriteTokens": 919,
+          "outputTokens": 127,
+          "estimatedUsd": 0.0044526999999999995
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9731,
+          "cacheWriteTokens": 1426,
+          "outputTokens": 120,
+          "estimatedUsd": 0.0057421
+        }
+      ]
+    },
+    {
+      "scenario": "geographic",
+      "mode": "discovery",
+      "prompt": "Inspect the editable annotation layer I just created by copying a shape in the UI. Tell me how many features it contains, and delete its first feature using the original typed source ID. Request approval for the deletion.",
+      "latencyMs": 16189,
+      "modelRounds": 7,
+      "rawTokens": 59952,
+      "estimatedUsd": 0.029723799999999998,
+      "schemaBytes": [
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306,
+        6306
+      ],
+      "toolCalls": 8,
+      "refusals": 1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-sonnet-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "listCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicLayers",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicFeatures",
+          "ok": true
+        },
+        {
+          "operation": "geographic.editAnnotation",
+          "ok": false
+        },
+        {
+          "operation": "geographic.editAnnotation",
+          "ok": true
+        },
+        {
+          "operation": "geographic.listGeographicFeatures",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 15.727700000047694,
+        "playing": true,
+        "selected": null,
+        "tracked": "Mars",
+        "camera": {
+          "position": [
+            702.8786424993865,
+            3157.4385508818827,
+            1079.1864580892086
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "editableLayers": [
+          {
+            "id": "user:mars:my-annotations-mars",
+            "features": 0
+          }
+        ]
+      },
+      "usage": [
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 5154,
+          "cacheWriteTokens": 135,
+          "outputTokens": 77,
+          "estimatedUsd": 0.0016309
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5289,
+          "cacheWriteTokens": 2113,
+          "outputTokens": 83,
+          "estimatedUsd": 0.006645399999999999
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 7402,
+          "cacheWriteTokens": 614,
+          "outputTokens": 103,
+          "estimatedUsd": 0.0033092
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8016,
+          "cacheWriteTokens": 405,
+          "outputTokens": 305,
+          "estimatedUsd": 0.0048681
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8421,
+          "cacheWriteTokens": 731,
+          "outputTokens": 132,
+          "estimatedUsd": 0.0039936
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9152,
+          "cacheWriteTokens": 482,
+          "outputTokens": 127,
+          "estimatedUsd": 0.0033942
+        },
+        {
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9634,
+          "cacheWriteTokens": 1426,
+          "outputTokens": 135,
+          "estimatedUsd": 0.0058823999999999994
+        }
+      ]
+    },
+    {
+      "scenario": "cassini",
+      "mode": "fixed",
+      "prompt": "show cassini at closest approach to mimas",
+      "latencyMs": 21558,
+      "modelRounds": 6,
+      "rawTokens": 60520,
+      "estimatedUsd": 0.0032117900000000004,
+      "schemaBytes": [
+        7569,
+        7569,
+        7569,
+        7569,
+        7569,
+        7569
+      ],
+      "toolCalls": 9,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "downloads": 0,
+      "model": "claude-haiku-5-5",
+      "status": "done",
+      "approvalKinds": [
+        "authoring"
+      ],
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "events.focusEventResult",
+          "ok": true
+        },
+        {
+          "operation": "camera.gotoObject",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        }
+      ],
+      "observed": {
+        "et": 141913876.86703587,
+        "playing": false,
+        "selected": "Mimas",
+        "tracked": "Mimas",
+        "camera": {
+          "position": [
+            595.781636688912,
+            189.5059160706439,
+            -51.35210958186004
+          ],
+          "target": [
+            0,
+            0,
+            0
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "event": {
+          "scene": 1,
+          "query": "cassini-mimas-closest-approach",
+          "id": "cassini-mimas-closest-approach:0",
+          "revision": 2
+        },
+        "result": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-closest-approach",
+            "id": "cassini-mimas-closest-approach:0",
+            "revision": 2
+          },
+          "kind": "closest-approach",
+          "temporality": "instant",
+          "et": 141913876.86703587,
+          "bodies": {
+            "observer": "Cassini",
+            "target": "Mimas"
+          },
+          "metrics": [
+            {
+              "key": "altitude",
+              "value": 76486.66154906705,
+              "unit": "km"
+            },
+            {
+              "key": "range",
+              "value": 76685.77172363873,
+              "unit": "km"
+            }
+          ]
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": "Loaded kernels and window only; step limits completeness. Rendered geometry is explanatory. Unapproved frame names are withheld."
+        }
+      },
+      "usage": [
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 4,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 5603,
+          "outputTokens": 178,
+          "estimatedUsd": 0.0007897749999999999
+        },
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 5603,
+          "cacheWriteTokens": 2697,
+          "outputTokens": 511,
+          "estimatedUsd": 0.000648855
+        },
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 8300,
+          "cacheWriteTokens": 1100,
+          "outputTokens": 97,
+          "estimatedUsd": 0.0002692
+        },
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9400,
+          "cacheWriteTokens": 361,
+          "outputTokens": 98,
+          "estimatedUsd": 0.00018832499999999998
+        },
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 9761,
+          "cacheWriteTokens": 889,
+          "outputTokens": 657,
+          "estimatedUsd": 0.000537435
+        },
+        {
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "cacheReadTokens": 10650,
+          "cacheWriteTokens": 4344,
+          "outputTokens": 257,
+          "estimatedUsd": 0.0007782
+        }
+      ]
+    }
+  ],
+  "schemaComparison": {
+    "basis": "Same current registry and full-method stub host; curated compatibility adapter versus compact default. Not a reconstructed historical provider run.",
+    "curated": {
+      "schemas": 51,
+      "bytes": 19662
+    },
+    "fixed": {
+      "schemas": 7,
+      "bytes": 8006
+    },
+    "discovery": {
+      "schemas": 5,
+      "bytes": 6306
+    }
+  },
+  "additionalPointAcceptance": "New review comment 6578748042 is being implemented in the same PR; this matrix is core Ask parity evidence, not a claim that the point cases are complete."
+}

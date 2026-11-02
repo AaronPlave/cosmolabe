@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
+import { resultText } from './agent-loop.js';
 import { createCapabilityTools } from './capabilities.js';
 import { execute } from './execute.js';
 import { parse } from './parse.js';
@@ -34,6 +35,20 @@ describe('Event Finder shared script and capability path', () => {
     expect(owned.describeCapabilities(['events.focusEventResult'])[0]).toMatchObject({ available: false });
     expect((await owned.begin().call('focusEventResult', { reference: JSON.stringify(reference) })).ok).toBe(false);
     expect(selected).toBe(false); owned.dispose();
+  });
+  it('requests a small default model page and preserves explicit pagination without inflating provider result budgets', async () => {
+    const host = new FakeViewer();
+    const read = host.getEventResultPage.bind(host);
+    host.getEventResultPage = vi.fn((_id?: string, opts?: { offset?: number; limit?: number }) => ({ ...read(), total: 100, nextOffset: (opts?.offset ?? 0) + (opts?.limit ?? 1) }));
+    const tools = createCapabilityTools(host, { surface: 'fixed' });
+    const task = tools.begin();
+    const page = await task.call('getEventResultPage', { query: 'q' });
+    expect(host.getEventResultPage).toHaveBeenCalledWith('q', { offset: undefined, limit: 1 });
+    expect(JSON.parse(resultText(page, 6000))).not.toHaveProperty('code', 'result-too-large');
+    await task.call('getEventResultPage', { query: 'q', offset: 6, limit: 2 });
+    expect(host.getEventResultPage).toHaveBeenLastCalledWith('q', { offset: 6, limit: 2 });
+    expect(await task.call('getEventResultPage', { query: 'q', limit: 6 })).toMatchObject({ ok: false, code: 'invalid-input' });
+    tools.dispose();
   });
   it('projects query/coverage/metric provenance without private solver text, URLs, frame names or arbitrary parameters', async () => {
     const host = new FakeViewer(), secret = 'https://private.example/token?secret=yes';

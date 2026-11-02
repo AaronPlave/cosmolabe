@@ -143,7 +143,7 @@ try {
     const source=`upsertEventQuery ${quote(JSON.stringify(definition))}\nrunEventQuery ${quote(id)} 120000`;
     await execute(parse(source),c);
     const page=c.getEventResultPage(id,{limit:100}),info=c.getEventQueryInfo(id);
-    const capabilities=createCapabilityTools(c,{metadata:builtInAgentMetadata}),task=capabilities.begin();
+    const capabilities=createCapabilityTools(c,{metadata:builtInAgentMetadata,surface:'fixed'}),task=capabilities.begin();
     try {
       const discovered=capabilities.listCapabilities({domain:'events',query:'EventResult',limit:12});
       await task.call('describeCapabilities',{ids:['events.getEventResultPage','events.focusEventResult','events.getEventVisualization','camera.frameObject']});

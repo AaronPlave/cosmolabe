@@ -1721,7 +1721,7 @@
             "source": "authoritative-trajectories",
             "kernelRevision": 2,
             "kernelCount": 5,
-            "contextFrame": null,
+            "contextFrame": "J2000",
             "calculationFrames": [
               "MOON_ME_DE421"
             ],

@@ -1,4 +1,4 @@
-/** Standard global first-party API USD per million tokens, checked 2026-11-01.
+/** Standard global first-party API USD per million tokens, checked 2026-11-02 (Haiku prompt-length tiers included).
  * https://platform.claude.com/docs/en/about-claude/pricing (5-minute writes)
  * https://developers.openai.com/api/docs/pricing (standard tier)
  * Estimates exclude taxes, regional/batch/priority rates and account discounts.
@@ -8,6 +8,7 @@ const PRICES = {
   anthropic: {
     'claude-sonnet-5-5': [2, 0.1, 2.5, 10],
     'claude-opus-5-5': [4, 0.2, 5, 20],
+    'claude-haiku-5-5': [0.1, 0.01, 0.125, 0.5],
   },
   openai: { 'gpt-5.1': [1.25, 0.125, 0, 10] },
 };
