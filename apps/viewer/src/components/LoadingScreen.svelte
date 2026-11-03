@@ -92,14 +92,13 @@
     line-height: 18px;
     height: 18px;
     margin-top: 14px;
-    color: color-mix(in srgb, var(--color-text-primary) 55%, var(--color-text-column));
+    color: color-mix(in srgb, var(--color-text-secondary) 70%, var(--color-text-muted));
   }
   .detail {
     font-size: 12px;
     line-height: 16px;
     height: 16px;
     margin-top: 2px;
-    color: color-mix(in srgb, var(--color-text-secondary) 70%, var(--color-text-muted));
   }
   .label,
   .file {
