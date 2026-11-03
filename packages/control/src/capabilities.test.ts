@@ -51,12 +51,6 @@ describe('capability catalog contract', () => {
     tools.dispose();
   });
 
-  it('keeps the committed default Ask routing matrix synchronized with the actual registry', () => {
-    const matrix = JSON.parse(readFileSync(new URL('../../../docs/validation/297-ask-parity/capability-matrix.json', import.meta.url), 'utf8'));
-    expect(matrix.routes).toEqual(capabilityCoverage());
-    expect(matrix.trustedHostOrProjectedReads).toEqual(CONTROL_CONTRACT_GAPS);
-  });
-
   it('auto-hydrates a skipped event schema without confirmation while retaining schema validation, host permission and stale-scene guards', async () => {
     const host = new FakeViewer();
     let approvals = 0;

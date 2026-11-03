@@ -812,7 +812,19 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     listInstruments: () => ({ ok: true, summary: 'Synthetic scene sensors.', data: { items: host.listInstruments!().slice(0, 64) } }),
     getInstrument: () => {
       const i = host.getInstrument!();
-      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation. Pointing describes the last observed frame; compare observedEt with scene time for freshness.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, observedEt: i.observedEt, fresh: i.fresh, renderError: i.renderError, observation: i.observation } : null };
+      // Recognize native diagnostics without forwarding catalog names or arbitrary faults.
+      const reason = i?.pointingUnavailable;
+      let pointingUnavailable: string | null = reason ? metadata.text(reason)?.slice(0, 512) ?? 'Physical pointing is unavailable; details remain local.' : null;
+      if (i && reason) for (const carrier of [i.sensor, i.spacecraft].filter((n): n is string => n !== null)) {
+        if (reason === `${carrier}'s attitude is unavailable at this time.`) pointingUnavailable = 'Attitude is unavailable at this time.';
+        if (reason === `${carrier} or its spacecraft has no state or attitude at this time.`) pointingUnavailable = 'Sensor or spacecraft state or attitude is unavailable at this time.';
+        if (reason === `${carrier}'s attitude is host-supplied and ${i.sensor} declares no mounting on it (geometry.mounting), so its pointing is unknown.`) pointingUnavailable = 'Host-supplied attitude has no declared sensor mounting, so pointing is unknown.';
+      }
+      if (i && reason) for (const diagnostic of [
+        'geometry.mounting needs boresight and up, each three finite numbers in the spacecraft body frame',
+        'geometry.mounting.boresight is zero', 'geometry.mounting.up is parallel to the boresight',
+      ]) if (reason === `${i.sensor}: ${diagnostic}.`) pointingUnavailable = `${diagnostic}.`;
+      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation. Pointing describes the last observed frame; compare observedEt with scene time for freshness.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, pointingUnavailable, observedEt: i.observedEt, fresh: i.fresh, renderError: i.renderError, observation: i.observation } : null };
     },
     listBookmarks: () => ({ ok: true, summary: 'Session bookmarks.', data: { items: host.listBookmarks!().slice(0, 64).map(b => ({ name: b.name })) } }),
     listPlaceSources: input => {

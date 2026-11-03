@@ -15,6 +15,21 @@ function fixture() {
   return { r, bm };
 }
 describe('native semantic surface placement', () => {
+  it('requires a rendered observation for a replacement pin while retaining it across clock ticks', () => {
+    const { r } = fixture();
+    r.setProbePin(r.projectSurfacePoint('Body',0,0,'reference'), { refine: false });
+    r._probeObservedEt = 123; r._probeObservedView = r.viewObservationSignature();
+    expect(r.getProbeVisualization()).toMatchObject({ observedEt: 123, drawn: true });
+    r.setProbePin(r.projectSurfacePoint('Body',0,90,'reference'), { refine: false });
+    // The overlay still carries pin A's visibility until its next update/draw.
+    expect(r._probe.pinnedVisible).toBe(true);
+    expect(r.getProbeVisualization()).toMatchObject({ observedEt: null, drawn: false });
+    r.timeController.et = 124;
+    r._probeObservedEt = 124; r._probeObservedView = r.viewObservationSignature();
+    expect(r.getProbeVisualization()).toMatchObject({ observedEt: 124, drawn: true });
+    r.timeController.et = 125;
+    expect(r.getProbeVisualization()).toMatchObject({ observedEt: 124, drawn: true });
+  });
   it('uses the declared oblate reference shape and fixed frame without camera pixels or terrain authority', () => {
     const { r } = fixture();
     const north = r.projectSurfacePoint('Body',90,0,'reference');

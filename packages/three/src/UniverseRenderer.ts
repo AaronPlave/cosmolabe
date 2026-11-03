@@ -2803,7 +2803,7 @@ export class UniverseRenderer {
   /** Observed native pin state; draw-enabled is not an unoccluded-pixels guarantee. */
   getProbeVisualization() {
     const sameView = this._probeObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen;
-    return { observedEt: sameView ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: sameView && this._probe.pinnedVisible };
+    return { observedEt: sameView ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: sameView && this._probeObservedEt !== null && this._probe.pinnedVisible };
   }
 
   /** Body-fixed radial projection, independent of camera pixels. Reference

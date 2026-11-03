@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { viewerBrowserOptions } from './lib/viewer-browser.mjs';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5297/';
 const out = process.env.CL_OUTPUT ?? '/tmp/modern-scene-automation';
 const modes = new Set((process.env.CL_MODERN_MODES ?? 'ordinary,harness,cassini').split(','));
@@ -10,9 +11,7 @@ const hardware = process.env.CL_GPU !== 'software' && process.platform === 'darw
 const source = await readFile(new URL('../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo', import.meta.url), 'utf8');
 const controlModule = `/@fs${fileURLToPath(new URL('../packages/control/src/index.ts', import.meta.url))}`;
 await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ ...(hardware ? { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
-  args: hardware ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
-});
+const browser = await chromium.launch(viewerBrowserOptions());
 const report = { rendererRequested: hardware ? 'physical / Metal' : 'software / SwiftShader', scenarios: [], passed: false };
 let page;
 try {

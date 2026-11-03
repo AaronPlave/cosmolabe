@@ -1,10 +1,15 @@
-/** Regenerate or verify the #297 machine-readable Ask routing/permission matrix. */
+/** Verify #297 registration, routing and permissions without a generated report. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { capabilityCoverage, CONTROL_CONTRACT_GAPS } from '../packages/control/dist/index.js';
-const file = new URL('../docs/validation/297-ask-parity/capability-matrix.json', import.meta.url);
-const expected = { version: 1, registry: 'ViewerControl / VERBS / agentDefinitions / capabilityCoverage',
-  routes: capabilityCoverage(), trustedHostOrProjectedReads: CONTROL_CONTRACT_GAPS };
-if (process.argv.includes('--write')) writeFileSync(file, JSON.stringify(expected, null, 2) + '\n');
-else assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), expected, 'Rebuild control and regenerate the capability matrix');
-console.log(`${expected.routes.filter(r => r.status === 'registered').length} shared operations classified for default Ask`);
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+import { agentDefinitions, VERB_LIST, capabilityCoverage, CONTROL_CONTRACT_GAPS } from '../packages/control/dist/index.js';
+import { defaultAskDefinitions } from '../packages/control/dist/capabilities.js';
+import { assertAskCapabilityCoverage } from './lib/ask-capability-contract.mjs';
+
+const source = ts.createSourceFile('contracts.ts', readFileSync(new URL('../packages/control/src/contracts.ts', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
+const port = source.statements.find(n => ts.isInterfaceDeclaration(n) && n.name.text === 'ViewerControl');
+assert.ok(port, 'ViewerControl contract must exist');
+const members = port.members.map(m => m.name.getText(source));
+assertAskCapabilityCoverage({ definitions: agentDefinitions(), defaults: defaultAskDefinitions(), verbs: VERB_LIST,
+  coverage: capabilityCoverage(), gaps: CONTROL_CONTRACT_GAPS, members });
+console.log(`${agentDefinitions().length} shared operations: registration, routing, effects and host permissions verified`);

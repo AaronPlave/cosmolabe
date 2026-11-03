@@ -1086,7 +1086,8 @@ mission coverage. Ask's event pages default to one result (maximum five); follow
 query remains in session snapshots. Computation, focus and readiness reuse the
 same Event Finder and native observation paths as scripts and UI.
 
-See the [Ask routing and permission matrix](validation/297-ask-parity/capability-matrix.json)
-and [validation evidence](validation/297-ask-parity/README.md). Raw snapshot/resource
+See the [current validation guide](validation/297-scene-automation.md) and run
+`node scripts/check-ask-capability-coverage.mjs` after building to verify Ask
+registration, routing and permission invariants. Raw snapshot/resource
 transport exclusions remain explicit; these do not authorize arbitrary local
 file, clipboard or network access.

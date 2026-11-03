@@ -462,3 +462,20 @@ Flight 12's delayed real metadata, physical clearance/navigation/provenance and
 expanded compact details. The MoonFall color assertion now reads the enclosing
 selected card (and requires a nonempty selection outline), rather than its
 independently clickable navigation button.
+
+
+## Final integration with main
+
+Integrated main `654a38e0099c76bde634d47ebafee722bc400022` after #334
+merged. The only conflict was its deliberately removed validation archive
+`297-ask-parity/capability-matrix.json`; retained the removal. Probe observation
+freshness and bounded instrument diagnostics merge without overriding measured
+height navigation or the new readiness signal.
+
+259 focused control/trajectory/event-query/instrument/probe tests pass. Package
+build, full lint, test/viewer TypeScript and Svelte (zero errors/warnings) pass.
+The loaded native MoonFall and modern script/discovery/result visualization
+acceptance passed again on physical M4 Max Metal, as did the network-gated real
+Ingenuity metadata readiness regression. The earlier full Flight 12 physical
+clearance receipt remains applicable: this merge changes no trajectory, terrain
+source, datum, solver or clearance computation.
