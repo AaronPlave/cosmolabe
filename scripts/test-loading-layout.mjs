@@ -4,6 +4,7 @@
  * numeric progress beside it. Drives the real loading state through the app's
  * own viewer-state module (no kernel downloads), at desktop and narrow widths.
  *
+ * CI: runs in the geographic viewer smoke (scripts/ci/run-viewer-smoke.sh).
  *   npx vite dev --port 5194 (in apps/viewer)  &&  node scripts/test-loading-layout.mjs
  *   CL_VIEWER_URL=...   server to use   CL_SHOTS_DIR=...   also save screenshots there
  */

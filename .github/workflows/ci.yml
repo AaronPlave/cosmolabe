@@ -212,6 +212,8 @@ jobs:
               - 'examples/embed-host/**'
               - 'scripts/test-embed-*.mjs'
             geographic:
+              - 'apps/viewer/src/components/LoadingScreen.svelte'
+              - 'scripts/test-loading-layout.mjs'
               - 'scripts/test-geographic*.mjs'
               - 'scripts/test-place*.mjs'
               - 'scripts/test-planetary-places.mjs'
