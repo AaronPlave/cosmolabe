@@ -123,7 +123,11 @@
       style:--feed-aspect={feedAspect}
     >
       <canvas bind:this={surface} aria-label="View from {sensor}"></canvas>
-      {#if info?.pointingUnavailable}
+      {#if info?.renderError}
+        <p class="state overlay">{info.renderError}</p>
+      {:else if info && !info.fresh && !vs.playing}
+        <p class="state overlay">Updating instrument view…</p>
+      {:else if info?.pointingUnavailable}
         <p class="state overlay opaque">{info.pointingUnavailable}</p>
       {:else if fullCanvas}
         <p class="state overlay">Showing full-canvas in Instrument camera mode.</p>

@@ -809,6 +809,8 @@ describe('events on the future lead (#105)', () => {
     observation._eventObservedEt = day / 2;
     observation._eventObservedView = observation.viewObservationSignature();
     expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
+    (renderer.timeController as unknown as { et: number }).et = day / 2 + 1;
+    expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
     renderer.camera.position.x++;
     expect(renderer.getEventVisualization().observedEt).toBeNull();
     observation._eventObservedView = observation.viewObservationSignature();

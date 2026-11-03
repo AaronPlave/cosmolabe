@@ -42,6 +42,8 @@ describe('native semantic surface placement', () => {
     expect(r.getProbeVisualization()).toMatchObject({ observedEt: null, drawn: false, placedEt: 123 });
     r._probeObservedEt = 123; r._probeObservedView = r.viewObservationSignature();
     expect(r.getProbeVisualization().drawn).toBe(true);
+    r.timeController.et = 124;
+    expect(r.getProbeVisualization()).toMatchObject({ observedEt: 123, drawn: true });
     r.camera.position.x = 2;
     expect(r.getProbeVisualization()).toMatchObject({ observedEt: null, drawn: false, placedEt: 123 });
     bm.body.radii = [2,1,1]; expect(r.projectSurfacePoint('Body',0,0,'reference')).toBeNull();

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5297/';
 const out = process.env.CL_OUTPUT ?? '/tmp/modern-scene-automation';
+const modes = new Set((process.env.CL_MODERN_MODES ?? 'ordinary,harness,cassini').split(','));
 const hardware = process.env.CL_GPU !== 'software' && process.platform === 'darwin';
 const source = await readFile(new URL('../apps/viewer/test-catalogs/ingenuity-analysis-tour.cosmo', import.meta.url), 'utf8');
 const controlModule = `/@fs${fileURLToPath(new URL('../packages/control/src/index.ts', import.meta.url))}`;
@@ -16,6 +17,7 @@ const report = { rendererRequested: hardware ? 'physical / Metal' : 'software / 
 let page;
 try {
   for (const harness of [false, true]) {
+    if (!modes.has(harness ? 'harness' : 'ordinary')) continue;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
     const url = new URL(harness ? '?catalog=test-catalogs/ingenuity-jezero&test=1' : '?entry=examples/ingenuity-analysis-tour', base);
@@ -103,7 +105,7 @@ try {
     await context.close();
   }
   // A second real catalog exercises the existing SPICE search and sensor feed.
-  {
+  if (modes.has('cassini')) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     page = await context.newPage();
     await page.goto(new URL('?catalog=test-catalogs/cassini-soi', base).href, { waitUntil: 'domcontentloaded', timeout: 120000 });
@@ -123,12 +125,15 @@ try {
       return { mode: 'cassini', search, total: results.total, selectedResult: c.getEventSearch().selected, names, selected };
     });
     assert.equal(result.search.status, 'complete'); assert.equal(result.total, 1); assert.equal(result.selected, true);
-    await page.waitForFunction(() => window.cosmo.getInstrument()?.observedEt === window.cosmo.getTime(), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.cosmo.getInstrument()?.fresh, null, { timeout: 30000 });
     result.instrument = await page.evaluate(() => window.cosmo.getInstrument());
     assert.equal(result.instrument.sensor, 'ISS NAC'); assert.equal(result.instrument.observation, 'synthetic-scene-view');
     assert.ok(['spice', 'attitude', 'unavailable', 'target', 'none'].includes(result.instrument.pointing));
     const stale = await page.evaluate(() => { const c = window.cosmo; c.setTime({ kind: 'et', et: c.getTime() + 1 }); return c.getInstrument(); });
-    assert.equal(stale.pointing, 'unavailable');
+    assert.equal(stale.pointing, result.instrument.pointing);
+    assert.equal(stale.pointingUnavailable, result.instrument.pointingUnavailable);
+    assert.equal(stale.observedEt, result.instrument.observedEt);
+    assert.equal(stale.fresh, false);
     result.terminalOutcomes = await page.evaluate(async () => {
       const c = window.cosmo, id = 'acceptance:approach', abort = new AbortController();
       const off = c.on('events', () => { if (c.getEventSearch().status === 'running') abort.abort(); });

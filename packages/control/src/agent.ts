@@ -793,7 +793,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     listInstruments: () => ({ ok: true, summary: 'Synthetic scene sensors.', data: { items: host.listInstruments!().slice(0, 64) } }),
     getInstrument: () => {
       const i = host.getInstrument!();
-      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, observedEt: i.observedEt, observation: i.observation } : null };
+      return { ok: true, summary: 'Synthetic scene feed, not a calibrated observation. Pointing describes the last observed frame; compare observedEt with scene time for freshness.', data: i ? { sensor: i.sensor, spacecraft: i.spacecraft, target: i.target, fov: i.fov, viewFov: i.viewFov, pointing: i.pointing, observedEt: i.observedEt, fresh: i.fresh, renderError: i.renderError, observation: i.observation } : null };
     },
     listBookmarks: () => ({ ok: true, summary: 'Session bookmarks.', data: { items: host.listBookmarks!().slice(0, 64).map(b => ({ name: b.name })) } }),
     listPlaceSources: input => {
