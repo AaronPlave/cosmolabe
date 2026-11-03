@@ -345,3 +345,48 @@ assertion for five ignored experiment catalogs failing. No catalogs or assertion
 were changed. Exact-head CI and loaded-browser completion are recorded separately
 in the PR and acceptance receipt. #338's local extrema/threshold work remains
 outside this revision and does not block it.
+
+
+## Ingenuity physical terrain clearance review
+
+The pinned terrain product `3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395`
+CPU manifest declares `coordinates.frame: IAU_MARS`, Mars ellipsoid radii
+3396.19 × 3396.19 × 3376.2 km, ellipsoid vertical datum and geodetic-normal
+heights. Its `source.build.frame` agrees. The catalog now explicitly pins that
+frame; TerrainManager still validates CPU metadata, datum and matching geometry
+revision before accepting it. The Ingenuity body and composite arcs declare
+BodyFixed, which resolves against parent Mars to IAU_MARS. This agrees with
+[surface build inputs](../../../scripts/surface-build/ingenuity.mjs) and the
+[locked build frame/datum](../../examples/surface-plans/jezero-build.lock.json).
+No coordinates, trajectory samples or terrain heights were changed.
+
+Run `node scripts/test-ingenuity-extrema-visual.mjs http://127.0.0.1:5198/ /tmp/ingenuity-extrema`.
+The [loaded-demo receipt](ingenuity-acceptance.json) records the metadata hashes,
+source identities, actual native form query, candidate and navigation. Chrome on
+physical Apple M4 Max Metal returned **10.087050759 m** above physical terrain for
+**Flight 12**, at **2021-08-16T12:54:31.810Z**. The ordinary Event Finder result
+selected/tracked Ingenuity and the explicit activity at that epoch. Desktop and
+390px captures show the real result. The expanded calculation retains the
+catalog's estimated reconstruction notes; structured source classification stays
+unknown rather than being upgraded to observed telemetry. Arbitrary catalog
+source descriptions remain outside the existing model-visible metadata allowlist.
+
+This Flight 12 run had `sampled-complete` coverage across 24,753 evaluations;
+it did not encounter a missing finest-grid sample or exhaust its budget. This
+is not continuous coverage certification or acceptance of all 72 flights, and
+other intervals may remain partial where state or finest CPU terrain is missing.
+Reconstructed altitude/interior timing are modeled, horizontal paths are observed,
+and absolute frame, height and clock accuracy are uncertain. Source uncertainty
+and global numerical error remain null. The result is a sampled, locally refined
+candidate, not an exact telemetry maximum or a certified global extremum.
+
+Missing frame, rejected/pending frame metadata, mismatched analysis frame,
+missing datum and unsupported datum conventions now have distinct disabled-state
+reasons. Focused core/viewer/control tests pass (44), package build, test/viewer
+TypeScript, Svelte (0 errors/warnings) and changed-file lint pass. The broader
+viewer suite passes 774 tests and has the same local catalog-inventory failure
+from five ignored experimental catalogs; no assertion was weakened.
+
+![Ingenuity Flight 12 terrain result and source notes](ingenuity-flight12.png)
+
+[390px native result](ingenuity-flight12-compact.png)

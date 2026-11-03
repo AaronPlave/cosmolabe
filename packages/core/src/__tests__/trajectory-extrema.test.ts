@@ -169,9 +169,11 @@ describe('trajectory provider boundaries',()=>{
       {et:4.2,position:[11,0,0],velocity:[-10,0,0]},
       {et:10,position:[11,0,0],velocity:[0,0,0]},
     ],{frame:'IAU_MOON'});
-    universe.addBody(new Body({name:'drone',parentName:'Moon',trajectory}));
+    universe.addBody(new Body({name:'drone',parentName:'Moon',trajectory,description:'Estimated reconstruction, not telemetry; absolute accuracy unknown.'}));
     const p=universeTrajectoryAnalysisProvider(universe,()=>1);
     const found=await findTrajectoryExtrema(query({stepSeconds:100,frame:'IAU_MOON'}),p);
+    expect(found.results[0].source).toMatchObject({classification:'unknown',description:'Estimated reconstruction, not telemetry; absolute accuracy unknown.'});
+    expect(trajectoryExtremumEvent(found.results[0], 'query').trajectoryAnalysis?.source.description).toBe(found.results[0].source.description);
     expect(found.results[0].et).toBeCloseTo(4.15,3);
     expect(found.results[0].value).toBeCloseTo(1.25,6);
     expect((await findTrajectoryExtrema(query({frame:'J2000'}),p)).status).toBe('unavailable');

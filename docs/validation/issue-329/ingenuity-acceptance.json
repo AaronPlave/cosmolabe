@@ -1,0 +1,148 @@
+{
+  "passed": true,
+  "errors": [],
+  "sources": {
+    "frame": {
+      "kind": "available",
+      "frame": "IAU_MARS"
+    },
+    "datum": {
+      "referenceShape": {
+        "kind": "ellipsoid",
+        "radiiKm": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      },
+      "verticalDatum": "ellipsoid",
+      "heightConvention": "geodetic-normal"
+    },
+    "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+    "revision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+    "gridFrame": "IAU_MARS",
+    "gridRevision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+    "geometryRevision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+    "trajectoryFrame": "IAU_MARS",
+    "arcFrame": "BODY_FIXED",
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)"
+  },
+  "activity": {
+    "version": 1,
+    "id": "ingenuity:flight:12",
+    "name": "Flight 12",
+    "kind": "flight",
+    "vehicle": "Ingenuity",
+    "body": "Mars",
+    "mission": "Mars 2020",
+    "temporality": "interval",
+    "start": 682390499.7,
+    "end": 682390669.2,
+    "site": "Airfield H",
+    "provenance": {
+      "source": "https://mars.nasa.gov/maps/location/?mission=M20",
+      "version": "pinned-MMGIS-flights-index-v1",
+      "authority": "estimated",
+      "timing": "estimated",
+      "limitations": "Original MMGIS event epochs retained as approximate J2000 seconds; clock drift uncalibrated. Observed horizontal path with estimated 3D playback, not precise flight telemetry."
+    },
+    "references": {
+      "trajectory": "Ingenuity",
+      "sourceSegment": "data/ingenuity/flight_12.xyzv"
+    }
+  },
+  "searchState": {
+    "running": false,
+    "fault": null,
+    "hint": "One sampled, locally refined candidate per vehicle and matching interval. Ranking compares these candidates, not certified global extrema. Incomplete searches cannot establish an overall winner.",
+    "form": {
+      "kind": "trajectory-extremum",
+      "bodies": {
+        "center": "Mars",
+        "observer": "Ingenuity"
+      },
+      "params": {
+        "metric": "heightAbovePhysicalTerrain",
+        "extremum": "maximum",
+        "scope": "selected-activities",
+        "activityKind": "all",
+        "timeToleranceSeconds": "0.005",
+        "sampling": "adaptive",
+        "activityIds": "[\"ingenuity:flight:12\"]"
+      },
+      "startEt": 672089519.3000168,
+      "endEt": 758898123.4109849,
+      "step": 0.1
+    },
+    "eventCount": 1
+  },
+  "nativeRow": "10.1 m above terrain on Mars\n\nIngenuity \u00b7 Flight 12 \u00b7 2021-08-16 12:54:31 UTC\n\nGo to result \u2192",
+  "result": {
+    "id": "trajectory-analysis-1",
+    "object": "Ingenuity",
+    "activityId": "ingenuity:flight:12",
+    "activityName": "Flight 12",
+    "body": "Mars",
+    "frame": "IAU_MARS",
+    "metric": "heightAbovePhysicalTerrain",
+    "extremum": "maximum",
+    "value": 0.010087050759310046,
+    "units": "km",
+    "et": 682390540.9944946,
+    "utc": "2021-08-16T12:54:31.810Z",
+    "location": {
+      "positionKm": [
+        699.7618081511986,
+        3140.914393431627,
+        1072.524451608888
+      ],
+      "latitudeDeg": 18.433096603230986,
+      "longitudeDeg": 77.44023924771409,
+      "convention": "planetocentric"
+    },
+    "datum": {
+      "kind": "ellipsoid",
+      "radiiKm": [
+        3396.19,
+        3396.19,
+        3376.2
+      ]
+    },
+    "heightConvention": "geodetic-normal",
+    "window": {
+      "start": 682390499.7,
+      "end": 682390669.2
+    },
+    "source": {
+      "id": null,
+      "revision": null,
+      "description": "Estimated flight reconstruction, not 3D telemetry. Horizontal paths and landings come from NASA/MMGIS observations; altitude and interior timing are modeled using NASA flight summaries and unchanged terrain. Absolute frame, height and clock accuracy remain uncertain.",
+      "classification": "unknown"
+    },
+    "terrain": {
+      "id": "Mars: e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419.tif + detail.tif residual",
+      "revision": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba",
+      "sourceUncertaintyKm": null
+    },
+    "coverage": "sampled-complete",
+    "method": {
+      "guarantee": "sampled-and-locally-refined",
+      "stepSeconds": 0.08461034297943115,
+      "timeToleranceSeconds": 0.005,
+      "evaluations": 24753,
+      "heightErrorBoundKm": null,
+      "limits": "Endpoints and interpolation-segment subdivisions sampled; local brackets numerically refined. Narrow unsampled extrema or gaps may be missed. Time tolerance controls bracket width, not source accuracy or global height error."
+    }
+  },
+  "navigation": {
+    "et": 682390540.9944946,
+    "selected": "Ingenuity",
+    "tracked": "Ingenuity",
+    "activity": "ingenuity:flight:12"
+  },
+  "metadataEvidence": {
+    "cpuGridsSha256": "9a104638aa9f6adc74b8af7d8bf736514e702a76d088ff90d7a590d9138fc4cf",
+    "tilesetSha256": "e796dab0256ce7fa80e0f4de8a26b7f650bb4bc50da1cc7e261eedf33735f90e",
+    "productIdentity": "3846907d293e9e5d0b0243cefc2ed446335e6624772cf6194930ac3c70c24395"
+  }
+}

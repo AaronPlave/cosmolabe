@@ -48,6 +48,9 @@ export interface TrajectoryAnalysisSource {
   id: string | null;
   revision: string | null;
   classification: 'synthetic' | 'source-observed' | 'unknown';
+  /** Catalog source notes, including estimated reconstruction limitations.
+   * These do not establish an observed classification or accuracy bound. */
+  description?: string;
 }
 export interface TrajectoryExtremum {
   id: string;

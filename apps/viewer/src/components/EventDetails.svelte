@@ -53,6 +53,9 @@
       <summary onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>Calculation &amp; sources</summary>
       <dl class="measurement-rows">
         <dt>Frame</dt><dd>{result.frame}</dd>
+        {#if result.source.description}
+          <dt>Source notes</dt><dd>{result.source.description}</dd>
+        {/if}
         <dt>Convention</dt><dd>{result.location.convention} · {result.heightConvention} height</dd>
         <dt>Datum</dt><dd>{result.datum.kind}: {result.datum.kind === 'sphere' ? result.datum.radiusKm : result.datum.radiiKm.join(' × ')} km</dd>
         <dt>Trajectory</dt><dd>{result.source.id ?? 'identity unknown'}; revision {result.source.revision ?? 'unknown'}</dd>

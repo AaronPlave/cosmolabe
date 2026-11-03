@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Body, FixedPointTrajectory, FixedRotation, InterpolatedStatesTrajectory, Universe, findTrajectoryExtrema, trajectoryExtremumEvent, type MissionActivity } from '@cosmolabe/core';
 
-const runtime = vi.hoisted(() => ({ universe: null as unknown }));
+const runtime = vi.hoisted(() => ({ universe: null as unknown, renderer: null as unknown }));
 vi.mock('../viewer-state.svelte', async importOriginal => ({
   ...await importOriginal<typeof import('../viewer-state.svelte')>(),
   getSceneUniverse: () => runtime.universe,
-  getRenderer: () => null,
+  getRenderer: () => runtime.renderer,
 }));
 import { trajectoryCandidates, trajectorySourceWindow, trajectoryMetricAvailability } from '../trajectory-analysis.svelte';
 import { createConfiguredEventQuery, setEventResults } from '../analysis.svelte';
@@ -14,7 +14,7 @@ import { emit, vs } from '../viewer-state.svelte';
 import { analysisResultGuards } from '../trajectory-analysis-identity';
 import { activityEvent } from '../mission-activities';
 
-afterEach(() => { resetForScene(); analysisResultGuards.clear(); vs.activities = []; runtime.universe = null; });
+afterEach(() => { runtime.renderer = null; resetForScene(); analysisResultGuards.clear(); vs.activities = []; runtime.universe = null; });
 
 function scene() {
   const universe = new Universe();
@@ -54,6 +54,25 @@ describe('trajectory scope and contextual metrics', () => {
     scene();
     expect(trajectorySourceWindow('Moon')).toEqual({ start: 0, end: 110 });
     expect(trajectorySourceWindow('Moon', 'flyby')).toEqual({ start: 0, end: 10 });
+  });
+  it('distinguishes missing, pending and mismatched terrain frames from datum incompatibility', () => {
+    scene();
+    const terrain = {
+      terrainSourceId: 'terrain', terrainSourceRevision: 'v1',
+      terrainDatum: { referenceShape: { kind: 'sphere', radiusKm: 10 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' },
+      terrainFrameAvailability: { kind: 'available', frame: undefined as string | undefined, reason: undefined as string | undefined },
+    };
+    runtime.renderer = { getBodyMesh: () => terrain };
+    const reason = () => trajectoryMetricAvailability('Moon').heightAbovePhysicalTerrain;
+    expect(reason()).toContain('frame is missing');
+    terrain.terrainFrameAvailability = { kind: 'unavailable', frame: 'IAU_MOON', reason: 'Cube grid frame is unknown' };
+    expect(reason()).toContain('IAU_MOON is unavailable: Cube grid frame is unknown');
+    terrain.terrainFrameAvailability = { kind: 'available', frame: 'IAU_MARS', reason: undefined };
+    expect(reason()).toContain('IAU_MARS does not match analysis frame IAU_MOON');
+    terrain.terrainFrameAvailability.frame = 'IAU_MOON';
+    expect(reason()).toBeNull();
+    terrain.terrainDatum.verticalDatum = 'areoid';
+    expect(reason()).toContain('datum is unsupported: areoid, radial, sphere');
   });
   it('explains unavailable physical terrain while retaining explicit reference choices', () => {
     scene();

@@ -296,6 +296,7 @@ export function universeTrajectoryAnalysisProvider(universe: Universe, revision:
       const b = universe.getBody(object), p = b?.surfaceTrajectory;
       const availability = b?.trajectory.availabilityAt?.(et);
       return { id: availability?.provenance?.id ?? availability?.sourceId ?? (p ? object : null), revision: availability?.provenance?.version ?? null,
+        ...(b?.description ? { description: b.description } : {}),
         classification: p?.purpose === 'synthetic-demo' || availability?.classification === 'synthetic' ? 'synthetic' : 'unknown' };
     },
     coverage: object => {

@@ -70,7 +70,7 @@ async function runAnalysis(query: TrajectoryExtremaQuery, options: TrajectoryAna
     if (opts.signal?.aborted || !terrainBody || !datum || terrainBody.terrainFrameAvailability?.kind !== 'available'
       || !terrainBody.terrainFrameAvailability.frame || !universe.frames.sameFrame(terrainBody.terrainFrameAvailability.frame, q.frame) || terrainId !== q.terrain?.id || terrainRevision !== q.terrain?.revision
       || !sameReference(datum.referenceShape, q.reference)
-      || (datum.referenceShape.kind === 'sphere' ? datum.verticalDatum !== 'reference-sphere' : datum.verticalDatum !== 'ellipsoid' || datum.heightConvention !== 'geodetic-normal'))
+      || (datum.referenceShape.kind === 'sphere' ? datum.verticalDatum !== 'reference-sphere' || datum.heightConvention !== 'radial' : datum.verticalDatum !== 'ellipsoid' || datum.heightConvention !== 'geodetic-normal'))
       return null;
     const location = bodyFixedToGeodetic({ xKm: p[0], yKm: p[1], zKm: p[2] }, datum);
     const sample = await terrainBody.requestTerrainAnalysisSample(location.latDeg, location.lonDeg);
@@ -187,10 +187,14 @@ export function trajectoryMetricAvailability(bodyName?: string, frameOverride?: 
   const shape = terrain?.terrainDatum?.referenceShape;
   const datum = terrain?.terrainDatum;
   const terrainFrame = terrain?.terrainFrameAvailability;
-  const compatible = shape?.kind === 'sphere' ? datum?.verticalDatum === 'reference-sphere' : shape?.kind === 'ellipsoid' && datum?.verticalDatum === 'ellipsoid' && datum?.heightConvention === 'geodetic-normal';
+  const compatible = shape?.kind === 'sphere' ? datum?.verticalDatum === 'reference-sphere' && datum?.heightConvention === 'radial' : shape?.kind === 'ellipsoid' && datum?.verticalDatum === 'ellipsoid' && datum?.heightConvention === 'geodetic-normal';
   return {
     heightAbovePhysicalTerrain: !terrain?.terrainSourceId || !terrain.terrainSourceRevision ? 'A versioned physical CPU terrain source is unavailable. Choose a labeled reference surface explicitly.'
-      : !compatible || terrainFrame?.kind !== 'available' || !terrainFrame.frame || !universe.frames.sameFrame(terrainFrame.frame, frame) ? 'Physical terrain datum/frame is unavailable or incompatible with the selected frame.' : null,
+      : !datum ? 'Physical terrain datum is missing. Declare its reference shape, vertical datum and height convention.'
+        : !compatible ? `Physical terrain datum is unsupported: ${datum.verticalDatum}, ${datum.heightConvention}, ${shape?.kind}. Clearance requires reference-sphere/radial or ellipsoid/geodetic-normal heights.`
+          : !terrainFrame?.frame ? `Physical terrain frame is missing. Declare the validated source frame before searching in ${frame}.`
+            : terrainFrame.kind !== 'available' ? `Physical terrain frame ${terrainFrame.frame} is unavailable: ${terrainFrame.reason ?? 'source metadata has not been validated'}.`
+              : !universe.frames.sameFrame(terrainFrame.frame, frame) ? `Physical terrain frame ${terrainFrame.frame} does not match analysis frame ${frame}. Choose the validated terrain frame.` : null,
     radialHeightAboveReferenceSphere: Number(radiusOverride) > 0 || (body.radii && body.radii.every(r => r === body.radii![0])) || shape?.kind === 'sphere' ? null : 'Set an explicit sphere radius in Advanced, or choose the declared ellipsoid.',
     heightAboveReferenceEllipsoid: body.radii && body.radii[0] === body.radii[1] && body.radii[2] <= body.radii[0] ? null : 'No supported oblate reference ellipsoid is declared.',
   };
