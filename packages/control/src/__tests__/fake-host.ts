@@ -380,6 +380,21 @@ export class FakeViewer implements ViewerControl {
 
   circleCenter(direction: CircleDirection, degrees: number, opts?: { seconds?: number }): boolean {
     this.log('circleCenter', direction, degrees, opts?.seconds);
+    // CameraController._rotateAboutTarget: right/left about up, up/down about view right.
+    const { position: p, target: t, up: u } = this.camera;
+    const o: ScriptVec3 = [p[0] - t[0], p[1] - t[1], p[2] - t[2]];
+    const n = (a: ScriptVec3): ScriptVec3 => { const l = Math.hypot(...a); return [a[0] / l, a[1] / l, a[2] / l]; };
+    const cross = (a: ScriptVec3, b: ScriptVec3): ScriptVec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const rotate = (v: ScriptVec3, k: ScriptVec3, a: number): ScriptVec3 => {
+      const c = Math.cos(a), s = Math.sin(a), d = v[0] * k[0] + v[1] * k[1] + v[2] * k[2], x = cross(k, v);
+      return [0, 1, 2].map(i => v[i] * c + x[i] * s + k[i] * d * (1 - c)) as unknown as ScriptVec3;
+    };
+    const radians = (direction === 'right' || direction === 'up' ? 1 : -1) * degrees * Math.PI / 180;
+    const horizontal = direction === 'right' || direction === 'left';
+    const axis = horizontal ? n(u) : n(cross([-o[0], -o[1], -o[2]], u));
+    const angle = horizontal ? radians : -radians;
+    const moved = rotate(o, axis, angle);
+    this.camera = { ...this.camera, position: [t[0] + moved[0], t[1] + moved[1], t[2] + moved[2]], up: horizontal ? u : n(rotate(u, axis, angle)) };
     return this.ok(true);
   }
 
@@ -466,6 +481,46 @@ export class FakeViewer implements ViewerControl {
   }
   getCamera(): ScriptCamera {
     return this.camera;
+  }
+
+  /** World positions (km) and measured radii for `getViewComposition`; empty means none drawn. */
+  bodies: Record<string, { position: ScriptVec3; radiusKm: number | null }> = {};
+  aspect = 16 / 9;
+
+  /** The same projection the viewer reports: pinhole camera looking at `camera.target`. */
+  getViewComposition(names: readonly string[]): import('../contracts.js').ScriptViewComposition {
+    const sub = (a: ScriptVec3, b: ScriptVec3): ScriptVec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    const dot = (a: ScriptVec3, b: ScriptVec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const cross = (a: ScriptVec3, b: ScriptVec3): ScriptVec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const unit = (a: ScriptVec3): ScriptVec3 => { const n = Math.hypot(...a); return [a[0] / n, a[1] / n, a[2] / n]; };
+    const { position: eye, target, fov } = this.camera;
+    const forward = unit(sub(target, eye)), right = unit(cross(forward, this.camera.up)), up = cross(right, forward);
+    const deg = (r: number) => r * 180 / Math.PI;
+    const tanV = Math.tan(fov * Math.PI / 360), tanH = tanV * this.aspect;
+    const angular = (name: string) => {
+      const b = this.bodies[name];
+      const rel = sub(b.position, eye), range = Math.hypot(...rel);
+      return { b, rel, range, ang: b.radiusKm ? Math.asin(Math.min(1, b.radiusKm / range)) : 0 };
+    };
+    const objects = names.map(object => {
+      if (!this.bodies[object]) return { object, available: false, drawEnabled: false, rangeKm: null, radiusKm: null, angularRadiusDeg: null, bearingDeg: null, ndc: null, inView: false, occlusion: null };
+      const { b, rel, range, ang } = angular(object);
+      const x = dot(rel, right), y = dot(rel, up), z = dot(rel, forward);
+      const ndc = z > 0 ? [x / z / tanH, y / z / tanV] as const : null;
+      let occlusion: { by: string; kind: 'partial' | 'full' } | null = null;
+      for (const other of Object.keys(this.bodies)) {
+        if (other === object || !this.bodies[other].radiusKm) continue;
+        const o = angular(other);
+        if (o.range >= range) continue;
+        const sep = Math.acos(Math.max(-1, Math.min(1, dot(unit(o.rel), unit(rel)))));
+        if (sep < o.ang && (!occlusion || o.range < angular(occlusion.by).range)) occlusion = { by: other, kind: sep + ang <= o.ang ? 'full' : 'partial' };
+      }
+      return { object, available: true, drawEnabled: true, rangeKm: range, radiusKm: b.radiusKm, angularRadiusDeg: deg(ang),
+        bearingDeg: [deg(Math.atan2(x, z)), deg(Math.atan2(y, Math.hypot(x, z)))] as const, ndc,
+        inView: !!ndc && Math.abs(ndc[0]) <= 1 && Math.abs(ndc[1]) <= 1, occlusion };
+    });
+    return { scene: this.scene?.id ?? null, et: this.time, playing: this.playing, tracked: this.tracked,
+      orbitDistanceKm: Math.hypot(...sub(eye, target)), fovDeg: fov, aspect: this.aspect, objects };
   }
   listObjects(): readonly string[] {
     return this.objects;

@@ -178,6 +178,7 @@ says which way each flight ended.
 | `dolly <km> [seconds]` | Move the camera straight away from what it orbits (toward it if negative), keeping its aim. Stops short of the centre, and a body's surface still stops it. |
 | `crane <km> [seconds]` | Raise the camera and the point it looks at together along the view's up (lower if negative), so the same view slides up the screen. |
 | `circleCenterRight <degrees> [seconds]` | Swing the camera around what it orbits, keeping its distance and aim. Also `circleCenterLeft`, `circleCenterUp`, `circleCenterDown`. Instant by default; give seconds to animate. |
+| `composeView <anchor> <target> [also]` | Swing the camera around the tracked anchor (with `circleCenter*`) until the target, and `also`, sit beside it in the frame. Keeps distance, clock and selection. Refuses without moving when the anchor fills the view; fails when a nearer body hides the target. Needs `getViewComposition`. |
 
 `setCamera` takes eye, target and up in that order — the same order catalog
 `Viewpoint` JSON and `camera-view-io.ts` already use.

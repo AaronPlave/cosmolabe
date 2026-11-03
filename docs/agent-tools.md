@@ -52,6 +52,16 @@ The read tools give a model real names to work with, so it doesn't have to guess
 
 Selection is shared state that anything can change, so `selectActivity`, `gotoPlace`, `seekActivity` and `setTime` read the viewer back after they run. A success says what the viewer now reports ("The viewer now reports Flight 5 (…) as the selected activity", "The clock now reads …"), and a selection the viewer does not hold is a `failed` result, not a success. The system prompt asks the model to finish with `describeScene` and report only what it shows, so an answer about the final selection, place, clock and camera is the viewer's own.
 
+### Composition and outcome checks (#345)
+
+A command that returned `ok` is not the same as the person's request being on screen. Three shared pieces close that gap without an Ask-only workflow:
+
+- `getViewComposition(objects)` (a `ViewerControl` read) reports, for each named object, whether its centre is in view, its screen position and bearing from the view centre, its range from the camera and apparent size, and whether a nearer body with a measured radius hides it (analytic sphere test). It moves nothing and is geometry, not pixel proof: models larger than their catalog radius and terrain are not occluders.
+- `composeView anchor target [also]` is a verb, so scripts and Ask share it. It swings the camera around the tracked anchor with the existing `circleCenter` orbit, steered by `getViewComposition`, until the targets sit beside the anchor in the frame. Distance, clock and selection are kept and checked afterwards; at most six rounds of two swings run. It refuses without moving when the anchor fills the view, naming the distance that would leave room, and reports a target that stays hidden behind another body instead of claiming success. Camera writes that have this read (`composeView`, `circleCenter*`, `dolly`, `pointAtObject`) are now verified receipts, not "unverified".
+- `checkGoal` is a read tool that judges a typed goal against the viewer: `camera-composition` (anchor, objects that must be in view, optional range limit, paused, epoch), `event-presentation` (selected result of a search, closest when asked, paused at its epoch, participants framed, event drawn), `surface-appearance` (base colour and palette, terrain data ready) and `ground-point` (transient pin or saved selected point on the body under a vehicle). It answers `met`, `partial` (settings hold but drawing or data readiness is not yet observed), `unmet` or `inconclusive`, with per-check details. Goals are data, never code; Ask may check three times per request. The same `checkGoal` serves the deterministic tests and the paid benchmark, where the goal comes from the test, not the model.
+
+Fixed Ask offers `composeView` and `checkGoal` directly beside `describeScene`, `resolve`, `getEventSearchOptions` and `getSpatialContext`.
+
 ### Results
 
 Every call resolves to `{ ok: true, summary, data? }` or `{ ok: false, code, error }`. Calls never throw.
@@ -90,7 +100,9 @@ Host clock and selection ownership is unchanged. Agent writes go through `Viewer
 
 `runAgent` in `@cosmolabe/control` answers one request. It sends the conversation and the tool list to an `AgentTransport`, runs the tool calls the model asks for, in order, and repeats. It stops when the model has finished, after `maxSteps` round trips (10), or when the task is cancelled or superseded. A reply that arrives after its request was superseded is dropped whole. Transport and tool failures become outcomes, not exceptions.
 
-History is append-only. Provider blocks the loop does not understand, such as a model's thinking, are carried back verbatim, because providers validate a replayed conversation. Each conversation is bounded by starting a new one, never by trimming the old one.
+Within a request, history is append-only: provider blocks the loop does not understand, such as a model's thinking, are carried back verbatim, because providers validate a replayed tool exchange. Earlier, finished requests are condensed by `compactHistory` to the person's words, the answer and one line of the writes the viewer ran with their outcome (`[Viewer actions: composeView{"anchor":"Psyche","target":"Mars"} ok]`). Reads are dropped. Condensing is idempotent, so the condensed prefix stays byte-identical across turns and keeps hitting the provider's prompt cache. A five-turn camera conversation therefore replays a few hundred tokens of history per round instead of every earlier tool result.
+
+A transport may return `usage` (`inputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `outputTokens`) with each reply; `runAgent` sums it into `AgentRun.stats` with the round count. The example proxy reports it; the Ask panel shows rounds and tokens beside Action details.
 
 ```ts
 interface AgentTransport {
@@ -102,7 +114,7 @@ The browser has no provider code. The viewer's one built-in transport, `createHt
 
 ```text
 POST <endpoint>   { version: 1, system, messages, tools }
-200               { version: 1, content, stop }
+200               { version: 1, content, stop, usage? }
 non-2xx           { error: { message, code? } }
 ```
 

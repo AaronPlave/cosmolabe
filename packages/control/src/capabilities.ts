@@ -83,7 +83,7 @@ export interface CapabilityTools extends AgentTools {
 
 /** A small schema shortlist, never an authorization allowlist. All other
  * registry operations are invocable through the same validated dispatcher. */
-export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext'] as const;
+export const DEFAULT_ASK_DIRECT = ['describeScene', 'resolve', 'getEventSearchOptions', 'getSpatialContext', 'composeView', 'checkGoal'] as const;
 export function defaultAskDefinitions() {
   return agentDefinitions().filter(d => (DEFAULT_ASK_DIRECT as readonly string[]).includes(d.name));
 }
@@ -103,6 +103,7 @@ const DISCOVERY: readonly AgentToolDef[] = [
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
   if (name === 'findTrajectoryExtrema' || name === 'navigateToAnalysisResult') return 'analysis';
+  if (name === 'getViewComposition') return 'camera';
   if (/SpatialContext|GroundPoint|ProbePoint|ObjectState/.test(name)) return 'spatial';
   if (/Event/.test(name)) return 'events';
   if (/Instrument/.test(name)) return 'instruments';
@@ -140,6 +141,8 @@ const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
+  getViewComposition: objectSchema({ et: NUMBER, playing: { type: 'boolean' }, tracked: { type: ['string', 'null'] }, orbitDistanceKm: NUMBER, fovDeg: NUMBER, objects: RECORDS }),
+  checkGoal: objectSchema({ kind: TEXT, status: { type: 'string', enum: ['met', 'partial', 'unmet', 'inconclusive'] }, checks: RECORDS }, ['kind', 'status', 'checks']),
   getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
   listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
@@ -353,6 +356,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         // Features without a shared semantic read remain explicitly unverified (#297).
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
           || (name === 'navigateToAnalysisResult' && result.ok && (result.data as {verified?:boolean} | undefined)?.verified === true)
+          || (/^circleCenter|^(dolly|pointAtObject|composeView)$/.test(name) && typeof host.getViewComposition === 'function')
           || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'selectGeographicFeature' && typeof host.getSelectedGeographicFeature === 'function' && typeof host.listGeographicLayers === 'function')
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')

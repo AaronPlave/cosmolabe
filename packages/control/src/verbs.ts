@@ -34,6 +34,7 @@ import type {
   VerbValue,
   ViewerControl,
 } from './contracts.js';
+import { composeView } from './compose.js';
 
 /**
  * The camera frames `setFrame` accepts.
@@ -438,6 +439,18 @@ export const VERB_LIST: readonly VerbSpec[] = [
     method: 'crane',
     help: 'Raise the camera and its view by this many km along the view up (lower if negative). Instant unless given seconds.',
     invoke: (host, a) => host.crane(num(a[0]), a[1] === undefined ? undefined : { seconds: num(a[1]) }),
+  },
+  {
+    name: 'composeView',
+    params: [
+      { name: 'anchor', type: 'object' },
+      { name: 'target', type: 'object' },
+      { name: 'also', type: 'object', optional: true },
+    ],
+    category: 'Camera',
+    method: 'getViewComposition',
+    help: 'Swing the camera around the tracked anchor until target (and also) are in view beside it, keeping distance, clock and selection. Refuses, without moving, when the anchor fills the view; reports objects still hidden behind others.',
+    invoke: (host, a) => { composeView(host, str(a[0]), [str(a[1]), ...(a[2] === undefined ? [] : [str(a[2])])]); },
   },
   {
     name: 'setFov',

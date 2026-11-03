@@ -5,6 +5,7 @@ import { eventControl, snapshotEventQueries } from './event-control';
 import { definitionEndpoints } from './measurement-link-state';
 import { setPlaceSourceEnabled, showPlaceDataset, selectPlace } from './places';
 import { analysisControl } from './analysis-control';
+import { getViewComposition } from './composition-control';
 import { getReadiness, waitUntilReady } from './readiness-control';
 import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImageryOpacity, moveImageryLayer } from './appearance-control';
 /**
@@ -505,6 +506,7 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
       return flight ? { id: flight.id, target: flight.destination?.body.name ?? null, path: flight.path } : null;
     },
     getCamera: camera,
+    getViewComposition,
     getCameraReference: () => getRenderer()?.cameraController.originBody?.body.name ?? null,
     setCameraReference: (name) => {
       const r = getRenderer();

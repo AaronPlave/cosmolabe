@@ -16,6 +16,8 @@ export type {
   FlightPath,
   SurfaceView,
   ScriptCamera,
+  ScriptViewComposition,
+  ScriptComposedObject,
   ScriptEventMap,
   ScriptEventName,
   ScriptFlight,
@@ -75,9 +77,13 @@ export { createAgentTools, agentDefinitions } from './agent.js';
 export type {
   AgentTools, AgentTask, AgentToolDef, AgentToolEffect, AgentToolResult, AgentErrorCode, AgentJsonSchema, AgentToolsOptions,
 } from './agent.js';
-export { runAgent, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION, AgentTransportError } from './agent-loop.js';
+export { runAgent, compactHistory, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION, AgentTransportError } from './agent-loop.js';
+export { composeView } from './compose.js';
+export type { ComposeOutcome } from './compose.js';
+export { checkGoal, parseGoal } from './outcome.js';
+export type { AskGoal, GoalCheck, GoalReport } from './outcome.js';
 export type {
-  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
+  AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';
 export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

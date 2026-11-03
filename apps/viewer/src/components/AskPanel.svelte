@@ -89,7 +89,13 @@
     gotoCoordinates: (i) => `Went to coordinates on ${text(i.object) ?? 'a body'}`,
     viewpoint: (i) => `Moved to the ${text(i.name) ?? 'saved'} viewpoint`,
     setFrame: () => 'Changed the camera frame',
-    circleCenter: () => 'Circled the view',
+    circleCenterRight: (i) => `Swung the view right ${i.degrees ?? ''}°`,
+    circleCenterLeft: (i) => `Swung the view left ${i.degrees ?? ''}°`,
+    circleCenterUp: (i) => `Swung the view up ${i.degrees ?? ''}°`,
+    circleCenterDown: (i) => `Swung the view down ${i.degrees ?? ''}°`,
+    composeView: (i) => `Rotated around ${text(i.anchor) ?? 'the tracked object'} to show ${text(i.target) ?? 'the target'}`,
+    getViewComposition: () => 'Checked what is in view',
+    checkGoal: () => 'Checked the result in the viewer',
     dolly: () => 'Moved the camera',
     stopFlight: () => 'Stopped the flight',
     setTime: () => 'Set the time',
@@ -184,8 +190,8 @@
             {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
             {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
           </p>
-          {#if endNote(turn)}
-            {@const note = endNote(turn)!}
+          {#if endNote(turn, stepLabel)}
+            {@const note = endNote(turn, stepLabel)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
           {/if}
           {#if turn.steps.length > 0}
@@ -193,6 +199,7 @@
               <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
                 <ChevronRight size={10} class="ask-chevron" />
                 Action details
+                {#if turn.stats}<span class="text-text-faint">· {turn.stats.rounds} model {turn.stats.rounds === 1 ? 'round' : 'rounds'}{#if turn.stats.rawTokens !== null} · {Math.round(turn.stats.rawTokens / 1000)}k tokens{/if}</span>{/if}
               </summary>
               <ul class="mt-1 flex flex-col gap-0.5">
                 {#each turn.steps.filter(s => !actionMetadata(s).diagnostic) as step (step.id)}
@@ -225,7 +232,7 @@
       {/if}
     </ol>
 
-    {#if ask.serviceBlocked}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
+    {#if ask.serviceBlocked && ask.turns.at(-1)?.status !== 'error'}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
     {#if askApproval.pending}
       {@const approval = approvalPresentation(askApproval.pending, etToUtcString)}
       <div class="mx-3 mb-2 rounded border border-border p-2" role="group" aria-label="Approve Ask action">

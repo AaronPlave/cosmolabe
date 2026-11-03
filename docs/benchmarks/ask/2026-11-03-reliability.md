@@ -1,0 +1,64 @@
+# Ask reliability gate, 2026-11-03 (#345)
+
+Status: the deterministic gate and the outcome checks are in place. The paid A/B
+baseline has **not been run yet**. No success rate below is a model measurement,
+and none of the #345 targets is claimed as met.
+
+## What a request is judged by now
+
+Ask used to stop at "the call returned ok". A request is now judged against an
+end state, read from the viewer:
+
+1. **Intent as an end state.** For a request that changes the view, the prompt asks
+   the model to state the whole end state as a typed `checkGoal` goal. That includes
+   constraints from earlier turns, such as "Psyche close **and** Mars in view".
+2. **Act through shared controls.** `composeView` is a new verb over the existing
+   `circleCenter` orbit. Scripts and Ask both use it, and it holds no agent-only
+   camera state.
+3. **Independent check.** `checkGoal` reads the viewer itself. It covers camera
+   composition, event presentation, surface appearance and ground points. The
+   result is `met`, `partial`, `unmet` or `inconclusive`. Missing evidence never
+   counts as success.
+4. **Bounded repair.** The model may make one correction for a specific unmet check,
+   and may check at most three times per request. Otherwise it says what holds and
+   what does not.
+
+Earlier turns are condensed to the person's words, the answer and the writes the
+viewer ran, so a long conversation does not replay every tool result. On a hard
+budget stop, one note lists exactly what is already applied. The duplicate banner
+and the "N unverified" count for camera moves that do have a read are gone.
+
+## Evidence
+
+| Check | Where | Result |
+| --- | --- | --- |
+| Five-turn Psyche/Mars conversation with a scripted model; end state judged by `checkGoal` | `packages/control/src/ask-reliability.test.ts` (Fast PR CI) | Passes: close-up range kept, Mars in view, epoch and pause held. The camera is framed once and never re-framed or dollied. |
+| Rounds and replay | same | 2/2/3/2/3 rounds for the five turns. The turn-5 request carries 1,115 characters of history, against 11,336 if the earlier tool exchanges were replayed (fake host; real results are larger, so real savings are larger). |
+| Hard budget stop mid-conversation | same | The applied composition holds, the history stays valid and condensable, and nothing is retried. |
+| `composeView` convergence | `packages/control/src/compose.test.ts` | Converges from 300 random target directions, distances and fields of view (the only accepted failure is "anchor fills the view" with the camera untouched). It reports occlusion instead of claiming success. |
+| Real renderer, Psyche at the 2026-05-15 Mars flyby, Mars turned out of frame | `npm run test:ask-composition` | Passes on this checkout. Psyche stays at 1.5 m, Mars (8,008 km away) comes into frame, the receipt is `completed`, and clock and selection are unchanged. Judged by the script's own projection. |
+| Vocabulary parity | `ask-reliability.test.ts` | Every curated verb is registered and the directional `circleCenter*` IDs are offered. A bare `circleCenter` is neither registered nor offered. |
+
+Cost of the change: the fixed-mode cached prefix (tool schemas plus system prompt)
+grew from 20,553 to 24,459 characters, about 1k tokens. It is read from cache on
+every round.
+
+## Observed failure (Nov 3) and owners
+
+| Failure | Cause class | Fix here | Remaining owner |
+| --- | --- | --- | --- |
+| "Rotate around Psyche to see Mars" alternated between a close-up and pair framing | Ask planner/orchestration, plus no deterministic composition op | `composeView`, multi-turn constraint rule, goal check | Live A/B measurement, this issue |
+| Five turns used up the proxy's raw-token cap | Orchestration: full tool replay each round | History condensing, per-turn stats | Proxy cap policy, deployment |
+| "3 steps (0 done, 0 refused, 3 unverified)" | Tool contract: camera writes had no read | Composition read gives camera writes a verified receipt | n/a |
+| Jargon in answers ("receipt", "projected centers…") | Prompt and tool summaries | Prompt bans the words; summaries now describe the view | n/a |
+| Psyche is drawn larger than its 0.5 m catalog radius, so anchor occlusion is underestimated | Renderer observability | Documented as a limit of sphere occlusion | #337 / #224 |
+
+## Not done, and why
+
+- **The paid A/B baseline.** The live harness is ready: 8 tasks × 2 models × 2
+  modes, 5 repetitions, and arm A against a pre-#345 viewer. Its commands are in
+  the [README](README.md). It needs an operator-held key and a spend cap. Until it
+  runs, there is no first-attempt success rate, p50/p95 or cost to report.
+- **Arm C (selective screenshot review).** Not built. Structured composition plus
+  sphere occlusion settled every pilot case above. Build C only if arm B shows
+  failures that geometry cannot see.

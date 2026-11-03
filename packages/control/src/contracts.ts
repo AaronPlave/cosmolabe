@@ -673,6 +673,13 @@ export interface ViewerControl {
   getCamera(): ScriptCamera;
   /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
   getCameraReference?(): string | null;
+  /**
+   * Where named objects sit in the current view (#345): projected centre,
+   * bearing from the view axis, range, apparent size and analytic sphere
+   * occlusion by nearer measured bodies. Geometry only — not pixel proof.
+   * Unknown names come back with `available: false`. Moves nothing.
+   */
+  getViewComposition?(objects: readonly string[]): ScriptViewComposition;
   /** Restore the floating origin without moving or tracking the camera. */
   setCameraReference?(name: string | null): boolean;
   /**
@@ -775,6 +782,39 @@ export interface ViewerControl {
   moveImageryLayer?(body: string, layer: string, index: number, opts?: ScriptSceneOptions): boolean;
 
   on<K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void): () => void;
+}
+
+/** One object in `getViewComposition`. Angles in degrees, ranges in km. */
+export interface ScriptComposedObject {
+  readonly object: string;
+  /** The scene draws this object; false for an unknown name. */
+  readonly available: boolean;
+  readonly drawEnabled: boolean;
+  /** Eye to object centre. */
+  readonly rangeKm: number | null;
+  /** Measured radius; null when the body has only a placeholder size. */
+  readonly radiusKm: number | null;
+  readonly angularRadiusDeg: number | null;
+  /** [horizontal (right +), vertical (up +)] angle of the centre from the view axis; |h| > 90 is behind. */
+  readonly bearingDeg: readonly [number, number] | null;
+  /** Normalized device coordinates of the centre, null when behind the camera. */
+  readonly ndc: readonly [number, number] | null;
+  /** Centre is in front of the camera and inside the viewport. */
+  readonly inView: boolean;
+  /** Nearest measured sphere covering the centre's line of sight: full = disc entirely behind it. */
+  readonly occlusion: { readonly by: string; readonly kind: 'partial' | 'full' } | null;
+}
+export interface ScriptViewComposition {
+  readonly scene: number | null;
+  readonly et: number;
+  readonly playing: boolean;
+  readonly tracked: string | null;
+  /** Eye to the point the camera orbits. */
+  readonly orbitDistanceKm: number;
+  /** Vertical field of view, degrees, and width/height. */
+  readonly fovDeg: number;
+  readonly aspect: number;
+  readonly objects: readonly ScriptComposedObject[];
 }
 
 export interface ScriptEventQuery { id: string; label: string; query: EventQuery; enabled: boolean; visible: boolean }

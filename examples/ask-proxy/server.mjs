@@ -174,7 +174,8 @@ export function createProxy({
     if (estimatedUsd === null) costKnown = false;
     else estimatedSpentUsd += estimatedUsd;
     onUsage({ requestedModel: model, ...usage, model: usage.model ?? 'unknown', spent, estimatedUsd, estimatedSpentUsd: costKnown ? estimatedSpentUsd : null });
-    send(200, wire);
+    // What this round processed, so the viewer can show per-request cost (#345). Counts only; no billing claim.
+    send(200, { ...wire, usage: { inputTokens: usage.inputTokens, cacheReadTokens: usage.cacheReadTokens, cacheWriteTokens: usage.cacheWriteTokens, outputTokens: usage.outputTokens } });
   });
 }
 

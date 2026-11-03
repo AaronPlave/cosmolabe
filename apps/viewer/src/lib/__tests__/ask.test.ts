@@ -240,12 +240,26 @@ describe('the Ask session', () => {
     vi.useRealTimers();
   });
 
+  it('on a budget stop, names exactly what is already applied, once, in the action list\'s words (#345)', () => {
+    const ok = (name: string, input: unknown = {}) => ({ id: name, name, input, result: { ok: true as const, summary: 'Done' } });
+    const steps = [ok('describeScene'), ok('invokeCapability', { id: 'camera.composeView', input: { anchor: 'Psyche', target: 'Mars' } }), ok('checkGoal'), { id: 'x', name: 'dolly', input: {}, result: { ok: false as const, code: 'refused' as const, error: 'no' } }];
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps, reply: '', notes: [], status: 'error', error: 'cap', errorCode: 'budget_exhausted', stats: { rounds: 3, rawTokens: 30000 } }, s => s.name === 'invokeCapability' ? 'Rotated around Psyche to show Mars' : s.name)!;
+    expect(note.text).toContain('Already applied: Rotated around Psyche to show Mars. 1 step refused.');
+    expect(note.text).not.toMatch(/receipt|readback|unverified/i);
+  });
+
+  it('passes a proxy\'s per-round usage through, and ignores a malformed one', () => {
+    const usage = { inputTokens: 10, cacheReadTokens: 9000, cacheWriteTokens: 0, outputTokens: 50 };
+    expect(parseWireResponse({ version: 1, stop: 'end', content: [], usage }).usage).toEqual(usage);
+    expect(parseWireResponse({ version: 1, stop: 'end', content: [], usage: { inputTokens: 'lots' } }).usage).toBeUndefined();
+  });
+
   it('counts capability lookups separately from completed viewer steps', () => {
     const steps = ['listCapabilities', 'describeCapabilities', 'getOperationResult', 'describeScene'].map(name => ({ id: name, name, input: {}, result: { ok: true as const, summary: 'Read' } }));
     expect(tally({ steps })).toMatchObject({ inspected: 3, done: 1, partial: 0 });
-    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null });
-    expect(note?.text).toContain('3 capability lookups completed');
-    expect(note?.text).not.toContain('changes already made');
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null, stats: null });
+    // Lookups change nothing, so they are not reported as applied.
+    expect(note?.text).toBe('Stopped.');
   });
 
   it('uses the normal proxy with the dev URL mode and resets history when it changes', async () => {
@@ -353,7 +367,7 @@ describe('the Ask session', () => {
       expect(turn).toMatchObject({ status: 'error', errorCode: 'budget_exhausted', reply: '' });
       expect(turn.steps).toHaveLength(0);
       const note = endNote(turn)!;
-      expect(note.text).toContain('raw-token safety cap (including cached tokens) is exhausted');
+      expect(note.text).toContain('raw-token safety cap (cached tokens included) is used up');
       expect(note.text).not.toContain('actions ran');
       expect(note.tone).toBe('warning');
     });
@@ -367,8 +381,8 @@ describe('the Ask session', () => {
       expect(turn.steps.map((s) => [s.name, s.result?.ok])).toEqual([['describeScene', true], ['select', false], ['describeScene', true], ['select', false]]);
       expect(turn.reply).toBe(''); // the planning remark of a round that never got its answer
       const note = endNote(turn)!;
-      expect(note.text).toContain('4 steps ran (2 done, 2 refused)');
-      expect(note.text).toContain('changes already made to the view remain');
+      // Reads are not changes; the refused writes are counted, not claimed.
+      expect(note.text).toContain('Nothing changed; 2 steps refused.');
       // No retry is offered, and nothing ran after the failure.
       expect(note.text).not.toMatch(/try again|retry/i);
       expect(transport.requests).toHaveLength(3);

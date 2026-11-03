@@ -39,6 +39,7 @@
     "test:permalinks": "node scripts/test-view-permalinks.mjs",
     "test:instrument-window": "node scripts/test-instrument-window.mjs",
     "test:embed": "node scripts/test-embed-package.mjs && node scripts/test-embed-host.mjs",
+    "test:ask-composition": "node scripts/test-ask-composition.mjs",
     "test:stars:webgl": "node scripts/test-starfield-webgl.mjs",
     "capture:stars": "node scripts/capture-starfield-calibration.mjs",
     "test:watch": "vitest",

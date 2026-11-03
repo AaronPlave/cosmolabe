@@ -114,7 +114,7 @@ describe('ask proxy server', () => {
     const res = await post(url, WIRE);
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe('http://viewer.test');
-    expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }] });
+    expect(await res.json()).toEqual({ version: 1, stop: 'end', content: [{ type: 'text', text: 'Hi.', raw: { type: 'text', text: 'Hi.' } }], usage: expect.objectContaining({ inputTokens: expect.any(Number), outputTokens: expect.any(Number) }) });
     expect(seen[0].headers['x-api-key']).toBe('secret');
     // Nothing in the request asks the provider to choose another model.
     expect(seen[0].headers['anthropic-beta']).toBeUndefined();

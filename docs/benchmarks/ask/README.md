@@ -1,6 +1,46 @@
 # Ask quality, latency and cost benchmark (#332)
 
-[2026-11-01 findings and measured limitations](2026-11-01-findings.md).
+[2026-11-01 findings and measured limitations](2026-11-01-findings.md) ·
+[2026-11-03 reliability gate (#345)](2026-11-03-reliability.md).
+
+## Reliability suite (#345)
+
+`scripts/ask-benchmark/reliability.mjs` adds eight user-level tasks across four
+catalogs (Voyagers, Cassini SOI, Psyche, Ingenuity/Jezero): computed flybys and
+closest approaches, all-minima versus deepest-only, a no-flyby refusal, terrain
+coloured by elevation, a pin then a saved point under Ingenuity, and the
+five-turn Psyche/Mars close-up. Multi-turn tasks run as one conversation in one
+fresh scene; each turn is finished before the next is sent and judged on its
+own. A stopped conversation is the observation: the harness does not keep
+spending after a budget or rate stop.
+
+Judging never reads the answer. Event, surface and ground-point goals are
+`checkGoal` over viewer reads the harness records itself; camera composition is
+the harness's own projection of the render camera, not the viewer's
+`getViewComposition` under test. Every run is classified `complete`,
+`correctly-refused`, `partial`, `incorrect`, `timed-out`, `interrupted`,
+`budget-stopped`, `error` or `harness-error`. A failed state check with an
+answer that sounds successful is flagged `suspectedFalseSuccess` for review;
+factual verdicts remain `pending-review` as before. `reliabilitySummary` in the
+report gives first-attempt success with a Wilson 95% interval, failures per
+check, rounds/latency/raw-token p50/p95 and estimated cost per arm/model/mode.
+
+```sh
+# B: this checkout's viewer
+ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=reliability ASK_BENCHMARK_REPETITIONS=5 node scripts/benchmark-ask.mjs
+# A: the same harness against a pre-#345 viewer (a worktree at the merge base, on another port)
+ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=reliability ASK_BENCHMARK_ARM=A CL_VIEWER_URL=http://127.0.0.1:5298/ node scripts/benchmark-ask.mjs
+```
+
+`ASK_BENCHMARK_MODELS`, `ASK_BENCHMARK_MODES` and `ASK_BENCHMARK_CASES` narrow
+the matrix; the default is both models and both modes. Paid runs keep the raw-token
+and estimated-dollar guards below. `.github/workflows/ask-live-benchmark.yml`
+runs the fixed-mode reliability suite weekly or on dispatch, only when the
+repository variable `ASK_LIVE_BENCHMARK` is `true` and the key secret is set.
+The deterministic gate is the Vitest suite in Fast PR CI (`ask-reliability`,
+`compose`, `outcome`, `reliability` tests); `npm run test:ask-composition` checks
+`composeView` on the real Psyche scene (needs the mission kernels, so it is not
+in PR CI).
 
 This benchmark runs the regular development Ask panel against the real loaded
 viewer. It compares fixed tools and discovery on the same twelve quality tasks plus one excluded diagnostic

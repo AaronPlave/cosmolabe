@@ -8,14 +8,21 @@ import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
+import { reliabilityCases, promptsOf, goalReads, turnGoal, judgeTurn, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
 
-const models = ['claude-sonnet-5-5', 'claude-haiku-5-5'];
+const list = (name, all) => (process.env[name] ? process.env[name].split(',').filter(v => all.includes(v)) : all);
+const models = list('ASK_BENCHMARK_MODELS', ['claude-sonnet-5-5', 'claude-haiku-5-5']);
+const modes = list('ASK_BENCHMARK_MODES', ['fixed', 'discovery']);
+// A/B (#345): the arm is which viewer build answers (CL_VIEWER_URL). A = a pre-#345 checkout, B = this one.
+const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
+const suite = process.env.ASK_BENCHMARK_SUITE ?? 'all';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
-const selected = cases.filter(c => !process.env.ASK_BENCHMARK_CASES || process.env.ASK_BENCHMARK_CASES.split(',').includes(c.id));
-assert.ok(selected.length);
+const pool = [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
+const selected = pool.filter(c => !process.env.ASK_BENCHMARK_CASES || process.env.ASK_BENCHMARK_CASES.split(',').includes(c.id));
+assert.ok(selected.length && models.length && modes.length);
 const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-  started: new Date().toISOString(), models, repetitions, tasks: selected.map(c => c.id),
+  started: new Date().toISOString(), arm, viewer: process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/', models, modes, repetitions, tasks: selected.map(c => c.id),
   renderer: 'Chromium SwiftShader; software WebGL, no physical GPU acceptance',
   initialState: 'Catalog default ET/viewpoint; deselected; rate 0 to freeze ET; playback on for pause/cancel tasks, paused otherwise',
   prompt: 'Unmodified shipped Ask prompts; max output 1536; thinking/effort unspecified (provider defaults); no fallback',
@@ -33,7 +40,7 @@ assert.ok(available.ok, `Model availability HTTP ${available.status}`);
 const listing = await available.json();
 assert.ok(!listing.has_more, 'Availability list must be complete');
 report.availability = { checked: new Date().toISOString(), models: listing.data.map(m => m.id).filter(id => models.includes(id)) };
-assert.ok(models.every(id => report.availability.models.includes(id)), 'Both reviewed model IDs must be available');
+assert.ok(models.every(id => report.availability.models.includes(id)), 'Every reviewed model ID must be available');
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/';
 const output = process.env.ASK_BENCHMARK_REPORT ?? '/tmp/ask-benchmark.json';
 const allUsage = [];
@@ -63,7 +70,7 @@ function cellProxy(model, cellUsage) {
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   for (let repeat = 0; repeat < repetitions; repeat++) for (const [index, test] of selected.entries()) {
-    const cells = models.flatMap(model => ['fixed', 'discovery'].map(mode => ({ model, mode })));
+    const cells = models.flatMap(model => modes.map(mode => ({ model, mode })));
     if ((index + repeat) % 2) cells.reverse();
     for (const { model, mode } of cells) {
       const cellUsage = [];
@@ -92,7 +99,7 @@ try {
           describedSchemas: request.messages.flatMap(m => m.content).filter(c => c.type === 'tool_use' && c.name === 'describeCapabilities').length });
         await route.continue();
       });
-      const run = { task: test.id, repeat, model, mode, order: report.runs.length, rounds, result: null };
+      const run = { task: test.id, repeat, model, mode, arm, ...(test.reliability ? { reliability: true } : {}), order: report.runs.length, rounds, result: null };
       report.runs.push(run);
       try {
         console.log(`Running ${test.id} ${model} ${mode}`);
@@ -153,10 +160,73 @@ try {
             }
             return state;
           };
+          // #345 oracle: the harness's own projection of the actual render camera,
+          // independent of the viewer's getViewComposition under test.
+          window.__probeComposition = names => {
+            const r = stateModule.getRenderer(), cam = r.camera, s = r.scaleFactor;
+            cam.updateMatrixWorld();
+            const eye = cam.position.clone();
+            const spheres = r.getBodyNames().map(n => r.getBodyMesh(n)).filter(b => b?.visible && b.hasMeasuredRadius)
+              .map(b => { const rel = b.getWorldPosition(eye.clone()).sub(eye); const range = rel.length() / s; return { name: b.body.name, dir: rel.normalize(), range, ang: Math.asin(Math.min(1, b.displayRadius / range)) }; });
+            const objects = names.map(object => {
+              const bm = r.getBodyMesh(object);
+              if (!bm) return { object, available: false, inView: false, rangeKm: null, occlusion: null };
+              const world = bm.getWorldPosition(eye.clone()), rel = world.clone().sub(eye), rangeKm = rel.length() / s, dir = rel.clone().normalize();
+              const radiusKm = bm.hasMeasuredRadius ? bm.displayRadius : null, ang = radiusKm ? Math.asin(Math.min(1, radiusKm / rangeKm)) : 0;
+              const p = world.clone().project(cam), front = world.clone().applyMatrix4(cam.matrixWorldInverse).z < 0;
+              let occlusion = null, nearest = Infinity;
+              for (const o of spheres) if (o.name !== object && o.range < rangeKm && o.range < nearest && o.dir.angleTo(dir) < o.ang) { nearest = o.range; occlusion = { by: o.name, kind: o.dir.angleTo(dir) + ang <= o.ang ? 'full' : 'partial' }; }
+              return { object, available: true, drawEnabled: bm.visible, rangeKm, radiusKm, ndc: front ? [p.x, p.y] : null, inView: front && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1, occlusion };
+            });
+            return { et: r.timeController.et, playing: r.timeController.playing, tracked: r.cameraController.trackedBody?.body.name ?? null, objects };
+          };
+          window.__benchReads = reads => reads.map(([method, args]) => {
+            try { return [method, args, method === 'getViewComposition' ? window.__probeComposition(...args) : JSON.parse(JSON.stringify(c[method](...args) ?? null))]; }
+            catch { return [method, args, null]; }
+          });
+          window.__benchEvent = () => {
+            const v = c.getEventVisualization(), search = c.getEventSearch(), id = v.selected?.query ?? search.query;
+            if (!id) return null;
+            const info = c.getEventQueryInfo(id), page = c.getEventResultPage(id, { limit: 1 });
+            return { id, kind: info.definition?.query.kind ?? null, bodies: info.definition?.query.bodies ?? {}, searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected };
+          };
         }, { test });
         const initial = await page.evaluate(() => window.__benchSnapshot());
         run.initialState = initial.stable;
         const started = performance.now();
+        if (test.reliability) {
+          // Same conversation, fresh scene: each turn is sent, finished and judged before the next.
+          const context = {};
+          run.result = { turns: [] };
+          for (const [i, prompt] of promptsOf(test).entries()) {
+            const turnStarted = performance.now();
+            await page.getByRole('textbox', { name: 'Request', exact: true }).fill(prompt);
+            await page.getByRole('button', { name: 'Send request', exact: true }).click();
+            await page.waitForFunction(n => window.__askBench.ask.turns.length === n && window.__askBench.ask.turns.at(-1).status !== 'running', i + 1, { timeout: 240000 });
+            const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
+              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats,
+                steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null })) }; });
+            turn.latencyMs = Math.round(performance.now() - turnStarted);
+            if (test.composition?.epochTurn === i) context.epoch = await page.evaluate(() => window.cosmo.getTime());
+            if (test.composition?.closeTurn === i) context.closeRangeKm = (await page.evaluate(n => window.__probeComposition([n]), test.composition.anchor)).objects[0].rangeKm;
+            if (test.event || test.refusal) { turn.eventQuery = await page.evaluate(() => window.__benchEvent()); context.query = turn.eventQuery?.id; }
+            const goal = turnGoal(test, i, context);
+            if (goal) {
+              turn.goal = goal;
+              turn.report = judgeTurn(goal, await page.evaluate(reads => window.__benchReads(reads), goalReads(goal)));
+            }
+            run.result.turns.push(turn);
+            if (turn.status !== 'done') break; // a stopped conversation is the observation; do not keep spending
+          }
+          run.latencyMs = Math.round(performance.now() - started);
+          run.score = scoreReliability(test, run.result.turns);
+          run.classification = classify(test, run);
+          run.suspectedFalseSuccess = suspectedFalseSuccess(run);
+          run.usage = summarizeUsage(cellUsage);
+          run.requestUsage = cellUsage.map(({ inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, upstreamLatencyMs, outputCalls }) => ({ inputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, estimatedUsd, upstreamLatencyMs, outputCalls }));
+          console.log(JSON.stringify({ task: test.id, arm, model, mode, classification: run.classification, rounds: rounds.length, rawTokens: run.usage.rawProcessed, estimatedUsd: run.usage.estimatedUsd }));
+          continue;
+        }
         await page.getByRole('textbox', { name: 'Request', exact: true }).fill(test.prompt);
         await page.getByRole('button', { name: 'Send request', exact: true }).click();
         await page.waitForFunction(() => window.__askBench.ask.turns.length && window.__askBench.ask.turns.at(-1).status !== 'running', null, { timeout: 240000 });
@@ -189,6 +259,7 @@ try {
         // Store a fixed diagnostic, not arbitrary provider/browser error text.
         run.failure = error.name === 'TimeoutError' ? 'viewer-or-task-timeout' : 'harness-error';
         run.usage = summarizeUsage(cellUsage);
+        if (test.reliability) { run.classification = classify(test, run); run.suspectedFalseSuccess = false; }
         console.error(`${test.id}: ${error.name}: ${error.message.slice(0, 250)}`);
       } finally {
         writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
@@ -200,6 +271,7 @@ try {
 } finally {
   report.finished = new Date().toISOString();
   report.totalUsage = summarizeUsage(allUsage);
+  report.reliabilitySummary = summarizeReliability(report);
   writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
   await browser.close();
 }

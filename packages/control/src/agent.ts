@@ -33,6 +33,7 @@ import type {
   ScriptEventMap,
   ScriptTime,
   ScriptVec3,
+  ScriptViewComposition,
   Statement,
   VerbValue,
   ViewerControl,
@@ -46,8 +47,23 @@ import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
 import { VERBS, type VerbParam, type VerbSpec } from './verbs.js';
 import type { OperationReceipt } from './capabilities.js';
+import { checkGoal, parseGoal } from './outcome.js';
 
 type FlightEnd = ScriptEventMap['flightEnd'];
+
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+/** The model-facing composition: rounded, no fields it cannot use. */
+export function compositionData(v: ScriptViewComposition) {
+  return { et: v.et, playing: v.playing, tracked: v.tracked, orbitDistanceKm: r3(v.orbitDistanceKm), fovDeg: r3(v.fovDeg),
+    objects: v.objects.map(o => !o.available ? { object: o.object, available: false } : {
+      object: o.object, inView: o.inView, rangeKm: o.rangeKm === null ? null : r3(o.rangeKm), angularRadiusDeg: o.angularRadiusDeg === null ? null : r3(o.angularRadiusDeg),
+      bearingDeg: o.bearingDeg?.map(r3) ?? null, hiddenBy: o.occlusion ? `${o.occlusion.by} (${o.occlusion.kind})` : null }) };
+}
+/** One plain sentence about where the named objects are. */
+export function compositionSentence(v: ScriptViewComposition): string {
+  return v.objects.map(o => !o.available ? `${o.object} is not in this scene`
+    : `${o.object} ${o.inView ? 'in view' : 'out of view'}${o.rangeKm !== null ? ` at ${o.rangeKm < 1 ? `${r3(o.rangeKm * 1000)} m` : `${r3(o.rangeKm)} km`}` : ''}${o.occlusion ? `, ${o.occlusion.kind === 'full' ? 'hidden' : 'partly hidden'} behind ${o.occlusion.by}` : ''}`).join('; ') + '.';
+}
 
 /** The JSON Schema subset the tools are described in. */
 export interface AgentJsonSchema {
@@ -171,6 +187,7 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'circleCenterUp', effect: 'camera' },
   { verb: 'circleCenterDown', effect: 'camera' },
   { verb: 'dolly', effect: 'camera' },
+  { verb: 'composeView', effect: 'camera' },
   { verb: 'stopFlight', effect: 'camera' },
   { verb: 'setTime', effect: 'time' },
   { verb: 'setTimeRate', effect: 'time' },
@@ -186,6 +203,9 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'setImageryOpacity', effect: 'display' },
   { verb: 'showBodyGrid', effect: 'display' },
 ];
+
+/** The curated verb names, for parity checks against `VERBS`. */
+export const CURATED_AGENT_VERBS: readonly string[] = AGENT_VERBS.map(v => v.verb);
 
 /** What each parameter type means to a caller that did not write the scene. */
 const PARAM_HELP: Partial<Record<VerbParam['type'], string>> = {
@@ -233,6 +253,14 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 }
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
+  { name: 'getViewComposition', effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
+  { name: 'checkGoal', effect: 'read', description: 'Check the requested end state against the viewer itself, after acting. State the whole goal, including constraints from earlier requests (e.g. keep Psyche close AND Mars in view). kind camera-composition: anchor, include, optional maxAnchorRangeKm/paused/et. event-presentation: query, pick closest|selected. surface-appearance: body, baseColor, palette. ground-point: object, mode pin|saved. Returns met, partial (settings hold; drawing/data not yet observed), unmet or inconclusive with per-check details. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, required: ['kind'], properties: {
+    kind: { type: 'string', enum: ['camera-composition', 'event-presentation', 'surface-appearance', 'ground-point'] },
+    anchor: { type: 'string' }, include: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 }, maxAnchorRangeKm: { type: 'number', minimum: 0 }, paused: { type: 'boolean' }, et: { type: 'number' },
+    query: { type: 'string' }, pick: { type: 'string', enum: ['closest', 'selected'] },
+    body: { type: 'string' }, baseColor: { type: 'string', enum: ['imagery', 'elevation', 'neutral'] }, palette: { type: 'string', enum: ['terrain', 'blue-gold', 'grayscale'] },
+    object: { type: 'string' }, mode: { type: 'string', enum: ['pin', 'saved'] },
+  } } },
   { name: 'getSpatialContext', effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'getObjectState', effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['reference','rendered','terrain'] } }, required: ['object'], additionalProperties: false } },
@@ -734,7 +762,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     }
     if (name === 'frameObject') {
       const camera = host.getCamera(), target = args.object ?? host.getTracked();
-      return target && host.getTracked() === target && [...camera.position,...camera.target,...camera.up].every(Number.isFinite) && Math.hypot(...camera.position.map((v,i)=>v-camera.target[i])) > 0 ? { note: 'Requested tracked object and resulting camera pose are observed. This is not an occlusion or visible-pixels guarantee.' } : { problem: 'the requested framing target and valid camera pose are not observed' };
+      const where = typeof target === 'string' && host.getViewComposition ? ` ${compositionSentence(host.getViewComposition([target]))}` : '';
+      return target && host.getTracked() === target && [...camera.position,...camera.target,...camera.up].every(Number.isFinite) && Math.hypot(...camera.position.map((v,i)=>v-camera.target[i])) > 0 ? { note: `Tracking ${target}.${where}` } : { problem: 'the requested framing target and valid camera pose are not observed' };
     }
     if (name === 'presentEventResult' && host.getEventVisualization) {
       const ref = JSON.parse(args.reference as string) as ScriptEventReference, v = host.getEventVisualization();
@@ -773,6 +802,12 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       return now && now.ref === args.place ? { note: `The viewer now reports ${now.name} as the selected place.` }
         : { problem: `the place was asked to be selected, but the viewer reports ${now ? now.name : 'none'} as selected` };
     }
+    if ((/^circleCenter|^(dolly|pointAtObject|composeView)$/.test(name)) && host.getViewComposition) {
+      const named = name === 'composeView' ? [args.anchor, args.target, args.also] : name === 'pointAtObject' ? [host.getTracked(), args.object] : [host.getTracked()];
+      const objects = [...new Set(named.filter((n): n is string => typeof n === 'string'))];
+      const v = host.getViewComposition(objects);
+      return { note: objects.length ? compositionSentence(v) : `Camera ${r3(v.orbitDistanceKm)} km from its orbit centre.`, data: compositionData(v) };
+    }
     if (name === 'seekActivity' || name === 'setTime' || name === 'setPlaying') {
       const utc = opts.formatTime ? attempt(() => opts.formatTime!(host.getTime())) : null;
       return { note: `The clock now reads ${utc ?? `ET ${host.getTime()}`}. Playback ${host.isPlaying() ? 'continues; this moment is not held' : 'is paused'}.` };
@@ -786,6 +821,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     getObjectState: input => ({ ok: true, summary: 'Targeted state and availability; unapproved provenance stays local.', data: metadata.objectState(host.getObjectState!(input.object as string, { frame: input.frame as string | undefined, center: input.center as string | undefined, time: typeof input.et === 'number' ? { kind: 'et', et: input.et } : undefined })) }),
     projectGroundPoint: input => ({ ok: true, summary: 'Shared radial ground projection; inspect status/source before placing a marker.', data: metadata.groundProjection(host.projectGroundPoint!(input.object as string, input.policy as import('./contracts.js').ScriptSurfacePolicy | undefined)) }),
     getProbePoint: () => ({ ok: true, summary: 'Actual native/UI Point Probe state; draw-enabled does not promise unoccluded pixels.', data: metadata.probePoint(host.getProbePoint!()) }),
+    getViewComposition: input => ({ ok: true, summary: 'Current view composition.', data: compositionData(host.getViewComposition!(input.objects as string[])) }),
+    checkGoal: input => {
+      const goal = parseGoal(input);
+      const result = checkGoal(host, goal);
+      const failed = result.checks.filter(c => c.ok !== true).map(c => c.detail);
+      return { ok: true, summary: `Goal ${result.status}${failed.length ? `: ${failed.join('; ')}` : ''}.`, data: result };
+    },
     getEventSearchOptions: input => {
       const options = host.getEventSearchOptions!(input as Parameters<NonNullable<ViewerControl['getEventSearchOptions']>>[0]);
       const coverage = options.coverage;
@@ -889,6 +931,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     cameraTaken = false;
     /** The flight this task started and has not seen end; the only one its Stop may stop. */
     ownFlight: number | null = null;
+    /** Outcome checks this request has made; bounded so a failing goal cannot loop. */
+    goalChecks = 0;
 
     end(code: AgentErrorCode) {
       if (this.ended) return;
@@ -973,11 +1017,13 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         return { ok:true,summary:'Selected and framed the measured vehicle at the observed result epoch.',data:{verified,observed} };
       }
 
+      if (name === 'checkGoal' && ++this.goalChecks > 3) return { ok: false, code: 'refused', error: 'Three outcome checks already ran for this request. Report the observed state and the unmet part plainly.' };
       const read = reads[name];
       if (read) {
         try {
           return read(args);
         } catch (err) {
+          if (name === 'checkGoal') return { ok: false, code: 'invalid-input', error: err instanceof Error ? err.message : String(err) };
           if (['getObjectState', 'getSpatialContext', 'projectGroundPoint', 'getProbePoint', 'listGeographicLayers', 'listGeographicFeatures'].includes(name)) return { ok: false, code: 'failed', error: 'Requested data could not be read; inspect the local viewer for source/frame details.' };
           return { ok: false, code: 'failed', error: err instanceof Error ? err.message : String(err) };
         }

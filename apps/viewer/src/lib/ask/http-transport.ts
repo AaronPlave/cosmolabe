@@ -8,7 +8,7 @@
  * server change.
  */
 import {
-  AGENT_WIRE_VERSION, AgentTransportError, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport,
+  AGENT_WIRE_VERSION, AgentTransportError, type AgentContent, type AgentRequest, type AgentResponse, type AgentStop, type AgentTransport, type AgentUsage,
   type AgentWireRequest, type ScriptCancelSignal,
 } from '@cosmolabe/control';
 
@@ -27,7 +27,11 @@ export function parseWireResponse(body: unknown): AgentResponse {
       && (c.type !== 'tool_use' || (typeof c.id === 'string' && typeof c.name === 'string'));
     if (!ok) throw new Error('the model proxy sent a malformed content block');
   }
-  return { content: r.content as AgentContent[], stop: r.stop as AgentStop };
+  // Optional: a proxy that reports what the round processed (#345). Ignored unless every count is a finite number.
+  const u = (body as { usage?: Record<string, unknown> }).usage;
+  const keys = ['inputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'outputTokens'] as const;
+  const usage = u && keys.every(k => typeof u[k] === 'number' && Number.isFinite(u[k])) ? Object.fromEntries(keys.map(k => [k, u[k]])) as unknown as AgentUsage : undefined;
+  return { content: r.content as AgentContent[], stop: r.stop as AgentStop, ...(usage ? { usage } : {}) };
 }
 
 export function createHttpTransport(endpoint: string): AgentTransport {
