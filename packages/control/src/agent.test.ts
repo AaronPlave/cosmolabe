@@ -3,7 +3,7 @@ import { createAgentTools, fixedAgentDefinitions, type AgentToolResult } from '.
 import { VERBS } from './verbs.js';
 import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
 import { FakeViewer } from './__tests__/fake-host.js';
-import type { ScriptActivity, ViewerControl } from './contracts.js';
+import type { ScriptActivity, ScriptInstrument, ViewerControl } from './contracts.js';
 
 const fail = (r: AgentToolResult) => {
   if (r.ok) throw new Error(`expected a failure, got ${r.summary}`);
@@ -27,6 +27,24 @@ const FLIGHT_5: ScriptActivity = {
 };
 
 describe('agent tools: discovery', () => {
+  it('reports bounded physical instrument reasons independently of freshness and render errors', async () => {
+    const instrument: ScriptInstrument = { sensor: 'NAC', spacecraft: 'Spacecraft', target: null,
+      fov: null, viewFov: [1,1], pointing: 'unavailable', pointingUnavailable: "Spacecraft's attitude is unavailable at this time.",
+      observation: 'synthetic-scene-view', observedEt: 123, fresh: false, renderError: null };
+    const host = Object.assign(new FakeViewer(), { getInstrument: () => instrument });
+    const tools = createAgentTools(host);
+    expect(await tools.call('getInstrument', {})).toMatchObject({ ok: true, data: {
+      pointingUnavailable: 'Attitude is unavailable at this time.', fresh: false, observedEt: 123, renderError: null,
+    } });
+    instrument.pointingUnavailable = 'NAC or its spacecraft has no state or attitude at this time.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'Sensor or spacecraft state or attitude is unavailable at this time.' } });
+    instrument.pointingUnavailable = 'NAC: geometry.mounting.boresight is zero.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'geometry.mounting.boresight is zero.' } });
+    instrument.pointingUnavailable = 'Private fault https://secret.example/file?token=secret /private/data';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'Physical pointing is unavailable; details remain local.' } });
+    instrument.pointingUnavailable = null; instrument.pointing = 'spice'; instrument.renderError = 'Instrument frame could not be rendered.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: null, pointing: 'spice', fresh: false, renderError: instrument.renderError } });
+  });
   it('resolves every fixed camera tool to a registered callable host operation', () => {
     const host = new FakeViewer();
     for (const tool of fixedAgentDefinitions().filter(t => t.effect === 'camera')) {

@@ -53,3 +53,24 @@ Ingenuity, then its separate test harness timed out waiting for streamed imagery
 to become drawn. That broader run is not claimed as passed; default harness
 coverage and strict readiness have not been weakened. `CL_MODERN_MODES` only
 allows a targeted repeat; its default still runs ordinary, harness and Cassini.
+
+## Probe readback re-review
+
+[P2 re-review](https://github.com/AaronPlave/cosmolabe/pull/334#issuecomment-6613880332):
+`drawn` now requires a non-null observed epoch for the current pin as well as the
+matching view and native marker visibility. Replacing visible pin A with B
+invalidates its observation even while the overlay retains A's visibility;
+clock advancement after B renders still preserves B's prior observed epoch.
+`SemanticSurfacePoint.test.ts` covers that complete sequence.
+
+Ask's instrument read includes a bounded `pointingUnavailable` reason, separately
+from `fresh` and `renderError`. Known native attitude, state and mounting messages
+use fixed diagnostic text without catalog names; unapproved fault details remain
+local. Agent tests cover physical failures, stale-clock reads, render-only
+failure, and withholding private fault text.
+
+Validation for this small follow-up: 252 tests across all control suites and the
+three instrument/event/probe renderer suites, configured package/test/viewer/Svelte
+type checks, changed-file ESLint and diff checks pass. The browser evidence and
+full modern-scene timeout above are from the preceding playback pass; these
+browser harnesses were not rerun for this readback-only follow-up.
