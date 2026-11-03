@@ -165,7 +165,10 @@ const AGENT_VERBS: readonly { verb: string; effect: AgentToolEffect }[] = [
   { verb: 'gotoCoordinates', effect: 'camera' },
   { verb: 'viewpoint', effect: 'camera' },
   { verb: 'setFrame', effect: 'camera' },
-  { verb: 'circleCenter', effect: 'camera' },
+  { verb: 'circleCenterRight', effect: 'camera' },
+  { verb: 'circleCenterLeft', effect: 'camera' },
+  { verb: 'circleCenterUp', effect: 'camera' },
+  { verb: 'circleCenterDown', effect: 'camera' },
   { verb: 'dolly', effect: 'camera' },
   { verb: 'stopFlight', effect: 'camera' },
   { verb: 'setTime', effect: 'time' },
@@ -471,6 +474,9 @@ export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof Vi
 
 /** Familiar direct schemas; all other operations remain discoverable from the same catalog. */
 export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
+  for (const { verb } of AGENT_VERBS) {
+    if (!VERBS.has(verb)) throw new Error(`Unregistered fixed agent verb: ${verb}`);
+  }
   const direct = new Set(AGENT_VERBS.map(v => v.verb));
   return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
 }
