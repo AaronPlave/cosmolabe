@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { viewerBrowserOptions } from './lib/viewer-browser.mjs';
 import { etToDate } from '../packages/core/dist/index.js';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 
@@ -18,7 +19,7 @@ const proxy = createProxy({ apiKey: process.env.ANTHROPIC_API_KEY, origins: [new
   provider: anthropicProvider, model, maxTokens: 1536, perMinute: 100,
   tokenBudget: Number(process.env.ASK_TEST_TOKEN_BUDGET ?? 1000000), costBudgetUsd: 3, cache: true, onUsage: row => usage.push(row) });
 await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(8798, '127.0.0.1', resolve); });
-const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch(viewerBrowserOptions());
 const report = { model, cache: 'sequential; cache warmth uncontrolled; USD is a proxy estimate, not billing', runs: [] };
 const scenarios = [
   { id: 'psyche-earth', catalog: 'psyche', prompt: 'show me all psyche flybys of earth' },

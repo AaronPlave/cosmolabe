@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { viewerBrowserOptions } from './lib/viewer-browser.mjs';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5397/';
 const out = process.env.CL_OUTPUT ?? '/tmp/event-visualization-integration';
 const controlModule = `/@fs${fileURLToPath(new URL('../packages/control/src/index.ts', import.meta.url))}`;
 await mkdir(out, { recursive: true });
-const hardware = process.platform === 'darwin' && process.env.CL_GPU !== 'software';
-const browser = await chromium.launch({ ...(hardware ? { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
-  args: hardware ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch(viewerBrowserOptions());
 const report = { passed: false, scenarios: [] };
 let page;
 try {

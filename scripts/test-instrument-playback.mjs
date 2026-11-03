@@ -2,12 +2,11 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { viewerBrowserOptions } from './lib/viewer-browser.mjs';
 const base = process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5797';
 const output = process.env.CL_OUTPUT ?? '/tmp/297-instrument-playback';
 mkdirSync(output, { recursive: true });
-const hardware = process.platform === 'darwin' && process.env.CL_GPU !== 'software';
-const browser = await chromium.launch({ ...(hardware ? { executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } : {}),
-  args: hardware ? ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch(viewerBrowserOptions());
 const report = { scenarios: [], passed: false };
 try {
   for (const [catalog, sensor, alternate, et] of [
@@ -16,7 +15,7 @@ try {
   ]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = []; page.on('pageerror', e => errors.push(e.message));
-    await page.goto(`${base}/?catalog=test-catalogs/${catalog}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(new URL(`?catalog=test-catalogs/${catalog}`, base).href, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.cosmo?.getScene()?.ready, null, { timeout: 180000 });
     await page.evaluate(async ({ sensor, et, catalog }) => {
       const resource = suffix => performance.getEntriesByType('resource').map(e => e.name).find(u => new URL(u).pathname.endsWith(suffix));
