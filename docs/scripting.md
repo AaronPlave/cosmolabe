@@ -848,8 +848,9 @@ resource URLs. Do not use a snapshot as an external agent context: arbitrary
 catalog/user text has not been certified public.
 
 Capability discovery includes the implemented operations and bounded public reads.
-Saved-definition/annotation mutations are classified `authoring`; capability calls
-require trusted `allowAuthoring` plus exact-call `confirmAuthoring`. Direct agent
+Reversible local definitions/annotation edits are classified `viewer`, require
+trusted `allowAuthoring`, and run without repeated confirmation. Deletion, explicit
+measurement replacement and whole-state restore require exact-call `confirmAuthoring`. Direct agent
 tools also default to refusing authoring unless their host allows it. Export
 permission stays separate. Native trusted host/script calls use the typed port;
 a catalog script can invoke these bounded data operations but cannot install
@@ -1034,8 +1035,9 @@ The new text verbs generate help and completion from `VERBS`; query/result and
 instrument completion uses stable runtime identities. Typed hosts get full
 scientific definitions. Agent discovery offers bounded allowlisted summaries
 without endpoint/resource metadata or solver fault text; raw ViewState capture
-is trusted-host-only. Query/bookmark definitions and view restore require the
-same authoring permission and exact-call confirmation as annotation edits.
+is trusted-host-only. Query/bookmark definitions and annotation edits retain host authoring permission;
+ordinary reversible edits need no repeated confirmation. Deletion, explicit
+measurement replacement and whole-state restore retain exact-call confirmation.
 Capture/export keeps its separate trusted host policy. Registered consumers are
 the existing capability adapter, embedding hosts, ScriptConsole and catalog
 tours; no plugin installation, catalog JavaScript, generic extension registry,
@@ -1063,8 +1065,10 @@ predicate limitations; a passed cube-base check is not terrain coverage acceptan
 
 Ordinary Ask offers a compact direct read shortlist and an index of every
 registered script operation through the shared capability registry. Detailed
-schemas hydrate and validate automatically; list/describe calls are optional. Saved definitions/annotation edits and export/recording
-require separate, exact-call approval in the Ask panel; a conversational “yes” or
+schemas hydrate and validate automatically; list/describe calls are optional.
+Routine Event Finder configuration and reversible local edits run under the host
+permissions already granted. Destructive deletion/replacement, whole-state restore,
+and export/recording require exact-call approval in the Ask panel; a conversational “yes” or
 catalog text cannot grant permission. Embedded hosts supply their own policy.
 Stopping, replacing or closing the request rejects a pending UI approval.
 

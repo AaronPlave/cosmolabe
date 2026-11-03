@@ -1,6 +1,6 @@
 /** Human-readable presentation of the existing registry and exact-call approval.
  * These summaries never grant permission or change the approved arguments. */
-import { VERB_LIST } from '@cosmolabe/control';
+import { VERB_LIST, agentDefinitions } from '@cosmolabe/control';
 import type { AskStep, AskTurn } from './ask.svelte';
 
 const record = (v: unknown): Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -11,14 +11,29 @@ export function actionMetadata(step: Pick<AskStep, 'name' | 'input'>): { label: 
   return { label: spec?.help.split(/[;:]|\.\s/)[0].replace(/\.$/, '') ?? name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase()),
     diagnostic: ['listCapabilities','describeCapabilities','getOperationResult'].includes(name) };
 }
-export function actionStatus(turn: Pick<AskTurn, 'status' | 'steps'>): string {
-  const actions = turn.steps.filter(s => !actionMetadata(s).diagnostic);
-  if (turn.status === 'running') return 'Working';
-  if (!actions.length) return 'Request completed';
-  const succeeded = actions.filter(s => s.result?.ok).length;
-  // Partial readback and corrected schema errors remain in Details. A request
-  // with no successful step must not look completed, even if a reply exists.
-  return succeeded ? `${succeeded} viewer ${succeeded === 1 ? 'step' : 'steps'} completed · Details` : 'No viewer changes confirmed · Details';
+const definitions = agentDefinitions();
+function stepName(step: Pick<AskStep, 'name' | 'input'>) {
+  return step.name === 'invokeCapability' ? words(record(step.input).id).split('.').at(-1)! : step.name;
+}
+export function actionStatus(turn: Pick<AskTurn, 'status' | 'steps'>, approvalPending = false): string {
+  if (turn.status === 'running') {
+    if (approvalPending) return 'Approval needed';
+    const step = turn.steps.at(-1);
+    if (step && !step.result) {
+      const name = stepName(step);
+      if (name === 'runEventQuery') return 'Running Event Finder…';
+      if (name === 'upsertEventQuery' || name === 'getEventSearchOptions') return 'Preparing event search…';
+      if (definitions.find(d => d.name === name)?.effect !== 'read' && !actionMetadata(step).diagnostic) return `${actionMetadata(step).label}…`;
+    }
+    return 'Researching…';
+  }
+  const changed = turn.steps.filter(s => s.result?.ok && s.result.receipt?.status !== 'partial'
+    && definitions.some(d => d.name === stepName(s) && d.effect !== 'read' && d.effect !== 'export')
+    && !['Sequencing', 'Capture'].includes(VERB_LIST.find(v => v.name === stepName(s))?.category ?? '')).length;
+  if (changed) return `${changed} viewer ${changed === 1 ? 'change' : 'changes'} completed`;
+  if (turn.status === 'cancelled' || turn.status === 'superseded') return 'Request stopped';
+  if (turn.status === 'refusal' || turn.steps.some(s => s.result && !s.result.ok)) return 'No viewer changes confirmed';
+  return turn.status === 'done' ? 'Request completed' : 'Request stopped';
 }
 export function approvalPresentation(pending: { kind: string; operation: string; input: string }, formatTime: (et: number) => string) {
   let input: Record<string, unknown> = {};

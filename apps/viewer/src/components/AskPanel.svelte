@@ -117,12 +117,6 @@
     return LABELS[step.name]?.(input) ?? actionMetadata(step).label;
   }
 
-  /** The latest step, for the "Working…" line. */
-  const working = (turn: AskTurn): string | null => {
-    const step = turn.steps.at(-1);
-    return step && !step.result ? stepLabel(step) : null;
-  };
-
   /** Everything raw, as one block: the tool calls, their results and the model's narration. */
   function details(turn: AskTurn): string {
     const lines = turn.steps.map((s) => JSON.stringify({ tool: s.name, input: s.input, result: s.result }, null, 1));
@@ -161,11 +155,11 @@
             <span class="h-px flex-1 bg-border"></span>
           </li>
         {/if}
-        <li class="flex flex-col gap-1">
-          <p class="ui-body whitespace-pre-wrap font-medium text-text-primary">{turn.prompt}</p>
+        <li class="ask-turn flex flex-col gap-2">
+          <p class="ask-prompt ui-body ml-auto max-w-[92%] self-end rounded-md border border-border bg-hover px-2.5 py-1.5 whitespace-pre-wrap text-text-primary">{turn.prompt}</p>
           {#if turn.reply}
             <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
-            <div class="ask-answer ui-body flex flex-col gap-1.5 text-text-secondary">
+            <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
               {#each parseAnswer(turn.reply) as block}
                 {#if block.kind === 'ul'}
                   <ul class="flex list-disc flex-col gap-0.5 pl-4">
@@ -177,11 +171,10 @@
               {/each}
             </div>
           {/if}
-          {#if turn.status === 'running' && !turn.reply}
-            <p class="ui-meta flex items-center gap-1">
-              <Loader2 size={11} class="animate-spin" /> Working…{#if working(turn)} <span>{working(turn)}</span>{/if}
-            </p>
-          {/if}
+          <p class="ask-status ui-meta flex items-center gap-1 text-text-muted" role="status">
+            {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
+            {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
+          </p>
           {#if endNote(turn)}
             {@const note = endNote(turn)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
@@ -190,7 +183,7 @@
             <details class="ask-actions">
               <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
                 <ChevronRight size={10} class="ask-chevron" />
-                {actionStatus(turn)}{turn.status === 'running' ? '…' : ''}
+                Action details
               </summary>
               <ul class="mt-1 flex flex-col gap-0.5">
                 {#each turn.steps.filter(s => !actionMetadata(s).diagnostic) as step (step.id)}

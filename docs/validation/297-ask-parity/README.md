@@ -103,3 +103,5 @@ The additional semantic-point review is covered by [spatial-points.md](spatial-p
 The latest [acceptance corrections](review-followup.md) supersede the initial two-point and palette-only checks. Current evidence covers immediate natural follow-up selection without duplicates, equivalent Fixed/Discovery elevation mode, complete-candidate range ranking, and reusable native encounter presentation for Voyager/Jupiter and Cassini/Mimas. The registry now contains 108 operations.
 
 The November 3 manual UI findings are addressed in [final-usability.md](final-usability.md), with [compact browser/provider evidence](final-usability.json).
+
+Latest: [Ask permissions and transcript feedback](permissions-ux.md), including exact Psyche prompts and compact browser/provider evidence.
