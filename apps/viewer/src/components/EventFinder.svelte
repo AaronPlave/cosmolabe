@@ -9,7 +9,7 @@
   import * as Select from '$lib/components/ui/select/index.js';
   import * as Popover from '$lib/components/ui/popover';
   import { eventStart, eventDuration, isIntervalEvent, type GeometryEvent, type EventParamSpec } from '@cosmolabe/core';
-  import { vs, etToUtcString } from '../lib/viewer-state.svelte';
+  import { vs, etToUtcString, getRenderer } from '../lib/viewer-state.svelte';
   import { toolDef } from '../lib/shell.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import EventDetails from './EventDetails.svelte';
@@ -76,9 +76,19 @@
   let configured = $derived(currentConfiguredQuery());
   let configuredQueries = $derived(configuredEventQueries());
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
-  let unavailable = $derived(currentSearchUnavailable());
+  let unavailable = $derived.by(() => { void terrainReadiness; return currentSearchUnavailable(); });
   let sourceWindow = $derived.by(() => { void vs.kernelCount; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectorySourceWindow(form?.bodies.center, form?.bodies.observer) : null; });
-  let metricAvailability = $derived.by(() => { void vs.kernelRevision; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectoryMetricAvailability(form?.bodies.center, form?.params.frame, form?.params.radiusKm) : {}; });
+  // TerrainManager has no readiness event. Observe a small primitive snapshot
+  // on the existing renderer tick; expensive form derivation only propagates
+  // when metadata/frame/source status changes, not on every rendered frame.
+  let terrainReadiness = $derived.by(() => {
+    void vs.frameTick;
+    if (kind.engine !== 'trajectory-analysis') return '';
+    const terrain = getRenderer()?.getBodyMesh(form?.bodies.center ?? '');
+    return JSON.stringify([terrain?.terrainFrameAvailability, terrain?.terrainDatum,
+      terrain?.terrainSourceId, terrain?.terrainSourceRevision]);
+  });
+  let metricAvailability = $derived.by(() => { void terrainReadiness; void vs.kernelRevision; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectoryMetricAvailability(form?.bodies.center, form?.params.frame, form?.params.radiusKm) : {}; });
   let metricUnavailable = $derived(metricAvailability[form?.params.metric ?? ''] ?? null);
   let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !metricUnavailable && !ef.restoring);
   let coverage = $derived(ef.coverage);
@@ -699,7 +709,7 @@
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           {@const atPlayhead = eventContainsTime(event, vs.et)}
-          <div class="result-wrap">
+          <div class="result-wrap" class:measurement-card={!!event.trajectoryAnalysis} class:analysis-row={!!event.trajectoryAnalysis} class:selected={!!event.trajectoryAnalysis && isSelectedEvent(event)}>
           <button
             class="analysis-row event-result text-left rounded px-2 py-2 border cursor-pointer"
             class:selected={isSelectedEvent(event)}
@@ -853,6 +863,13 @@
   .sort-control .ctrl-link.on {
     color: var(--color-text-primary);
   }
+  .measurement-card {
+    --row-accent: var(--color-primary-accent);
+    border: 1px solid transparent;
+    border-radius: 4px;
+  }
+  .measurement-card .event-result { border: none; }
+  .measurement-card .event-result.selected { background: transparent; box-shadow: none; }
   .result-wrap .event-result.selected {
     padding-right: 30px;
   }

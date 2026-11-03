@@ -13,8 +13,28 @@ const page=await browser.newPage({viewport:{width:1440,height:1000}});
 const report={passed:false,errors:[]};
 page.on('pageerror',e=>report.errors.push(e.message));
 try {
+  let releaseMetadata;
+  const metadataGate=new Promise(resolve=>{releaseMetadata=resolve;});
+  await page.route('**/cpu-grids.json',async route=>{await metadataGate;await route.continue();});
   await page.goto(`${base}?catalog=test-catalogs/ingenuity-jezero`,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.cosmo?.listActivities?.().length===72&&window.renderer?.getBodyMesh('Mars')?.terrainFrameAvailability?.kind==='available',null,{timeout:180000});
+  await page.waitForFunction(()=>window.cosmo?.listActivities?.().length===72&&window.renderer?.getBodyMesh('Mars'),null,{timeout:180000});
+  await page.getByRole('button',{name:'Events',exact:true}).click();
+  await page.locator('[data-slot="select-trigger"]').filter({hasText:'Closest approach'}).click();
+  await page.getByText('Altitude / terrain clearance',{exact:true}).last().click();
+  await page.locator('#event-body-center').selectOption('Mars');
+  await page.locator('#event-body-observer').selectOption('Ingenuity');
+  const search=page.getByRole('button',{name:'Find maximum',exact:true});
+  assert.equal(await search.isDisabled(),true);
+  assert.equal(await page.locator('#event-height-question').inputValue(),'heightAbovePhysicalTerrain:maximum');
+  report.readiness={before:await search.isDisabled()};
+  releaseMetadata();
+  await page.waitForFunction(()=>window.renderer.getBodyMesh('Mars').terrainFrameAvailability.kind==='available',null,{timeout:180000});
+  // Do not change the form, body, metric or panel after releasing real metadata.
+  await search.waitFor({state:'visible'});
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Find maximum'&&!b.disabled),null,{timeout:10000});
+  report.readiness.after=await search.isEnabled();
+  if(process.argv.includes('--readiness-only')) {assert.deepEqual(report.errors,[]);report.passed=true;console.log(JSON.stringify(report));}
+  else {
   console.log('scene ready');
   await page.evaluate(async()=>{await Promise.race([window.renderer.waitForInitialAssets(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Initial assets timeout')),120000))]);window.cosmo.setPlaying(false);});
   console.log('assets ready');
@@ -36,11 +56,6 @@ try {
   assert.equal(report.sources.datum.verticalDatum,'ellipsoid');
   assert.equal(report.sources.datum.heightConvention,'geodetic-normal');
   assert.doesNotMatch(report.sources.gpu,/swiftshader|llvmpipe/i);
-  await page.getByRole('button',{name:'Events',exact:true}).click();
-  await page.locator('[data-slot="select-trigger"]').filter({hasText:'Closest approach'}).click();
-  await page.getByText('Altitude / terrain clearance',{exact:true}).last().click();
-  await page.locator('#event-body-center').selectOption('Mars');
-  await page.locator('#event-body-observer').selectOption('Ingenuity');
   assert.equal(await page.locator('#event-height-question option[value="heightAbovePhysicalTerrain:maximum"]').isDisabled(),false);
   await page.locator('#event-window').selectOption('source');
   await page.getByText('More options',{exact:true}).click();
@@ -90,16 +105,29 @@ try {
   assert.equal(report.navigation.tracked,'Ingenuity');
   assert.equal(report.navigation.activity,flight.id);
   await page.locator('.measurement-details > summary').click();
+  assert.equal(await page.locator('.measurement-card.selected .measurement-details[open]').count(),1);
+  assert.match(await page.locator('.measurement-rows').first().innerText(),/Source\s+Estimated flight reconstruction/);
   await page.getByText('Calculation & sources',{exact:true}).click();
   assert.match(await page.locator('.measurement-details').innerText(),/Estimated flight reconstruction, not 3D telemetry/);
+  assert.match(await page.locator('.calculation-details').innerText(),/Classification\s+unknown/);
+  assert.equal(await page.evaluate(()=>window.cosmo.getTime()),report.navigation.et,'Disclosures do not navigate');
   await page.screenshot({path:`${out}/ingenuity-flight12.png`});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:`${out}/ingenuity-flight12-compact.png`});
   assert.deepEqual(report.errors,[]);
   report.passed=true;
   console.log(JSON.stringify({passed:true,valueM:result.value*1000,coverage:result.coverage,gpu:report.sources.gpu}));
+  }
 } catch(error) {
   report.failure=error.stack;
+  report.diagnostics=await page.evaluate(async()=>{
+    const urls=performance.getEntriesByType('resource').map(e=>e.name);
+    const module=async name=>import(urls.find(url=>new URL(url).pathname.endsWith('/src/lib/'+name)));
+    const {vs,getRenderer}=await module('viewer-state.svelte.ts');
+    const {ef}=await module('event-finder.svelte.ts');
+    return {tick:vs.frameTick,form:ef.form,terrain:getRenderer()?.getBodyMesh(ef.form?.bodies.center)?.terrainFrameAvailability,canonical:getRenderer()?.getBodyMesh('Mars')?.terrainFrameAvailability};
+  }).catch(()=>null);
+  console.log(JSON.stringify(report));
   await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});
   throw error;
 } finally {

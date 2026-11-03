@@ -1,6 +1,10 @@
 {
   "passed": true,
   "errors": [],
+  "readiness": {
+    "before": true,
+    "after": true
+  },
   "sources": {
     "frame": {
       "kind": "available",

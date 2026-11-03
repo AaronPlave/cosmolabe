@@ -414,3 +414,35 @@ The real Ingenuity Flight 12 query also passed on this combined tree: the same
 10.087050759 m candidate, sampled-complete coverage, estimated reconstruction
 notes and exact activity/epoch/vehicle navigation. The Ingenuity receipt and
 screenshots are refreshed from that run on physical Apple M4 Max Metal.
+
+
+## Asynchronous readiness and result cards
+
+Review follow-up on `bc0991c3` reproduced with the real Ingenuity CPU manifest
+held by a Playwright network gate: open Event Finder, choose Mars/Ingenuity AGL,
+observe disabled Search, release metadata, and leave the form/panel untouched.
+Before the fix, frame validation completed but Search stayed disabled. Both the
+metric and overall search availability now observe a primitive terrain-status
+snapshot. TerrainManager exposes no readiness event; the existing renderer tick
+checks the selected body's snapshot, and derived availability propagates only
+when frame, datum or source status actually changes. The regression now enables
+Search automatically and is part of the repeatable Ingenuity browser harness
+(`--readiness-only` runs just this loading scenario).
+
+Measurement details now sit inside the selected result's shared outline, with an
+independent disclosure control. The Source row uses the catalog description's
+leading clause (Estimated flight reconstruction for Ingenuity); the structured
+classification stays unknown and is visible under Calculation & sources.
+
+117 focused trajectory/event-query/shell/panel tests pass, Svelte reports zero
+errors/warnings, and changed-component lint passes. Loaded native MoonFall
+acceptance passes on physical M4 Max Metal, including independent multiple
+measurement disclosures, selected partial-result styling, internal scrolling,
+and expanded desktop/390px layouts. Screenshots were inspected and refreshed.
+
+The full real-terrain Flight 12 regression also passes after the delayed metadata
+sequence, returning the same 10.087050759 m sampled candidate. It asserts the
+expanded disclosure belongs to the selected card, shows Estimated flight
+reconstruction, retains unknown classification in calculation details, and does
+not change the measured epoch when disclosures are toggled. Updated desktop and
+390px screenshots and the receipt contain the new readiness assertions.

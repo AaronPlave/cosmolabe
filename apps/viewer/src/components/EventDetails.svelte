@@ -46,7 +46,7 @@
     <dl class="measurement-rows">
       <dt>Location</dt><dd>{formatCoordinates(result.location.latitudeDeg, result.location.longitudeDeg)}</dd>
       <dt>Reference</dt><dd>{event.metrics?.[0]?.label} · {result.body}</dd>
-      <dt>Source</dt><dd>{result.source.classification === 'synthetic' ? 'Synthetic trajectory' : 'Trajectory classification unknown'}</dd>
+      <dt>Source</dt><dd>{result.source.classification === 'synthetic' ? 'Synthetic trajectory' : result.source.description?.split(/[,.!?\n]/)[0] || 'Trajectory classification unknown'}</dd>
       <dt>Coverage</dt><dd class:incomplete={result.coverage === 'partial'}>{result.coverage === 'partial' ? 'Incomplete — candidate only' : 'Sampled — not a certified global extremum'}</dd>
     </dl>
     <details class="calculation-details ui-helper">
@@ -58,6 +58,7 @@
         {/if}
         <dt>Convention</dt><dd>{result.location.convention} · {result.heightConvention} height</dd>
         <dt>Datum</dt><dd>{result.datum.kind}: {result.datum.kind === 'sphere' ? result.datum.radiusKm : result.datum.radiiKm.join(' × ')} km</dd>
+        <dt>Classification</dt><dd>{result.source.classification}</dd>
         <dt>Trajectory</dt><dd>{result.source.id ?? 'identity unknown'}; revision {result.source.revision ?? 'unknown'}</dd>
         {#if result.terrain}
           <dt>Terrain</dt><dd>{result.terrain.id} · {result.terrain.revision}</dd>
