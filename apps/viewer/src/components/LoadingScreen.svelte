@@ -6,27 +6,36 @@
    * rather than the whole list of them behind a progress bar — and so a switch
    * from inside the viewer, which never visited the home screen, gets the same
    * focused state.
+   *
+   * Layout is fixed (#346): every row has a reserved height, so the bar never
+   * moves whatever the name, stage or detail says. Only the stage label is a
+   * live region; per-file / per-byte detail is not announced.
    */
   import { vs } from '../lib/viewer-state.svelte';
+
+  const name = $derived(vs.loadingCatalog || 'Catalog');
+  const pct = $derived(Math.round(Math.min(100, vs.loadingProgress)));
 </script>
 
-<div class="loading" role="status" aria-live="polite">
+<div class="loading">
   <div class="body">
-    <div class="name">{vs.loadingCatalog || 'Catalog'}</div>
+    <div class="name" title={name}>{name}</div>
     <div
       class="bar"
       role="progressbar"
-      aria-label="Loading {vs.loadingCatalog || 'catalog'}"
+      aria-label="Loading {name}"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(Math.min(100, vs.loadingProgress))}
+      aria-valuenow={pct}
+      aria-valuetext="{pct}%{vs.loadingLabel ? `, ${vs.loadingLabel}` : ''}"
     >
       <div class="fill" style="width: {Math.min(100, vs.loadingProgress)}%"></div>
     </div>
-    <div class="label">{vs.loadingLabel}</div>
-    {#if vs.loadingDetail}
-      <div class="detail">{vs.loadingDetail}</div>
-    {/if}
+    <div class="label" role="status" aria-live="polite">{vs.loadingLabel}</div>
+    <div class="detail">
+      <span class="file" title={vs.loadingDetail}>{vs.loadingDetail}</span>
+      <span class="figures">{vs.loadingFigures}</span>
+    </div>
   </div>
 </div>
 
@@ -42,18 +51,26 @@
     background: var(--color-canvas);
   }
   .body {
-    width: 100%;
-    max-width: 20rem;
+    width: min(384px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 24px 3px 18px 16px;
+    row-gap: 8px;
+  }
+  .name,
+  .label,
+  .file {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .name {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
+    line-height: 24px;
     color: var(--color-text-primary);
-    overflow-wrap: anywhere;
   }
   .bar {
-    margin-top: 0.875rem;
-    height: 1px;
     background: var(--color-surface-3);
     overflow: hidden;
   }
@@ -63,14 +80,25 @@
     transition: width 0.2s ease;
   }
   .label {
-    margin-top: 0.5rem;
-    font-size: 11px;
-    color: var(--color-text-muted);
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--color-text-secondary);
   }
   .detail {
-    font-size: 11px;
-    color: var(--color-text-muted);
-    opacity: 0.6;
-    overflow-wrap: anywhere;
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-text-column);
+  }
+  .file {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .figures {
+    flex: none;
+    margin-left: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 </style>

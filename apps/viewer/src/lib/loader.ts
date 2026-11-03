@@ -286,7 +286,7 @@ async function fetchWithProgress(
 
 async function ensureSpice(signal?: AbortSignal): Promise<HeritageSpice> {
   if (!spice) {
-    setLoadingState({ label: 'Initializing SPICE...' });
+    setLoadingState({ label: 'Loading kernels', detail: 'Initializing SPICE', figures: '' });
     const wasmUrl = hooks.cspiceWasmUrl ?? cspiceWasmUrl;
     const created = await createHeritageSpice({ locateFile: () => wasmUrl });
     // A load abandoned meanwhile must not install its instance into whatever
@@ -394,18 +394,23 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?
     signal?.throwIfAborted();
     const k = plan[i];
     const name = kernelName(k.source);
+    // One stable stage label; the file, its position and the measured bytes
+    // share one detail format so per-file and per-chunk updates never swap units.
+    const figuresFor = (loaded: number) =>
+      [`${i + 1}/${plan.length}`,
+        // Real transferred bytes of the sized set — the nominal weights above
+        // spread the bar but are never shown as if they were measured.
+        sizedTotal > 0 ? `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}` : '',
+      ].filter(Boolean).join(' · ');
     setPhaseProgress('kernels', doneBytes / totalBytes, {
-      label: `Loading ${k.label ?? name}...`,
-      detail: `${i + 1} / ${plan.length} kernels`,
+      label: 'Loading kernels',
+      detail: k.label ?? name,
+      figures: figuresFor(0),
     });
     try {
       await furnishPlanned(s, k, signal, (loaded) => {
         if (signal?.aborted) return;
-        setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, {
-          // Real transferred bytes of the sized set — the nominal weights above
-          // spread the bar but are never shown as if they were measured.
-          detail: `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}`,
-        });
+        setPhaseProgress('kernels', (doneBytes + loaded) / totalBytes, { figures: figuresFor(loaded) });
       });
       signal?.throwIfAborted();
       furnished.push({ source: k.source, name, coverage: measureCoverage(s, name) });
@@ -418,7 +423,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?
     sizedLoaded += k.size ?? 0;
   }
 
-  setPhaseProgress('kernels', 1, { label: 'Building scene...', detail: '' });
+  setPhaseProgress('kernels', 1, { label: 'Building scene', detail: '', figures: '' });
   setKernelCount(s.totalLoaded());
 }
 
@@ -844,12 +849,12 @@ export async function loadCatalogUrl(canvas: HTMLCanvasElement, entryUrl: string
   // that follow it are one continuous run rather than two 0→100 passes. The
   // catalog graph is what knows the kernel byte total, so the bar sits at zero
   // for the moment it takes to fetch and then gets its phase weights.
-  beginLoad('Fetching catalog...', { catalog: name });
+  beginLoad('Fetching catalog', { catalog: name });
 
   try {
     const graph = await loadCatalogFromUrl(entryUrl, fetcher);
     geographicController.signal.throwIfAborted();
-    beginLoad('Preparing scene...', {
+    beginLoad('Preparing mission data', {
       kernelBytes: graph.kernels.reduce((sum, k) => sum + (k.size ?? 0), 0),
     });
 
@@ -1013,8 +1018,9 @@ async function furnishUserKernels(files: File[]): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     setPhaseProgress('kernels', (i + 1) / files.length, {
-      label: `Furnishing ${file.name}...`,
-      detail: `${i + 1} / ${files.length} kernels`,
+      label: 'Loading kernels',
+      detail: file.name,
+      figures: `${i + 1}/${files.length}`,
     });
     const source: KernelSourceRef = { file };
     if (furnished.some((k) => k.name === file.name)) {
@@ -1114,7 +1120,7 @@ export async function handleFileList(canvas: HTMLCanvasElement, files: File[]) {
   const geographicController = beginGeographicImport();
   // Dropped kernels are already on disk — no download to weigh — so the whole
   // bar belongs to the asset phase that follows.
-  beginLoad(`Processing ${files.length} file(s)...`, { catalog: 'Local files' });
+  beginLoad('Processing files', { catalog: 'Local files' });
   try {
     const { jsonFiles, kernelFiles, dataFiles, binaryFiles, modelFiles } = await categorizeFiles(files, geographicController.signal);
     geographicController.signal.throwIfAborted();
