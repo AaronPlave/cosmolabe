@@ -697,6 +697,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
       return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
     }
+    if (name === 'selectGeographicFeature' && host.getSelectedGeographicFeature && host.listGeographicLayers) {
+      const selected = host.getSelectedGeographicFeature();
+      if (!selected || selected.layer !== args.layer || selected.feature !== args.feature)
+        return { problem: 'the viewer does not report the requested geographic feature selection' };
+      const layer = host.listGeographicLayers().find(l => l.id === selected.layer);
+      const context = layer?.body ? host.getSpatialContext?.(layer.body) : null;
+      return { note: `Saved feature selection is observed on its layer body. Layer ${layer ? layer.visible ? 'is visible' : 'is hidden' : 'visibility is unavailable'}; native drawing ${context?.drawing.some(d => d.layers.includes(selected.layer) && d.features > 0) ? 'group is observed' : 'has not yet been observed'}. A missing draw observation does not mean the edit failed; group counts do not prove unoccluded pixels.`,
+        data: { selectedFeature: selected, body: layer?.body ?? null, visible: layer?.visible ?? null, spatial: context ? metadata.spatialContext(context) : null } };
+    }
     if (name === 'frameObject') {
       const camera = host.getCamera(), target = args.object ?? host.getTracked();
       return target && host.getTracked() === target && [...camera.position,...camera.target,...camera.up].every(Number.isFinite) && Math.hypot(...camera.position.map((v,i)=>v-camera.target[i])) > 0 ? { note: 'Requested tracked object and resulting camera pose are observed. This is not an occlusion or visible-pixels guarantee.' } : { problem: 'the requested framing target and valid camera pose are not observed' };
@@ -799,7 +808,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     listGeographicFeatures: input => {
       if (!Number.isInteger(input.offset ?? 0) || !Number.isInteger(input.limit ?? 25)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
       const page = host.listGeographicFeatures!(input.layer as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
-      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
+      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local. Names and source IDs may be withheld: a null name does not establish that an authored label failed to save.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
     },
     getSurfaceAppearance: input => {
       const appearance = host.getSurfaceAppearance!(input.body as string);

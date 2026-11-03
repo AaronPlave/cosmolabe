@@ -76,6 +76,13 @@ try {
         if (await page.getByRole('button', { name: 'Approve once', exact: true }).isVisible()) {
           // Test-owned public fixtures only. A production user makes this choice.
           const approval = await page.evaluate(() => import(performance.getEntriesByType('resource').map(e => e.name).find(url => new URL(url).pathname === '/src/lib/ask/ask.svelte.ts')).then(m => m.askApproval.pending));
+          const approvalUI = page.getByRole('group', { name: 'Approve Ask action' });
+          approval.uiText = await approvalUI.innerText();
+          assert.ok(!/events\.upsertEventQuery/.test(approval.uiText), 'main approval is human-readable');
+          if (approval.operation.endsWith('upsertEventQuery')) {
+            assert.match(approval.uiText, /Set up closest approach search/);
+            await page.screenshot({ path: `${output}/${scenario.id}-${mode}-approval.png` });
+          }
           approvals.push(approval);
           await page.getByRole('button', { name: 'Approve once', exact: true }).click();
         }

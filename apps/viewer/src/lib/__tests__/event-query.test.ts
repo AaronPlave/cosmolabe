@@ -330,12 +330,12 @@ describe('scene callout copy', () => {
     };
     expect(eventCalloutLines(event, { utc })).toEqual([
       'Closest approach · Europa',
-      '303.3K km · 2031-05-27 12:28 UTC',
+      'Range 303.3K km · 2031-05-27 12:28 UTC',
     ]);
     // The marker is on the observer's own trajectory: no "Observer:" line.
     expect(eventCalloutLines(event, { utc, selected: true })).toEqual([
       'Closest approach · Europa',
-      '303.3K km · 2031-05-27 12:28 UTC',
+      'Range 303.3K km · 2031-05-27 12:28 UTC',
     ]);
   });
 
@@ -362,7 +362,7 @@ describe('scene callout copy', () => {
       bodies: { observer: 'Europa Clipper', target: 'Europa' }, label: 'x',
       metrics: [{ key: 'range', label: 'Range', value: 12_120_000, unit: 'km' }],
     };
-    expect(eventSceneAnnotationLines(approach)).toEqual(['Closest approach · Europa', '12.12M km']);
+    expect(eventSceneAnnotationLines(approach)).toEqual(['Closest approach · Europa']);
     const eclipse: GeometryEvent = {
       id: 'e', queryId: 'q', kind: 'occultation', temporality: 'interval', start: 3456, end: 4026,
       state: 'full', bodies: { observer: 'Europa Clipper', front: 'Europa', back: 'SUN' }, label: 'y',

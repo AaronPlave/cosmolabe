@@ -1,0 +1,355 @@
+{
+  "scope": "PR #334 final manual UI findings, 2026-11-03",
+  "catalogSwitch": {
+    "status": "passed",
+    "from": "cassini-soi",
+    "selectedBefore": "Mimas",
+    "to": "ingenuity-jezero",
+    "selectedAfter": null,
+    "freshSelection": "Mars",
+    "events": [
+      {
+        "name": null
+      }
+    ],
+    "errors": []
+  },
+  "encounters": [
+    {
+      "scenario": "voyager",
+      "mode": "fixed",
+      "prompt": "show me when voyager 1 flew past jupiter",
+      "modelRounds": 6,
+      "rawTokens": 72588,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "status": "done",
+      "reply": "Voyager 1's closest approach to Jupiter was on 1979-03-05 at about 12:04 UTC. The center-to-center range was about 348,892 km. The viewer is now paused at that moment, tracking Voyager 1 with Jupiter and the spacecraft both in frame.\n\nI computed this from the loaded SPICE kernels. The search covered 1978-06-15 to 1980-01-14 with no light-time correction and a 1-hour step, and it returned only the deepest approach in that window.",
+      "independent": {
+        "window": {
+          "start": -680000000,
+          "end": -630000000
+        },
+        "total": 1,
+        "winner": {
+          "reference": {
+            "scene": 1,
+            "query": "v1-jupiter-closest",
+            "id": "v1-jupiter-closest:0",
+            "revision": 2
+          },
+          "et": -657244474.4091606,
+          "rangeKm": 348891.68071035197
+        },
+        "coverage": {
+          "status": "available",
+          "windows": [
+            {
+              "start": -704412032.617,
+              "end": 3155716797
+            }
+          ],
+          "exact": true,
+          "problems": [],
+          "caveats": []
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 21,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": [
+            "Results apply only to the loaded kernel set and declared window. Search step limits completeness.",
+            "Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.",
+            "3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation."
+          ]
+        }
+      },
+      "paused": true,
+      "et": -657244474.4091606,
+      "tracked": "Voyager 1",
+      "camera": {
+        "position": [
+          562524.4176446166,
+          -508490.8705754876,
+          650539.319648844
+        ],
+        "target": [
+          -91916.19426438212,
+          -147881.55954039094,
+          10668.120597064495
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ],
+        "fov": 60
+      },
+      "events": {
+        "presentation": {
+          "tracked": "Voyager 1",
+          "reference": "Voyager 1",
+          "participants": [
+            {
+              "object": "Jupiter",
+              "ndc": [
+                -0.08899324657564969,
+                -0.2798486525737194,
+                0.9999999800000198
+              ],
+              "drawEnabled": true,
+              "inView": true
+            },
+            {
+              "object": "Voyager 1",
+              "ndc": [
+                0.08899324657564957,
+                0.27984865257371944,
+                0.9999999800000197
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
+        "scene": 1,
+        "selected": {
+          "scene": 1,
+          "query": "v1-jupiter-closest",
+          "id": "v1-jupiter-closest:0",
+          "revision": 2
+        },
+        "et": -657244474.4091606,
+        "playing": false,
+        "selectedObject": "Voyager 1",
+        "highlightedBodies": [
+          "Jupiter",
+          "Voyager 1"
+        ],
+        "timeline": {
+          "min": -705875247.817,
+          "max": 978350400,
+          "selectedInResults": true,
+          "selectedInVisibleLane": true
+        },
+        "renderer": {
+          "observedEt": -657244474.4091606,
+          "selected": {
+            "query": "v1-jupiter-closest",
+            "id": "v1-jupiter-closest:0"
+          },
+          "markerGroups": 1,
+          "visibleGlyphs": 1,
+          "visibleSpans": 0,
+          "occultationVisible": false
+        },
+        "status": "observed",
+        "limitations": [
+          "Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. This read does not move the camera; projected participant centers report the actual current view."
+        ]
+      },
+      "approvalSummaries": [
+        "Set up closest approach search\n\nJupiter \u2192 Voyager 1 \u00b7 1978-06-15 03:05:50 UTC \u2192 1980-01-14 19:59:08 UTC. This adds or updates a search in the current scene. Coverage is checked before running.\n\nExact parameters\nApprove once\nDecline"
+      ]
+    },
+    {
+      "scenario": "cassini",
+      "mode": "fixed",
+      "prompt": "show cassini at closest approach to mimas",
+      "modelRounds": 6,
+      "rawTokens": 71266,
+      "refusals": 0,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "status": "done",
+      "reply": "The viewer now shows Cassini at its closest approach to Mimas, at 2004-07-01 00:30:12 UTC. The centre-to-centre range is about 76,686 km, or about 76,487 km altitude. I paused the clock there and framed Cassini and Mimas together. Both are in view, but this doesn't prove they are unoccluded.\n\nI searched 2004-01-02 to 2005-04-07 with no light-time correction and a 1-hour step, using SPICE kernel data. The query was set to return only the deepest approach, so it doesn't list other, more distant passes. A 1-hour step can also miss a very short minimum.",
+      "independent": {
+        "window": {
+          "start": 126360003,
+          "end": 166129196.9999866
+        },
+        "total": 1,
+        "winner": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-closest",
+            "id": "cassini-mimas-closest:0",
+            "revision": 2
+          },
+          "et": 141913876.86703587,
+          "rangeKm": 76685.77172363873
+        },
+        "coverage": {
+          "status": "available",
+          "windows": [
+            {
+              "start": 126360003,
+              "end": 166129196.9999866
+            },
+            {
+              "start": 166129203,
+              "end": 175478397
+            }
+          ],
+          "exact": true,
+          "problems": [],
+          "caveats": []
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": [
+            "Results apply only to the loaded kernel set and declared window. Search step limits completeness.",
+            "Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.",
+            "3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation."
+          ]
+        }
+      },
+      "paused": true,
+      "et": 141913876.86703587,
+      "tracked": "Mimas",
+      "camera": {
+        "position": [
+          47882.803506224336,
+          124528.54814969486,
+          86314.21981674989
+        ],
+        "target": [
+          36924.506366461515,
+          4162.71782708168,
+          -9456.71751181688
+        ],
+        "up": [
+          0,
+          1,
+          0
+        ],
+        "fov": 60
+      },
+      "events": {
+        "presentation": {
+          "tracked": "Mimas",
+          "reference": "Mimas",
+          "participants": [
+            {
+              "object": "Cassini",
+              "ndc": [
+                0.2982088222004558,
+                0.07479616611547496,
+                0.999999980000003
+              ],
+              "drawEnabled": true,
+              "inView": true
+            },
+            {
+              "object": "Mimas",
+              "ndc": [
+                -0.2982088222004556,
+                -0.07479616611547579,
+                0.999999980000003
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
+        "scene": 1,
+        "selected": {
+          "scene": 1,
+          "query": "cassini-mimas-closest",
+          "id": "cassini-mimas-closest:0",
+          "revision": 2
+        },
+        "et": 141913876.86703587,
+        "playing": false,
+        "selectedObject": "Mimas",
+        "highlightedBodies": [
+          "Cassini",
+          "Mimas"
+        ],
+        "timeline": {
+          "min": 37152000,
+          "max": 175564800.0004828,
+          "selectedInResults": true,
+          "selectedInVisibleLane": true
+        },
+        "renderer": {
+          "observedEt": 141913876.86703587,
+          "selected": {
+            "query": "cassini-mimas-closest",
+            "id": "cassini-mimas-closest:0"
+          },
+          "markerGroups": 1,
+          "visibleGlyphs": 1,
+          "visibleSpans": 0,
+          "occultationVisible": false
+        },
+        "status": "observed",
+        "limitations": [
+          "Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. This read does not move the camera; projected participant centers report the actual current view."
+        ]
+      },
+      "approvalSummaries": [
+        "Set up closest approach search\n\nCassini \u2192 Mimas \u00b7 2004-01-02 23:58:58 UTC \u2192 2005-04-07 06:58:52 UTC. This adds or updates a search in the current scene. Coverage is checked before running.\n\nExact parameters\nApprove once\nDecline"
+      ]
+    }
+  ],
+  "limits": [
+    "Current encounter runs use deepest-only scope; one result is not a census of local approaches.",
+    "Native draw groups and projected centers do not establish unoccluded pixels.",
+    "Full provider payloads remain outside the repository.",
+    "Distant unresolved entity rendering remains issue #337."
+  ],
+  "naturalPoint": {
+    "status": "passed",
+    "prompt": "can you place a point then",
+    "reply": "I saved one point in a new layer on Mars called \"Ingenuity pick marker\" and selected it. The viewer shows the layer as visible. Its drawing group is observed, with one feature, and terrain coverage was not assessed.\n\nThe point is at 77.448\u00b0 E, 18.433\u00b0 N planetocentric, in the IAU_MARS frame. I took those coordinates from the earlier pin, which was placed at 2021-07-05 09:00 UTC. It's a snapshot and won't follow Ingenuity. The pin is still in place.\n\nThe feature list shows no name for the point, so my \"Ingenuity ground point\" label may not have been stored.",
+    "selected": {
+      "layer": "user:mars:ingenuity-pick-marker",
+      "feature": "string:user-1"
+    },
+    "drawing": [
+      {
+        "layers": [
+          "user:mars:ingenuity-pick-marker"
+        ],
+        "features": 1,
+        "terrainCoverage": "not-assessed"
+      }
+    ],
+    "authoredFeature": {
+      "type": "Point",
+      "coordinates": {
+        "latDeg": 18.637232170885245,
+        "lonDeg": 77.44821067365001
+      }
+    },
+    "nativePinDrawn": true,
+    "placedEtBefore": 678747682.5637015,
+    "placedEtAfter": 678747682.5637015,
+    "modelOperations": [
+      "getSpatialContext",
+      "describeCapabilities",
+      "geographic.createAnnotationLayer",
+      "getSpatialContext",
+      "geographic.editAnnotation",
+      "geographic.listGeographicFeatures",
+      "geographic.selectGeographicFeature"
+    ],
+    "errors": [],
+    "rawTokens": 155257,
+    "laterChange": "Final read summary clarifies privacy-withheld names do not mean a failed label save; covered by geographic-agent-metadata regression. An additional paid rerun was not executed because automatic approval review returned model-capacity errors."
+  }
+}

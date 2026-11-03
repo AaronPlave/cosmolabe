@@ -647,6 +647,19 @@ describe('navigation verbs', () => {
     if(independent) {expect(dismissGeographicContext()).toBe(true);expect(vs.selectedPlaceRef).toBeNull();}
     expect(dismissGeographicContext()).toBe(false);
   });
+  it('clears body inspection on unload and permits a fresh selection after binding', () => {
+    const selected = vi.fn(); const off = createViewerControl().on('select', selected);
+    selectBody('Mimas');
+    vs.probePin = probePoint('Titan'); vs.instrumentSensor = 'old-sensor';
+    unbindRenderer();
+    expect(vs.selectedBodyName).toBeNull();
+    expect(vs.probePin).toBeNull(); expect(vs.instrumentSensor).toBeNull();
+    expect(selected).toHaveBeenLastCalledWith({ name: null });
+    bind(); expect(vs.selectedBodyName).toBeNull();
+    selectBody('Mars'); expect(createViewerControl().getSelected()).toBe('Mars');
+    expect(selected).toHaveBeenLastCalledWith({ name: 'Mars' }); off();
+  });
+
   it('clears target presentation and place inspection when the scene unbinds', () => {
     vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}}};
     vs.selectedPlaceRef='old';unbindRenderer();expect(vs.surfaceTarget).toBeNull();expect(vs.selectedPlaceRef).toBeNull();

@@ -101,3 +101,5 @@ Current remote-head CI remains required before merge.
 The additional semantic-point review is covered by [spatial-points.md](spatial-points.md) and [compact live evidence](spatial-acceptance.json). The generated matrix now covers 107 operations. The final expanded-catalog Haiku smoke completed in 12 calls / 166,692 tokens with four corrected schema/coverage refusals; the earlier six-call result above is historical evidence, not a fixed token or round guarantee.
 
 The latest [acceptance corrections](review-followup.md) supersede the initial two-point and palette-only checks. Current evidence covers immediate natural follow-up selection without duplicates, equivalent Fixed/Discovery elevation mode, complete-candidate range ranking, and reusable native encounter presentation for Voyager/Jupiter and Cassini/Mimas. The registry now contains 108 operations.
+
+The November 3 manual UI findings are addressed in [final-usability.md](final-usability.md), with [compact browser/provider evidence](final-usability.json).

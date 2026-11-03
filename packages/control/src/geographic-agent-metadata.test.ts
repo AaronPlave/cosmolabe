@@ -24,6 +24,7 @@ describe('model-visible geographic projection', () => {
     expect((layers.data as { layers: { diagnostics: unknown[] }[] }).layers[0].diagnostics).toHaveLength(16);
     expect((layers.data as { layers: { diagnostics: unknown[] }[] }).layers[0].diagnostics[0]).toEqual({ code: null, severity: 'warning' });
     expect(features).toMatchObject({ ok: true, data: { total: 75 } });
+    expect(features.summary).toContain('a null name does not establish that an authored label failed to save');
     expect((features.data as { features: unknown[] }).features[0]).toEqual({ id: feature.id, name: null, sourceId: null, type: 'Point' });
     expect((features.data as { features: unknown[] }).features).toHaveLength(2);
     const serialized = JSON.stringify([layers, features]);

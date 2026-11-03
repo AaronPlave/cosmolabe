@@ -335,6 +335,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         // Features without a shared semantic read remain explicitly unverified (#297).
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
           || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
+          || (name === 'selectGeographicFeature' && typeof host.getSelectedGeographicFeature === 'function' && typeof host.listGeographicLayers === 'function')
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
           || (name === 'seekActivity' && typeof host.listActivities === 'function')
