@@ -18,7 +18,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, runAgent, type AskGoal, type GoalReport, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -56,6 +56,8 @@ export interface AskTurn {
   errorCode: string | null;
   /** Model round trips and tokens processed, once the request ends (tokens null when the proxy does not report them). */
   stats: { rounds: number; rawTokens: number | null } | null;
+  /** The viewer's own check of the end state after this request's last change; null when there was nothing to hold it to. */
+  verification: readonly GoalReport[] | null;
 }
 
 /** What the viewer did for a request, counted from the steps' own results. */
@@ -112,6 +114,19 @@ export function endNote(turn: AskTurn, label: (step: AskStep) => string = (s) =>
 }
 
 const READ_ONLY = /^(describe|get|list|resolve|search|check|find|inspect)/;
+
+/**
+ * The viewer's verdict on a finished request that changed the view, beside the
+ * model's answer: what does not hold, or that nothing could check it. Null when
+ * it holds, nothing changed, or the request did not finish.
+ */
+export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
+  if (turn.status !== 'done' || !turn.steps.some(s => s.result?.ok && !READ_ONLY.test(actionName(s)))) return null;
+  if (!turn.verification) return { tone: 'muted', text: 'Not checked against the viewer.' };
+  const failing = turn.verification.filter(r => r.status !== 'met');
+  if (!failing.length) return null;
+  return { tone: 'warning', text: `Viewer check: ${failing.flatMap(r => r.checks.filter(c => c.ok !== true).map(c => c.detail)).join('; ')}.` };
+}
 const actionName = (s: AskStep) => s.name === 'invokeCapability' && typeof (s.input as { id?: unknown })?.id === 'string'
   ? ((s.input as { id: string }).id.split('.').at(-1) ?? s.name) : s.name;
 
@@ -202,6 +217,8 @@ export function answerAskApproval(approved: boolean) {
 }
 
 let history: AgentMessage[] = [];
+/** End states this conversation committed to; the loop holds later requests to them. */
+let goals: Readonly<Record<string, AskGoal>> = {};
 let historyScene = -1;
 /** Requests in the conversation the model currently remembers. */
 let conversationTurns = 0;
@@ -236,6 +253,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 function startOver() {
   conversation++;
   history = [];
+  goals = {};
   historyScene = sceneId();
   conversationTurns = 0;
 }
@@ -269,7 +287,7 @@ export async function submitAsk(prompt: string): Promise<void> {
 
   const mineConversation = conversation;
   conversationTurns++;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null };
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, verification: null };
   ask.turns.push(turn);
   if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
@@ -280,6 +298,7 @@ export async function submitAsk(prompt: string): Promise<void> {
     tools: toolkit,
     task: mine,
     history,
+    goals,
     prompt: text,
     onEvent: (e) => {
       const view = live();
@@ -298,13 +317,14 @@ export async function submitAsk(prompt: string): Promise<void> {
     },
   });
   running = run;
-  const { messages, outcome, stats } = await run;
+  const { messages, outcome, stats, verification, goals: held } = await run;
   mine.finish();
-  if (conversation === mineConversation && historyScene === sceneId()) history = [...messages];
+  if (conversation === mineConversation && historyScene === sceneId()) { history = [...messages]; goals = held; }
   const view = live();
   if (view) {
     view.status = outcome.kind;
     view.stats = { rounds: stats.rounds, rawTokens: stats.rawTokens };
+    view.verification = verification;
     view.error = outcome.kind === 'error' ? outcome.message : null;
     view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
     if (outcome.kind === 'error' && ['budget_exhausted', 'cost_budget_exhausted', 'rate_limited'].includes(outcome.code ?? '')) {
@@ -353,6 +373,7 @@ export function disposeAsk() {
   embedded = false;
   conversation++;
   history = [];
+  goals = {};
   historyScene = -1;
   task = null;
   running = null;

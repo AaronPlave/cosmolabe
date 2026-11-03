@@ -20,6 +20,7 @@ export const reliabilityCases = [
   { id: 'cassini-mimas', catalog: 'cassini-soi', prompt: 'show cassini at closest approach to mimas', event: { bodies: ['Cassini', 'Mimas'], pick: 'closest' },
     rubric: 'Closest of all measured candidates in the declared kernel window, not the first chronological one; states the window.' },
   { id: 'psyche-earth-all', catalog: 'psyche', prompt: 'show me all psyche flybys of earth', event: { bodies: ['Psyche', 'Earth'], all: true },
+    truth: { bodies: ['Psyche', 'Earth'], window: 'query', stepSeconds: 21600 },
     rubric: 'Every local minimum in the supported window, counted; deepest-only is not "all".' },
   { id: 'psyche-mars-closest', catalog: 'psyche', prompt: 'show me the one where psyche is closest to mars', event: { bodies: ['Psyche', 'Mars'], pick: 'closest' },
     rubric: 'Range-ranked closest encounter (2026-05-15), paused, framed.' },
@@ -30,7 +31,8 @@ export const reliabilityCases = [
     rubric: 'Turn 1 transient pin on Mars under Ingenuity; turn 2 one saved, selected point from the pin, pin kept.' },
   { id: 'psyche-mars-closeup', catalog: 'psyche', turns: PSYCHE_CLOSEUP, composition: { anchor: 'Psyche', include: ['Mars'], closeTurn: 1, epochTurn: 0, rangeFactor: 1.5 },
     rubric: 'Ends close to Psyche (within 1.5x the turn-2 close-up range) with Mars in frame at the paused encounter epoch, or states a truthful tradeoff. No flip-flop; no budget stop.' },
-  { id: 'voyager-neptune-none', catalog: 'voyagers', prompt: 'show me when voyager 1 flew past neptune', refusal: true,
+  { id: 'voyager-neptune-none', catalog: 'voyagers', prompt: 'show me when voyager 1 flew past neptune', refusal: true, refusalSubject: /neptune/i,
+    truth: { bodies: ['Voyager 1', 'Neptune'], window: 'catalog', stepSeconds: 432000, noFlybyBeyondKm: 1.496e8 },
     rubric: 'Voyager 1 never flew past Neptune: say so (a distant range minimum is not a flyby); do not present one as an encounter.' },
 ];
 
@@ -84,11 +86,21 @@ export function scoreReliability(test, turns) {
   if (test.event) {
     const bodies = Object.values(last?.eventQuery?.bodies ?? {}).map(b => String(b).toLowerCase());
     checks.participants = test.event.bodies.every(b => bodies.includes(b.toLowerCase()));
-    if (test.event.all) checks.allResults = last?.eventQuery?.searchComplete === true && (last?.eventQuery?.total ?? 0) > 0;
+    if (test.event.all) {
+      // "All" means every local minimum in the searched window: not deepest-only, and as many as an independent sample finds.
+      checks.allMinimaScope = last?.eventQuery?.scope !== 'global';
+      checks.searchComplete = last?.eventQuery?.searchComplete === true;
+      checks.completeMinima = !!last?.truth && last.truth.available >= 0.99 * last.truth.samples && last.eventQuery?.total === last.truth.minima;
+    }
     else checks.goal = last?.report?.status === 'met';
   }
   turns.forEach((t, i) => { if (t.report && !test.event) checks[`goal${turns.length > 1 ? i + 1 : ''}`] = t.report.status === 'met'; });
-  if (test.refusal) checks.noEncounterPresented = !last?.eventQuery?.presented;
+  if (test.refusal) {
+    // The premise must actually be false, nothing presented as an encounter, and the answer must say no.
+    checks.premiseFalse = !!last?.truth && last.truth.minKm !== null && last.truth.minKm > test.truth.noFlybyBeyondKm;
+    checks.noEncounterPresented = !last?.eventQuery?.presented;
+    checks.refusalStated = NEGATION.test(last?.reply ?? '') && (!test.refusalSubject || test.refusalSubject.test(last?.reply ?? ''));
+  }
   const partial = turns.some(t => t.report?.status === 'partial') && Object.entries(checks).every(([k, v]) => v || k.startsWith('goal'));
   return { checks, passed: Object.values(checks).every(Boolean), partial,
     factual: { verdict: 'pending-review', rubric: test.rubric } };
@@ -104,7 +116,10 @@ export function classify(test, run) {
   if (['cancelled', 'superseded', 'stale'].includes(last.status)) return 'interrupted';
   if (last.status === 'error') return /budget|rate_limited/.test(last.errorCode ?? '') ? 'budget-stopped' : 'error';
   if (test.refusal) return run.score.passed ? 'correctly-refused' : 'incorrect';
-  return run.score.passed ? 'complete' : run.score.partial ? 'partial' : 'incorrect';
+  if (run.score.passed) return 'complete';
+  // A failed state with an answer that sounds like success is its own, worse, class.
+  if (suspectedFalseSuccess(run)) return 'false-success';
+  return run.score.partial ? 'partial' : 'incorrect';
 }
 
 /** An answer that sounds like success over a failed state check: flagged for review, not auto-judged. */
@@ -143,6 +158,9 @@ export function summarizeReliability(report) {
     const knownCost = runs.every(r => typeof r.usage?.estimatedUsd === 'number');
     return { arm, model, mode, samples: runs.length, firstAttemptSuccess: complete, successRate: runs.length ? complete / runs.length : null,
       wilson95: wilson(complete, runs.length), classes, failedChecks, suspectedFalseSuccess: runs.filter(r => r.suspectedFalseSuccess).length,
+      // Answers given while the viewer's own end-of-request check said the goal did not hold.
+      contradictedByViewerCheck: runs.filter(r => r.result?.turns?.some(t => t.status === 'done' && t.verification?.some(v => v.status === 'unmet'))).length,
+      unchecked: runs.filter(r => r.result?.turns?.some(t => t.status === 'done' && t.wrote && !t.verification)).length,
       rounds: { total: rounds.reduce((a, b) => a + b, 0), p50: percentile(rounds, 0.5), p95: percentile(rounds, 0.95) },
       latencyMs: { p50: percentile(latency, 0.5), p95: percentile(latency, 0.95) },
       rawTokens: { total: raw.filter(Number.isFinite).reduce((a, b) => a + b, 0), p50: percentile(raw, 0.5), p95: percentile(raw, 0.95) },

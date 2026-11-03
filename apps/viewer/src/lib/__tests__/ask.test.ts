@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ViewerControl, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment, resolveDevAskToolMode } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askApproval, answerAskApproval, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
+import { ask, askApproval, answerAskApproval, askAvailable, checkNote, clearAsk, disposeAsk, endNote, type AskTurn, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
 import * as loader from '../loader';
@@ -243,9 +243,19 @@ describe('the Ask session', () => {
   it('on a budget stop, names exactly what is already applied, once, in the action list\'s words (#345)', () => {
     const ok = (name: string, input: unknown = {}) => ({ id: name, name, input, result: { ok: true as const, summary: 'Done' } });
     const steps = [ok('describeScene'), ok('invokeCapability', { id: 'camera.composeView', input: { anchor: 'Psyche', target: 'Mars' } }), ok('checkGoal'), { id: 'x', name: 'dolly', input: {}, result: { ok: false as const, code: 'refused' as const, error: 'no' } }];
-    const note = endNote({ id: 1, prompt: '', fresh: null, steps, reply: '', notes: [], status: 'error', error: 'cap', errorCode: 'budget_exhausted', stats: { rounds: 3, rawTokens: 30000 } }, s => s.name === 'invokeCapability' ? 'Rotated around Psyche to show Mars' : s.name)!;
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps, reply: '', notes: [], status: 'error', error: 'cap', errorCode: 'budget_exhausted', stats: { rounds: 3, rawTokens: 30000 }, verification: null }, s => s.name === 'invokeCapability' ? 'Rotated around Psyche to show Mars' : s.name)!;
     expect(note.text).toContain('Already applied: Rotated around Psyche to show Mars. 1 step refused.');
     expect(note.text).not.toMatch(/receipt|readback|unverified/i);
+  });
+
+  it('puts the viewer\'s own verdict beside a finished answer that changed the view (#345 review)', () => {
+    const write = { id: 'w', name: 'composeView', input: {}, result: { ok: true as const, summary: 'Done' } };
+    const turn = (verification: AskTurn['verification'], steps: AskTurn['steps'] = [write]): AskTurn => ({ id: 1, prompt: '', fresh: null, steps, reply: 'Mars is in view.', notes: [], status: 'done', error: null, errorCode: null, stats: null, verification });
+    const unmet = { kind: 'camera-composition' as const, status: 'unmet' as const, checks: [{ name: 'visible:Mars', ok: false, detail: 'Mars out of frame' }] };
+    expect(checkNote(turn([unmet]))).toEqual({ tone: 'warning', text: 'Viewer check: Mars out of frame.' });
+    expect(checkNote(turn([{ ...unmet, status: 'met', checks: [] }]))).toBeNull();
+    expect(checkNote(turn(null))).toEqual({ tone: 'muted', text: 'Not checked against the viewer.' });
+    expect(checkNote(turn(null, []))).toBeNull();
   });
 
   it('passes a proxy\'s per-round usage through, and ignores a malformed one', () => {
@@ -257,7 +267,7 @@ describe('the Ask session', () => {
   it('counts capability lookups separately from completed viewer steps', () => {
     const steps = ['listCapabilities', 'describeCapabilities', 'getOperationResult', 'describeScene'].map(name => ({ id: name, name, input: {}, result: { ok: true as const, summary: 'Read' } }));
     expect(tally({ steps })).toMatchObject({ inspected: 3, done: 1, partial: 0 });
-    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null, stats: null });
+    const note = endNote({ id: 1, prompt: '', fresh: null, steps: steps.slice(0, 3), reply: '', notes: [], status: 'cancelled', error: null, errorCode: null, stats: null, verification: null });
     // Lookups change nothing, so they are not reported as applied.
     expect(note?.text).toBe('Stopped.');
   });

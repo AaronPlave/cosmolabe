@@ -37,8 +37,11 @@ it('needs the right participants and a met goal, and classifies honestly', () =>
   const turn = { status: 'done', reply: 'Here is the flyby.', eventQuery: { bodies: { observer: 'Voyager 1', target: 'Saturn' } }, report: { status: 'met' } };
   const run = { result: { turns: [turn] }, score: scoreReliability(test, [turn]) };
   expect(run.score.checks.participants).toBe(false);
-  expect(classify(test, run)).toBe('incorrect');
+  // A failed state with an answer that sounds successful is tracked as its own class.
   expect(suspectedFalseSuccess(run)).toBe(true);
+  expect(classify(test, run)).toBe('false-success');
+  turn.reply = 'I could not find a Jupiter encounter.';
+  expect(classify(test, run)).toBe('incorrect');
   turn.eventQuery.bodies.target = 'Jupiter';
   run.score = scoreReliability(test, [turn]);
   expect(classify(test, run)).toBe('complete');
@@ -58,4 +61,27 @@ it('reports success with a Wilson interval and per-check failures', () => {
     score: { checks: { goal: !!i } }, rounds: [{}, {}], latencyMs: 1000 * (i + 1), usage: { rawProcessed: 20000, estimatedUsd: 0.01 } }));
   const [row] = summarizeReliability({ runs });
   expect(row).toMatchObject({ samples: 2, firstAttemptSuccess: 1, successRate: 0.5, failedChecks: { 't:goal': 1 }, rounds: { total: 4 }, estimatedUsd: 0.02, actualBilledUsd: null });
+});
+
+it('"all flybys" needs every local minimum an independent sample finds, not just some results', () => {
+  const test = reliabilityCases.find(c => c.id === 'psyche-earth-all');
+  const turn = { status: 'done', reply: 'Found 2.', eventQuery: { bodies: { observer: 'Psyche', target: 'Earth' }, scope: 'local', searchComplete: true, total: 2 },
+    truth: { samples: 100, available: 100, minima: 3 } };
+  expect(scoreReliability(test, [turn]).checks.completeMinima).toBe(false);
+  turn.eventQuery.total = 3;
+  expect(scoreReliability(test, [turn]).passed).toBe(true);
+  turn.eventQuery.scope = 'global';
+  expect(scoreReliability(test, [turn]).checks.allMinimaScope).toBe(false);
+  delete turn.truth;
+  expect(scoreReliability(test, [{ ...turn, eventQuery: { ...turn.eventQuery, scope: 'local' } }]).checks.completeMinima).toBe(false);
+});
+
+it('a refusal passes only with a false premise, nothing presented and a stated no', () => {
+  const test = reliabilityCases.find(c => c.id === 'voyager-neptune-none');
+  const turn = { status: 'done', reply: 'Voyager 1 never flew past Neptune; only Voyager 2 did.', eventQuery: null, truth: { minKm: 4.4e9 } };
+  expect(scoreReliability(test, [turn]).passed).toBe(true);
+  // Silence is not a refusal.
+  expect(scoreReliability(test, [{ ...turn, reply: 'Here is the view.' }]).checks.refusalStated).toBe(false);
+  expect(scoreReliability(test, [{ ...turn, eventQuery: { presented: true } }]).passed).toBe(false);
+  expect(scoreReliability(test, [{ ...turn, truth: undefined }]).checks.premiseFalse).toBe(false);
 });

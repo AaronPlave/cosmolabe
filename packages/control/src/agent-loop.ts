@@ -15,6 +15,7 @@
  */
 import type { ScriptCancelSignal } from './contracts.js';
 import type { AgentTask, AgentToolDef, AgentToolResult, AgentTools } from './agent.js';
+import { goalKey, mergeGoal, parseGoal, type AskGoal, type GoalReport } from './outcome.js';
 
 export type AgentContent =
   // `raw`: the provider's own block, for whatever translated it to send back verbatim.
@@ -110,6 +111,8 @@ export interface AgentRunOptions {
   readonly maxSteps?: number;
   /** Tool result budget; oversized pages shrink structurally, other results are explicitly omitted. Default 6000. */
   readonly maxResultChars?: number;
+  /** End states earlier requests in this conversation committed to, by subject (as an earlier run returned them). */
+  readonly goals?: Readonly<Record<string, AskGoal>>;
   /** A task already begun (so a caller can cancel it); one is begun otherwise. */
   readonly task?: AgentTask;
   readonly onEvent?: (event: AgentEvent) => void;
@@ -121,7 +124,18 @@ export interface AgentRun {
   readonly outcome: AgentOutcome;
   /** Model round trips and the tokens they processed (null when the transport reports none). */
   readonly stats: { readonly rounds: number; readonly usage: AgentUsage | null; readonly rawTokens: number | null };
+  /** `goals` plus what this request committed to; pass to the next run. */
+  readonly goals: Readonly<Record<string, AskGoal>>;
+  /**
+   * The viewer's own check of this request's end state after its last change,
+   * run by the loop rather than chosen by the model. Null when nothing changed
+   * or no goal applies. A reply that contradicts it is the answer's problem.
+   */
+  readonly verification: readonly GoalReport[] | null;
 }
+
+/** Marks the loop's own follow-up in a request; not a new request from the person. */
+export const HOST_CHECK_PREFIX = '[Viewer check]';
 
 /** The name an action is known by: a capability's own ID rather than the bridge's. */
 function actionName(use: { name: string; input: unknown }): string {
@@ -129,6 +143,8 @@ function actionName(use: { name: string; input: unknown }): string {
   return typeof id === 'string' ? id.split('.').at(-1)! : use.name;
 }
 const DISCOVERY_NAMES = new Set(['listCapabilities', 'describeCapabilities', 'getOperationResult']);
+/** Action names that only read. */
+const READ_ACTION = /^(describe|get|list|resolve|search|check|find)/;
 
 /**
  * Condense finished requests to [person's words, answer + what the viewer did].
@@ -140,19 +156,19 @@ const DISCOVERY_NAMES = new Set(['listCapabilities', 'describeCapabilities', 'ge
 export function compactHistory(messages: readonly AgentMessage[]): AgentMessage[] {
   const turns: AgentMessage[][] = [];
   for (const m of messages) {
-    const opens = m.role === 'user' && m.content.some(c => c.type === 'text');
+    const opens = m.role === 'user' && m.content.some(c => c.type === 'text' && !c.text.startsWith(HOST_CHECK_PREFIX));
     if (opens || !turns.length) turns.push([]);
     turns.at(-1)!.push(m);
   }
   return turns.flatMap(turn => {
-    const prompt = turn[0].content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+    const prompt = turn[0].content.filter(c => c.type === 'text' && !c.text.startsWith(HOST_CHECK_PREFIX)).map(c => c.type === 'text' ? c.text : '').join('\n');
     const errors = new Map<string, boolean>();
     for (const m of turn) for (const c of m.content) if (c.type === 'tool_result') errors.set(c.toolUseId, c.isError);
     const actions: string[] = [];
     for (const m of turn) for (const c of m.content) {
       if (c.type !== 'tool_use' || DISCOVERY_NAMES.has(c.name)) continue;
       const name = actionName(c);
-      if (/^(describe|get|list|resolve|search|check|find)/.test(name)) continue;
+      if (READ_ACTION.test(name)) continue;
       const input = c.name === 'invokeCapability' ? (c.input as { input?: unknown })?.input : c.input;
       const args = JSON.stringify(input ?? {});
       actions.push(`${name}${args.length > 90 ? `${args.slice(0, 87)}...` : args} ${errors.get(c.id) === false ? 'ok' : errors.get(c.id) ? 'failed' : 'not run'}`);
@@ -174,7 +190,7 @@ const COMMON_SYSTEM_PROMPT = `You operate a Cosmolabe space-mission viewer for t
 - If a tool says the person took over the camera, do not move the camera again in this request.
 - A conversation builds one view. Keep what earlier requests asked for (a close-up, a paused epoch, an object that must stay in view) unless the person drops it; never satisfy the newest request by silently undoing an earlier one. If two wishes cannot both hold, say which and offer the choice instead of switching back and forth.
 - To bring another object into a close-up ("rotate around X so I can see Y", "keep X close but show Y"), call composeView with X as anchor and Y as target: it swings the camera around X keeping distance, time and selection. Frame X first only when it is not already tracked. Do not alternate frameObject and pair framing, dolly in and out, or guess circleCenter angles. If composeView says X fills the view or Y is hidden behind something, give that tradeoff in one sentence and offer to move out.
-- After changing the view, call checkGoal once with the whole requested end state, including constraints carried from earlier requests. If it is unmet on a specific check and one safe correction exists, make it and check once more; otherwise say plainly what holds and what does not. Questions that change nothing need no goal check.
+- Before acting on a request that changes the view, decide its end state; after acting, call checkGoal once with it. The viewer keeps earlier goals on the same subject and holds you to their constraints; when the person drops one ("zoom out", "go to another time"), list it in release. If the check is unmet on a specific point and one safe correction exists, make it and check once more; otherwise say plainly what holds and what does not. The viewer re-checks held goals after every change before your answer stands. Questions that change nothing need no goal check.
 - Where an activity happened comes from its record. Activity tools report a "site" with a "link": "direct reference" (the record points at the place), "name match" (the site's name equals a place's name and the record has no direct reference) or "none". Say which, in those words, and do not conclude a link from how a ref is spelled. A place's "fields" are its source's own attributes: cite them as the source's. Timing and position carry their provenance (estimated, bounded, reconstructed): say so briefly, and do not present an inferred landing as telemetry.
 - Before selection/clock/camera claims, use the matching read or describeScene and report only observed state. A too-large scene summary need not block a feasible task with targeted reads. A write that failed, or that the viewer does not report as in place, did not happen.
 - selectedObject describes only object selection; selectedActivity and selectedPlace are independent. Never say nothing is selected when either is present.
@@ -255,11 +271,36 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     const kind = task.ended ? CODES[task.ended] : undefined;
     return kind ? ({ kind } as AgentOutcome) : null;
   };
+  // The end state this conversation is held to, by subject. The model proposes
+  // goals; the loop merges earlier constraints in and re-checks before answering.
+  const goals: Record<string, AskGoal> = { ...(opts.goals ?? {}) };
+  const touched = new Set<string>();
+  let wrote = false, checkedSinceWrite = false, nudged = false;
+  let verification: GoalReport[] | null = null;
+  const finish = (outcome: AgentOutcome): AgentRun => ({ messages, stats: stats(), outcome, goals: { ...goals }, verification });
+  /** The host's check of every goal this request touched (or, if it touched none, every standing goal). */
+  const verify = (): GoalReport[] | null => {
+    if (!opts.tools.verify) return null;
+    const keys = touched.size ? [...touched] : Object.keys(goals);
+    return keys.length ? keys.map(k => opts.tools.verify!(goals[k])) : null;
+  };
+  /** checkGoal input, wherever it sits, merged with earlier constraints on the same subject. */
+  const holdGoal = (use: { name: string; input: unknown }): { input: unknown; carried: string[] } | null => {
+    const bridged = use.name === 'invokeCapability' && typeof (use.input as { id?: unknown })?.id === 'string' && (use.input as { id: string }).id.endsWith('.checkGoal');
+    if (use.name !== 'checkGoal' && !bridged) return null;
+    const raw = bridged ? (use.input as { input?: unknown }).input : use.input;
+    let goal: AskGoal;
+    try { goal = parseGoal(raw); } catch { return null; } // the tool reports the problem itself
+    const { goal: held, carried } = mergeGoal(goals[goalKey(goal)], goal);
+    goals[goalKey(held)] = held;
+    touched.add(goalKey(held));
+    return { input: bridged ? { ...(use.input as object), input: held } : held, carried };
+  };
 
   try {
     for (let step = 0; step < maxSteps; step++) {
       const stop = ended();
-      if (stop) return { messages, stats: stats(), outcome: stop };
+      if (stop) return finish(stop);
       opts.onEvent?.({ type: 'thinking' });
       let reply: AgentResponse;
       try {
@@ -269,7 +310,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         reply = await opts.transport.send({ system, messages, tools: offered }, task.signal);
       } catch (err) {
         const code = err instanceof AgentTransportError ? err.code : undefined;
-        return { messages, stats: stats(), outcome: ended() ?? { kind: 'error', message: err instanceof Error ? err.message : String(err), ...(code ? { code } : {}) } };
+        return finish(ended() ?? { kind: 'error', message: err instanceof Error ? err.message : String(err), ...(code ? { code } : {}) });
       }
       if (reply.usage) {
         const u: AgentUsage = usage ?? { inputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
@@ -279,7 +320,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       // A reply that arrives after the request was replaced is dropped whole:
       // its tool calls were planned for a view that is no longer the person's.
       const late = ended();
-      if (late) return { messages, stats: stats(), outcome: late };
+      if (late) return finish(late);
       messages.push({ role: 'assistant', content: reply.content });
       const uses = reply.content.filter((b): b is Extract<AgentContent, { type: 'tool_use' }> => b.type === 'tool_use');
       const answering = reply.stop !== 'tool_use' || uses.length === 0;
@@ -287,7 +328,19 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
 
       if (answering) {
         const outcome: AgentOutcome = reply.stop === 'max_tokens' ? { kind: 'max-tokens' } : reply.stop === 'refusal' ? { kind: 'refusal' } : { kind: 'done' };
-        return { messages, stats: stats(), outcome };
+        if (wrote && outcome.kind === 'done') {
+          // An answer after a change stands only once the viewer has checked the end state.
+          verification = verify();
+          const failing = verification?.filter(r => r.status === 'unmet' || r.status === 'inconclusive') ?? [];
+          // The model did not see the result of its last change and the viewer says a held goal is not met:
+          // one more round to correct or to say so. A request with no goal yet is reported as unchecked.
+          if (!nudged && step + 1 < maxSteps && !checkedSinceWrite && failing.length) {
+            nudged = true;
+            messages.push({ role: 'user', content: [{ type: 'text', text: `${HOST_CHECK_PREFIX} The viewer reports: ${failing.map(r => `${r.kind} ${r.status} (${r.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')})`).join('; ')}. Make one safe correction if one exists; otherwise answer again saying plainly what holds and what does not.` }] });
+            continue;
+          }
+        }
+        return finish(outcome);
       }
 
       // In order: a model that asks to fly and then show imagery means that
@@ -298,9 +351,14 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       for (const use of uses) {
         opts.onEvent?.({ type: 'tool', id: use.id, name: use.name, input: use.input });
         const directRead = opts.tools.list().find(def => def.name === use.name)?.effect === 'read';
-        const result: AgentToolResult = batchFailed && !directRead && !task.ended
+        const held = holdGoal(use);
+        let result: AgentToolResult = batchFailed && !directRead && !task.ended
           ? { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' }
-          : await task.call(use.name, use.input);
+          : await task.call(use.name, held ? held.input : use.input);
+        if (held && result.ok) {
+          checkedSinceWrite = true;
+          if (held.carried.length) result = { ...result, summary: `${result.summary} Held to earlier constraints: ${held.carried.join(', ')}.` };
+        } else if (result.ok && !READ_ACTION.test(actionName(use)) && !DISCOVERY_NAMES.has(use.name)) { wrote = true; checkedSinceWrite = false; }
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
@@ -308,7 +366,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       }
       messages.push({ role: 'user', content: results });
     }
-    return { messages, stats: stats(), outcome: ended() ?? { kind: 'step-limit' } };
+    if (wrote) verification = verify();
+    return finish(ended() ?? { kind: 'step-limit' });
   } finally {
     if (!opts.task) task.finish();
   }

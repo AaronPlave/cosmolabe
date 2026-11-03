@@ -28,6 +28,14 @@ viewer ran, so a long conversation does not replay every tool result. On a hard
 budget stop, one note lists exactly what is already applied. The duplicate banner
 and the "N unverified" count for camera moves that do have a read are gone.
 
+## Review changes (PR #351)
+
+- **The loop, not the model, owns verification.** Goals persist across turns by subject; a later `checkGoal` cannot silently drop an earlier constraint (`release` must name it). After any change the loop re-checks the held goals itself and gives the model one correction round when it did not see an unmet result. The verdict is shown beside the answer.
+- **False positives closed** in `outcome.ts` with negative tests: hidden/fully occluded/too-small objects, framing or drawing of another result, surface goals with no requested style, saved points that are selected but not at the sub-point.
+- **Benchmark oracles measure the requested outcome.** "All flybys" must be local-minima scope and match the count of range minima an independent sample of `getObjectState` finds over the searched window. The no-flyby refusal needs the premise to be false (sampled minimum range > 1 AU; Voyager 1–Neptune is 3.48e9 km in the loaded catalog), nothing presented, and an answer that says no. `false-success` is its own class, and the summary counts answers contradicted by the viewer's check and changes left unchecked.
+
+Still open: a request whose first goal the model never states is reported as unchecked rather than blocked; the A/B below decides whether that needs more.
+
 ## Evidence
 
 | Check | Where | Result |

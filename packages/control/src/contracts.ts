@@ -402,6 +402,8 @@ export interface ScriptGeographicFeature {
   readonly id: string; readonly name: string; readonly type: string;
   /** Original typed GeoJSON ID used by core edit operations; null for source-order-only IDs. */
   readonly sourceId: string | number | null;
+  /** A Point feature's [longitude, latitude] in its layer's convention; absent for other geometry. */
+  readonly point?: readonly [number, number];
 }
 export interface ScriptSurfaceAppearance {
   hillshade: boolean; contours?: boolean; contourOpacity?: number; contourColor?: string;

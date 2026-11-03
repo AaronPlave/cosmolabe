@@ -62,6 +62,10 @@ A command that returned `ok` is not the same as the person's request being on sc
 
 Fixed Ask offers `composeView` and `checkGoal` directly beside `describeScene`, `resolve`, `getEventSearchOptions` and `getSpatialContext`.
 
+The model proposes goals; it does not get to drop them. `runAgent` keeps the conversation's goals by subject (`camera:Psyche`, `event:<query>`, …) and merges every new `checkGoal` with the earlier goal on the same subject: objects that must stay in view are kept, a tighter range wins, and epoch/pause/style carry forward unless the goal lists them in `release` (the person dropped them). After a request changes the view, the loop runs the held goals itself through `AgentTools.verify`, outside the model's check budget. If the model did not check after its last change and a held goal is unmet, it gets one `[Viewer check]` round to correct or say so. `AgentRun.verification` is that check, and the Ask panel shows a failing one beside the answer ("Viewer check: Mars out of frame") or "Not checked against the viewer" for a change with no goal yet. Callers pass `goals` back in with `history`.
+
+The checks avoid false positives: a hidden or fully occluded object fails; one only a few pixels across is `partial`; an event's framing must be of the selected result's own observer and target, and its drawing of that result; a surface goal must request a colour or palette; a saved point must be a Point at the vehicle's sub-point in the layer's own convention (`ScriptGeographicFeature.point`), not merely selected on the right body.
+
 ### Results
 
 Every call resolves to `{ ok: true, summary, data? }` or `{ ok: false, code, error }`. Calls never throw.

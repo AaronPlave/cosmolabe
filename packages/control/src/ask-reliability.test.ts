@@ -11,7 +11,7 @@ import { FakeViewer } from './__tests__/fake-host.js';
 import { CURATED_AGENT_VERBS } from './agent.js';
 import { createCapabilityTools } from './capabilities.js';
 import { checkGoal } from './outcome.js';
-import { compactHistory, runAgent, AgentTransportError, type AgentContent, type AgentMessage, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { compactHistory, runAgent, AgentTransportError, HOST_CHECK_PREFIX, type AgentContent, type AgentMessage, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import { VERBS } from './verbs.js';
 
 const ENCOUNTER = 832_000_000;
@@ -55,9 +55,15 @@ const SCRIPT: Record<string, AgentResponse[]> = {
     call(use('d1', 'checkGoal', { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], maxAnchorRangeKm: 0.1, paused: true })),
     say('Psyche is still close (60 m) and Mars stays in frame.'),
   ],
+  'pull way back': [
+    call(use('f1', 'invokeCapability', { id: 'camera.dolly', input: { km: 5000 } })),
+    say('Pulled back.'),
+    say('Pulled back 5,000 km; Psyche is no longer up close, so that earlier request no longer holds.'),
+  ],
   'not true just need to rotate the camera around psyche to see mars': [
     call(use('e1', 'composeView', { anchor: 'Psyche', target: 'Mars' })),
-    call(use('e2', 'checkGoal', { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], maxAnchorRangeKm: 0.1, paused: true, et: ENCOUNTER })),
+    // Omits the close-up limit from turn 4: the loop must hold it anyway.
+    call(use('e2', 'checkGoal', { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], et: ENCOUNTER })),
     say('Rotated around Psyche while staying close; Mars is in frame.'),
   ],
 };
@@ -69,7 +75,7 @@ function scriptedModel(budget = Infinity) {
     async send(request: AgentRequest): Promise<AgentResponse> {
       if (spent >= budget) throw new AgentTransportError('the proxy has reached its raw-token safety cap', 'budget_exhausted', 429);
       requests.push({ ...request, messages: [...request.messages] });
-      const prompt = [...request.messages].reverse().find(m => m.role === 'user' && m.content.some(c => c.type === 'text'))!;
+      const prompt = [...request.messages].reverse().find(m => m.role === 'user' && m.content.some(c => c.type === 'text' && !c.text.startsWith(HOST_CHECK_PREFIX)))!;
       const turn = SCRIPT[(prompt.content.find(c => c.type === 'text') as { text: string }).text];
       const round = request.messages.length - request.messages.indexOf(prompt) - 1;
       const reply = turn[round / 2];
@@ -80,15 +86,19 @@ function scriptedModel(budget = Infinity) {
   return { transport, requests };
 }
 
-async function converse(budget?: number) {
+const FIVE = Object.keys(SCRIPT).filter(p => p !== 'pull way back');
+
+async function converse(budget?: number, prompts: readonly string[] = FIVE) {
   const host = new PsycheScene();
   const tools = createCapabilityTools(host, { surface: 'fixed' });
   const model = scriptedModel(budget);
   let history: readonly AgentMessage[] = [];
+  let goals = {};
   const turns = [];
-  for (const prompt of Object.keys(SCRIPT)) {
-    const run = await runAgent({ transport: model.transport, tools, history, prompt });
+  for (const prompt of prompts) {
+    const run = await runAgent({ transport: model.transport, tools, history, goals, prompt });
     history = run.messages;
+    goals = run.goals;
     turns.push(run);
   }
   return { host, tools, model, turns };
@@ -143,6 +153,35 @@ describe('Psyche/Mars five-turn close-up (#345)', () => {
     expect(checkGoal(host, { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'] }).status).toBe('met');
     const condensed = compactHistory(turns.at(-1)!.messages);
     expect(condensed.map(m => m.role)).toEqual(Array.from({ length: condensed.length }, (_, i) => (i % 2 ? 'assistant' : 'user')));
+  });
+});
+
+describe('the loop holds the conversation to its goals (#345 review)', () => {
+  it('a check that omits an earlier constraint is still judged by it', async () => {
+    const { turns } = await converse();
+    const last = turns.at(-1)!;
+    expect(last.goals['camera:Psyche']).toMatchObject({ include: ['Mars'], maxAnchorRangeKm: 0.1, paused: true, et: ENCOUNTER });
+    const summary = last.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result').map(c => JSON.parse((c as { content: string }).content).summary).at(-1);
+    expect(summary).toMatch(/Held to earlier constraints: .*maxAnchorRangeKm 0.1/);
+    expect(last.verification?.map(v => v.status)).toEqual(['met']);
+  });
+
+  it('re-checks a change the model did not check, and makes it answer to an unmet goal', async () => {
+    const { turns, model } = await converse(undefined, [...FIVE, 'pull way back']);
+    const run = turns.at(-1)!;
+    expect(run.outcome.kind).toBe('done');
+    expect(run.verification?.[0]).toMatchObject({ status: 'unmet' });
+    const nudge = model.requests.at(-1)!.messages.at(-1)!;
+    expect(nudge.content[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^\[Viewer check\] The viewer reports: camera-composition unmet \(.*limit 0.1/) });
+    expect(run.stats.rounds).toBe(3);
+    // The nudge is part of the same request when history is condensed.
+    expect(compactHistory(run.messages)).toHaveLength(12);
+  });
+
+  it('does not add a round when the change was already checked', async () => {
+    const { turns } = await converse();
+    expect(turns.map(t => t.stats.rounds)).toEqual([2, 2, 3, 2, 3]);
+    expect(turns.slice(0, 2).map(t => t.verification)).toEqual([null, null]);
   });
 });
 

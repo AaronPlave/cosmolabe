@@ -400,6 +400,9 @@ export class FakeViewer implements ViewerControl {
 
   dolly(km: number, opts?: { seconds?: number }): boolean {
     this.log('dolly', km, opts?.seconds);
+    const { position: p, target: t } = this.camera, d = Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2]);
+    const k = Math.max(1e-6, d + km) / d;
+    this.camera = { ...this.camera, position: [t[0] + (p[0] - t[0]) * k, t[1] + (p[1] - t[1]) * k, t[2] + (p[2] - t[2]) * k] };
     return this.ok(true);
   }
 

@@ -47,7 +47,7 @@ import { quote } from './snapshot.js';
 import { suggest } from './suggest.js';
 import { VERBS, type VerbParam, type VerbSpec } from './verbs.js';
 import type { OperationReceipt } from './capabilities.js';
-import { checkGoal, parseGoal } from './outcome.js';
+import { checkGoal, parseGoal, RELEASABLE, type AskGoal, type GoalReport } from './outcome.js';
 
 type FlightEnd = ScriptEventMap['flightEnd'];
 
@@ -131,6 +131,8 @@ export interface AgentTask {
 export interface AgentTools {
   /** Immediate bounded observation; does not begin/supersede a task. */
   inspect?(): AgentToolResult;
+  /** The host's own outcome check, outside any task's budget: what the loop runs before an answer stands. */
+  verify?(goal: AskGoal): GoalReport;
   /** The tools this viewer can run, in a stable order. */
   list(): readonly AgentToolDef[];
   /**
@@ -254,12 +256,13 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
   { name: 'getViewComposition', effect: 'read', method: 'getViewComposition', description: 'Where named objects are in the current view: in view or not, screen position, bearing from the view centre, distance from the camera, apparent size, and whether a nearer body hides them. Moves nothing. Geometry, not pixels.', inputSchema: { type: 'object', properties: { objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8 } }, required: ['objects'], additionalProperties: false } },
-  { name: 'checkGoal', effect: 'read', description: 'Check the requested end state against the viewer itself, after acting. State the whole goal, including constraints from earlier requests (e.g. keep Psyche close AND Mars in view). kind camera-composition: anchor, include, optional maxAnchorRangeKm/paused/et. event-presentation: query, pick closest|selected. surface-appearance: body, baseColor, palette. ground-point: object, mode pin|saved. Returns met, partial (settings hold; drawing/data not yet observed), unmet or inconclusive with per-check details. At most three checks per request.', inputSchema: { type: 'object', additionalProperties: false, required: ['kind'], properties: {
+  { name: 'checkGoal', effect: 'read', description: 'Check the requested end state against the viewer itself, after acting. State the whole goal, including constraints from earlier requests (e.g. keep Psyche close AND Mars in view). kind camera-composition: anchor, include, optional maxAnchorRangeKm/paused/et. event-presentation: query, pick closest|selected. surface-appearance: body, baseColor, palette. ground-point: object, mode pin|saved. Constraints from earlier goals on the same subject carry forward automatically unless listed in release. Returns met, partial (settings hold; drawing/data/legible size not yet observed), unmet or inconclusive with per-check details. At most three checks per request; the viewer re-checks before an answer stands.', inputSchema: { type: 'object', additionalProperties: false, required: ['kind'], properties: {
     kind: { type: 'string', enum: ['camera-composition', 'event-presentation', 'surface-appearance', 'ground-point'] },
     anchor: { type: 'string' }, include: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 4 }, maxAnchorRangeKm: { type: 'number', minimum: 0 }, paused: { type: 'boolean' }, et: { type: 'number' },
     query: { type: 'string' }, pick: { type: 'string', enum: ['closest', 'selected'] },
     body: { type: 'string' }, baseColor: { type: 'string', enum: ['imagery', 'elevation', 'neutral'] }, palette: { type: 'string', enum: ['terrain', 'blue-gold', 'grayscale'] },
     object: { type: 'string' }, mode: { type: 'string', enum: ['pin', 'saved'] },
+    release: { type: 'array', items: { type: 'string', enum: [...RELEASABLE] }, description: 'Constraint fields from earlier requests that the person explicitly dropped. Everything else carries forward.' },
   } } },
   { name: 'getSpatialContext', effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'getObjectState', effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
@@ -1103,6 +1106,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
   return {
     inspect: describeScene,
+    verify: goal => checkGoal(host, goal),
     list: () => list().filter(def => !opts.omittedTools?.[def.name]),
     begin,
     call: async (name, input) => {

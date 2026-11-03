@@ -15,7 +15,7 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, type AskStep, type AskTurn,
+    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, checkNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
   import { etToUtcString } from '../lib/viewer-state.svelte';
@@ -190,6 +190,10 @@
             {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
             {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
           </p>
+          {#if checkNote(turn)}
+            {@const check = checkNote(turn)!}
+            <p class="ui-helper whitespace-normal {check.tone === 'warning' ? 'text-warning' : 'text-text-faint'}" role="status">{check.text}</p>
+          {/if}
           {#if endNote(turn, stepLabel)}
             {@const note = endNote(turn, stepLabel)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
