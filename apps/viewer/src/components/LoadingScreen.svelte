@@ -66,7 +66,7 @@
     text-overflow: ellipsis;
   }
   .name {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     line-height: 24px;
     height: 24px;
