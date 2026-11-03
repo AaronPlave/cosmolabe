@@ -390,3 +390,27 @@ from five ignored experimental catalogs; no assertion was weakened.
 ![Ingenuity Flight 12 terrain result and source notes](ingenuity-flight12.png)
 
 [390px native result](ingenuity-flight12-compact.png)
+
+
+## Combined stack after host-permission approval
+
+Integrated #334 through `290a49b1898f04a8168b7a53097c339fc29c1661`.
+The sole textual conflict was the `getEventSearchOptions` description: retained
+the altitude/terrain distinction and explicit time-window semantics while adopting
+the approved host-permission wording. Routine scene edits use existing host
+authoring permission; destructive changes and export retain their confirmation
+requirements, as exercised by the capability/agent tests.
+
+On this combined tree, package build, lint, test/viewer TypeScript and Svelte
+checks pass (0 Svelte errors/warnings); 250 focused control/event-query/trajectory
+viewer tests pass. The full viewer suite passes 779 tests with only the known
+ignored-local-catalog inventory failure. The refreshed MoonFall acceptance
+receipt and expanded screenshots come from this integration, including modern
+script query execution, capability discovery, result focus, explicit camera
+framing, timeline/renderer state, partial/cancel behavior and invalidation. No
+external model or provider was called. Exact-head remote CI is recorded on the PR.
+
+The real Ingenuity Flight 12 query also passed on this combined tree: the same
+10.087050759 m candidate, sampled-complete coverage, estimated reconstruction
+notes and exact activity/epoch/vehicle navigation. The Ingenuity receipt and
+screenshots are refreshed from that run on physical Apple M4 Max Metal.

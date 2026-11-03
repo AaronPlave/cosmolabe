@@ -57,7 +57,7 @@ export function capabilityCoverage() {
       const domain = capabilityDomain(def.name, def.effect);
       return { feature: domain, operation: `${domain}.${def.name}`, ui: UI[domain],
         semantic: def.method ?? 'bounded composite read', script: VERBS.has(def.name) ? def.name : null,
-        discovery: true, defaultAsk: direct.has(def.name) ? 'direct' : 'discovery', effect: def.effect, permission: def.effect === 'authoring' ? 'approve-authoring' : def.effect === 'export' ? 'approve-external' : 'direct', status: 'registered', missingReason: null };
+        discovery: true, defaultAsk: direct.has(def.name) ? 'direct' : 'discovery', effect: def.effect, permission: def.effect === 'authoring' ? 'approve-authoring' : def.effect === 'export' ? 'approve-external' : def.requiresAuthoring ? 'host-authoring' : 'direct', status: 'registered', missingReason: null };
     }),
     ...UI_CAPABILITY_GAPS.map(gap => ({ ...gap, operation: null, semantic: null, script: null,
       discovery: false, status: 'gap', missingReason: gap.reason })),

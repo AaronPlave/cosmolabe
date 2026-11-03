@@ -285,7 +285,7 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
   // observer again is noise; hover stays two lines, and selection adds a
   // third only when it says something the scene does not.
   if (!isIntervalEvent(event)) {
-    return [title, headline ? `${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
+    return [title, headline ? `${headline.label} ${formatMetric(headline)} · ${minute(eventStart(event))}` : minute(eventStart(event))];
   }
 
   const duration = event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : `Duration ${formatSeconds(eventDuration(event))}`;
@@ -307,7 +307,10 @@ export function eventCalloutLines(event: GeometryEvent, options: EventCalloutOpt
 export function eventSceneAnnotationLines(event: GeometryEvent): string[] {
   const title = eventCalloutTitle(event);
   const headline = headlineMetric(event);
-  if (headline) return [title, formatMetric(headline)];
+  // The persistent inspector owns measurements. Keep the scene anchor brief
+  // for encounters, especially when a participant is only a few pixels wide.
+  if (event.kind === 'closest-approach') return [title];
+  if (headline) return [title, `${headline.label} ${formatMetric(headline)}`];
   if (isIntervalEvent(event)) return [title, event.kind === 'mission-activity' && event.state === 'bounded' ? 'Reported window · duration unknown' : formatSeconds(eventDuration(event))];
   return [title];
 }

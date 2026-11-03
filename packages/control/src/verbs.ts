@@ -126,6 +126,8 @@ export interface VerbSpec {
   readonly name: string;
   readonly params: readonly VerbParam[];
   readonly category: 'Scene' | 'Time' | 'Camera' | 'Display' | 'Capture' | 'Sequencing' | 'Analysis' | 'Authoring';
+  /** Reversible local scene writes still require host authoring permission. */
+  readonly sceneEdit?: boolean;
   readonly help: string;
   /** The `ViewerControl` method this verb needs. Missing on a host → located error. */
   readonly method: keyof ViewerControl;
@@ -189,8 +191,8 @@ const modernVerbs: readonly VerbSpec[] = [
   { name: 'selectPlace', category: 'Scene', method: 'selectPlace', params: [{ name: 'place', type: 'place' }], help: 'Inspect a stable place without moving the camera; empty ref clears selection.', invoke: (h,a) => h.selectPlace!(str(a[0]) || null) },
   { name: 'setPlaceSourceEnabled', category: 'Display', method: 'setPlaceSourceEnabled', params: [geoLayer, { name: 'enabled', type: 'boolean' }], help: 'Include or exclude an exact place source in shared search and navigation.', invoke: (h,a) => h.setPlaceSourceEnabled!(str(a[0]), bool(a[1])) },
   { name: 'showPlaceLabels', category: 'Display', method: 'showPlaceLabels', params: [geoLayer, visible], help: 'Show or hide source labels independently of search inclusion.', invoke: (h,a) => h.showPlaceLabels!(str(a[0]), bool(a[1])) },
-  { name: 'upsertMeasurement', category: 'Authoring', method: 'upsertMeasurement', params: [json], help: 'Upsert a validated semantic measurement by stable ID; preserve other definitions. JSON: {id,kind:distance|direction|angle|velocity|axes|vector-angle,source,target,vertex:null,visible:true}; entity endpoints are {kind:entity,bodyName:exact scene name}. Entity distances are centre distances, not terrain clearance.', invoke: (h,a) => h.upsertMeasurement!(data<MeasurementDefinition>(a[0])) },
-  { name: 'restoreMeasurements', category: 'Authoring', method: 'restoreMeasurements', params: [json, { name: 'mode', type: 'enum', values: ['merge','replace'], optional: true }], help: 'Restore version 1 measurement definitions; merge by default, replace only when explicit.', invoke: (h,a) => h.restoreMeasurements!(data(a[0]), optStr(a[1]) as 'merge' | 'replace' | undefined) },
+  { name: 'upsertMeasurement', sceneEdit: true, category: 'Authoring', method: 'upsertMeasurement', params: [json], help: 'Upsert a validated semantic measurement by stable ID; preserve other definitions. JSON: {id,kind:distance|direction|angle|velocity|axes|vector-angle,source,target,vertex:null,visible:true}; entity endpoints are {kind:entity,bodyName:exact scene name}. Entity distances are centre distances, not terrain clearance.', invoke: (h,a) => h.upsertMeasurement!(data<MeasurementDefinition>(a[0])) },
+  { name: 'restoreMeasurements', sceneEdit: true, category: 'Authoring', method: 'restoreMeasurements', params: [json, { name: 'mode', type: 'enum', values: ['merge','replace'], optional: true }], help: 'Restore version 1 measurement definitions; merge by default. Explicit replace is destructive and requires confirmation.', invoke: (h,a) => h.restoreMeasurements!(data(a[0]), optStr(a[1]) as 'merge' | 'replace' | undefined) },
   { name: 'removeMeasurement', category: 'Authoring', method: 'removeMeasurement', params: [measurement], help: 'Remove one saved measurement by ID.', invoke: (h,a) => h.removeMeasurement!(str(a[0])) },
   { name: 'selectMeasurement', category: 'Analysis', method: 'selectMeasurement', params: [measurement], help: 'Select a measurement; an empty ID clears selection.', invoke: (h,a) => h.selectMeasurement!(str(a[0]) || null) },
   { name: 'showMeasurement', category: 'Display', method: 'showMeasurement', params: [measurement, visible], help: 'Show or hide a saved measurement.', invoke: (h,a) => h.showMeasurement!(str(a[0]), bool(a[1])) },
@@ -199,8 +201,8 @@ const modernVerbs: readonly VerbSpec[] = [
   { name: 'selectGeographicFeature', category: 'Scene', method: 'selectGeographicFeature', params: [geoLayer, geoFeature], help: 'Select a stable feature without moving the camera.', invoke: (h,a) => h.selectGeographicFeature!(str(a[0]), str(a[1])) },
   { name: 'clearGeographicSelection', category: 'Scene', method: 'clearGeographicSelection', params: [], help: 'Clear geographic feature selection.', invoke: h => h.clearGeographicSelection!() },
   { name: 'gotoGeographicFeature', category: 'Camera', method: 'gotoGeographicFeature', params: [geoLayer, geoFeature, { name: 'animate', type: 'boolean', optional: true }], help: 'Use the existing feature extent navigation; off cuts to the view.', invoke: (h,a) => h.gotoGeographicFeature!(str(a[0]), str(a[1]), { animate: a[2] as boolean | undefined }) },
-  { name: 'createAnnotationLayer', category: 'Authoring', method: 'createAnnotationLayer', params: [{ name: 'body', type: 'object' }, { name: 'name', type: 'text' }, json], help: 'Create a user annotation layer with explicit body/frame/coordinate conventions. JSON coordinates: {frame:body-fixed frame,latitude:planetocentric,longitudeDirection:east,longitudeDomain:-180..180,referenceShape:{kind:ellipsoid,radiiKm:[x,y,z]}}. Angles are degrees. Use body frame from layer/surface inventory; never invent a transform.', invoke: (h,a) => h.createAnnotationLayer!(str(a[0]), str(a[1]), data<GeographicCoordinates>(a[2])) },
-  { name: 'editAnnotation', category: 'Authoring', method: 'editAnnotation', params: [geoLayer, json], help: 'Apply one bounded core annotation edit, with normal validation and undo. Catalog layers remain read-only. JSON operations: {type:add,geometry:{type:Point,coordinates:[longitude,latitude]},properties:{name:text}}, {type:delete,featureId:original sourceId}, {type:replace-geometry,featureId,geometry}, or {type:set-properties,featureId,properties}. Use the original typed sourceId, not its prefixed reference.', invoke: (h,a) => h.editAnnotation!(str(a[0]), data<GeographicEditOperation>(a[1])) },
+  { name: 'createAnnotationLayer', sceneEdit: true, category: 'Authoring', method: 'createAnnotationLayer', params: [{ name: 'body', type: 'object' }, { name: 'name', type: 'text' }, json], help: 'Create an annotation layer. Use explicit body/frame/coordinate conventions. JSON coordinates: {frame:body-fixed frame,latitude:planetocentric,longitudeDirection:east,longitudeDomain:-180..180,referenceShape:{kind:ellipsoid,radiiKm:[x,y,z]}}. Angles are degrees. Use body frame from layer/surface inventory; never invent a transform.', invoke: (h,a) => h.createAnnotationLayer!(str(a[0]), str(a[1]), data<GeographicCoordinates>(a[2])) },
+  { name: 'editAnnotation', sceneEdit: true, category: 'Authoring', method: 'editAnnotation', params: [geoLayer, json], help: 'Edit a saved annotation. Apply one bounded edit with normal validation and undo. Catalog layers remain read-only; delete requires confirmation. JSON operations: {type:add,geometry:{type:Point,coordinates:[longitude,latitude]},properties:{name:text}}, {type:delete,featureId:original sourceId}, {type:replace-geometry,featureId,geometry}, or {type:set-properties,featureId,properties}. Use the original typed sourceId, not its prefixed reference.', invoke: (h,a) => h.editAnnotation!(str(a[0]), data<GeographicEditOperation>(a[1])) },
   { name: 'setSurfaceAppearance', category: 'Display', method: 'setSurfaceAppearance', params: [{ name: 'body', type: 'object' }, json], help: 'Patch supported physical terrain appearance. JSON may contain hillshade:boolean, contours:boolean, baseColor:imagery|elevation|neutral, palette:terrain|blue-gold|grayscale, minKm:number, maxKm:number, imageryAmount:number, azimuthDeg:number, elevationDeg:number, contrast:number. Read current settings first. A palette only appears when baseColor is elevation: select that mode for requested elevation coloring. Enabling an imagery layer is separate from choosing the base color; clarify genuinely conflicting final-style requests. Changes no terrain geometry or scientific data.', invoke: (h,a) => h.setSurfaceAppearance!(str(a[0]), data(a[1])) },
   { name: 'waitUntilReady', category: 'Sequencing', method: 'waitUntilReady', params: [json, { name: 'timeoutSeconds', type: 'number', optional: true }], help: 'Wait for an explicit observed readiness predicate, failing transparently unless ready; no wall-clock fallback. JSON event predicate: {kind:event,reference:{scene,query,id,revision},et:number,policy:timeline|native-draw}. Others: {kind:assets}, {kind:terrain,body}, {kind:imagery,body,layer}, {kind:cube-base,body}.', invoke: async (h,a,signal) => {
     const result = await h.waitUntilReady!(data<ScriptReadinessRequest>(a[0]), { timeoutMs: a[1] === undefined ? undefined : num(a[1]) * 1000, signal });
@@ -507,11 +509,11 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.selectInstrument!(str(a[0]) || null),
   },
   {
-    name: 'saveBookmark', params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'saveBookmark',
+    name: 'saveBookmark', sceneEdit: true, params: [{ name: 'name', type: 'text' }], category: 'Authoring', method: 'saveBookmark',
     help: 'Save the current camera using the session viewpoint model; catalog/default names are protected.', invoke: (host, a) => host.saveBookmark!(str(a[0])),
   },
   {
-    name: 'upsertBookmark', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertBookmark',
+    name: 'upsertBookmark', sceneEdit: true, params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertBookmark',
     help: 'Merge one portable session viewpoint definition by name, preserving unrelated views.', invoke: (host, a) => host.upsertBookmark!(data(a[0])),
   },
   {
@@ -519,8 +521,8 @@ export const VERB_LIST: readonly VerbSpec[] = [
     help: 'Remove one session viewpoint; catalog/default views are protected.', invoke: (host, a) => host.removeBookmark!(str(a[0])),
   },
   {
-    name: 'upsertEventQuery', params: [{ name: 'definition', type: 'text' }], category: 'Authoring', method: 'upsertEventQuery',
-    help: 'Create or replace a validated Event Finder definition by stable ID; cached results are invalidated.',
+    name: 'upsertEventQuery', sceneEdit: true, params: [{ name: 'definition', type: 'text' }], category: 'Analysis', method: 'upsertEventQuery',
+    help: 'Set up an Event Finder search. Create or replace a validated definition by stable ID; cached results are invalidated.',
     invoke: (host, a) => host.upsertEventQuery!(data(a[0])),
   },
   {

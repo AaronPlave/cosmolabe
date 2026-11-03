@@ -72,6 +72,7 @@ export interface AgentToolDef {
   readonly description: string;
   readonly inputSchema: AgentJsonSchema & { readonly type: 'object' };
   readonly effect: AgentToolEffect;
+  readonly requiresAuthoring?: boolean;
 }
 
 /**
@@ -231,9 +232,9 @@ function verbTool(spec: VerbSpec, effect: AgentToolEffect): AgentToolDef {
 const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] = [
   { name: 'getSpatialContext', effect: 'read', method: 'getSpatialContext', description: 'Small targeted entity/body read: exact epoch, active parent, state in parent body-fixed frame, availability, supported reference shape and Draw coordinate/frame conventions, compatible editable layer. Use own coordinates for a point ON this body; parentCoordinates are for ground projection UNDER this entity. Use before creating points; no existing layer is not an impossibility. No large scene inventory.', inputSchema: { type: 'object', properties: { object: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'getObjectState', effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
-  { name: 'projectGroundPoint', effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations separately require approval.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['reference','rendered','terrain'] } }, required: ['object'], additionalProperties: false } },
+  { name: 'projectGroundPoint', effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['reference','rendered','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} and requires saved-definition approval.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -480,9 +481,9 @@ const has = (host: ViewerControl, method: keyof ViewerControl) =>
 /** Registration comes from VERBS and the bounded read implementations above. No catalog code executes. */
 export function agentDefinitions(): readonly (AgentToolDef & { method?: keyof ViewerControl })[] {
   return [...READ_TOOLS, ...[...VERBS.values()].map(spec => ({
-    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
+    ...verbTool(spec, AGENT_VERBS.find(v => v.verb === spec.name)?.effect ?? (spec.sceneEdit ? 'display' : spec.category === 'Authoring' ? 'authoring' : spec.category === 'Capture' ? 'export' : spec.category === 'Camera' || spec.name === 'gotoObject' ? 'camera'
       : spec.category === 'Time' || spec.name === 'seekActivity' || spec.name === 'selectEventResult' || spec.name === 'focusEventResult' ? 'time'
-        : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method,
+        : spec.category === 'Scene' ? 'selection' : 'display')), method: spec.method, requiresAuthoring: spec.sceneEdit,
   }))];
 }
 
@@ -716,6 +717,15 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       const held = layer && (name === 'showImagery' ? layer.visible === args.visible : layer.opacity === args.opacity);
       return held ? { note: 'The imagery layer reports the requested setting.' } : { problem: 'the imagery layer does not report the requested setting' };
     }
+    if (name === 'selectGeographicFeature' && host.getSelectedGeographicFeature && host.listGeographicLayers) {
+      const selected = host.getSelectedGeographicFeature();
+      if (!selected || selected.layer !== args.layer || selected.feature !== args.feature)
+        return { problem: 'the viewer does not report the requested geographic feature selection' };
+      const layer = host.listGeographicLayers().find(l => l.id === selected.layer);
+      const context = layer?.body ? host.getSpatialContext?.(layer.body) : null;
+      return { note: `Saved feature selection is observed on its layer body. Layer ${layer ? layer.visible ? 'is visible' : 'is hidden' : 'visibility is unavailable'}; native drawing ${context?.drawing.some(d => d.layers.includes(selected.layer) && d.features > 0) ? 'group is observed' : 'has not yet been observed'}. A missing draw observation does not mean the edit failed; group counts do not prove unoccluded pixels.`,
+        data: { selectedFeature: selected, body: layer?.body ?? null, visible: layer?.visible ?? null, spatial: context ? metadata.spatialContext(context) : null } };
+    }
     if (name === 'frameObject') {
       const camera = host.getCamera(), target = args.object ?? host.getTracked();
       return target && host.getTracked() === target && [...camera.position,...camera.target,...camera.up].every(Number.isFinite) && Math.hypot(...camera.position.map((v,i)=>v-camera.target[i])) > 0 ? { note: 'Requested tracked object and resulting camera pose are observed. This is not an occlusion or visible-pixels guarantee.' } : { problem: 'the requested framing target and valid camera pose are not observed' };
@@ -773,7 +783,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     getEventSearchOptions: input => {
       const options = host.getEventSearchOptions!(input as Parameters<NonNullable<ViewerControl['getEventSearchOptions']>>[0]);
       const coverage = options.coverage;
-      return { ok: true, summary: 'Registry defaults and assessed kernel coverage; saved queries require approval. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
+      return { ok: true, summary: 'Registry defaults and assessed kernel coverage; routine query configuration uses existing host permission without repeated confirmation. Suggested window is limited to the declared catalog interval, never a global flyby claim.', data: {
         ...options, coverage: coverage ? { status: coverage.status, exact: coverage.exact, windows: coverage.windows.slice(0, 32).map(w => ({ start: w.start, end: w.end })), totalWindows: coverage.windows.length, problems: coverage.problems.length, caveats: coverage.caveats.length } : null,
       } };
     },
@@ -818,7 +828,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     listGeographicFeatures: input => {
       if (!Number.isInteger(input.offset ?? 0) || !Number.isInteger(input.limit ?? 25)) return { ok: false, code: 'invalid-input', error: 'Pagination must use integers' };
       const page = host.listGeographicFeatures!(input.layer as string, { offset: input.offset as number | undefined, limit: input.limit as number | undefined });
-      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
+      return page ? { ok: true, summary: 'Geographic feature identities and geometry types; properties remain local. Names and source IDs may be withheld: a null name does not establish that an authored label failed to save.', data: { total: page.total, features: page.features.slice(0, (input.limit as number | undefined) ?? 25).map(metadata.geographicFeature) } } : { ok: false, code: 'refused', error: 'Unknown geographic layer' };
     },
     getSurfaceAppearance: input => {
       const appearance = host.getSurfaceAppearance!(input.body as string);
@@ -915,7 +925,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if (problem) return { ok: false, code: 'invalid-input', error: problem };
       const refused = this.gate(def);
       if (refused) return refused;
-      if (def.effect === 'authoring' && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
+      if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
 

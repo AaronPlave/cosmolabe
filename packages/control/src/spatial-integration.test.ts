@@ -38,3 +38,25 @@ describe('shared spatial capability boundary', () => {
     tools.dispose();
   });
 });
+
+it('verifies a vehicle-ground annotation on its owning layer body and separates selection from native drawing', async () => {
+  let selected = { layer: 'mars-points', feature: 'one' };
+  const getContext = vi.fn((body: string) => ({ ...context, object: body, selectedFeature: body === 'Mars' ? selected : null,
+    drawing: body === 'Mars' ? [{ layers: ['mars-points'], features: 1, terrainCoverage: 'reference' }] : [] }));
+  const host = Object.assign(new FakeViewer(), { getSelectedGeographicFeature: () => selected,
+    listGeographicLayers: () => [{ id: 'mars-points', body: 'Mars', visible: true }] as any,
+    selectGeographicFeature: () => true, getSpatialContext: getContext });
+  const tools = createCapabilityTools(host, { surface: 'fixed' });
+  const result = await tools.begin().call('invokeCapability', { id: 'geographic.selectGeographicFeature', input: { layer: selected.layer, feature: selected.feature } });
+  expect(result).toMatchObject({ ok: true, data: { selectedFeature: selected, body: 'Mars', visible: true, spatial: { selectedFeature: selected } } });
+  expect(getContext).toHaveBeenCalledWith('Mars');
+  expect(result.ok && result.summary).toContain('native drawing group is observed');
+  getContext.mockReturnValue({ ...context, drawing: [] });
+  const missingDraw = await tools.begin().call('invokeCapability', { id: 'geographic.selectGeographicFeature', input: { layer: selected.layer, feature: selected.feature } });
+  expect(missingDraw).toMatchObject({ ok: true });
+  expect(missingDraw.ok && missingDraw.summary).toContain('has not yet been observed');
+  expect(missingDraw.ok && missingDraw.summary).toContain('does not mean the edit failed');
+  selected = { ...selected, feature: 'different' };
+  expect(await tools.begin().call('invokeCapability', { id: 'geographic.selectGeographicFeature', input: { layer: selected.layer, feature: 'one' } })).toMatchObject({ ok: false });
+  tools.dispose();
+});

@@ -169,31 +169,31 @@ describe('the Ask session', () => {
     vi.stubEnv('DEV', true);
     vi.stubEnv('VITE_ASK_ENDPOINT', '/ask');
     vi.stubGlobal('location', { href: 'http://localhost/', search: mode === 'discovery' ? '?askMode=discovery' : '' });
-    const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, saveBookmark: vi.fn(() => true) } as unknown as ViewerControl;
+    const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, removeBookmark: vi.fn(() => true) } as unknown as ViewerControl;
     vi.spyOn(loader, 'getCosmo').mockReturnValue(host);
-    const saved = vi.spyOn(host, 'saveBookmark');
+    const saved = vi.spyOn(host, 'removeBookmark');
     let round = 0;
     vi.stubGlobal('fetch', async () => {
       const reply: AgentResponse = ++round % 3 === 1
-        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.saveBookmark'] } }] }
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] }
         : round % 3 === 2
-          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'approved-view' } } }] }
+          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
           : textReply('Finished.');
       return new Response(JSON.stringify({ version: 1, ...reply }));
     });
-    const denied = submitAsk('Save this view');
+    const denied = submitAsk('Delete this view');
     await until(() => !!askApproval.pending);
     expect(saved).not.toHaveBeenCalled();
-    expect(askApproval.pending).toMatchObject({ kind: 'authoring', operation: 'bookmarks.saveBookmark' });
+    expect(askApproval.pending).toMatchObject({ kind: 'authoring', operation: 'bookmarks.removeBookmark' });
     answerAskApproval(false);
     await denied;
     expect(saved).not.toHaveBeenCalled();
-    const approved = submitAsk('Save it');
+    const approved = submitAsk('Delete it');
     await until(() => !!askApproval.pending);
     answerAskApproval(true);
     await approved;
     expect(saved).toHaveBeenCalledExactlyOnceWith('approved-view');
-    const cancelled = submitAsk('Save again');
+    const cancelled = submitAsk('Delete again');
     await until(() => !!askApproval.pending);
     stopAsk();
     await cancelled;

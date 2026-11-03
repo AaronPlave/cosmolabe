@@ -25,7 +25,8 @@ export interface CapabilityDescription extends CapabilitySummary {
   readonly dependencies: readonly string[];
   readonly conventions: string;
   readonly provenance: string;
-  readonly permission: 'none' | 'host-and-confirmation';
+  /** 'host' retains allowAuthoring; destructive input variants also need confirmation. */
+  readonly permission: 'none' | 'host' | 'host-and-confirmation';
 }
 export type OperationStatus = 'accepted' | 'running' | 'completed' | 'refused' | 'partial' | 'cancelled' | 'stale';
 export interface OperationReceipt {
@@ -65,7 +66,9 @@ export interface CapabilityToolsOptions extends Omit<AgentToolsOptions, 'vocabul
   /** Trusted host policy only; never populated from a scene or model argument. */
   readonly omitted?: Readonly<Record<string, string>>;
   readonly allowExternal?: boolean;
+  /** Trusted permission for local definitions; never inferred from the model or catalog. */
   readonly allowAuthoring?: boolean;
+  /** Required for deletion/replacement/whole-state restore, not routine local edits. */
   readonly confirmAuthoring?: (operation: string, input: unknown) => Promise<boolean>;
   /** A trusted UI/host confirmation, bound to this exact call. Model text cannot grant it. */
   readonly confirmExternal?: (operation: string, input: unknown) => Promise<boolean>;
@@ -117,6 +120,16 @@ export function capabilityDomain(name: string, effect: AgentToolEffect): string 
   return effect === 'read' || effect === 'selection' ? 'scene' : 'display';
 }
 const idOf = (def: AgentToolDef) => `${capabilityDomain(def.name, def.effect)}.${def.name}`;
+// Conditional destructive variants retain exact-call confirmation. Malformed JSON
+// is never treated as a reversible edit; normal validation still runs below.
+function destructiveEdit(name: string, input: unknown): boolean {
+  const args = input as Record<string, unknown>;
+  if (name === 'restoreMeasurements') return args.mode === 'replace';
+  if (name === 'editAnnotation') {
+    try { return JSON.parse(String(args.json)).type === 'delete'; } catch { return true; }
+  }
+  return false;
+}
 const effectOf = (def: AgentToolDef): CapabilityEffect => def.effect === 'read' ? 'read' : def.effect === 'export' ? 'external' : def.effect === 'authoring' ? 'authoring' : 'viewer';
 const fail = (error: string, code: AgentErrorCode = 'invalid-input'): AgentToolResult => ({ ok: false, code, error });
 const SCOPE_SCHEMA = objectSchema({ viewer: { type: 'string' }, scene: { type: ['number', 'null'] }, revision: { type: 'number' } }, ['viewer', 'scene', 'revision']);
@@ -201,6 +214,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     const blockedNavigation = def.name === 'navigateToAnalysisResult' ? ['time.setTime','time.setPlaying','scene.select','camera.frameObject'].find(operation => opts.omitted?.[operation]) : undefined;
     const reason = opts.omitted?.[id] ?? (blockedNavigation ? `Result navigation requires ${blockedNavigation}: ${opts.omitted![blockedNavigation]}` : undefined) ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
       : effectOf(def) !== 'read' && (!host.getScene || scope().scene === null) ? 'Scene identity is required for writes'
+        : def.requiresAuthoring && !opts.allowAuthoring ? 'Host authoring permission required'
         : effectOf(def) === 'authoring' && (!opts.allowAuthoring || !opts.confirmAuthoring) ? 'Host authoring permission and confirmation required'
         : effectOf(def) === 'external' && (!opts.allowExternal || !opts.confirmExternal) ? 'Host permission and confirmation required' : null);
     return { id, version: CAPABILITY_VERSION, domain: capabilityDomain(def.name, def.effect), description: def.description.slice(0, 640), effect: effectOf(def), available: reason === null, reason: reason?.slice(0, 640) ?? null };
@@ -236,7 +250,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         dependencies: method ? [method] : [],
         conventions: 'Time: ET seconds past J2000 or UTC calendar; angles: degrees; distances and camera poses: km. Scene body/frame conventions are authoritative; no implicit coordinate transform. Consult verb parameter descriptions.',
         provenance: 'Scene/catalog declarations and observed runtime state are distinct. Null/withheld provenance, accuracy and coverage remain unknown.',
-        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : 'none' };
+        permission: ['external', 'authoring'].includes(effectOf(def)) ? 'host-and-confirmation' : def.requiresAuthoring ? 'host' : 'none' };
     });
   };
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -319,15 +333,16 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         let result: AgentToolResult;
         try {
           let confirmed = true;
-          if (effectOf(def) === 'authoring') confirmed = await opts.confirmAuthoring!(idOf(def), JSON.parse(serialized));
+          const needsAuthoringConfirmation = effectOf(def) === 'authoring' || (def.requiresAuthoring && destructiveEdit(name, input));
+          if (needsAuthoringConfirmation) confirmed = opts.confirmAuthoring ? await opts.confirmAuthoring(idOf(def), JSON.parse(serialized)) : false;
           if (effectOf(def) === 'external') confirmed = await opts.confirmExternal!(idOf(def), JSON.parse(serialized));
-          if (!confirmed) result = fail('Host confirmation declined', 'refused');
+          if (!confirmed) result = fail(needsAuthoringConfirmation && !opts.confirmAuthoring ? 'Host confirmation required' : 'Host confirmation declined', 'refused');
           else if (task.ended || bound.revision !== revision) result = fail('Task ended while awaiting confirmation', task.ended ?? 'stale');
           else if (effectOf(def) === 'external' && captureReadiness && host.getReadiness?.(captureReadiness.request).status !== 'ready') result = fail('Readiness changed while awaiting approval; capture refused', 'refused');
           else {
             receipt = { ...receipt, status: 'running' }; remember(receipt);
             result = await task.call(name, JSON.parse(serialized));
-            if (result.ok && ['authoring', 'external'].includes(effectOf(def))) result = {
+            if (result.ok && (needsAuthoringConfirmation || effectOf(def) === 'external')) result = {
               ...result, summary: `${result.summary} Trusted UI/host approval was granted for this exact call.`,
             };
           }
@@ -339,6 +354,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
           || (name === 'navigateToAnalysisResult' && result.ok && (result.data as {verified?:boolean} | undefined)?.verified === true)
           || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
+          || (name === 'selectGeographicFeature' && typeof host.getSelectedGeographicFeature === 'function' && typeof host.listGeographicLayers === 'function')
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
           || (name === 'seekActivity' && typeof host.listActivities === 'function')

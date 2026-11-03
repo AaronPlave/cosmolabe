@@ -703,6 +703,10 @@ export function unbindRenderer() {
   }
   _renderer = null;
   _universe = null;
+  if (vs.selectedBodyName !== null) selectBody(null);
+  vs.probePin = null;
+  vs.instrumentSensor = null;
+  vs.note = null;
   vs.surfaceTarget = null;
   _terrainAnchor = null;
   vs.places = null;

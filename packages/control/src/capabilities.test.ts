@@ -42,7 +42,7 @@ describe('capability catalog contract', () => {
       expect(row).toMatchObject({ defaultAsk: defaultAskDefinitions().some(d => d.name === verb.name) ? 'direct' : 'discovery', status: 'registered' });
       const described = tools.describeCapabilities([row.operation!])[0];
       expect(described.tool.name).toBe(verb.name);
-      expect(described.permission).toBe(['authoring','external'].includes(described.effect) ? 'host-and-confirmation' : 'none');
+      expect(described.permission).toBe(['authoring','external'].includes(described.effect) ? 'host-and-confirmation' : verb.sceneEdit ? 'host' : 'none');
     }
     await task.call('describeCapabilities', { ids: ['measurements.upsertMeasurement', 'capture.screenshot'] });
     expect(await task.call('invokeCapability', { id: 'measurements.upsertMeasurement', input: { json: '{}' } })).toMatchObject({ ok: false, code: 'refused' });
@@ -57,7 +57,7 @@ describe('capability catalog contract', () => {
     expect(matrix.trustedHostOrProjectedReads).toEqual(CONTROL_CONTRACT_GAPS);
   });
 
-  it('auto-hydrates a skipped event schema while retaining exact confirmation, schema validation and stale-scene guards', async () => {
+  it('auto-hydrates a skipped event schema without confirmation while retaining schema validation, host permission and stale-scene guards', async () => {
     const host = new FakeViewer();
     let approvals = 0;
     const tools = createCapabilityTools(host, { allowAuthoring: true, confirmAuthoring: async () => { approvals++; return true; } });
@@ -66,16 +66,39 @@ describe('capability catalog contract', () => {
       query: { id: 'q', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 0, end: 100 } } }) } };
     host.getEventQueryInfo = () => ({ status: 'available', definition: JSON.parse(call.input.definition), coverage: null, error: null, provenance: null });
     expect(await task.call('invokeCapability', call)).toMatchObject({ ok: true, receipt: { verification: 'observed', status: 'completed' } });
-    expect(approvals).toBe(1);
+    expect(approvals).toBe(0);
     expect(await task.call('invokeCapability', { id: call.id, input: {} })).toMatchObject({ ok: false, code: 'invalid-input', error: expect.stringContaining('Expected input schema') });
-    expect(approvals).toBe(1);
+    expect(approvals).toBe(0);
     host.scene = { id: 2, catalog: 'Other', ready: true };
     expect(await task.call('invokeCapability', call)).toMatchObject({ ok: false, code: 'stale' });
-    expect(approvals).toBe(1);
+    expect(approvals).toBe(0);
     tools.dispose();
     const denied = createCapabilityTools(host);
     expect(await denied.call('invokeCapability', call)).toMatchObject({ ok: false, code: 'refused', error: expect.stringContaining('permission') });
     denied.dispose();
+  });
+
+  it('allows reversible local edits only with host permission and confirms destructive/external calls', async () => {
+    const host = new FakeViewer();
+    const confirmations: string[] = [];
+    const tools = createCapabilityTools(host, { allowAuthoring: true, allowExternal: true,
+      confirmAuthoring: async id => { confirmations.push(id); return false; },
+      confirmExternal: async id => { confirmations.push(id); return false; } });
+    const call = (id: string, input: unknown) => tools.call('invokeCapability', { id, input });
+    expect((await call('measurements.restoreMeasurements', { json: JSON.stringify({ version: 1, items: [] }) })).ok).toBe(true);
+    expect((await call('bookmarks.saveBookmark', { name: 'Here' })).ok).toBe(true);
+    expect(confirmations).toEqual([]);
+    for (const [id, input] of [
+      ['measurements.restoreMeasurements', { json: JSON.stringify({ version: 1, items: [] }), mode: 'replace' }],
+      ['geographic.editAnnotation', { layer: 'mine', json: JSON.stringify({ type: 'delete', featureId: 'a' }) }],
+      ['bookmarks.removeBookmark', { name: 'Here' }],
+      ['capture.screenshot', {}],
+    ] as const) expect(await call(id, input)).toMatchObject({ ok: false, code: 'refused' });
+    expect(confirmations).toEqual(['measurements.restoreMeasurements', 'geographic.editAnnotation', 'bookmarks.removeBookmark', 'capture.screenshot']);
+    tools.dispose();
+    const noConfirmation = createCapabilityTools(host, { allowAuthoring: true });
+    expect(await noConfirmation.call('invokeCapability', { id: 'measurements.restoreMeasurements', input: { json: '{"version":1,"items":[]}', mode: 'replace' } })).toMatchObject({ ok: false, code: 'refused' });
+    noConfirmation.dispose();
   });
 
   it('stops later changes in a failed model batch while allowing observation and a corrected next round', async () => {

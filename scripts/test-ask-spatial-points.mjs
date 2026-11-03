@@ -74,6 +74,11 @@ try {
         // Acceptance is immediate after the natural follow-up, with no coaching turn.
         run.naturalFollowup=await inspect(page,'Mars');
         assert.ok(run.naturalFollowup.selected&&run.naturalFollowup.feature,'natural follow-up selects its authored point');
+        const selectedRead = run.turns.at(-1).steps.filter(s => s.ok && /selectGeographicFeature$/.test(s.name)).at(-1)?.data;
+        assert.equal(selectedRead?.body, 'Mars', 'selection is verified on the authored layer body');
+        assert.deepEqual(selectedRead?.selectedFeature, run.naturalFollowup.selected);
+        assert.ok(selectedRead.spatial?.selectedFeature && selectedRead.spatial.drawing.some(d => d.layers.includes(selectedRead.selectedFeature.layer) && d.features > 0), 'selection receipt carries body-scoped selected/draw read');
+        assert.doesNotMatch(run.turns.at(-1).reply, /cannot verify.*select|couldn.t verify.*select|unable to verify.*select/i);
         assert.equal(run.naturalFollowup.context.drawing.reduce((n,d)=>n+d.features,0),1,'exactly one saved point, no duplicate');
         assert.equal(run.naturalFollowup.probe.placedEt,probe.placedEt,'existing pin is preserved');
         const p0=probe.point.bodyFixedPositionKm,p1=run.naturalFollowup.probe.point.bodyFixedPositionKm;
@@ -96,7 +101,7 @@ try {
       assert.equal(run.after.tracked,run.before.tracked);assert.equal(run.after.cameraReference,run.before.cameraReference);
       const operations=run.turns.flatMap(t=>t.steps);
       assert.ok(!operations.some(s=>s.ok&&/\.(setTime|setPlaying|setFrame|frameObject|gotoObject|flyTo|viewpoint)$/.test(s.name)),'point placement preserves clock/camera ownership');
-      for(const step of operations.filter(s=>s.ok&&/getSpatialContext|getProbePoint|projectGroundPoint|getObjectState/.test(s.name))) {
+      for(const step of operations.filter(s=>s.ok&&/getSpatialContext|getProbePoint|projectGroundPoint|getObjectState|selectGeographicFeature/.test(s.name))) {
         const wire=payloads.find(p=>p.id===step.id);assert.ok(wire&&!/result-too-large/.test(wire.content),'targeted spatial result reaches the provider');
       }
       assert.deepEqual(errors,[]);

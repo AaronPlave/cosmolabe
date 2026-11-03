@@ -34,14 +34,14 @@ describe('modern scene automation', () => {
     controller.abort(); await expect(pending).rejects.toThrow('cancelled');
     expect(host.waitUntilReady).toHaveBeenCalledWith({ kind: 'assets' }, expect.objectContaining({ signal: controller.signal }));
   });
-  it('discovers authoring but requires trusted host permission and exact-call confirmation', async () => {
+  it('requires host permission for local edits without repeated confirmation', async () => {
     const host = new FakeViewer(); const blocked = createCapabilityTools(host);
-    expect(blocked.describeCapabilities(['measurements.upsertMeasurement'])[0]).toMatchObject({ effect: 'authoring', available: false, permission: 'host-and-confirmation' });
+    expect(blocked.describeCapabilities(['measurements.upsertMeasurement'])[0]).toMatchObject({ effect: 'viewer', available: false, permission: 'host' });
     const confirm = vi.fn(async () => true);
     const allowed = createCapabilityTools(host, { allowAuthoring: true, confirmAuthoring: confirm });
     const task = allowed.begin(); await task.call('describeCapabilities', { ids: ['measurements.upsertMeasurement'] });
     const result = await task.call('invokeCapability', { id: 'measurements.upsertMeasurement', input: { json: JSON.stringify(definition) } });
-    expect(result.ok).toBe(true); if (result.ok) expect(result.summary).toContain('approval was granted for this exact call'); expect(confirm).toHaveBeenCalledOnce(); expect(host.listMeasurements()).toEqual([definition]);
+    expect(result.ok).toBe(true); if (result.ok) expect(result.summary).not.toContain('approval was granted'); expect(confirm).not.toHaveBeenCalled(); expect(host.listMeasurements()).toEqual([definition]);
     blocked.dispose(); allowed.dispose();
   });
   it.each(['fixed', 'discovery'] as const)('blocks export after a failed wait and rechecks freshness after approval in %s mode', async surface => {

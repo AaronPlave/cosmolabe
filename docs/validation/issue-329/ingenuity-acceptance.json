@@ -55,6 +55,7 @@
     "running": false,
     "fault": null,
     "hint": "One sampled, locally refined candidate per vehicle and matching interval. Ranking compares these candidates, not certified global extrema. Incomplete searches cannot establish an overall winner.",
+    "eventCount": 1,
     "form": {
       "kind": "trajectory-extremum",
       "bodies": {
@@ -73,8 +74,7 @@
       "startEt": 672089519.3000168,
       "endEt": 758898123.4109849,
       "step": 0.1
-    },
-    "eventCount": 1
+    }
   },
   "nativeRow": "10.1 m above terrain on Mars\n\nIngenuity \u00b7 Flight 12 \u00b7 2021-08-16 12:54:31 UTC\n\nGo to result \u2192",
   "result": {
