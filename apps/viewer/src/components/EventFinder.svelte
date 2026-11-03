@@ -132,10 +132,12 @@
       const list = resultsListEl;
       const selected = list?.querySelector<HTMLElement>('.event-result.selected');
       if (!list || !selected) return;
-      const listBox = list.getBoundingClientRect();
+      const scroller = list.closest<HTMLElement>('.instrument-body');
+      if (!scroller) return;
+      const listBox = scroller.getBoundingClientRect();
       const rowBox = selected.getBoundingClientRect();
-      if (rowBox.top < listBox.top) list.scrollTop -= listBox.top - rowBox.top;
-      else if (rowBox.bottom > listBox.bottom) list.scrollTop += rowBox.bottom - listBox.bottom;
+      if (rowBox.top < listBox.top) scroller.scrollTop -= listBox.top - rowBox.top;
+      else if (rowBox.bottom > listBox.bottom) scroller.scrollTop += Math.min(rowBox.bottom - listBox.bottom, rowBox.top - listBox.top);
     });
   });
   const eventKindItems = EVENT_KINDS.map(({ kind, label }) => ({ value: kind, label }));
@@ -583,9 +585,6 @@
     <div class="mt-2 pt-2 border-t border-border">
       <div class="flex items-center justify-between gap-2 mb-1">
         <span class="ui-section-label">Searches</span>
-        <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
-          <Plus size={10} /> New
-        </button>
       </div>
       <div class="flex flex-col gap-0.5">
         {#each configuredQueries as query, qi (query.id)}
@@ -625,15 +624,13 @@
         {/each}
       </div>
     </div>
-  {:else if configuredQueries.length === 1 && ef.searched}
-    <div class="mt-1 flex justify-end">
-      <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
-        <Plus size={10} /> New search
-      </button>
-    </div>
   {/if}
-
   </details>
+  <div class="mt-2 flex justify-end">
+    <button class="ctrl-link flex items-center gap-0.5" onclick={createNewSearch}>
+      <Plus size={10} /> New search
+    </button>
+  </div>
 
   <!-- Results -->
   {#if ef.fault && !(unavailable && ef.fault.code === 'unavailable')}
@@ -698,7 +695,7 @@
         <span><i class="event-marker-span" aria-hidden="true"></i>Interval</span>
       </div>
       {/if}
-      <div bind:this={resultsListEl} class="flex flex-col gap-1 max-h-64 overflow-y-auto">
+      <div bind:this={resultsListEl} class="event-results flex flex-col gap-1">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
           {@const atPlayhead = eventContainsTime(event, vs.et)}
@@ -752,8 +749,8 @@
               <div class="mt-1"><EventDetails {event} legend /></div>
             {/if}
           </button>
-          {#if event.trajectoryAnalysis && isSelectedEvent(event)}
-            <details class="ui-helper px-2 pb-2"><summary class="cursor-pointer">Measurement details</summary><EventDetails {event} /></details>
+          {#if event.trajectoryAnalysis}
+            <details class="measurement-details ui-helper px-2 pb-2"><summary class="cursor-pointer">Measurement details</summary><EventDetails {event} /></details>
           {/if}
           {#if isSelectedEvent(event)}
             <!-- Deselect without re-seeking; clicking the row itself still
@@ -844,6 +841,7 @@
   /* The card fills its row, so the selected card's × sits in the card's own
      corner rather than out in the panel's whitespace. */
   .event-result {
+    --row-accent: var(--color-primary-accent);
     display: block;
     width: 100%;
   }

@@ -9,6 +9,15 @@ const out=process.argv[3] ?? 'work/issue-329';
 await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,...(process.platform==='darwin'?{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}:{}),args:['--enable-gpu','--ignore-gpu-blocklist',...(process.platform==='darwin'?['--use-angle=metal']:[])]});
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
+// Reveal disclosure controls near the top of the panel, away from the
+// independent timeline callout anchored at the bottom of the workspace.
+async function clickDisclosure(summary) {
+  await summary.evaluate(el=>{
+    const body=el.closest('.instrument-body');
+    body.scrollTop+=el.getBoundingClientRect().top-body.getBoundingClientRect().top-12;
+  });
+  await summary.click({position:{x:5,y:7}});
+}
 const report={passed:false,errors:[]};
 page.on('pageerror',e=>report.errors.push(e.message));
 try {
@@ -88,12 +97,65 @@ try {
   assert.ok(report.native.allRows[0].includes('above lunar terrain'));
   assert.equal(await page.locator('.event-coverage-details').getAttribute('open'),null);
   assert.equal(await page.getByRole('group',{name:'Sort results'}).count(),1);
+  // New search stays outside secondary query management, even with saved searches.
+  assert.equal(await page.getByRole('button',{name:'New search',exact:true}).evaluate(el=>el.closest('details')===null),true);
   // Same form, now one vehicle. Only the normal result list is rendered.
   await bodyPickers.nth(1).selectOption('Polaris-C');
   await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   report.native.cRows=await page.locator('button.event-result').allTextContents();
   assert.ok(report.native.cRows[0].includes('Polaris-C · Crater inner-wall transect'));
+  // Multiple independently expandable results share the panel's single scrollport.
+  if(await page.getByRole('region',{name:'Selected event',exact:true}).count()) await page.getByRole('region',{name:'Selected event',exact:true}).getByRole('button',{name:'Clear selection',exact:true}).click();
+  await page.mouse.move(24,24);
+  for(const summary of await page.locator('.measurement-details > summary').all()) await clickDisclosure(summary);
+  assert.equal(await page.locator('.measurement-details[open]').count(),3);
+  for(const summary of await page.locator('.calculation-details > summary').all()) await clickDisclosure(summary);
+  const checkScrollOwnership=async()=>page.locator('.event-results').evaluate(list=>{
+    const panel=list.closest('.instrument'),body=panel.querySelector('.instrument-body');
+    const box=panel.getBoundingClientRect();
+    return {overflow:getComputedStyle(list).overflowY,maxHeight:getComputedStyle(list).maxHeight,
+      bodyScrolls:body.scrollHeight>body.clientHeight,panelBounded:box.top>=0&&box.bottom<=innerHeight,
+      horizontal:body.scrollWidth<=body.clientWidth};
+  });
+  await page.evaluate(async()=>{
+    const s=await import('/src/lib/shell.svelte.ts');
+    s.setFloat('events',{x:120,y:24,w:460,h:720},{width:innerWidth,height:innerHeight});
+  });
+  report.expanded={desktop:await checkScrollOwnership()};
+  assert.equal(report.expanded.desktop.overflow,'visible');
+  assert.equal(report.expanded.desktop.maxHeight,'none');
+  assert.equal(report.expanded.desktop.bodyScrolls,true);
+  assert.equal(report.expanded.desktop.panelBounded,true);
+  await page.locator('.measurement-details').first().scrollIntoViewIfNeeded();
+  await page.screenshot({path:`${out}/trajectory-expanded-multiple.png`});
+  await page.setViewportSize({width:390,height:844});
+  await page.mouse.move(24,24);
+  for(const summary of await page.locator('.measurement-details > summary').all()) {
+    if(!await summary.evaluate(el=>el.parentElement.open)) await clickDisclosure(summary);
+  }
+  assert.equal(await page.locator('.measurement-details[open]').count(),3);
+  report.expanded.compact=await checkScrollOwnership();
+  assert.equal(report.expanded.compact.horizontal,true);
+  await page.locator('.measurement-details').first().scrollIntoViewIfNeeded();
+  await page.screenshot({path:`${out}/trajectory-expanded-multiple-compact.png`});
+  // A scene/control selection reveals its headline in the panel, without scrolling the dock.
+  await page.evaluate(async()=>{
+    const urls=performance.getEntriesByType('resource').map(e=>e.name).filter(url=>new URL(url).pathname.endsWith('/event-finder.svelte.ts'));
+    const m=await import(urls.at(-1));m.selectEvent(m.ef.events.at(-1));
+  });
+  await page.waitForTimeout(100);
+  report.expanded.reveal=await page.locator('.event-result.selected').evaluate(row=>{
+    const body=row.closest('.instrument-body'),a=row.getBoundingClientRect(),b=body.getBoundingClientRect();
+    return {visible:a.top>=b.top-1&&a.bottom<=b.bottom+1,dock:body.closest('.instrument').parentElement.scrollTop};
+  });
+  assert.equal(report.expanded.reveal.visible,true);
+  assert.equal(report.expanded.reveal.dock,0);
+  await page.evaluate(async()=>{const s=await import('/src/lib/shell.svelte.ts');s.dockPanel('events');});
+  await page.setViewportSize({width:1440,height:1000});
+  for(const summary of await page.locator('.measurement-details > summary').all()) {
+    if(await summary.evaluate(el=>el.parentElement.open)) await clickDisclosure(summary);
+  }
   await page.screenshot({path:`${out}/trajectory-form.png`});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:`${out}/trajectory-form-compact.png`});
@@ -280,6 +342,34 @@ try {
   assert.ok(report.single.scrolling.answer.bottom<=report.single.scrolling.panel.bottom);
   assert.ok(report.single.scrolling.answer.top>=report.single.scrolling.panel.top+40);
   await page.screenshot({path:`${out}/trajectory-single-compact.png`});
+  // Selected + partial: blue selection, amber warning, tidy expanded metadata.
+  await page.setViewportSize({width:1440,height:1000});
+  await page.evaluate(async()=>{const s=await import('/src/lib/shell.svelte.ts');s.setFloat('events',{x:120,y:24,w:460,h:850},{width:innerWidth,height:innerHeight});});
+  await clickDisclosure(page.locator('.measurement-details > summary'));
+  const detail=page.locator('.measurement-details');
+  assert.doesNotMatch(await detail.innerText(),/Polaris-B|Vehicle\(s\)|Central body|Science and provenance/);
+  assert.match(await detail.innerText(),/Location[\s\S]*Reference[\s\S]*Source[\s\S]*Coverage/);
+  assert.match(await detail.innerText(),/89\.\d{3}° S, \d+\.\d{3}° [EW]/);
+  await clickDisclosure(page.getByText('Calculation & sources',{exact:true}));
+  report.single.colors=await singleRow.evaluate(row=>{
+    const warning=row.closest('.instrument-body').querySelector('.height-caution');
+    return {selected:getComputedStyle(row).boxShadow,warning:getComputedStyle(warning).borderLeftColor};
+  });
+  assert.ok(!report.single.colors.selected.includes(report.single.colors.warning));
+  await detail.scrollIntoViewIfNeeded();
+  await page.screenshot({path:`${out}/trajectory-expanded-single.png`});
+  await page.setViewportSize({width:390,height:844});
+  await page.mouse.move(24,24);
+  if(await detail.getAttribute('open')===null) await clickDisclosure(detail.locator('summary').first());
+  assert.notEqual(await detail.getAttribute('open'),null);
+  await detail.locator('summary').first().evaluate(el=>{const b=el.closest('.instrument-body');b.scrollTop+=el.getBoundingClientRect().top-b.getBoundingClientRect().top-12;});
+  await page.screenshot({path:`${out}/trajectory-expanded-single-compact.png`});
+  assert.equal(await detail.evaluate(el=>{const b=el.closest('.instrument-body');return b.scrollWidth<=b.clientWidth;}),true);
+  const newSearch=page.getByRole('button',{name:'New search',exact:true});
+  assert.equal(await newSearch.evaluate(el=>el.closest('details')===null),true);
+  await newSearch.click();
+  assert.equal(await page.locator('button.event-result').count(),0);
+  report.newSearch={visibleOutsideManagement:true,createsDraft:true};
   assert.equal(report.errors.length,0,report.errors.join('\n'));
   report.passed=true;
 } finally {

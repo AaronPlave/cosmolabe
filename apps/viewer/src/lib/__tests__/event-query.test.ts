@@ -16,6 +16,7 @@ import {
   faultMessage,
   formForKind,
   formatKm,
+  formatCoordinates,
   formatMetric,
   formatSeconds,
   missingRoles,
@@ -439,4 +440,16 @@ it('invalidates numerical run identity when precise typed scope changes',async()
   const first=eventQuerySignature({...base,trajectoryAnalysis:request});
   expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,scope:{kind:'activities',ids:['c2']}}})).not.toBe(first);
   expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,reference:{radiusKm:1737.4,kind:'sphere'}}})).toBe(first);
+});
+
+describe('geographic display coordinates', () => {
+  it.each([
+    [-89.499737, -65.091975, '89.500° S, 65.092° W'],
+    [12.345678, 45.6789, '12.346° N, 45.679° E'],
+    [-12, 45, '12.000° S, 45.000° E'],
+    [12, -45, '12.000° N, 45.000° W'],
+    [0, -0, '0.000° N, 0.000° E'],
+  ])('formats %s, %s without contradictory signed hemispheres', (lat, lon, expected) => {
+    expect(formatCoordinates(lat, lon)).toBe(expected);
+  });
 });

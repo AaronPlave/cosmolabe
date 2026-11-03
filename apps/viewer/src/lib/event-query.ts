@@ -440,3 +440,10 @@ export function activeEventAtTime(
     || a.queryId.localeCompare(b.queryId)
   )[0];
 }
+
+/** Display precision is a readability choice, not an accuracy claim. Raw result coordinates stay untouched. */
+export function formatCoordinates(latitudeDeg: number, longitudeDeg: number): string {
+  const axis = (value: number, positive: string, negative: string) =>
+    `${Math.abs(value).toFixed(3)}° ${value < 0 ? negative : positive}`;
+  return `${axis(latitudeDeg, 'N', 'S')}, ${axis(longitudeDeg, 'E', 'W')}`;
+}

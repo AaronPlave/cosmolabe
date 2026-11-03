@@ -1426,6 +1426,26 @@
       "tracked": "Polaris-C"
     }
   },
+  "expanded": {
+    "desktop": {
+      "overflow": "visible",
+      "maxHeight": "none",
+      "bodyScrolls": true,
+      "panelBounded": true,
+      "horizontal": true
+    },
+    "compact": {
+      "overflow": "visible",
+      "maxHeight": "none",
+      "bodyScrolls": true,
+      "panelBounded": true,
+      "horizontal": true
+    },
+    "reveal": {
+      "visible": true,
+      "dock": 0
+    }
+  },
   "share": {
     "urlLength": 3589,
     "restored": {
@@ -2409,16 +2429,16 @@
       "viewport": 390
     },
     "scrolling": {
-      "body": 170,
+      "body": 195,
       "dock": 0,
       "answer": {
         "x": 27,
-        "y": 524.21875,
+        "y": 523.90625,
         "width": 307.5,
         "height": 22.75,
-        "top": 524.21875,
+        "top": 523.90625,
         "right": 334.5,
-        "bottom": 546.96875,
+        "bottom": 546.65625,
         "left": 27
       },
       "panel": {
@@ -2431,6 +2451,14 @@
         "bottom": 695.5,
         "left": 6.5
       }
+    },
+    "colors": {
+      "selected": "rgb(110, 170, 255) 2px 0px 0px 0px inset",
+      "warning": "rgb(251, 191, 36)"
     }
+  },
+  "newSearch": {
+    "visibleOutsideManagement": true,
+    "createsDraft": true
   }
 }

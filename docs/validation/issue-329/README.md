@@ -30,12 +30,12 @@ alternatives before search, with no fallback or silent datum change.
 Closest Approach minimizes center-to-center distance and annotates altitude at
 that encounter; this kind optimizes the selected height/clearance itself.
 
-Results visibly lead with vehicle, activity (or time window), and measured
-value, then UTC and datum. Metric sorting puts maxima highest first and minima
+Results lead with the measured value and reference, then object/activity and UTC.
+Window searches do not invent an activity name. Metric sorting puts maxima highest first and minima
 lowest first, including single-vehicle searches. Each result is one sampled,
 locally refined candidate per matching interval. Partial searches retain usable
 candidates with a visible incomplete-search warning; no overall winner is
-established. Science/provenance details expand separately.
+established. Calculation and source details expand separately.
 
 ![Single-object height result](trajectory-single.png)
 
@@ -314,3 +314,34 @@ Svelte check reports zero errors/warnings; lint and viewer TypeScript checks pas
 Full viewer suite: 768 passed; its only failure is the previously documented
 inventory assertion seeing five ignored experiment catalogs. No assertion was
 weakened or local catalog deleted. New exact-head CI is tracked in the PR.
+
+## Expanded-result UI review
+
+New search remains visible outside Manage searches, including after one result
+and with multiple saved searches. Each height result offers independent
+Measurement details, with labeled Location, Reference, Source and Coverage rows.
+Identity and UTC remain in the headline rather than repeating in generic role
+rows. Calculation & sources retains frame, datum, source/revision, sampling,
+refinement and uncertainty. Coordinates display three decimals with absolute
+magnitudes and correct hemispheres; raw numerical results are unchanged.
+
+The result list has no separate height cap or scrollport. The existing bounded
+instrument body owns scrolling for long lists and expanded details, in floating
+and compact presentations. Selecting a result from scene/control reveals its
+headline by scrolling only that body. Blue marks selection; amber remains the
+partial-measurement warning. The loaded acceptance script exercises three
+simultaneously expanded results, expanded calculation details, external selection
+reveal, a selected partial result, and New search with management collapsed.
+
+[Expanded single result](trajectory-expanded-single.png) ·
+[Expanded single at 390px](trajectory-expanded-single-compact.png) ·
+[Several expanded results](trajectory-expanded-multiple.png) ·
+[Several expanded at 390px](trajectory-expanded-multiple-compact.png)
+
+Validation for this UI revision: 108 focused formatting/event-query/shell/geometry
+tests passed; lint, viewer TypeScript and Svelte checks passed (zero errors or
+warnings). Full viewer suite: 773 passed, with only the unchanged inventory
+assertion for five ignored experiment catalogs failing. No catalogs or assertions
+were changed. Exact-head CI and loaded-browser completion are recorded separately
+in the PR and acceptance receipt. #338's local extrema/threshold work remains
+outside this revision and does not block it.
