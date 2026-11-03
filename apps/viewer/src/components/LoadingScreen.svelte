@@ -73,8 +73,8 @@
     color: var(--color-text-primary);
   }
   .bar {
-    height: 3px;
-    margin-top: 8px;
+    height: 2px;
+    margin-top: 14px;
     border-radius: 999px;
     background: var(--color-surface-3);
     overflow: hidden;
@@ -91,11 +91,10 @@
     font-size: 13px;
     line-height: 18px;
     height: 18px;
-    margin-top: 14px;
-    color: color-mix(in srgb, var(--color-text-secondary) 70%, var(--color-text-muted));
+    margin-top: 8px;
+    color: color-mix(in srgb, var(--color-text-secondary) 55%, var(--color-text-muted));
   }
   .detail {
-    font-size: 12px;
     line-height: 16px;
     height: 16px;
     margin-top: 2px;
