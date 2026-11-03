@@ -479,3 +479,12 @@ acceptance passed again on physical M4 Max Metal, as did the network-gated real
 Ingenuity metadata readiness regression. The earlier full Flight 12 physical
 clearance receipt remains applicable: this merge changes no trajectory, terrain
 source, datum, solver or clearance computation.
+
+
+The first integrated-head CI run found one additional additive contract conflict:
+main introduced `scripts/ask-capability-contract.json`, whose reviewed operation
+list lacked this PR's `findTrajectoryExtrema` (read) and
+`navigateToAnalysisResult` (camera). Added those explicit entries without
+changing the gate or permissions. All eight contract tests now pass, including
+rejection of removed/renamed/unexposed/effect/permission regressions. The failed
+CI attempt otherwise passed 3543 tests with five skipped.
