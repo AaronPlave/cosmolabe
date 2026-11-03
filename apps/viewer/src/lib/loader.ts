@@ -286,7 +286,7 @@ async function fetchWithProgress(
 
 async function ensureSpice(signal?: AbortSignal): Promise<HeritageSpice> {
   if (!spice) {
-    setLoadingState({ label: 'Loading kernels', detail: 'Initializing SPICE', figures: '' });
+    setLoadingState({ label: 'Loading kernels', detail: 'Initializing SPICE', count: '', figures: '' });
     const wasmUrl = hooks.cspiceWasmUrl ?? cspiceWasmUrl;
     const created = await createHeritageSpice({ locateFile: () => wasmUrl });
     // A load abandoned meanwhile must not install its instance into whatever
@@ -396,15 +396,14 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?
     const name = kernelName(k.source);
     // One stable stage label; the file, its position and the measured bytes
     // share one detail format so per-file and per-chunk updates never swap units.
+    // Real transferred bytes of the sized set — the nominal weights above
+    // spread the bar but are never shown as if they were measured.
     const figuresFor = (loaded: number) =>
-      [`${i + 1}/${plan.length}`,
-        // Real transferred bytes of the sized set — the nominal weights above
-        // spread the bar but are never shown as if they were measured.
-        sizedTotal > 0 ? `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}` : '',
-      ].filter(Boolean).join(' · ');
+      sizedTotal > 0 ? `${formatBytes(sizedLoaded + loaded)} / ${formatBytes(sizedTotal)}` : '';
     setPhaseProgress('kernels', doneBytes / totalBytes, {
       label: 'Loading kernels',
       detail: k.label ?? name,
+      count: `${i + 1} / ${plan.length}`,
       figures: figuresFor(0),
     });
     try {
@@ -423,7 +422,7 @@ async function buildSceneSpice(catalogKernels: readonly PlannedKernel[], signal?
     sizedLoaded += k.size ?? 0;
   }
 
-  setPhaseProgress('kernels', 1, { label: 'Building scene', detail: '', figures: '' });
+  setPhaseProgress('kernels', 1, { label: 'Building scene', detail: '', count: '', figures: '' });
   setKernelCount(s.totalLoaded());
 }
 
@@ -1020,7 +1019,8 @@ async function furnishUserKernels(files: File[]): Promise<void> {
     setPhaseProgress('kernels', (i + 1) / files.length, {
       label: 'Loading kernels',
       detail: file.name,
-      figures: `${i + 1}/${files.length}`,
+      count: `${i + 1} / ${files.length}`,
+      figures: '',
     });
     const source: KernelSourceRef = { file };
     if (furnished.some((k) => k.name === file.name)) {

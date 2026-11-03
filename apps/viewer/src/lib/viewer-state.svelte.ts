@@ -162,7 +162,9 @@ export const vs = $state({
   loadingProgress: 0,
   loadingLabel: '',
   loadingDetail: '',
-  /** Numeric progress beside the detail (`9/21 · 149 MB / 263 MB`); never truncated. */
+  /** Stage count beside the status (`9 / 21`); never truncated. */
+  loadingCount: '',
+  /** Measured figures beside the detail (`135.7 MB / 263.2 MB`); never truncated. */
   loadingFigures: '',
   showLoading: false,
   /** The catalog the load in flight is for — what the loading screen names. */
@@ -336,10 +338,11 @@ export function highlightBodies(names: readonly string[]) {
   vs.highlightedBodies = next;
 }
 
-export function setLoadingState(opts: { label?: string; detail?: string; figures?: string; progress?: number; show?: boolean; catalog?: string }) {
+export function setLoadingState(opts: { label?: string; detail?: string; count?: string; figures?: string; progress?: number; show?: boolean; catalog?: string }) {
   if (opts.catalog !== undefined) vs.loadingCatalog = opts.catalog;
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
   if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   if (opts.progress !== undefined) vs.loadingProgress = opts.progress;
   if (opts.show !== undefined) vs.showLoading = opts.show;
@@ -399,6 +402,7 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
   vs.loadingProgress = loadProgress.value;
   vs.loadingLabel = label;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
   vs.loadingFigures = '';
   vs.showLoading = true;
 }
@@ -407,11 +411,12 @@ export function beginLoad(label: string, opts: { kernelBytes?: number; catalog?:
 export function setPhaseProgress(
   phase: LoadPhase,
   fraction: number,
-  opts: { label?: string; detail?: string; figures?: string } = {},
+  opts: { label?: string; detail?: string; count?: string; figures?: string } = {},
 ) {
   vs.loadingProgress = loadProgress.set(phase, fraction);
   if (opts.label !== undefined) vs.loadingLabel = opts.label;
   if (opts.detail !== undefined) vs.loadingDetail = opts.detail;
+  if (opts.count !== undefined) vs.loadingCount = opts.count;
   if (opts.figures !== undefined) vs.loadingFigures = opts.figures;
   vs.showLoading = true;
 }
@@ -421,6 +426,7 @@ export function endLoad() {
   loadProgress.finish();
   vs.loadingProgress = loadProgress.value;
   vs.loadingDetail = '';
+  vs.loadingCount = '';
   vs.loadingFigures = '';
   vs.showLoading = false;
 }
@@ -609,13 +615,13 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // scene, so no `assets:ready` can be missed.
   vs.assetsReady = false;
   vs.assetSummary = null;
-  setPhaseProgress('assets', 0, { label: 'Loading models and textures', detail: '', figures: '' });
+  setPhaseProgress('assets', 0, { label: 'Loading models and textures', detail: '', count: '', figures: '' });
   _unsubscribers.push(renderer.events.on('assets:progress', (p) => {
     // `total` still grows as nested assets are discovered, so this is a floor on
     // real progress, not a countdown — which is why setPhaseProgress clamps the
     // bar monotonic and nothing here claims 100% before 'assets:ready'.
     setPhaseProgress('assets', p.total > 0 ? p.settled / p.total : 0, {
-      figures: p.total > 0 ? `${p.settled} / ${p.total} assets` : '',
+      count: p.total > 0 ? `${p.settled} / ${p.total}` : '',
     });
   }));
   _unsubscribers.push(renderer.events.on('assets:ready', (summary) => {

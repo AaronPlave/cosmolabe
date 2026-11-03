@@ -18,17 +18,17 @@ if (shots) mkdirSync(shots, { recursive: true });
 const LONG_NAME = 'Voyager 1 & 2 grand tour of the outer solar system with every encounter kernel and a deliberately overlong catalog title';
 const LONG_FILE = 'Saturn ephemeris (699) — sat459_with_a_very_long_descriptive_kernel_file_name_that_cannot_fit.bsp';
 
-// Each step is [label, detail, figures, progress-fraction-of-phase], applied in order.
+// Row 1 is stage (`label`) + `count`; row 2 is optional `detail` (file) + `figures` (bytes).
 const STEPS = [
   { id: 'fetching', begin: ['Fetching catalog', {}] },
   { id: 'preparing', begin: ['Preparing mission data', { kernelBytes: 263e6 }] },
-  { id: 'spice', set: { label: 'Loading kernels', detail: 'Initializing SPICE', figures: '' } },
-  { id: 'kernel-short', phase: ['kernels', 0.1], set: { label: 'Loading kernels', detail: 'de440s.bsp', figures: '1/21 · 3.2 MB / 263.2 MB' } },
-  { id: 'kernel-long', phase: ['kernels', 0.6], set: { detail: LONG_FILE, figures: '9/21 · 149.4 MB / 263.2 MB' } },
-  { id: 'kernel-no-detail', phase: ['kernels', 0.7], set: { detail: '', figures: '' } },
-  { id: 'building', phase: ['kernels', 1], set: { label: 'Building scene', detail: '', figures: '' } },
-  { id: 'assets', phase: ['assets', 0.4], set: { label: 'Loading models and textures', figures: '12 / 30 assets' } },
-  { id: 'assets-grown', phase: ['assets', 0.1], set: { figures: '12 / 120 assets' } }, // total grew; bar must not retreat
+  { id: 'spice', set: { label: 'Loading kernels', detail: 'Initializing SPICE', count: '', figures: '' } },
+  { id: 'kernel-short', phase: ['kernels', 0.1], set: { label: 'Loading kernels', detail: 'de440s.bsp', count: '1 / 21', figures: '3.2 MB / 263.2 MB' } },
+  { id: 'kernel-long', phase: ['kernels', 0.6], set: { detail: LONG_FILE, count: '9 / 21', figures: '149.4 MB / 263.2 MB' } },
+  { id: 'kernel-no-detail', phase: ['kernels', 0.7], set: { detail: '', count: '', figures: '' } },
+  { id: 'building', phase: ['kernels', 1], set: { label: 'Building scene', detail: '', count: '', figures: '' } },
+  { id: 'assets', phase: ['assets', 0.4], set: { label: 'Loading models and textures', count: '12 / 30', detail: '', figures: '' } },
+  { id: 'assets-grown', phase: ['assets', 0.1], set: { count: '12 / 120' } }, // total grew; bar must not retreat
 ];
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -54,12 +54,15 @@ try {
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         const m = await page.evaluate(() => {
           const rect = (s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right }; };
-          const fig = document.querySelector('.figures');
+          const figs = [...document.querySelectorAll('.figures')];
           const bar = document.querySelector('.bar');
           const file = document.querySelector('.file');
           return {
             bar: rect('.bar'), name: rect('.name'), label: rect('.label'), detail: rect('.detail'), body: rect('.body'),
-            figures: rect('.figures'), figuresText: fig.textContent, figuresClipped: fig.scrollWidth > fig.clientWidth,
+            status: rect('.row:not(.detail)'),
+            figuresRight: Math.max(...figs.map((f) => f.getBoundingClientRect().right)),
+            figuresText: figs.map((f) => f.textContent).join(' | '),
+            figuresClipped: figs.some((f) => f.scrollWidth > f.clientWidth),
             fileClipped: file.scrollWidth > file.clientWidth, fileTitle: file.title,
             nameTitle: document.querySelector('.name').title,
             pct: Number(bar.getAttribute('aria-valuenow')),
@@ -79,11 +82,14 @@ try {
       assert.equal(s.body.w <= Math.min(384, viewport.width) + 0.5, true, `body too wide at ${where}`);
       assert.equal(s.overflowX, false, `page overflows horizontally at ${where}`);
       assert.equal(s.figuresClipped, false, `figures clipped at ${where}`);
-      assert.ok(s.figures.r <= s.body.r + 0.5, `figures outside module at ${where}`);
+      assert.ok(s.figuresRight <= s.body.r + 0.5, `figures outside module at ${where}`);
+      assert.deepEqual(s.body, samples[0].body, `module moved/resized at ${where}`);
+      assert.deepEqual([s.status.x, s.status.y, s.status.h], [samples[0].status.x, samples[0].status.y, samples[0].status.h], `status row moved at ${where}`);
+      assert.deepEqual([s.detail.x, s.detail.y], [samples[0].detail.x, samples[0].detail.y], `detail row moved at ${where}`);
       assert.ok(s.detail.h === samples[0].detail.h && s.label.h === samples[0].label.h && s.name.h === samples[0].name.h, `row height changed at ${where}`);
     }
     const long = samples.find((s) => s.step === 'kernel-long' && s.name === LONG_NAME);
-    assert.equal(long.figuresText, '9/21 · 149.4 MB / 263.2 MB');
+    assert.equal(long.figuresText, '9 / 21 | 149.4 MB / 263.2 MB');
     assert.equal(long.fileClipped, true, 'long filename should ellipsize');
     assert.equal(long.fileTitle, LONG_FILE, 'full filename in tooltip');
     assert.equal(long.nameTitle, LONG_NAME, 'full catalog name in tooltip');
@@ -92,7 +98,7 @@ try {
       const pcts = samples.filter((s) => s.name === name).map((s) => s.pct);
       assert.deepEqual(pcts, [...pcts].sort((a, b) => a - b), `bar retreated (${tag}): ${pcts}`);
     }
-    console.log(`PASS ${tag}: bar rect fixed across ${samples.length} states; figures never clipped; long names ellipsize with tooltips; no overflow.`);
+    console.log(`PASS ${tag}: bar, status and detail rows fixed across ${samples.length} states; figures never clipped; long names ellipsize with tooltips; no overflow.`);
     await page.close();
   }
 } finally {

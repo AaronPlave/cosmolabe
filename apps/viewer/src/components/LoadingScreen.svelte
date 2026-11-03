@@ -31,8 +31,11 @@
     >
       <div class="fill" style="width: {Math.min(100, vs.loadingProgress)}%"></div>
     </div>
-    <div class="label" role="status" aria-live="polite">{vs.loadingLabel}</div>
-    <div class="detail">
+    <div class="row">
+      <span class="label" role="status" aria-live="polite">{vs.loadingLabel}</span>
+      <span class="figures">{vs.loadingCount}</span>
+    </div>
+    <div class="row detail">
       <span class="file" title={vs.loadingDetail}>{vs.loadingDetail}</span>
       <span class="figures">{vs.loadingFigures}</span>
     </div>
@@ -79,18 +82,19 @@
     background: var(--color-text-secondary);
     transition: width 0.2s ease;
   }
-  .label {
-    font-size: 13px;
-    line-height: 18px;
-    color: var(--color-text-secondary);
-  }
-  .detail {
+  .row {
     display: flex;
     gap: 12px;
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 13px;
+    line-height: 18px;
     color: var(--color-text-column);
   }
+  .detail {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--color-text-secondary);
+  }
+  .label,
   .file {
     flex: 1 1 0;
     min-width: 0;
