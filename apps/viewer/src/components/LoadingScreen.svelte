@@ -55,11 +55,9 @@
   }
   .body {
     width: min(384px, 100%);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 24px 3px 18px 16px;
-    row-gap: 8px;
   }
+  /* Fixed heights and margins on every row: nothing the text says can move the
+     bar. Rhythm is title / bar / (status + detail as a tight pair). */
   .name,
   .label,
   .file {
@@ -71,15 +69,20 @@
     font-size: 16px;
     font-weight: 500;
     line-height: 24px;
+    height: 24px;
     color: var(--color-text-primary);
   }
   .bar {
+    height: 3px;
+    margin-top: 8px;
+    border-radius: 999px;
     background: var(--color-surface-3);
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    background: var(--color-text-secondary);
+    border-radius: inherit;
+    background: var(--color-text-column);
     transition: width 0.2s ease;
   }
   .row {
@@ -87,12 +90,16 @@
     gap: 12px;
     font-size: 13px;
     line-height: 18px;
-    color: var(--color-text-column);
+    height: 18px;
+    margin-top: 14px;
+    color: color-mix(in srgb, var(--color-text-primary) 55%, var(--color-text-column));
   }
   .detail {
     font-size: 12px;
     line-height: 16px;
-    color: var(--color-text-secondary);
+    height: 16px;
+    margin-top: 2px;
+    color: color-mix(in srgb, var(--color-text-secondary) 70%, var(--color-text-muted));
   }
   .label,
   .file {
