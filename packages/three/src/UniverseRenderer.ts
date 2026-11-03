@@ -399,6 +399,9 @@ export class UniverseRenderer {
   private static readonly _hoverPickIntervalMs = 33;
   private instrumentView: InstrumentView | null = null;
   private instrumentObservedEt: number | null = null;
+  private instrumentObservedPointing: import('./InstrumentView.js').InstrumentPointing = 'none';
+  private instrumentObservedUnavailable: string | null = null;
+  private instrumentRenderError: string | null = null;
   /** Separate scene for camera-relative rendering of surface tile overlays. */
   private readonly tileScene: THREE.Scene;
   /** Separate scene rendered last so the probe markers are never overdrawn by tileScene/models. */
@@ -1521,6 +1524,8 @@ export class UniverseRenderer {
     if (this._markerScene.children.some((child) => child.visible)) {
       this.renderer.render(this._markerScene, this.camera);
     }
+    this._probeObservedEt = et;
+    this._probeObservedView = this.viewObservationSignature();
     this._eventObservedEt = et;
     this._eventObservedView = this.viewObservationSignature();
 
@@ -1593,17 +1598,33 @@ export class UniverseRenderer {
       const targetBody = sf.targetName ? this.universe.getBody(sf.targetName) : undefined;
       const pointing = sensorPointing(this.universe, sf, et, spiceInst);
       const unavailable = pointing.unavailable ?? (sf.present ? null : `${sf.body.name} or its spacecraft has no state or attitude at this time.`);
-      if (unavailable) { iv.markUnavailable(unavailable); this.instrumentObservedEt = et; return; }
+      if (unavailable) {
+        iv.markUnavailable(unavailable);
+        this.instrumentObservedEt = et;
+        this.instrumentObservedPointing = iv.pointing;
+        this.instrumentObservedUnavailable = iv.unavailableReason;
+        this.instrumentRenderError = null;
+        return;
+      }
       iv.update(et, this.scaleFactor, originRelResolver, targetBody, pointing.rotation, pointing.from === 'attitude' ? 'attitude' : 'spice');
-      this.instrumentObservedEt = et;
       // The terrain draw cull is the main camera's.
       for (const bm of this.bodyMeshes.values()) bm.showCulledTerrainTiles();
       // The instrument has its own observer position and may be inside a
       // different shell. Refresh its sky lookup and surface transport too.
-      this.renderInstrumentScene();
-      // The main passes still to come want the main camera's cull back.
-      if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+      try {
+        this.renderInstrumentScene();
+      } finally {
+        // A failed feed must also restore the main camera's terrain cull.
+        if (!iv.fullScreen) for (const bm of this.bodyMeshes.values()) bm.recullTerrainTiles();
+      }
+      // Publish only after a successful draw. The clock has an independent RAF:
+      // a later clock tick makes this receipt stale, not physically unpointable.
+      this.instrumentObservedEt = et;
+      this.instrumentObservedPointing = iv.pointing;
+      this.instrumentObservedUnavailable = iv.unavailableReason;
+      this.instrumentRenderError = null;
     } catch (err) {
+      this.instrumentRenderError = 'Instrument frame could not be rendered.';
       console.warn('[Cosmolabe] Instrument view render error:', err);
     }
   }
@@ -2014,7 +2035,9 @@ export class UniverseRenderer {
       this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight, !!this.instrumentView?.fullScreen].join(',');
   }
 
-  /** Native event draw state, observed only after a render pass at this epoch and camera/viewport. */
+  /** Native event draw state at the reported epoch and current camera/viewport.
+   * A clock tick alone does not erase the preceding frame; strict consumers
+   * still compare observedEt with their requested epoch. */
   getEventVisualization() {
     const selected = this._selectedEvent;
     let markerGroups = 0, visibleGlyphs = 0, visibleSpans = 0;
@@ -2024,7 +2047,7 @@ export class UniverseRenderer {
       const visible = group.markers.visibilityFor(selected.id, selected.queryId);
       visibleGlyphs += visible.glyphs; visibleSpans += visible.spans;
     }
-    const observedEt = this._eventObservedEt === this.timeController.et && this._eventObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
+    const observedEt = this._eventObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen ? this._eventObservedEt : null;
     return { observedEt, selected: selected ? { query: selected.queryId, id: selected.id } : null,
       markerGroups, visibleGlyphs: observedEt === null ? 0 : visibleGlyphs, visibleSpans: observedEt === null ? 0 : visibleSpans,
       occultationVisible: observedEt !== null && !!this._occultationGeometry?.visible };
@@ -2325,6 +2348,9 @@ export class UniverseRenderer {
     // An explicit choice replaces whatever the Instrument camera mode activated.
     this.instrumentModeSensor = null;
     this.instrumentObservedEt = null;
+    this.instrumentObservedPointing = 'none';
+    this.instrumentObservedUnavailable = null;
+    this.instrumentRenderError = null;
     if (options?.surface !== undefined) this.setInstrumentViewSurface(options.surface);
     if (sensorName == null) {
       if (!this.instrumentView?.active) return;
@@ -2403,6 +2429,8 @@ export class UniverseRenderer {
     pointingUnavailable: string | null;
     imageRect: import('./InstrumentView.js').Rect | null;
     observedEt: number | null;
+    fresh: boolean;
+    renderError: string | null;
   } | null {
     const iv = this.instrumentView;
     if (!iv?.active) return null;
@@ -2414,8 +2442,10 @@ export class UniverseRenderer {
       fov: iv.fov,
       viewFov: iv.viewFov,
       observedEt: this.instrumentObservedEt,
-      pointing: this.instrumentObservedEt === this.timeController.et ? iv.pointing : 'unavailable',
-      pointingUnavailable: this.instrumentObservedEt === this.timeController.et ? iv.unavailableReason : 'This instrument has not been observed at the current epoch.',
+      fresh: this.instrumentObservedEt === this.timeController.et && this.instrumentRenderError === null,
+      renderError: this.instrumentRenderError,
+      pointing: this.instrumentObservedPointing,
+      pointingUnavailable: this.instrumentObservedUnavailable,
       imageRect: iv.imageRect,
     };
   }
@@ -2772,8 +2802,8 @@ export class UniverseRenderer {
 
   /** Observed native pin state; draw-enabled is not an unoccluded-pixels guarantee. */
   getProbeVisualization() {
-    const fresh = this._probeObservedView === this.viewObservationSignature() && this._probeObservedEt === this.timeController.et && !this.instrumentView?.fullScreen;
-    return { observedEt: fresh ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: fresh && this._probe.pinnedVisible };
+    const sameView = this._probeObservedView === this.viewObservationSignature() && !this.instrumentView?.fullScreen;
+    return { observedEt: sameView ? this._probeObservedEt : null, placedEt: this._probePlacedEt, drawn: sameView && this._probe.pinnedVisible };
   }
 
   /** Body-fixed radial projection, independent of camera pixels. Reference
@@ -2890,8 +2920,6 @@ export class UniverseRenderer {
       }, { rects: [], path: [], discs: [] });
       this.probeCalloutRects = [];
     }
-    this._probeObservedEt = this.timeController.et;
-    this._probeObservedView = this.viewObservationSignature();
     this.applyReservedRects();
   }
 

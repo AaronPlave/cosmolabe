@@ -446,3 +446,19 @@ expanded disclosure belongs to the selected card, shows Estimated flight
 reconstruction, retains unknown classification in calculation details, and does
 not change the measured epoch when disclosures are toggled. Updated desktop and
 390px screenshots and the receipt contain the new readiness assertions.
+
+
+The stacked base advanced to `bc6fe5b61976cd46b229be77d8b186bb6cd84ce7`
+during this follow-up. The integration retains #329's measured-result tool and
+height-analysis guidance while adopting the new fixed-camera verb validation and
+safe reply/disclosure guidance. The incoming camera-schema test explicitly
+checks the specialized measured-result tool separately from generic scripting
+verbs; all verb-backed camera tools still require registered, callable schemas.
+262 combined control/trajectory/answer-text/instrument-observation tests pass.
+Package build, full lint, test/viewer TypeScript and Svelte checks pass.
+
+Both loaded acceptances passed again on the refreshed combined stack, including
+Flight 12's delayed real metadata, physical clearance/navigation/provenance and
+expanded compact details. The MoonFall color assertion now reads the enclosing
+selected card (and requires a nonempty selection outline), rather than its
+independently clickable navigation button.

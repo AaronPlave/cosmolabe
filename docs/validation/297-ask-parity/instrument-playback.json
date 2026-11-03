@@ -1,0 +1,123 @@
+{
+  "scenarios": [
+    {
+      "catalog": "cassini-soi",
+      "sensor": "ISS NAC",
+      "initial": {
+        "sensor": "ISS NAC",
+        "spacecraft": "Cassini",
+        "target": "Saturn",
+        "fov": [
+          0.35,
+          0.35
+        ],
+        "viewFov": [
+          0.3675,
+          0.3675
+        ],
+        "observedEt": 152077771.2473141,
+        "fresh": true,
+        "renderError": null,
+        "pointing": "spice",
+        "pointingUnavailable": null,
+        "observation": "synthetic-scene-view"
+      },
+      "playback": [
+        {
+          "rate": 1,
+          "samples": 175,
+          "staleSamples": 175,
+          "observedStart": 152077771.2547141,
+          "observedEnd": 152077775.21741402
+        },
+        {
+          "rate": 30,
+          "samples": 175,
+          "staleSamples": 175,
+          "observedStart": 152077785.23401403,
+          "observedEnd": 152077904.70901337
+        }
+      ],
+      "missingAttitudeFixture": {
+        "sensor": "ISS NAC",
+        "spacecraft": "Cassini",
+        "target": "Saturn",
+        "fov": [
+          0.35,
+          0.35
+        ],
+        "viewFov": [
+          0.3675,
+          0.3675
+        ],
+        "observedEt": 152077916.20401338,
+        "fresh": true,
+        "renderError": null,
+        "pointing": "unavailable",
+        "pointingUnavailable": "ISS NAC's attitude is unavailable at this time.",
+        "observation": "synthetic-scene-view"
+      },
+      "errors": []
+    },
+    {
+      "catalog": "europa-clipper",
+      "sensor": "EIS NAC",
+      "initial": {
+        "sensor": "EIS NAC",
+        "spacecraft": "Europa Clipper",
+        "target": "Europa",
+        "fov": [
+          2.347,
+          1.1730000000000003
+        ],
+        "viewFov": [
+          2.46435,
+          1.2316500000000004
+        ],
+        "observedEt": 983836870.3067547,
+        "fresh": true,
+        "renderError": null,
+        "pointing": "target",
+        "pointingUnavailable": null,
+        "observation": "synthetic-scene-view"
+      },
+      "playback": [
+        {
+          "rate": 1,
+          "samples": 175,
+          "staleSamples": 175,
+          "observedStart": 983836870.3148547,
+          "observedEnd": 983836874.2808553
+        },
+        {
+          "rate": 30,
+          "samples": 175,
+          "staleSamples": 175,
+          "observedStart": 983836884.2996553,
+          "observedEnd": 983837003.7326565
+        }
+      ],
+      "missingAttitudeFixture": {
+        "sensor": "EIS NAC",
+        "spacecraft": "Europa Clipper",
+        "target": "Europa",
+        "fov": [
+          2.347,
+          1.1730000000000003
+        ],
+        "viewFov": [
+          2.46435,
+          1.2316500000000004
+        ],
+        "observedEt": 983837015.2606565,
+        "fresh": true,
+        "renderError": null,
+        "pointing": "unavailable",
+        "pointingUnavailable": "EIS NAC's attitude is unavailable at this time.",
+        "observation": "synthetic-scene-view"
+      },
+      "errors": []
+    }
+  ],
+  "passed": true
+}

@@ -19,7 +19,7 @@
   } from '../lib/ask/ask.svelte';
   import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
   import { etToUtcString } from '../lib/viewer-state.svelte';
-  import { parseAnswer, type AnswerSpan } from '../lib/ask/answer-text';
+  import { parseAnswer, type AnswerBlock, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -128,6 +128,23 @@
 
 {#snippet spans(list: readonly AnswerSpan[])}{#each list as span}{#if span.bold}<strong class="font-semibold text-text-primary">{span.text}</strong>{:else if span.code}<code class="font-mono text-[11px] text-text-primary">{span.text}</code>{:else}{span.text}{/if}{/each}{/snippet}
 
+{#snippet answerBlocks(blocks: readonly AnswerBlock[])}
+  {#each blocks as block}
+    {#if block.kind === 'details'}
+      <details class="ask-answer-details text-text-secondary">
+        <summary class="ui-helper cursor-pointer">{@render spans(block.summary)}</summary>
+        <div class="mt-1 flex flex-col gap-1.5">{@render answerBlocks(block.blocks)}</div>
+      </details>
+    {:else if block.kind === 'ul'}
+      <ul class="flex list-disc flex-col gap-0.5 pl-4">
+        {#each block.items as item}<li>{@render spans(item)}</li>{/each}
+      </ul>
+    {:else}
+      <p class="whitespace-pre-wrap">{@render spans(block.spans)}</p>
+    {/if}
+  {/each}
+{/snippet}
+
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if import.meta.env.DEV}
@@ -160,15 +177,7 @@
           {#if turn.reply}
             <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
             <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
-              {#each parseAnswer(turn.reply) as block}
-                {#if block.kind === 'ul'}
-                  <ul class="flex list-disc flex-col gap-0.5 pl-4">
-                    {#each block.items as item}<li>{@render spans(item)}</li>{/each}
-                  </ul>
-                {:else}
-                  <p class="whitespace-pre-wrap">{@render spans(block.spans)}</p>
-                {/if}
-              {/each}
+              {@render answerBlocks(parseAnswer(turn.reply))}
             </div>
           {/if}
           <p class="ask-status ui-meta flex items-center gap-1 text-text-muted" role="status">

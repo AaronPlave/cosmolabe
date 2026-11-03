@@ -353,8 +353,9 @@ try {
   await clickDisclosure(page.getByText('Calculation & sources',{exact:true}));
   report.single.colors=await singleRow.evaluate(row=>{
     const warning=row.closest('.instrument-body').querySelector('.height-caution');
-    return {selected:getComputedStyle(row).boxShadow,warning:getComputedStyle(warning).borderLeftColor};
+    return {selected:getComputedStyle(row.closest('.measurement-card') ?? row).boxShadow,warning:getComputedStyle(warning).borderLeftColor};
   });
+  assert.notEqual(report.single.colors.selected,'none','Selected result container has its selection outline');
   assert.ok(!report.single.colors.selected.includes(report.single.colors.warning));
   await detail.scrollIntoViewIfNeeded();
   await page.screenshot({path:`${out}/trajectory-expanded-single.png`});

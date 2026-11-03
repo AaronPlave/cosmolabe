@@ -13,7 +13,10 @@ try {
   await page.evaluate(async () => {
     const resource = path => performance.getEntriesByType('resource').map(e => e.name).find(u => new URL(u).pathname === path);
     window.__askUI = await import(resource('/src/lib/ask/ask.svelte.ts'));
-    (await import(resource('/src/lib/shell.svelte.ts'))).openTool('ask');
+    window.__askUI.setHostAskTransport({ request: async () => { throw new Error('Fixture UI must never call a provider'); } });
+    const shell = await import(resource('/src/lib/shell.svelte.ts'));
+    shell.enableTool('ask');
+    shell.openTool('ask');
   });
   assert.equal(await page.locator('.ask-status').count(), 0, 'idle has no progress');
   for (const state of ['research', 'action', 'approval', 'completed', 'refused', 'cancelled']) {
@@ -48,6 +51,28 @@ try {
     states.push({ state, status, geometry });
     if (['action','approval','completed'].includes(state)) await page.screenshot({ path: `${output}/${state}.png` });
   }
+  // Reproduce a model-generated disclosure without trusting model HTML.
+  await page.evaluate(() => {
+    const turn = window.__askUI.ask.turns.at(-1);
+    turn.status = 'done'; turn.steps = [];
+    turn.prompt = 'Show me when Psyche spacecraft is in eclipse by 16 Psyche.';
+    turn.reply = "I can't compute this eclipse: the loaded kernels report no occultation coverage. No search ran.\n<details>\n<summary>Details</summary>\nOccultation options queried for **Psyche**, the Sun and 16 Psyche.\n\nCoverage is unavailable; the earlier closest-approach result still stands.\n<img src=x onerror=alert(1)>\n</details>";
+  });
+  const disclosure = page.locator('.ask-turn').last().locator('.ask-answer-details');
+  await disclosure.waitFor();
+  assert.equal(await disclosure.getAttribute('open'), null);
+  assert.equal(await disclosure.locator('summary').innerText(), 'Details');
+  assert.equal(await disclosure.locator('div').isVisible(), false);
+  assert.equal(await page.locator('.ask-answer img, .ask-answer script').count(), 0);
+  await disclosure.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await disclosure.locator('div').isVisible(), true);
+  assert.ok((await disclosure.innerText()).includes('Coverage is unavailable'));
+  assert.ok(!(await page.locator('.ask-answer').last().innerText()).includes('<details>'));
+  await page.screenshot({ path: `${output}/answer-details-open.png` });
+  await disclosure.locator('summary').click();
+  assert.equal(await disclosure.locator('div').isVisible(), false);
+  await page.screenshot({ path: `${output}/answer-details-closed.png` });
   assert.deepEqual(errors, []);
-  writeFileSync(`${output}/report.json`, JSON.stringify({ fixtureOnly: true, states, errors }, null, 2) + '\n');
+  writeFileSync(`${output}/report.json`, JSON.stringify({ fixtureOnly: true, states, answerDetails: { collapsedByDefault: true, keyboardOpened: true, clickClosed: true, htmlInert: true }, errors }, null, 2) + '\n');
 } finally { await browser.close(); }

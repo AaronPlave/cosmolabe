@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentTools, type AgentToolResult } from './agent.js';
+import { createAgentTools, fixedAgentDefinitions, type AgentToolResult } from './agent.js';
+import { VERBS } from './verbs.js';
 import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
 import { FakeViewer } from './__tests__/fake-host.js';
 import type { ScriptActivity, ViewerControl } from './contracts.js';
@@ -26,6 +27,51 @@ const FLIGHT_5: ScriptActivity = {
 };
 
 describe('agent tools: discovery', () => {
+  it('resolves every fixed camera tool to a registered callable host operation', () => {
+    const host = new FakeViewer();
+    // Measured-result navigation is a specialized tool with run/state checks,
+    // not a scripting verb. Its execution is covered by trajectory-analysis-agent.
+    expect(fixedAgentDefinitions().find(t => t.name === 'navigateToAnalysisResult')).toMatchObject({
+      effect: 'camera', method: 'navigateToAnalysisResult',
+    });
+    for (const tool of fixedAgentDefinitions().filter(t => t.effect === 'camera' && t.name !== 'navigateToAnalysisResult')) {
+      const spec = VERBS.get(tool.name)!;
+      expect(spec, tool.name).toBeDefined();
+      expect(tool.method).toBe(spec.method);
+      expect(typeof (host as ViewerControl)[spec.method]).toBe('function');
+      expect(Object.keys(tool.inputSchema.properties!)).toEqual(spec.params.map(p => p.name));
+      expect(tool.inputSchema.required).toEqual(spec.params.filter(p => !p.optional).map(p => p.name));
+    }
+  });
+
+  it('exposes and dispatches all four native orbital rotations with numeric angle and optional duration', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    expect(tools.list().map(t => t.name)).not.toContain('circleCenter');
+    for (const direction of ['Right', 'Left', 'Up', 'Down']) {
+      const name = `circleCenter${direction}`;
+      expect(tools.list().find(t => t.name === name)).toMatchObject({
+        effect: 'camera',
+        inputSchema: {
+          type: 'object', additionalProperties: false, required: ['degrees'],
+          properties: { degrees: { type: 'number' }, seconds: { type: 'number' } },
+        },
+      });
+      expect(fail(await tools.call(name, {})).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: '45' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 45, seconds: '2' })).code).toBe('invalid-input');
+      expect(host.calls).toHaveLength(0);
+      expect((await tools.call(name, { degrees: 45 })).ok).toBe(true);
+      expect((await tools.call(name, { degrees: -30, seconds: 2 })).ok).toBe(true);
+      expect(host.calls.splice(0)).toEqual([
+        `circleCenter("${direction.toLowerCase()}", 45, undefined)`,
+        `circleCenter("${direction.toLowerCase()}", -30, 2)`,
+      ]);
+    }
+    Object.defineProperty(host, 'circleCenter', { value: undefined });
+    expect(tools.list().some(t => t.name.startsWith('circleCenter'))).toBe(false);
+  });
+
   it('lists only tools whose capability the host has', () => {
     const full = createAgentTools(new FakeViewer()).list().map((t) => t.name);
     expect(full).toEqual(expect.arrayContaining(['describeScene', 'resolve', 'searchPlaces', 'flyTo', 'gotoPlace', 'showImagery']));

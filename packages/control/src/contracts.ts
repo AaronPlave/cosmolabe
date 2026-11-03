@@ -856,6 +856,9 @@ export interface ScriptInstrument {
   /** Presentation only: never a calibrated observation or pixel export. */
   observation: 'synthetic-scene-view';
   observedEt: number | null;
+  /** Exact clock freshness is separate from physical pointing of the last frame. */
+  fresh?: boolean;
+  renderError?: string | null;
 }
 export interface ScriptBookmark {
   name: string; camera: ScriptCamera; origin: string | null; tracked: string | null;

@@ -1004,8 +1004,14 @@ predicates, never a fixed settling delay.
 `listInstruments()` lists the renderer's existing sensors. `selectInstrument(name)`
 opens that synthetic scene feed, and `null` closes it; the text verb takes an
 empty string to close. `getInstrument()` reports FOV (nullable when unknown),
-pointing authority, unavailable reason and `observedEt`. An epoch without a
-fresh pointing observation is explicitly unavailable. This is a
+pointing authority, unavailable reason and the last actually observed `observedEt`.
+`fresh` requires an observation at the exact current epoch and no render error;
+`renderError` reports a failed frame separately from physical pointing. A clock
+tick between frames preserves the previous pointing and epoch rather than
+inventing a pointing failure. Strict consumers must require `fresh` and their
+requested epoch; playback UI can continue showing the last frame. Event and probe
+readbacks likewise retain the preceding epoch between clock ticks, while strict
+event readiness still requires the requested epoch and camera/viewport. This is a
 `synthetic-scene-view`, never calibrated observation data. The UI and hosts use
 the same selection and `instruments` notifications. Actual observation ingest and
 calibration remain owned by #28/#192–#195.

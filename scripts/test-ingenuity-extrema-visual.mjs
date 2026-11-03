@@ -113,6 +113,15 @@ try {
   assert.equal(await page.evaluate(()=>window.cosmo.getTime()),report.navigation.et,'Disclosures do not navigate');
   await page.screenshot({path:`${out}/ingenuity-flight12.png`});
   await page.setViewportSize({width:390,height:844});
+  // Responsive workspace reparenting remounts native disclosures. Exercise the
+  // compact disclosure itself rather than assuming desktop open state survives.
+  const compactDetails=page.locator('.measurement-details');
+  if(!await compactDetails.evaluate(el=>el.open)) await compactDetails.locator(':scope > summary').click();
+  const compactCalculation=page.locator('.calculation-details');
+  if(!await compactCalculation.evaluate(el=>el.open)) await compactCalculation.locator(':scope > summary').click();
+  await compactDetails.evaluate(el=>el.scrollIntoView({block:'start'}));
+  assert.equal(await compactDetails.evaluate(el=>el.open),true);
+  assert.equal(await compactCalculation.evaluate(el=>el.open),true);
   await page.screenshot({path:`${out}/ingenuity-flight12-compact.png`});
   assert.deepEqual(report.errors,[]);
   report.passed=true;
