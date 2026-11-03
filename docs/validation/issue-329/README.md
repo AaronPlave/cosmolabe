@@ -18,9 +18,12 @@ to a declared kind (flight, drive, hop, descent, landing, phase, other).
 **Specific activities** selects explicit IDs. Both clip records to the chosen
 time window and report empty sets without falling back to parked time.
 
-Highest/Lowest and Height relative to describe the scientific question.
+**Find** combines direction and datum (for example, **Highest terrain clearance**).
+**Object**, **Relative to** and **During** describe participants and dates.
+Activity restrictions move under **More options**, with a concise active restriction
+shown next to During; restored custom dates remain collapsed under **Edit dates**.
 Frame, datum radius/source pins, sample step and refinement tolerance live under
-Advanced search options. No physical terrain source means AGL is unavailable;
+More options. No physical terrain source means AGL is unavailable;
 the form disables Search while the selected metric is unavailable, displays its exact
 reason, and preserves explicit metric choices across body changes. It explains named sphere/ellipsoid
 alternatives before search, with no fallback or silent datum change.
@@ -34,9 +37,9 @@ locally refined candidate per matching interval. Partial searches retain usable
 candidates with a visible incomplete-search warning; no overall winner is
 established. Science/provenance details expand separately.
 
-![Native Event Finder height type](trajectory-form.png)
+![Single-object height result](trajectory-single.png)
 
-[Compact form](trajectory-form-compact.png) · [Partial candidates](trajectory-partial.png)
+[Compact form](trajectory-single-compact-form.png) · [Compact result after internal scrolling](trajectory-single-compact.png) · [Multiple candidates](trajectory-form.png) · [Partial candidates](trajectory-partial.png)
 
 ## One numerical operation
 
@@ -284,3 +287,30 @@ these form checks. Build, lint, purity and all typechecks pass (Svelte: zero err
 or warnings). Targeted numerical/control/agent/viewer tests: 245 passed across ten
 files; the independent terrain/SPICE scientific checks are included. Exact-head CI
 is tracked in the PR; previous-head CI is not claimed for this revision.
+
+## Screenshot-level UI follow-up
+
+The main height form combines metric/direction and keeps one During time choice.
+Activity, source, frame, reference and refinement controls remain available under
+More options; stored typed definitions and the numerical solver are unchanged.
+Results lead with measured value and an explicit reference (for example, metres
+above lunar terrain), then object/activity and UTC, followed by Go to result.
+A window is never displayed as an invented activity. Single results have no sort
+controls or instant/interval legend. Search enable/timeline/query management is
+collapsed. Selected measurement/provenance details and Coverage details are also
+collapsed. A partial search has one compact candidate warning; details retain
+limits, candidate intervals/source identities and an actionable narrowing suggestion.
+
+Chrome/Metal acceptance passes on Apple M4 Max with no page errors, including the
+combined metric choices, maximum/minimum ranking, real native navigation, share
+replay, local Ask/modern event visualization, partial results, and source invalidation.
+The single-object screenshot deliberately uses a 6,000-evaluation budget and is a
+partial **candidate**, not a claimed maximum or missing-terrain diagnosis. At
+390px the existing compact sheet scrolls internally: the answer and warning are
+reachable, labels remain one line, there is no document horizontal overflow, and
+the dock scrollTop remains zero. Both initial form and scrolled result are captured.
+
+Svelte check reports zero errors/warnings; lint and viewer TypeScript checks pass.
+Full viewer suite: 768 passed; its only failure is the previously documented
+inventory assertion seeing five ignored experiment catalogs. No assertion was
+weakened or local catalog deleted. New exact-head CI is tracked in the PR.

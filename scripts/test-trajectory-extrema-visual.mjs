@@ -55,48 +55,51 @@ try {
   await page.locator('[data-slot="select-trigger"]').filter({hasText:'Closest approach'}).click();
   await page.getByText('Altitude / terrain clearance',{exact:true}).last().click();
   assert.equal(await page.locator('details summary').filter({hasText:'Trajectory height extrema'}).count(),0);
-  const bodyPickers=page.locator('select').filter({has:page.locator('option[value="Moon"]')});
+  const bodyPickers={nth:index=>page.locator(index===0?'#event-body-center':'#event-body-observer')};
   await bodyPickers.nth(0).selectOption('Earth');
-  assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),true);
-  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isDisabled(),true);
-  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAbovePhysicalTerrain');
+  assert.equal(await page.locator('#event-height-question option[value="heightAbovePhysicalTerrain:maximum"]').isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).isDisabled(),true);
+  assert.equal(await page.locator('#event-height-question').inputValue(),'heightAbovePhysicalTerrain:maximum');
   assert.match(await page.locator('.event-metric-unavailable').innerText(),/versioned physical CPU terrain source is unavailable/);
   await bodyPickers.nth(0).selectOption('Moon');
-  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isEnabled(),true);
-  assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),false);
+  assert.equal(await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).isEnabled(),true);
+  assert.equal(await page.locator('#event-height-question option[value="heightAbovePhysicalTerrain:maximum"]').isDisabled(),false);
   // An explicit datum survives switching to an unavailable context and back.
-  await page.locator('#event-param-metric').selectOption('heightAboveReferenceEllipsoid');
+  await page.locator('#event-height-question').selectOption('heightAboveReferenceEllipsoid:maximum');
   await bodyPickers.nth(0).selectOption('Earth');
-  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAboveReferenceEllipsoid');
-  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isEnabled(),true);
+  assert.equal(await page.locator('#event-height-question').inputValue(),'heightAboveReferenceEllipsoid:maximum');
+  assert.equal(await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).isEnabled(),true);
   await bodyPickers.nth(0).selectOption('Moon');
-  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAboveReferenceEllipsoid');
-  await page.locator('#event-param-metric').selectOption('heightAbovePhysicalTerrain');
+  assert.equal(await page.locator('#event-height-question').inputValue(),'heightAboveReferenceEllipsoid:maximum');
+  await page.locator('#event-height-question').selectOption('heightAbovePhysicalTerrain:maximum');
   report.metricSwitching={unavailableAGLBlocksSearch:true,availableAGLEnablesSearch:true,explicitReferencePreserved:true};
   assert.match(await page.locator('#event-window option[value="source"]').innerText(),/envelope \(may include gaps\)/);
+  await page.getByText('More options',{exact:true}).click();
   assert.equal(await page.locator('#event-param-scope').inputValue(),'window');
-  assert.equal(await page.locator('#event-param-frame').isVisible(),false);
+  assert.equal(await page.locator('#event-param-frame').isVisible(),true);
   await page.locator('#event-param-scope').selectOption('activities');
   await page.locator('#event-param-activityKind').selectOption('hop');
-  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.getByText('More options',{exact:true}).click();
+  await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===12,null,{timeout:120000});
   report.native={allRows:await page.locator('button.event-result').allTextContents()};
   assert.equal(report.native.allRows.length,12);
-  assert.ok(report.native.allRows[0].includes('Polaris-D — Long traverse to Sverdrup'));
-  assert.ok(report.native.allRows[0].includes('Physical terrain clearance'));
-  assert.ok(report.native.allRows[0].includes('sampled coverage'));
+  assert.ok(report.native.allRows[0].includes('Polaris-D · Long traverse to Sverdrup'));
+  assert.ok(report.native.allRows[0].includes('above lunar terrain'));
+  assert.equal(await page.locator('.event-coverage-details').getAttribute('open'),null);
+  assert.equal(await page.getByRole('group',{name:'Sort results'}).count(),1);
   // Same form, now one vehicle. Only the normal result list is rendered.
   await bodyPickers.nth(1).selectOption('Polaris-C');
-  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   report.native.cRows=await page.locator('button.event-result').allTextContents();
-  assert.ok(report.native.cRows[0].includes('Polaris-C — Crater inner-wall transect'));
+  assert.ok(report.native.cRows[0].includes('Polaris-C · Crater inner-wall transect'));
   await page.screenshot({path:`${out}/trajectory-form.png`});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:`${out}/trajectory-form-compact.png`});
   await page.setViewportSize({width:1440,height:1000});
-  await page.locator('#event-param-extremum').selectOption('minimum');
-  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.locator('#event-height-question').selectOption('heightAbovePhysicalTerrain:minimum');
+  await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   const minimumOrder=await page.evaluate(()=>{
     const c=window.cosmo,q=c.listEventQueries().find(q=>q.query.kind==='trajectory-extremum'&&q.query.params.extremum==='minimum');
@@ -104,8 +107,8 @@ try {
   });
   assert.deepEqual(await page.locator('button.event-result').evaluateAll(rows=>rows.map(row=>row.title)),minimumOrder);
   report.native.minimumOrder=minimumOrder;
-  await page.locator('#event-param-extremum').selectOption('maximum');
-  await page.getByRole('button',{name:'Find events',exact:true}).click();
+  await page.locator('#event-height-question').selectOption('heightAbovePhysicalTerrain:maximum');
+  await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('button.event-result').length===3,null,{timeout:120000});
   await page.locator('button.event-result[title="Polaris-C: Crater inner-wall transect"]').click();
   report.native.selected=await page.evaluate(()=>({object:window.cosmo.getSelected(),activity:window.cosmo.getSelectedActivity()?.name,et:window.cosmo.getTime(),tracked:window.cosmo.getTracked()}));
@@ -203,8 +206,8 @@ try {
     return {status:response.status,count:response.results.length,resultId:response.results[0]?.id};
   });
   assert.equal(report.partial.status,'partial');
-  if(!await page.getByRole('button',{name:'Find events',exact:true}).isVisible()) await page.getByRole('button',{name:'Events',exact:true}).click();
-  await page.getByText('Incomplete search — candidates only; no overall winner established.',{exact:true}).waitFor();
+  if(!await page.getByRole('button',{name:/^Find (maximum|minimum)$/,exact:true}).isVisible()) await page.getByRole('button',{name:'Events',exact:true}).click();
+  await page.getByText('Partial search — highest measured candidate, not a confirmed maximum.',{exact:true}).waitFor();
   await page.screenshot({path:`${out}/trajectory-partial.png`});
   report.kernelRevision=await page.evaluate(async resultId=>{
     // Use the exact module URL loaded by this Vite page, including its HMR
@@ -241,6 +244,42 @@ try {
   assert.equal(report.activityRefresh.selectedAfterRefresh,report.activityRefresh.selectedBefore);
   assert.equal(report.activityRefresh.selectedAfterReplacement,null);
   assert.equal(report.activityRefresh.navigationAfterReplacement,false);
+  // Screenshot-level acceptance: one object, no activity restriction, bounded
+  // partial search. The warning must reflect the budget, not invent missing terrain.
+  report.single=await page.evaluate(async()=>{
+    const c=window.cosmo,bm=window.renderer.getBodyMesh('Moon');
+    const response=await c.findTrajectoryExtrema({objects:['Polaris-B'],body:'Moon',frame:'MOON_ME_DE421',metric:'heightAbovePhysicalTerrain',extremum:'maximum',reference:{kind:'sphere',radiusKm:1737.4},scope:{kind:'windows',windows:[c.getTimelineWindow()]},sampling:'adaptive',stepSeconds:.1,timeToleranceSeconds:.005,maxEvaluations:6000,terrain:{id:bm.terrainSourceId,revision:bm.terrainSourceRevision}});
+    const query=c.listEventQueries().find(q=>q.query.trajectoryAnalysis?.maxEvaluations===6000);
+    c.openEventQuery(query.id);
+    return {status:response.status,count:response.results.length,faults:response.faults};
+  });
+  assert.equal(report.single.count,1,JSON.stringify(report.single));
+  assert.equal(await page.getByRole('group',{name:'Sort results'}).count(),0);
+  assert.equal(await page.getByLabel('3D event marker legend').count(),0);
+  assert.equal(await page.locator('.event-search-management').getAttribute('open'),null);
+  assert.equal(await page.locator('.event-coverage-details').getAttribute('open'),null);
+  assert.equal(await page.locator('#event-param-scope').isVisible(),false);
+  const singleRow=page.locator('button.event-result');
+  assert.match(await singleRow.innerText(),/m above lunar terrain/);
+  assert.doesNotMatch(await singleRow.innerText(),/Time window/);
+  assert.match(await singleRow.innerText(),/Go to result/);
+  await singleRow.click();
+  assert.equal(await page.evaluate(()=>window.cosmo.getSelected()),'Polaris-B');
+  await page.screenshot({path:`${out}/trajectory-single.png`});
+  await page.setViewportSize({width:390,height:844});
+  report.single.compact=await page.locator('#event-height-question').evaluate(el=>({width:el.getBoundingClientRect().width,scroll:document.documentElement.scrollWidth,viewport:innerWidth}));
+  assert.ok(report.single.compact.width>100);
+  assert.ok(report.single.compact.scroll<=report.single.compact.viewport);
+  await page.screenshot({path:`${out}/trajectory-single-compact-form.png`});
+  await page.locator('.event-coverage-details').scrollIntoViewIfNeeded();
+  report.single.scrolling=await page.locator('.height-answer').evaluate(el=>{
+    const panel=el.closest('.instrument'),body=panel.querySelector('.instrument-body'),dock=panel.parentElement;
+    return {body:body.scrollTop,dock:dock.scrollTop,answer:el.getBoundingClientRect().toJSON(),panel:panel.getBoundingClientRect().toJSON()};
+  });
+  assert.equal(report.single.scrolling.dock,0);
+  assert.ok(report.single.scrolling.answer.bottom<=report.single.scrolling.panel.bottom);
+  assert.ok(report.single.scrolling.answer.top>=report.single.scrolling.panel.top+40);
+  await page.screenshot({path:`${out}/trajectory-single-compact.png`});
   assert.equal(report.errors.length,0,report.errors.join('\n'));
   report.passed=true;
 } finally {

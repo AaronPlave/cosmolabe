@@ -1,13 +1,7 @@
 <script lang="ts">
-  /**
-   * Geometry event finder.
-   *
-   * The panel is deliberately kind-agnostic: the body pickers come from the
-   * selected kind's declared roles and the inputs from its declared params, so
-   * the occultation, eclipse and FOV kinds that follow appear here without the
-   * panel growing a branch for each. Only the results list knows anything
-   * concrete, and only that an event has a time, a label and metrics.
-   */
+  /** Shared Event Finder lifecycle, with question-oriented presentation for
+   * numerical height searches. Typed definitions, scopes and navigation remain
+   * owned by the common event state. */
   import { trajectorySourceWindow, trajectoryMetricAvailability } from '../lib/trajectory-analysis.svelte';
   import { analysis } from '../lib/analysis.svelte';
   import { Loader2, Search, Ban, Plus, Trash2, ArrowUp, ArrowDown, X, CircleHelp } from 'lucide-svelte';
@@ -55,6 +49,18 @@
   });
 
   let advancedOpen = $state(false);
+  let editWindow = $state(false);
+  const heightMetrics = [
+    { value: 'heightAbovePhysicalTerrain', label: 'terrain clearance' },
+    { value: 'radialHeightAboveReferenceSphere', label: 'height above reference sphere' },
+    { value: 'heightAboveReferenceEllipsoid', label: 'height above reference ellipsoid' },
+  ];
+  function heightReference(result: NonNullable<GeometryEvent['trajectoryAnalysis']>): string {
+    return result.metric === 'heightAbovePhysicalTerrain'
+      ? result.body === 'Moon' ? 'above lunar terrain' : `above terrain on ${result.body}`
+      : result.metric === 'radialHeightAboveReferenceSphere' ? `above ${result.body} reference sphere` : `above ${result.body} reference ellipsoid`;
+  }
+
   let availableActivities = $derived(vs.activities.filter(a => a.enabled !== false && a.body === form?.bodies.center && (!form?.bodies.observer || a.vehicle === form.bodies.observer) && (!form?.params.activityKind || form.params.activityKind === 'all' || a.kind === form.params.activityKind) && a.start <= (form?.endEt ?? Infinity) && a.end >= (form?.startEt ?? -Infinity)));
   const visibleParam = (param: EventParamSpec) => !param.when || param.when.values.includes(form?.params[param.when.key] ?? '');
   let incomplete = $derived(ef.events.some(event => event.trajectoryAnalysis?.coverage === 'partial'));
@@ -176,6 +182,7 @@
   function chooseWindow(value: string) {
     startBad = false;
     endBad = false;
+    editWindow = value === 'custom';
     if (value === 'source' && sourceWindow) {
       setWindow(sourceWindow.start, sourceWindow.end);
       ef.windowSource = 'custom';
@@ -212,7 +219,7 @@
 
 <InstrumentPanel key="events" title="Event finder" width={toolDef('events').width} {onClose}>
 
-  {#if unavailable && (!coverage || coverage.status === 'unknown' || (coverage.status === 'available' && outside.length === 0))}
+  {#if unavailable && !metricUnavailable && (!coverage || coverage.status === 'unknown' || (coverage.status === 'available' && outside.length === 0))}
     <p class="event-unavailable ui-helper mb-2" role="note">{unavailable.message}</p>
   {/if}
 
@@ -248,12 +255,27 @@
   </div>
 
   {#if form}
-    <!-- Bodies, one picker per role the kind declares -->
-    {#each kind.roles as role}
+    {#if kind.engine === 'trajectory-analysis'}
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="ui-label w-20 shrink-0">{role.label}</span>
+        <label for="event-height-question" class="ui-label w-20 shrink-0">Find</label>
+        <select id="event-height-question" class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1"
+          value={`${form.params.metric}:${form.params.extremum}`}
+          onchange={(e) => { const [metric, extremum] = e.currentTarget.value.split(':'); setParam('metric', metric); setParam('extremum', extremum); }}>
+          {#each heightMetrics as metric}
+            {#each ['maximum', 'minimum'] as direction}
+              <option value={`${metric.value}:${direction}`} disabled={!!metricAvailability[metric.value]} title={metricAvailability[metric.value] ?? ''}>{direction === 'maximum' ? 'Highest' : 'Lowest'} {metric.label}{metricAvailability[metric.value] ? ' (unavailable)' : ''}</option>
+            {/each}
+          {/each}
+        </select>
+      </div>
+    {/if}
+    <!-- Bodies, one picker per role the kind declares -->
+    {#each kind.engine === 'trajectory-analysis' ? [...kind.roles].reverse() : kind.roles as role}
+      <div class="flex items-center gap-2 mb-1.5">
+        <label for={`event-body-${role.role}`} class="ui-label w-20 shrink-0">{kind.engine === 'trajectory-analysis' ? role.role === 'observer' ? 'Object' : 'Relative to' : role.label}</label>
         <select
-          class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+          class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+          id={`event-body-${role.role}`}
           value={form.bodies[role.role] ?? ''}
           onchange={(e) => setRole(role.role, (e.target as HTMLSelectElement).value)}
         >
@@ -278,7 +300,7 @@
           </select>
         {:else if param.kind === 'choice'}
           <select id={`event-param-${param.key}`}
-            class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+            class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
             value={form.params[param.key] ?? ''}
             onchange={(e) => setParam(param.key, (e.target as HTMLSelectElement).value)}
           >
@@ -304,7 +326,7 @@
         {:else}
           <input id={`event-param-${param.key}`}
             type="number"
-            class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 font-mono outline-none"
+            class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 font-mono outline-none"
             placeholder={param.required === false ? 'optional' : ''}
             min={param.min}
             max={param.max}
@@ -316,17 +338,13 @@
         {/if}
       </div>
     {/snippet}
-    {#each (kind.params ?? []).filter(p => !p.advanced && visibleParam(p)) as param}
+    {#each (kind.params ?? []).filter(p => kind.engine !== 'trajectory-analysis' && !p.advanced && visibleParam(p)) as param}
       {@render parameter(param)}
     {/each}
-    {#if kind.engine === 'trajectory-analysis' && form.params.scope !== 'window' && availableActivities.length === 0}
-      <p class="ui-helper mb-2" role="status">No explicit mission activities match. Choose another kind, vehicle or time window. Activities are not inferred from trajectory arcs.</p>
-    {/if}
-
     <!-- One window choice; only Custom exposes the editable timestamps. -->
     <div class="flex items-center gap-2 mb-1.5">
       <div class="w-20 shrink-0 flex items-center gap-1">
-        <label for="event-window" class="ui-label">Window</label>
+        <label for="event-window" class="ui-label">{kind.engine === 'trajectory-analysis' ? 'During' : 'Window'}</label>
         <Popover.Root>
           <Popover.Trigger class="text-text-muted hover:text-text-primary cursor-pointer" aria-label="How search windows are chosen">
             <CircleHelp size={12} />
@@ -349,20 +367,25 @@
           ? `Suggested: centered on the current scene time, limited to ${ef.kind === 'occultation' ? '90 days' : '2 years'}, and clipped to usable coverage when known. ${utc(form.startEt)} – ${utc(form.endEt)}`
           : `${utc(form.startEt)} – ${utc(form.endEt)}`}
       >
-        <option value="suggested">{windowSelection === 'suggested' ? `Suggested · ${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
+        <option value="suggested">{windowSelection === 'suggested' ? `${kind.engine === 'trajectory-analysis' ? '' : 'Suggested · '}${compactRange(form.startEt, form.endEt)}` : 'Suggested window'}</option>
         {#each coverage?.windows ?? [] as w, index (w.start)}
           <option value={`available:${index}`}>Available · {compactRange(w.start, w.end)}{index > 0 ? ` (${formatSeconds(w.start - coverage!.windows[index - 1]!.end)} gap)` : ''}</option>
         {/each}
         {#if sourceWindow}<option value="source">Trajectory envelope (may include gaps) · {compactRange(sourceWindow.start, sourceWindow.end)}</option>{/if}
         <option value="visible">Visible timeline · {windowSelection === 'visible' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubMin, vs.scrubMax)}</option>
         <option value="catalog">Catalog span · {windowSelection === 'catalog' ? compactRange(form.startEt, form.endEt) : compactRange(vs.scrubBaseMin, vs.scrubBaseMax)}</option>
-        <option value="custom">Custom…</option>
+        <option value="custom">{kind.engine === 'trajectory-analysis' && windowSelection === 'custom' ? compactRange(form.startEt, form.endEt) : 'Custom…'}</option>
       </select>
     </div>
-    {#if sourceWindow && isCurrentWindow(sourceWindow)}
+    {#if kind.engine === 'trajectory-analysis' && form.params.scope !== 'window'}
+      <p class="ui-helper mb-2 ml-22">Within {form.params.scope === 'selected-activities' ? 'selected' : 'mission'} activities{form.params.activityKind && form.params.activityKind !== 'all' ? ` · ${form.params.activityKind}` : ''} · edit in More options</p>
+    {/if}
+    {#if kind.engine !== 'trajectory-analysis' && sourceWindow && isCurrentWindow(sourceWindow)}
       <p class="ui-helper mb-2" role="note">Source envelope across objects and intervals; gaps and relative-state or terrain coverage are checked during search. This span is not guaranteed usable throughout.</p>
     {/if}
     {#if windowSelection === 'custom'}
+      <details class="ui-helper mb-2" open={kind.engine !== 'trajectory-analysis' || editWindow}>
+        <summary class="cursor-pointer">Edit dates</summary>
       <div class="flex items-center gap-2 mb-1.5">
         <label for="event-from" class="ui-label w-20 shrink-0">From</label>
         <input
@@ -385,6 +408,7 @@
           onkeydown={(e) => { if (e.key === 'Enter') commitEnd(); }}
         />
       </div>
+      </details>
     {/if}
     {#if coverage?.status === 'available' && outside.length > 0 && (coverage.exact || unavailable)}
       <p class="event-range invalid mb-2 ml-22" role="status">
@@ -417,15 +441,19 @@
 
     {#if kind.engine === 'trajectory-analysis'}
       <details class="mb-2 ui-helper" bind:open={advancedOpen}>
-        <summary class="cursor-pointer">Advanced search options</summary>
+        <summary class="cursor-pointer">More options</summary>
         <div class="mt-2">
-          {#each (kind.params ?? []).filter(p => p.advanced && visibleParam(p)) as param}
+    {#if kind.engine === 'trajectory-analysis' && form.params.scope !== 'window' && availableActivities.length === 0}
+      <p class="ui-helper mb-2" role="status">No explicit mission activities match. Choose another kind, vehicle or time window. Activities are not inferred from trajectory arcs.</p>
+    {/if}
+
+          {#each (kind.params ?? []).filter(p => !['metric', 'extremum'].includes(p.key) && visibleParam(p)) as param}
             {@render parameter(param)}
           {/each}
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">{form.params.sampling === 'fixed' ? 'Max step' : 'Min step'}</span>
       <select
-        class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
         value={String(form.step)}
         onchange={(e) => setStep(Number((e.target as HTMLSelectElement).value))}
         title="Adaptive uses this as a minimum spacing and reports actual spacing; Fixed uses it as a maximum. Source breakpoints are retained. Narrow unsampled extrema may be missed."
@@ -445,7 +473,7 @@
     <div class="flex items-center gap-2 mb-2">
       <span class="ui-label w-20 shrink-0">Step</span>
       <select
-        class="ui-control flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
+        class="ui-control min-w-0 flex-1 bg-surface-3 text-text-primary border border-border rounded px-1.5 py-1 cursor-pointer outline-none"
         value={String(form.step)}
         onchange={(e) => setStep(Number((e.target as HTMLSelectElement).value))}
         title="Sampling interval. An event shorter than the step can be missed."
@@ -479,7 +507,7 @@
                progress, but do not measure each call's relative cost. -->
           <Loader2 size={12} class="animate-spin" /> Searching…
         {:else}
-          <Search size={12} /> Find events
+          <Search size={12} /> {kind.engine === 'trajectory-analysis' ? form.params.extremum === 'maximum' ? 'Find maximum' : 'Find minimum' : 'Find events'}
         {/if}
       </button>
       {#if ef.running}
@@ -517,6 +545,15 @@
 
     {#if ef.restoring}<p class="ui-helper mt-1.5" role="status">Restoring shared event searches…</p>{/if}
 
+    {#if unfilledRoles.length > 0}
+      <div class="ui-label mt-1.5">
+        Choose a body for {kind.roles.filter((r) => unfilledRoles.includes(r.role)).map((r) => r.label.toLowerCase()).join(' and ')}.
+      </div>
+    {/if}
+  {/if}
+
+  <details class="ui-helper mt-2 event-search-management">
+    <summary class="cursor-pointer">Manage searches{configuredQueries.length ? ` (${configuredQueries.length})` : ''}</summary>
     {#if configured}
       <div class="mt-1.5 flex items-center gap-3 ui-helper">
         <label class="flex items-center gap-1 cursor-pointer" title="Include this search in analysis">
@@ -539,13 +576,6 @@
         </label>
       </div>
     {/if}
-
-    {#if unfilledRoles.length > 0}
-      <div class="ui-label mt-1.5">
-        Choose a body for {kind.roles.filter((r) => unfilledRoles.includes(r.role)).map((r) => r.label.toLowerCase()).join(' and ')}.
-      </div>
-    {/if}
-  {/if}
 
   <!-- The list, once there is more than the one being edited: two or more
        searches, or one while the form holds an unsaved draft. -->
@@ -603,6 +633,8 @@
     </div>
   {/if}
 
+  </details>
+
   <!-- Results -->
   {#if ef.fault && !(unavailable && ef.fault.code === 'unavailable')}
     <!-- A fault is "we could not look", which reads differently from a search
@@ -639,15 +671,12 @@
     </div>
   {:else if ef.events.length > 0}
     <div class="mt-2 pt-2 border-t border-border">
-      {#if kind.engine === 'trajectory-analysis'}
-        <p class="ui-helper mb-2" class:text-warning={incomplete} role="status">{incomplete ? 'Incomplete search — candidates only; no overall winner established.' : 'Sampled candidates — one per vehicle and matching interval; not certified global extrema.'}</p>
-        {#if ef.hint}<details class="ui-helper mb-2"><summary>Search coverage and limits</summary><p>{ef.hint}</p></details>{/if}
-      {:else if ef.hint}<p class="ui-helper mb-2" role="status">{ef.hint}</p>{/if}
+      {#if kind.engine !== 'trajectory-analysis' && ef.hint}<p class="ui-helper mb-2" role="status">{ef.hint}</p>{/if}
       <div class="flex items-center justify-between gap-2 mb-1">
         <span class="ui-section-label">
-          {ef.events.length} event{ef.events.length === 1 ? '' : 's'}
+          {kind.engine === 'trajectory-analysis' ? ef.events.length === 1 ? 'Result' : `${ef.events.length} candidates` : `${ef.events.length} event${ef.events.length === 1 ? '' : 's'}`}
         </span>
-        {#if metricSortLabel}
+        {#if metricSortLabel && ef.events.length > 1}
           <!-- One labelled control: what the list is ordered by. -->
           <div class="sort-control ui-meta" role="group" aria-label="Sort results">
             <span>Sort:</span>
@@ -663,10 +692,12 @@
           </div>
         {/if}
       </div>
+      {#if mixedTemporality}
       <div class="event-marker-legend ui-helper" aria-label="3D event marker legend">
         <span><i class="event-marker-diamond" aria-hidden="true"></i>Instant</span>
         <span><i class="event-marker-span" aria-hidden="true"></i>Interval</span>
       </div>
+      {/if}
       <div bind:this={resultsListEl} class="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {#each shownEvents as event}
           {@const headline = headlineMetric(event)}
@@ -686,9 +717,11 @@
           >
             {#if event.trajectoryAnalysis}
               {@const result = event.trajectoryAnalysis}
-              <div class="event-summary"><span class="font-medium">{result.object} — {result.activityName ?? 'Time window'}</span><span class="ui-readout event-value">{headline ? formatMetric(headline) : ''}</span></div>
-              <p class="ui-helper">{headline?.label} · {result.coverage === 'partial' ? 'incomplete coverage' : 'sampled coverage'}</p>
+              <div class="height-answer"><strong>{headline ? formatMetric(headline) : ''}</strong> {heightReference(result)}</div>
+              <p class="height-context">{result.object}{result.activityName ? ` · ${result.activityName}` : ''} · {eventTime(event)} UTC</p>
+              <span class="height-go">Go to result →</span>
             {/if}
+            {#if !event.trajectoryAnalysis}
             <div class="flex justify-between gap-2 items-baseline">
               <span class="ui-readout event-time">{eventTime(event)}</span>
               <!-- A bare "2.5 d" beside a date reads as an offset from it.
@@ -714,10 +747,14 @@
             {:else if !event.trajectoryAnalysis}
               <div class="event-summary">{eventSummary(event)}</div>
             {/if}
-            {#if isSelectedEvent(event)}
+            {/if}
+            {#if isSelectedEvent(event) && !event.trajectoryAnalysis}
               <div class="mt-1"><EventDetails {event} legend /></div>
             {/if}
           </button>
+          {#if event.trajectoryAnalysis && isSelectedEvent(event)}
+            <details class="ui-helper px-2 pb-2"><summary class="cursor-pointer">Measurement details</summary><EventDetails {event} /></details>
+          {/if}
           {#if isSelectedEvent(event)}
             <!-- Deselect without re-seeking; clicking the row itself still
                  re-focuses the event. -->
@@ -728,11 +765,29 @@
           </div>
         {/each}
       </div>
+      {#if kind.engine === 'trajectory-analysis'}
+        {#if incomplete}<p class="height-caution ui-helper mt-2" role="status">Partial search — {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'lowest' : 'highest'} measured candidate, not a confirmed {ef.events[0]?.trajectoryAnalysis?.extremum === 'minimum' ? 'minimum' : 'maximum'}.</p>{/if}
+        <details class="ui-helper mt-1 event-coverage-details">
+          <summary class="cursor-pointer">Coverage details</summary>
+          <p class="mt-1">{ef.hint ?? 'One sampled and locally refined candidate per object and matching interval; not certified global extrema.'}</p>
+          {#each shownEvents.filter(event => event.trajectoryAnalysis?.coverage === 'partial') as event}
+            {@const result = event.trajectoryAnalysis!}
+            <p class="mt-1">Candidate scope: {result.object} · {compactRange(result.window.start, result.window.end)} UTC. Trajectory: {result.source.id ?? 'identity unknown'}{result.terrain ? `; terrain: ${result.terrain.id}` : ''}.</p>
+          {/each}
+          {#if incomplete}<p class="mt-1">Narrow During to an interval with known trajectory and terrain coverage, or use mission activity restrictions in More options. Missing terrain never falls back to a reference surface.</p>{/if}
+        </details>
+      {/if}
     </div>
   {/if}
 </InstrumentPanel>
 
 <style>
+  .height-answer { font-size: var(--text-body); color: var(--color-text-primary); line-height: 1.4; }
+  .height-answer strong { font-size: 1.25em; font-weight: 650; }
+  .height-context { color: var(--color-text-secondary); font-size: var(--text-label); margin-top: 3px; line-height: 1.5; }
+  .height-go { display: inline-block; color: var(--color-primary-accent); font-size: var(--text-label); margin-top: 4px; }
+  .height-caution { color: var(--color-text-secondary); border-left: 2px solid var(--color-warning); padding-left: 7px; }
+  .event-search-management { color: var(--color-text-secondary); }
   /* Inline text controls. */
   .ctrl-link {
     font-size: 10px;

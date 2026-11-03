@@ -1396,23 +1396,23 @@
   },
   "native": {
     "allRows": [
-      "Polaris-D — Long traverse to Sverdrup310.9 m Physical terrain clearance · sampled coverage 2028-12-27 18:03:34    ",
-      "Polaris-D — Connector hop to de Gerlache276.1 m Physical terrain clearance · sampled coverage 2028-12-15 10:04:46    ",
-      "Polaris-A — Ridge climb to rim peak242.7 m Physical terrain clearance · sampled coverage 2028-12-22 14:02:51    ",
-      "Polaris-B — Sun-illuminated peak sampling234.5 m Physical terrain clearance · sampled coverage 2028-12-19 06:01:52    ",
-      "Polaris-B — Long hop to neighboring rim site222.5 m Physical terrain clearance · sampled coverage 2028-12-26 11:04:41    ",
-      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32    ",
-      "Polaris-C — Rim south-arc survey162.6 m Physical terrain clearance · sampled coverage 2028-12-25 02:07:33    ",
-      "Polaris-A — PSR floor sample run147.5 m Physical terrain clearance · sampled coverage 2028-12-15 10:05:44    ",
-      "Polaris-A — PSR transect — west half140.1 m Physical terrain clearance · sampled coverage 2028-12-17 22:07:24    ",
-      "Polaris-B — Rim traverse east139.9 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:24    ",
-      "Polaris-C — PSR floor exploration125.8 m Physical terrain clearance · sampled coverage 2028-12-20 15:07:00    ",
-      "Polaris-D — PSR oblique entry114.0 m Physical terrain clearance · sampled coverage 2028-12-21 07:37:34    "
+      "310.9 m above lunar terrain Polaris-D · Long traverse to Sverdrup · 2028-12-27 18:03:34 UTC Go to result →  ",
+      "276.1 m above lunar terrain Polaris-D · Connector hop to de Gerlache · 2028-12-15 10:04:46 UTC Go to result →  ",
+      "242.7 m above lunar terrain Polaris-A · Ridge climb to rim peak · 2028-12-22 14:02:51 UTC Go to result →  ",
+      "234.5 m above lunar terrain Polaris-B · Sun-illuminated peak sampling · 2028-12-19 06:01:52 UTC Go to result →  ",
+      "222.5 m above lunar terrain Polaris-B · Long hop to neighboring rim site · 2028-12-26 11:04:41 UTC Go to result →  ",
+      "184.2 m above lunar terrain Polaris-C · Crater inner-wall transect · 2028-12-15 10:06:32 UTC Go to result →  ",
+      "162.6 m above lunar terrain Polaris-C · Rim south-arc survey · 2028-12-25 02:07:33 UTC Go to result →  ",
+      "147.5 m above lunar terrain Polaris-A · PSR floor sample run · 2028-12-15 10:05:44 UTC Go to result →  ",
+      "140.1 m above lunar terrain Polaris-A · PSR transect — west half · 2028-12-17 22:07:24 UTC Go to result →  ",
+      "139.9 m above lunar terrain Polaris-B · Rim traverse east · 2028-12-15 10:06:24 UTC Go to result →  ",
+      "125.8 m above lunar terrain Polaris-C · PSR floor exploration · 2028-12-20 15:07:00 UTC Go to result →  ",
+      "114.0 m above lunar terrain Polaris-D · PSR oblique entry · 2028-12-21 07:37:34 UTC Go to result →  "
     ],
     "cRows": [
-      "Polaris-C — Crater inner-wall transect184.2 m Physical terrain clearance · sampled coverage 2028-12-15 10:06:32    ",
-      "Polaris-C — Rim south-arc survey162.6 m Physical terrain clearance · sampled coverage 2028-12-25 02:07:33    ",
-      "Polaris-C — PSR floor exploration125.8 m Physical terrain clearance · sampled coverage 2028-12-20 15:07:00    "
+      "184.2 m above lunar terrain Polaris-C · Crater inner-wall transect · 2028-12-15 10:06:32 UTC Go to result →  ",
+      "162.6 m above lunar terrain Polaris-C · Rim south-arc survey · 2028-12-25 02:07:33 UTC Go to result →  ",
+      "125.8 m above lunar terrain Polaris-C · PSR floor exploration · 2028-12-20 15:07:00 UTC Go to result →  "
     ],
     "minimumOrder": [
       "Polaris-C: Rim south-arc survey",
@@ -2388,5 +2388,49 @@
     "selectedAfterRefresh": "moonfall:Polaris-C:hop:1",
     "selectedAfterReplacement": null,
     "navigationAfterReplacement": false
+  },
+  "single": {
+    "status": "partial",
+    "count": 1,
+    "faults": [
+      {
+        "code": "budget",
+        "object": "Polaris-B",
+        "window": {
+          "start": 913672869.1834563,
+          "end": 914912179.183804
+        },
+        "message": "Evaluation budget exhausted; no global ranking is established."
+      }
+    ],
+    "compact": {
+      "width": 274.5,
+      "scroll": 390,
+      "viewport": 390
+    },
+    "scrolling": {
+      "body": 170,
+      "dock": 0,
+      "answer": {
+        "x": 27,
+        "y": 524.21875,
+        "width": 307.5,
+        "height": 22.75,
+        "top": 524.21875,
+        "right": 334.5,
+        "bottom": 546.96875,
+        "left": 27
+      },
+      "panel": {
+        "x": 6.5,
+        "y": 341.03125,
+        "width": 377,
+        "height": 354.46875,
+        "top": 341.03125,
+        "right": 383.5,
+        "bottom": 695.5,
+        "left": 6.5
+      }
+    }
   }
 }
