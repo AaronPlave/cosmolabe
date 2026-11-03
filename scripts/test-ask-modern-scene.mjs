@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { etToDate } from '../packages/core/dist/index.js';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 
 assert.equal(process.env.ASK_MISSION_LIVE, '1', 'Set ASK_MISSION_LIVE=1 to authorize paid public-scene inference');
@@ -20,8 +21,9 @@ await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.list
 const browser = await chromium.launch({ executablePath: process.env.CL_CHROMIUM ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 const report = { model, cache: 'sequential; cache warmth uncontrolled; USD is a proxy estimate, not billing', runs: [] };
 const scenarios = [
+  { id: 'voyager', catalog: 'voyagers', prompt: 'show me when voyager 1 flew past jupiter' },
   { id: 'cassini', catalog: 'cassini-soi', prompt: 'show cassini at closest approach to mimas' },
-  { id: 'ingenuity', catalog: 'ingenuity-jezero', prompt: 'Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and turn on the highest-resolution Jezero imagery available. Explain the estimated timing and that centre distance is not terrain clearance.' },
+  { id: 'ingenuity', catalog: 'ingenuity-jezero', prompt: 'Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and enable the highest-resolution Jezero imagery available separately. Keep elevation coloring as the final base color, with that imagery layer enabled for later use. Explain the estimated timing and that centre distance is not terrain clearance.' },
   { id: 'instrument-capture', catalog: 'cassini-soi', prompt: 'Select the ISS NAC synthetic instrument feed and inspect its pointing limitations. Then close the feed, save this camera as Ask verification, frame Mimas, and restore Ask verification. After assets readiness succeeds with a bounded wait, capture a screenshot named ask-approved-capture.' },
   { id: 'geographic', catalog: 'geographic-vectors', prompt: 'Inspect the editable annotation layer I just created by copying a shape in the UI. Tell me how many features it contains, and delete its first feature using the original typed source ID. Request approval for the deletion.' },
 ];
@@ -106,25 +108,36 @@ try {
         const delivered = payloads.find(p => p.id === step.id);
         assert.ok(delivered && !/result-too-large/.test(delivered.content), `${step.name} must be model-visible`);
       }
-      if (scenario.id === 'cassini') {
+      if (['cassini','voyager'].includes(scenario.id)) {
         assert.ok(success('getEventSearchOptions'));
         assert.ok(offered.length <= 12, 'bounded Cassini planner round trips');
         assert.ok(!result.steps.some(s => /Describe this capability before/i.test(s.error ?? '')), 'no protocol precondition refusal');
         assert.ok(success('runEventQuery') || result.steps.some(s => /getEventSearchOptions$/.test(s.name) && s.data?.coverage?.status === 'none'));
         if (success('runEventQuery')) {
-          assert.ok(success('focusEventResult'));
-          assert.ok(['frameObject', 'gotoObject', 'jumpTo', 'flyTo'].some(success), 'native camera navigation completed');
-          assert.ok(['Cassini', 'Mimas'].includes(result.state.tracked));
-          const camera = result.state.camera;
-          assert.ok([...camera.position, ...camera.target, ...camera.up].every(Number.isFinite));
-          assert.ok(Math.hypot(...camera.position.map((x,i) => x - camera.target[i])) > 0);
-          assert.equal(result.state.playing, false);
-          assert.equal(result.state.selected, 'Mimas');
-          assert.ok(result.state.events.selected);
-          const selected = result.state.events.selected;
-          const found = result.steps.flatMap(s => s.data?.items ?? []).find(item => item.reference?.query === selected.query && item.reference?.id === selected.id && item.reference?.revision === selected.revision);
-          assert.ok(found, 'selection was delivered in an inspected run-scoped result page');
-          assert.ok(Math.abs(result.state.et - found.et) < 0.001, 'clock is frozen at the exact computed event epoch');
+          assert.ok(success('presentEventResult'),'show request uses shared encounter presentation');
+          const selected=result.state.events.selected;assert.ok(selected);
+          assert.equal(result.state.playing,false);
+          const expected=scenario.id==='voyager'?['Voyager 1','Jupiter']:['Cassini','Mimas'];
+          assert.ok(expected.includes(result.state.tracked));
+          const v=result.state.events;assert.ok(v.presentation);
+          for(const object of expected) { const projected=v.presentation.participants.find(p=>p.object===object); assert.ok(projected?.inView,`${object} projected center fits actual camera`); assert.ok(Math.abs(projected.ndc[0]) < .4 && Math.abs(projected.ndc[1]) < .5,`${object} is composed in the central view, clear of standard side panels`); }
+          assert.ok(v.presentation.participants.every(p=>p.drawEnabled),'native participant groups are enabled');
+          assert.equal(v.renderer.observedEt,result.state.et,'native event pass observed exact frozen epoch/current camera');
+          const inspected=result.steps.filter(s=>s.ok&&s.data?.ranking?.order==='range-ascending').flatMap(s=>s.data.items);
+          assert.ok(inspected.some(i=>i.reference.id===selected.id&&i.reference.query===selected.query&&i.reference.revision===selected.revision),'winner came from complete ranked candidate set');
+          const independent=await page.evaluate(query=>{const c=window.cosmo,p=c.getEventResultPage(query,{limit:100});let all=[...p.items],next=p.nextOffset;while(next!==null){const q=c.getEventResultPage(query,{offset:next,limit:100});all.push(...q.items);next=q.nextOffset;}return {info:p.query,events:all};},selected.query);
+          const candidates=independent.events.map(i=>({reference:i.reference,event:i.event,range:i.event.metrics.find(m=>m.key==='range'&&m.unit==='km')?.value}));
+          assert.ok(candidates.length&&candidates.every(i=>Number.isFinite(i.range)));
+          const winner=candidates.reduce((a,b)=>a.range<=b.range?a:b);
+          assert.equal(selected.id,winner.reference.id,'smallest range across entire current candidate set, not chronological result 0');
+          assert.ok(Math.abs(result.state.et-winner.event.et)<.001);
+          const rankedStep=result.steps.find(s=>s.ok&&s.data?.ranking);assert.equal(rankedStep.data.ranking.compared,candidates.length);
+          const searched=independent.info.definition.query.window;
+          for (const et of [searched.start,searched.end]) assert.ok(result.reply.includes(String(etToDate(et).getUTCFullYear())),'answer reports both searched boundary years, not only event date');
+          assert.match(result.reply,/window|searched|search covered|between|from/i,'answer scopes the reported minimum');
+          assert.ok(!/by hand|my own conversion/i.test(result.reply),'use viewer-provided UTC rather than approximate manual ET conversion');
+          result.independent={window:independent.info.definition.query.window,total:candidates.length,winner:{reference:winner.reference,et:winner.event.et,rangeKm:winner.range},coverage:independent.info.coverage,provenance:independent.info.provenance};
+          assert.ok(!result.steps.some(s=>/limit must be at most|lacks a shared semantic readback/.test(s.error??'')));
         }
       } else if (scenario.id === 'ingenuity') {
         assert.equal(result.state.activity?.id, 'ingenuity:flight:5');
@@ -134,6 +147,7 @@ try {
         assert.ok(result.state.measurements.some(m => m.id === 'flight5-distance' && m.source?.bodyName === 'Ingenuity' && m.target?.bodyName === 'Mars'));
         assert.equal(result.state.appearance.settings.hillshade, true);
         assert.equal(result.state.appearance.settings.palette, 'blue-gold');
+        assert.equal(result.state.appearance.settings.baseColor, 'elevation','requested palette is actually presented, not hidden in imagery mode');
         assert.ok(success('showImagery'));
         const best = result.state.imagery.layers.filter(l => l.resolutionMeters != null).sort((a,b) => a.resolutionMeters - b.resolutionMeters)[0];
         assert.ok(best?.visible, 'highest-resolution managed imagery is actually enabled');

@@ -1389,6 +1389,11 @@
     ],
     "faults": []
   },
+  "metricSwitching": {
+    "unavailableAGLBlocksSearch": true,
+    "availableAGLEnablesSearch": true,
+    "explicitReferencePreserved": true
+  },
   "native": {
     "allRows": [
       "Polaris-D — Long traverse to Sverdrup310.9 m Physical terrain clearance · sampled coverage 2028-12-27 18:03:34    ",
@@ -1632,6 +1637,7 @@
       "events.getEventResultPage",
       "events.listEventResults",
       "events.focusEventResult",
+      "events.presentEventResult",
       "events.selectEventResult"
     ],
     "count": 12,
@@ -1686,7 +1692,7 @@
     },
     "transport": {
       "ok": true,
-      "summary": "Run-scoped event results; inspect status before focusing.",
+      "summary": "Run-scoped results. Searched window: 2028-12-15T09:59:59.999Z through 2028-12-27T18:15:09.999Z. Report these actual bounds; closest is within this window, never an all-time claim. Counts describe the measured local candidates returned by this query.",
       "data": {
         "status": "ready",
         "total": 12,
@@ -1705,6 +1711,10 @@
             "window": {
               "start": 913759269.1834563,
               "end": 914825779.183804
+            },
+            "windowUtc": {
+              "start": "2028-12-15T09:59:59.999Z",
+              "end": "2028-12-27T18:15:09.999Z"
             },
             "step": 0.1,
             "params": {
@@ -1744,6 +1754,7 @@
             "kind": "trajectory-extremum",
             "temporality": "instant",
             "et": 913759555.7645857,
+            "utc": "2028-12-15T10:04:46.580Z",
             "bodies": {
               "observer": "Polaris-D",
               "center": "Moon"
@@ -1868,6 +1879,22 @@
             },
             "cameraReference": "Polaris-C",
             "events": {
+              "presentation": {
+                "tracked": "Polaris-C",
+                "reference": "Polaris-C",
+                "participants": [
+                  {
+                    "object": "Polaris-C",
+                    "ndc": [
+                      5.09483953928611e-16,
+                      -4.939650215227064e-16,
+                      0.999111111111111
+                    ],
+                    "drawEnabled": true,
+                    "inView": true
+                  }
+                ]
+              },
               "scene": 1,
               "status": "partial",
               "selected": {
@@ -1900,7 +1927,7 @@
                 "visibleSpans": 0,
                 "occultationVisible": false
               },
-              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Presentation reports actual projected centers, not occlusion or visible pixels. Partial means an incomplete observation."
             }
           }
         },
@@ -1970,6 +1997,22 @@
             },
             "cameraReference": "Polaris-C",
             "events": {
+              "presentation": {
+                "tracked": "Polaris-C",
+                "reference": "Polaris-C",
+                "participants": [
+                  {
+                    "object": "Polaris-D",
+                    "ndc": [
+                      0.00008167822284762921,
+                      0.000017142654037044456,
+                      1.0000000618271756
+                    ],
+                    "drawEnabled": true,
+                    "inView": false
+                  }
+                ]
+              },
               "scene": 1,
               "status": "partial",
               "selected": {
@@ -2002,7 +2045,7 @@
                 "visibleSpans": 0,
                 "occultationVisible": false
               },
-              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Presentation reports actual projected centers, not occlusion or visible pixels. Partial means an incomplete observation."
             }
           }
         },
@@ -2017,7 +2060,7 @@
     "trackedAfterFocus": "Polaris-C",
     "framing": {
       "ok": true,
-      "summary": "frameObject Polaris-D: done.",
+      "summary": "frameObject Polaris-D: done. Requested tracked object and resulting camera pose are observed. This is not an occlusion or visible-pixels guarantee.",
       "receipt": {
         "id": "1:3",
         "operation": "camera.frameObject",
@@ -2028,7 +2071,7 @@
           "revision": 0
         },
         "task": 1,
-        "status": "partial",
+        "status": "completed",
         "requestedTarget": {
           "object": "Polaris-D"
         },
@@ -2080,6 +2123,22 @@
             },
             "cameraReference": "Polaris-D",
             "events": {
+              "presentation": {
+                "tracked": "Polaris-D",
+                "reference": "Polaris-D",
+                "participants": [
+                  {
+                    "object": "Polaris-D",
+                    "ndc": [
+                      -0.018139583713002436,
+                      0.08292399769610893,
+                      1.0000000656879453
+                    ],
+                    "drawEnabled": true,
+                    "inView": false
+                  }
+                ]
+              },
               "scene": 1,
               "status": "partial",
               "selected": {
@@ -2112,21 +2171,35 @@
                 "visibleSpans": 0,
                 "occultationVisible": false
               },
-              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Presentation reports actual projected centers, not occlusion or visible pixels. Partial means an incomplete observation."
             }
           }
         },
-        "warnings": [
-          "Host returned successfully; this operation lacks a shared semantic readback. See #297."
-        ],
+        "warnings": [],
         "provenance": "viewer-observation",
-        "verification": "host-return"
+        "verification": "observed"
       }
     },
     "visual": {
       "ok": true,
       "summary": "Event visualization readback; partial is not drawn acceptance.",
       "data": {
+        "presentation": {
+          "tracked": "Polaris-D",
+          "reference": "Polaris-D",
+          "participants": [
+            {
+              "object": "Polaris-D",
+              "ndc": [
+                -7.354133594209927e-17,
+                -3.9298012230024816e-17,
+                0.9991111111111111
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
         "scene": 1,
         "status": "partial",
         "selected": {
@@ -2159,7 +2232,7 @@
           "visibleSpans": 0,
           "occultationVisible": false
         },
-        "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+        "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Presentation reports actual projected centers, not occlusion or visible pixels. Partial means an incomplete observation."
       },
       "receipt": {
         "id": "1:4",
@@ -2219,6 +2292,22 @@
             },
             "cameraReference": "Polaris-D",
             "events": {
+              "presentation": {
+                "tracked": "Polaris-D",
+                "reference": "Polaris-D",
+                "participants": [
+                  {
+                    "object": "Polaris-D",
+                    "ndc": [
+                      -7.354133594209927e-17,
+                      -3.9298012230024816e-17,
+                      0.9991111111111111
+                    ],
+                    "drawEnabled": true,
+                    "inView": true
+                  }
+                ]
+              },
               "scene": 1,
               "status": "partial",
               "selected": {
@@ -2251,7 +2340,7 @@
                 "visibleSpans": 0,
                 "occultationVisible": false
               },
-              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Camera framing remains separate. Partial means an incomplete observation."
+              "limitations": "Counts describe draw-enabled objects from an observed render pass, not unoccluded pixels. Presentation reports actual projected centers, not occlusion or visible pixels. Partial means an incomplete observation."
             }
           }
         },
@@ -2278,7 +2367,7 @@
         "No selected explanatory geometry is draw-enabled."
       ],
       "limitations": [
-        "Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. No camera framing is applied.",
+        "Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. This read does not move the camera; projected participant centers report the actual current view.",
         "No selected event marker/span/geometry is draw-enabled; trajectory availability, visibility and view can limit it.",
         "Readiness requires the exact selected run reference and requested epoch in a visible timeline lane, observed by a native render pass. Timeline policy permits absent explanatory geometry; native-draw additionally requires a draw-enabled glyph, span or active geometry. No unoccluded-pixels guarantee."
       ]

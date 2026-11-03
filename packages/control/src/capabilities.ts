@@ -338,13 +338,15 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         // Features without a shared semantic read remain explicitly unverified (#297).
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
           || (name === 'navigateToAnalysisResult' && result.ok && (result.data as {verified?:boolean} | undefined)?.verified === true)
-          || ['select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
+          || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')
           || (name === 'selectActivity' && typeof host.getSelectedActivity === 'function')
           || (name === 'seekActivity' && typeof host.listActivities === 'function')
-          || (name === 'focusEventResult' && typeof host.getEventVisualization === 'function');
+          || (['focusEventResult','presentEventResult'].includes(name) && typeof host.getEventVisualization === 'function')
+          || (name === 'upsertEventQuery' && typeof host.getEventQueryInfo === 'function')
+          || (name === 'runEventQuery' && typeof host.getEventSearch === 'function' && typeof host.getEventResultPage === 'function');
         const verified = observation.state !== null && hasReadback;
-        const eventPartial = name === 'focusEventResult' && (observation.state as { events?: { status: string } } | null)?.events?.status !== 'observed';
+        const eventPartial = ['focusEventResult','presentEventResult'].includes(name) && (observation.state as { events?: { status: string } } | null)?.events?.status !== 'observed';
         const status: OperationStatus = result.ok ? verified && !eventPartial ? 'completed' : 'partial' : result.code === 'stale' ? 'stale'
           : ['cancelled', 'superseded', 'interrupted'].includes(result.code) ? 'cancelled'
             : result.code === 'failed' ? 'partial' : 'refused';
@@ -387,7 +389,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
     return wrapped;
   };
   const api: CapabilityTools = {
-    list: () => { versionCheck(); return [...(opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!]), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} Compact registry IDs: ${definitions().map(def => `${idOf(def)}(${Object.keys(def.inputSchema.properties ?? {}).map(key => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}`).join(',')})`).join(', ')}.` } : d)]; },
+    list: () => { versionCheck(); return [...(opts.surface === 'fixed' ? defaultAskDefinitions().filter(d => (!d.method || typeof host[d.method] === 'function') && !opts.omitted?.[idOf(d)]) : [definitions().find(d => d.name === 'describeScene')!]), ...DISCOVERY.map(d => d.name === 'invokeCapability' ? { ...d, description: `${d.description} Compact registry IDs: ${definitions().map(def => `${idOf(def)}(${Object.keys(def.inputSchema.properties ?? {}).map(key => `${key}${def.inputSchema.required?.includes(key) ? '' : '?'}:${Array.isArray(def.inputSchema.properties![key].type) ? def.inputSchema.properties![key].type!.join('|') : def.inputSchema.properties![key].type ?? 'json'}${def.inputSchema.properties![key].enum ? '=' + def.inputSchema.properties![key].enum!.join('|') : ''}${key === 'reference' ? '=JSON{scene,query,id,revision}' : ''}${def.inputSchema.properties![key].maximum !== undefined ? '<=' + def.inputSchema.properties![key].maximum : ''}`).join(',')})`).join(', ')}.` } : d)]; },
     inspect: () => { versionCheck(); return raw.inspect!(); }, listCapabilities, describeCapabilities, getOperationResult, begin,
     call: async (name, input) => { const task = begin(); try { return await task.call(name, input); } finally { task.finish(); } },
     cancel: () => raw.cancel(),

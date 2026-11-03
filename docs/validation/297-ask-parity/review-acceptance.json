@@ -1,0 +1,1366 @@
+{
+  "publicFixturesOnly": true,
+  "cache": "uncontrolled; proxy estimates are not billing",
+  "runs": [
+    {
+      "scenario": "ingenuity",
+      "mode": "fixed",
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and enable the highest-resolution Jezero imagery available separately. Keep elevation coloring as the final base color, with that imagery layer enabled for later use. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 21009,
+      "modelRounds": 9,
+      "rawTokens": 140246,
+      "estimatedUsd": 0.0749731,
+      "schemaBytes": [
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
+      ],
+      "refusals": 0,
+      "model": "claude-sonnet-5-5",
+      "phase": "styling",
+      "reply": "Flight 5 (Airfield B) is selected and paused at its end, 2021-05-07 19:25:10 UTC. The camera is tracking and framing Ingenuity. The framing call returned only a partial receipt, so I couldn't confirm the view itself. The site link is a \"name match\": the activity record has no direct reference to the Airfield B place.\n\n- **Measurement:** flight5-distance (Ingenuity to Mars, centre to centre) is saved and visible.\n- **Terrain:** hillshade is on, with elevation as the base color and the blue-gold palette.\n- **Imagery:** Jezero HiRISE (0.25 m, the highest resolution available) is enabled as a separate layer. It reports in coverage, with 71 degraded tiles still loading.\n\nTiming is estimated: the flight times are approximate MMGIS epochs with uncalibrated clock drift. The path is an observed horizontal track with estimated 3D playback, not flight telemetry. The distance is measured to Mars's centre, so it is not terrain clearance or altitude above the ground.",
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "listActivities",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "resolve",
+          "ok": true
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "activities.selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "activities.seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "measurements.upsertMeasurement",
+          "ok": true
+        },
+        {
+          "operation": "surface.setSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.showImagery",
+          "ok": true
+        },
+        {
+          "operation": "measurements.listMeasurements",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "scene.describeScene",
+          "ok": true
+        }
+      ],
+      "approvalKinds": [
+        "authoring"
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "usage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "outputTokens": 81,
+          "cacheReadTokens": 7458,
+          "cacheWriteTokens": 236,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 7779,
+          "estimatedUsd": 0.0021538,
+          "estimatedSpentUsd": 0.0021538
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 150,
+          "cacheReadTokens": 7694,
+          "cacheWriteTokens": 873,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 16498,
+          "estimatedUsd": 0.0044559,
+          "estimatedSpentUsd": 0.0066097
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 266,
+          "cacheReadTokens": 8567,
+          "cacheWriteTokens": 3274,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 28607,
+          "estimatedUsd": 0.011705700000000001,
+          "estimatedSpentUsd": 0.018315400000000003
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 143,
+          "cacheReadTokens": 11841,
+          "cacheWriteTokens": 2464,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 43057,
+          "estimatedUsd": 0.0087781,
+          "estimatedSpentUsd": 0.027093500000000003
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 174,
+          "cacheReadTokens": 14305,
+          "cacheWriteTokens": 1886,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 59424,
+          "estimatedUsd": 0.0078895,
+          "estimatedSpentUsd": 0.034983
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 102,
+          "cacheReadTokens": 16191,
+          "cacheWriteTokens": 1209,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 76928,
+          "estimatedUsd": 0.005665600000000001,
+          "estimatedSpentUsd": 0.0406486
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 527,
+          "cacheReadTokens": 17400,
+          "cacheWriteTokens": 399,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 95256,
+          "estimatedUsd": 0.0080115,
+          "estimatedSpentUsd": 0.0486601
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 333,
+          "cacheReadTokens": 17799,
+          "cacheWriteTokens": 2452,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 115842,
+          "estimatedUsd": 0.0112439,
+          "estimatedSpentUsd": 0.059904
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 355,
+          "cacheReadTokens": 20251,
+          "cacheWriteTokens": 3796,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 140246,
+          "estimatedUsd": 0.0150691,
+          "estimatedSpentUsd": 0.0749731
+        }
+      ],
+      "observed": {
+        "appearance": {
+          "hillshade": true,
+          "baseColor": "elevation",
+          "azimuthDeg": 315,
+          "elevationDeg": 45,
+          "contrast": 1,
+          "imageryAmount": 0.25,
+          "palette": "blue-gold",
+          "contours": false,
+          "contourOpacity": 0.35,
+          "contourDensity": 1,
+          "contourIntervalKm": 0,
+          "contourLabels": false,
+          "contourColor": "#f2e6c9",
+          "minKm": -10,
+          "maxKm": 15
+        },
+        "imagery": [
+          {
+            "id": "viking",
+            "visible": true,
+            "resolutionMeters": 325.60563825058347,
+            "status": "ok"
+          },
+          {
+            "id": "ctx-global",
+            "visible": false,
+            "resolutionMeters": 5.087588097665367,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-ctx",
+            "visible": false,
+            "resolutionMeters": 6,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-hirise",
+            "visible": true,
+            "resolutionMeters": 0.25,
+            "status": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "ingenuity",
+      "mode": "discovery",
+      "prompt": "Show Flight 5 at Airfield B, pause at its end and frame Ingenuity. Save a visible centre-to-centre distance measurement from Ingenuity to Mars called flight5-distance. Turn on Mars hillshade with the blue-gold elevation palette, and enable the highest-resolution Jezero imagery available separately. Keep elevation coloring as the final base color, with that imagery layer enabled for later use. Explain the estimated timing and that centre distance is not terrain clearance.",
+      "latencyMs": 21323,
+      "modelRounds": 9,
+      "rawTokens": 114818,
+      "estimatedUsd": 0.07677729999999999,
+      "schemaBytes": [
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529,
+        8529
+      ],
+      "refusals": 1,
+      "model": "claude-sonnet-5-5",
+      "phase": "styling",
+      "reply": "Flight 5 is selected and paused at its end, 2021-05-07 19:25:10 UTC. The camera is tracking Ingenuity, but the framing call only returned from the host without a camera readback. Flight 5's site is Airfield B by \"name match\": the record has no direct place reference.\n\nThe flight5-distance measurement (Ingenuity to Mars) is saved and visible. Mars hillshade is on with the blue-gold palette, and elevation is the base color. The Jezero HiRISE layer (0.25 m, the finest available) is enabled as a separate overlay. HiRISE showed 71 degraded tiles in view, so it may still be loading.\n\nThe timing is estimated. The original MMGIS epochs are approximate and the clock drift is uncalibrated. The path is an observed horizontal track with estimated 3D playback, not flight telemetry. The measurement is a centre-to-centre distance, not terrain clearance or height above ground.",
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "activities.listActivities",
+          "ok": true
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": false,
+          "error": "input: missing \"activity\". Expected input schema: {\"type\":\"object\",\"properties\":{\"activity\":{\"type\":\"string\"}},\"required\":[\"activity\"],\"additionalProperties\":false}"
+        },
+        {
+          "operation": "activities.getActivity",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "describeCapabilities",
+          "ok": true
+        },
+        {
+          "operation": "activities.selectActivity",
+          "ok": true
+        },
+        {
+          "operation": "time.setPlaying",
+          "ok": true
+        },
+        {
+          "operation": "activities.seekActivity",
+          "ok": true
+        },
+        {
+          "operation": "camera.frameObject",
+          "ok": true
+        },
+        {
+          "operation": "measurements.upsertMeasurement",
+          "ok": true
+        },
+        {
+          "operation": "surface.setSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.showImagery",
+          "ok": true
+        },
+        {
+          "operation": "measurements.listMeasurements",
+          "ok": true
+        },
+        {
+          "operation": "surface.getSurfaceAppearance",
+          "ok": true
+        },
+        {
+          "operation": "surface.getImagery",
+          "ok": true
+        }
+      ],
+      "approvalKinds": [
+        "authoring"
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "usage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "outputTokens": 54,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 6796,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 147100,
+          "estimatedUsd": 0.017538,
+          "estimatedSpentUsd": 0.0925111
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 30,
+          "cacheReadTokens": 6796,
+          "cacheWriteTokens": 1337,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 155265,
+          "estimatedUsd": 0.0043261,
+          "estimatedSpentUsd": 0.0968372
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 330,
+          "cacheReadTokens": 8133,
+          "cacheWriteTokens": 421,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 164151,
+          "estimatedUsd": 0.0051698000000000004,
+          "estimatedSpentUsd": 0.102007
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 144,
+          "cacheReadTokens": 8554,
+          "cacheWriteTokens": 2528,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 175379,
+          "estimatedUsd": 0.0086194,
+          "estimatedSpentUsd": 0.1106264
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 174,
+          "cacheReadTokens": 11082,
+          "cacheWriteTokens": 1956,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 188593,
+          "estimatedUsd": 0.007742199999999999,
+          "estimatedSpentUsd": 0.1183686
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 102,
+          "cacheReadTokens": 13038,
+          "cacheWriteTokens": 1227,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 202962,
+          "estimatedUsd": 0.0053953000000000004,
+          "estimatedSpentUsd": 0.12376390000000001
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 527,
+          "cacheReadTokens": 14265,
+          "cacheWriteTokens": 399,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 218155,
+          "estimatedUsd": 0.007698,
+          "estimatedSpentUsd": 0.13146190000000002
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 260,
+          "cacheReadTokens": 14664,
+          "cacheWriteTokens": 2452,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 235533,
+          "estimatedUsd": 0.0102004,
+          "estimatedSpentUsd": 0.14166230000000002
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 312,
+          "cacheReadTokens": 17116,
+          "cacheWriteTokens": 2101,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 255064,
+          "estimatedUsd": 0.010088100000000001,
+          "estimatedSpentUsd": 0.1517504
+        }
+      ],
+      "observed": {
+        "appearance": {
+          "hillshade": true,
+          "baseColor": "elevation",
+          "azimuthDeg": 315,
+          "elevationDeg": 45,
+          "contrast": 1,
+          "imageryAmount": 0.25,
+          "palette": "blue-gold",
+          "contours": false,
+          "contourOpacity": 0.35,
+          "contourDensity": 1,
+          "contourIntervalKm": 0,
+          "contourLabels": false,
+          "contourColor": "#f2e6c9",
+          "minKm": -10,
+          "maxKm": 15
+        },
+        "imagery": [
+          {
+            "id": "viking",
+            "visible": true,
+            "resolutionMeters": 325.60563825058347,
+            "status": "ok"
+          },
+          {
+            "id": "ctx-global",
+            "visible": false,
+            "resolutionMeters": 5.087588097665367,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-ctx",
+            "visible": false,
+            "resolutionMeters": 6,
+            "status": "idle"
+          },
+          {
+            "id": "jezero-hirise",
+            "visible": true,
+            "resolutionMeters": 0.25,
+            "status": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "cassini",
+      "mode": "fixed",
+      "prompt": "show cassini at closest approach to mimas",
+      "latencyMs": 21909,
+      "modelRounds": 8,
+      "rawTokens": 100041,
+      "estimatedUsd": 0.00385427,
+      "schemaBytes": [
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
+      ],
+      "refusals": 1,
+      "model": "claude-haiku-5-5",
+      "phase": "final Haiku",
+      "reply": "Cassini's closest approach to Mimas in the searched window is about 76,686 km center-to-center (about 2004-07-01 00:30 UTC, derived from the event's ephemeris time). I searched 2004-01-02 to 2005-04-07 using loaded SPICE kernels with no light-time correction, and the closest of the 484 local minima is within that window only. The viewer is now paused on that encounter with Cassini and Mimas framed.",
+      "operations": [
+        {
+          "operation": "getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": false,
+          "error": "runEventQuery: The search window extends beyond the available range for this event. Choose a window inside one available range."
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true,
+          "input": {
+            "id": "events.getEventResultPage",
+            "input": {
+              "query": "cassini-mimas-closest-approach",
+              "offset": 0,
+              "limit": 100,
+              "order": "range-ascending"
+            }
+          }
+        },
+        {
+          "operation": "events.presentEventResult",
+          "ok": true
+        }
+      ],
+      "approvalKinds": [
+        "authoring",
+        "authoring"
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "usage": [
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 4,
+          "outputTokens": 284,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 7556,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 7844,
+          "estimatedUsd": 0.0010869,
+          "estimatedSpentUsd": 0.0010869
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 408,
+          "cacheReadTokens": 7556,
+          "cacheWriteTokens": 2857,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 18667,
+          "estimatedUsd": 0.000636885,
+          "estimatedSpentUsd": 0.001723785
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 108,
+          "cacheReadTokens": 10413,
+          "cacheWriteTokens": 981,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 30171,
+          "estimatedUsd": 0.000280955,
+          "estimatedSpentUsd": 0.00200474
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 427,
+          "cacheReadTokens": 11394,
+          "cacheWriteTokens": 399,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 42393,
+          "estimatedUsd": 0.000377515,
+          "estimatedSpentUsd": 0.0023822550000000002
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 108,
+          "cacheReadTokens": 11793,
+          "cacheWriteTokens": 1004,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 55300,
+          "estimatedUsd": 0.00029763,
+          "estimatedSpentUsd": 0.0026798850000000003
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 122,
+          "cacheReadTokens": 12797,
+          "cacheWriteTokens": 364,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 68585,
+          "estimatedUsd": 0.00023466999999999997,
+          "estimatedSpentUsd": 0.002914555
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 195,
+          "cacheReadTokens": 13161,
+          "cacheWriteTokens": 1722,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 83665,
+          "estimatedUsd": 0.00044456,
+          "estimatedSpentUsd": 0.003359115
+        },
+        {
+          "requestedModel": "claude-haiku-5-5",
+          "model": "claude-haiku-5-5",
+          "inputTokens": 2,
+          "outputTokens": 426,
+          "cacheReadTokens": 14883,
+          "cacheWriteTokens": 1065,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 100041,
+          "estimatedUsd": 0.0004951549999999999,
+          "estimatedSpentUsd": 0.00385427
+        }
+      ],
+      "observed": {
+        "et": 141913876.86703587,
+        "playing": false,
+        "selected": "Mimas",
+        "tracked": "Mimas",
+        "camera": {
+          "position": [
+            43499.48465031921,
+            76382.21602064958,
+            48005.84488532317
+          ],
+          "target": [
+            36924.506366461515,
+            4162.71782708168,
+            -9456.71751181688
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "reference": {
+          "scene": 1,
+          "query": "cassini-mimas-closest-approach",
+          "id": "cassini-mimas-closest-approach:190",
+          "revision": 3
+        },
+        "presentation": {
+          "tracked": "Mimas",
+          "reference": "Mimas",
+          "participants": [
+            {
+              "object": "Cassini",
+              "ndc": [
+                0.4970147036674262,
+                0.1246602768591255,
+                0.9999999800000018
+              ],
+              "drawEnabled": true,
+              "inView": true
+            },
+            {
+              "object": "Mimas",
+              "ndc": [
+                -0.49701470366742584,
+                -0.12466027685912578,
+                0.9999999800000017
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
+        "nativeDraw": {
+          "observedEt": 141913876.86703587,
+          "selected": {
+            "query": "cassini-mimas-closest-approach",
+            "id": "cassini-mimas-closest-approach:190"
+          },
+          "markerGroups": 1,
+          "visibleGlyphs": 1,
+          "visibleSpans": 0,
+          "occultationVisible": false
+        }
+      },
+      "independentComparison": {
+        "window": {
+          "start": 126360003,
+          "end": 166129196.9999866
+        },
+        "total": 484,
+        "winner": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-closest-approach",
+            "id": "cassini-mimas-closest-approach:190",
+            "revision": 3
+          },
+          "et": 141913876.86703587,
+          "rangeKm": 76685.77172363873
+        },
+        "coverage": {
+          "status": "available",
+          "windows": [
+            {
+              "start": 126360003,
+              "end": 166129196.9999866
+            },
+            {
+              "start": 166129203,
+              "end": 175478397
+            }
+          ],
+          "exact": true,
+          "problems": [],
+          "caveats": []
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": [
+            "Results apply only to the loaded kernel set and declared window. Search step limits completeness.",
+            "Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.",
+            "3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation."
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "voyager",
+      "mode": "fixed",
+      "prompt": "show me when voyager 1 flew past jupiter",
+      "latencyMs": 36261,
+      "modelRounds": 6,
+      "rawTokens": 71647,
+      "estimatedUsd": 0.0388914,
+      "schemaBytes": [
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
+      ],
+      "refusals": 0,
+      "model": "claude-sonnet-5-5",
+      "phase": "final encounter",
+      "reply": "Voyager 1's closest approach to Jupiter was at 1979-03-05 12:04:35 UTC, at a centre-to-centre range of about 348,892 km. I searched 1978-12-31 to 1979-12-31 with no light-time correction and a 1-hour step, so the result is only valid for that window. It was the only approach found in the window.\n\nThe viewer is now paused at that moment. It's tracking Voyager 1, and both Voyager 1 and Jupiter are in view. I didn't verify visible pixels.",
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true,
+          "input": {
+            "id": "events.getEventResultPage",
+            "input": {
+              "query": "v1-jupiter-closest",
+              "order": "range-ascending",
+              "limit": 5
+            }
+          }
+        },
+        {
+          "operation": "events.presentEventResult",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventVisualization",
+          "ok": true
+        }
+      ],
+      "approvalKinds": [
+        "authoring"
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "usage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "outputTokens": 127,
+          "cacheReadTokens": 7559,
+          "cacheWriteTokens": 0,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 7690,
+          "estimatedUsd": 0.0020339,
+          "estimatedSpentUsd": 0.0020339
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 543,
+          "cacheReadTokens": 7559,
+          "cacheWriteTokens": 2704,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 18498,
+          "estimatedUsd": 0.0129499,
+          "estimatedSpentUsd": 0.0149838
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 94,
+          "cacheReadTokens": 10263,
+          "cacheWriteTokens": 1512,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 30369,
+          "estimatedUsd": 0.0057503,
+          "estimatedSpentUsd": 0.0207341
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 111,
+          "cacheReadTokens": 11775,
+          "cacheWriteTokens": 344,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 42601,
+          "estimatedUsd": 0.0031515,
+          "estimatedSpentUsd": 0.0238856
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 227,
+          "cacheReadTokens": 12119,
+          "cacheWriteTokens": 1015,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 55964,
+          "estimatedUsd": 0.0060234,
+          "estimatedSpentUsd": 0.029908999999999998
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 173,
+          "cacheReadTokens": 13134,
+          "cacheWriteTokens": 2374,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 71647,
+          "estimatedUsd": 0.0089824,
+          "estimatedSpentUsd": 0.0388914
+        }
+      ],
+      "observed": {
+        "et": -657244474.4091611,
+        "playing": false,
+        "selected": "Voyager 1",
+        "tracked": "Voyager 1",
+        "camera": {
+          "position": [
+            562524.4176130742,
+            -508490.8705885336,
+            650539.3196659681
+          ],
+          "target": [
+            -91916.19427022338,
+            -147881.55953675508,
+            10668.12059725821
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "reference": {
+          "scene": 1,
+          "query": "v1-jupiter-closest",
+          "id": "v1-jupiter-closest:0",
+          "revision": 2
+        },
+        "presentation": {
+          "tracked": "Voyager 1",
+          "reference": "Voyager 1",
+          "participants": [
+            {
+              "object": "Jupiter",
+              "ndc": [
+                -0.08899324658324384,
+                -0.2798486525688389,
+                0.9999999800000198
+              ],
+              "drawEnabled": true,
+              "inView": true
+            },
+            {
+              "object": "Voyager 1",
+              "ndc": [
+                0.08899324658324367,
+                0.2798486525688387,
+                0.9999999800000198
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
+        "nativeDraw": {
+          "observedEt": -657244474.4091611,
+          "selected": {
+            "query": "v1-jupiter-closest",
+            "id": "v1-jupiter-closest:0"
+          },
+          "markerGroups": 1,
+          "visibleGlyphs": 1,
+          "visibleSpans": 0,
+          "occultationVisible": false
+        }
+      },
+      "independentComparison": {
+        "window": {
+          "start": -662731200,
+          "end": -631195200
+        },
+        "total": 1,
+        "winner": {
+          "reference": {
+            "scene": 1,
+            "query": "v1-jupiter-closest",
+            "id": "v1-jupiter-closest:0",
+            "revision": 2
+          },
+          "et": -657244474.4091611,
+          "rangeKm": 348891.68071035197
+        },
+        "coverage": {
+          "status": "available",
+          "windows": [
+            {
+              "start": -704412032.617,
+              "end": 3155716797
+            }
+          ],
+          "exact": true,
+          "problems": [],
+          "caveats": []
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 21,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": [
+            "Results apply only to the loaded kernel set and declared window. Search step limits completeness.",
+            "Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.",
+            "3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation."
+          ]
+        }
+      }
+    },
+    {
+      "scenario": "cassini",
+      "mode": "fixed",
+      "prompt": "show cassini at closest approach to mimas",
+      "latencyMs": 24436,
+      "modelRounds": 6,
+      "rawTokens": 72098,
+      "estimatedUsd": 0.0382189,
+      "schemaBytes": [
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
+      ],
+      "refusals": 0,
+      "model": "claude-sonnet-5-5",
+      "phase": "final encounter",
+      "reply": "The viewer is now paused at Cassini's closest approach to Mimas, 2004-07-01 00:30:12 UTC. The range there is about 76,686 km, measured centre to centre.\n\nI searched 2004-01-02 to 2005-04-07 with no light-time correction and a 3,600 s step. I compared all 484 local minima in that window, and this one was the smallest. The next closest was about 106,956 km on 2004-12-15.\n\nThe view is framed on both bodies, and both are in view. Those are projected centres, not proof of visible pixels.",
+      "operations": [
+        {
+          "operation": "describeScene",
+          "ok": true
+        },
+        {
+          "operation": "getEventSearchOptions",
+          "ok": true
+        },
+        {
+          "operation": "events.upsertEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.runEventQuery",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventResultPage",
+          "ok": true,
+          "input": {
+            "id": "events.getEventResultPage",
+            "input": {
+              "query": "cassini-mimas-closest",
+              "order": "range-ascending",
+              "limit": 5
+            }
+          }
+        },
+        {
+          "operation": "events.presentEventResult",
+          "ok": true
+        },
+        {
+          "operation": "events.getEventVisualization",
+          "ok": true
+        }
+      ],
+      "approvalKinds": [
+        "authoring"
+      ],
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+      "errors": [],
+      "usage": [
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 4,
+          "outputTokens": 124,
+          "cacheReadTokens": 7556,
+          "cacheWriteTokens": 0,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 7684,
+          "estimatedUsd": 0.0020036,
+          "estimatedSpentUsd": 0.0020036
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 337,
+          "cacheReadTokens": 7556,
+          "cacheWriteTokens": 2698,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 18277,
+          "estimatedUsd": 0.0108746,
+          "estimatedSpentUsd": 0.0128782
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 94,
+          "cacheReadTokens": 10254,
+          "cacheWriteTokens": 1307,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 29934,
+          "estimatedUsd": 0.0052369,
+          "estimatedSpentUsd": 0.0181151
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 111,
+          "cacheReadTokens": 11561,
+          "cacheWriteTokens": 344,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 41952,
+          "estimatedUsd": 0.0031301000000000002,
+          "estimatedSpentUsd": 0.0212452
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 227,
+          "cacheReadTokens": 11905,
+          "cacheWriteTokens": 1797,
+          "fallback": null,
+          "stop": "tool_use",
+          "spent": 55883,
+          "estimatedUsd": 0.007957,
+          "estimatedSpentUsd": 0.029202199999999998
+        },
+        {
+          "requestedModel": "claude-sonnet-5-5",
+          "model": "claude-sonnet-5-5",
+          "inputTokens": 2,
+          "outputTokens": 182,
+          "cacheReadTokens": 13702,
+          "cacheWriteTokens": 2329,
+          "fallback": null,
+          "stop": "end_turn",
+          "spent": 72098,
+          "estimatedUsd": 0.0090167,
+          "estimatedSpentUsd": 0.0382189
+        }
+      ],
+      "observed": {
+        "et": 141913876.86703587,
+        "playing": false,
+        "selected": "Mimas",
+        "tracked": "Mimas",
+        "camera": {
+          "position": [
+            47882.803506224336,
+            124528.54814969486,
+            86314.21981674989
+          ],
+          "target": [
+            36924.506366461515,
+            4162.71782708168,
+            -9456.71751181688
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ],
+          "fov": 60
+        },
+        "reference": {
+          "scene": 1,
+          "query": "cassini-mimas-closest",
+          "id": "cassini-mimas-closest:190",
+          "revision": 2
+        },
+        "presentation": {
+          "tracked": "Mimas",
+          "reference": "Mimas",
+          "participants": [
+            {
+              "object": "Cassini",
+              "ndc": [
+                0.2982088222004558,
+                0.07479616611547496,
+                0.999999980000003
+              ],
+              "drawEnabled": true,
+              "inView": true
+            },
+            {
+              "object": "Mimas",
+              "ndc": [
+                -0.2982088222004556,
+                -0.07479616611547579,
+                0.999999980000003
+              ],
+              "drawEnabled": true,
+              "inView": true
+            }
+          ]
+        },
+        "nativeDraw": {
+          "observedEt": 141913876.86703587,
+          "selected": {
+            "query": "cassini-mimas-closest",
+            "id": "cassini-mimas-closest:190"
+          },
+          "markerGroups": 1,
+          "visibleGlyphs": 1,
+          "visibleSpans": 0,
+          "occultationVisible": false
+        }
+      },
+      "independentComparison": {
+        "window": {
+          "start": 126360003,
+          "end": 166129196
+        },
+        "total": 484,
+        "winner": {
+          "reference": {
+            "scene": 1,
+            "query": "cassini-mimas-closest",
+            "id": "cassini-mimas-closest:190",
+            "revision": 2
+          },
+          "et": 141913876.86703587,
+          "rangeKm": 76685.77172363873
+        },
+        "coverage": {
+          "status": "available",
+          "windows": [
+            {
+              "start": 126360003,
+              "end": 166129196.9999866
+            },
+            {
+              "start": 166129203,
+              "end": 175478397
+            }
+          ],
+          "exact": true,
+          "problems": [],
+          "caveats": []
+        },
+        "provenance": {
+          "source": "loaded-spice-kernels",
+          "kernelRevision": 2,
+          "kernelCount": 31,
+          "contextFrame": "J2000",
+          "calculationFrames": [],
+          "timeUnit": "ET seconds past J2000",
+          "stepUnit": "s",
+          "abcorr": "NONE",
+          "limitations": [
+            "Results apply only to the loaded kernel set and declared window. Search step limits completeness.",
+            "Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.",
+            "3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation."
+          ]
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Projected centers/native group visibility do not prove unoccluded pixels.",
+    "The 150000-token admission threshold is checked before a request, not a strict final-token ceiling.",
+    "One-off computations still use approved configured Event Finder definitions for current UI/run provenance; presentation itself creates no saved definition.",
+    "Screenshots were visually inspected by the coding agent; an independent human smoke test remains before merge.",
+    "A global/deepest-only query returns global minima, not a census of local approaches. The result summary now states that distinction explicitly."
+  ],
+  "rejectedChecks": [
+    "An initial Voyager run chose an authored viewpoint; the strengthened test rejected it. Final runs compute and present the encounter.",
+    "One early Cassini run supplied a bare result ID; final compact reference guidance specifies the entire JSON reference.",
+    "The first natural-follow-up test incorrectly demanded a new probe read despite an existing delivered conversion. The corrected test checks the earlier conversion and immediately selected single feature.",
+    "One live development run was interrupted by a build-triggered reload. Final live runs ran without overlapping builds."
+  ]
+}

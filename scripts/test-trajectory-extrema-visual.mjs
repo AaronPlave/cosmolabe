@@ -60,8 +60,19 @@ try {
   assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),true);
   assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isDisabled(),true);
   assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAbovePhysicalTerrain');
+  assert.match(await page.locator('.event-metric-unavailable').innerText(),/versioned physical CPU terrain source is unavailable/);
   await bodyPickers.nth(0).selectOption('Moon');
+  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isEnabled(),true);
   assert.equal(await page.locator('#event-param-metric option[value="heightAbovePhysicalTerrain"]').isDisabled(),false);
+  // An explicit datum survives switching to an unavailable context and back.
+  await page.locator('#event-param-metric').selectOption('heightAboveReferenceEllipsoid');
+  await bodyPickers.nth(0).selectOption('Earth');
+  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAboveReferenceEllipsoid');
+  assert.equal(await page.getByRole('button',{name:'Find events',exact:true}).isEnabled(),true);
+  await bodyPickers.nth(0).selectOption('Moon');
+  assert.equal(await page.locator('#event-param-metric').inputValue(),'heightAboveReferenceEllipsoid');
+  await page.locator('#event-param-metric').selectOption('heightAbovePhysicalTerrain');
+  report.metricSwitching={unavailableAGLBlocksSearch:true,availableAGLEnablesSearch:true,explicitReferencePreserved:true};
   assert.match(await page.locator('#event-window option[value="source"]').innerText(),/envelope \(may include gaps\)/);
   assert.equal(await page.locator('#event-param-scope').inputValue(),'window');
   assert.equal(await page.locator('#event-param-frame').isVisible(),false);

@@ -71,9 +71,10 @@
   let configuredQueries = $derived(configuredEventQueries());
   /** Why this scene cannot search at all — a stated policy, not a failed search. */
   let unavailable = $derived(currentSearchUnavailable());
-  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !ef.restoring);
   let sourceWindow = $derived.by(() => { void vs.kernelCount; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectorySourceWindow(form?.bodies.center, form?.bodies.observer) : null; });
   let metricAvailability = $derived.by(() => { void vs.kernelRevision; void vs.bodies; return kind.engine === 'trajectory-analysis' ? trajectoryMetricAvailability(form?.bodies.center, form?.params.frame, form?.params.radiusKm) : {}; });
+  let metricUnavailable = $derived(metricAvailability[form?.params.metric ?? ''] ?? null);
+  let canSearch = $derived(!!form && unfilledRoles.length === 0 && !ef.running && !unavailable && !metricUnavailable && !ef.restoring);
   let coverage = $derived(ef.coverage);
   /** The bodies the suggestion is about, in the kind's role order: "Mars ↔ Earth". */
   let coverageSubject = $derived(
@@ -458,6 +459,10 @@
       </select>
     </div>
 
+    {/if}
+
+    {#if metricUnavailable}
+      <p class="event-metric-unavailable ui-helper mb-2" role="note">{metricUnavailable}</p>
     {/if}
 
     <!-- Run. A long search is survivable now that it runs off the main thread,

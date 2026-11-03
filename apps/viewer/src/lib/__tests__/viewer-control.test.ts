@@ -1544,6 +1544,58 @@ it('snapshots the controller frame even before the UI mode mirror updates', () =
 });
 
 describe('reviewed modern feature adapters', () => {
+  it('fits two native body positions after refreshing the origin and preserves the explicit orbit target', async () => {
+    const { frameBodyPair } = await import('../viewer-state.svelte');
+    const camera = new THREE.PerspectiveCamera(60,1.4,.000001,1000); camera.position.set(0,0,2);
+    Object.assign(renderer, { camera });
+    Object.assign(renderer.cameraController, { camera, syncOrbitTargetFromCamera: vi.fn() });
+    const a = renderer.getBodyMesh('Titan')!, b = renderer.getBodyMesh('Cassini')!;
+    a.position = new THREE.Vector3() as unknown as typeof a.position;
+    b.position = new THREE.Vector3(1,0,0) as unknown as typeof b.position;
+    expect(frameBodyPair('Titan','Cassini')).toBe(true);
+    for (const p of [new THREE.Vector3(),new THREE.Vector3(1,0,0)]) {
+      p.project(camera); expect(Math.abs(p.x)).toBeLessThan(.95); expect(Math.abs(p.y)).toBeLessThan(.95);
+    }
+    expect(renderer.cameraController.syncOrbitTargetFromCamera).toHaveBeenCalled();
+    expect(renderer.calls).toContain('frame(Titan)');
+    expect(frameBodyPair('missing','Cassini')).toBe(false);
+  });
+  it('leaves manual camera and time takeover in place while presentation waits for native observation', async () => {
+    const model = await import('../analysis.svelte');
+    const { emit } = await import('../viewer-state.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    model.setEventResults(item.id, [{ id: 'result', queryId: item.id, kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } }]);
+    const ref = host.getEventResultPage(item.id).items[0].reference;
+    vi.useFakeTimers();
+    try {
+      const pending = host.presentEventResult(ref, 'target');
+      expect(host.getTime()).toBe(150); expect(host.isPlaying()).toBe(false);
+      const frames = renderer.calls.filter(c=>c==='frame(Titan)').length;
+      emit('cameraInput', {}); await vi.advanceTimersByTimeAsync(16);
+      expect((await pending).status).toBe('cancelled');
+      expect(renderer.calls.filter(c=>c==='frame(Titan)')).toHaveLength(frames);
+      const changed = host.presentEventResult(ref, 'target');
+      host.setTime({ kind: 'et', et: 160 }); await vi.advanceTimersByTimeAsync(16);
+      expect((await changed).status).toBe('cancelled'); expect(host.getTime()).toBe(160);
+    } finally { vi.useRealTimers(); }
+  });
+  it('ranks the entire measured candidate set before pagination, not the first chronological minimum', async () => {
+    const model = await import('../analysis.svelte'), host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Multiple approaches', 'explicit');
+    const events = [1000,20,500,5,200,30].map((range,i) => ({ id: `candidate-${i}`, queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 110+i*10, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' }, metrics: [{ key: 'range', label: 'Range', value: range, unit: 'km' }] }));
+    model.setEventResults(item.id, events);
+    expect(host.getEventResultPage(item.id, { limit: 1 }).items[0].event.id).toBe('candidate-0');
+    const ranked = host.getEventResultPage(item.id, { limit: 1, order: 'range-ascending' });
+    expect(ranked).toMatchObject({ total: 6, ranking: { order: 'range-ascending', compared: 6 }, nextOffset: 1, items: [{ event: { id: 'candidate-3', et: 140 } }] });
+    expect(host.getEventResultPage(item.id, { offset: 1, limit: 2, order: 'range-ascending' }).items.map(i => i.event.id)).toEqual(['candidate-1','candidate-5']);
+    expect(host.focusEventResult(ranked.items[0].reference, 'middle').observation.et).toBe(140);
+    model.setEventResults(item.id, [{ ...events[0], metrics: [] }, events[3]]);
+    expect(() => host.getEventResultPage(item.id, { order: 'range-ascending' })).toThrow('every candidate');
+    const before = host.getTime();
+    expect((await host.presentEventResult(ranked.items[0].reference)).status).toBe('stale-result');
+    expect(host.getTime()).toBe(before);
+  });
   it('scopes result references to a computed batch and refuses stale seeks after reruns, edits, kernel replacement and reload', async () => {
     const model = await import('../analysis.svelte');
     const host = createViewerControl();

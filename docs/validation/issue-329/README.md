@@ -2,8 +2,14 @@
 
 The ordinary **Event Finder → Event → Altitude / terrain clearance** form uses
 its normal Find events, progress/cancel, results, selection and timeline lanes.
-Leave Vehicle(s) blank for objects with probeable states relative to the central body,
-or choose one. **Time window** is the default: it requires no activities and
+Leave Vehicle(s) blank for declared vehicles with probeable relative states,
+independent of catalog parentage. Declared spacecraft, landers, rovers, orbiters,
+probes, hoppers and helicopters qualify. Unclassified legacy objects qualify via
+mission activities, surface-trajectory provenance, or sampled/composite/TLE/waypoint
+trajectories, provided they have no natural-body mass, radius or globe metadata.
+Natural/other classifications and ambiguous bare fixed points or ephemerides do
+not enter this automatic vehicle search. Choose an object explicitly to analyze
+it regardless of that policy. **Time window** is the default: it requires no activities and
 uses authoritative source coverage, independent of semantic operations. The
 Window menu offers a **Trajectory envelope (may include gaps)** when finite bounds
 are known. This combines source intervals across objects, not a promise of usable
@@ -15,7 +21,8 @@ time window and report empty sets without falling back to parked time.
 Highest/Lowest and Height relative to describe the scientific question.
 Frame, datum radius/source pins, sample step and refinement tolerance live under
 Advanced search options. No physical terrain source means AGL is unavailable;
-the form disables unavailable metrics and explains explicitly named sphere/ellipsoid
+the form disables Search while the selected metric is unavailable, displays its exact
+reason, and preserves explicit metric choices across body changes. It explains named sphere/ellipsoid
 alternatives before search, with no fallback or silent datum change.
 Closest Approach minimizes center-to-center distance and annotates altitude at
 that encounter; this kind optimizes the selected height/clearance itself.
@@ -253,3 +260,27 @@ with possible gaps. It also confirms selection survives activity presentation
 refresh, then clears and refuses navigation after authoritative activity-store
 replacement. Earlier browser attempts were interrupted by concurrent Vite
 rebuilds; the stable final run passed. No live external provider was called.
+
+## Latest review: vehicle eligibility, metric gating and stack refresh
+
+Integrated #334 at `d5e9fe1e`, retaining its computed encounter presentation,
+range ranking, UTC transport and targeted observation behavior alongside numerical
+height metadata, guarded navigation and explicit camera framing.
+
+Mixed-catalog discovery includes spacecraft, lander, rover, cross-parent sampled
+flyby, unclassified sampled vehicle and mission-backed fixed vehicle. It excludes
+planets, stars, barycenters, asteroids, static-classified objects, unclassified bare
+fixed points and unclassified globe/radius objects. Explicitly named objects bypass
+this automatic policy.
+
+Loaded Chrome/Metal acceptance passed with no page errors on Apple M4 Max. It
+checks unavailable Earth AGL disables Search with a reason, switching back to
+terrain-equipped Moon enables it, and an explicitly chosen ellipsoid metric
+survives both context changes. The same run passes the real local Ask tools and
+modern script/discovery → result focus → explicit framing → timeline readiness
+workflow after stack integration, plus ranking, navigation, replay and invalidation.
+No live external model was called. `metricSwitching` in acceptance.json records
+these form checks. Build, lint, purity and all typechecks pass (Svelte: zero errors
+or warnings). Targeted numerical/control/agent/viewer tests: 245 passed across ten
+files; the independent terrain/SPICE scientific checks are included. Exact-head CI
+is tracked in the PR; previous-head CI is not claimed for this revision.

@@ -1,10 +1,11 @@
+import * as THREE from 'three';
 /** The host adapter for Event Finder's existing configuration, solver and selection. */
-import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt, ScriptReadinessRequest, ScriptReadiness } from '@cosmolabe/control';
+import type { ViewerControl, ScriptEventSearch, ScriptEventQuery, ScriptEventQueryInfo, ScriptEventReference, ScriptEventVisualization, ScriptEventFocusReceipt, ScriptEventResultPage, ScriptReadinessRequest, ScriptReadiness } from '@cosmolabe/control';
 import { builtinEventKinds, resolveEventQuery, windowOutsideCoverage } from '@cosmolabe/core';
 import { analysis, analysisContext, createConfiguredEventQuery, updateConfiguredEventQuery, visibleTimelineEvents, currentEventResultRun } from './analysis.svelte';
 import { configuredEventQueries, ef, openConfiguredQuery, removeConfiguredQuery, runSearch, cancelSearch, selectEvent, selectEventForInspection, clearSelection, eventSearchGeneration, setConfiguredQueryEnabled, setConfiguredQueryVisible, inspectEventQuery, recordEventSearchOutcome } from './event-finder.svelte';
 import { validateEventLinkState } from './event-link-state';
-import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit, vs } from './viewer-state.svelte';
+import { getSceneUniverse, getRenderer, sceneId, onViewerEvent, emit, vs, frameBody, frameBodyPair, setPlaying } from './viewer-state.svelte';
 const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 function guard(expected?: number) {
   if (!getSceneUniverse()) throw new Error('No scene is loaded');
@@ -53,7 +54,7 @@ export function getEventVisualization(): ScriptEventVisualization {
   const native = renderer?.getEventVisualization?.() ?? null;
   const drawn = native ? { ...native, occultationVisible: native.occultationVisible && ef.activeId === selected?.id && ef.activeQueryId === selected?.query } : null;
   const et = renderer?.timeController.et ?? vs.et;
-  const limitations = ['Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. No camera framing is applied.'];
+  const limitations = ['Draw-enabled glyphs/spans do not guarantee unoccluded pixels or calibrated geometry. This read does not move the camera; projected participant centers report the actual current view.'];
   if (!renderer) limitations.push('No renderer is attached.');
   if (ef.selectedId && !selected) limitations.push('Selection has no current computed result provenance.');
   if (!inLane) limitations.push('Selected result is not in a visible timeline lane.');
@@ -61,7 +62,14 @@ export function getEventVisualization(): ScriptEventVisualization {
   if (drawn && !drawn.visibleGlyphs && !drawn.visibleSpans && !drawn.occultationVisible) limitations.push('No selected event marker/span/geometry is draw-enabled; trajectory availability, visibility and view can limit it.');
   const observed = inResults && inLane && drawn?.observedEt === et && drawn.selected?.query === selected?.query && drawn.selected?.id === selected?.id
     && !!(drawn.visibleGlyphs || drawn.visibleSpans || drawn.occultationVisible);
-  return { scene: getSceneUniverse() ? sceneId() : null, selected, et, playing: renderer?.timeController.playing ?? vs.playing,
+  const participants = selected ? analysisContext().eventResults.find(e => e.queryId === selected.query && e.id === selected.id)?.bodies : null;
+  const presentation = renderer?.camera?.isCamera ? { tracked: renderer.cameraController.focusBody?.body.name ?? null, reference: renderer.cameraController.originBody?.body.name ?? null,
+    participants: [...new Set([participants?.observer, participants?.target].filter((n): n is string => !!n))].flatMap(object => {
+      const mesh = renderer.getBodyMesh(object); if (!mesh) return [];
+      const p = mesh.getWorldPosition(new THREE.Vector3()).project(renderer.camera);
+      const ndc = [p.x,p.y,p.z]; return [{ object, ndc, drawEnabled: mesh.visible, inView: ndc.every(Number.isFinite) && Math.abs(p.x) < .95 && Math.abs(p.y) < .95 && Math.abs(p.z) <= 1 }];
+    }) } : undefined;
+  return { presentation, scene: getSceneUniverse() ? sceneId() : null, selected, et, playing: renderer?.timeController.playing ?? vs.playing,
     selectedObject: vs.selectedBodyName, highlightedBodies: [...vs.highlightedBodies],
     timeline: { min: vs.scrubMin, max: vs.scrubMax, selectedInResults: inResults, selectedInVisibleLane: inLane },
     renderer: drawn, status: observed ? 'observed' : 'partial', limitations };
@@ -97,7 +105,7 @@ export function getEventReadiness(request: Extract<ScriptReadinessRequest, { kin
     missing.push('No selected explanatory geometry is draw-enabled.');
   return result(missing.length ? 'partial' : 'ready', missing);
 }
-export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions' | 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult'> = {
+export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions' | 'openEventQuery' | 'listEventQueries' | 'upsertEventQuery' | 'removeEventQuery' | 'getEventSearch' | 'runEventQuery' | 'cancelEventQuery' | 'listEventResults' | 'selectEventResult' | 'getEventQueryInfo' | 'getEventResultPage' | 'getEventVisualization' | 'focusEventResult' | 'presentEventResult'> = {
   getEventSearchOptions: (input = {}) => {
     guard();
     const kinds = builtinEventKinds().list();
@@ -125,8 +133,15 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     if (ef.configuredId === id && ef.fault) return { ...empty, status: 'failed' };
     const run = currentRun(id);
     if (!run) return { ...empty, status: analysis.eventResultRuns[id]?.complete ? 'stale-result' : 'not-searched' };
-    const events = analysis.eventResults[id] ?? [];
-    return { ...empty, status: events.length ? 'ready' : 'no-results', total: events.length,
+    let events = analysis.eventResults[id] ?? [];
+    let ranking: ScriptEventResultPage['ranking'];
+    if (opts?.order === 'range-ascending') {
+      const range = (e: typeof events[number]) => e.metrics?.find(m => m.key === 'range' && m.unit === 'km')?.value;
+      if (query.definition?.query.kind !== 'closest-approach' || events.some(e => !Number.isFinite(range(e)))) throw new Error('Cannot rank the complete candidate set: measured closest-approach ranges are required for every candidate');
+      ranking = { order: 'range-ascending', compared: events.length };
+      events = [...events].sort((a,b) => range(a)! - range(b)!);
+    } else if (opts?.order && opts.order !== 'chronological') throw new Error('Unknown event ordering');
+    return { ...empty, ...(ranking ? { ranking } : {}), status: events.length ? 'ready' : 'no-results', total: events.length,
       nextOffset: offset + limit < events.length ? offset + limit : null,
       items: events.slice(offset, offset + limit).map(event => ({ reference: reference(id, event.id)!, event: copy(event) })) };
   },
@@ -147,6 +162,35 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     // No later continuation can reassert time/camera after manual takeover.
     if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor, { frame: false });
     return result(getEventVisualization().status);
+  },
+  presentEventResult: async (ref, framing = 'pair', opts) => {
+    const refused = (status: ScriptEventFocusReceipt['status']): ScriptEventFocusReceipt => ({ status, reference: ref, anchor: 'middle', observation: getEventVisualization() });
+    if (!['pair','target'].includes(framing)) return refused('invalid-reference');
+    // Validate the exact live run before mutating the clock or view.
+    const inspected = eventControl.focusEventResult(ref, 'inspect', opts);
+    if (!['observed','partial'].includes(inspected.status)) return inspected;
+    const event = analysisContext().eventResults.find(e => e.queryId === ref.query && e.id === ref.id)!;
+    const target = event.bodies.target, observer = event.bodies.observer;
+    if (!target || !getRenderer()?.getBodyMesh(target)) return refused('unavailable');
+    setPlaying(false);
+    const focused = eventControl.focusEventResult(ref, 'middle', opts);
+    if (!['observed','partial'].includes(focused.status)) return focused;
+    if (!(framing === 'pair' && observer ? frameBodyPair(target, observer) : frameBody(target))) return refused('unavailable');
+    const expectedEt = focused.observation.et;
+    let interrupted = false;
+    const off = onViewerEvent('cameraInput', () => { interrupted = true; });
+    try {
+      const deadline = performance.now() + 1500;
+      while (performance.now() < deadline) {
+        if (opts?.signal?.aborted || interrupted) return refused('cancelled');
+        if (ref.scene !== sceneId() || currentRun(ref.query)?.revision !== ref.revision) return refused('scene-reloaded');
+        const v = getEventVisualization();
+        if (v.et !== expectedEt || v.playing || v.selected?.id !== ref.id || v.selected?.query !== ref.query) return refused('cancelled');
+        if (v.renderer?.observedEt === v.et) return { ...focused, status: v.status, observation: v };
+        await new Promise(resolve => setTimeout(resolve, 16));
+      }
+      return { ...focused, status: 'partial', observation: getEventVisualization() };
+    } finally { off(); }
   },
   upsertEventQuery: (input, opts) => {
     guard(opts?.scene);

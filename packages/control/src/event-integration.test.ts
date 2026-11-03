@@ -47,7 +47,26 @@ describe('Event Finder shared script and capability path', () => {
     expect(JSON.parse(resultText(page, 6000))).not.toHaveProperty('code', 'result-too-large');
     await task.call('getEventResultPage', { query: 'q', offset: 6, limit: 2 });
     expect(host.getEventResultPage).toHaveBeenLastCalledWith('q', { offset: 6, limit: 2 });
-    expect(await task.call('getEventResultPage', { query: 'q', limit: 6 })).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(await task.call('getEventResultPage', { query: 'q', limit: 100 })).toMatchObject({ ok: true });
+    expect(host.getEventResultPage).toHaveBeenLastCalledWith('q', { offset: undefined, limit: 5 });
+    tools.dispose();
+  });
+  it('verifies Event Finder search completion separately from native draw and rejects false host success', async () => {
+    const host = new FakeViewer();
+    const definition = { id: 'q', label: 'Approach', enabled: true, visible: true, query: { id: 'q', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 0, end: 100 } } };
+    const info = { status: 'available' as const, definition, coverage: null, error: null, provenance: null };
+    Object.assign(host, { getEventQueryInfo: () => info,
+      getEventSearch: () => ({ scene: 1, query: 'q', status: 'complete', progress: null, error: null, selected: null }),
+      getEventResultPage: () => ({ status: 'no-results', total: 0, offset: 0, nextOffset: null, items: [], query: info }) });
+    const tools = createCapabilityTools(host, { allowAuthoring: true, confirmAuthoring: async () => true });
+    expect(await tools.call('upsertEventQuery', { definition: JSON.stringify(definition) })).toMatchObject({ ok: true, receipt: { status: 'completed', verification: 'observed' } });
+    expect(await tools.call('runEventQuery', { id: 'q' })).toMatchObject({ ok: true, receipt: { status: 'completed', warnings: [] } });
+    host.getEventQueryInfo = () => ({ ...info, status: 'unavailable', coverage: { status: 'available', exact: true, windows: [{ start: 10, end: 90 }], problems: [], caveats: [] }, error: { code: 'missing-coverage', message: 'private diagnostic' } });
+    expect(await tools.call('upsertEventQuery', { definition: JSON.stringify(definition) })).toMatchObject({ ok: true, summary: expect.stringContaining('correct the window before running'), data: { query: { status: 'unavailable', coverage: { windows: [{ start: 10, end: 90 }] }, error: { code: 'missing-coverage' } } } });
+    host.getEventQueryInfo = () => ({ ...info, definition: { ...definition, query: { ...definition.query, window: { start: 0, end: 50 } } } });
+    expect(await tools.call('upsertEventQuery', { definition: JSON.stringify(definition) })).toMatchObject({ ok: false });
+    Object.assign(host, { getEventSearch: () => ({ query: 'different', status: 'complete' }) });
+    expect(await tools.call('runEventQuery', { id: 'q' })).toMatchObject({ ok: false });
     tools.dispose();
   });
   it('projects query/coverage/metric provenance without private solver text, URLs, frame names or arbitrary parameters', async () => {

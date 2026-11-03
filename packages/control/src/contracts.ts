@@ -720,8 +720,9 @@ export interface ViewerControl {
   cancelEventQuery?(opts?: ScriptSceneOptions): boolean;
   listEventResults?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): { total: number; items: GeometryEvent[] };
   getEventQueryInfo?(query: string, opts?: ScriptSceneOptions): ScriptEventQueryInfo;
-  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): ScriptEventResultPage;
+  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number; order?: 'chronological' | 'range-ascending' }): ScriptEventResultPage;
   getEventVisualization?(): ScriptEventVisualization;
+  presentEventResult?(reference: ScriptEventReference, framing?: 'pair' | 'target', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptEventFocusReceipt>;
   focusEventResult?(reference: ScriptEventReference, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): ScriptEventFocusReceipt;
   selectEventResult?(query: string, id: string, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions): boolean;
   resolvePlace?(query: { body: string; layer?: string; feature: string | number }, opts?: ScriptSceneOptions): { status: 'available' | 'missing' | 'ambiguous' | 'unlinked'; matches: ScriptPlace[] };
@@ -819,12 +820,14 @@ export interface ScriptEventQueryInfo {
   provenance: ScriptEventProvenance | null;
 }
 export interface ScriptEventResultPage {
+  ranking?: { order: 'range-ascending'; compared: number };
   status: 'ready' | 'no-results' | 'not-searched' | 'searching' | 'failed' | 'stale-result' | 'missing-query' | 'scene-reloaded';
   total: number; offset: number; nextOffset: number | null;
   items: { reference: ScriptEventReference; event: GeometryEvent }[];
   query: ScriptEventQueryInfo;
 }
 export interface ScriptEventVisualization {
+  presentation?: { tracked: string | null; reference: string | null; participants: { object: string; ndc: readonly number[]; inView: boolean; drawEnabled: boolean }[] };
   scene: number | null; selected: ScriptEventReference | null;
   et: number; playing: boolean; selectedObject: string | null; highlightedBodies: string[];
   timeline: { min: number; max: number; selectedInResults: boolean; selectedInVisibleLane: boolean };

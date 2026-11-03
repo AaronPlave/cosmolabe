@@ -71,7 +71,20 @@ try {
         const a=probe.point.bodyFixedPositionKm,b=source.position,la=Math.hypot(...a),lb=Math.hypot(...b);
         assert.ok(a.reduce((n,x,i)=>n+x*b[i],0)/(la*lb)>1-1e-8,'pin is under actual vehicle state at placement epoch, not a named site/camera pick');
         run.turns.push(await send(page,'can you place a point then',approvals));
-        run.turns.push(await send(page,'Save the existing pinned location as a geographic point annotation and select it. Use the pin’s supplied annotation coordinates and request approval.',approvals));
+        // Acceptance is immediate after the natural follow-up, with no coaching turn.
+        run.naturalFollowup=await inspect(page,'Mars');
+        assert.ok(run.naturalFollowup.selected&&run.naturalFollowup.feature,'natural follow-up selects its authored point');
+        assert.equal(run.naturalFollowup.context.drawing.reduce((n,d)=>n+d.features,0),1,'exactly one saved point, no duplicate');
+        assert.equal(run.naturalFollowup.probe.placedEt,probe.placedEt,'existing pin is preserved');
+        const p0=probe.point.bodyFixedPositionKm,p1=run.naturalFollowup.probe.point.bodyFixedPositionKm;
+        assert.ok(p0.reduce((n,x,i)=>n+x*p1[i],0)/(Math.hypot(...p0)*Math.hypot(...p1))>1-1e-10,'saved annotation preserves pin direction; native height refinement is separate');
+        const authored=run.turns.at(-1).steps.filter(s=>s.ok&&/editAnnotation$/.test(s.name)).map(s=>JSON.parse(s.input.input?.json??s.input.json)).filter(e=>e.type==='add');
+        assert.equal(authored.length,1,'one approved add');
+        const readPin=run.turns.flatMap(t=>t.steps).filter(s=>s.ok&&/getProbePoint$/.test(s.name)).at(-1)?.data;
+        assert.ok(readPin?.annotation,'the conversation supplies the existing pin conversion');
+        authored[0].geometry.coordinates.forEach((x,i)=>assert.ok(Math.abs(x-readPin.annotation.position[i])<1e-7,'saved position uses native Draw convention conversion'));
+        assert.ok(approvals.some(a=>a.kind==='authoring'&&/editAnnotation$/.test(a.operation)));
+        assert.ok(!run.turns.at(-1).steps.some(s=>s.ok&&/pinGroundPoint|clearProbePoint/.test(s.name)),'saving does not replace or clear the pin');
       }
       await page.waitForFunction(body=>{const c=window.cosmo.getSpatialContext(body);return c.selectedFeature&&c.drawing.some(d=>d.layers.includes(c.selectedFeature.layer)&&d.features>0);},scenario.body,{timeout:30000});
       run.after=await inspect(page,scenario.body);

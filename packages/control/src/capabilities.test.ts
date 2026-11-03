@@ -64,7 +64,8 @@ describe('capability catalog contract', () => {
     const task = tools.begin();
     const call = { id: 'events.upsertEventQuery', input: { definition: JSON.stringify({ id: 'q', label: 'Approach', enabled: true, visible: true,
       query: { id: 'q', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 0, end: 100 } } }) } };
-    expect(await task.call('invokeCapability', call)).toMatchObject({ ok: true });
+    host.getEventQueryInfo = () => ({ status: 'available', definition: JSON.parse(call.input.definition), coverage: null, error: null, provenance: null });
+    expect(await task.call('invokeCapability', call)).toMatchObject({ ok: true, receipt: { verification: 'observed', status: 'completed' } });
     expect(approvals).toBe(1);
     expect(await task.call('invokeCapability', { id: call.id, input: {} })).toMatchObject({ ok: false, code: 'invalid-input', error: expect.stringContaining('Expected input schema') });
     expect(approvals).toBe(1);

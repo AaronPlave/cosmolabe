@@ -1,5 +1,5 @@
 /** Shared semantic operation for UI, typed scripts, embedding and Ask. */
-import { findTrajectoryExtrema as compute, validateTrajectoryExtremaQuery, universeTrajectoryAnalysisProvider, trajectoryExtremumEvent, bodyFixedToGeodetic, type TrajectoryExtremaQuery, type TrajectoryAnalysisOptions, type TrajectoryExtremaResponse } from '@cosmolabe/core';
+import { InterpolatedStatesTrajectory, CompositeTrajectory, TLETrajectory, WaypointTrajectory, findTrajectoryExtrema as compute, validateTrajectoryExtremaQuery, universeTrajectoryAnalysisProvider, trajectoryExtremumEvent, bodyFixedToGeodetic, type TrajectoryExtremaQuery, type TrajectoryAnalysisOptions, type TrajectoryExtremaResponse } from '@cosmolabe/core';
 import { analysis, createConfiguredEventQuery, setEventResults } from './analysis.svelte';
 import { selectEvent, syncEventResultsInScene, removeConfiguredQuery } from './event-finder.svelte';
 import { analysisResultGuards } from './trajectory-analysis-identity';
@@ -209,13 +209,27 @@ function sameReference(a: TrajectoryExtremaQuery['reference'], b: TrajectoryExtr
   return b.kind === 'ellipsoid' && a.radiiKm.every((radius, index) => radius === b.radiiKm[index]);
 }
 
-/** Candidate discovery uses relative state/coverage, not catalog parentage.
+/** Unqualified searches include declared vehicles and conservative legacy vehicle
+ * evidence. Natural/unknown classifications are never inferred to be vehicles.
+ * Unclassified sampled/TLE/surface mission objects qualify only without natural
+ * body metadata. A bare fixed point or arbitrary ephemeris is ambiguous: name it
+ * explicitly to search it. Explicit object requests bypass this discovery policy. */
+function isTrajectoryVehicle(universe: import('@cosmolabe/core').Universe, body: import('@cosmolabe/core').Body): boolean {
+  const classification = body.classification?.trim().toLowerCase();
+  if (classification) return ['spacecraft', 'lander', 'rover', 'vehicle', 'orbiter', 'probe', 'hopper', 'helicopter'].includes(classification);
+  if (body.mu !== undefined || body.mass !== undefined || body.radii || body.geometryType === 'Globe') return false;
+  return !!body.surfaceTrajectory || universe.activities.list({ vehicle: body.name }).some(a => a.enabled !== false)
+    || body.trajectory instanceof InterpolatedStatesTrajectory || body.trajectory instanceof CompositeTrajectory
+    || body.trajectory instanceof TLETrajectory || body.trajectory instanceof WaypointTrajectory;
+}
+
+/** Candidate discovery uses vehicle evidence and relative state/coverage, not catalog parentage.
  * These probes establish eligibility only; the solver checks the entire scope. */
 export function trajectoryCandidates(universe: import('@cosmolabe/core').Universe, bodyName: string, window?: { start: number; end: number }): string[] {
   const provider = universeTrajectoryAnalysisProvider(universe, () => universe);
   const frame = universe.frames.bodyFixedFrameFor(bodyName);
   return universe.getAllBodies().filter(body => {
-    if (body.name === bodyName) return false;
+    if (body.name === bodyName || !isTrajectoryVehicle(universe, body)) return false;
     const coverage = provider.coverage?.(body.name);
     const intervals = window ? coverage ? coverage.map(w => ({ start: Math.max(w.start, window.start), end: Math.min(w.end, window.end) })).filter(w => w.start <= w.end) : [window] : coverage ?? [];
     return intervals.some(w => [w.start, (w.start + w.end) / 2, w.end].filter(Number.isFinite).some(et => {

@@ -1,6 +1,6 @@
 {
   "publicFixturesOnly": true,
-  "mode": "fixed; no URL mode override",
+  "mode": "fixed; no URL override",
   "model": "claude-sonnet-5-5",
   "cache": "uncontrolled; estimates are not billing",
   "runs": [
@@ -12,30 +12,26 @@
         "I mean the north pole. Add and select a saved point annotation on Saturn\u2019s reference ellipsoid."
       ],
       "modelRounds": 9,
-      "rawTokens": 99936,
-      "estimatedUsd": 0.060530499999999994,
+      "rawTokens": 94020,
+      "estimatedUsd": 0.0401563,
       "approvalOperations": [
         "geographic.createAnnotationLayer",
         "geographic.editAnnotation"
       ],
       "schemaBytes": [
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860
+        10840,
+        10840,
+        10840,
+        10840,
+        10840,
+        10840,
+        10840,
+        10840,
+        10840
       ],
       "operations": [
         {
           "operation": "getSpatialContext",
-          "ok": true
-        },
-        {
-          "operation": "describeScene",
           "ok": true
         },
         {
@@ -119,32 +115,29 @@
       "status": "passed",
       "prompts": [
         "place a pick marker on the ground where ingenuity currently is",
-        "can you place a point then",
-        "Save the existing pinned location as a geographic point annotation and select it. Use the pin\u2019s supplied annotation coordinates and request approval."
+        "can you place a point then"
       ],
-      "modelRounds": 14,
-      "rawTokens": 184211,
-      "estimatedUsd": 0.0759285,
+      "modelRounds": 13,
+      "rawTokens": 173291,
+      "estimatedUsd": 0.0590792,
       "approvalOperations": [
         "geographic.createAnnotationLayer",
-        "geographic.editAnnotation",
         "geographic.editAnnotation"
       ],
       "schemaBytes": [
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860,
-        8860
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930,
+        10930
       ],
       "operations": [
         {
@@ -172,6 +165,10 @@
           "ok": true
         },
         {
+          "operation": "geographic.listGeographicLayers",
+          "ok": true
+        },
+        {
           "operation": "describeCapabilities",
           "ok": true
         },
@@ -181,22 +178,6 @@
         },
         {
           "operation": "getSpatialContext",
-          "ok": true
-        },
-        {
-          "operation": "geographic.editAnnotation",
-          "ok": true
-        },
-        {
-          "operation": "geographic.listGeographicLayers",
-          "ok": true
-        },
-        {
-          "operation": "spatial.getProbePoint",
-          "ok": true
-        },
-        {
-          "operation": "geographic.listGeographicFeatures",
           "ok": true
         },
         {
@@ -217,14 +198,14 @@
         }
       ],
       "selected": {
-        "layer": "user:mars:ingenuity-position",
-        "feature": "string:user-2"
+        "layer": "user:mars:ingenuity-pick-marker",
+        "feature": "string:user-1"
       },
       "selectedGeometry": {
         "type": "Point",
         "coordinates": {
-          "latDeg": 18.637252303951076,
-          "lonDeg": 77.44822315513817
+          "latDeg": 18.637197600380485,
+          "lonDeg": 77.44818416536498
         }
       },
       "coordinateConvention": {
@@ -244,9 +225,9 @@
       "nativeDrawing": [
         {
           "layers": [
-            "user:mars:ingenuity-position"
+            "user:mars:ingenuity-pick-marker"
           ],
-          "features": 2,
+          "features": 1,
           "terrainCoverage": "not-assessed"
         }
       ],
@@ -255,11 +236,11 @@
         "frame": "IAU_MARS",
         "source": "terrain",
         "latitudeKind": "geodetic",
-        "placedEt": 678747682.2765006,
-        "observedEt": 678747708.0183074,
+        "placedEt": 678747683.0813996,
+        "observedEt": 678747705.4552053,
         "drawn": true,
         "annotation": {
-          "layer": "user:mars:ingenuity-position",
+          "layer": "user:mars:ingenuity-pick-marker",
           "coordinates": {
             "frame": "IAU_MARS",
             "latitude": "planetocentric",
@@ -275,8 +256,8 @@
             }
           },
           "position": [
-            77.44822315513818,
-            18.433363666257588
+            77.44818416536498,
+            18.43330947560707
           ]
         }
       },
@@ -286,83 +267,15 @@
         "tracked": "Mars",
         "cameraReference": "Mars"
       },
-      "errors": []
+      "errors": [],
+      "naturalFollowupIndependentlyVerified": true,
+      "featureCountImmediatelyAfterFollowup": 1,
+      "pinDirectionCosineBeforeAfter": 1.0
     }
   ],
-  "finalHaikuSmoke": {
-    "model": "claude-haiku-5-5",
-    "status": "done",
-    "modelRounds": 12,
-    "rawTokens": 166692,
-    "estimatedUsd": 0.005605515,
-    "refusals": 4,
-    "operations": [
-      {
-        "operation": "getEventSearchOptions",
-        "ok": true
-      },
-      {
-        "operation": "describeScene",
-        "ok": true
-      },
-      {
-        "operation": "events.upsertEventQuery",
-        "ok": false
-      },
-      {
-        "operation": "events.upsertEventQuery",
-        "ok": true
-      },
-      {
-        "operation": "events.runEventQuery",
-        "ok": false
-      },
-      {
-        "operation": "events.getEventQueryInfo",
-        "ok": true
-      },
-      {
-        "operation": "events.upsertEventQuery",
-        "ok": true
-      },
-      {
-        "operation": "events.runEventQuery",
-        "ok": false
-      },
-      {
-        "operation": "events.runEventQuery",
-        "ok": true
-      },
-      {
-        "operation": "events.getEventResultPage",
-        "ok": false
-      },
-      {
-        "operation": "events.getEventResultPage",
-        "ok": true
-      },
-      {
-        "operation": "time.setPlaying",
-        "ok": true
-      },
-      {
-        "operation": "events.focusEventResult",
-        "ok": true
-      },
-      {
-        "operation": "camera.frameObject",
-        "ok": true
-      },
-      {
-        "operation": "describeScene",
-        "ok": true
-      }
-    ],
-    "reply": "The closest approach of Cassini to Mimas in the searched interval (2004-07-01 to 2009) is at 2004-07-01 00:30:12 UTC, about 76,686 km range (76,487 km altitude), per the loaded SPICE kernels with no light-time correction. The clock is paused there, and the camera is framed on Mimas, which is selected and tracked. The event highlight rendering is only partially confirmed."
-  },
   "limits": [
-    "Native drawn state is not an unoccluded-pixels guarantee. The initial Ingenuity Ask read reported drawn=false; later native readback and the screenshot showed the pin.",
-    "Rendered pins may refine as terrain arrives; explicit reference pins do not. Pins are snapshots, not trackers.",
-    "The final Haiku smoke repaired four schema/coverage refusals in 12 rounds. A pre-request 150000-token admission limit allowed the last request; final usage was 166692 tokens. This is not a strict total-token ceiling or a latency benchmark."
+    "Native drawing and projected positions do not prove unoccluded pixels.",
+    "No coaching third prompt was sent. The initial Ingenuity read reported drawn=false; later readback and screenshot showed the existing pin.",
+    "Rendered native pins can refine height as terrain loads; saving does not relocate or clear the pin. Saved coordinates use the already-delivered Draw conversion."
   ]
 }

@@ -34,6 +34,22 @@ describe('trajectory scope and contextual metrics', () => {
     expect(trajectoryCandidates(universe, 'Moon', { start: 50, end: 60 })).toEqual([]);
     expect(trajectoryCandidates(universe, 'Moon', { start: 0, end: 110 })).toEqual(['flyby', 'later']);
   });
+  it('limits unqualified discovery to vehicles in a mixed catalog, preserving named expert objects', () => {
+    const universe = scene();
+    const sampled = () => new InterpolatedStatesTrajectory([
+      { et: 0, position: [30, 0, 0], velocity: [0, 0, 0] }, { et: 10, position: [31, 0, 0], velocity: [0, 0, 0] },
+    ], { frame: 'IAU_MOON' });
+    for (const classification of ['spacecraft', 'lander', 'rover', 'planet', 'star', 'barycenter', 'asteroid', 'static'])
+      universe.addBody(new Body({ name: classification, classification, parentName: 'Sun', trajectory: sampled() }));
+    universe.addBody(new Body({ name: 'unclassified-fixed', trajectory: new FixedPointTrajectory([50, 0, 0]) }));
+    universe.addBody(new Body({ name: 'unclassified-globe', geometryType: 'Globe', trajectory: sampled() }));
+    universe.addBody(new Body({ name: 'unclassified-natural', radii: [10, 10, 10], trajectory: sampled() }));
+    universe.addBody(new Body({ name: 'mission-fixed', trajectory: new FixedPointTrajectory([15, 0, 0]) }));
+    universe.activities.replace('fixture', [{ version: 1, id: 'mission-drive', name: 'Drive', kind: 'drive', vehicle: 'mission-fixed', body: 'Moon', temporality: 'interval', start: 0, end: 10, provenance: { source: 'fixture', version: 'v1', authority: 'authored', timing: 'exact', limitations: 'test' } }]);
+    expect(trajectoryCandidates(universe, 'Moon', { start: 0, end: 10 })).toEqual(['flyby', 'spacecraft', 'lander', 'rover', 'mission-fixed']);
+    // Named source windows bypass unqualified vehicle discovery.
+    expect(trajectorySourceWindow('Moon', 'planet')).toEqual({ start: 0, end: 10 });
+  });
   it('offers a source envelope across disjoint vehicles without treating the gaps as coverage', () => {
     scene();
     expect(trajectorySourceWindow('Moon')).toEqual({ start: 0, end: 110 });
