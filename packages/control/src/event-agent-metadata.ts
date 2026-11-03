@@ -1,4 +1,5 @@
 /** Allowlisted Event Finder transport. Solver fault text and arbitrary parameters stay local. */
+import { agentMetadata } from './agent-metadata.js';
 import { builtinEventKinds, EVENT_ROLES, etToDate } from '@cosmolabe/core';
 import type { ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization } from './contracts.js';
 const kinds = builtinEventKinds();
@@ -17,10 +18,10 @@ export function eventQueryMetadata(info: ScriptEventQueryInfo, publicText: (s: s
     coverage: info.coverage ? { status: info.coverage.status, exact: info.coverage.exact, windows: info.coverage.windows.map(w => ({ start: w.start, end: w.end })),
       problems: info.coverage.problems.length, caveats: info.coverage.caveats.length } : null,
     error: info.error ? { code: ['unknown-kind', 'missing-body', 'missing-coverage', 'unavailable', 'disabled'].includes(info.error.code) ? info.error.code : 'unavailable' } : null,
-    provenance: info.provenance ? { source: 'loaded-spice-kernels', kernelRevision: info.provenance.kernelRevision, kernelCount: info.provenance.kernelCount,
+    provenance: info.provenance ? { source: info.provenance.source, kernelRevision: info.provenance.kernelRevision, kernelCount: info.provenance.kernelCount,
       contextFrame: publicText(info.provenance.contextFrame), calculationFrames: info.provenance.calculationFrames.map(f => publicText(f)),
       timeUnit: 'ET seconds past J2000', stepUnit: 's', abcorr: corrections.includes(info.provenance.abcorr) ? info.provenance.abcorr : null,
-      limitations: 'Loaded kernels and window only; step limits completeness. Rendered geometry is explanatory. Unapproved frame names are withheld.' } : null };
+      limitations: info.provenance.source === 'authoritative-trajectories' ? 'Authoritative trajectories and physical terrain; sampled and locally refined candidates, not certified global extrema. Incomplete searches cannot establish an overall winner. Unapproved source and frame text is withheld.' : 'Loaded kernels and window only; step limits completeness. Rendered geometry is explanatory. Unapproved frame names are withheld.' } : null };
 }
 export function eventPageMetadata(page: ScriptEventResultPage, publicText: (s: string | null | undefined) => string | null) {
   return { ...(page.ranking ? { ranking: page.ranking } : {}), status: page.status, total: page.total, offset: page.offset, nextOffset: page.nextOffset,
@@ -29,7 +30,8 @@ export function eventPageMetadata(page: ScriptEventResultPage, publicText: (s: s
       kind: kinds.get(e.kind)?.kind ?? null, temporality: e.temporality,
       ...(e.temporality === 'instant' ? { et: e.et, utc: etToDate(e.et).toISOString() } : { start: e.start, end: e.end, startUtc: etToDate(e.start).toISOString(), endUtc: etToDate(e.end).toISOString() }),
       bodies: Object.fromEntries(EVENT_ROLES.flatMap(role => e.bodies[role] ? [[role, e.bodies[role]]] : [])),
-      metrics: (e.metrics ?? []).filter(m => ['range', 'altitude', 'duration'].includes(m.key) && ['km', 's'].includes(m.unit ?? '') && Number.isFinite(m.value))
+      ...(e.trajectoryAnalysis ? { trajectoryAnalysis: agentMetadata({ publicValue: value => publicText(value) === value }).trajectoryExtremum(e.trajectoryAnalysis) } : {}),
+      metrics: (e.metrics ?? []).filter(m => ['range', 'altitude', 'duration', 'radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'].includes(m.key) && ['km', 's'].includes(m.unit ?? '') && Number.isFinite(m.value))
         .map(m => ({ key: m.key, value: m.value, unit: m.unit })),
     })) };
 }

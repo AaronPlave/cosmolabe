@@ -354,7 +354,7 @@ export interface ScriptSurfaceProduct {
   /** Declared product metadata only; filenames do not establish scientific provenance. */
   readonly source: { readonly id: string | null; readonly revision: string | null; readonly kind: string | null; readonly attribution?: string | null; readonly url?: string | null };
   readonly frame: string | null;
-  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null } | null;
+  readonly datum: { readonly verticalDatum: string | null; readonly heightConvention: string | null; readonly referenceShape?: TrajectoryExtremaQuery['reference'] | null } | null;
   readonly resolutionMeters: number | null;
   /** Declared cube layout identifier; distinct from the body's render frame. */
   readonly crsId?: string | null;
@@ -376,6 +376,8 @@ export interface ScriptSurfaceProduct {
 }
 
 export interface ScriptSurfaceData {
+  /** Physical catalog radii, independent of render scale and terrain heights. */
+  readonly referenceShape?: TrajectoryExtremaQuery['reference'] | null;
   readonly body: string;
   readonly bodyFrame: string | null;
   readonly surface: ScriptImagery['surface'];
@@ -425,6 +427,9 @@ export interface ScriptReadiness {
 }
 
 export interface ViewerControl {
+  findTrajectoryExtrema?(query: TrajectoryExtremaQuery, options?: TrajectoryAnalysisOptions): Promise<TrajectoryExtremaResponse>;
+  /** Seek/select the measured vehicle/activity, then frame the vehicle. Stale IDs refuse. */
+  navigateToAnalysisResult?(resultId: string): boolean;
   selectPlace?(ref: string | null, opts?: ScriptSceneOptions): boolean;
   listPlaceSources?(): readonly { id: string; body: string; enabled: boolean; labelsVisible: boolean }[];
   setPlaceSourceEnabled?(layer: string, enabled: boolean, opts?: ScriptSceneOptions): boolean;
@@ -802,7 +807,7 @@ export interface ScriptProbePoint {
 /** IDs alone are positional within a search. A reference is valid for one live result batch. */
 export interface ScriptEventReference { scene: number; query: string; id: string; revision: number }
 export interface ScriptEventProvenance {
-  source: 'loaded-spice-kernels'; kernelRevision: number; kernelCount: number;
+  source: 'loaded-spice-kernels' | 'authoritative-trajectories'; kernelRevision: number; kernelCount: number;
   contextFrame: string; calculationFrames: readonly string[];
   timeUnit: 'ET seconds past J2000'; stepUnit: 's'; abcorr: string;
   limitations: string[];
@@ -974,3 +979,4 @@ export interface ExecutionReport {
   /** Frames the script captured, in the order it captured them. */
   readonly images: readonly ScriptImage[];
 }
+import type { TrajectoryExtremaQuery, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

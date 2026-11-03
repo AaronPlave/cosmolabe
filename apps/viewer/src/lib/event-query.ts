@@ -73,7 +73,9 @@ export function formForKind(
   // across a kind switch for the same reason roles do.
   for (const spec of kind.params ?? []) {
     const carried = previous?.params[spec.key];
-    if (carried !== undefined) params[spec.key] = carried;
+    // A shared key need not share its vocabulary: closest approach's
+    // local/global scope is unrelated to flight/activity/window scope.
+    if (carried !== undefined && (spec.kind !== 'choice' || spec.options.some(option => option.value === carried))) params[spec.key] = carried;
   }
 
   return {
@@ -82,7 +84,7 @@ export function formForKind(
     params,
     startEt: window.start,
     endEt: window.end,
-    step: previous?.step ?? kind.defaultStep,
+    step: kind.engine === 'trajectory-analysis' && previous?.kind !== kind.kind ? kind.defaultStep : previous?.step ?? kind.defaultStep,
   };
 }
 
@@ -109,6 +111,7 @@ export function buildQuery(
   const params: Record<string, unknown> = {};
   for (const spec of kind.params ?? []) {
     const raw = form.params[spec.key];
+    if (spec.when && !spec.when.values.includes(form.params[spec.when.key] ?? '')) continue;
     const value = parseParam(spec, raw);
     if (value !== undefined) params[spec.key] = value;
   }
@@ -132,7 +135,10 @@ function parseParam(spec: EventParamSpec, raw: string | undefined): unknown {
     }
     case 'boolean':
       return raw === 'true';
+    case 'activities':
+      try { return JSON.parse(raw); } catch { return []; }
     case 'choice':
+    case 'text':
       return raw;
   }
 }
@@ -354,7 +360,8 @@ export function sortEvents(
     // it sorts last rather than as if it were zero.
     if (va === undefined) return 1;
     if (vb === undefined) return -1;
-    return va - vb || compareEvents(a, b);
+    const direction = a.trajectoryAnalysis?.extremum === 'maximum' && b.trajectoryAnalysis?.extremum === 'maximum' ? -1 : 1;
+    return direction * (va - vb) || compareEvents(a, b);
   });
 }
 
@@ -435,4 +442,11 @@ export function activeEventAtTime(
     || a.id.localeCompare(b.id)
     || a.queryId.localeCompare(b.queryId)
   )[0];
+}
+
+/** Display precision is a readability choice, not an accuracy claim. Raw result coordinates stay untouched. */
+export function formatCoordinates(latitudeDeg: number, longitudeDeg: number): string {
+  const axis = (value: number, positive: string, negative: string) =>
+    `${Math.abs(value).toFixed(3)}° ${value < 0 ? negative : positive}`;
+  return `${axis(latitudeDeg, 'N', 'S')}, ${axis(longitudeDeg, 'E', 'W')}`;
 }

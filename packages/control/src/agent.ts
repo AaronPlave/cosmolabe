@@ -37,6 +37,7 @@ import type {
   VerbValue,
   ViewerControl,
 } from './contracts.js';
+import type { TrajectoryExtremaQuery } from '@cosmolabe/interop';
 import { ScriptRuntimeError } from './errors.js';
 import { execute } from './execute.js';
 import { eventQueryMetadata, eventPageMetadata, eventVisualizationMetadata } from './event-agent-metadata.js';
@@ -236,7 +237,7 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
   { name: 'getObjectState', effect: 'read', method: 'getObjectState', description: 'Targeted actual entity position/attitude and source availability at one epoch/frame/centre. No trajectory sampling, scene summary or camera pixels. Missing frame/coverage remains unavailable.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, et: { type: 'number' }, frame: { type: 'string' }, center: { type: 'string' } }, required: ['object'], additionalProperties: false } },
   { name: 'projectGroundPoint', effect: 'read', method: 'projectGroundPoint', description: 'Compute a radial sub-point of an entity’s actual current position on its active parent, through existing frame and surface authorities. rendered (default) uses drawn authoritative surfaces, reference is explicitly sphere/ellipsoid-only, terrain refuses without physical terrain evidence. Never uses camera pixels or mission-site coordinates. Preserves clock/camera. Use pinGroundPoint for a transient marker; saved annotations require host authoring permission.', inputSchema: { type: 'object', properties: { object: { type: 'string' }, policy: { type: 'string', enum: ['reference','rendered','terrain'] } }, required: ['object'], additionalProperties: false } },
   { name: 'getProbePoint', effect: 'read', method: 'getProbePoint', description: 'Small read of the actual Point Probe pin, including UI-originated pins, placement epoch, fixed-frame position, source/datum, physical-terrain evidence and native observed draw state. A pin is transient display; absent means none, not no ground projection capability.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
+  { name: 'getEventSearchOptions', effect: 'read', method: 'getEventSearchOptions', description: 'For show-when/flew-past/closest-approach requests, discover built-in event kinds, participant roles, defaults and loaded-kernel coverage for a computed encounter (authored viewpoint dates do not compute it). Use exact kind closest-approach for range minima. Supply kind and bodies to assess coverage and a supported suggestedWindow. Catalog window alone never proves coverage. Numerical altitude/terrain searches may use it as an explicit Time window, with authoritative trajectory/terrain coverage checked during sampling; they do not use SPICE GF coverage. A suggested interval may be approximate; the solver remains authoritative. upsertEventQuery takes definition as JSON text {id,label,enabled:true,visible:true,query:{id,kind,bodies,window,step,abcorr,params}} using the host permissions for routine scene analysis; no repeated confirmation.', inputSchema: { type: 'object', properties: { kind: { type: 'string' }, bodies: { type: 'object', properties: Object.fromEntries(EVENT_ROLES.map(role => [role, { type: 'string' }])), additionalProperties: false }, abcorr: { type: 'string', enum: ['NONE','LT','LT+S','CN','CN+S','XLT','XLT+S','XCN','XCN+S'] } }, additionalProperties: false } },
   { name: 'getEventQueryInfo', effect: 'read', method: 'getEventQueryInfo', description: 'Exact configured query specification, declared units, loaded-kernel provenance and shared availability/coverage. Solver fault text and unapproved frames are withheld.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventResultPage', effect: 'read', method: 'getEventResultPage', description: 'At most five computed events per page (default one; larger requested read limits are clamped). order range-ascending compares the ENTIRE completed candidate set by measured range before paging, returns ranking.compared, and refuses missing ranges. Use it for closest, never chronological result 0. Run-scoped references work with presentEventResult or focusEventResult. Follow nextOffset for more. Distinguishes no-results, missing query, stale computation and search failure.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1 }, order: { type: 'string', enum: ['chronological','range-ascending'] } }, required: ['query'], additionalProperties: false } },
   { name: 'getEventVisualization', effect: 'read', method: 'getEventVisualization', description: 'Observed or partial event selection, timeline, epoch, object highlights and native draw-enabled marker/span/geometry state. No camera changes or pixel-visibility promise.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -252,6 +253,23 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
   { name: 'listGeographicFeatures', effect: 'read', method: 'listGeographicFeatures', description: 'A bounded page of stable feature IDs and geometry types in an exact layer.', inputSchema: { type: 'object', properties: { layer: { type: 'string' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: 100 } }, required: ['layer'], additionalProperties: false } },
   { name: 'getSurfaceAppearance', effect: 'read', method: 'getSurfaceAppearance', description: 'Current terrain appearance settings or an explicit unavailable reason.', inputSchema: { type: 'object', properties: { body: { type: 'string' } }, required: ['body'], additionalProperties: false } },
   { name: 'getReadiness', effect: 'read', method: 'getReadiness', description: 'Observe assets, one current-view imagery source, mandatory cube base on drawn blocks, current-view physical terrain coverage, or an exact event/run/epoch with explicit timeline/native-draw policy and limitations. Does not prefetch.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['assets', 'imagery', 'cube-base', 'terrain', 'event'] }, body: { type: 'string' }, layer: { type: 'string' }, reference: { type: 'object', properties: { scene: { type: 'number' }, query: { type: 'string' }, id: { type: 'string' }, revision: { type: 'number' } }, required: ['scene', 'query', 'id', 'revision'], additionalProperties: false }, et: { type: 'number' }, policy: { type: 'string', enum: ['timeline', 'native-draw'] } }, required: ['kind'], additionalProperties: false } },
+  {
+    name: 'findTrajectoryExtrema', effect: 'read', method: 'findTrajectoryExtrema',
+    description: 'Compute height extrema using the shared numerical analysis. Specify radial reference-sphere height, ellipsoid height, or physical-terrain clearance (AGL); ask which datum when altitude is ambiguous. For flights use catalog activity intervals, excluding parked time. Never calculate from raw points or authored targets. Report coverage, source, sampling and unknown global height error; partial results cannot establish a collection winner. May offer Show me with navigateToAnalysisResult.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['objects', 'body', 'frame', 'metric', 'extremum', 'reference', 'scope', 'stepSeconds', 'timeToleranceSeconds'], properties: {
+      objects: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 32 }, body: { type: 'string' }, frame: { type: 'string' },
+      metric: { type: 'string', enum: ['radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'] }, extremum: { type: 'string', enum: ['maximum', 'minimum'] },
+      reference: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['sphere', 'ellipsoid'] }, radiusKm: { type: 'number' }, radiiKm: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 } } },
+      scope: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: ['activities', 'windows'] }, activityKind: { type: 'string' }, window: { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: { type: 'number' }, end: { type: 'number' } } }, ids: { type: 'array', items: { type: 'string' }, maxItems: 128 }, windows: { type: 'array', minItems: 1, maxItems: 128, items: { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: { type: 'number' }, end: { type: 'number' } } } } } },
+      stepSeconds: { type: 'number', minimum: 0.000001 }, sampling: { type: 'string', enum: ['adaptive', 'fixed'], description: 'Fixed (default) respects the explicit maximum step. Adaptive scales with duration, source breakpoints and known periods, reporting actual spacing without a global error bound.' }, timeToleranceSeconds: { type: 'number', minimum: 0.000001 }, maxEvaluations: { type: 'number', minimum: 1, maximum: 200000 },
+      terrain: { type: 'object', additionalProperties: false, required: ['id', 'revision'], properties: { id: { type: 'string' }, revision: { type: 'string' } } },
+    } },
+  },
+  {
+    name: 'navigateToAnalysisResult', effect: 'camera', method: 'navigateToAnalysisResult',
+    description: 'Show a current measured height result: seek its epoch, select its actual vehicle/activity and frame the vehicle. Uses only an ID returned by findTrajectoryExtrema. Stale results refuse.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['resultId'], properties: { resultId: { type: 'string' } } },
+  },
   {
     name: 'describeScene',
     effect: 'read',
@@ -320,7 +338,7 @@ const READ_TOOLS: readonly (AgentToolDef & { method?: keyof ViewerControl })[] =
     name: 'getSurfaceData',
     effect: 'read',
     method: 'getSurfaceData',
-    description: 'Configured surface products: terrain elevation/LOD, cube imagery, base/normal/displacement textures, other imagery, and independently managed overlays. Declared provenance and runtime readiness, residency and current-view coverage are separate; null means unknown. Use for dataset inventory even when getImagery reports zero overlays.',
+    description: 'Configured surface products and physical reference shapes: body referenceShape is catalog radii; terrain.datum.referenceShape is the physical CPU source datum for AGL analysis. Includes terrain elevation/LOD, cube imagery, textures and overlays. Provenance and runtime readiness, residency and current-view coverage are separate; null means unknown.',
     inputSchema: {
       type: 'object',
       properties: { object: { type: 'string', description: PARAM_HELP.object } },
@@ -477,7 +495,7 @@ export function fixedAgentDefinitions(): ReturnType<typeof agentDefinitions> {
   for (const { verb } of AGENT_VERBS) {
     if (!VERBS.has(verb)) throw new Error(`Unregistered fixed agent verb: ${verb}`);
   }
-  const direct = new Set(AGENT_VERBS.map(v => v.verb));
+  const direct = new Set([...AGENT_VERBS.map(v => v.verb), 'navigateToAnalysisResult']);
   return agentDefinitions().filter(def => def.effect === 'read' || direct.has(def.name));
 }
 
@@ -487,6 +505,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   const placeSummary = metadata.place;
   let taskSeq = 0;
   let current: TaskImpl | null = null;
+  const measuredResults = new Map<string,{ et:number; object:string; activityId:string | null }>();
 
   const list = (): readonly AgentToolDef[] => (opts.vocabulary === 'catalog' ? agentDefinitions() : fixedAgentDefinitions())
     .filter(t => !t.method || has(host, t.method)).map(({ method: _m, ...def }) => def);
@@ -498,7 +517,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
   });
 
   const offInput = host.on('cameraInput', () => { if (current) current.cameraTaken = true; });
-  const offLoad = host.on('load', () => current?.end('stale'));
+  const offLoad = host.on('load', () => { measuredResults.clear(); current?.end('stale'); });
 
   const sceneId = () => attempt(() => host.getScene?.())?.id ?? null;
   const hasScene = () => (has(host, 'getScene') ? sceneId() !== null : true);
@@ -911,6 +930,10 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
 
     async call(name: string, input: unknown): Promise<AgentToolResult> {
       if (opts.omittedTools?.[name]) return { ok: false, code: 'refused', error: opts.omittedTools[name] };
+      if (name === 'navigateToAnalysisResult') {
+        const blocked = ['setTime','setPlaying','select','frameObject'].find(operation => opts.omittedTools?.[operation]);
+        if (blocked) return { ok:false,code:'refused',error:`Result navigation requires ${blocked}: ${opts.omittedTools![blocked]}` };
+      }
       const def = list().find((t) => t.name === name);
       if (!def) {
         const s = suggest(name, list().map((t) => t.name));
@@ -923,6 +946,32 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
       if ((def.effect === 'authoring' || def.requiresAuthoring) && !opts.allowAuthoring) return { ok: false, code: 'refused', error: 'Authoring permission is required.' };
       if (def.effect === 'export' && !opts.allowExport) return { ok: false, code: 'refused', error: 'Export permission is required.' };
       const args = (input ?? {}) as Input;
+
+      if (name === 'findTrajectoryExtrema') {
+        measuredResults.clear();
+        try {
+          const response = await host.findTrajectoryExtrema!(args as unknown as TrajectoryExtremaQuery, { signal: this.signal });
+          const late = this.gate(def);
+          if (late) return late;
+          measuredResults.clear();
+          for (const result of response.results.slice(0,128)) measuredResults.set(result.id,{et:result.et,object:result.object,activityId:result.activityId});
+          // Closed projection: provenance may contain private source paths.
+          const data = { status: response.status, results: response.results.slice(0,128).map(metadata.trajectoryExtremum), faults: response.faults.slice(0,128).map(f => ({ code: f.code, object: f.object, activityId: f.activityId, window: f.window ? {start:f.window.start,end:f.window.end} : undefined, message: 'Analysis unavailable, incomplete or interrupted; inspect the local result for details.' })) };
+          return { ok: true, summary: `Height analysis ${response.status}; ${response.results.length} results. Global height error unknown.`, data };
+        } catch { return { ok: false, code: 'failed', error: 'Height analysis failed; inspect the local source and coverage.' }; }
+      }
+      if (name === 'navigateToAnalysisResult') {
+        const expected = measuredResults.get(args.resultId as string);
+        if (!expected) return { ok:false,code:'refused',error:'Unknown or superseded analysis result. Run the analysis in this session before navigating.' };
+        const done = host.navigateToAnalysisResult!(args.resultId as string);
+        if (!done) return { ok:false,code:'refused',error:'The result is unavailable or stale.' };
+        const late = this.gate(def);
+        if (late) return late;
+        const observed = {et:host.getTime(),object:host.getSelected(),tracked:host.getTracked(),playing:host.isPlaying(),activityId:host.getSelectedActivity?.()?.id ?? null};
+        const verified = !!expected && Math.abs(observed.et-expected.et)<1e-5 && observed.object===expected.object && observed.tracked===expected.object && !observed.playing && (!expected.activityId || observed.activityId===expected.activityId);
+        if (!verified) return {ok:false,code:'failed',error:'The viewer did not report the measured epoch, vehicle, activity and paused playback after navigation.'};
+        return { ok:true,summary:'Selected and framed the measured vehicle at the observed result epoch.',data:{verified,observed} };
+      }
 
       const read = reads[name];
       if (read) {

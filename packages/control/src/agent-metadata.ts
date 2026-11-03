@@ -1,6 +1,7 @@
 import type { MeasurementDefinition, SpatialEndpoint, ReferenceVector } from '@cosmolabe/core';
 /** Model-visible metadata is a projection, never a serialization of a local resource. */
 import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptObjectState } from './contracts.js';
+import type { TrajectoryExtremum } from '@cosmolabe/interop';
 
 export interface AgentMetadataPolicy {
   /** Trusted host approval of an exact public provenance value. Default: withhold. */
@@ -15,6 +16,11 @@ const PUBLIC_TERMS = new Set(['estimated', 'reconstructed', 'observed', 'planned
 
 export function agentMetadata(policy: AgentMetadataPolicy = {}) {
   const text = (value: string | null | undefined) => value != null && (PUBLIC_TERMS.has(value) || policy.publicValue?.(value) === true) ? value : null;
+  const shape = (value: import('@cosmolabe/interop').TrajectoryExtremaQuery['reference'] | null | undefined) => {
+    if (value?.kind === 'sphere' && Number.isFinite(value.radiusKm) && value.radiusKm > 0) return {kind:'sphere',radiusKm:value.radiusKm};
+    if (value?.kind === 'ellipsoid' && value.radiiKm.length === 3 && value.radiiKm.every(radius => Number.isFinite(radius) && radius > 0)) return {kind:'ellipsoid',radiiKm:value.radiiKm.slice(0,3)};
+    return null;
+  };
   const place = (p: ScriptPlace) => {
     const fields = Object.fromEntries(Object.entries(p.fields ?? {}).filter(([key, value]) => policy.publicPlaceField?.(key, value) === true));
     return {
@@ -38,7 +44,7 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
   const product = (p: ScriptSurfaceProduct | null) => p ? {
     kind: p.kind, configured: p.configured,
     source: { id: text(p.source.id), revision: text(p.source.revision), kind: text(p.source.kind), attribution: text(p.source.attribution) },
-    frame: text(p.frame), datum: p.datum ? { verticalDatum: text(p.datum.verticalDatum), heightConvention: text(p.datum.heightConvention) } : null,
+    frame: text(p.frame), datum: p.datum ? { verticalDatum: text(p.datum.verticalDatum), heightConvention: text(p.datum.heightConvention), ...(p.datum.referenceShape ? {referenceShape:shape(p.datum.referenceShape)} : {}) } : null,
     resolutionMeters: p.resolutionMeters, crsId: text(p.crsId),
     lod: p.lod ? { minLevel: p.lod.minLevel, maxLevel: p.lod.maxLevel } : null,
     runtime: { ready: p.runtime.ready, loaded: p.runtime.loaded, manifestFailed: p.runtime.manifestFailed ?? null,
@@ -46,9 +52,22 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
       coversDrawnTiles: p.runtime.coversDrawnTiles ?? null },
   } : null;
   const surface = (s: ScriptSurfaceData) => ({
+    ...(s.referenceShape ? {referenceShape:shape(s.referenceShape)} : {}),
     body: s.body, bodyFrame: text(s.bodyFrame), surface: s.surface,
     terrain: product(s.terrain), cubeImagery: product(s.cubeImagery), textures: s.textures.map(p => product(p)),
     imageryProducts: s.imageryProducts.map(p => product(p)), overlays: s.overlays.map(layer),
+  });
+  const trajectoryExtremum = (r: TrajectoryExtremum) => ({
+    id:r.id,object:r.object,activityId:r.activityId,activityName:r.activityName,body:r.body,frame:text(r.frame),
+    metric:r.metric,extremum:r.extremum,value:r.value,units:r.units,et:r.et,utc:r.utc,
+    location:{positionKm:r.location.positionKm.slice(0,3),latitudeDeg:r.location.latitudeDeg,longitudeDeg:r.location.longitudeDeg,convention:r.location.convention},
+    datum:r.datum.kind === 'sphere' ? {kind:'sphere',radiusKm:r.datum.radiusKm} : {kind:'ellipsoid',radiiKm:r.datum.radiiKm.slice(0,3)},
+    heightConvention:r.heightConvention,
+    window:{start:r.window.start,end:r.window.end},coverage:r.coverage,
+    source:{id:text(r.source.id),revision:text(r.source.revision),classification:r.source.classification},
+    terrain:r.terrain ? {id:text(r.terrain.id),revision:text(r.terrain.revision),sourceUncertaintyKm:r.terrain.sourceUncertaintyKm} : null,
+    method:{guarantee:r.method.guarantee,stepSeconds:r.method.stepSeconds,timeToleranceSeconds:r.method.timeToleranceSeconds,evaluations:r.method.evaluations,heightErrorBoundKm:r.method.heightErrorBoundKm,
+      limits:'Sampled and locally refined; no certified global height error. Source accuracy is separate.'},
   });
   const geographicLayer = (l: ScriptGeographicLayer) => ({
     id: l.id, name: text(l.name)?.slice(0, 512) ?? null, body: l.body, frame: text(l.frame), features: l.features,
@@ -102,5 +121,5 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     status: p.status, reason: p.reason === null || ['scene-changed','scene-changing','invalid-surface-policy','no-scene','missing-entity','missing-parent','unsupported-reference-shape','invalid-body-fixed-position','no-surface-renderer','body-fixed-frame-unavailable','surface-unavailable','physical-terrain-unavailable-use-explicit-reference-alternative','position-or-frame-unavailable','position-pending','position-before-coverage','position-after-coverage','position-gap','position-disconnected','position-stale','position-unbound','position-error','position-dependency'].includes(p.reason) ? p.reason : 'unavailable', referenceOnly: p.referenceOnly, point: p.point ? surfacePoint(p.point) : null, annotation: annotation(p.annotation),
     limitations: 'Body-fixed radial projection from current entity state, not a camera pixel or a flight-site guess. Reference, rendered and physical terrain are distinct. Snapshot pin, not a tracker.' });
   const probePoint = (p: ScriptProbePoint | null) => !p ? null : ({ scene: p.scene, observedEt: p.observedEt, placedEt: p.placedEt, drawn: p.drawn, point: surfacePoint(p.point), annotation: annotation(p.annotation) });
-  return { text, place, measurement, objectState, spatialContext, groundProjection, probePoint, imagery, surface, geographicLayer, geographicFeature };
+  return { text, place, measurement, objectState, spatialContext, groundProjection, probePoint, imagery, surface, trajectoryExtremum, geographicLayer, geographicFeature };
 }

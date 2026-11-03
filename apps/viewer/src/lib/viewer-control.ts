@@ -29,6 +29,7 @@ import { getSurfaceAppearance, setSurfaceAppearance, setImageryVisible, setImage
  * error with a suggestion drawn from the scene actually loaded.
  */
 import { surfaceData } from './surface-data';
+import { findViewerTrajectoryExtrema, navigateToAnalysisResult } from './trajectory-analysis.svelte';
 import { listActivities, getActivity, getSelectedActivity, selectActivity, seekActivity, navigateActivity } from './activity-control';
 import { etFromCalendarString } from '@cosmolabe/core';
 import type { HeritageSpice } from '@cosmolabe/frames';
@@ -263,6 +264,8 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
   };
 
   return {
+    findTrajectoryExtrema: findViewerTrajectoryExtrema,
+    navigateToAnalysisResult: id => navigateToAnalysisResult(id, deps.host),
     selectPlace: (ref, opts) => {
       inScene(opts?.scene);
       if (!getRenderer()) return false;

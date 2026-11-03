@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { closestApproachKind, distanceRangeKind, type EventKind, type GeometryEvent } from '@cosmolabe/core';
+import { closestApproachKind, distanceRangeKind, builtinEventKinds, type EventKind, type GeometryEvent } from '@cosmolabe/core';
 import {
   buildQuery,
   activeEventAtTime,
@@ -16,6 +16,7 @@ import {
   faultMessage,
   formForKind,
   formatKm,
+  formatCoordinates,
   formatMetric,
   formatSeconds,
   missingRoles,
@@ -394,5 +395,61 @@ describe('scene callout copy', () => {
       .toBe('2026-05-13 04:00 → 05-18 08:00 UTC');
     expect(eventCalloutLines({ ...event, start: 0, end: 1e7 }, { utc: days, selected: true })[2])
       .toBe('2026-05-13 04:00 → 2027-01-02 00:00 UTC');
+  });
+});
+
+
+describe('native height event form',()=>{
+  it('uses its own scope default when the previous event has an incompatible scope choice',()=>{
+    const before=formForKind(closest,WINDOW);
+    expect(before.params.scope).toBe('local');
+    const height=builtinEventKinds().get('trajectory-extremum')!;
+    const after=formForKind(height,WINDOW,before);
+    expect(after.params.scope).toBe('window');
+    expect(buildQuery(height,after,'height').params).toMatchObject({scope:'window',metric:'heightAbovePhysicalTerrain'});
+    after.params.scope='window';
+    expect(formForKind(height,WINDOW,after).params.scope).toBe('window');
+  });
+});
+
+
+describe('height candidate ranking and activity form',()=>{
+  const height=builtinEventKinds().get('trajectory-extremum')!;
+  const candidate=(object:string,value:number,extremum:'maximum'|'minimum',et:number)=>({id:object,queryId:'h',kind:'trajectory-extremum',temporality:'instant',et,bodies:{observer:object,center:'Moon'},label:object,metrics:[{key:'height',label:'Physical terrain clearance',value,unit:'km'}],trajectoryAnalysis:{object,extremum}} as GeometryEvent);
+  it('ranks highest maxima first for multiple and single vehicles, and lowest minima first',()=>{
+    const all=[candidate('C',.184,'maximum',1),candidate('D',.311,'maximum',2)];
+    expect(sortEvents(all,'metric').map(e=>e.bodies.observer)).toEqual(['D','C']);
+    expect(sortEvents([candidate('C',.1,'maximum',1),candidate('C',.184,'maximum',2)],'metric').map(e=>e.temporality === 'instant' ? e.et : e.start)).toEqual([2,1]);
+    expect(sortEvents(all.map(e=>({...e,trajectoryAnalysis:{...e.trajectoryAnalysis!,extremum:'minimum' as const}})),'metric').map(e=>e.bodies.observer)).toEqual(['C','D']);
+    expect(sortEvents(all,'time').map(e=>e.temporality === 'instant' ? e.et : e.start)).toEqual([1,2]);
+  });
+  it('keeps activity IDs as an explicit list and ignores hidden restrictions in Time window',()=>{
+    const form=formForKind(height,WINDOW);form.params.scope='selected-activities';form.params.activityKind='drive';form.params.activityIds=JSON.stringify(['drive-1','drive-2']);
+    expect(buildQuery(height,form,'h').params).toMatchObject({activityKind:'drive',activityIds:['drive-1','drive-2']});
+    form.params.scope='window';
+    expect(buildQuery(height,form,'h').params).not.toHaveProperty('activityIds');
+    expect(buildQuery(height,form,'h').params).not.toHaveProperty('activityKind');
+  });
+});
+
+
+it('invalidates numerical run identity when precise typed scope changes',async()=>{
+  const {eventQuerySignature}=await import('../event-query-signature');
+  const base={id:'q',kind:'trajectory-extremum',bodies:{center:'Moon'},window:WINDOW};
+  const request={objects:['C'],body:'Moon',frame:'MOON_ME_DE421',metric:'radialHeightAboveReferenceSphere' as const,extremum:'maximum' as const,reference:{kind:'sphere' as const,radiusKm:1737.4},scope:{kind:'activities' as const,ids:['c1']},stepSeconds:.1,timeToleranceSeconds:.005};
+  const first=eventQuerySignature({...base,trajectoryAnalysis:request});
+  expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,scope:{kind:'activities',ids:['c2']}}})).not.toBe(first);
+  expect(eventQuerySignature({...base,trajectoryAnalysis:{...request,reference:{radiusKm:1737.4,kind:'sphere'}}})).toBe(first);
+});
+
+describe('geographic display coordinates', () => {
+  it.each([
+    [-89.499737, -65.091975, '89.500° S, 65.092° W'],
+    [12.345678, 45.6789, '12.346° N, 45.679° E'],
+    [-12, 45, '12.000° S, 45.000° E'],
+    [12, -45, '12.000° N, 45.000° W'],
+    [0, -0, '0.000° N, 0.000° E'],
+  ])('formats %s, %s without contradictory signed hemispheres', (lat, lon, expected) => {
+    expect(formatCoordinates(lat, lon)).toBe(expected);
   });
 });

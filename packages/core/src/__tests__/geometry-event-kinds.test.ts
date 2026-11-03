@@ -82,6 +82,7 @@ describe('built-in event kinds', () => {
       'closest-approach',
       'distance-range',
       'occultation',
+      'trajectory-extremum',
     ]);
     expect(registry.get('closest-approach')?.label).toBe('Closest approach');
   });

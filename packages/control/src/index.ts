@@ -80,3 +80,4 @@ export type {
   AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,
   AgentWireRequest, AgentWireResponse,
 } from './agent-loop.js';
+export type { TrajectoryHeightMetric, TrajectoryExtremaQuery, TrajectoryExtremum, TrajectoryExtremaResponse, TrajectoryAnalysisOptions } from '@cosmolabe/interop';

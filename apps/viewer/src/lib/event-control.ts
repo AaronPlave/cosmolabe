@@ -29,14 +29,15 @@ function queryInfo(id: string, expected?: number): ScriptEventQueryInfo {
   const definition = snapshotEventQueries().find(q => q.id === id);
   if (!definition) return { ...empty, status: 'missing-query' };
   const inspected = inspectEventQuery(definition.query);
+  const numerical = definition.query.kind === 'trajectory-extremum';
   const missingCoverage = inspected.unavailable?.code === 'unavailable' && vs.kernelCount > 0 && inspected.coverage
     && (inspected.coverage.status === 'none' || inspected.coverage.status === 'available' && windowOutsideCoverage(definition.query.window, inspected.coverage.windows).length > 0);
   return { status: inspected.unavailable || !definition.enabled ? 'unavailable' : 'available', definition,
     coverage: copy(inspected.coverage), error: inspected.unavailable ? { code: missingCoverage ? 'missing-coverage' : inspected.unavailable.code, message: inspected.unavailable.message } : !definition.enabled ? { code: 'disabled', message: 'Query is disabled' } : null,
-    provenance: { source: 'loaded-spice-kernels', kernelRevision: vs.kernelRevision, kernelCount: vs.kernelCount,
-      contextFrame: analysis.reference.frame ?? 'J2000', calculationFrames: inspected.frames,
+    provenance: { source: numerical ? 'authoritative-trajectories' : 'loaded-spice-kernels', kernelRevision: vs.kernelRevision, kernelCount: vs.kernelCount,
+      contextFrame: analysis.reference.frame ?? 'J2000', calculationFrames: numerical ? [definition.query.trajectoryAnalysis?.frame ?? String(definition.query.params?.frame ?? getSceneUniverse()!.frames.bodyFixedFrameFor(definition.query.bodies.center!))] : inspected.frames,
       timeUnit: 'ET seconds past J2000', stepUnit: 's', abcorr: definition.query.abcorr ?? 'NONE',
-      limitations: ['Results apply only to the loaded kernel set and declared window. Search step limits completeness.',
+      limitations: numerical ? ['Authoritative trajectory and physical terrain sources; no dependency on activity records for Time window searches.', 'One sampled and locally refined candidate per object/interval; no certified global height error. Missing coverage or budget limits prevent an overall winner.', 'Per-result frame, datum, source, classification and uncertainty accompany each candidate.'] : ['Results apply only to the loaded kernel set and declared window. Search step limits completeness.',
         'Context frame is analysis metadata; scalar range is frame independent. Calculation frames are declared by the event kind.',
         '3D event geometry uses rendered trajectories/positions; it is explanatory, not a second GF calculation.'] } };
 }
@@ -159,7 +160,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     if (!event) return result('missing-result');
     // Entirely synchronous: inspection and optional seek use the UI action.
     // No later continuation can reassert time/camera after manual takeover.
-    if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor);
+    if (anchor === 'inspect') selectEventForInspection(event); else selectEvent(event, anchor, { frame: false });
     return result(getEventVisualization().status);
   },
   presentEventResult: async (ref, framing = 'pair', opts) => {
@@ -196,7 +197,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     if (!input || JSON.stringify(input).length > 32768 || typeof input.id !== 'string' || !input.id || input.id.length > 512 || Object.hasOwn(Object.prototype, input.id)) throw new Error('Invalid bounded query definition');
     // The same registry and parameter validator used by versioned view links.
     const validated = validateEventLinkState({ version: 1, current: 0, queries: [{ ...input, query: { ...input.query, id: input.id }, windowMode: 'explicit', searched: false }] }).queries[0];
-    if ((validated.query.window.end - validated.query.window.start) / validated.query.step! > 1e6) throw new Error('Event query exceeds the bounded work budget');
+    if (validated.query.kind !== 'trajectory-extremum' && (validated.query.window.end - validated.query.window.start) / validated.query.step! > 1e6) throw new Error('Event query exceeds the bounded work budget');
     for (const body of Object.values(validated.query.bodies)) if (!getSceneUniverse()!.getBody(body!)) throw new Error(`Event body ${body} is unavailable in this catalog`);
     const { id: _id, ...query } = validated.query;
     if (analysis.items.some(i => i.id === input.id && i.type !== 'event-query')) throw new Error('ID belongs to another analysis definition');
@@ -279,7 +280,7 @@ export const eventControl: Pick<Required<ViewerControl>, 'getEventSearchOptions'
     const event = analysisContext().eventResults.find(e => e.queryId === query && e.id === id);
     if (!event) return false;
     if (anchor === 'inspect') selectEventForInspection(event);
-    else if (['start', 'middle', 'end'].includes(anchor)) selectEvent(event, anchor);
+    else if (['start', 'middle', 'end'].includes(anchor)) selectEvent(event, anchor, { frame: false });
     else throw new Error('Unknown event boundary');
     return true;
   },

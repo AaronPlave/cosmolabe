@@ -7,6 +7,9 @@ export interface CartesianState {
 }
 
 export interface Trajectory {
+  /** Interpolation-segment boundaries for numerical analysis. Times only;
+   * evaluating between them still goes through authoritative stateAt. */
+  samplingBreakpoints?(start: number, end: number): readonly number[];
   stateAt(et: number): CartesianState;
   readonly startTime?: number;
   readonly endTime?: number;

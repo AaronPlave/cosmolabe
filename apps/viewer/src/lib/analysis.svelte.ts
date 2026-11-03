@@ -22,6 +22,7 @@ import { untrack } from 'svelte';
 import { vs, emit, sceneId } from './viewer-state.svelte';
 import { resetTimeline } from './timeline.svelte';
 import { resettable } from './session.svelte';
+import { analysisResultGuards } from './trajectory-analysis-identity';
 import { eventQuerySignature } from './event-query-signature';
 
 export const analysis = $state({
@@ -49,6 +50,7 @@ export function currentEventResultRun(id: string) {
   const run = analysis.eventResultRuns[id], item = configuredItem(id);
   return run && item?.type === 'event-query' && run.complete && run.scene === sceneId()
     && run.kernels === vs.kernelRevision && run.kernelCount === vs.kernelCount
+    && (analysis.eventResults[id] ?? []).every(event => !event.trajectoryAnalysis || analysisResultGuards.get(`${id}/${event.id}`)?.())
     && run.contextFrame === analysis.reference.frame
     && eventQuerySignature(run.query) === eventQuerySignature(resolveEventQuery(item, queryContext())) ? run : null;
 }

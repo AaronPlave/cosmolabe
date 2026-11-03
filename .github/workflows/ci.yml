@@ -90,7 +90,7 @@ jobs:
         run: |
           MOONFALL_GRIDS=$(node --input-type=module -e "import {loadDatasets,remotePrefix,joinUrl} from './scripts/data-hosting/lib/datasets.mjs'; console.log(joinUrl(process.env.DATA_BASE_URL, remotePrefix(loadDatasets().datasets['cube-terrain/moon-terrain-cube']) + 'cpu-grids.json'))")
           export MOONFALL_GRIDS
-          npx vitest run --project scripts scripts/moonfall-clearance.test.mjs
+          npx vitest run --project scripts scripts/moonfall-clearance.test.mjs scripts/trajectory-extrema.test.mjs
 
       - name: Planetary nomenclature converter regressions
         run: python3 -m unittest discover -s scripts/__tests__ -p test_convert_planetary_nomenclature.py -v

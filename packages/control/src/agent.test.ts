@@ -47,7 +47,12 @@ describe('agent tools: discovery', () => {
   });
   it('resolves every fixed camera tool to a registered callable host operation', () => {
     const host = new FakeViewer();
-    for (const tool of fixedAgentDefinitions().filter(t => t.effect === 'camera')) {
+    // Measured-result navigation is a specialized tool with run/state checks,
+    // not a scripting verb. Its execution is covered by trajectory-analysis-agent.
+    expect(fixedAgentDefinitions().find(t => t.name === 'navigateToAnalysisResult')).toMatchObject({
+      effect: 'camera', method: 'navigateToAnalysisResult',
+    });
+    for (const tool of fixedAgentDefinitions().filter(t => t.effect === 'camera' && t.name !== 'navigateToAnalysisResult')) {
       const spec = VERBS.get(tool.name)!;
       expect(spec, tool.name).toBeDefined();
       expect(tool.method).toBe(spec.method);

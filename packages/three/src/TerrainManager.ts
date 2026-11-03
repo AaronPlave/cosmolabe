@@ -1519,6 +1519,16 @@ export class TerrainManager {
     return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
   }
 
+  /** Analytical query of finest available physical CPU geometry, independent of
+   * camera LOD/residency. Missing grids never fall back to a reference shape. */
+  async requestAnalysisSample(latDeg: number, lonDeg: number): Promise<TerrainSample | null> {
+    const cube = this.cube;
+    if (!cube || this.frameAvailability.kind !== 'available') return null;
+    await cube.source.request(latDeg, lonDeg);
+    if (this.cube !== cube || cube.source.coverage(latDeg, lonDeg).state !== 'finest') return null;
+    return cube.source.sampleResident(latDeg, lonDeg);
+  }
+
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
     if (this.cubeConfigured) {
       const { latDeg, lonDeg } = bodyFixedToGeodetic(point, this.sampler.datum);

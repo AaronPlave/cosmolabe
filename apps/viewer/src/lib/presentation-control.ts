@@ -21,7 +21,7 @@ export const presentationControl: Pick<Required<ViewerControl>, 'listInstruments
     const info = getRenderer()?.getInstrumentViewInfo();
     if (!info) return null;
     const { imageRect: _imageRect, ...semantic } = info;
-    return { ...semantic, observation: 'synthetic-scene-view', observedEt: info.observedEt }; 
+    return { ...semantic, observation: 'synthetic-scene-view', observedEt: info.observedEt };
   },
   selectInstrument: (name, opts) => {
     const r = guard(opts);

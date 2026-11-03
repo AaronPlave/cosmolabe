@@ -102,6 +102,7 @@
         "baseMap": "textures/mars.dds",
         "terrain": {
           "type": "3dtiles",
+          "frame": "IAU_MARS",
           "url": "data/ingenuity-cube/terrain-3846907d293e9e5d0b0243ce/tileset-measured.json",
           "datum": {
             "verticalDatum": "ellipsoid",

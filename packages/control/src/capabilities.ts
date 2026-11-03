@@ -92,7 +92,7 @@ const objectSchema = (properties: Record<string, AgentJsonSchema>, required: str
   ({ type: 'object', properties, required, additionalProperties: false });
 const DISCOVERY: readonly AgentToolDef[] = [
   { name: 'listCapabilities', effect: 'read', description: 'Find supported semantic operations. Bounded search by query/domain/effect, including unavailable reasons. Returns IDs, not detailed schemas. Describe selected IDs when you need their schemas; prior description is optional.',
-    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'spatial', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
+    inputSchema: objectSchema({ version: { type: 'number' }, query: { type: 'string' }, domain: { type: 'string', enum: ['scene', 'spatial', 'camera', 'time', 'activities', 'places', 'surface', 'grids', 'display', 'capture', 'measurements', 'geographic', 'readiness', 'events', 'instruments', 'bookmarks', 'analysis'] }, effects: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['read', 'viewer', 'authoring', 'external'] } }, availableOnly: { type: 'boolean' }, offset: { type: 'number', minimum: 0 }, limit: { type: 'number', minimum: 1, maximum: CAPABILITY_LIMITS.page } }) },
   { name: 'describeCapabilities', effect: 'read', description: 'Describe up to eight exact capability IDs at version 1. Returns their input schemas, scope, units, availability, provenance and permission. Described IDs remain usable for this task until the scene changes. Then invokeCapability with the exact ID and schema-valid input.',
     inputSchema: objectSchema({ ids: { type: 'array', minItems: 1, maxItems: CAPABILITY_LIMITS.selected, items: { type: 'string' } }, version: { type: 'number' } }, ['ids']) },
   { name: 'getOperationResult', effect: 'read', description: 'Inspect an operation receipt by its returned ID, including running, cancelled and failed outcomes. Null means evicted or another viewer; never means success.',
@@ -102,6 +102,7 @@ const DISCOVERY: readonly AgentToolDef[] = [
 ];
 
 export function capabilityDomain(name: string, effect: AgentToolEffect): string {
+  if (name === 'findTrajectoryExtrema' || name === 'navigateToAnalysisResult') return 'analysis';
   if (/SpatialContext|GroundPoint|ProbePoint|ObjectState/.test(name)) return 'spatial';
   if (/Event/.test(name)) return 'events';
   if (/Instrument/.test(name)) return 'instruments';
@@ -138,6 +139,7 @@ const RECORDS: AgentJsonSchema = { type: 'array', items: { type: 'object' } };
 const STRINGS: AgentJsonSchema = { type: 'array', items: TEXT };
 /** Domain envelopes; nested public science metadata retains the native port's projection. */
 const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
+  findTrajectoryExtrema: objectSchema({ status:TEXT,results:RECORDS,faults:RECORDS },['status','results','faults']),
   getSpatialContext: { type: 'object' }, projectGroundPoint: { type: 'object' }, getProbePoint: NULLABLE_RECORD, getObjectState: NULLABLE_RECORD,
   getEventQueryInfo: { type: 'object' }, getEventResultPage: objectSchema({ status: TEXT, total: NUMBER, offset: NUMBER, nextOffset: { type: ['number', 'null'] }, items: RECORDS, query: { type: 'object' } }), getEventVisualization: { type: 'object' },
   listEventQueries: objectSchema({ items: RECORDS }), getEventSearch: { type: 'object' },
@@ -159,7 +161,7 @@ const READ_OUTPUTS: Readonly<Record<string, AgentJsonSchema>> = {
   listActivities: objectSchema({ total: NUMBER, offset: NUMBER, returned: NUMBER, nextOffset: { type: ['number', 'null'] }, complete: { type: 'boolean' },
     sort: TEXT, order: TEXT, missingDuration: NUMBER, activities: RECORDS }, ['total', 'offset', 'returned', 'nextOffset', 'complete', 'activities']),
   getActivity: { type: 'object', properties: { id: TEXT, name: TEXT, kind: TEXT, vehicle: TEXT, body: TEXT, start: NUMBER, end: NUMBER, site: { type: 'object' }, references: { type: 'object' }, provenance: { type: 'object' } }, required: ['id', 'name', 'provenance'] },
-  getSurfaceData: objectSchema({ body: TEXT, bodyFrame: { type: ['string', 'null'] }, surface: { type: ['string', 'null'] }, terrain: NULLABLE_RECORD,
+  getSurfaceData: objectSchema({ body: TEXT, referenceShape:NULLABLE_RECORD, bodyFrame: { type: ['string', 'null'] }, surface: { type: ['string', 'null'] }, terrain: NULLABLE_RECORD,
     cubeImagery: NULLABLE_RECORD, textures: RECORDS, imageryProducts: RECORDS, overlays: RECORDS }, ['body', 'terrain', 'cubeImagery', 'textures', 'imageryProducts', 'overlays']),
   getImagery: objectSchema({ body: TEXT, surface: { type: ['string', 'null'] }, imageryOnly: { type: 'boolean' }, layers: RECORDS }, ['body', 'layers']),
 };
@@ -209,7 +211,8 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
   };
   const summary = (def: ReturnType<typeof definitions>[number]): CapabilitySummary => {
     const id = idOf(def);
-    const reason = opts.omitted?.[id] ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
+    const blockedNavigation = def.name === 'navigateToAnalysisResult' ? ['time.setTime','time.setPlaying','scene.select','camera.frameObject'].find(operation => opts.omitted?.[operation]) : undefined;
+    const reason = opts.omitted?.[id] ?? (blockedNavigation ? `Result navigation requires ${blockedNavigation}: ${opts.omitted![blockedNavigation]}` : undefined) ?? (def.method && typeof host[def.method] !== 'function' ? `Host does not implement ${def.method}`
       : effectOf(def) !== 'read' && (!host.getScene || scope().scene === null) ? 'Scene identity is required for writes'
         : def.requiresAuthoring && !opts.allowAuthoring ? 'Host authoring permission required'
         : effectOf(def) === 'authoring' && (!opts.allowAuthoring || !opts.confirmAuthoring) ? 'Host authoring permission and confirmation required'
@@ -349,6 +352,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         const observation = observe();
         // Features without a shared semantic read remain explicitly unverified (#297).
         const hasReadback = def.effect === 'read' || (result.ok && result.completion?.kind === 'flight')
+          || (name === 'navigateToAnalysisResult' && result.ok && (result.data as {verified?:boolean} | undefined)?.verified === true)
           || ['frameObject', 'select', 'deselect', 'track', 'untrack', 'setTime', 'setTimeRate', 'setPlaying', 'showImagery', 'setImageryOpacity'].includes(name)
           || (name === 'selectGeographicFeature' && typeof host.getSelectedGeographicFeature === 'function' && typeof host.listGeographicLayers === 'function')
           || (name === 'gotoPlace' && typeof host.getSelectedPlace === 'function')

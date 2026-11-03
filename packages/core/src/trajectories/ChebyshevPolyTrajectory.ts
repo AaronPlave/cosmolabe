@@ -31,6 +31,12 @@ export class ChebyshevPolyTrajectory implements Trajectory {
   get endTime(): number { return this._startTime + this.granuleCount * this.granuleLength; }
   get period(): number | undefined { return this._period > 0 ? this._period : undefined; }
 
+  samplingBreakpoints(start: number, end: number): readonly number[] {
+    const first = Math.max(0,Math.ceil((start-this.startTime)/this.granuleLength));
+    const last = Math.min(this.granuleCount,Math.floor((end-this.startTime)/this.granuleLength));
+    return Array.from({length:Math.max(0,last-first+1)},(_,i) => this.startTime+(first+i)*this.granuleLength);
+  }
+
   constructor(coeffs: Float64Array, degree: number, granuleCount: number, startTime: number, granuleLength: number) {
     this.coeffs = coeffs;
     this.degree = degree;

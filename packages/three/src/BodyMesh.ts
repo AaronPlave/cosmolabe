@@ -1257,6 +1257,11 @@ export class BodyMesh extends THREE.Object3D {
     return this.terrainManager?.sampleResident(latDeg, lonDeg) ?? null;
   }
 
+  /** Async source analysis; never depends on renderer zoom or substitutes a sphere. */
+  async requestTerrainAnalysisSample(latDeg: number, lonDeg: number): Promise<TerrainSample | null> {
+    return await this.terrainManager?.requestAnalysisSample(latDeg, lonDeg) ?? null;
+  }
+
   sampleTerrainBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
     return this.terrainManager?.sampleBodyFixed(point, deriveNormal) ?? null;
   }

@@ -13,7 +13,7 @@
   import { eventDuration, eventEnd, eventStart, isIntervalEvent } from '@cosmolabe/core';
   import { etToUtcString } from '../lib/viewer-state.svelte';
   import { EVENT_KINDS, ef, selectEvent } from '../lib/event-finder.svelte';
-  import { formatMetric, formatSeconds, headlineMetric } from '../lib/event-query';
+  import { formatMetric, formatSeconds, formatCoordinates, headlineMetric } from '../lib/event-query';
 
   interface Props {
     event: GeometryEvent;
@@ -41,6 +41,35 @@
 </script>
 
 <div class="event-details flex flex-col gap-0.5">
+  {#if event.trajectoryAnalysis}
+    {@const result = event.trajectoryAnalysis}
+    <dl class="measurement-rows">
+      <dt>Location</dt><dd>{formatCoordinates(result.location.latitudeDeg, result.location.longitudeDeg)}</dd>
+      <dt>Reference</dt><dd>{event.metrics?.[0]?.label} · {result.body}</dd>
+      <dt>Source</dt><dd>{result.source.classification === 'synthetic' ? 'Synthetic trajectory' : result.source.description?.split(/[,.!?\n]/)[0] || 'Trajectory classification unknown'}</dd>
+      <dt>Coverage</dt><dd class:incomplete={result.coverage === 'partial'}>{result.coverage === 'partial' ? 'Incomplete — candidate only' : 'Sampled — not a certified global extremum'}</dd>
+    </dl>
+    <details class="calculation-details ui-helper">
+      <summary onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>Calculation &amp; sources</summary>
+      <dl class="measurement-rows">
+        <dt>Frame</dt><dd>{result.frame}</dd>
+        {#if result.source.description}
+          <dt>Source notes</dt><dd>{result.source.description}</dd>
+        {/if}
+        <dt>Convention</dt><dd>{result.location.convention} · {result.heightConvention} height</dd>
+        <dt>Datum</dt><dd>{result.datum.kind}: {result.datum.kind === 'sphere' ? result.datum.radiusKm : result.datum.radiiKm.join(' × ')} km</dd>
+        <dt>Classification</dt><dd>{result.source.classification}</dd>
+        <dt>Trajectory</dt><dd>{result.source.id ?? 'identity unknown'}; revision {result.source.revision ?? 'unknown'}</dd>
+        {#if result.terrain}
+          <dt>Terrain</dt><dd>{result.terrain.id} · {result.terrain.revision}</dd>
+          <dt>Source uncertainty</dt><dd>{result.terrain.sourceUncertaintyKm == null ? 'Unknown' : `${result.terrain.sourceUncertaintyKm} km`}</dd>
+        {/if}
+        <dt>Sampling</dt><dd>Step {result.method.stepSeconds} s; refinement {result.method.timeToleranceSeconds} s</dd>
+        <dt>Numerical error</dt><dd>Global height error unknown; separate from source uncertainty</dd>
+        <dt>Limits</dt><dd>{result.method.limits}</dd>
+      </dl>
+    </details>
+  {/if}
   {#if event.state}
     <div class="ui-data-row">
       <span class="ui-label">State</span>
@@ -65,12 +94,14 @@
       3D geometry follows the event under the playhead.
     </div>
   {/if}
+  {#if !event.trajectoryAnalysis}
   {#each Object.entries(event.bodies) as [role, body]}
     <div class="ui-data-row">
       <span class="ui-label">{roleLabel(role)}</span>
       <span class="ui-readout">{body}</span>
     </div>
   {/each}
+  {/if}
   {#if !event.metrics?.length}
     <!-- A closest approach with no range is a thin answer; say the
          measurement is missing rather than showing a blank. -->
@@ -124,6 +155,12 @@
 </div>
 
 <style>
+  .measurement-rows { display: grid; grid-template-columns: minmax(0, 90px) minmax(0, 1fr); gap: 5px 10px; margin: 8px 0; line-height: 1.5; }
+  .measurement-rows dt { color: var(--color-text-muted); }
+  .measurement-rows dd { margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+  .measurement-rows dd.incomplete { color: var(--color-warning); }
+  .calculation-details summary { cursor: pointer; color: var(--color-text-secondary); }
+
   .geometry-standby {
     margin: 3px 0 2px;
     padding: 4px 6px;

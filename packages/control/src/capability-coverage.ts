@@ -4,6 +4,7 @@ import { capabilityDomain, defaultAskDefinitions } from './capabilities.js';
 import { VERBS } from './verbs.js';
 
 const UI: Readonly<Record<string, string>> = {
+  analysis: 'EventFinder / EventDetails / TimelineDock',
   spatial: 'Point Probe / DrawToolbar',
   scene: 'BodyDrawer / NavigationView / ScriptConsole', camera: 'NavigationActions / NavigationView / ScriptConsole',
   time: 'TimeScrubber / TimelineDock / ScriptConsole', activities: 'MissionActivityTimeline / SelectedEventInspector',
@@ -41,7 +42,7 @@ export const CONTROL_CONTRACT_GAPS = {
 } as const;
 
 export const UI_CAPABILITY_GAPS = [
-  { feature: 'Event Finder', ui: 'EventFinder / EventDetails', reason: 'Existing query configuration, run/progress/cancel/results/selection are registered. Trajectory-extrema solver implementation is owned by #329.' },
+  { feature: 'Event Finder', ui: 'EventFinder / EventDetails', reason: 'Existing query configuration, run/progress/cancel/results/selection are registered. Trajectory height extrema uses the shared #329 solver, typed operation and native event-to-visualization path.' },
   { feature: 'Geographic file import/export', ui: 'DrawToolbar', reason: 'Bounded annotation edits are supported; local file import/export and authored layer snapshot transport require an explicit portable-resource contract.' },
   { feature: 'Instruments', ui: 'InstrumentViewPanel', reason: 'Synthetic sensor feeds and truthful pointing inspection are registered. Calibrated observation ingestion/authority is owned by #28/#192-195; no calibrated measurements are fabricated.' },
   { feature: 'Bookmarks / view sharing', ui: 'NavigationView / camera bookmark and permalink actions', reason: 'Session bookmark CRUD and same-catalog ViewState v1 restore are registered. Raw portable state capture is trusted-host-only; automatic file/clipboard/network export is withheld.' },

@@ -19,7 +19,8 @@ export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: read
   const cube = record(record(terrain.cubeSphere).imagery);
   const metadata = bm?.terrainSourceMetadata ?? record(terrain.sourceMetadata);
   const cubeMetadata = bm?.terrainCubeImageryMetadata;
-  const datum = record(terrain.datum);
+  const datum = bm?.terrainDatum ?? record(terrain.datum);
+  const physicalShape = bm?.terrainDatum?.referenceShape;
   const product = (kind: ScriptSurfaceProduct['kind'], url: unknown): ScriptSurfaceProduct => ({
     kind, endpoint: endpoint(typeof url === 'string' ? url : record(url).template ?? record(url).topLayer), configured: true,
     source: { id: null, revision: null, kind: null }, frame: null, datum: null,
@@ -30,7 +31,7 @@ export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: read
   const elevation = Object.keys(terrain).length > 0 && terrain.type !== 'imagery' ? {
     ...product('terrain', terrain.url), frame: string(terrain.frame),
     source: { id: endpoint(metadata.id), revision: string(metadata.version), kind: string(metadata.kind), url: endpoint(metadata.url) },
-    datum: Object.keys(datum).length ? { verticalDatum: string(datum.verticalDatum), heightConvention: string(datum.heightConvention) } : null,
+    datum: Object.keys(datum).length ? { verticalDatum: string(datum.verticalDatum), heightConvention: string(datum.heightConvention), ...(physicalShape ? {referenceShape:physicalShape} : {}) } : null,
     runtime: { ...unknownRuntime(), ready: bm?.hasTerrain ?? null,
       loaded: metrics ? metrics.tiles.loaded > 0 || metrics.tiles.cpu > 0 : null,
       failedRequests: metrics?.network.failed ?? null,
@@ -49,6 +50,7 @@ export function surfaceData(body: Body, bm: BodyMesh | undefined, overlays: read
     } : unknownRuntime(),
   } satisfies ScriptSurfaceProduct : null;
   return {
+    ...(body.radii ? {referenceShape:body.radii.every(radius => radius === body.radii![0]) ? {kind:'sphere' as const,radiusKm:body.radii[0]} : {kind:'ellipsoid' as const,radiiKm:body.radii}} : {}),
     body: body.name, bodyFrame: bm?.bodyFixedFrame ?? body.rotation?.bodyFixedFrame ?? null,
     surface: bm?.surfaceTransitionState ?? null, terrain: elevation, cubeImagery,
     textures: (['baseMap', 'normalMap', 'displacementMap', 'bumpMap'] as const)

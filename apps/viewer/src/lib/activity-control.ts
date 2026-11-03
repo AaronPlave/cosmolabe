@@ -4,12 +4,17 @@ import type { ScriptActivityFilter } from '@cosmolabe/control';
 import { vs, setTime, getRenderer } from './viewer-state.svelte';
 import { isSelectedEvent, selectEventForInspection } from './event-finder.svelte';
 import { activityEvent } from './mission-activities';
+import { analysisContext } from './analysis.svelte';
+import { selectedEventOf } from './event-finder.svelte';
 
 export function listActivities(filter: ScriptActivityFilter = {}): MissionActivity[] {
   return vs.activities.filter(a => (!filter.vehicle || a.vehicle === filter.vehicle) && (!filter.kind || a.kind === filter.kind));
 }
 export function getActivity(id: string) { return vs.activities.find(a => a.id === id); }
-export function getSelectedActivity() { return vs.activities.find(a => isSelectedEvent(activityEvent(a))); }
+export function getSelectedActivity() {
+  const result = selectedEventOf(analysisContext().eventResults)?.trajectoryAnalysis;
+  return vs.activities.find(a => isSelectedEvent(activityEvent(a)) || a.id === result?.activityId);
+}
 export function selectActivity(id: string): boolean {
   const a = getActivity(id);
   if (!a || a.enabled === false) return false;
