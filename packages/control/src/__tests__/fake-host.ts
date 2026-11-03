@@ -1,3 +1,5 @@
+import type { MeasurementDefinition, GeographicCoordinates, GeographicEditOperation, GeographicLayerStyle } from '@cosmolabe/core';
+import type { ScriptReadinessRequest, ScriptReadiness, ScriptSurfaceAppearance } from '../contracts.js';
 import { normalizeGridSettings, type GridSettings } from '../grid.js';
 /**
  * A complete `ViewerControl` with no renderer behind it.
@@ -37,6 +39,59 @@ export interface FakeOptions {
 }
 
 export class FakeViewer implements ViewerControl {
+  pinGroundPoint(_object: string, policy: import('../contracts.js').ScriptSurfacePolicy = 'rendered'): import('../contracts.js').ScriptGroundProjection { return { scene: 1, et: 0, object: _object, body: null, frame: null, policy, status: 'unavailable', reason: 'missing-parent', point: null, annotation: null, referenceOnly: false, limitations: [] }; }
+  clearProbePoint() { this.log('clearProbePoint'); }
+  restoreViewState(_input: unknown) { return Promise.resolve(true); }
+  selectInstrument(name: string | null) { this.log('selectInstrument', name); return true; }
+  saveBookmark(name: string) { this.log('saveBookmark', name); return true; }
+  upsertBookmark(input: import('../contracts.js').ScriptBookmark) { this.log('upsertBookmark', input.name); return true; }
+  removeBookmark(name: string) { this.log('removeBookmark', name); return true; }
+  upsertEventQuery(input: import('../contracts.js').ScriptEventQuery) { this.log('upsertEventQuery', input.id); return true; }
+  openEventQuery(id: string) { this.log('openEventQuery', id); return true; }
+  removeEventQuery(id: string) { this.log('removeEventQuery', id); return true; }
+  runEventQuery(id: string): Promise<import('../contracts.js').ScriptEventSearch> { this.log('runEventQuery', id); return Promise.resolve({ scene: this.scene?.id ?? null, query: id, status: 'complete', progress: null, error: null, selected: null }); }
+  cancelEventQuery() { return true; }
+  selectEventResult(query: string, id: string) { this.log('selectEventResult', query, id); return true; }
+  getEventVisualization(): import('../contracts.js').ScriptEventVisualization { return { scene: this.scene?.id ?? null, selected: null, et: this.getTime(), playing: this.isPlaying(), selectedObject: this.selected, highlightedBodies: [], timeline: { min: 0, max: 1000, selectedInResults: false, selectedInVisibleLane: false }, renderer: null, status: 'partial', limitations: ['No renderer'] }; }
+  getEventQueryInfo(): import('../contracts.js').ScriptEventQueryInfo { return { status: 'missing-query', definition: null, coverage: null, error: null, provenance: null }; }
+  getEventResultPage(): import('../contracts.js').ScriptEventResultPage { return { status: 'missing-query', total: 0, offset: 0, nextOffset: null, items: [], query: this.getEventQueryInfo() }; }
+  async presentEventResult(reference: import('../contracts.js').ScriptEventReference) { return this.focusEventResult(reference, 'middle'); }
+  focusEventResult(reference: import('../contracts.js').ScriptEventReference, anchor: 'inspect' | 'start' | 'middle' | 'end' = 'inspect'): import('../contracts.js').ScriptEventFocusReceipt { this.log('focusEventResult', reference.query, reference.id, anchor); return { status: 'partial', reference, anchor, observation: this.getEventVisualization() }; }
+  moveImageryLayer(body: string, layer: string, index: number) { this.log('moveImageryLayer', body, layer, index); return true; }
+
+  selectPlace(ref: string | null) { if (ref && !this.places.some(p => p.ref === ref)) return false; this.selectedPlace = ref; return true; }
+  listPlaceSources() { return []; }
+  setPlaceSourceEnabled(_id: string, _enabled: boolean) { return false; }
+  showPlaceLabels(_id: string, _visible: boolean) { return false; }
+  measurements: MeasurementDefinition[] = [];
+  selectedMeasurement: string | null = null;
+  listMeasurements() { return structuredClone(this.measurements); }
+  getSelectedMeasurement() { return this.selectedMeasurement; }
+  upsertMeasurement(definition: MeasurementDefinition) { this.measurements = [...this.measurements.filter(m => m.id !== definition.id), structuredClone(definition)]; return true; }
+  restoreMeasurements(state: { version: 1; items: MeasurementDefinition[]; selected?: string }, mode: 'merge' | 'replace' = 'merge') {
+    if (mode === 'replace') { this.measurements = []; this.selectedMeasurement = null; }
+    for (const m of state.items) this.upsertMeasurement(m);
+    if (state.selected) this.selectedMeasurement = state.selected;
+    return true;
+  }
+  removeMeasurement(id: string) { const found = this.measurements.some(m => m.id === id); this.measurements = this.measurements.filter(m => m.id !== id); return found; }
+  selectMeasurement(id: string | null) { if (id !== null && !this.measurements.some(m => m.id === id)) return false; this.selectedMeasurement = id; return true; }
+  showMeasurement(id: string, visible: boolean) { const m = this.measurements.find(m => m.id === id); if (!m) return false; m.visible = visible; return true; }
+  listGeographicLayers() { return []; }
+  listGeographicFeatures(_id: string) { return undefined; }
+  getSelectedGeographicFeature() { return null; }
+  setGeographicLayerVisible(_id: string, _visible: boolean) { return false; }
+  setGeographicLayerStyle(_id: string, _style: GeographicLayerStyle | null) { return false; }
+  selectGeographicFeature(_layer: string, _feature: string) { return false; }
+  clearGeographicSelection() {}
+  gotoGeographicFeature(_layer: string, _feature: string) { return false; }
+  createAnnotationLayer(_body: string, _name: string, _coordinates: GeographicCoordinates) { return false as const; }
+  editAnnotation(_layer: string, _operation: GeographicEditOperation) { return false as const; }
+  getSurfaceAppearance(_body: string) { return undefined; }
+  setSurfaceAppearance(_body: string, _patch: Partial<ScriptSurfaceAppearance>) { return false; }
+  getReadiness(request: ScriptReadinessRequest): ScriptReadiness { return { request, scene: this.scene?.id ?? null, status: this.scene?.ready ? 'ready' : 'partial', missing: [], limitations: ['Fake initial assets only'] }; }
+  async waitUntilReady(request: ScriptReadinessRequest, _opts?: { signal?: import('../contracts.js').ScriptCancelSignal; timeoutMs?: number; scene?: number }) { return this.getReadiness(request); }
+
   listActivities(): readonly ScriptActivity[] { return []; }
   getActivity(_id: string): ScriptActivity | undefined { return undefined; }
   getSelectedActivity(): ScriptActivity | undefined { return undefined; }
@@ -433,6 +488,7 @@ export class FakeViewer implements ViewerControl {
       ...(this.grid ? { grid: this.grid } : {}),
       layers: { ...this.layers },
       note: this.note,
+      ...(this.measurements.length ? { measurements: { version: 1 as const, items: this.listMeasurements(), ...(this.selectedMeasurement ? { selected: this.selectedMeasurement } : {}) } } : {}),
     };
   }
 

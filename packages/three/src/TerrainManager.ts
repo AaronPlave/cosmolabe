@@ -1236,7 +1236,10 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
+  viewUpdateSucceeded = false;
+
   update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] | null = []): void {
+    this.viewUpdateSucceeded = false;
     if (this.disposed) return;
     if (this.frameAvailability.kind === 'unavailable') { this.group.visible = false; return; }
 
@@ -1382,6 +1385,7 @@ export class TerrainManager {
       this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
+      return;
     }
     if (this.drawCulling) this.cullToMainView();
     this.surfaceStyle?.update();
@@ -1397,8 +1401,10 @@ export class TerrainManager {
       } catch (err) {
         // Imagery must never stop terrain streaming or the frame loop.
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+        return;
       }
     }
+    this.viewUpdateSucceeded = true;
     if (labelObstacles) this.updateContourLabels(camera, renderer, labelObstacles);
   }
 
@@ -2281,6 +2287,27 @@ export class TerrainManager {
     }
     this.seamErrorKm.set(id, worst);
     return worst;
+  }
+
+  /** Coverage within the configured product footprint, using the streamer's own
+   * replacement hierarchy. Never a statement about areas absent from that product. */
+  get viewCoverage() {
+    const coverage = this.coverageTiles().filter(t => t.traversal?.inFrustum !== false);
+    const missing = coverage.filter(t => t.internal?.loadingState !== LOADED).length;
+    const failed = coverage.filter(t => t.internal?.loadingState === FAILED).length;
+    const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
+    const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
+    // Visible parents can fill coverage while children refine. This is reported
+    // separately from coverage and never inferred from an empty request queue.
+    let targetLod = true;
+    for (const tile of this.tiles.visibleTiles) {
+      const t = tile as unknown as { traversal?: { error?: number }; engineData?: { scene?: THREE.Object3D | null } };
+      if (t.engineData?.scene && this.culledScenes.includes(t.engineData.scene)) continue;
+      if (!Number.isFinite(t.traversal?.error) || (t.traversal?.error ?? Infinity) > this.tiles.errorTarget) targetLod = false;
+    }
+    return { observed: this.viewUpdateSucceeded, coverageTiles: coverage.length, missing, failed,
+      pending, drawn: this.surfaceStatus.tiles.drawn, targetLod,
+      physical: !this.imageryOnly, frameAvailable: this.frameAvailability.kind !== 'unavailable' };
   }
 
   /** Constant-time residency/draw status, without geometry or texture traversal. */

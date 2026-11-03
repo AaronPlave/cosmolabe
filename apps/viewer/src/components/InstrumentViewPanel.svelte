@@ -14,6 +14,7 @@
    * how large the image is drawn, never what it covers. The renderer fits it
    * inside the canvas with bars.
    */
+  import { presentationControl } from '../lib/presentation-control';
   import { CameraModeName } from '@cosmolabe/three';
   import { vs, getRenderer } from '../lib/viewer-state.svelte';
   import { shell, toolDef, isFloating, isExpanded } from '../lib/shell.svelte';
@@ -36,7 +37,7 @@
 
   // Opening with nothing chosen shows the first instrument, not an empty window.
   $effect(() => {
-    if (vs.instrumentSensor == null && sensors.length > 0) vs.instrumentSensor = sensors[0];
+    if (vs.instrumentSensor == null && sensors.length > 0) presentationControl.selectInstrument(sensors[0]);
   });
 
   // Which sensor and where it is shown are separate renderer calls, so a
@@ -90,7 +91,7 @@
         class="ui-control text-text-primary"
         aria-label="Instrument"
         value={sensor ?? ''}
-        onchange={(e) => { vs.instrumentSensor = (e.target as HTMLSelectElement).value || null; }}
+        onchange={(e) => { presentationControl.selectInstrument((e.target as HTMLSelectElement).value || null); }}
       >
         {#if !sensor}<option value="" disabled>Choose…</option>{/if}
         {#each sensors as name (name)}<option value={name}>{name}</option>{/each}
@@ -122,7 +123,11 @@
       style:--feed-aspect={feedAspect}
     >
       <canvas bind:this={surface} aria-label="View from {sensor}"></canvas>
-      {#if info?.pointingUnavailable}
+      {#if info?.renderError}
+        <p class="state overlay">{info.renderError}</p>
+      {:else if info && !info.fresh && !vs.playing}
+        <p class="state overlay">Updating instrument view…</p>
+      {:else if info?.pointingUnavailable}
         <p class="state overlay opaque">{info.pointingUnavailable}</p>
       {:else if fullCanvas}
         <p class="state overlay">Showing full-canvas in Instrument camera mode.</p>

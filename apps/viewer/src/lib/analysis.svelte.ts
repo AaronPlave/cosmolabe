@@ -15,11 +15,14 @@ import {
   type GeometryEvent,
   type ResolvedContinuousProfile,
   resolveContinuousProfile,
+  resolveEventQuery,
+  type EventQuery,
 } from '@cosmolabe/core';
 import { untrack } from 'svelte';
-import { vs } from './viewer-state.svelte';
+import { vs, emit, sceneId } from './viewer-state.svelte';
 import { resetTimeline } from './timeline.svelte';
 import { resettable } from './session.svelte';
+import { eventQuerySignature } from './event-query-signature';
 
 export const analysis = $state({
   bodies: {} as AnalysisContext['bodies'],
@@ -27,6 +30,7 @@ export const analysis = $state({
   items: [] as ConfiguredAnalysisItem[],
   quantities: [] as AnalysisQuantity[],
   eventResults: {} as Record<string, GeometryEvent[]>,
+  eventResultRuns: {} as Record<string, { revision: number; scene: number; kernels: number; kernelCount: number; query: EventQuery; contextFrame: string; complete: boolean }>,
   /** Catalog activity intervals, independent of computed event searches and
    * their optional 3D explanatory overlays. */
   catalogActivities: [] as GeometryEvent[],
@@ -34,6 +38,20 @@ export const analysis = $state({
 resettable(analysis);
 
 let itemSequence = 0;
+let resultSequence = 0;
+
+/** Context inputs only, so checking a batch cannot recurse through its own results. */
+function queryContext(): AnalysisContext {
+  return { bodies: analysis.bodies, reference: analysis.reference,
+    window: { start: vs.scrubBaseMin, end: vs.scrubBaseMax }, currentTime: 0, quantities: [], eventResults: [] };
+}
+export function currentEventResultRun(id: string) {
+  const run = analysis.eventResultRuns[id], item = configuredItem(id);
+  return run && item?.type === 'event-query' && run.complete && run.scene === sceneId()
+    && run.kernels === vs.kernelRevision && run.kernelCount === vs.kernelCount
+    && run.contextFrame === analysis.reference.frame
+    && eventQuerySignature(run.query) === eventQuerySignature(resolveEventQuery(item, queryContext())) ? run : null;
+}
 
 /** The live context consumed by event, timeline, measurement, and 3D surfaces. */
 export function analysisContext(): AnalysisContext {
@@ -52,7 +70,7 @@ export function analysisContext(): AnalysisContext {
     // Visibility is a presentation concern; enabled is the participation
     // boundary shared by 3D, measurement, and other analysis consumers.
     eventResults: Object.entries(analysis.eventResults)
-      .filter(([id]) => enabledEventIds.has(id))
+      .filter(([id]) => enabledEventIds.has(id) && currentEventResultRun(id))
       .flatMap(([, events]) => events),
   };
 }
@@ -65,9 +83,15 @@ export function createConfiguredEventQuery(
   query: EventQueryConfiguration,
   label: string,
   windowMode: ConfiguredEventQuery['windowMode'] = 'automatic',
+  id?: string,
 ): ConfiguredEventQuery {
+  let identity = id;
+  if (identity === undefined) {
+    do { identity = `event-query-${++itemSequence}`; } while (analysis.items.some(item => item.id === identity));
+  }
+  if (Object.hasOwn(Object.prototype, identity) || analysis.items.some(item => item.id === identity)) throw new Error('Event query ID is reserved or already in use');
   const item: ConfiguredEventQuery = {
-    id: `event-query-${++itemSequence}`,
+    id: identity,
     type: 'event-query',
     label,
     enabled: true,
@@ -76,6 +100,7 @@ export function createConfiguredEventQuery(
     windowMode,
   };
   analysis.items.push(item);
+  emit('events', {});
   return item;
 }
 
@@ -92,6 +117,7 @@ export function createConfiguredProfile(
     profile,
   };
   analysis.items.push(item);
+  emit('events', {});
   return item;
 }
 
@@ -107,6 +133,7 @@ export function updateConfiguredEventQuery(
   item.query = query;
   if (label !== undefined) item.label = label;
   if (windowMode !== undefined) item.windowMode = windowMode;
+  emit('events', {});
   return item;
 }
 
@@ -165,6 +192,8 @@ export function removeConfiguredItem(id: string) {
   const i = analysis.items.findIndex((item) => item.id === id);
   if (i >= 0) analysis.items.splice(i, 1);
   delete analysis.eventResults[id];
+  delete analysis.eventResultRuns[id];
+  emit('events', {});
 }
 
 /**
@@ -188,21 +217,30 @@ export function resolveProfile(item: ConfiguredContinuousProfile): ResolvedConti
 export function setConfiguredItemEnabled(id: string, enabled: boolean) {
   const item = configuredItem(id);
   if (item) item.enabled = enabled;
+  emit('events', {});
 }
 
 export function setConfiguredItemVisible(id: string, visible: boolean) {
   const item = configuredItem(id);
   if (item) item.visible = visible;
+  emit('events', {});
 }
 
-export function setEventResults(id: string, events: readonly GeometryEvent[]) {
+export function setEventResults(id: string, events: readonly GeometryEvent[], complete = true) {
   analysis.eventResults[id] = [...events];
+  const item = configuredItem(id);
+  if (item?.type === 'event-query') analysis.eventResultRuns[id] = {
+    revision: ++resultSequence, scene: sceneId(), kernels: vs.kernelRevision, kernelCount: vs.kernelCount,
+    query: JSON.parse(JSON.stringify(resolveEventQuery(item, queryContext()))),
+    contextFrame: analysis.reference.frame ?? 'J2000', complete,
+  };
+  emit('events', {});
 }
 
 /** Events the timeline should draw; disabled and hidden items remain configured. */
 export function visibleTimelineEvents(): GeometryEvent[] {
   return [...analysis.catalogActivities, ...analysis.items.flatMap((item) =>
-    item.type === 'event-query' && item.enabled && item.visible
+    item.type === 'event-query' && item.enabled && item.visible && currentEventResultRun(item.id)
       ? (analysis.eventResults[item.id] ?? [])
       : [],
   )];
@@ -223,6 +261,7 @@ export function resetAnalysis() {
   analysis.items.length = 0;
   analysis.quantities.length = 0;
   analysis.eventResults = {};
+  analysis.eventResultRuns = {};
   analysis.catalogActivities = [];
   resetTimeline();
 }

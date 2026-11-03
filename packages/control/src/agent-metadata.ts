@@ -1,5 +1,6 @@
+import type { MeasurementDefinition, SpatialEndpoint, ReferenceVector } from '@cosmolabe/core';
 /** Model-visible metadata is a projection, never a serialization of a local resource. */
-import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct } from './contracts.js';
+import type { ScriptImagery, ScriptImageryLayer, ScriptPlace, ScriptSurfaceData, ScriptSurfaceProduct, ScriptGeographicLayer, ScriptGeographicFeature, ScriptSpatialContext, ScriptGroundProjection, ScriptProbePoint, ScriptObjectState } from './contracts.js';
 
 export interface AgentMetadataPolicy {
   /** Trusted host approval of an exact public provenance value. Default: withhold. */
@@ -10,7 +11,7 @@ export interface AgentMetadataPolicy {
 
 // Closed scientific vocabulary; this does not approve arbitrary catalog text.
 const PUBLIC_TERMS = new Set(['estimated', 'reconstructed', 'observed', 'planned', 'unknown', 'exact',
-  'ellipsoid', 'areoid', 'reference-sphere', 'height-grid', 'radial', 'geodetic-normal', 'planetocentric', 'IAU_MARS', 'IAU_MOON', 'MOON_ME_DE421', 'MOON_PA_DE421']);
+  'ellipsoid', 'areoid', 'reference-sphere', 'height-grid', 'radial', 'geodetic-normal', 'planetocentric', 'ECLIPJ2000', 'J2000', 'IAU_MARS', 'IAU_MOON', 'MOON_ME_DE421', 'MOON_PA_DE421', 'IAU_SATURN', 'IAU_JUPITER', 'IAU_SUN', 'IAU_EARTH', 'IAU_VENUS', 'IAU_MERCURY', 'IAU_URANUS', 'IAU_NEPTUNE', 'IAU_TITAN', 'IAU_MIMAS', 'IAU_ENCELADUS']);
 
 export function agentMetadata(policy: AgentMetadataPolicy = {}) {
   const text = (value: string | null | undefined) => value != null && (PUBLIC_TERMS.has(value) || policy.publicValue?.(value) === true) ? value : null;
@@ -49,5 +50,57 @@ export function agentMetadata(policy: AgentMetadataPolicy = {}) {
     terrain: product(s.terrain), cubeImagery: product(s.cubeImagery), textures: s.textures.map(p => product(p)),
     imageryProducts: s.imageryProducts.map(p => product(p)), overlays: s.overlays.map(layer),
   });
-  return { text, place, imagery, surface };
+  const geographicLayer = (l: ScriptGeographicLayer) => ({
+    id: l.id, name: text(l.name)?.slice(0, 512) ?? null, body: l.body, frame: text(l.frame), features: l.features,
+    status: l.status, visible: l.visible, editable: l.editable, navigable: l.navigationUnavailable === null,
+    diagnosticsTotal: l.diagnostics.length,
+    diagnostics: l.diagnostics.slice(0, 16).map(d => ({ code: text(d.code)?.slice(0, 160) ?? null, severity: d.severity === 'warning' || d.severity === 'error' ? d.severity : 'unknown' })),
+  });
+  const geographicFeature = (f: ScriptGeographicFeature) => ({
+    id: f.id, name: text(f.name)?.slice(0, 512) ?? null,
+    type: ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'].includes(f.type) ? f.type : 'unknown',
+    sourceId: typeof f.sourceId === 'number' || typeof f.sourceId === 'string' && /^user-\d{1,8}$/.test(f.sourceId) && f.id === `string:${f.sourceId}` ? f.sourceId : text(f.sourceId),
+    // No object spread: imported properties, provenance and annotation payloads stay local.
+  });
+  const endpoint = (e: SpatialEndpoint | null | undefined): unknown => {
+    if (!e) return null;
+    if (e.kind === 'entity') return { kind: e.kind, bodyName: e.bodyName };
+    if (e.kind === 'coordinate') return { kind: e.kind, positionKm: e.positionKm.slice(0,3), frame: text(e.frame ?? 'ECLIPJ2000') };
+    if (e.kind === 'body-fixed') return { kind: e.kind, bodyName: e.bodyName, positionKm: e.positionKm.slice(0,3) };
+    return { kind: e.kind, bodyName: e.point.bodyName, frame: text(e.point.frame), latDeg: e.point.latDeg, lonDeg: e.point.lonDeg,
+      latitudeKind: e.point.latitudeKind, source: e.point.source,
+      limitations: 'Rendered surface anchor; physical datum/source evidence stays local. No terrain-clearance authority inferred.' };
+  };
+  const vector = (v: ReferenceVector | null | undefined): unknown => !v ? null : v.kind === 'direction'
+    ? { kind: v.kind, source: endpoint(v.source), target: endpoint(v.target) }
+    : v.kind === 'velocity' ? { kind: v.kind, object: endpoint(v.object), relativeTo: endpoint(v.relativeTo) }
+      : { kind: v.kind, frame: text(v.frame), origin: endpoint(v.origin), axis: v.axis };
+  const measurement = (m: MeasurementDefinition) => ({ id: m.id, kind: m.kind, visible: m.visible !== false,
+    source: endpoint(m.source), target: endpoint(m.target), vertex: endpoint(m.vertex),
+    frame: text(m.frame), first: vector(m.first), second: vector(m.second), showDistance: m.showDistance, fullLength: m.fullLength });
+  const availability = (a: ScriptObjectState['positionAvailability']) => ({ available: a.available,
+    reason: ['pending','before-coverage','after-coverage','gap','disconnected','stale','unbound','error','dependency'].includes(a.reason ?? '') ? a.reason : null,
+    sourceId: text(a.sourceId), classification: text(a.classification) });
+  const objectState = (s: ScriptObjectState | null | undefined) => !s ? null : ({ et: s.et, frame: text(s.frame), center: s.center,
+    position: s.position?.slice(0,3) ?? null, attitude: s.attitude?.slice(0,4) ?? null,
+    positionAvailability: availability(s.positionAvailability), attitudeAvailability: s.attitudeAvailability ? availability(s.attitudeAvailability) : null });
+  const coordinates = (c: ScriptSpatialContext['coordinates']) => !c ? null : ({ frame: text(c.frame), latitude: c.latitude,
+    longitudeDirection: c.longitudeDirection, longitudeDomain: c.longitudeDomain,
+    referenceShape: c.referenceShape.kind === 'sphere' ? { kind: 'sphere', radiusKm: c.referenceShape.radiusKm } : { kind: 'ellipsoid', radiiKm: c.referenceShape.radiiKm.slice(0,3) },
+    ...(c.height ? { height: { unit: c.height.unit, datum: c.height.datum, convention: c.height.convention } } : {}) });
+  const annotation = (a: ScriptProbePoint['annotation']) => !a ? null : ({ layer: a.layer, coordinates: coordinates(a.coordinates), position: a.position.slice(0,2) });
+  const spatialContext = (c: ScriptSpatialContext) => ({ status: c.status, scene: c.scene, et: c.et, object: c.object, parent: c.parent,
+    coordinates: coordinates(c.coordinates), parentCoordinates: coordinates(c.parentCoordinates), state: objectState(c.state),
+    selectedFeature: c.selectedFeature, drawing: c.drawing.slice(0,16).map(d => ({ layers: d.layers.slice(0,16), features: d.features, terrainCoverage: 'not-assessed' })),
+    editableLayers: c.editableLayers.slice(0,16).map(l => ({ id: l.id, body: l.body, frame: text(l.frame) })) });
+  const surfacePoint = (p: ScriptProbePoint['point']) => ({ bodyName: p.bodyName, frame: text(p.frame), positionKm: p.bodyFixedPositionKm.slice(0,3),
+    latDeg: p.latDeg, lonDeg: p.lonDeg, latitudeKind: ['geodetic','planetocentric'].includes(p.latitudeKind) ? p.latitudeKind : 'unknown', source: ['terrain','surface-overlay','ellipsoid','mesh','dsk'].includes(p.source) ? p.source : 'unknown',
+    datum: p.hit.datum ? { referenceShape: p.hit.datum.referenceShape.kind === 'sphere' ? { kind: 'sphere', radiusKm: p.hit.datum.referenceShape.radiusKm } : { kind: 'ellipsoid', radiiKm: p.hit.datum.referenceShape.radiiKm.slice(0,3) }, verticalDatum: text(p.hit.datum.verticalDatum), heightConvention: text(p.hit.datum.heightConvention), origin: ['terrain','body-shape'].includes(p.hit.datum.origin) ? p.hit.datum.origin : null } : null,
+    heightKm: p.hit.heightKm, physicalTerrain: p.terrainSample ? { elevationKm: p.terrainSample.elevationKm, describesHit: p.terrainSample.describesHit, sourceId: text(p.terrainSample.sourceId) } : null,
+    limitations: 'A rendered/reference surface anchor is not automatically physical terrain. Display precision is not accuracy. Resource locations and unapproved provenance remain local.' });
+  const groundProjection = (p: ScriptGroundProjection) => ({ scene: p.scene, et: p.et, object: p.object, body: p.body, frame: text(p.frame), policy: p.policy,
+    status: p.status, reason: p.reason === null || ['scene-changed','scene-changing','invalid-surface-policy','no-scene','missing-entity','missing-parent','unsupported-reference-shape','invalid-body-fixed-position','no-surface-renderer','body-fixed-frame-unavailable','surface-unavailable','physical-terrain-unavailable-use-explicit-reference-alternative','position-or-frame-unavailable','position-pending','position-before-coverage','position-after-coverage','position-gap','position-disconnected','position-stale','position-unbound','position-error','position-dependency'].includes(p.reason) ? p.reason : 'unavailable', referenceOnly: p.referenceOnly, point: p.point ? surfacePoint(p.point) : null, annotation: annotation(p.annotation),
+    limitations: 'Body-fixed radial projection from current entity state, not a camera pixel or a flight-site guess. Reference, rendered and physical terrain are distinct. Snapshot pin, not a tracker.' });
+  const probePoint = (p: ScriptProbePoint | null) => !p ? null : ({ scene: p.scene, observedEt: p.observedEt, placedEt: p.placedEt, drawn: p.drawn, point: surfacePoint(p.point), annotation: annotation(p.annotation) });
+  return { text, place, measurement, objectState, spatialContext, groundProjection, probePoint, imagery, surface, geographicLayer, geographicFeature };
 }

@@ -2,12 +2,13 @@
 // HTTP wire transport, the session's conversation handling, and the shell
 // offering the tool only where a model is configured.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ScriptCancelSignal } from '@cosmolabe/control';
+import { AgentTransportError, type AgentRequest, type AgentResponse, type AgentTransport, type ViewerControl, type ScriptCancelSignal } from '@cosmolabe/control';
 import { resolveAskDeployment, resolveDevAskToolMode } from '../deployment';
 import { createHttpTransport, parseWireResponse } from '../ask/http-transport';
-import { ask, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
+import { ask, askApproval, answerAskApproval, askAvailable, clearAsk, disposeAsk, endNote, MAX_TURNS, setHostAskTransport, stopAsk, submitAsk, tally } from '../ask/ask.svelte';
 import { availableTools, enableTool, isToolAvailable, isToolOpen, openTool, closeTool } from '../shell.svelte';
 import { resetStores } from '../session.svelte';
+import * as loader from '../loader';
 import { emit } from '../viewer-state.svelte';
 
 // A load binds a renderer and bumps the scene id; the conversation only needs the id.
@@ -115,6 +116,7 @@ describe('the Ask session', () => {
     resetStores();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it('is unavailable with no deployment or host transport', () => {
@@ -136,7 +138,7 @@ describe('the Ask session', () => {
     expect(ask.running).toBe(false);
     // The tools offered are the adapter's.
     expect(transport.requests[0].tools.map((t) => t.name)).toContain('resolve');
-    expect(transport.requests[0].tools.map((t) => t.name)).not.toContain('listCapabilities');
+    expect(transport.requests[0].tools.map((t) => t.name)).toContain('listCapabilities');
   });
 
   it('applies the embedding host capability omissions to Ask discovery and execution', async () => {
@@ -161,6 +163,81 @@ describe('the Ask session', () => {
     expect(transport.requests[0].tools.map(t => t.name)).not.toContain('resolve');
     expect(ask.turns[0].steps[0].result).toMatchObject({ ok: false, code: 'refused', error: 'Host owns resolution' });
     expect(transport.requests).toHaveLength(2);
+  });
+
+  it.each(['fixed', 'discovery'] as const)('requires exact UI approval through the ordinary %s Ask session and cancels pending approval', async mode => {
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_ASK_ENDPOINT', '/ask');
+    vi.stubGlobal('location', { href: 'http://localhost/', search: mode === 'discovery' ? '?askMode=discovery' : '' });
+    const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, removeBookmark: vi.fn(() => true) } as unknown as ViewerControl;
+    vi.spyOn(loader, 'getCosmo').mockReturnValue(host);
+    const saved = vi.spyOn(host, 'removeBookmark');
+    let round = 0;
+    vi.stubGlobal('fetch', async () => {
+      const reply: AgentResponse = ++round % 3 === 1
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.removeBookmark'] } }] }
+        : round % 3 === 2
+          ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.removeBookmark', input: { name: 'approved-view' } } }] }
+          : textReply('Finished.');
+      return new Response(JSON.stringify({ version: 1, ...reply }));
+    });
+    const denied = submitAsk('Delete this view');
+    await until(() => !!askApproval.pending);
+    expect(saved).not.toHaveBeenCalled();
+    expect(askApproval.pending).toMatchObject({ kind: 'authoring', operation: 'bookmarks.removeBookmark' });
+    answerAskApproval(false);
+    await denied;
+    expect(saved).not.toHaveBeenCalled();
+    const approved = submitAsk('Delete it');
+    await until(() => !!askApproval.pending);
+    answerAskApproval(true);
+    await approved;
+    expect(saved).toHaveBeenCalledExactlyOnceWith('approved-view');
+    const cancelled = submitAsk('Delete again');
+    await until(() => !!askApproval.pending);
+    stopAsk();
+    await cancelled;
+    expect(askApproval.pending).toBeNull();
+    expect(saved).toHaveBeenCalledTimes(1);
+  });
+
+  it('replaces a host policy in the same mode without retaining old authoring permission or history', async () => {
+    const host = { getScene: () => ({ id: 1, catalog: 'test', ready: true }), on: () => () => {}, saveBookmark: vi.fn(() => true) } as unknown as ViewerControl;
+    vi.spyOn(loader, 'getCosmo').mockReturnValue(host);
+    let round = 0;
+    const transport = new MockTransport(() => ++round % 3 === 1
+      ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'desc', name: 'describeCapabilities', input: { ids: ['bookmarks.saveBookmark'] } }] }
+      : round % 3 === 2
+        ? { stop: 'tool_use', content: [{ type: 'tool_use', id: 'write', name: 'invokeCapability', input: { id: 'bookmarks.saveBookmark', input: { name: 'once' } } }] }
+        : textReply('Finished.'));
+    setHostAskTransport(transport, { allowAuthoring: true, confirmAuthoring: async () => true });
+    await submitAsk('Save');
+    expect(host.saveBookmark).toHaveBeenCalledTimes(1);
+    setHostAskTransport(transport); // revokes the earlier permission, same mode
+    await submitAsk('Save');
+    expect(host.saveBookmark).toHaveBeenCalledTimes(1);
+    expect(ask.turns.at(-1)?.steps.at(-1)?.result).toMatchObject({ ok: false, code: 'refused' });
+    expect(transport.requests[3].messages).toHaveLength(1);
+  });
+
+  it.each(['budget_exhausted', 'rate_limited'] as const)('stops futile retries after %s without another provider call or repeated write', async code => {
+    vi.useFakeTimers();
+    const transport: AgentTransport = { send: vi.fn(async () => { throw new AgentTransportError('Service limit', code, 429); }) };
+    setHostAskTransport(transport);
+    await submitAsk('go');
+    expect(ask.serviceBlocked).not.toBeNull();
+    await submitAsk('retry');
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    expect(ask.turns).toHaveLength(1);
+    if (code === 'rate_limited') {
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(ask.serviceBlocked).toBeNull();
+    } else {
+      expect(endNote(ask.turns[0])?.text).not.toMatch(/TOKEN_BUDGET|restart the proxy/i);
+      clearAsk();
+      expect(ask.serviceBlocked).toBeNull();
+    }
+    vi.useRealTimers();
   });
 
   it('counts capability lookups separately from completed viewer steps', () => {
@@ -237,7 +314,7 @@ describe('the Ask session', () => {
     });
     await submitAsk('Inspect');
     expect(request.tools.map(t => t.name)).toContain('resolve');
-    expect(request.tools.map(t => t.name)).not.toContain('listCapabilities');
+    expect(request.tools.map(t => t.name)).toContain('listCapabilities');
     expect(ask.toolMode).toBe('fixed');
   });
 

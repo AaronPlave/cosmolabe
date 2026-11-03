@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createAgentTools, type AgentToolResult } from './agent.js';
+import { createAgentTools, fixedAgentDefinitions, type AgentToolResult } from './agent.js';
+import { VERBS } from './verbs.js';
 import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
 import { FakeViewer } from './__tests__/fake-host.js';
-import type { ScriptActivity, ViewerControl } from './contracts.js';
+import type { ScriptActivity, ScriptInstrument, ViewerControl } from './contracts.js';
 
 const fail = (r: AgentToolResult) => {
   if (r.ok) throw new Error(`expected a failure, got ${r.summary}`);
@@ -26,6 +27,64 @@ const FLIGHT_5: ScriptActivity = {
 };
 
 describe('agent tools: discovery', () => {
+  it('reports bounded physical instrument reasons independently of freshness and render errors', async () => {
+    const instrument: ScriptInstrument = { sensor: 'NAC', spacecraft: 'Spacecraft', target: null,
+      fov: null, viewFov: [1,1], pointing: 'unavailable', pointingUnavailable: "Spacecraft's attitude is unavailable at this time.",
+      observation: 'synthetic-scene-view', observedEt: 123, fresh: false, renderError: null };
+    const host = Object.assign(new FakeViewer(), { getInstrument: () => instrument });
+    const tools = createAgentTools(host);
+    expect(await tools.call('getInstrument', {})).toMatchObject({ ok: true, data: {
+      pointingUnavailable: 'Attitude is unavailable at this time.', fresh: false, observedEt: 123, renderError: null,
+    } });
+    instrument.pointingUnavailable = 'NAC or its spacecraft has no state or attitude at this time.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'Sensor or spacecraft state or attitude is unavailable at this time.' } });
+    instrument.pointingUnavailable = 'NAC: geometry.mounting.boresight is zero.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'geometry.mounting.boresight is zero.' } });
+    instrument.pointingUnavailable = 'Private fault https://secret.example/file?token=secret /private/data';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: 'Physical pointing is unavailable; details remain local.' } });
+    instrument.pointingUnavailable = null; instrument.pointing = 'spice'; instrument.renderError = 'Instrument frame could not be rendered.';
+    expect(await tools.call('getInstrument', {})).toMatchObject({ data: { pointingUnavailable: null, pointing: 'spice', fresh: false, renderError: instrument.renderError } });
+  });
+  it('resolves every fixed camera tool to a registered callable host operation', () => {
+    const host = new FakeViewer();
+    for (const tool of fixedAgentDefinitions().filter(t => t.effect === 'camera')) {
+      const spec = VERBS.get(tool.name)!;
+      expect(spec, tool.name).toBeDefined();
+      expect(tool.method).toBe(spec.method);
+      expect(typeof (host as ViewerControl)[spec.method]).toBe('function');
+      expect(Object.keys(tool.inputSchema.properties!)).toEqual(spec.params.map(p => p.name));
+      expect(tool.inputSchema.required).toEqual(spec.params.filter(p => !p.optional).map(p => p.name));
+    }
+  });
+
+  it('exposes and dispatches all four native orbital rotations with numeric angle and optional duration', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host);
+    expect(tools.list().map(t => t.name)).not.toContain('circleCenter');
+    for (const direction of ['Right', 'Left', 'Up', 'Down']) {
+      const name = `circleCenter${direction}`;
+      expect(tools.list().find(t => t.name === name)).toMatchObject({
+        effect: 'camera',
+        inputSchema: {
+          type: 'object', additionalProperties: false, required: ['degrees'],
+          properties: { degrees: { type: 'number' }, seconds: { type: 'number' } },
+        },
+      });
+      expect(fail(await tools.call(name, {})).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: '45' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 45, seconds: '2' })).code).toBe('invalid-input');
+      expect(host.calls).toHaveLength(0);
+      expect((await tools.call(name, { degrees: 45 })).ok).toBe(true);
+      expect((await tools.call(name, { degrees: -30, seconds: 2 })).ok).toBe(true);
+      expect(host.calls.splice(0)).toEqual([
+        `circleCenter("${direction.toLowerCase()}", 45, undefined)`,
+        `circleCenter("${direction.toLowerCase()}", -30, 2)`,
+      ]);
+    }
+    Object.defineProperty(host, 'circleCenter', { value: undefined });
+    expect(tools.list().some(t => t.name.startsWith('circleCenter'))).toBe(false);
+  });
+
   it('lists only tools whose capability the host has', () => {
     const full = createAgentTools(new FakeViewer()).list().map((t) => t.name);
     expect(full).toEqual(expect.arrayContaining(['describeScene', 'resolve', 'searchPlaces', 'flyTo', 'gotoPlace', 'showImagery']));

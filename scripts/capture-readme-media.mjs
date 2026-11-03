@@ -60,7 +60,6 @@ try {
     assert.equal(initial.timedOut, false, `${scene.id}: initial asset timeout`);
     await page.evaluate(async scene => {
       const c = window.cosmo, r = window.renderer;
-      const state = await import('/src/lib/viewer-state.svelte.ts');
       const shell = await import('/src/lib/shell.svelte.ts');
       c.setPlaying(false);
       c.setTime({ kind: 'et', et: scene.et });
@@ -93,23 +92,21 @@ try {
       }
       const analysis = await import('/src/lib/analysis.svelte.ts');
       if (scene.search || scene.searches) {
-        const e = await import('/src/lib/event-finder.svelte.ts');
         const searches = scene.searches ?? [scene.search];
         let selectedEvent = null, selectedQuery = null;
         for (const [index, search] of searches.entries()) {
-          if (index) e.createNewSearch();
-          e.setKind(search.kind);
-          e.setRole('observer', search.observer); e.setRole('target', search.target);
-          for (const [key, value] of Object.entries(search.params ?? {})) e.setParam(key, String(value));
-          e.setWindow(search.start, search.end); e.setStep(search.step);
-          await e.runSearch();
-          if (e.ef.fault || e.ef.events.length !== 1) throw new Error(`Unexpected search: ${JSON.stringify(e.ef.fault ?? e.ef.events)}`);
-          const item = e.currentConfiguredQuery();
-          if (search.label) analysis.updateConfiguredEventQuery(item.id, { ...item.query, label: search.label }, search.label);
-          if (index === 0) { selectedEvent = e.ef.events[0]; selectedQuery = item.id; }
+          const id = `readme-search-${index}`;
+          c.upsertEventQuery({ id, label: search.label ?? search.kind, enabled: true, visible: true,
+            query: { id, kind: search.kind, bodies: { observer: search.observer, target: search.target },
+              params: search.params ?? {}, window: { start: search.start, end: search.end }, step: search.step,
+              abcorr: 'LT+S', ...(search.label ? { label: search.label } : {}) } });
+          const result = await c.runEventQuery(id, { timeoutMs: 120000 });
+          const events = c.listEventResults(id).items;
+          if (result.status !== 'complete' || events.length !== 1) throw new Error(`Unexpected search: ${JSON.stringify(result)}`);
+          if (index === 0) { selectedEvent = events[0]; selectedQuery = id; }
         }
-        e.openConfiguredQuery(selectedQuery);
-        e.selectEvent(selectedEvent);
+        c.openEventQuery(selectedQuery);
+        c.selectEventResult(selectedQuery, selectedEvent.id, 'start');
         if (Math.abs(c.getTime() - scene.et) > 0.001) throw new Error('Selected event changed epoch');
       }
       if (scene.profiles) {
@@ -121,8 +118,8 @@ try {
         }
       }
       if (scene.measurement) {
-        const m = await import('/src/lib/spatial-measurements.svelte.ts');
-        m.addMeasurement(scene.measurement);
+        c.upsertMeasurement({ ...scene.measurement, vertex: scene.measurement.vertex ?? null });
+        c.selectMeasurement(scene.measurement.id);
       }
       if (scene.selected) c.select(scene.selected); else c.deselect();
       // Event focus can recenter the camera; restore the recorded composition.
@@ -134,7 +131,7 @@ try {
       if (scene.panel) shell.openTool(scene.panel);
       if (scene.timeline) {
         shell.setTimelineDepth('expanded');
-        state.vs.scrubMin = scene.timeline[0]; state.vs.scrubMax = scene.timeline[1];
+        c.setTimelineWindow({ kind: 'et', et: scene.timeline[0] }, { kind: 'et', et: scene.timeline[1] });
         if (scene.timelineHeight) {
           const t = await import('/src/lib/timeline.svelte.ts');
           t.timeline.laneHeight = scene.timelineHeight;
@@ -175,6 +172,10 @@ try {
         const rect = path.closest('[data-tl-plot]').getBoundingClientRect();
         return { data: path.getAttribute('d'), top: rect.top, bottom: rect.bottom };
       }));
+      if (plots.length !== scene.profiles.length) {
+        await page.screenshot({ path: resolve(output, 'events-failure.png') });
+        writeFileSync(resolve(output, 'events-failure.json'), JSON.stringify(await page.evaluate(async () => ({ text: document.body.innerText, analysis: (await import('/src/lib/analysis.svelte.ts')).analysis, timeline: window.cosmo.getTimelineWindow() })), null, 2));
+      }
       assert.equal(plots.length, scene.profiles.length, 'Missing geometry plots');
       for (const plot of plots) {
         assert.ok(plot.data?.length > 20 && !/NaN|Infinity/.test(plot.data), 'Empty or invalid profile trace');
@@ -182,12 +183,12 @@ try {
       }
     }
     const metadata = await page.evaluate(async scene => ({
-      analysis: scene.searches ? (await import('/src/lib/analysis.svelte.ts')).analysis : null,
-      et: cosmo.getTime(), camera: cosmo.getCamera(), snapshot: cosmo.snapshot(),
-      initialAssets: renderer.initialAssetsSummary,
-      terrain: scene.terrain ? renderer.getBodyMesh(scene.terrain).terrainManager.metrics : null,
+      analysis: scene.searches ? window.cosmo.listEventQueries().map(query => ({ query, results: window.cosmo.listEventResults(query.id) })) : null,
+      et: window.cosmo.getTime(), camera: window.cosmo.getCamera(), snapshot: window.cosmo.snapshot(),
+      initialAssets: window.renderer.initialAssetsSummary,
+      terrain: scene.terrain ? window.renderer.getBodyMesh(scene.terrain).terrainManager.metrics : null,
       gpu: (() => {
-        const gl = renderer.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info');
+        const gl = window.renderer.renderer.getContext(), info = gl.getExtension('WEBGL_debug_renderer_info');
         return gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
       })(),
     }), scene);

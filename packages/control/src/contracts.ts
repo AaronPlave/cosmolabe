@@ -1,3 +1,5 @@
+import type { MeasurementDefinition, GeographicLayerStyle, GeographicEditOperation, GeographicCoordinates, ConfiguredEventQuery, EventQuery, GeometryEvent } from '@cosmolabe/core';
+import type { ViewStateV1 } from './view-state.js';
 import type { GridSettings } from './grid.js';
 /**
  * The `ViewerControl` port — the contract a Cosmolabe viewer offers a host.
@@ -101,6 +103,15 @@ export interface ScriptCamera {
  * catalog loads, and end only with their disposer (or the viewer's disposal).
  */
 export interface ScriptEventMap {
+  probe: { scene: number };
+  events: { scene: number };
+  instruments: { scene: number; selected: string | null };
+  bookmarks: { scene: number };
+  places: { scene: number; selected: string | null };
+  measurements: { scene: number; selected: string | null; count: number };
+  geographic: { scene: number; selected: { layer: string; feature: string } | null };
+  surface: { scene: number; body: string };
+
   /** The selected object changed. `name` is null when the selection cleared. */
   select: { name: string | null };
   /**
@@ -377,7 +388,72 @@ export interface ScriptSurfaceData {
   readonly overlays: readonly ScriptImageryLayer[];
 }
 
+/** Scene-scoped semantic reads and edits. Definitions come from core, never renderer samples. */
+export interface ScriptSceneOptions { scene?: number }
+export interface ScriptGeographicLayer {
+  readonly id: string; readonly name: string; readonly body: string | null; readonly frame: string | null;
+  readonly status: 'ready' | 'error'; readonly diagnostics: readonly { code: string; severity: 'warning' | 'error' }[];
+  readonly features: number; readonly visible: boolean; readonly editable: boolean;
+  readonly navigationUnavailable: string | null; readonly style: GeographicLayerStyle;
+}
+export interface ScriptGeographicFeature {
+  readonly id: string; readonly name: string; readonly type: string;
+  /** Original typed GeoJSON ID used by core edit operations; null for source-order-only IDs. */
+  readonly sourceId: string | number | null;
+}
+export interface ScriptSurfaceAppearance {
+  hillshade: boolean; contours?: boolean; contourOpacity?: number; contourColor?: string;
+  contourDensity?: number; contourIntervalKm?: number; contourLabels?: boolean;
+  azimuthDeg: number; elevationDeg: number; contrast: number;
+  baseColor: 'imagery' | 'elevation' | 'neutral'; imageryAmount: number;
+  palette: 'terrain' | 'blue-gold' | 'grayscale'; minKm: number; maxKm: number;
+}
+/** Current-view observations only. No region prefetch or planetary coverage claim. */
+export type ScriptReadinessRequest =
+  | { kind: 'assets' }
+  | { kind: 'imagery'; body: string; layer: string }
+  | { kind: 'cube-base'; body: string }
+  | { kind: 'terrain'; body: string }
+  /** Exact transient result and epoch; timeline permits absent glyphs, native-draw requires explanatory draw state. */
+  | { kind: 'event'; reference: ScriptEventReference; et: number; policy: 'timeline' | 'native-draw' };
+export interface ScriptReadiness {
+  readonly scene: number | null;
+  readonly status: 'ready' | 'partial' | 'unavailable' | 'failed' | 'timed-out' | 'cancelled' | 'stale';
+  readonly request: ScriptReadinessRequest;
+  readonly missing: readonly string[];
+  readonly limitations: readonly string[];
+}
+
 export interface ViewerControl {
+  selectPlace?(ref: string | null, opts?: ScriptSceneOptions): boolean;
+  listPlaceSources?(): readonly { id: string; body: string; enabled: boolean; labelsVisible: boolean }[];
+  setPlaceSourceEnabled?(layer: string, enabled: boolean, opts?: ScriptSceneOptions): boolean;
+  showPlaceLabels?(layer: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  listMeasurements?(): readonly MeasurementDefinition[];
+  getSelectedMeasurement?(): string | null;
+  /** Upsert by ID, preserving unrelated work. Validates the whole definition first. */
+  upsertMeasurement?(definition: MeasurementDefinition, opts?: ScriptSceneOptions): boolean;
+  removeMeasurement?(id: string, opts?: ScriptSceneOptions): boolean;
+  selectMeasurement?(id: string | null, opts?: ScriptSceneOptions): boolean;
+  showMeasurement?(id: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  /** Merge is the default; replace is explicit. Omitted payload preserves current work. */
+  restoreMeasurements?(state: { version: 1; items: MeasurementDefinition[]; selected?: string }, mode?: 'merge' | 'replace', opts?: ScriptSceneOptions): boolean;
+  listGeographicLayers?(): readonly ScriptGeographicLayer[];
+  listGeographicFeatures?(layer: string, opts?: { offset?: number; limit?: number }): { total: number; features: readonly ScriptGeographicFeature[] } | undefined;
+  getSelectedGeographicFeature?(): { layer: string; feature: string } | null;
+  setGeographicLayerVisible?(layer: string, visible: boolean, opts?: ScriptSceneOptions): boolean;
+  setGeographicLayerStyle?(layer: string, style: GeographicLayerStyle | null, opts?: ScriptSceneOptions): boolean;
+  selectGeographicFeature?(layer: string, feature: string, opts?: ScriptSceneOptions): boolean;
+  clearGeographicSelection?(): void;
+  gotoGeographicFeature?(layer: string, feature: string, opts?: ScriptSceneOptions & { animate?: boolean }): boolean;
+  createAnnotationLayer?(body: string, name: string, coordinates: GeographicCoordinates, opts?: ScriptSceneOptions): string | false;
+  /** Operations are core's validated edit/undo model; imported layers remain read-only. */
+  editAnnotation?(layer: string, operation: GeographicEditOperation, opts?: ScriptSceneOptions): { featureId: string | number; ref: string } | false;
+  getSurfaceAppearance?(body: string): { settings: ScriptSurfaceAppearance | null; unavailable: string | null } | undefined;
+  setSurfaceAppearance?(body: string, patch: Partial<ScriptSurfaceAppearance>, opts?: ScriptSceneOptions): boolean;
+  getReadiness?(request: ScriptReadinessRequest, opts?: ScriptSceneOptions): ScriptReadiness;
+  waitUntilReady?(request: ScriptReadinessRequest, opts?: ScriptSceneOptions & { timeoutMs?: number; signal?: ScriptCancelSignal }): Promise<ScriptReadiness>;
+
   listActivities?(filter?: ScriptActivityFilter): readonly ScriptActivity[];
   getActivity?(id: string): ScriptActivity | undefined;
   getSelectedActivity?(): ScriptActivity | undefined;
@@ -616,6 +692,45 @@ export interface ViewerControl {
    * model of it.
    */
   snapshot(): string;
+  /** Same configured Event Finder searches as the panel; no cached results in snapshots. */
+  getSpatialContext?(object: string): ScriptSpatialContext;
+  projectGroundPoint?(object: string, policy?: ScriptSurfacePolicy, opts?: ScriptSceneOptions): ScriptGroundProjection;
+  pinGroundPoint?(object: string, policy?: ScriptSurfacePolicy, opts?: ScriptSceneOptions): ScriptGroundProjection;
+  getProbePoint?(): ScriptProbePoint | null;
+  clearProbePoint?(opts?: ScriptSceneOptions): void;
+  /** Read-only registry and loaded-kernel window discovery, before saving a query. */
+  getEventSearchOptions?(input?: { kind?: string; bodies?: EventQuery['bodies']; abcorr?: string }): {
+    kinds: readonly { kind: string; label: string; roles: readonly { role: string; required?: boolean }[]; params: readonly unknown[]; step: number; abcorr: string }[];
+    catalogWindow: { start: number; end: number };
+    coverage: ScriptEventQueryInfo['coverage'];
+    suggestedWindow: { start: number; end: number } | null;
+    error: { code: string } | null;
+  };
+  listEventQueries?(): readonly ConfiguredEventQuery[];
+  upsertEventQuery?(definition: ScriptEventQuery, opts?: ScriptSceneOptions): boolean;
+  openEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;
+  removeEventQuery?(id: string, opts?: ScriptSceneOptions): boolean;
+  getEventSearch?(): ScriptEventSearch;
+  runEventQuery?(id: string, opts?: ScriptSceneOptions & { timeoutMs?: number; signal?: ScriptCancelSignal }): Promise<ScriptEventSearch>;
+  cancelEventQuery?(opts?: ScriptSceneOptions): boolean;
+  listEventResults?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number }): { total: number; items: GeometryEvent[] };
+  getEventQueryInfo?(query: string, opts?: ScriptSceneOptions): ScriptEventQueryInfo;
+  getEventResultPage?(query: string, opts?: ScriptSceneOptions & { offset?: number; limit?: number; order?: 'chronological' | 'range-ascending' }): ScriptEventResultPage;
+  getEventVisualization?(): ScriptEventVisualization;
+  presentEventResult?(reference: ScriptEventReference, framing?: 'pair' | 'target', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<ScriptEventFocusReceipt>;
+  focusEventResult?(reference: ScriptEventReference, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): ScriptEventFocusReceipt;
+  selectEventResult?(query: string, id: string, anchor?: 'inspect' | 'start' | 'middle' | 'end', opts?: ScriptSceneOptions): boolean;
+  resolvePlace?(query: { body: string; layer?: string; feature: string | number }, opts?: ScriptSceneOptions): { status: 'available' | 'missing' | 'ambiguous' | 'unlinked'; matches: ScriptPlace[] };
+  listInstruments?(): readonly string[];
+  getInstrument?(): ScriptInstrument | null;
+  selectInstrument?(name: string | null, opts?: ScriptSceneOptions): boolean;
+  listBookmarks?(): readonly ScriptBookmark[];
+  saveBookmark?(name: string, opts?: ScriptSceneOptions): boolean;
+  upsertBookmark?(bookmark: ScriptBookmark, opts?: ScriptSceneOptions): boolean;
+  removeBookmark?(name: string, opts?: ScriptSceneOptions): boolean;
+  /** Capture uses the existing ViewState v1 serializer and optional analysis envelopes. */
+  getViewState?(): Promise<ViewStateV1>;
+  restoreViewState?(state: unknown, opts?: ScriptSceneOptions & { signal?: ScriptCancelSignal }): Promise<boolean>;
   /** The scene bound now; null before any scene is up. */
   getScene?(): ScriptScene | null;
 
@@ -651,7 +766,98 @@ export interface ViewerControl {
   setImageryOpacity?(body: string, layer: string, opacity: number, opts?: { scene?: number }): boolean;
 
   /** Subscribe to an event. Returns a disposer. */
+  /** Move an overlay to its bottom-to-top stack index; the base remains at zero. */
+  moveImageryLayer?(body: string, layer: string, index: number, opts?: ScriptSceneOptions): boolean;
+
   on<K extends ScriptEventName>(event: K, cb: (data: ScriptEventMap[K]) => void): () => void;
+}
+
+export interface ScriptEventQuery { id: string; label: string; query: EventQuery; enabled: boolean; visible: boolean }
+export type ScriptSurfacePolicy = 'reference' | 'rendered' | 'terrain';
+export interface ScriptSpatialContext {
+  status: 'available' | 'no-scene' | 'scene-changing' | 'missing-entity';
+  scene: number | null; et: number; object: string; parent: string | null;
+  coordinates: GeographicCoordinates | null; parentCoordinates: GeographicCoordinates | null;
+  state: ScriptObjectState | null;
+  editableLayers: readonly { id: string; body: string; frame: string | null }[];
+  selectedFeature: { layer: string; feature: string } | null;
+  drawing: readonly { layers: readonly string[]; features: number; terrainCoverage: string }[];
+}
+export interface ScriptAnnotationPosition {
+  layer: string | null; coordinates: GeographicCoordinates; position: readonly [number, number];
+}
+export interface ScriptGroundProjection {
+  scene: number | null; et: number; object: string; body: string | null; frame: string | null;
+  policy: ScriptSurfacePolicy; status: 'available' | 'unavailable' | 'stale';
+  reason: string | null; referenceOnly: boolean;
+  point: import('@cosmolabe/core').SurfacePoint | null;
+  annotation: ScriptAnnotationPosition | null;
+  limitations: readonly string[];
+}
+export interface ScriptProbePoint {
+  scene: number | null; observedEt: number | null; placedEt: number | null; drawn: boolean;
+  point: import('@cosmolabe/core').SurfacePoint;
+  annotation: ScriptAnnotationPosition | null;
+}
+/** IDs alone are positional within a search. A reference is valid for one live result batch. */
+export interface ScriptEventReference { scene: number; query: string; id: string; revision: number }
+export interface ScriptEventProvenance {
+  source: 'loaded-spice-kernels'; kernelRevision: number; kernelCount: number;
+  contextFrame: string; calculationFrames: readonly string[];
+  timeUnit: 'ET seconds past J2000'; stepUnit: 's'; abcorr: string;
+  limitations: string[];
+}
+export interface ScriptEventQueryInfo {
+  status: 'available' | 'unavailable' | 'missing-query' | 'scene-reloaded';
+  definition: ScriptEventQuery | null;
+  coverage: import('@cosmolabe/core').CoverageAssessment | null;
+  error: { code: string; message: string } | null;
+  provenance: ScriptEventProvenance | null;
+}
+export interface ScriptEventResultPage {
+  ranking?: { order: 'range-ascending'; compared: number };
+  status: 'ready' | 'no-results' | 'not-searched' | 'searching' | 'failed' | 'stale-result' | 'missing-query' | 'scene-reloaded';
+  total: number; offset: number; nextOffset: number | null;
+  items: { reference: ScriptEventReference; event: GeometryEvent }[];
+  query: ScriptEventQueryInfo;
+}
+export interface ScriptEventVisualization {
+  presentation?: { tracked: string | null; reference: string | null; participants: { object: string; ndc: readonly number[]; inView: boolean; drawEnabled: boolean }[] };
+  scene: number | null; selected: ScriptEventReference | null;
+  et: number; playing: boolean; selectedObject: string | null; highlightedBodies: string[];
+  timeline: { min: number; max: number; selectedInResults: boolean; selectedInVisibleLane: boolean };
+  renderer: { observedEt: number | null; selected: { query: string; id: string } | null; markerGroups: number; visibleGlyphs: number; visibleSpans: number; occultationVisible: boolean } | null;
+  status: 'observed' | 'partial'; limitations: string[];
+}
+export interface ScriptEventFocusReceipt {
+  status: 'observed' | 'partial' | 'stale-result' | 'missing-result' | 'missing-query' | 'scene-reloaded' | 'cancelled' | 'invalid-reference' | 'unavailable';
+  reference: ScriptEventReference; anchor: 'inspect' | 'start' | 'middle' | 'end';
+  observation: ScriptEventVisualization;
+}
+export interface ScriptEventSearch {
+  scene: number | null;
+  query: string | null;
+  status: 'idle' | 'running' | 'complete' | 'failed' | 'cancelled' | 'stale' | 'timed-out';
+  /** Progress of the current solver call, not an ETA for the whole search. */
+  progress: number | null;
+  error: { code: string; message: string } | null;
+  selected: { query: string; id: string } | null;
+}
+export interface ScriptInstrument {
+  sensor: string; spacecraft: string | null; target: string | null;
+  fov: [number, number] | null; viewFov: [number, number];
+  pointing: 'spice' | 'attitude' | 'unavailable' | 'target' | 'none';
+  pointingUnavailable: string | null;
+  /** Presentation only: never a calibrated observation or pixel export. */
+  observation: 'synthetic-scene-view';
+  observedEt: number | null;
+  /** Exact clock freshness is separate from physical pointing of the last frame. */
+  fresh?: boolean;
+  renderError?: string | null;
+}
+export interface ScriptBookmark {
+  name: string; camera: ScriptCamera; origin: string | null; tracked: string | null;
+  lookAt: string | null; time?: number;
 }
 
 /** The state `snapshotScript` renders. Every field comes off the read side. */
@@ -671,6 +877,19 @@ export interface ViewerSnapshotState {
   /** Layer name → on. Keys are `LAYERS` entries. */
   readonly layers: Readonly<Record<string, boolean>>;
   readonly grid?: GridSettings;
+  readonly selectedPlace?: string;
+  readonly eventQueries?: readonly ScriptEventQuery[];
+  /** Diagnostic only: computed IDs are never replayed as portable result identities. */
+  readonly eventSelection?: { query: string; id: string } | null;
+  readonly bookmarks?: readonly ScriptBookmark[];
+  readonly instrument?: string;
+  readonly omitted?: readonly string[];
+  readonly placeSources?: readonly { id: string; enabled: boolean; labelsVisible: boolean }[];
+  /** Present => merge by stable ID; absent => preserve. No cached results or drafts. */
+  readonly measurements?: { version: 1; items: MeasurementDefinition[]; selected?: string };
+  readonly imagery?: readonly { body: string; id: string; visible: boolean; opacity: number; index?: number }[];
+  readonly geographic?: readonly { id: string; visible: boolean; style: GeographicLayerStyle }[];
+  readonly appearance?: readonly { body: string; settings: ScriptSurfaceAppearance }[];
   /**
    * A caption that will stay up until something clears it.
    *

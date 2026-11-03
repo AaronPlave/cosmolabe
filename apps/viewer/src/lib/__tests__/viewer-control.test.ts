@@ -1,3 +1,4 @@
+import { probePoint } from './surface-point-fixture';
 /**
  * The adapter, driven against a fake renderer.
  *
@@ -108,8 +109,8 @@ function makeFakeRenderer(objects: string[]) {
   let flight: { id: number; destination: FakeBodyMesh; path: string } | null = null;
   let flightSeq = 0;
   let mode: CameraModeName = CameraModeName.FREE_ORBIT;
-  const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string }>([
-    ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000 }],
+  const viewpoints = new Map<string, { name: string; epoch?: number; trackBody?: string; position?: THREE.Vector3; target?: THREE.Vector3; up?: THREE.Vector3 }>([
+    ['SOI (2004-07-01)', { name: 'SOI (2004-07-01)', epoch: 141_000_000, position: new THREE.Vector3(), target: new THREE.Vector3(), up: new THREE.Vector3(0,1,0) }],
   ]);
 
   const camera = { fov: 60, position: vec(0, 0, 1), up: vec(0, 1, 0), updateProjectionMatrix: () => log('updateProjectionMatrix') };
@@ -120,6 +121,7 @@ function makeFakeRenderer(objects: string[]) {
     setHoveredBody: vi.fn(),
     setLabelPinned: vi.fn(),
     setEventResults: vi.fn(),
+    setEventPreview: vi.fn(),
     setOccultationGeometry: vi.fn(),
     camera,
     // The production renderer emits initial-asset progress and readiness here.
@@ -248,6 +250,7 @@ function makeFakeRenderer(objects: string[]) {
         mode = m;
         return true;
       },
+      syncOrbitTargetFromCamera: () => {},
       getViewpoints: () => [...viewpoints.values()],
       getViewpoint: (name: string) => viewpoints.get(name),
       applyViewpoint: () => log('applyViewpoint'),
@@ -305,6 +308,8 @@ function bind(objects = OBJECTS, catalogOnly: string[] = []) {
   renderer = makeFakeRenderer(objects);
   const all = [...objects, ...catalogOnly];
   const universe = {
+    viewpoints: [{ name: 'SOI (2004-07-01)' }],
+    geographicLayers: { layers: [], loads: [] },
     events: { on: () => () => {} },
     getTimeRange: () => null,
     getAllBodies: () => all.map((name) => ({ name, classification: undefined, parentName: undefined })),
@@ -333,6 +338,19 @@ afterEach(() => {
 // `@cosmolabe/control` restates these two lists rather than importing them,
 // because it takes no dependency on a renderer or on the app. This is the one
 // workspace that can see both sides, so it is where the duplication is checked.
+
+describe('native Point Probe UI readback', () => {
+  it('notifies shared hosts and reads a UI-originated pin without creating an annotation', () => {
+    bind(); const r = renderer;
+    const host = createViewerControl(), changed = vi.fn(); host.on('probe', changed);
+    const listener = r.events.on.mock.calls.find(([name]) => name === 'probe:pin')?.[1];
+    expect(listener).toBeDefined();
+    const point = probePoint('Titan'); listener!(point);
+    expect(host.getProbePoint!()).toMatchObject({ point, drawn: false, observedEt: null });
+    expect(changed).toHaveBeenCalledWith({ scene: expect.any(Number) });
+    listener!(null); expect(host.getProbePoint!()).toBeNull();
+  });
+});
 
 describe('the shared vocabulary', () => {
   it('lists exactly the camera modes the renderer has', () => {
@@ -629,6 +647,19 @@ describe('navigation verbs', () => {
     if(independent) {expect(dismissGeographicContext()).toBe(true);expect(vs.selectedPlaceRef).toBeNull();}
     expect(dismissGeographicContext()).toBe(false);
   });
+  it('clears body inspection on unload and permits a fresh selection after binding', () => {
+    const selected = vi.fn(); const off = createViewerControl().on('select', selected);
+    selectBody('Mimas');
+    vs.probePin = probePoint('Titan'); vs.instrumentSensor = 'old-sensor';
+    unbindRenderer();
+    expect(vs.selectedBodyName).toBeNull();
+    expect(vs.probePin).toBeNull(); expect(vs.instrumentSensor).toBeNull();
+    expect(selected).toHaveBeenLastCalledWith({ name: null });
+    bind(); expect(vs.selectedBodyName).toBeNull();
+    selectBody('Mars'); expect(createViewerControl().getSelected()).toBe('Mars');
+    expect(selected).toHaveBeenLastCalledWith({ name: 'Mars' }); off();
+  });
+
   it('clears target presentation and place inspection when the scene unbinds', () => {
     vs.surfaceTarget={bodyName:'Titan',coordinates:'0 N, 0 E',convention:'planetographic',surface:'reference',notes:[],label:{wide:{lat:'0 N',lon:'0 E'},narrow:{lat:'0 N',lon:'0 E'}}};
     vs.selectedPlaceRef='old';unbindRenderer();expect(vs.surfaceTarget).toBeNull();expect(vs.selectedPlaceRef).toBeNull();
@@ -1222,6 +1253,18 @@ describe('scene identity, places, imagery and flight ends (#297)', () => {
     expect(control.getPlace('Kraken a')).toBeUndefined();
   });
 
+  it('resolves exact body/layer/feature identity, reports ambiguity and unlinked sources without navigation', () => {
+    const a = sites(['a']), b = { ...sites(['a']), id: 'second' };
+    vs.places = new PlaceIndex([a, b]);
+    const control = createViewerControl();
+    expect(control.resolvePlace!({ body: 'Titan', feature: 'string:a' }).status).toBe('ambiguous');
+    expect(control.resolvePlace!({ body: 'Titan', layer: 'names', feature: 'string:a' }).status).toBe('available');
+    expect(control.resolvePlace!({ body: 'wrong', feature: 'string:a' }).status).toBe('missing');
+    vs.excludedPlaceLayers = ['names'];
+    expect(control.resolvePlace!({ body: 'Titan', layer: 'names', feature: 'string:a' }).status).toBe('unlinked');
+    expect(() => control.resolvePlace!({ body: 'Titan', feature: 'string:a' }, { scene: -1 })).toThrow('scene changed');
+  });
+
   it.each(['https://example.test/private-token/names.json?signature=secret', '/Users/alice/private/names.json', 'file:///private/names.json'])('preserves rich source locations in trusted local control reads: %s', (identity) => {
     const layer = sites(['a']);
     layer.source.identity = identity;
@@ -1503,4 +1546,293 @@ describe('shared place framing with real catalog records', () => {
     expect(JSON.stringify([site.feature.geometry, crater.feature.geometry])).toBe(before);
     go.mockRestore();
   });
+});
+
+
+it('snapshots the controller frame even before the UI mode mirror updates', () => {
+  const control = createViewerControl();
+  control.setFrame('body-fixed', 'Titan');
+  vs.cameraMode = CameraModeName.FREE_ORBIT;
+  expect(parse(control.snapshot()).statements.find(s => s.verb === 'setFrame')?.args[0]).toBe('body-fixed');
+});
+
+describe('reviewed modern feature adapters', () => {
+  it('fits two native body positions after refreshing the origin and preserves the explicit orbit target', async () => {
+    const { frameBodyPair } = await import('../viewer-state.svelte');
+    const camera = new THREE.PerspectiveCamera(60,1.4,.000001,1000); camera.position.set(0,0,2);
+    Object.assign(renderer, { camera });
+    Object.assign(renderer.cameraController, { camera, syncOrbitTargetFromCamera: vi.fn() });
+    const a = renderer.getBodyMesh('Titan')!, b = renderer.getBodyMesh('Cassini')!;
+    a.position = new THREE.Vector3() as unknown as typeof a.position;
+    b.position = new THREE.Vector3(1,0,0) as unknown as typeof b.position;
+    expect(frameBodyPair('Titan','Cassini')).toBe(true);
+    for (const p of [new THREE.Vector3(),new THREE.Vector3(1,0,0)]) {
+      p.project(camera); expect(Math.abs(p.x)).toBeLessThan(.95); expect(Math.abs(p.y)).toBeLessThan(.95);
+    }
+    expect(renderer.cameraController.syncOrbitTargetFromCamera).toHaveBeenCalled();
+    expect(renderer.calls).toContain('frame(Titan)');
+    expect(frameBodyPair('missing','Cassini')).toBe(false);
+  });
+  it('leaves manual camera and time takeover in place while presentation waits for native observation', async () => {
+    const model = await import('../analysis.svelte');
+    const { emit } = await import('../viewer-state.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    model.setEventResults(item.id, [{ id: 'result', queryId: item.id, kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } }]);
+    const ref = host.getEventResultPage(item.id).items[0].reference;
+    vi.useFakeTimers();
+    try {
+      const pending = host.presentEventResult(ref, 'target');
+      expect(host.getTime()).toBe(150); expect(host.isPlaying()).toBe(false);
+      const frames = renderer.calls.filter(c=>c==='frame(Titan)').length;
+      emit('cameraInput', {}); await vi.advanceTimersByTimeAsync(16);
+      expect((await pending).status).toBe('cancelled');
+      expect(renderer.calls.filter(c=>c==='frame(Titan)')).toHaveLength(frames);
+      const changed = host.presentEventResult(ref, 'target');
+      host.setTime({ kind: 'et', et: 160 }); await vi.advanceTimersByTimeAsync(16);
+      expect((await changed).status).toBe('cancelled'); expect(host.getTime()).toBe(160);
+    } finally { vi.useRealTimers(); }
+  });
+  it('ranks the entire measured candidate set before pagination, not the first chronological minimum', async () => {
+    const model = await import('../analysis.svelte'), host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Multiple approaches', 'explicit');
+    const events = [1000,20,500,5,200,30].map((range,i) => ({ id: `candidate-${i}`, queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 110+i*10, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' }, metrics: [{ key: 'range', label: 'Range', value: range, unit: 'km' }] }));
+    model.setEventResults(item.id, events);
+    expect(host.getEventResultPage(item.id, { limit: 1 }).items[0].event.id).toBe('candidate-0');
+    const ranked = host.getEventResultPage(item.id, { limit: 1, order: 'range-ascending' });
+    expect(ranked).toMatchObject({ total: 6, ranking: { order: 'range-ascending', compared: 6 }, nextOffset: 1, items: [{ event: { id: 'candidate-3', et: 140 } }] });
+    expect(host.getEventResultPage(item.id, { offset: 1, limit: 2, order: 'range-ascending' }).items.map(i => i.event.id)).toEqual(['candidate-1','candidate-5']);
+    expect(host.focusEventResult(ranked.items[0].reference, 'middle').observation.et).toBe(140);
+    model.setEventResults(item.id, [{ ...events[0], metrics: [] }, events[3]]);
+    expect(() => host.getEventResultPage(item.id, { order: 'range-ascending' })).toThrow('every candidate');
+    const before = host.getTime();
+    expect((await host.presentEventResult(ranked.items[0].reference)).status).toBe('stale-result');
+    expect(host.getTime()).toBe(before);
+  });
+  it('scopes result references to a computed batch and refuses stale seeks after reruns, edits, kernel replacement and reload', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 }, step: 10 }, 'Approach', 'explicit');
+    const event = { id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } };
+    expect(host.getEventResultPage!(item.id).status).toBe('not-searched');
+    model.setEventResults(item.id, [event]);
+    const first = host.getEventResultPage!(item.id).items[0].reference;
+    const before = host.getTime();
+    expect(host.focusEventResult!(first, 'inspect')).toMatchObject({ status: 'partial', observation: { et: before, selected: first, timeline: { selectedInVisibleLane: true } } });
+    const next = { ...event, et: 175 };
+    model.setEventResults(item.id, [next]);
+    expect(host.focusEventResult!(first, 'start').status).toBe('stale-result');
+    expect(host.getTime()).toBe(before);
+    const second = host.getEventResultPage!(item.id).items[0].reference;
+    expect(second.revision).not.toBe(first.revision);
+    const aborted = new AbortController(); aborted.abort();
+    expect(host.focusEventResult!(second, 'start', { signal: aborted.signal }).status).toBe('cancelled');
+    expect(host.getTime()).toBe(before);
+    expect(host.focusEventResult!(second, 'start')).toMatchObject({ status: 'partial', observation: { et: 175, selectedObject: 'Titan', highlightedBodies: ['Cassini', 'Titan'] } });
+    host.setTime({ kind: 'et', et: 180 }); // Later manual/host time ownership is not reasserted.
+    await Promise.resolve(); expect(host.getTime()).toBe(180);
+    model.updateConfiguredEventQuery(item.id, { ...item.query, step: 20 }, 'Edited');
+    expect(host.getEventResultPage!(item.id).status).toBe('stale-result');
+    expect(host.focusEventResult!(second, 'start').status).toBe('stale-result');
+    model.setEventResults(item.id, [event]);
+    const third = host.getEventResultPage!(item.id).items[0].reference;
+    viewerState.setKernelCount(vs.kernelCount); // Same count can be a different kernel set.
+    expect(host.focusEventResult!(third, 'start').status).toBe('stale-result');
+    expect(host.focusEventResult!({ ...third, scene: -1 }, 'start').status).toBe('scene-reloaded');
+    expect(host.getEventResultPage!(item.id, { scene: -1 }).status).toBe('scene-reloaded');
+    expect(host.getTime()).toBe(180);
+  });
+
+  it('gates script capture on an exact current run/epoch and the chosen native observation policy', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    const event = { id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant' as const, et: 150, label: '', bodies: { observer: 'Cassini', target: 'Titan' } };
+    model.setEventResults(item.id, [event]);
+    const ref = host.getEventResultPage!(item.id).items[0].reference;
+    host.setPlaying(false); host.focusEventResult!(ref, 'start');
+    const request = { kind: 'event' as const, reference: ref, et: 150, policy: 'native-draw' as const };
+    expect(host.getReadiness!(request).status).toBe('unavailable'); // Fake renderer has no native observation API.
+    const native = { observedEt: null as number | null, selected: { query: ref.query, id: ref.id }, markerGroups: 1, visibleGlyphs: 0, visibleSpans: 0, occultationVisible: false };
+    Object.assign(renderer, { getEventVisualization: () => ({ ...native }) });
+    const capture = vi.fn(() => ({ dataUrl: 'data:image/png;base64,dGVzdA==' }));
+    host.screenshot = capture;
+    const source = `waitUntilReady ${JSON.stringify(JSON.stringify(request))} 0.1\nscreenshot`;
+    vi.useFakeTimers();
+    try {
+      // Actual Script runner + shared adapter wait. No capture until native readback becomes current.
+      const pending = execute(parse(source), host);
+      await vi.advanceTimersByTimeAsync(50); expect(capture).not.toHaveBeenCalled();
+      native.observedEt = 150; native.visibleGlyphs = 1;
+      await vi.advanceTimersByTimeAsync(50); await pending;
+      expect(capture).toHaveBeenCalledOnce(); capture.mockClear();
+      native.visibleGlyphs = 0;
+      expect(host.getReadiness!({ ...request, policy: 'timeline' }).status).toBe('ready');
+      expect(host.getReadiness!(request).status).toBe('partial');
+      const timeout = expect(execute(parse(source), host)).rejects.toThrow('timed-out');
+      await vi.advanceTimersByTimeAsync(100); await timeout;
+      expect(capture).not.toHaveBeenCalled();
+      const controller = new AbortController();
+      const cancelled = expect(execute(parse(source), host, { signal: controller.signal })).rejects.toThrow(/cancelled|stopped/);
+      controller.abort(); await cancelled; expect(capture).not.toHaveBeenCalled();
+      const superseded = host.waitUntilReady!(request);
+      model.setEventResults(item.id, [event]);
+      await vi.advanceTimersByTimeAsync(50); expect((await superseded).status).toBe('stale');
+      await expect(execute(parse(source), host)).rejects.toThrow('stale'); expect(capture).not.toHaveBeenCalled();
+      const fresh = host.getEventResultPage!(item.id).items[0].reference;
+      host.focusEventResult!(fresh, 'start');
+      host.setTime({ kind: 'et', et: 151 });
+      expect(host.getReadiness!({ ...request, reference: fresh }).status).toBe('stale');
+      host.setTime({ kind: 'et', et: 150 });
+      model.setConfiguredItemVisible(item.id, false);
+      expect(host.getReadiness!({ ...request, reference: fresh, policy: 'timeline' }).status).toBe('partial');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('reports empty, unavailable, missing, hidden and unobserved states without manufacturing geometry or portable result identity', async () => {
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const item = model.createConfiguredEventQuery({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 } }, 'Approach', 'explicit');
+    expect(host.getEventQueryInfo!(item.id)).toMatchObject({ status: 'unavailable', error: { code: 'unavailable' }, provenance: { source: 'loaded-spice-kernels', timeUnit: 'ET seconds past J2000' } });
+    expect(host.getEventQueryInfo!('missing').status).toBe('missing-query');
+    const options = host.getEventSearchOptions!({ kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' } });
+    expect(options.kinds.find(k => k.kind === 'closest-approach')).toMatchObject({ step: 3600, roles: expect.arrayContaining([{ role: 'observer', required: undefined }, { role: 'target', required: undefined }]) });
+    expect(options.suggestedWindow).toBeNull();
+    expect(options.coverage).toBeNull();
+    expect(host.getEventSearchOptions!({ kind: 'invented-kind' }).error?.code).toBe('unknown-kind');
+    expect(host.listEventQueries!()).toHaveLength(1); // discovery does not author a query
+
+    model.setEventResults(item.id, []);
+    expect(host.getEventResultPage!(item.id)).toMatchObject({ status: 'no-results', total: 0, items: [] });
+    model.setEventResults(item.id, [{ id: 'result-0', queryId: item.id, kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Approach', bodies: { observer: 'Cassini', target: 'Titan' } }]);
+    const ref = host.getEventResultPage!(item.id, { limit: 1 }).items[0].reference;
+    model.setConfiguredItemVisible(item.id, false);
+    expect(host.focusEventResult!(ref)).toMatchObject({ status: 'partial', observation: { renderer: null, timeline: { selectedInResults: true, selectedInVisibleLane: false } } });
+    expect(host.focusEventResult!({ ...ref, id: 'missing' }).status).toBe('missing-result');
+    expect(host.focusEventResult!({ ...ref, query: 'missing' }).status).toBe('missing-query');
+    expect(() => host.getEventResultPage!(item.id, { limit: 101 })).toThrow('Invalid result page');
+    const snapshot = host.snapshot();
+    expect(snapshot).toContain('Computed event selection is not replayed');
+    expect(parse(snapshot).statements.some(s => s.verb === 'upsertEventQuery')).toBe(true);
+    expect(parse(snapshot).statements.some(s => s.verb === 'focusEventResult' || s.verb === 'selectEventResult')).toBe(false);
+    expect(snapshot).not.toContain('"revision"');
+    model.setConfiguredItemEnabled(item.id, false);
+    expect(host.focusEventResult!(ref).status).toBe('unavailable');
+  });
+
+  it('shares event definitions with the UI, invalidates results, reports no kernels and keeps exact query/result identity', async () => {
+    const { analysis, updateConfiguredEventQuery, setEventResults } = await import('../analysis.svelte');
+    const host = createViewerControl();
+    const events = vi.fn(); const off = host.on('events', events);
+    const definition = { id: 'script-search', label: 'Distance', enabled: true, visible: true,
+      query: { id: 'script-search', kind: 'closest-approach', bodies: { observer: 'Cassini', target: 'Titan' }, window: { start: 100, end: 200 }, step: 10, abcorr: 'NONE' } };
+    const universe = viewerState.getSceneUniverse()!;
+    Object.assign(universe, { getBody: (name: string) => renderer.getBodyMesh(name)?.body });
+    expect(() => host.upsertEventQuery!({ ...definition, id: '__proto__' })).toThrow('Invalid');
+    expect(host.upsertEventQuery!(definition)).toBe(true);
+    expect(host.listEventQueries!()).toMatchObject([{ id: 'script-search' }]);
+    const finder = await import('../event-finder.svelte');
+    expect(finder.searchAbcorr(finder.currentKind())).toBe('NONE');
+    updateConfiguredEventQuery('script-search', { ...definition.query, step: 20 }, 'UI edit');
+    expect(host.listEventQueries!()[0].label).toBe('UI edit'); expect(events).toHaveBeenCalled();
+    setEventResults('script-search', [{ id: 'shared-id', queryId: 'script-search', kind: 'closest-approach', temporality: 'instant', et: 150, label: 'Result', bodies: definition.query.bodies }]);
+    expect(host.selectEventResult!('wrong-query', 'shared-id')).toBe(false);
+    expect(host.selectEventResult!('script-search', 'shared-id', 'inspect')).toBe(true);
+    expect(host.getEventSearch!().selected).toEqual({ query: 'script-search', id: 'shared-id' });
+    host.upsertEventQuery!(definition);
+    expect(host.listEventResults!('script-search').items).toEqual([]);
+    expect(await host.runEventQuery!('script-search')).toMatchObject({ status: 'failed', error: { code: 'unavailable' } });
+    expect(() => host.upsertEventQuery!({ ...definition, query: { ...definition.query, bodies: { observer: 'wrong-catalog', target: 'Titan' } } })).toThrow('unavailable');
+    expect(() => host.removeEventQuery!('script-search', { scene: -1 })).toThrow('scene changed');
+    expect(host.removeEventQuery!('script-search')).toBe(true); expect(analysis.items).toEqual([]);
+    off();
+  });
+
+  it('bounds search waits and removes abort/reload/disposal subscriptions', async () => {
+    const finder = await import('../event-finder.svelte');
+    const model = await import('../analysis.svelte');
+    const host = createViewerControl();
+    model.createConfiguredEventQuery({ kind: 'closest-approach' }, 'pending', 'explicit', 'pending');
+    const run = vi.spyOn(finder, 'runSearch').mockImplementation(() => {
+      finder.recordEventSearchOutcome('pending', finder.eventSearchGeneration(), 'running');
+      return new Promise(() => {});
+    });
+    const cancel = vi.spyOn(finder, 'cancelSearch').mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const pending = host.runEventQuery!('pending', { signal: controller.signal });
+      controller.abort(); expect((await pending).status).toBe('cancelled');
+      expect(host.getEventSearch!().status).toBe('cancelled');
+      await Promise.resolve(); expect(host.getEventSearch!().status).toBe('cancelled');
+      const timed = host.runEventQuery!('pending', { timeoutMs: 5 });
+      await vi.advanceTimersByTimeAsync(5); expect((await timed).status).toBe('timed-out');
+      expect(host.getEventSearch!().status).toBe('timed-out');
+      const older = host.runEventQuery!('pending', { timeoutMs: 5 });
+      const replacement = new AbortController();
+      const newer = host.runEventQuery!('pending', { signal: replacement.signal });
+      expect(host.getEventSearch!().status).toBe('running');
+      await vi.advanceTimersByTimeAsync(5); expect((await older).status).toBe('timed-out');
+      expect(host.getEventSearch!().status).toBe('running');
+      replacement.abort(); await newer;
+      expect(host.getEventSearch!().status).toBe('cancelled');
+      const stale = host.runEventQuery!('pending'); emit('unload', {});
+      expect((await stale).status).toBe('stale');
+      expect(host.getEventSearch!()).toMatchObject({ query: null, status: 'idle' });
+      expect(finder.ef.searchOutcomes).toEqual({});
+      expect(vi.getTimerCount()).toBe(0); expect(cancel).toHaveBeenCalled();
+    } finally { vi.useRealTimers(); run.mockRestore(); cancel.mockRestore(); }
+  });
+
+  it('uses the same instrument selection and reports authority without inventing observations', () => {
+    const host = createViewerControl();
+    Object.assign(renderer, { getSensorNames: () => ['Camera'], setInstrumentView: vi.fn(), getInstrumentViewInfo: () => ({ sensor: 'Camera', spacecraft: 'Cassini', target: 'Titan', fov: null, viewFov: [1,1], pointing: 'unavailable', pointingUnavailable: 'No attitude', imageRect: null }) });
+    expect(host.listInstruments!()).toEqual(['Camera']);
+    expect(host.selectInstrument!('wrong')).toBe(false);
+    expect(host.selectInstrument!('Camera')).toBe(true);
+    expect(host.getInstrument!()).toMatchObject({ pointing: 'unavailable', fov: null, observation: 'synthetic-scene-view' });
+    expect(host.getInstrument!()).not.toHaveProperty('imageRect');
+    expect(() => host.selectInstrument!('Camera', { scene: -1 })).toThrow('scene changed');
+  });
+
+  it('replays imagery stack order through the manager and publishes shared UI/host changes', async () => {
+    const host = createViewerControl(); const { moveImageryLayer } = await import('../appearance-control');
+    const layers = [{ id: 'base', optional: false, visible: true, opacity: 1 }, { id: 'a', optional: true, visible: true, opacity: 1 }, { id: 'b', optional: true, visible: true, opacity: 1 }];
+    Object.assign(renderer.getBodyMesh('Titan')!, { imageryLayers: layers, moveImageryLayer: (id: string, index: number) => { const from = layers.findIndex(l => l.id === id); layers.splice(index, 0, ...layers.splice(from, 1)); return true; }, setImageryLayerVisible: () => true, setImageryLayerOpacity: () => true });
+    const event = vi.fn(); const off = host.on('surface', event);
+    const snapshot = host.snapshot();
+    moveImageryLayer('Titan', 'a', 2); expect(layers.map(l => l.id)).toEqual(['base', 'b', 'a']); expect(event).toHaveBeenCalled();
+    expect(host.moveImageryLayer!('Titan', 'base', 1)).toBe(false);
+    await execute(parse(snapshot), host);
+    expect(layers.map(l => l.id)).toEqual(['base', 'a', 'b']); off();
+  });
+});
+
+it('merges session bookmarks through snapshot/parse/execute, protects catalog views and emits UI/host changes', async () => {
+  const host = createViewerControl();
+  const { presentationControl } = await import('../presentation-control');
+  const map = new Map<string, Record<string, unknown>>();
+  Object.assign(renderer.cameraController, {
+    getViewpoints: () => [...map.values()],
+    addViewpoint: (v: { name: string }) => map.set(v.name, v),
+    removeViewpoint: (name: string) => map.delete(name),
+    saveViewpoint: (name: string) => map.set(name, { name, position: new THREE.Vector3(1,2,3), target: new THREE.Vector3(), up: new THREE.Vector3(0,1,0), fov: 45 }),
+  });
+  const event = vi.fn(), off = host.on('bookmarks', event);
+  presentationControl.saveBookmark('UI view');
+  const script = host.snapshot(), original = host.listBookmarks!();
+  host.saveBookmark!('unrelated'); host.removeBookmark!('UI view');
+  await execute(parse(script), host);
+  expect(host.listBookmarks!().find(b => b.name === 'UI view')).toEqual(original[0]);
+  expect(host.listBookmarks!().some(b => b.name === 'unrelated')).toBe(true);
+  expect(() => host.saveBookmark!('Default')).toThrow('cannot be overwritten');
+  expect(() => host.removeBookmark!('SOI (2004-07-01)')).toThrow('cannot be overwritten');
+  expect(() => host.upsertBookmark!({ ...original[0], origin: 'wrong-catalog' })).toThrow('unavailable');
+  expect(() => host.saveBookmark!('stale', { scene: -1 })).toThrow('scene changed');
+  expect(event).toHaveBeenCalled(); off();
+  unbindRenderer();
+  expect(host.listBookmarks!()).toEqual([]); expect(host.listInstruments!()).toEqual([]);
+  expect(host.getInstrument!()).toBeNull();
+  expect(() => host.saveBookmark!('no-renderer')).toThrow('No renderer');
 });

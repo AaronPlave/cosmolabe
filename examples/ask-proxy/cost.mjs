@@ -1,4 +1,4 @@
-/** Standard global first-party API USD per million tokens, checked 2026-11-01.
+/** Standard global first-party API USD per million tokens, checked 2026-11-02 (Haiku prompt-length tiers included).
  * https://platform.claude.com/docs/en/about-claude/pricing (5-minute writes)
  * https://developers.openai.com/api/docs/pricing (standard tier)
  * Estimates exclude taxes, regional/batch/priority rates and account discounts.

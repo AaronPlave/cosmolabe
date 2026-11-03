@@ -4,7 +4,7 @@ import { GeographicVectorLayer } from '@cosmolabe/three';
 
 /** Editing state against a real Universe store and vector layer, and an in-memory localStorage. */
 const loadHandlers: (() => void)[] = [];
-let renderer: { geographicVectors: GeographicVectorLayer; setSurfacePointerTool: (tool: unknown) => void; events: { on: () => () => void } } | null = null;
+let renderer: { getBodyMesh: (name: string) => undefined; timeController: { et: number }; geographicVectors: GeographicVectorLayer; setSurfacePointerTool: (tool: unknown) => void; events: { on: () => () => void } } | null = null;
 /** The surface pointer tool the renderer currently holds. */
 let pointerTool: unknown = null;
 let universe: Universe | null = null;
@@ -12,6 +12,8 @@ let universe: Universe | null = null;
 vi.mock('../viewer-state.svelte', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../viewer-state.svelte')>()),
   getRenderer: () => renderer,
+  getSceneUniverse: () => universe,
+  sceneId: () => 1,
   onViewerEvent: (name: string, handler: () => void) => { if (name === 'load') loadHandlers.push(handler); return () => {}; },
 }));
 vi.mock('../loader', () => ({ getUniverse: () => universe, getCurrentRenderer: () => null }));
@@ -44,7 +46,7 @@ function scene() {
     { type: 'Feature', id: 'a', properties: { name: 'A' }, geometry: { type: 'Polygon', coordinates: [[[77, 18], [78, 18], [78, 19], [77, 19], [77, 18]], [[77.2, 18.2], [77.4, 18.2], [77.4, 18.4], [77.2, 18.4], [77.2, 18.2]]] } },
   ] }), { id: 'science', name: 'Science', body: 'Mars', source: 's.geojson', coordinates: mars }, { kind: 'catalog', identity: 'https://x/s.geojson' });
   universe.geographicLayers.replaceCatalog('scene', [{ id: science.id, status: 'ready', layer: science, source: science.source, diagnostics: [] }]);
-  renderer = { geographicVectors: new GeographicVectorLayer(universe, 1), setSurfacePointerTool: (tool: unknown) => { pointerTool = tool; }, events: { on: () => () => {} } };
+  renderer = { getBodyMesh: () => undefined, timeController: { et: 0 }, geographicVectors: new GeographicVectorLayer(universe, 1), setSurfacePointerTool: (tool: unknown) => { pointerTool = tool; }, events: { on: () => () => {} } };
   for (const handler of loadHandlers) handler();
 }
 
@@ -294,4 +296,52 @@ describe('drawing flow', () => {
   });
 
   const annotationsId = () => editing.editLayers().find((l) => l.name === 'My annotations · Mars')!.id;
+});
+
+
+it('routes host annotation edits through the same validated session and undo history', async () => {
+  const { analysisControl: control } = await import('../analysis-control');
+  const id = control.createAnnotationLayer('Mars', 'Host notes', mars, { scene: 1 });
+  expect(typeof id).toBe('string'); if (!id) throw new Error('Expected annotation layer');
+  expect(control.editAnnotation(id, { type: 'add', geometry: { type: 'Point', coordinates: [77, 18] }, properties: { name: 'Host point' } }, { scene: 1 })).toMatchObject({ featureId: 'user-1', ref: 'string:user-1' });
+  expect(editLayer(id)!.features[0]).toMatchObject({ properties: { name: 'Host point' } });
+  const before = JSON.stringify(editLayer(id));
+  expect(() => control.editAnnotation(id, { type: 'replace-geometry', featureId: editLayer(id)!.features[0].id, geometry: { type: 'Point', coordinates: [77, 999] } })).toThrow();
+  expect(JSON.stringify(editLayer(id))).toBe(before);
+  expect(control.editAnnotation('science', { type: 'add', geometry: { type: 'Point', coordinates: [77, 18] } })).toBe(false);
+  expect(() => control.editAnnotation(id, { type: 'delete', featureId: 'user-1' }, { scene: 99 })).toThrow('scene changed');
+  expect(undo(id)).toBe(true); expect(editLayer(id)!.features).toEqual([]);
+});
+
+it('validates host measurement definitions atomically and keeps unrelated definitions and creation drafts', async () => {
+  const { analysisControl: control } = await import('../analysis-control');
+  const { measurements, resetMeasurementsForScene, newMeasurement } = await import('../spatial-measurements.svelte');
+  resetMeasurementsForScene();
+  const item = { id: 'host-distance', kind: 'distance' as const, source: { kind: 'entity' as const, bodyName: 'Mars' }, target: { kind: 'entity' as const, bodyName: 'Mars' }, vertex: null };
+  measurements.draftColor = '#123456';
+  expect(control.upsertMeasurement(item)).toBe(true);
+  expect(measurements.draftColor).toBe('#123456');
+  const detached = control.listMeasurements(); detached[0].id = 'mutated';
+  expect(control.listMeasurements()[0].id).toBe(item.id);
+  expect(control.upsertMeasurement({ ...item, id: 'other' })).toBe(true);
+  const before = control.listMeasurements();
+  expect(() => control.upsertMeasurement({ ...item, target: { kind: 'entity', bodyName: 'missing' } })).toThrow('unavailable');
+  expect(() => control.upsertMeasurement({ ...item, color: 'invalid' })).toThrow('color');
+  expect(() => control.removeMeasurement(item.id, { scene: 99 })).toThrow('scene changed');
+  expect(control.listMeasurements()).toEqual(before);
+  expect(control.selectMeasurement(item.id)).toBe(true);
+  expect(control.showMeasurement(item.id, false)).toBe(true);
+  newMeasurement(); expect(measurements.draftColor).toBe('#123456');
+  expect(control.getSelectedMeasurement()).toBeNull();
+  expect(control.removeMeasurement(item.id)).toBe(true);
+  expect(control.listMeasurements().map(m => m.id)).toEqual(['other']);
+  resetMeasurementsForScene();
+});
+
+
+it('reports failed geographic inputs instead of hiding them behind the ready-layer list', async () => {
+  const { analysisControl: control } = await import('../analysis-control');
+  universe!.geographicLayers.replaceCatalog('missing', [{ id: 'missing-source', source: { kind: 'catalog', identity: '/private/missing.geojson' }, status: 'error', diagnostics: [{ code: 'load-failed', severity: 'error', message: 'Could not load /private/missing.geojson' }] }]);
+  expect(control.listGeographicLayers().find(l => l.id === 'missing-source')).toMatchObject({ status: 'error', body: null, navigationUnavailable: 'The source failed to load or validate.', diagnostics: [{ code: 'load-failed', severity: 'error' }] });
+  expect(JSON.stringify(control.listGeographicLayers())).not.toContain('/private/');
 });

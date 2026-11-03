@@ -65,6 +65,15 @@ export function isDisplayOption(value: string): value is DisplayOption {
 
 /** Events the app publishes, independent of which renderer is mounted. */
 export interface ViewerEventMap {
+  probe: Record<string, never>;
+  places: Record<string, never>;
+  measurements: Record<string, never>;
+  geographic: Record<string, never>;
+  instrument: string | null;
+  events: Record<string, never>;
+  bookmarks: Record<string, never>;
+  surface: { body: string };
+  unload: Record<string, never>;
   /** The selection changed; null when it cleared. */
   select: string | null;
   /** Scene time moved. */
@@ -129,6 +138,7 @@ export const vs = $state({
   activities: [] as MissionActivity[],
   activityMetadataAvailable: false,
   kernelCount: 0,
+  kernelRevision: 0,
 
   // Display
   showTrajectories: true,
@@ -273,7 +283,8 @@ export function setAssetsReady(v: boolean, summary: InitialAssetsSummary | null 
   vs.assetSummary = summary;
   if (became) emit('ready', vs.bodies.map((b) => b.name));
 }
-export function setKernelCount(v: number) { vs.kernelCount = v; }
+/** Changes even when a replacement kernel set has the same file count. */
+export function setKernelCount(v: number) { vs.kernelCount = v; vs.kernelRevision++; }
 export function selectBody(name: string | null) {
   vs.selectedBodyName = name;
   emit('select', name);
@@ -557,7 +568,7 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // A pinned point belongs to the scene it was probed in; the mode carries over.
   vs.probePin = null;
   renderer.setPointProbeActive(vs.probeActive);
-  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; }));
+  _unsubscribers.push(renderer.events.on('probe:pin', (point) => { vs.probePin = point; emit('probe', {}); }));
   // An instrument belongs to the scene it was chosen in.
   vs.instrumentSensor = null;
 
@@ -565,6 +576,8 @@ export function bindRenderer(renderer: UniverseRenderer, universe: Universe) {
   // instrument view, so a sensor chosen anywhere else — a script, the console —
   // shows in the window, and clearing it closes the window.
   _unsubscribers.push(renderer.events.on('instrument:sensor', ({ sensor }) => {
+    emit('instrument', sensor);
+
     if (sensor == null) {
       closeTool('instrument');
     } else if (sensor !== vs.instrumentSensor || !isToolOpen('instrument')) {
@@ -690,6 +703,10 @@ export function unbindRenderer() {
   }
   _renderer = null;
   _universe = null;
+  if (vs.selectedBodyName !== null) selectBody(null);
+  vs.probePin = null;
+  vs.instrumentSensor = null;
+  vs.note = null;
   vs.surfaceTarget = null;
   _terrainAnchor = null;
   vs.places = null;
@@ -709,6 +726,7 @@ export function unbindRenderer() {
   vs.sceneLoaded = false;
   vs.assetsReady = false;
   vs.assetSummary = null;
+  emit('unload', {});
 }
 
 /**
@@ -724,6 +742,7 @@ export function showNextInstrument() {
   if (sensors.length === 0) return;
   const idx = vs.instrumentSensor ? sensors.indexOf(vs.instrumentSensor) : -1;
   vs.instrumentSensor = sensors[(idx + 1) % sensors.length];
+  _renderer?.setInstrumentView(vs.instrumentSensor);
   openTool('instrument'); // raise it, so the change is seen
 }
 
@@ -1009,6 +1028,35 @@ export function frameBody(name?: string): boolean {
   if (!bm) return false;
   _renderer.cameraController.frame(bm, { scaleFactor: _renderer.scaleFactor });
   syncCameraState();
+  return true;
+}
+
+/** Fit a pair using the existing frame/orbit-target ownership. No animation can
+ * reassert the pose after a person takes over. World positions are refreshed
+ * after changing floating origin; no scientific/body coordinates are altered. */
+export function frameBodyPair(target: string, observer: string): boolean {
+  if (!_renderer?.getBodyMesh(target) || !_renderer.getBodyMesh(observer)) return false;
+  if (!frameBody(target)) return false;
+  const r = _renderer, a = navigableMesh(target)!, b = navigableMesh(observer)!;
+  const cc = r.cameraController;
+  if (cc.mode !== CameraModeName.FREE_ORBIT) cc.setMode(CameraModeName.FREE_ORBIT);
+  r.refreshBodyPose(target); r.refreshBodyPose(observer);
+  const pa = a.position.clone(), pb = b.position.clone();
+  const axis = pb.clone().sub(pa), separation = axis.length();
+  if (!Number.isFinite(separation)) return false;
+  if (separation === 0) return true;
+  axis.normalize();
+  const center = pa.clone().add(pb).multiplyScalar(.5);
+  const direction = cc.camera.position.clone().sub(cc.controls.target);
+  direction.addScaledVector(axis, -direction.dot(axis));
+  if (direction.lengthSq() < 1e-20) direction.crossVectors(axis, Math.abs(axis.y) < .9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0));
+  direction.normalize();
+  // Leave margin around the pair for the ordinary docked inspection panels.
+  const radius = separation / 2 + Math.max(a.displayRadius, b.displayRadius) * r.scaleFactor;
+  const halfFov = Math.min(cc.camera.fov * Math.PI / 360, Math.atan(Math.tan(cc.camera.fov * Math.PI / 360) * cc.camera.aspect));
+  cc.camera.position.copy(center).addScaledVector(direction, 2 * radius / Math.sin(halfFov));
+  cc.controls.target.copy(center); cc.camera.lookAt(center); cc.camera.updateMatrixWorld(true);
+  cc.syncOrbitTargetFromCamera(); syncCameraState();
   return true;
 }
 
@@ -1553,6 +1601,7 @@ export function setCameraPose(
   // frame otherwise turns the camera on the next frame by the rotation since
   // the last one drawn — after a seek in the same script, hours of it.
   if (frame) cc.syncModeFromCamera(_renderer.timeController.et);
+  cc.syncOrbitTargetFromCamera();
   return true;
 }
 

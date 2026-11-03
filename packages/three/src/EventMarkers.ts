@@ -611,6 +611,14 @@ export class EventMarkers extends THREE.Object3D {
     return this.visuals.find((item) => item.marker.id === id && item.marker.queryId === queryId)?.layout ?? null;
   }
 
+  /** Draw-enabled objects from the last update, not a pixel/occlusion guarantee. */
+  visibilityFor(id: string, queryId: string): { glyphs: number; spans: number } {
+    if (!this.visible) return { glyphs: 0, spans: 0 };
+    const visuals = this.visuals.filter(v => v.marker.id === id && v.marker.queryId === queryId);
+    return { glyphs: visuals.reduce((n, v) => n + v.sprites.filter(s => s.visible && s.material.opacity > 0).length, 0),
+      spans: this.selectedStroke.currentKey === `${queryId}\u0000${id}` && this.spanEmphasis.visible ? 1 : 0 };
+  }
+
   private isPreview(marker: EventMarker): boolean {
     return this.preview?.id === marker.id && this.preview.queryId === marker.queryId;
   }

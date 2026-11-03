@@ -2,7 +2,7 @@
   /**
    * Ask Cosmolabe (#311) — a compact prompt over the agent tools, not a chat
    * sidebar. A request shows what the person typed, the model's one answer, and
-   * a line of what the viewer did ("3 actions succeeded, 1 refused"). Opening
+   * a quiet action status. Opening
    * that line lists the actions in plain words; one Details view under them
    * holds the raw tool calls, results and the model's narration for anyone
    * debugging. A request that stops early says why and what its actions came
@@ -15,9 +15,11 @@
   import { Check, X, Loader2, Square, CornerDownLeft, Trash2, Ban, ChevronRight } from 'lucide-svelte';
   import { toolDef } from '../lib/shell.svelte';
   import {
-    ask, submitAsk, stopAsk, clearAsk, endNote, tally, type AskStep, type AskTurn,
+    ask, askApproval, answerAskApproval, submitAsk, stopAsk, clearAsk, endNote, type AskStep, type AskTurn,
   } from '../lib/ask/ask.svelte';
-  import { parseAnswer, type AnswerSpan } from '../lib/ask/answer-text';
+  import { actionMetadata, actionStatus, approvalPresentation } from '../lib/ask/presentation';
+  import { etToUtcString } from '../lib/viewer-state.svelte';
+  import { parseAnswer, type AnswerBlock, type AnswerSpan } from '../lib/ask/answer-text';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
 
   interface Props {
@@ -55,19 +57,6 @@
   // reaches the shell, which dismisses the panel.
   function containKeys(e: KeyboardEvent) {
     if (e.key !== 'Escape') e.stopPropagation();
-  }
-
-  /** "4 actions succeeded, 1 refused": what the viewer did for a request, in a line. */
-  function actionsLine(turn: AskTurn): string {
-    const { total, done, partial, inspected, refused, running, notRun } = tally(turn);
-    if (total === 0) return '';
-    const parts = [`${done} ${done === 1 ? 'step' : 'steps'} completed`];
-    if (inspected) parts.push(`${inspected} capability ${inspected === 1 ? 'lookup' : 'lookups'}`);
-    if (refused) parts.push(`${refused} refused`);
-    if (partial) parts.push(`${partial} unverified`);
-    if (notRun) parts.push(`${notRun} not run`);
-    if (running) parts.push('in progress');
-    return parts.join(', ');
   }
 
   const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -123,19 +112,10 @@
     if (step.name === 'invokeCapability') {
       const name = typeof input.id === 'string' ? input.id.split('.').at(-1)! : '';
       const args = input.input && typeof input.input === 'object' ? input.input as Record<string, unknown> : {};
-      return LABELS[name]?.(args) ?? 'Ran a viewer action';
+      return LABELS[name]?.(args) ?? actionMetadata(step).label;
     }
-    return LABELS[step.name]?.(input) ?? step.name;
+    return LABELS[step.name]?.(input) ?? actionMetadata(step).label;
   }
-
-  /** Where the step stopped: the viewer's own refusal, short. */
-  const stepProblem = (step: AskStep): string | null => (step.result && !step.result.ok ? step.result.error : step.result?.receipt?.status === 'partial' ? step.result.receipt.warnings.join(' ') : null);
-
-  /** The latest step, for the "Working…" line. */
-  const working = (turn: AskTurn): string | null => {
-    const step = turn.steps.at(-1);
-    return step && !step.result ? stepLabel(step) : null;
-  };
 
   /** Everything raw, as one block: the tool calls, their results and the model's narration. */
   function details(turn: AskTurn): string {
@@ -148,10 +128,27 @@
 
 {#snippet spans(list: readonly AnswerSpan[])}{#each list as span}{#if span.bold}<strong class="font-semibold text-text-primary">{span.text}</strong>{:else if span.code}<code class="font-mono text-[11px] text-text-primary">{span.text}</code>{:else}{span.text}{/if}{/each}{/snippet}
 
+{#snippet answerBlocks(blocks: readonly AnswerBlock[])}
+  {#each blocks as block}
+    {#if block.kind === 'details'}
+      <details class="ask-answer-details text-text-secondary">
+        <summary class="ui-helper cursor-pointer">{@render spans(block.summary)}</summary>
+        <div class="mt-1 flex flex-col gap-1.5">{@render answerBlocks(block.blocks)}</div>
+      </details>
+    {:else if block.kind === 'ul'}
+      <ul class="flex list-disc flex-col gap-0.5 pl-4">
+        {#each block.items as item}<li>{@render spans(item)}</li>{/each}
+      </ul>
+    {:else}
+      <p class="whitespace-pre-wrap">{@render spans(block.spans)}</p>
+    {/if}
+  {/each}
+{/snippet}
+
 <InstrumentPanel key="ask" title="Ask Cosmolabe" width={toolDef('ask').width} {onClose} fill>
   {#snippet actions()}
     {#if import.meta.env.DEV}
-      <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} title="Development Ask tool mode">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
+      <span class="ui-meta px-1 text-text-faint" data-ask-mode={ask.toolMode} data-ask-catalog="shared-capability-v1" title="Shared capability catalog: Fixed uses a compact direct schema shortlist; Discovery uses registry tools">{ask.toolMode === 'discovery' ? 'Discovery' : 'Fixed'}</span>
     {/if}
     {#if ask.turns.length > 0}
       <button
@@ -175,27 +172,18 @@
             <span class="h-px flex-1 bg-border"></span>
           </li>
         {/if}
-        <li class="flex flex-col gap-1">
-          <p class="ui-body whitespace-pre-wrap font-medium text-text-primary">{turn.prompt}</p>
+        <li class="ask-turn flex flex-col gap-2">
+          <p class="ask-prompt ui-body ml-auto max-w-[92%] self-end rounded-md border border-border bg-hover px-2.5 py-1.5 whitespace-pre-wrap text-text-primary">{turn.prompt}</p>
           {#if turn.reply}
             <!-- The answer's Markdown subset as text nodes: no markup can come through. -->
-            <div class="ask-answer ui-body flex flex-col gap-1.5 text-text-secondary">
-              {#each parseAnswer(turn.reply) as block}
-                {#if block.kind === 'ul'}
-                  <ul class="flex list-disc flex-col gap-0.5 pl-4">
-                    {#each block.items as item}<li>{@render spans(item)}</li>{/each}
-                  </ul>
-                {:else}
-                  <p class="whitespace-pre-wrap">{@render spans(block.spans)}</p>
-                {/if}
-              {/each}
+            <div class="ask-answer ui-body w-full flex flex-col gap-1.5 text-text-primary">
+              {@render answerBlocks(parseAnswer(turn.reply))}
             </div>
           {/if}
-          {#if turn.status === 'running' && !turn.reply}
-            <p class="ui-meta flex items-center gap-1">
-              <Loader2 size={11} class="animate-spin" /> Working…{#if working(turn)} <span>{working(turn)}</span>{/if}
-            </p>
-          {/if}
+          <p class="ask-status ui-meta flex items-center gap-1 text-text-muted" role="status">
+            {#if turn.status === 'running' && !askApproval.pending}<Loader2 size={11} class="animate-spin" />{/if}
+            {actionStatus(turn, turn.status === 'running' && !!askApproval.pending)}
+          </p>
           {#if endNote(turn)}
             {@const note = endNote(turn)!}
             <p class="ui-helper whitespace-normal {note.tone === 'error' ? 'text-error' : 'text-warning'}" role={note.tone === 'error' ? 'alert' : 'status'}>{note.text}</p>
@@ -204,10 +192,10 @@
             <details class="ask-actions">
               <summary class="ui-helper flex cursor-pointer select-none items-center gap-1">
                 <ChevronRight size={10} class="ask-chevron" />
-                {actionsLine(turn) || 'Working'}{turn.status === 'running' ? '…' : ''}
+                Action details
               </summary>
               <ul class="mt-1 flex flex-col gap-0.5">
-                {#each turn.steps as step (step.id)}
+                {#each turn.steps.filter(s => !actionMetadata(s).diagnostic) as step (step.id)}
                   <li class="flex items-start gap-1.5">
                     <span class="mt-0.5 shrink-0">
                       {#if !step.result}<Loader2 size={11} class="animate-spin text-text-muted" />
@@ -218,7 +206,6 @@
                     </span>
                     <span class="ui-helper min-w-0 flex-1 whitespace-normal">
                       <span class="text-text-secondary">{stepLabel(step)}</span>
-                      {#if stepProblem(step)}<span class="block text-error">{stepProblem(step)}</span>{/if}
                     </span>
                   </li>
                 {/each}
@@ -238,6 +225,20 @@
       {/if}
     </ol>
 
+    {#if ask.serviceBlocked}<p class="ui-helper mx-3 mb-2 text-warning" role="status">{ask.serviceBlocked}</p>{/if}
+    {#if askApproval.pending}
+      {@const approval = approvalPresentation(askApproval.pending, etToUtcString)}
+      <div class="mx-3 mb-2 rounded border border-border p-2" role="group" aria-label="Approve Ask action">
+        <p class="ui-body">{approval.title}</p>
+        <p class="ui-helper whitespace-normal">{approval.description}</p>
+        <details class="mt-1"><summary class="ui-helper cursor-pointer">Exact parameters</summary><pre class="max-h-40 overflow-auto whitespace-pre-wrap text-[10px]">{approval.exact}</pre></details>
+        <div class="mt-2 flex gap-2">
+          <button class="ask-btn" onclick={() => answerAskApproval(true)}>Approve once</button>
+          <button class="ask-btn" onclick={() => answerAskApproval(false)}>Decline</button>
+        </div>
+      </div>
+    {/if}
+
     <div class="flex shrink-0 items-end gap-1.5 border-t border-border px-3 py-2">
       <textarea
         bind:value={prompt}
@@ -253,7 +254,7 @@
           <Square size={11} /> Stop
         </button>
       {:else}
-        <button class="ask-btn" onclick={send} disabled={prompt.trim() === ''} aria-label="Send request" title="Send (Enter)">
+        <button class="ask-btn" onclick={send} disabled={prompt.trim() === '' || !!ask.serviceBlocked} aria-label="Send request" title="Send (Enter)">
           <CornerDownLeft size={12} />
         </button>
       {/if}
