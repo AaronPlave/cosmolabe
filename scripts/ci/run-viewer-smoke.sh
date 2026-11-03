@@ -46,6 +46,8 @@ case "$suite" in
     fi
     ;;
   geographic)
+    # Loading-screen layout (#346): cheap, no downloads, shares this viewer server.
+    node scripts/test-loading-layout.mjs
     if [[ "$level" == pr ]]; then
       export CL_SMOKE=1 CL_FRAMES=1
     fi

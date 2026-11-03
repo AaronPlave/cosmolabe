@@ -107,3 +107,10 @@ dist-embed/
 # Python runtime bytecode
 __pycache__/
 *.py[cod]
+
+# Generated trajectory-clearance acceptance outputs; retain only reviewed captures.
+/work/issue-329/
+/docs/validation/issue-329/raw/
+/docs/validation/issue-329/acceptance.json
+/docs/validation/issue-329/ingenuity-acceptance.json
+/docs/validation/issue-329/trajectory-extrema.json
