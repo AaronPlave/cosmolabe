@@ -1,6 +1,7 @@
 # Offline planetary surface data plans
 
-For the finite execution DAG and synthetic offline build pilot, see
+To author plans graphically over the 3D scene, see
+[surface-planner.md](surface-planner.md). For the finite execution DAG and synthetic offline build pilot, see
 [surface-data-builds.md](surface-data-builds.md). Real Mars execution remains
 blocked on explicitly locked datum transforms; planning alone does not authorize
 or validate a production build.
