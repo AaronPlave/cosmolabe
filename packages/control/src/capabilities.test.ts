@@ -6,7 +6,7 @@ import { agentDefinitions } from './agent.js';
 import { createCapabilityTools, defaultAskDefinitions, CAPABILITY_LIMITS } from './capabilities.js';
 import { capabilityCoverage, CONTROL_CONTRACT_GAPS, UI_CAPABILITY_GAPS } from './capability-coverage.js';
 import { VERB_LIST } from './verbs.js';
-import { CAPABILITY_SYSTEM_PROMPT, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
+import { systemPrompt, resultText, runAgent, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import type { AgentTask } from './agent.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -226,20 +226,28 @@ describe('verified receipts and partial workflows', () => {
     tools.dispose();
   });
 
-  it('keeps shared registry routing, provenance and coverage instructions explicit', () => {
-    for (const name of ['Use resolve,', 'When resolve', 'searchPlaces', 'listActivities', 'getSurfaceData', 'getImagery', 'seekActivity', 'setPlaying']) {
-      expect(CAPABILITY_SYSTEM_PROMPT).not.toContain(name);
-    }
-    for (const name of ['describeScene', 'listCapabilities', 'describeCapabilities', 'invokeCapability', 'getOperationResult']) expect(CAPABILITY_SYSTEM_PROMPT).toContain(name);
-    expect(CAPABILITY_SYSTEM_PROMPT).toContain('source provenance withheld');
-    expect(CAPABILITY_SYSTEM_PROMPT).toContain('current-view coverage is unknown');
+  it('keeps feature guidance with the operations: the core prompt names no feature operation', () => {
+    const core = systemPrompt([], []);
+    for (const def of agentDefinitions()) if (!['checkGoal', 'describeScene'].includes(def.name)) expect(core, def.name).not.toMatch(new RegExp(`\\b${def.name}\\b`));
+    const tools = createCapabilityTools(Object.assign(new FakeViewer(), { getSurfaceData: () => undefined }), { surface: 'discovery' });
+    const prompt = systemPrompt(tools.list(), tools.guides!());
+    expect(prompt).toContain('- composeView: To bring another object into a close-up');
+    // An operation this host lacks brings no guidance.
+    expect(systemPrompt(tools.list(), createCapabilityTools(new FakeViewer()).guides!())).not.toContain('- getSurfaceData:');
+    for (const name of ['listCapabilities', 'describeCapabilities', 'invokeCapability']) expect(prompt).toContain(name);
+    expect(prompt).toContain('source provenance withheld');
+    // A guide reaches the prompt only through its operation.
+    expect(prompt).toContain('- getSurfaceData: Zero getImagery layers');
+    expect(prompt).toContain('current-view coverage is unknown');
+    tools.dispose();
   });
 
   it('declares missing semantic readback instead of marking every UI feature verified', async () => {
     const tools = createCapabilityTools(new FakeViewer());
     const task = tools.begin();
     await choose(task, 'grids.setGridOpacity');
-    expect(await task.call('setGridOpacity', { opacity: 0.5 })).toMatchObject({ ok: true, receipt: { status: 'partial', verification: 'host-return', warnings: [expect.stringContaining('#297')] } });
+    expect(await task.call('setGridOpacity', { opacity: 0.5 })).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'grid settings have no read' },
+      receipt: { status: 'partial', verification: 'host-return', warnings: ['Not observable: grid settings have no read.'] } });
     tools.dispose();
   });
 

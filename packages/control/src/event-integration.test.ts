@@ -27,8 +27,8 @@ describe('Event Finder shared script and capability path', () => {
     expect(tools.listCapabilities({ domain: 'events', limit: 12, query: 'getEventResultPage' }).items.some(c => c.id === 'events.getEventResultPage')).toBe(true);
     await task.call('describeCapabilities', { ids: ['events.focusEventResult', 'events.getEventVisualization'] });
     const result = await task.call('focusEventResult', { reference: JSON.stringify(reference), anchor: 'inspect' });
-    expect(result).toMatchObject({ ok: true, receipt: { status: 'partial', verification: 'observed', observation: { state: { events: { selected: reference, status: 'partial', renderer: null } } } } });
-    expect(result.receipt?.warnings.join(' ')).toContain('partial readback');
+    // Focus selects; the selection is observed, so the receipt is complete. Drawing is presentation's business.
+    expect(result).toMatchObject({ ok: true, outcome: { report: { status: 'met' } }, receipt: { status: 'completed', verification: 'observed', observation: { state: { events: { selected: reference, status: 'partial', renderer: null } } } } });
     tools.dispose();
     selected = false;
     const owned = createCapabilityTools(host, { omitted: { 'events.focusEventResult': 'Host owns event selection/time' } });

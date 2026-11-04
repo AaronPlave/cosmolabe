@@ -1,6 +1,6 @@
 /** Allowlisted Event Finder transport. Solver fault text and arbitrary parameters stay local. */
 import { agentMetadata } from './agent-metadata.js';
-import { builtinEventKinds, EVENT_ROLES, etToDate } from '@cosmolabe/core';
+import { builtinEventKinds, classifyApproach, EVENT_ROLES, etToDate } from '@cosmolabe/core';
 import type { ScriptEventQueryInfo, ScriptEventResultPage, ScriptEventVisualization } from './contracts.js';
 const kinds = builtinEventKinds();
 const corrections = ['NONE', 'LT', 'LT+S', 'CN', 'CN+S', 'XLT', 'XLT+S', 'XCN', 'XCN+S'];
@@ -33,6 +33,8 @@ export function eventPageMetadata(page: ScriptEventResultPage, publicText: (s: s
       ...(e.trajectoryAnalysis ? { trajectoryAnalysis: agentMetadata({ publicValue: value => publicText(value) === value }).trajectoryExtremum(e.trajectoryAnalysis) } : {}),
       metrics: (e.metrics ?? []).filter(m => ['range', 'altitude', 'duration', 'radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'].includes(m.key) && ['km', 's'].includes(m.unit ?? '') && Number.isFinite(m.value))
         .map(m => ({ key: m.key, value: m.value, unit: m.unit })),
+      // A range minimum is not by itself a flyby: say which criterion applies and whether this one meets it.
+      ...(e.kind === 'closest-approach' && e.bodies.target ? { encounter: classifyApproach(e.bodies.target, e.metrics?.find(m => m.key === 'range')?.value, page.query.definition?.query.params?.maxRangeKm as number | undefined) } : {}),
     })) };
 }
 export function eventVisualizationMetadata(v: ScriptEventVisualization) {

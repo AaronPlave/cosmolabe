@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkGoal, mergeGoal, parseGoal, type AskGoal } from './outcome.js';
+import { adopt, evaluate, parsePredicate, preconditionProblem, release, retireDomain, slotOf, valueAt, type Predicate } from './outcome.js';
 import type { ScriptComposedObject, ScriptEventVisualization, ViewerControl } from './contracts.js';
 
 const host = (methods: Partial<ViewerControl>) => methods as ViewerControl;
@@ -13,91 +13,144 @@ const visualization = (over: Partial<ScriptEventVisualization> = {}): ScriptEven
   ...over,
 });
 const bodies = { observer: 'Psyche', target: 'Mars' };
-const events = (closest: string, over: Partial<ScriptEventVisualization> = {}) => host({
+const range = (km: number) => [{ key: 'range', label: 'Range', value: km, unit: 'km' }];
+const events = (closest: string, over: Partial<ScriptEventVisualization> = {}, e2Km = 4500) => host({
   getEventVisualization: () => visualization(over),
-  listEventResults: () => ({ total: 2, items: [{ id: 'e1', et: 50, temporality: 'instant', bodies }, { id: 'e2', et: 100, temporality: 'instant', bodies }] as never }),
+  isPlaying: () => over.playing ?? false,
+  listEventResults: () => ({ total: 2, items: [{ id: 'e1', et: 50, temporality: 'instant', bodies, metrics: range(9e7) }, { id: 'e2', et: 100, temporality: 'instant', bodies, metrics: range(e2Km) }] as never }),
   getEventResultPage: () => ({ items: [{ reference: { ...ref, id: closest }, event: {} }] }) as never,
+  getEventQueryInfo: () => ({ definition: { query: { params: {} } } }) as never,
 });
-const eventGoal = { kind: 'event-presentation', query: 'psyche-mars', pick: 'closest' } as const;
+/** What presentEventResult's contract derives, plus "the closest". */
+const presented: Predicate[] = [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest' }, { p: 'paused', value: true }, { p: 'eventEpoch', query: 'psyche-mars' },
+  { p: 'eventFramed', query: 'psyche-mars' }, { p: 'eventDrawn', query: 'psyche-mars' }];
 
 const object = (o: Partial<ScriptComposedObject> & { object: string }): ScriptComposedObject => ({ available: true, drawEnabled: true, rangeKm: 10_000, radiusKm: 3389.5,
   angularRadiusDeg: 19, bearingDeg: [10, 0], ndc: [0.3, 0], inView: true, occlusion: null, ...o });
 const view = (mars: Partial<ScriptComposedObject>) => host({ getViewComposition: () => ({ scene: 1, et: 5, playing: false, tracked: 'Psyche', orbitDistanceKm: 0.06, fovDeg: 45, aspect: 1.6,
   objects: [object({ object: 'Psyche', rangeKm: 0.06, radiusKm: 0.0125, ndc: [0, 0], bearingDeg: [0, 0] }), object({ object: 'Mars', ...mars })] }) });
-const camera = { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], maxAnchorRangeKm: 0.1 } as const;
+const closeUp: Predicate[] = [{ p: 'inView', object: 'Psyche' }, { p: 'inView', object: 'Mars' }, { p: 'legible', object: 'Mars' }, { p: 'range', object: 'Psyche', maxKm: 0.1 }];
 
-describe('outcome checks', () => {
-  it('validates goal shape before reading anything', () => {
-    expect(() => parseGoal({ kind: 'camera-composition', anchor: 'Psyche' })).toThrow(/include/);
-    expect(() => parseGoal({ ...camera, include: ['A', 'B', 'C', 'D', 'E'] })).toThrow(/0-4/);
-    expect(() => parseGoal({ kind: 'teleport' })).toThrow(/kind must be/);
-    // Ready terrain alone must never count as "coloured by elevation".
-    expect(() => parseGoal({ kind: 'surface-appearance', body: 'Mars' })).toThrow(/baseColor or palette/);
-    expect(() => parseGoal({ ...camera, release: ['anchor'] })).toThrow(/release/);
-    // The anchor alone ("zoom into Psyche") is a goal too.
-    expect(parseGoal({ kind: 'camera-composition', anchor: 'Psyche', include: [], maxAnchorRangeKm: 0.1 }).kind).toBe('camera-composition');
-    expect(parseGoal({ kind: 'ground-point', object: 'Ingenuity', mode: 'pin' }).kind).toBe('ground-point');
+describe('outcome predicates', () => {
+  it('validates predicate shape before reading anything', () => {
+    expect(() => parsePredicate({ p: 'inView' })).toThrow(/needs object/);
+    expect(() => parsePredicate({ p: 'teleport' })).toThrow(/p must be one of/);
+    expect(() => parsePredicate({ p: 'range', object: 'Psyche' })).toThrow(/maxKm/);
+    expect(() => parsePredicate({ p: 'state', read: 'getTime' })).toThrow(/equals/);
+    expect(() => parsePredicate({ p: 'epoch' })).toThrow(/et .* or utc/);
+    expect(parsePredicate({ p: 'selected', object: null })).toEqual({ p: 'selected', object: null });
   });
 
   it('camera: hidden, fully occluded or out-of-frame objects fail; a few-pixel object is only partial', () => {
-    expect(checkGoal(view({}), camera).status).toBe('met');
-    expect(checkGoal(view({ drawEnabled: false }), camera).status).toBe('unmet');
-    expect(checkGoal(view({ occlusion: { by: 'Phobos', kind: 'full' } }), camera).status).toBe('unmet');
-    expect(checkGoal(view({ inView: false, ndc: null }), camera).status).toBe('unmet');
-    expect(checkGoal(view({ angularRadiusDeg: 0.0001 }), camera).status).toBe('partial');
-    expect(checkGoal(view({ radiusKm: null, angularRadiusDeg: null }), camera).status).toBe('partial');
+    expect(evaluate(view({}), closeUp).status).toBe('met');
+    expect(evaluate(view({ drawEnabled: false }), closeUp).status).toBe('unmet');
+    expect(evaluate(view({ occlusion: { by: 'Phobos', kind: 'full' } }), closeUp).status).toBe('unmet');
+    expect(evaluate(view({ inView: false, ndc: null }), closeUp).status).toBe('unmet');
+    expect(evaluate(view({ angularRadiusDeg: 0.0001 }), closeUp).status).toBe('partial');
+    expect(evaluate(view({ radiusKm: null, angularRadiusDeg: null }), closeUp).status).toBe('partial');
+    expect(evaluate(host({}), closeUp).status).toBe('inconclusive');
   });
 
-  it('carries earlier constraints forward unless the person released them', () => {
-    const earlier = { ...camera, et: 5, paused: true } as AskGoal;
-    const later = parseGoal({ kind: 'camera-composition', anchor: 'Psyche', include: ['Phobos'] });
-    const { goal, carried } = mergeGoal(earlier, later);
-    expect(goal).toMatchObject({ include: ['Phobos', 'Mars'], maxAnchorRangeKm: 0.1, et: 5, paused: true });
-    expect(carried.join(' ')).toMatch(/include Mars.*maxAnchorRangeKm 0.1/);
-    expect(mergeGoal(earlier, { ...later, release: ['maxAnchorRangeKm', 'et'] }).goal).not.toHaveProperty('maxAnchorRangeKm');
-    // A looser range cannot replace a tighter one.
-    expect(mergeGoal(earlier, { ...later, maxAnchorRangeKm: 50 } as AskGoal).goal).toMatchObject({ maxAnchorRangeKm: 0.1 });
-    expect(mergeGoal({ ...camera, anchor: 'Mars' } as AskGoal, later).carried).toEqual([]);
-    // More than four objects is reported as a conflict, never trimmed.
-    const crowded = mergeGoal({ ...camera, include: ['Mars', 'Phobos', 'Deimos', 'Earth'] } as AskGoal, parseGoal({ ...camera, include: ['Sun'] }));
-    expect(crowded.goal).toMatchObject({ include: ['Sun', 'Mars', 'Phobos', 'Deimos', 'Earth'] });
-    expect(crowded.conflict).toMatch(/more than 4 objects; release include/);
-    expect(mergeGoal(earlier, later).conflict).toBeNull();
+  it('holds a conversation: same slot replaces, a new camera subject retires the old camera goal, release drops by slot', () => {
+    let held = adopt([], [...closeUp, { p: 'paused', value: true }, { p: 'state', read: 'getSurfaceAppearance', args: ['Mars'], path: 'settings.baseColor', equals: 'elevation' }]).held;
+    // "keep it closer": the same slot, replaced.
+    const tighter = adopt(held, [{ p: 'range', object: 'Psyche', maxKm: 0.05 }]);
+    expect(tighter.replaced[0]).toMatch(/range Psyche <= 0.1 km → range Psyche <= 0.05 km/);
+    held = tighter.held;
+    // "now show Jupiter": the camera's subject changes; Psyche/Mars camera goals go, the clock and surface stay.
+    const jupiter = adopt([...held, { p: 'tracked', object: 'Psyche' }], [{ p: 'tracked', object: 'Jupiter' }, { p: 'inView', object: 'Jupiter' }]);
+    expect(jupiter.retired).toEqual(expect.arrayContaining(['inView Psyche', 'inView Mars', 'legible Mars', 'range Psyche <= 0.05 km']));
+    expect(jupiter.replaced).toEqual(['tracked Psyche → tracked Jupiter']);
+    expect(jupiter.held.map(slotOf)).toEqual(expect.arrayContaining(['playing', 'state:getSurfaceAppearance["Mars"]settings.baseColor', 'tracked', 'view:Jupiter']));
+    // Rotating around the same anchor keeps what was asked about it.
+    const same = adopt([...held, { p: 'tracked', object: 'Psyche' }], [{ p: 'tracked', object: 'Psyche' }, { p: 'inView', object: 'Phobos' }]);
+    expect(same.retired).toEqual([]);
+    // An event's framing owns the camera too, but a constraint about the new subject itself survives.
+    const event = adopt(held, [{ p: 'eventFramed', query: 'q' }]);
+    expect(event.held.some(p => p.p === 'range')).toBe(false);
+    const back = adopt(event.held.concat([{ p: 'range', object: 'Psyche', maxKm: 1 }]), [{ p: 'tracked', object: 'Psyche' }]);
+    expect(back.held).toContainEqual({ p: 'range', object: 'Psyche', maxKm: 1 });
+    const r = release(held, ['range:Psyche', 'view:Saturn']);
+    expect(r.released).toEqual(['range Psyche <= 0.05 km']);
+    expect(r.unknown).toEqual(['view:Saturn']);
+    // The person's own camera and clock moves end what the request held them to.
+    expect(retireDomain(held, 'camera').some(p => p.p === 'inView')).toBe(false);
+    expect(retireDomain(held, 'time').some(p => p.p === 'paused')).toBe(false);
+  });
+
+  it('a result an operation selects inherits what the person required of it', () => {
+    const held = adopt([], [{ p: 'eventSelected', query: 'q', pick: 'closest', encounter: true }]).held;
+    expect(adopt(held, [{ p: 'eventSelected', query: 'q', id: 'e2' }]).held).toEqual([{ p: 'eventSelected', query: 'q', pick: 'closest', encounter: true, id: 'e2' }]);
+    expect(adopt(held, [{ p: 'eventSelected', query: 'other', id: 'e2' }]).held).toEqual([{ p: 'eventSelected', query: 'other', id: 'e2' }]);
   });
 
   it('event presentation finds the selected result on any page, not just the first 100', () => {
     const many = Array.from({ length: 484 }, (_, i) => ({ id: `e${i}`, et: i, temporality: 'instant', bodies }));
-    const h = host({ ...events('e450'), getEventVisualization: () => visualization({ selected: { ...ref, id: 'e450' }, et: 450, renderer: { ...visualization().renderer!, selected: { query: 'psyche-mars', id: 'e450' } } }),
+    const h = host({ ...events('e450'), isPlaying: () => false, getEventVisualization: () => visualization({ selected: { ...ref, id: 'e450' }, et: 450, renderer: { ...visualization().renderer!, selected: { query: 'psyche-mars', id: 'e450' } } }),
       listEventResults: (_q, o) => ({ total: many.length, items: many.slice(o?.offset ?? 0, (o?.offset ?? 0) + (o?.limit ?? 100)) as never }) });
-    const result = checkGoal(h, eventGoal);
-    expect(result.checks.find(c => c.name === 'epoch')).toMatchObject({ ok: true });
+    const result = evaluate(h, presented);
+    expect(result.checks.find(c => c.slot === 'clock')).toMatchObject({ ok: true });
     expect(result.status).toBe('met');
   });
 
   it('event presentation: closest selected, paused at its epoch and framed', () => {
-    expect(checkGoal(events('e2'), eventGoal).status).toBe('met');
-    const wrong = checkGoal(events('e1'), eventGoal);
+    expect(evaluate(events('e2'), presented).status).toBe('met');
+    const wrong = evaluate(events('e1'), presented);
     expect(wrong.status).toBe('unmet');
-    expect(wrong.checks.find(c => c.name === 'closest')?.ok).toBe(false);
+    expect(wrong.checks.find(c => c.slot === 'event')).toMatchObject({ ok: false, detail: expect.stringContaining('closest is e1') });
   });
 
   it('event presentation: playing, framing of other bodies, or drawing of another result is not success', () => {
-    expect(checkGoal(events('e2', { playing: true }), eventGoal).status).toBe('unmet');
+    expect(evaluate(events('e2', { playing: true }), presented).status).toBe('unmet');
     const stale = { tracked: 'Earth', reference: null, participants: [{ object: 'Earth', ndc: [0, 0, 0.5], inView: true, drawEnabled: true }] };
-    expect(checkGoal(events('e2', { presentation: stale }), eventGoal).status).toBe('unmet');
-    expect(checkGoal(events('e2', { status: 'partial' }), eventGoal).status).toBe('partial');
+    expect(evaluate(events('e2', { presentation: stale }), presented).status).toBe('unmet');
+    expect(evaluate(events('e2', { status: 'partial' }), presented).status).toBe('partial');
     const otherDrawn = visualization().renderer!;
-    expect(checkGoal(events('e2', { renderer: { ...otherDrawn, selected: { query: 'psyche-mars', id: 'e1' } } }), eventGoal).status).toBe('partial');
+    expect(evaluate(events('e2', { renderer: { ...otherDrawn, selected: { query: 'psyche-mars', id: 'e1' } } }), presented).status).toBe('partial');
   });
 
-  it('surface appearance: settings without ready data are partial; wrong palette unmet', () => {
-    const settings = { baseColor: 'elevation', palette: 'terrain' } as never;
-    const surface = (status: 'ready' | 'partial') => host({ getSurfaceAppearance: () => ({ settings, unavailable: null }), getReadiness: request => ({ scene: 1, status, request, missing: [], limitations: [] }) });
-    expect(checkGoal(surface('ready'), { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation', palette: 'terrain' }).status).toBe('met');
-    expect(checkGoal(surface('partial'), { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' }).status).toBe('partial');
-    expect(checkGoal(surface('ready'), { kind: 'surface-appearance', body: 'Mars', palette: 'blue-gold' }).status).toBe('unmet');
-    expect(checkGoal(surface('ready'), { kind: 'surface-appearance', body: 'Mars' } as AskGoal).status).toBe('unmet');
-    expect(checkGoal(host({}), { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' }).status).toBe('inconclusive');
+  it('a range minimum is an encounter only inside the target\'s sphere of influence', () => {
+    const flyby: Predicate[] = [{ p: 'eventSelected', query: 'psyche-mars', encounter: true }];
+    expect(evaluate(events('e2'), flyby).status).toBe('met');
+    // Mars's sphere of influence is 5.77e5 km: a 9e7 km minimum is not a flyby.
+    const distant = evaluate(events('e2', {}, 9e7), flyby);
+    expect(distant.status).toBe('unmet');
+    expect(distant.checks[0].detail).toMatch(/sphere of influence .* not a flyby/);
+    // Asked for before acting, it stops the presentation instead of reporting it afterwards.
+    expect(preconditionProblem(events('e2', {}, 9e7), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toMatch(/not one/);
+    expect(preconditionProblem(events('e2'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], flyby)).toBeNull();
+    expect(preconditionProblem(events('e1'), [{ p: 'eventSelected', query: 'psyche-mars', id: 'e2' }], [{ p: 'eventSelected', query: 'psyche-mars', pick: 'closest' }])).toMatch(/closest result, which is e1/);
+  });
+
+  it('state predicates compare any registered read; unregistered reads are not called', () => {
+    const settings = { baseColor: 'elevation', palette: 'terrain' };
+    let called = false;
+    const h = host({ getSurfaceAppearance: () => ({ settings: settings as never, unavailable: null }), snapshot: () => { called = true; return ''; } });
+    const reads = new Set(['getSurfaceAppearance']);
+    const want = (path: string, equals: unknown): Predicate => ({ p: 'state', read: 'getSurfaceAppearance', args: ['Mars'], path, equals });
+    expect(evaluate(h, [want('settings.baseColor', 'elevation')], { reads }).status).toBe('met');
+    expect(evaluate(h, [want('settings.palette', 'blue-gold')], { reads }).status).toBe('unmet');
+    // A path that leads nowhere is absent: "removed" is equals null.
+    expect(evaluate(h, [want('settings.contours', null)], { reads }).status).toBe('met');
+    expect(evaluate(h, [{ p: 'state', read: 'snapshot', equals: '' }], { reads }).status).toBe('inconclusive');
+    expect(called).toBe(false);
+    expect(valueAt({ layers: [{ id: 'a', v: 1 }, { id: 'b', v: 2 }] }, 'layers[id=b].v')).toBe(2);
+    expect(valueAt({ features: [{ point: [77.45, 18.44], type: 'Point' }] }, 'features[point=77.45,18.44].type')).toBe('Point');
+  });
+
+  it('readiness is soft evidence: settings that hold with data not drawn are partial', () => {
+    const h = (status: 'ready' | 'partial') => host({ getSurfaceAppearance: () => ({ settings: { baseColor: 'elevation' } as never, unavailable: null }),
+      getReadiness: request => ({ scene: 1, status, request, missing: [], limitations: [] }) });
+    const goal: Predicate[] = [{ p: 'state', read: 'getSurfaceAppearance', args: ['Mars'], path: 'settings.baseColor', equals: 'elevation' }, { p: 'ready', kind: 'terrain', body: 'Mars' }];
+    expect(evaluate(h('ready'), goal, { reads: new Set(['getSurfaceAppearance']) }).status).toBe('met');
+    expect(evaluate(h('partial'), goal, { reads: new Set(['getSurfaceAppearance']) }).status).toBe('partial');
+  });
+
+  it('epoch: a running clock holds no moment; calendar text is read as UTC', () => {
+    const clock = (time: number, playing: boolean) => host({ getTime: () => time, isPlaying: () => playing });
+    expect(evaluate(clock(100, false), [{ p: 'epoch', et: 100 }]).status).toBe('met');
+    expect(evaluate(clock(160, true), [{ p: 'epoch', et: 100 }]).status).toBe('inconclusive');
+    expect(evaluate(clock(64.184, false), [{ p: 'epoch', utc: '2000-01-01T12:00:00Z' }]).status).toBe('met');
   });
 
   describe('ground point', () => {
@@ -106,19 +159,20 @@ describe('outcome checks', () => {
 
     it('a pin on the wrong body is not success', () => {
       const pinned = (bodyName: string) => host({ projectGroundPoint: () => projection, getProbePoint: () => ({ scene: 1, observedEt: 10, placedEt: 10, drawn: true, point: point(bodyName) as never, annotation: null }) });
-      expect(checkGoal(pinned('Mars'), { kind: 'ground-point', object: 'Ingenuity', mode: 'pin' }).status).toBe('met');
-      expect(checkGoal(pinned('Phobos'), { kind: 'ground-point', object: 'Ingenuity', mode: 'pin' }).status).toBe('unmet');
+      const pin: Predicate[] = [{ p: 'probeUnder', object: 'Ingenuity' }, { p: 'probeDrawn' }];
+      expect(evaluate(pinned('Mars'), pin).status).toBe('met');
+      expect(evaluate(pinned('Phobos'), pin).status).toBe('unmet');
     });
 
-    it('a saved point must be at the vehicle\'s sub-point, not just selected on the right body', () => {
+    it('a saved point must be at the vehicle\'s sub-point, in a visible layer, not just selected on the right body', () => {
       const saved = (at: [number, number], visible = true, type = 'Point') => host({ projectGroundPoint: () => projection, getSelectedGeographicFeature: () => ({ layer: 'notes', feature: 'f1' }),
         listGeographicLayers: () => [{ id: 'notes', body: 'Mars', visible }] as never,
         listGeographicFeatures: () => ({ total: 1, features: [{ id: 'f1', name: 'p', type, sourceId: null, ...(type === 'Point' ? { point: at } : {}) }] }) });
-      const goal = { kind: 'ground-point', object: 'Ingenuity', mode: 'saved' } as const;
-      expect(checkGoal(saved([77.45, 18.44]), goal).status).toBe('met');
-      expect(checkGoal(saved([77.45, 18.44], false), goal).status).toBe('partial');
-      expect(checkGoal(saved([10, 18.44]), goal).status).toBe('unmet');
-      expect(checkGoal(saved([77.45, 18.44], true, 'Polygon'), goal).status).toBe('unmet');
+      const goal: Predicate[] = [{ p: 'featureSelected' }, { p: 'featureUnder', object: 'Ingenuity' }];
+      expect(evaluate(saved([77.45, 18.44]), goal).status).toBe('met');
+      expect(evaluate(saved([77.45, 18.44], false), goal).status).toBe('unmet');
+      expect(evaluate(saved([10, 18.44]), goal).status).toBe('unmet');
+      expect(evaluate(saved([77.45, 18.44], true, 'Polygon'), goal).status).toBe('unmet');
     });
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { etFromCalendarString } from '@cosmolabe/core';
 import { createAgentTools, fixedAgentDefinitions, type AgentToolResult } from './agent.js';
 import { VERBS } from './verbs.js';
 import { AgentTransportError, runAgent, type AgentRequest, type AgentResponse, type AgentTransport } from './agent-loop.js';
@@ -148,7 +149,7 @@ describe('agent tools: validation', () => {
   it('takes a time as a calendar string or seconds past J2000', async () => {
     const host = new FakeViewer();
     const calls: unknown[] = [];
-    host.setTime = (when) => { calls.push(when); if (when.kind === 'et') host.time = when.et; return true; };
+    host.setTime = (when) => { calls.push(when); host.time = when.kind === 'et' ? when.et : etFromCalendarString(when.text); return true; };
     const t = createAgentTools(host);
     expect((await t.call('setTime', { when: '2021-04-30T19:00:00' })).ok).toBe(true);
     expect((await t.call('setTime', { when: 1000 })).ok).toBe(true);
@@ -214,7 +215,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     const pending = createAgentTools(host).call('flyTo', { object: 'Titan' });
     await tick();
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
+    expect(await pending).toMatchObject({ ok: true, summary: expect.stringContaining('flyTo Titan: arrived at Titan.'), completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' }, outcome: { report: { status: 'met' } } });
   });
 
   it('leaves the camera to a person who takes it, for the rest of the task', async () => {
@@ -268,7 +269,7 @@ describe('agent tools: completion, supersession, takeover, stale scenes', () => 
     await tick();
     expect(settled).toBe(false);
     land(host, 'arrived');
-    expect(await pending).toEqual({ ok: true, summary: 'flyTo Titan: arrived at Titan.', completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' } });
+    expect(await pending).toMatchObject({ ok: true, summary: expect.stringContaining('flyTo Titan: arrived at Titan.'), completion: { kind: 'flight', id: expect.any(Number), outcome: 'arrived' }, outcome: { report: { status: 'met' } } });
   });
 
   it('reports its flight stopped when another command replaces it, and does not wait on the replacement', async () => {
@@ -629,7 +630,7 @@ describe('agent tools: what a write leaves in place', () => {
     const host = new MissionViewer();
     const tools = createAgentTools(host, { formatTime: fmt });
     expect(await tools.call('selectActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({
-      ok: true, summary: expect.stringContaining('The viewer now reports Flight 5 (ingenuity:flight:5) as the selected activity.'),
+      ok: true, outcome: { expected: [{ p: 'activity', id: 'ingenuity:flight:5' }], report: { status: 'met', checks: [{ detail: 'activity ingenuity:flight:5 selected' }] } },
     });
     expect(await tools.call('seekActivity', { activity: 'ingenuity:flight:5' })).toMatchObject({ ok: true, summary: expect.stringContaining('The clock now reads ET 673687471.') });
   });
@@ -638,7 +639,7 @@ describe('agent tools: what a write leaves in place', () => {
     const host = new MissionViewer();
     host.loseSelection = true; // something clears it between the write and the read
     const r = await createAgentTools(host).call('selectActivity', { activity: 'ingenuity:flight:5' });
-    expect(r).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining('the viewer reports none as selected') });
+    expect(r).toMatchObject({ ok: false, code: 'failed', error: expect.stringContaining('activity none selected') });
   });
 
   it('reads a place selection back after navigating', async () => {
@@ -646,7 +647,7 @@ describe('agent tools: what a write leaves in place', () => {
     const place = host.places[0];
     const r = await createAgentTools(host).call('gotoPlace', { place: place.ref });
     // The host's fake flight starts no animation, so this returns at once.
-    expect(r).toMatchObject({ ok: true, summary: expect.stringContaining('The viewer now reports Airfield B as the selected place.') });
+    expect(r).toMatchObject({ ok: true, outcome: { report: { status: 'met', checks: [{ detail: 'place Airfield B selected' }] } } });
   });
 
   it('Flight 5: select, seek, go to its site, then a final read agrees with every step', async () => {

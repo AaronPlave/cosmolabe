@@ -1,3 +1,4 @@
+import { etFromCalendarString } from '@cosmolabe/core';
 import type { MeasurementDefinition, GeographicCoordinates, GeographicEditOperation, GeographicLayerStyle } from '@cosmolabe/core';
 import type { ScriptReadinessRequest, ScriptReadiness, ScriptSurfaceAppearance } from '../contracts.js';
 import { normalizeGridSettings, type GridSettings } from '../grid.js';
@@ -87,7 +88,7 @@ export class FakeViewer implements ViewerControl {
   gotoGeographicFeature(_layer: string, _feature: string) { return false; }
   createAnnotationLayer(_body: string, _name: string, _coordinates: GeographicCoordinates) { return false as const; }
   editAnnotation(_layer: string, _operation: GeographicEditOperation) { return false as const; }
-  getSurfaceAppearance(_body: string) { return undefined; }
+  getSurfaceAppearance(_body: string): { settings: ScriptSurfaceAppearance | null; unavailable: string | null } | undefined { return undefined; }
   setSurfaceAppearance(_body: string, _patch: Partial<ScriptSurfaceAppearance>) { return false; }
   getReadiness(request: ScriptReadinessRequest): ScriptReadiness { return { request, scene: this.scene?.id ?? null, status: this.scene?.ready ? 'ready' : 'partial', missing: [], limitations: ['Fake initial assets only'] }; }
   async waitUntilReady(request: ScriptReadinessRequest, _opts?: { signal?: import('../contracts.js').ScriptCancelSignal; timeoutMs?: number; scene?: number }) { return this.getReadiness(request); }
@@ -318,8 +319,11 @@ export class FakeViewer implements ViewerControl {
     return this.ok(true);
   }
 
+  /** Objects hidden with setObjectVisible: drawn no more. */
+  hidden = new Set<string>();
   setObjectVisible(name: string, visible: boolean): boolean {
     this.log('setObjectVisible', name, visible);
+    if (this.known(name)) { if (visible) this.hidden.delete(name); else this.hidden.add(name); }
     return this.ok(this.known(name));
   }
 
@@ -418,9 +422,8 @@ export class FakeViewer implements ViewerControl {
       this.timeText = undefined;
       return this.ok(true);
     }
-    const ms = Date.parse(when.text);
-    if (Number.isNaN(ms)) return false;
-    this.time = ms / 1000;
+    if (Number.isNaN(Date.parse(when.text))) return false;
+    this.time = etFromCalendarString(when.text);
     this.timeText = when.text;
     return this.ok(true);
   }
@@ -506,6 +509,8 @@ export class FakeViewer implements ViewerControl {
       return { b, rel, range, ang: b.radiusKm ? Math.asin(Math.min(1, b.radiusKm / range)) : 0 };
     };
     const objects = names.map(object => {
+      // A scene object with no configured geometry sits at the centre of the view, distance unknown.
+      if (!this.bodies[object] && this.objects.includes(object)) return { object, available: true, drawEnabled: !this.hidden.has(object), rangeKm: null, radiusKm: null, angularRadiusDeg: null, bearingDeg: [0, 0] as const, ndc: [0, 0] as const, inView: true, occlusion: null };
       if (!this.bodies[object]) return { object, available: false, drawEnabled: false, rangeKm: null, radiusKm: null, angularRadiusDeg: null, bearingDeg: null, ndc: null, inView: false, occlusion: null };
       const { b, rel, range, ang } = angular(object);
       const x = dot(rel, right), y = dot(rel, up), z = dot(rel, forward);
@@ -518,7 +523,7 @@ export class FakeViewer implements ViewerControl {
         const sep = Math.acos(Math.max(-1, Math.min(1, dot(unit(o.rel), unit(rel)))));
         if (sep < o.ang && (!occlusion || o.range < angular(occlusion.by).range)) occlusion = { by: other, kind: sep + ang <= o.ang ? 'full' : 'partial' };
       }
-      return { object, available: true, drawEnabled: true, rangeKm: range, radiusKm: b.radiusKm, angularRadiusDeg: deg(ang),
+      return { object, available: true, drawEnabled: !this.hidden.has(object), rangeKm: range, radiusKm: b.radiusKm, angularRadiusDeg: deg(ang),
         bearingDeg: [deg(Math.atan2(x, z)), deg(Math.atan2(y, Math.hypot(x, z)))] as const, ndc,
         inView: !!ndc && Math.abs(ndc[0]) <= 1 && Math.abs(ndc[1]) <= 1, occlusion };
     });

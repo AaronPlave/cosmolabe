@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { composeView } from './compose.js';
-import { checkGoal } from './outcome.js';
+import { evaluate, type Predicate } from './outcome.js';
 import type { ScriptVec3 } from './contracts.js';
 
 /** Psyche close-up at a paused encounter epoch, Mars ~10,000 km away and out of frame (#345). */
@@ -17,19 +17,21 @@ function psycheCloseUp(mars: ScriptVec3 = [-6000, 1500, 7800], distanceKm = 0.06
   return host;
 }
 
-const goal = { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], maxAnchorRangeKm: 0.07, paused: true, et: 832_000_000 } as const;
+/** Psyche close (within maxKm), Mars in view at a visible size, paused at the epoch. */
+const goal = (maxKm = 0.07): Predicate[] => [{ p: 'inView', object: 'Psyche' }, { p: 'inView', object: 'Mars' }, { p: 'legible', object: 'Mars' },
+  { p: 'range', object: 'Psyche', maxKm }, { p: 'paused', value: true }, { p: 'epoch', et: 832_000_000 }];
 
 describe('composeView', () => {
   it('orbits around the anchor until Mars is in view, keeping distance, clock and selection', () => {
     const host = psycheCloseUp();
-    expect(checkGoal(host, goal).status).toBe('unmet');
+    expect(evaluate(host, goal()).status).toBe('unmet');
     const out = composeView(host, 'Psyche', ['Mars']);
     expect(out.status).toBe('composed');
     expect(out.moves.length).toBeLessThanOrEqual(12);
     expect(Math.hypot(...host.camera.position)).toBeCloseTo(0.06, 9);
     expect(host.calls.every(c => c.startsWith('circleCenter'))).toBe(true);
     expect([host.time, host.selected, host.tracked]).toEqual([832_000_000, 'Psyche', 'Psyche']);
-    const report = checkGoal(host, goal);
+    const report = evaluate(host, goal());
     expect(report.status, JSON.stringify(report.checks)).toBe('met');
   });
 
@@ -39,7 +41,7 @@ describe('composeView', () => {
   ] as const)('handles Mars %s', (_label, mars) => {
     const host = psycheCloseUp(mars as unknown as ScriptVec3);
     composeView(host, 'Psyche', ['Mars']);
-    expect(checkGoal(host, goal).status).toBe('met');
+    expect(evaluate(host, goal()).status).toBe('met');
   });
 
   it('converges from any direction within its bounded search', () => {
@@ -56,7 +58,7 @@ describe('composeView', () => {
         expect(host.camera).toBe(before);
         continue;
       }
-      expect(checkGoal(host, { ...goal, maxAnchorRangeKm: 0.25 }).status).toBe('met');
+      expect(evaluate(host, goal(0.25)).status).toBe('met');
       composed++;
     }
     expect(composed).toBeGreaterThan(250);

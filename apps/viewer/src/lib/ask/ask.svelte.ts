@@ -18,7 +18,7 @@
  * the viewer offers no prompt at all.
  */
 import {
-  createCapabilityTools, runAgent, type AskGoal, type GoalReport, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
+  createCapabilityTools, runAgent, type Predicate, type RequestResult, type AgentMessage, type AgentOutcome, type AgentTask, type AgentToolResult, type AgentTools, type AgentTransport, type CapabilityToolsOptions,
 } from '@cosmolabe/control';
 import { builtInAgentMetadata } from './public-metadata';
 import { askDeployment, resolveDevAskToolMode, type AskDeployment } from '../deployment';
@@ -56,10 +56,8 @@ export interface AskTurn {
   errorCode: string | null;
   /** Model round trips and tokens processed, once the request ends (tokens null when the proxy does not report them). */
   stats: { rounds: number; rawTokens: number | null } | null;
-  /** The viewer's own check of the end state after this request's last change; null when there was nothing to hold it to. */
-  verification: readonly GoalReport[] | null;
-  /** The request changed the view and never stated its own end state: not verified, whatever earlier goals report. */
-  unverified: boolean;
+  /** The viewer's own verdict on this request's changes, and the facts its answer was checked against; null while running. */
+  result: RequestResult | null;
 }
 
 /** What the viewer did for a request, counted from the steps' own results. */
@@ -95,8 +93,8 @@ const ENDINGS: Partial<Record<AskStatus, string>> = {
  */
 export function endNote(turn: AskTurn, label: (step: AskStep) => string = (s) => s.name): { text: string; tone: 'warning' | 'error' } | null {
   if (turn.status === 'running' || turn.status === 'done') return null;
-  // What the view now holds from this request, in the words the action list uses.
-  const applied = turn.steps.filter(s => s.result?.ok && !READ_ONLY.test(actionName(s))).map(label);
+  // What the view now holds from this request, in the words the action list uses: writes, by their own contracts.
+  const applied = turn.steps.filter(wrote).map(label);
   const failed = tally(turn).refused;
   const account = applied.length ? ` Already applied: ${applied.join('; ')}.${failed ? ` ${plural(failed, 'step')} refused.` : ''}` : failed ? ` Nothing changed; ${plural(failed, 'step')} refused.` : '';
   if (turn.status === 'error') {
@@ -115,22 +113,30 @@ export function endNote(turn: AskTurn, label: (step: AskStep) => string = (s) =>
   return ending ? { tone: 'warning', text: `${ending}${account}` } : null;
 }
 
-const READ_ONLY = /^(describe|get|list|resolve|search|check|find|inspect)/;
+/** A step that changed the viewer: its result carries its contract's outcome. */
+const wrote = (s: AskStep) => !!s.result?.ok && !!s.result.outcome && s.result.outcome.writes.length > 0;
+const plainList = (items: readonly string[]) => items.join('; ').replace(/\.$/, '');
 
 /**
- * The viewer's verdict on a finished request that changed the view, beside the
- * model's answer: what does not hold, or that nothing could check it. Null when
- * it holds, nothing changed, or the request did not finish.
+ * The viewer's verdict beside the answer: whether the request's changes are
+ * verified, only partly observed, unobservable or failing, and whether the
+ * answer had to be replaced because it contradicted the viewer's results.
+ * Null for a request that changed nothing and answered consistently, or that
+ * did not finish (`endNote` speaks for those).
  */
 export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
-  if (turn.status !== 'done' || !turn.steps.some(s => s.result?.ok && !READ_ONLY.test(actionName(s)))) return null;
-  const failing = turn.verification?.filter(r => r.status !== 'met') ?? [];
-  const unchecked = turn.unverified || !turn.verification ? 'This change was not checked against the viewer.' : '';
-  if (failing.length) return { tone: 'warning', text: `Viewer check: ${failing.flatMap(r => r.checks.filter(c => c.ok !== true).map(c => c.detail)).join('; ')}.${unchecked ? ` ${unchecked}` : ''}` };
-  return unchecked ? { tone: 'muted', text: unchecked } : null;
+  const r = turn.result;
+  if (turn.status !== 'done' || !r) return null;
+  const failing = r.report?.checks.filter(c => c.ok !== true).map(c => c.detail) ?? [];
+  const replaced = r.answerIssues.length ? ' The model\'s answer contradicted the viewer\'s results, so the viewer\'s own account is shown.' : '';
+  switch (r.status) {
+    case 'verified': return { tone: 'muted', text: `Checked in the viewer.${replaced}` };
+    case 'partial': return { tone: 'muted', text: `Holds; not yet observed: ${plainList(failing)}.${replaced}` };
+    case 'failed': return { tone: 'warning', text: `Viewer check: ${plainList(failing)}.${replaced}` };
+    case 'unverified': return { tone: 'muted', text: `Not checked against the viewer: ${plainList([...r.unobservable.map(u => u.replace(/^[^:]+: /, '')), ...failing])}.${replaced}` };
+    default: return replaced ? { tone: 'warning', text: replaced.trim() } : null;
+  }
 }
-const actionName = (s: AskStep) => s.name === 'invokeCapability' && typeof (s.input as { id?: unknown })?.id === 'string'
-  ? ((s.input as { id: string }).id.split('.').at(-1) ?? s.name) : s.name;
 
 /** Requests the panel keeps showing; older ones scroll away for good. */
 const MAX_SHOWN = 50;
@@ -220,7 +226,7 @@ export function answerAskApproval(approved: boolean) {
 
 let history: AgentMessage[] = [];
 /** End states this conversation committed to; the loop holds later requests to them. */
-let goals: Readonly<Record<string, AskGoal>> = {};
+let goals: readonly Predicate[] = [];
 let historyScene = -1;
 /** Requests in the conversation the model currently remembers. */
 let conversationTurns = 0;
@@ -255,7 +261,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 function startOver() {
   conversation++;
   history = [];
-  goals = {};
+  goals = [];
   historyScene = sceneId();
   conversationTurns = 0;
 }
@@ -289,7 +295,7 @@ export async function submitAsk(prompt: string): Promise<void> {
 
   const mineConversation = conversation;
   conversationTurns++;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, verification: null, unverified: false };
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, result: null };
   ask.turns.push(turn);
   if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
@@ -319,15 +325,15 @@ export async function submitAsk(prompt: string): Promise<void> {
     },
   });
   running = run;
-  const { messages, outcome, stats, verification, unverified, goals: held } = await run;
+  const { messages, outcome, stats, result, answer, goals: held } = await run;
   mine.finish();
   if (conversation === mineConversation && historyScene === sceneId()) { history = [...messages]; goals = held; }
   const view = live();
   if (view) {
     view.status = outcome.kind;
     view.stats = { rounds: stats.rounds, rawTokens: stats.rawTokens };
-    view.verification = verification;
-    view.unverified = unverified;
+    view.result = result;
+    view.reply = answer;
     view.error = outcome.kind === 'error' ? outcome.message : null;
     view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
     if (outcome.kind === 'error' && ['budget_exhausted', 'cost_budget_exhausted', 'rate_limited'].includes(outcome.code ?? '')) {
@@ -376,7 +382,7 @@ export function disposeAsk() {
   embedded = false;
   conversation++;
   history = [];
-  goals = {};
+  goals = [];
   historyScene = -1;
   task = null;
   running = null;
