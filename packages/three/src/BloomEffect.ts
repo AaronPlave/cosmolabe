@@ -124,6 +124,9 @@ export class BloomEffect {
   }
 
   setSize(width: number, height: number): void {
+    // The composer captures the renderer's DPR at construction; follow later
+    // DPR changes (monitor moves, zoom) so the glow is not upscaled.
+    this.bloomComposer.setPixelRatio(this.renderer.getPixelRatio());
     this.bloomComposer.setSize(width, height);
     this.bloomPass.setSize(width, height);
   }

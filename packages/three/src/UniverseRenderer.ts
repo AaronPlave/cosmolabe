@@ -373,6 +373,7 @@ export class UniverseRenderer {
 
   private labelManager: LabelManager | null = null;
   private _dprMediaQuery: MediaQueryList | null = null;
+  private readonly _labelBufferSize = new THREE.Vector2();
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -833,6 +834,7 @@ export class UniverseRenderer {
 
   /** Render a single frame at current time */
   renderFrame(): void {
+    this._syncPixelRatio();
     const et = this.timeController.et;
     const canvasHeight = this.renderer.domElement.clientHeight;
     const halfFovTan = Math.tan((this.camera.fov * Math.PI / 180) / 2);
@@ -1199,10 +1201,12 @@ export class UniverseRenderer {
     // Update labels
     const bodyMeshArr = Array.from(this.bodyMeshes.values());
     if (this.labelManager) {
+      const buffer = this.renderer.getDrawingBufferSize(this._labelBufferSize);
       this.labelManager.update(
         bodyMeshArr,
         this.camera,
         { width: this.renderer.domElement.clientWidth, height: this.renderer.domElement.clientHeight },
+        { width: buffer.x, height: buffer.y, pixelRatio: this.renderer.getPixelRatio() },
       );
 
       // Apply occlusion fade to sensor frustum labels
@@ -1554,6 +1558,9 @@ export class UniverseRenderer {
   resize(width: number, height: number): void {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // A resize can be the first sign of a DPR change (window moved between
+    // monitors); size the backing store for the DPR the browser uses now.
+    this._syncPixelRatio();
     this.renderer.setSize(width, height);
     this.instrumentView?.onResize();
     this.bloomEffect?.setSize(width, height);
@@ -1710,12 +1717,26 @@ export class UniverseRenderer {
   }
 
   private _onDprChange = (): void => {
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
-    this.labelManager?.refreshTextures();
+    this._syncPixelRatio();
     // Rebind the media query against the new DPR so the next monitor change fires.
     this._watchDevicePixelRatio();
   };
+
+  /**
+   * Keep the WebGL backing store at the browser's current devicePixelRatio.
+   * Called every frame as well as from the media-query listener: a missed or
+   * late `change` event (monitor transitions, zoom, display scaling) would
+   * otherwise leave the canvas at the old DPR, which the compositor rescales —
+   * blurring everything drawn in WebGL while HTML overlays stay sharp. Label
+   * textures follow the renderer's ratio on their next update.
+   */
+  private _syncPixelRatio(): void {
+    if (typeof window === 'undefined') return;
+    const dpr = window.devicePixelRatio;
+    if (!(Number.isFinite(dpr) && dpr > 0) || dpr === this.renderer.getPixelRatio()) return;
+    this.renderer.setPixelRatio(dpr);
+    this.bloomEffect?.setSize(this.renderer.domElement.clientWidth, this.renderer.domElement.clientHeight);
+  }
 
   /** Get the bloom effect (null when disabled). */
   getBloomEffect(): BloomEffect | null {
