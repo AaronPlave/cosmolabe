@@ -947,28 +947,37 @@ export class LabelManager {
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    const font = `${fontSize}px monospace`;
-    ctx.font = font;
-    const metrics = ctx.measureText(text);
-
+    // Typography matches the HTML place names drawn beside these labels:
+    // system-ui with slight tracking, and their thin dark outline plus soft
+    // halo instead of a heavy glow. One weight step up (500) keeps bodies
+    // distinguishable from place names. Lengths are CSS px × device-pixel ratio.
+    const px = this._pixelRatio;
+    const setup = () => {
+      ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
+      ctx.letterSpacing = `${0.02 * fontSize}px`;
+      ctx.textBaseline = 'top';
+    };
+    setup();
     const padding = Math.ceil(fontSize * 0.3);
-    canvas.width = Math.ceil(metrics.width) + padding * 2;
+    canvas.width = Math.ceil(ctx.measureText(text).width) + padding * 2;
     canvas.height = fontSize + padding * 2;
+    setup(); // resizing the canvas resets its state
 
-    // Re-set font after canvas resize
-    ctx.font = font;
-    ctx.textBaseline = 'top';
-
-    // Black glow for readability (like CSS text-shadow: 0 0 4px black)
-    ctx.shadowColor = 'black';
-    ctx.shadowBlur = fontSize * 0.15;
+    // The place names' text-shadow: four 1px offsets in #10151bed blurred 1px,
+    // then a 3px black halo. Each pass draws only its shadow (the text itself
+    // lands off-canvas), so the fill is laid down once and edges stay crisp.
+    const away = canvas.width + 64 * px;
+    const shadow = (shadowColor: string, blur: number, dx: number, dy: number) => {
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = blur * px;
+      ctx.shadowOffsetX = away + dx * px;
+      ctx.shadowOffsetY = dy * px;
+      ctx.fillText(text, padding - away, padding);
+    };
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) shadow('#10151bed', 1, dx, dy);
+    shadow('#000', 3, 0, 0);
+    ctx.shadowColor = 'transparent';
     ctx.fillStyle = color;
-    // Multiple passes for stronger glow
-    ctx.fillText(text, padding, padding);
-    ctx.fillText(text, padding, padding);
-
-    // Final crisp pass
-    ctx.shadowBlur = 0;
     ctx.fillText(text, padding, padding);
 
     const texture = new THREE.CanvasTexture(canvas);

@@ -22,7 +22,7 @@ function stubCanvas(): void {
         shadowBlur: 0,
         fillStyle: '',
         measureText(text: string) {
-          const px = parseFloat(this.font);
+          const px = parseFloat(/([\d.]+)px/.exec(this.font)![1]);
           rasterFonts.push(px);
           return { width: text.length * px * 0.6 };
         },
