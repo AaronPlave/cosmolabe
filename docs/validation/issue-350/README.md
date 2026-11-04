@@ -2,12 +2,14 @@
 
 On a low-DPR display, resizing the window flipped the Ingenuity body label (a
 WebGL sprite) between crisp and soft, while HTML place names beside it stayed
-sharp. Even at its best, the label looked less refined than those place names.
+sharp. Even at its best, the label read poorly over terrain.
 
 ![main vs this change: DPR 1 at 1280 and 1281 px wide, and DPR 2, beside the HTML "Jezero" place name](ingenuity-label-before-after.png)
 
 Production settings (MSAA and bloom on, no `?test=1`). DPR 1 is zoomed 4×,
 DPR 2 2×, nearest-neighbour. On main, a one-pixel resize changes the glyphs.
+The "this PR" row shows the rendering fix with the earlier `system-ui` style;
+the final typography is compared below.
 
 ## Causes
 
@@ -24,8 +26,8 @@ DPR 2 2×, nearest-neighbour. On main, a one-pixel resize changes the glyphs.
 - **Bloom sized in CSS pixels.** The composer was built on a CSS-sized target,
   and `setSize` then resized the bloom pass to CSS pixels again after the
   composer had sized it for the DPR.
-- **Typography.** Monospace with a heavy triple-pass black glow, unlike the
-  `system-ui` place names with a thin outline.
+- **Typography.** Thin monospace with a heavy triple-pass black glow, at 0.82
+  opacity, lost contrast over grey terrain.
 
 ## Fix
 
@@ -41,10 +43,17 @@ DPR 2 2×, nearest-neighbour. On main, a one-pixel resize changes the glyphs.
 - **Bloom follows the drawing buffer.** The composer works at ratio 1 in device
   pixels, so its targets always equal the canvas. `setSize` is a no-op unless
   the buffer changed.
-- **Typography matched to the place names.** `system-ui` at weight 500 (one step
-  above place names, so bodies stay distinct), 0.02 em tracking, and the place
-  names' text shadow reproduced in canvas: four 1 px offsets in `#10151bed`
-  plus a 3 px black halo, each drawn shadow-only so the fill lands once.
+- **Body-label typography tuned for the scene.** Semibold `ui-monospace`
+  (SF Mono / Menlo / Consolas), a tight dark ring (four 1 px offsets,
+  `#000000f2`, 0.5 px blur) plus a 2 px halo, each drawn shadow-only so the
+  fill lands once, and baseline opacity 0.92 (hover still brightens to 1).
+
+![Three body-label styles at actual size over Jezero imagery, a Jezero delta close-up and dark space, at DPR 1 and 2](body-label-typography.png)
+
+The `system-ui` style that suits the HTML place names read worst of the three
+over detailed terrain at 12 px. The old monospace was thin and low-contrast.
+Semibold monospace with a tight outline was the most legible on bright terrain
+and on black space alike, so body labels deliberately differ from place names.
 
 Body labels stay WebGL sprites, so canvas-only screenshot and video capture,
 `OVERLAY_LAYER` exclusion from instrument views, and picking are unchanged.

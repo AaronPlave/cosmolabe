@@ -295,7 +295,7 @@ export class LabelManager {
 
   /** Baseline opacity all labels render at, so the hovered one (bumped to 1)
    *  stands out by getting brighter rather than by dimming the rest. */
-  private static readonly _baseLabelOpacity = 0.82;
+  private static readonly _baseLabelOpacity = 0.92;
 
   /**
    * Highlight a single label on hover (or pass null to clear). Opacity-only: the
@@ -947,14 +947,14 @@ export class LabelManager {
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    // Typography matches the HTML place names drawn beside these labels:
-    // system-ui with slight tracking, and their thin dark outline plus soft
-    // halo instead of a heavy glow. One weight step up (500) keeps bodies
-    // distinguishable from place names. Lengths are CSS px × device-pixel ratio.
+    // Instrument-style semibold monospace: chosen over system-ui (which suits
+    // the HTML place names) because it stays legible over detailed, moving
+    // terrain at 12 px. A tight dark ring plus a short halo give contrast on
+    // both bright terrain and black space without a heavy glow. Lengths are
+    // CSS px × the device-pixel ratio.
     const px = this._pixelRatio;
     const setup = () => {
-      ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
-      ctx.letterSpacing = `${0.02 * fontSize}px`;
+      ctx.font = `600 ${fontSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
       ctx.textBaseline = 'top';
     };
     setup();
@@ -963,9 +963,8 @@ export class LabelManager {
     canvas.height = fontSize + padding * 2;
     setup(); // resizing the canvas resets its state
 
-    // The place names' text-shadow: four 1px offsets in #10151bed blurred 1px,
-    // then a 3px black halo. Each pass draws only its shadow (the text itself
-    // lands off-canvas), so the fill is laid down once and edges stay crisp.
+    // Each pass draws only its shadow (the text itself lands off-canvas), so
+    // the fill is laid down once and its edges stay crisp.
     const away = canvas.width + 64 * px;
     const shadow = (shadowColor: string, blur: number, dx: number, dy: number) => {
       ctx.shadowColor = shadowColor;
@@ -974,8 +973,8 @@ export class LabelManager {
       ctx.shadowOffsetY = dy * px;
       ctx.fillText(text, padding - away, padding);
     };
-    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) shadow('#10151bed', 1, dx, dy);
-    shadow('#000', 3, 0, 0);
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) shadow('#000000f2', 0.5, dx, dy);
+    shadow('#000', 2, 0, 0);
     ctx.shadowColor = 'transparent';
     ctx.fillStyle = color;
     ctx.fillText(text, padding, padding);
