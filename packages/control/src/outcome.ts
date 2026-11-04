@@ -350,11 +350,11 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         return check(p, info === undefined ? null : info.definition !== null, info?.definition ? `search ${p.query} saved (${info.status})` : `no search ${p.query}`);
       }
       case 'eventRun': {
-        const s = host.getEventSearch ? try_(() => host.getEventSearch!()) : undefined;
+        // This query's own results, not whichever search ran last: running another search does not undo this one.
         const page = host.getEventResultPage ? try_(() => host.getEventResultPage!(p.query!, { limit: 1 })) : undefined;
-        if (!s || !page) return check(p, null, 'event search unobservable');
-        const ok = s.query === p.query && s.status === 'complete' && ['ready', 'no-results'].includes(page.status);
-        return check(p, ok, ok ? `search ${p.query} complete, ${page.total} results` : `search ${s.query === p.query ? s.status : 'not run'}`);
+        if (!page) return check(p, null, 'event search unobservable');
+        const ok = ['ready', 'no-results'].includes(page.status);
+        return check(p, ok, ok ? `search ${p.query} complete, ${page.total} results` : `search ${p.query} ${page.status}`);
       }
       case 'eventSelected': {
         if (!viz) return check(p, null, 'this viewer cannot observe events');

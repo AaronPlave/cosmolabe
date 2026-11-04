@@ -65,7 +65,8 @@ describe('Event Finder shared script and capability path', () => {
     expect(await tools.call('upsertEventQuery', { definition: JSON.stringify(definition) })).toMatchObject({ ok: true, summary: expect.stringContaining('correct the window before running'), data: { query: { status: 'unavailable', coverage: { windows: [{ start: 10, end: 90 }] }, error: { code: 'missing-coverage' } } } });
     host.getEventQueryInfo = () => ({ ...info, definition: { ...definition, query: { ...definition.query, window: { start: 0, end: 50 } } } });
     expect(await tools.call('upsertEventQuery', { definition: JSON.stringify(definition) })).toMatchObject({ ok: false });
-    Object.assign(host, { getEventSearch: () => ({ query: 'different', status: 'complete' }) });
+    // A host that reports success while this query's own results were never computed.
+    Object.assign(host, { getEventSearch: () => ({ query: 'different', status: 'complete' }), getEventResultPage: () => ({ status: 'not-searched', total: 0, offset: 0, nextOffset: null, items: [], query: info }) });
     expect(await tools.call('runEventQuery', { id: 'q' })).toMatchObject({ ok: false });
     tools.dispose();
   });

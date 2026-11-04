@@ -406,6 +406,7 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
       const id = name === 'invokeCapability' ? (input as { id?: unknown } | null)?.id : name;
       return definitions().find(d => idOf(d) === id || d.name === id)?.contract ?? null;
     },
+    readable: method => raw.readable?.(method) ?? false,
     preflight: (name, input, held) => {
       const def = name === 'invokeCapability' ? definitions().find(d => idOf(d) === (input as { id?: unknown } | null)?.id) : definitions().find(d => d.name === name || idOf(d) === name);
       return def ? raw.preflight?.(def.name, name === 'invokeCapability' ? (input as { input?: unknown }).input : input, held) ?? null : null;

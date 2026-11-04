@@ -250,3 +250,14 @@ describe('reading stated numbers', () => {
     expect(statedDistancesKm('76,685.77 km; 1.997 × 10^8 km; 2.0e9 km').map(d => d.km)).toEqual([76685.77, 1.997e8, 2e9]);
   });
 });
+
+describe('stated goals are held only over real reads', () => {
+  it('a state predicate over an invented read is refused, not held as uncheckable', async () => {
+    const tools = createCapabilityTools(new EventScene(), { surface: 'fixed' });
+    const model = scripted([call(use('1', 'checkGoal', { require: [{ p: 'state', read: 'display.layer', args: ['trajectories'], equals: false }] })), say('ok')]);
+    const run = await runAgent({ transport: model.transport, tools, prompt: 'hide trajectories' });
+    const r = run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result') as { content: string };
+    expect(JSON.parse(r.content).error).toMatch(/display.layer is not a read on this viewer/);
+    expect(run.goals).toEqual([]);
+  });
+});

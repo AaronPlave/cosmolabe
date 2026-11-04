@@ -173,6 +173,8 @@ export interface AgentTools {
   contractOf?(name: string, input: unknown): OperationContract | null;
   /** Usage notes of the operations this viewer offers now, by name: the planner's feature guidance. */
   guides?(): readonly { name: string; guide: string }[];
+  /** Whether a `state` predicate may read this method on this viewer. */
+  readable?(method: string): boolean;
   /** Why a write would contradict what the conversation holds, judged before it runs; null when nothing held speaks to it. */
   preflight?(name: string, input: unknown, held: readonly Predicate[]): string | null;
   /** The tools this viewer can run, in a stable order. */
@@ -1182,6 +1184,7 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
     inspect: describeScene,
     verify: verifyAll,
     contractOf: name => available().find(d => d.name === name)?.contract ?? null,
+    readable: method => readMethods().has(method) && has(host, method as keyof ViewerControl),
     preflight: (name, input, held) => {
       const def = available().find(d => d.name === name);
       if (!def?.contract.expect || !held.length) return null;

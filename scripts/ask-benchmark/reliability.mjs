@@ -151,7 +151,8 @@ export function dates(text) {
     : m[4] ? `${m[6]}-${String(MONTHS.indexOf(m[4].toLowerCase()) + 1).padStart(2, '0')}-${m[5].padStart(2, '0')}`
       : `${m[9]}-${String(MONTHS.indexOf(m[8].toLowerCase()) + 1).padStart(2, '0')}-${m[7].padStart(2, '0')}`);
 }
-const flybyClaim = text => text.split(/(?<=[.!?;])\s+/).find(s => FLYBY.test(s) && !NEGATION.test(s));
+// Names quoted from the catalog ("Mars Flyby (2026-05-15)") are not claims.
+const flybyClaim = text => text.replace(/["“][^"”]*["”]/g, '').split(/(?<=[.!?;])\s+/).find(s => FLYBY.test(s) && !NEGATION.test(s));
 const days = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
 
 /**
@@ -164,11 +165,12 @@ export function answerChecks(test, turns) {
   const truth = last?.truth, q = last?.eventQuery;
   // Numbers the viewer published count when its closest result agrees with the harness's truth (the state checks say whether it does).
   const facts = (last?.result?.facts ?? []).filter(f => f.kind === 'event-result');
+  const windows = (last?.result?.facts ?? []).filter(f => f.kind === 'event-window');
   const allowedKm = [AU_KM, test.event?.thresholdKm, truth?.minKm, truth?.closestMinimumKm, truth && truth.minKm - (test.targetRadiusKm ?? 0),
     q?.selectedRangeKm, q?.selectedRangeKm && q.selectedRangeKm - (test.targetRadiusKm ?? 0), q?.selectedAltitudeKm, q?.soiKm, last?.measuredKm,
     ...facts.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm])].filter(v => typeof v === 'number' && v > 0);
   if (test.event || test.truth || test.measure) for (const d of distancesKm(reply)) if (!allowedKm.some(k => Math.abs(d.km - k) <= 0.05 * k + 1)) issues.push(`distance ${d.text}`);
-  const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end, ...facts.map(f => f.utc)].filter(Boolean);
+  const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end, ...facts.map(f => f.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc])].filter(Boolean);
   if (allowedDays.length) for (const d of dates(reply)) if (!allowedDays.some(k => days(k, d) <= 1)) issues.push(`date ${d}`);
   if (test.noFlyby) { const claim = flybyClaim(reply); if (claim) issues.push(`flyby claim: ${claim.slice(0, 100)}`); }
   if (test.noFlyby && test.event?.all && !NEGATION.test(reply)) issues.push('no caveat that these are not flybys');

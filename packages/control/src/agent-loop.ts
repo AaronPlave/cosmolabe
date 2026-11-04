@@ -335,6 +335,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     let incoming: Predicate[];
     try { incoming = (Array.isArray(input.require) ? input.require : []).map(parsePredicate); }
     catch (err) { return { ok: false, code: 'invalid-input', error: err instanceof Error ? err.message : String(err) }; }
+    // A goal is held only over reads that exist: an invented one could never be checked.
+    const unknownRead = incoming.find(p => p.p === 'state' && opts.tools.readable && !opts.tools.readable(p.read!));
+    if (unknownRead) return { ok: false, code: 'invalid-input', error: `${unknownRead.read} is not a read on this viewer; state predicates read a registered get/list operation (e.g. getViewerState, getSurfaceAppearance) or use a typed predicate.` };
     const names = Array.isArray(input.release) ? input.release.filter((n): n is string => typeof n === 'string') : [];
     const notes: string[] = [];
     if (names.length) {

@@ -58,7 +58,8 @@ export function checkAnswer(text: string, facts: readonly ResultFact[]): string[
   for (const d of statedDates(text)) if (days.length && !days.some(k => dayDiff(k, d.day) <= 1)) issues.push(`"${d.text}" matches no date the viewer reported`);
   const classified = events.filter(f => f.encounter !== null);
   if (classified.length && classified.every(f => f.encounter === false)) {
-    const claim = sentences(text).find(s => FLYBY.test(s) && !NEGATED.test(s));
+    // Names quoted from the catalog ("Mars Flyby (2026-05-15)") are not claims.
+    const claim = sentences(text.replace(/["“][^"”]*["”]/g, '')).find(s => FLYBY.test(s) && !NEGATED.test(s));
     if (claim) {
       const f = classified[0];
       issues.push(`"${claim.trim().slice(0, 120)}" presents a flyby, but every result is outside the ${f.criterion === 'sphere-of-influence' ? `${f.criterionBody}'s sphere of influence (${f.thresholdKm?.toExponential(2)} km)` : `encounter limit (${f.thresholdKm} km)`}: distant range minima, not flybys`);
