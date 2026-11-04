@@ -19,7 +19,8 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    explanation; no coordinates are invented.
 2. **Regions.** Select any polygon — a catalog layer, an imported GeoJSON
    layer, or a shape drawn with Draw (#200) — and choose *Add selected*, or
-   choose *Draw region* to draw one that is added when finished. The feature is
+   choose *Draw region* to draw one on the plan's body that is added when
+   finished (leaving the tool without finishing cancels it). The feature is
    **copied** into the plan with its typed stable ID, holes and properties;
    read-only sources are never modified, and the plan layer's `provenance`
    records the source layer, identity, ownership and feature mapping. If the
@@ -41,11 +42,20 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    focused region, up to three ranked combinations are listed per channel with
    confirmed-valid / unknown / gap fractions, target fit, download size and
    registration/datum/illumination warnings. Choosing one feeds the estimate.
+   Optionally load a #251 build's `planner-feedback.json` (contract v1): each
+   focused region then shows, per channel, whether a published product already
+   suffices, it was built but not published or below target, or it needs a new
+   build (different shape, coarser output or different selected sources).
+   Without feedback this is *unknown*, never absent.
 5. **Estimate and budget.** The #248 estimator reports imagery and physical
-   terrain separately: area, hosted bytes and objects, fidelity (adequate /
-   unknown / short area), raw download, peak work disk and an optional
+   terrain separately: area, hosted bytes and objects, raw download, peak work
+   disk, fidelity (adequate / unknown / short area) and an optional
    published-byte budget with its bounded 2×/4× coarsening comparisons. The
-   comparisons never change the authored plan.
+   comparisons never change the authored plan. With per-region selections
+   (an inventory or a held lock) fidelity is assessed per region from only
+   that region's selected sources; a source chosen for one region never
+   satisfies another. Bare descriptors give one pooled *Any loaded source*
+   figure instead.
 6. **Export / import.** *Export desired plan* writes the exact v1 JSON the CLI
    reads (`npm run plan:surface`, `discover:surface`), with every referenced
    GeoJSON embedded. *Export locked plan* builds a `locked-surface-plan` from
@@ -53,9 +63,10 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    not buildable under their metadata (unknown validity, datum transforms,
    partial coverage, an unmet `require-target`) the export is refused with the
    reason. The lock's executor tiling, gates and profile are added by the
-   #251 build CLI. An imported lock re-exports unchanged while its plan is
-   unchanged. *Unsaved changes* and per-region dots mark edits since the last
-   import or export.
+   #251 build CLI. An imported lock re-exports unchanged until its plan, its
+   sources or its selection change. *Unsaved changes* and per-region dots mark
+   desired-plan edits since the last import or export; *Sources not locked*
+   marks a source choice that differs from the last locked plan.
 
 ## On the globe
 
@@ -69,9 +80,9 @@ that Surface layers does not list or search:
 | Confirmed valid (green) | Independently evidenced valid pixels of the chosen sources. |
 | Validity unknown (amber hatch) | Inside a footprint, but pixel validity is not evidenced. |
 | Gap (red hatch) | Not covered by the chosen sources — not an archive-wide absence. |
+| Built product (blue outline) | The ROI a loaded build's feedback reports for this region, drawn only when it is this region's own shape; tile availability alone does not prove coverage. |
 
-Built/published product coverage and current tile residency are separate
-quantities and are not drawn, since a plan has no build output. Clicking a
+Current tile residency is a separate quantity and is not drawn. Clicking a
 desired region on the globe focuses it; *Show this combination on the globe*
 hides the comparison.
 

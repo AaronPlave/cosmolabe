@@ -8,17 +8,17 @@
   import { Ellipsis, LocateFixed, PenLine, Plus, Trash2, RefreshCw } from 'lucide-svelte';
   import {
     SURFACE_FIDELITY_PRESETS, featureLabel, matchingSurfacePreset, surfaceRegionChannels, surfaceRegionIntent,
-    type EstimateRange, type SurfaceChannel, type SurfaceOutputIntent, type SurfacePlanRegion,
+    type EstimateRange, type SurfaceChannel, type SurfaceFidelityAssessment, type SurfaceOutputIntent, type SurfacePlanRegion,
   } from '@cosmolabe/core';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import { vs } from '../lib/viewer-state.svelte';
   import { geo } from '../lib/geographic-layers.svelte';
   import {
-    PLANNER_LEGEND, addSelectedRegion, chooseAlternative, chosenAlternative, clearSources, closePlan, drawRegion, exportDesired,
+    PLANNER_LEGEND, addSelectedRegion, chooseAlternative, chosenAlternative, clearFeedback, clearSources, closePlan, drawRegion, exportDesired,
     exportLock, focusRegion, importPlannerText, loadJezeroExample, planChanges, planner, plannerBodies, plannerBodyStatus,
-    refreshRegion, regionAlternatives, regionDrifted, regionRefusal, removeRegion, selectedSourceFeature, setBudget,
-    setFocusChannel, setPolicy, startPlan, updateRegion, installOverlay,
+    refreshRegion, regionAlternatives, regionBuildStatus, regionDrifted, regionRefusal, removeRegion, selectedSourceFeature,
+    selectionChanged, setBudget, setFocusChannel, setPolicy, startPlan, updateRegion, installOverlay,
   } from '../lib/surface-planner.svelte';
 
   interface Props { onClose: () => void; }
@@ -36,6 +36,7 @@
   let refusal = $derived(selected ? regionRefusal(selected.layer, selected.feature) : null);
   let focused = $derived(plan?.regions.find((r) => r.id === planner.focused) ?? null);
   let estimate = $derived((void planner.revision, planner.estimate));
+  let unlockedChoice = $derived(selectionChanged());
 
   let fileInput = $state<HTMLInputElement | null>(null);
   async function openFile(e: Event) {
@@ -95,6 +96,15 @@
   const fidelityLabel: Record<string, string> = {
     satisfied: 'Target met by source metadata', partial: 'Partly met', unsatisfied: 'Known shortfall', unknown: 'Unknown',
   };
+  function fidelityText(f: SurfaceFidelityAssessment, c: SurfaceChannel): string {
+    const a = f[c];
+    const label = fidelityLabel[a.requestedAreaM2 === 0 ? 'unknown' : a.adequateAreaM2 >= a.requestedAreaM2 * 0.999999 ? 'satisfied'
+      : a.adequateAreaM2 > 0 ? 'partial' : a.unsatisfiedAreaM2 > 0 ? 'unsatisfied' : 'unknown'];
+    return `${label}: ${area(a.adequateAreaM2)} adequate, ${area(a.unknownAreaM2)} unknown, ${area(a.unsatisfiedAreaM2)} short`;
+  }
+  const buildLabel: Record<string, string> = {
+    published: 'Published product suffices', built: 'Built, not published', coarser: 'Built below target', 'needs-build': 'Needs a new build', unknown: 'Unknown',
+  };
   const coverageLabel: Record<string, string> = {
     'verified-complete': 'Valid pixels confirmed over the whole region', 'verified-partial': 'Valid pixels confirmed over part of the region',
     unknown: 'Footprints overlap; pixel validity unknown', 'verified-empty': 'Selected products do not cover the region',
@@ -124,7 +134,8 @@
   {:else}
     <div class="plan-head">
       <span class="ui-section-label">{plan.body} plan</span>
-      {#if changes?.dirty}<span class="badge dirty" title="Changed since the last import or export">Unsaved changes</span>
+      {#if changes?.dirty}<span class="badge dirty" title="Desired plan changed since the last import or export">Unsaved changes</span>
+      {:else if unlockedChoice}<span class="badge dirty" title="Source selection differs from the last locked plan">Sources not locked</span>
       {:else if planner.base}<span class="badge">Saved</span>{/if}
       <span class="spacer"></span>
       <DropdownMenu.Root>
@@ -192,6 +203,10 @@
         {#if planner.sources.kind === 'inventory' && focused}{@render alternatives(focused)}
         {:else if planner.sources.kind === 'inventory'}<p class="ui-helper text-text-muted">Focus a region to compare its candidate sources.</p>{/if}
       {/if}
+      <p class="ui-meta text-text-muted source-label">
+        {#if planner.feedback}Build feedback: {planner.feedback.label} <button class="text-link" onclick={clearFeedback}>Clear</button>
+        {:else}No build feedback loaded: whether a published product exists is unknown. <button class="text-link" onclick={() => fileInput?.click()}>Load planner-feedback.json…</button>{/if}
+      </p>
     </section>
 
     <!-- Estimate -->
@@ -274,6 +289,12 @@
       </select>
     </div>
     <p class="ui-meta text-text-muted">Requested output sampling, not achieved source accuracy.</p>
+    <dl class="estimate ui-meta" aria-label="Built products">
+      {#each surfaceRegionChannels(region) as c (c)}
+        {@const b = regionBuildStatus(region.id, c)}
+        {#if b}<dt>{c === 'imagery' ? 'Built imagery' : 'Built terrain'}</dt><dd data-build={b.status} title={b.detail}>{buildLabel[b.status]}<br /><span class="text-text-muted">{b.detail}</span></dd>{/if}
+      {/each}
+    </dl>
     <div class="actions end">
       <button class="text-link ui-meta danger" onclick={() => removeRegion(region.id)}><Trash2 size={12} /> Remove region</button>
     </div>
@@ -331,7 +352,7 @@
       <li class="ui-meta" title={item.detail}><span class="key" style:background={item.color}></span>{item.label}</li>
     {/each}
   </ul>
-  <p class="ui-meta text-text-muted">Built/published coverage and loaded tiles are not shown: no build output is part of this plan.</p>
+  <p class="ui-meta text-text-muted">Built products come only from loaded build feedback; loaded renderer tiles are not shown.</p>
 {/snippet}
 
 {#snippet estimateView()}
@@ -341,10 +362,12 @@
     {#each (['imagery', 'elevation'] as const) as c (c)}
       {#if t[c].areaM2 > 0}
         <dt>{c === 'imagery' ? 'Imagery' : 'Physical terrain'}</dt>
-        <dd>{area(t[c].areaM2)} · {range(t[c].publishedBytes)} · {range(t[c].objects, count)} objects<br />
-          <span class="text-text-muted">{fidelityLabel[e.fidelity[c].requestedAreaM2 === 0 ? 'unknown' : e.fidelity[c].adequateAreaM2 >= e.fidelity[c].requestedAreaM2 * 0.999999 ? 'satisfied'
-            : e.fidelity[c].adequateAreaM2 > 0 ? 'partial' : e.fidelity[c].unsatisfiedAreaM2 > 0 ? 'unsatisfied' : 'unknown']}:
-            {area(e.fidelity[c].adequateAreaM2)} adequate, {area(e.fidelity[c].unknownAreaM2)} unknown, {area(e.fidelity[c].unsatisfiedAreaM2)} short</span></dd>
+        <dd>{area(t[c].areaM2)} · {range(t[c].publishedBytes)} · {range(t[c].objects, count)} objects
+          {#if planner.selectedFidelity}
+            {#each plan!.regions.filter((r) => r[c] && planner.selectedFidelity![r.id]) as r (r.id)}<br /><span class="text-text-muted">{r.id} (selected sources): {fidelityText(planner.selectedFidelity[r.id], c)}</span>{/each}
+          {:else}
+            <br /><span class="text-text-muted" title="Pools every loaded descriptor across regions; not a per-region selection">{planner.sources.kind === 'none' ? 'No sources loaded' : 'Any loaded source'}: {fidelityText(e.fidelity, c)}</span>
+          {/if}</dd>
       {/if}
     {/each}
     {#if t.elevation.areaM2 === 0}<dt>Physical terrain</dt><dd class="text-text-muted">Not requested — no elevation inputs or work.</dd>{/if}
@@ -415,6 +438,8 @@
   .estimate { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; color: var(--color-text-secondary); }
   .estimate dd[data-budget='over'] { color: var(--color-error); }
   .estimate dd[data-budget='uncertain'] { color: var(--color-warning); }
+  .estimate dd[data-build='published'] { color: var(--color-success, #4cc38a); }
+  .estimate dd[data-build='needs-build'], .estimate dd[data-build='coarser'] { color: var(--color-warning); }
   .problems summary { cursor: pointer; color: var(--color-text-secondary); }
   .problems li { overflow-wrap: anywhere; margin-top: 2px; }
   .problems li[data-severity='error'] { color: var(--color-error); }

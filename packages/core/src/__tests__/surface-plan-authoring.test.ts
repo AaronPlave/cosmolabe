@@ -7,7 +7,8 @@ import {
   recommendSurfaceSources, refreshSurfaceRegion, removeSurfacePlanRegion, serializeSurfacePlan, setSurfacePlanBudget,
   surfaceCoverageLayer, surfacePlanChanges, surfacePlanIdentity, surfaceRegionDrift, surfaceRegionIntent,
   surfaceRegionRefusal, surfaceRegionSource, updateSurfacePlanRegion, validateDesiredSurfacePlan, resolveSurfacePlan,
-  type SurfaceDiscoveryRecord,
+  surfaceSelectedFidelity, parseSurfacePlannerFeedback, surfaceRegionBuildStatus, validateSurfaceSources,
+  type SurfaceDiscoveryRecord, type SurfacePlannerFeedback,
 } from '../surface-plan/index.js';
 
 const MARS: GeographicCoordinates = { frame: 'IAU_MARS', latitude: 'planetocentric', longitudeDirection: 'east', longitudeDomain: '0..360',
@@ -139,5 +140,33 @@ describe('surface planner authoring (#250)', () => {
     const report = recommendSurfaceSources(plan, records);
     expect(report.combinations.map(c => c.regionId)).toEqual(['approach', 'landing', 'touchdown']);
     expect(report.combinations.every(c => c.alternatives.length >= 1 && c.alternatives.length <= 3)).toBe(true);
+  });
+
+  it('assesses selected-plan fidelity per region: a source chosen for one region never satisfies another', async () => {
+    const source = layer(fixture('jezero.geojson'));
+    let plan = createSurfacePlanDraft('Mars', MARS);
+    for (const f of source.features.slice(0, 2)) plan = addSurfacePlanRegion(plan, source, f, { intent: 'elevation' }).plan;
+    const dem = validateSurfaceSources(JSON.parse(fixture('jezero.sources.json')));
+    // Pooled, the DEM covering both regions satisfies both.
+    expect((await estimateSurfacePlan(plan, { sources: dem })).fidelity.elevation.unsatisfiedAreaM2).toBe(0);
+    const selected = await surfaceSelectedFidelity(plan, id => id === 'approach' ? dem : []);
+    expect(selected.approach.elevation.adequateAreaM2).toBeGreaterThan(0);
+    expect(selected.landing.elevation.adequateAreaM2).toBe(0);
+    expect(selected.landing.elevation.requestedAreaM2).toBeGreaterThan(0);
+  });
+
+  it('reports built/published status from build feedback, and unknown without it', () => {
+    const lock = JSON.parse(fixture('jezero-build.lock.json'));
+    const plan = validateDesiredSurfacePlan(lock.desired);
+    const feedback = parseSurfacePlannerFeedback(JSON.parse(readFileSync(new URL('../../../../docs/releases/surface-build-jezero/production-planner-feedback.json', import.meta.url), 'utf8')));
+    expect(surfaceRegionBuildStatus(plan, null, 'pilot', 'imagery').status).toBe('unknown');
+    expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'imagery', ['hirise-ortho']).status).toBe('published');
+    expect(surfaceRegionBuildStatus(plan, feedback, 'context', 'imagery').status).toBe('published');
+    expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'imagery', ['other']).status).toBe('needs-build');
+    expect(surfaceRegionBuildStatus(updateSurfacePlanRegion(plan, 'pilot', { imagery: { gsdM: 0.1 } }), feedback, 'pilot', 'imagery').status).toBe('needs-build');
+    expect(surfaceRegionBuildStatus(plan, feedback, 'context', 'elevation').status).toBe('needs-build');
+    const unpublished: SurfacePlannerFeedback = { ...feedback, products: feedback.products.map(p => ({ ...p, publication: { ...p.publication, status: 'not-published' as const } })) };
+    expect(surfaceRegionBuildStatus(plan, unpublished, 'pilot', 'elevation').status).toBe('built');
+    expect(() => parseSurfacePlannerFeedback({ kind: 'surface-planner-feedback' })).toThrow();
   });
 });

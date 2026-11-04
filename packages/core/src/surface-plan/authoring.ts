@@ -12,9 +12,11 @@ import type { MultiPolygon } from 'polygon-clipping';
 import { bodyFixedFrameName } from '../frames/FrameRegistry.js';
 import type { GeographicCoordinates, GeographicFeature, GeographicLayer, JsonValue } from '../geographic/model.js';
 import type {
-  DesiredSurfacePlan, SurfaceChannel, SurfaceFeatureCollection, SurfaceFidelity, SurfacePlanLayer, SurfacePlanRegion,
+  DesiredSurfacePlan, SurfaceChannel, SurfaceFeatureCollection, SurfaceFidelity, SurfaceFidelityAssessment, SurfacePlanLayer,
+  SurfacePlanRegion, SurfaceSourceDescriptor,
 } from './model.js';
 import { planFail } from './model.js';
+import { estimateSurfacePlan } from './estimate.js';
 import { serializeSurfacePlan } from './validation.js';
 
 /** What a region asks for. Elevation is never implied by imagery, and vice versa. */
@@ -304,4 +306,78 @@ export function surfaceCoverageLayer(id: string, name: string, plan: DesiredSurf
 /** Channels a region requests. */
 export function surfaceRegionChannels(region: SurfacePlanRegion): SurfaceChannel[] {
   return (['imagery', 'elevation'] as const).filter(c => region[c] !== undefined);
+}
+
+/**
+ * Fidelity of each region under only the sources selected for it. The global
+ * estimator pools every source it is given, so a source chosen for region A
+ * would otherwise satisfy region B; here each region is assessed alone.
+ */
+export async function surfaceSelectedFidelity(plan: DesiredSurfacePlan,
+  sourcesFor: (regionId: string) => SurfaceSourceDescriptor[]): Promise<Record<string, SurfaceFidelityAssessment>> {
+  const { budget: _budget, ...rest } = plan;
+  const out: Record<string, SurfaceFidelityAssessment> = {};
+  for (const region of plan.regions) {
+    out[region.id] = (await estimateSurfacePlan({ ...rest, regions: [region] }, { sources: sourcesFor(region.id) })).fidelity;
+  }
+  return out;
+}
+
+/** The part of a #251 build's `planner-feedback.json` (contract v1) the planner reads. */
+export interface SurfacePlannerFeedback {
+  version: 1;
+  kind: 'surface-planner-feedback';
+  lockIdentity: string;
+  requested: {
+    regionId: string;
+    geometry: unknown;
+    channels: { channel: SurfaceChannel; sourceIds: string[]; outputGsdM: number; targetMetByNativeSource: boolean | null; diagnostic: unknown }[];
+  }[];
+  products: {
+    productId: string;
+    sourceProofs: { sourceId: string }[];
+    continuousNativeCoverageStatus: 'proved-for-checked-requested-ROI-only' | 'not-proved-by-tile-availability';
+    publication: { status: 'not-published' | 'verified-local-http' | 'verified-hosted-http' };
+  }[];
+}
+
+/** Shape-check planner feedback read from a file; fields the planner does not use are kept but not checked. */
+export function parseSurfacePlannerFeedback(data: unknown): SurfacePlannerFeedback {
+  const d = data as SurfacePlannerFeedback;
+  const ok = d?.version === 1 && d.kind === 'surface-planner-feedback' && typeof d.lockIdentity === 'string'
+    && Array.isArray(d.requested) && d.requested.every(r => typeof r?.regionId === 'string' && Array.isArray(r.channels)
+      && r.channels.every(c => (c?.channel === 'imagery' || c?.channel === 'elevation') && Array.isArray(c.sourceIds) && typeof c.outputGsdM === 'number'))
+    && Array.isArray(d.products) && d.products.every(p => typeof p?.productId === 'string' && Array.isArray(p.sourceProofs)
+      && typeof p.publication?.status === 'string');
+  if (!ok) planFail('schema', '$', 'Expected surface-build planner feedback v1');
+  return d;
+}
+
+export type SurfaceBuildStatus = 'published' | 'built' | 'coarser' | 'needs-build' | 'unknown';
+
+/**
+ * Whether a region's channel is already served by a build in `feedback`, or
+ * would need a new one. A build matches only for the same region ID, the same
+ * embedded geometry, output sampling at least as fine as requested and, when
+ * given, the same selected sources. No feedback means unknown, never absent.
+ */
+export function surfaceRegionBuildStatus(plan: DesiredSurfacePlan, feedback: SurfacePlannerFeedback | null, regionId: string,
+  channel: SurfaceChannel, selectedSourceIds: readonly string[] | null = null): { status: SurfaceBuildStatus; detail: string } {
+  if (!feedback) return { status: 'unknown', detail: 'No build feedback loaded; whether a published product exists is unknown.' };
+  const region = plan.regions.find(r => r.id === regionId);
+  const requested = feedback.requested.find(r => r.regionId === regionId);
+  const built = requested?.channels.find(c => c.channel === channel);
+  if (!region?.[channel] || !requested || !built) return { status: 'needs-build', detail: `The loaded build has no ${channel} for ${regionId}.` };
+  const copy = plan.layers.find(l => l.id === region.feature.layerId)?.geojson?.features.find(f => `${typeof f.id}:${f.id}` === region.feature.featureId);
+  if (!copy || !same(copy.geometry, requested.geometry)) return { status: 'needs-build', detail: 'The region\'s shape differs from the built one.' };
+  if (built.outputGsdM > region[channel]!.gsdM) return { status: 'needs-build', detail: `Built at ${built.outputGsdM} m, coarser than the requested ${region[channel]!.gsdM} m.` };
+  if (selectedSourceIds && !same([...selectedSourceIds].sort(), [...built.sourceIds].sort())) return { status: 'needs-build', detail: `Built from ${built.sourceIds.join(', ')}, not the selected sources.` };
+  const products = feedback.products.filter(p => p.sourceProofs.some(s => built.sourceIds.includes(s.sourceId)));
+  if (!products.length) return { status: 'unknown', detail: 'The build feedback names no product for these sources.' };
+  if (built.targetMetByNativeSource === false) return { status: 'coarser', detail: 'Built, but its native sources do not meet the target; coarser data was kept under the fallback policy.' };
+  const proof = products.every(p => p.continuousNativeCoverageStatus === 'proved-for-checked-requested-ROI-only')
+    ? 'continuous coverage proved for the ROI' : 'continuous coverage not proved by tile availability';
+  return products.every(p => p.publication.status !== 'not-published')
+    ? { status: 'published', detail: `Published (${products.map(p => p.publication.status === 'verified-hosted-http' ? 'hosted' : 'local').join(', ')}); ${proof}.` }
+    : { status: 'built', detail: `Built but not published; ${proof}.` };
 }
