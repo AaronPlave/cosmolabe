@@ -947,12 +947,12 @@ export class LabelManager {
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    // Regular proportional type keeps small body labels compact. One short,
+    // Keep the original regular monospace typeface. One short,
     // downward shadow supplies terrain contrast without thickening every edge.
     // Shadow lengths are CSS px × the device-pixel ratio.
     const px = this._pixelRatio;
     const setup = () => {
-      ctx.font = `400 ${fontSize}px system-ui, sans-serif`;
+      ctx.font = `${fontSize}px monospace`;
       ctx.textBaseline = 'top';
     };
     setup();

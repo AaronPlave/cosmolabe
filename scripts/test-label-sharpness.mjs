@@ -5,7 +5,7 @@
  *
  *   node scripts/test-label-sharpness.mjs [VIEWER_URL] [OUT_DIR]
  * Add --typography to write an actual-size scene comparison instead of the
- * pixel-stability checks (previous heavy style, light mono, production style).
+ * pixel-stability checks (previous heavy style, system-ui, production style).
  *
  * The reported failure: on one low-DPR display, resizing the window flips the
  * Ingenuity body label between crisp and blurry. The checks look at rendered
@@ -245,7 +245,7 @@ async function compare(label, ref, g) {
 if (process.argv.includes('--typography')) {
   const { default: sharp } = await import('sharp');
   const tiles = [];
-  const styles = ['Previous: mono 600 + ring/halo', 'Mono 400 + short shadow', 'Chosen: system-ui 400 + short shadow'];
+  const styles = ['Previous: mono 600 + ring/halo', 'System-ui 400 + short shadow', 'Chosen: original mono + short shadow'];
   const tileW = 370, tileH = 240;
   const scenes = [1, 2].flatMap((dpr) => ['overview', 'terrain', 'space'].map((scene) => ({ dpr, scene })));
   for (const [row, { dpr, scene }] of scenes.entries()) {
@@ -303,7 +303,9 @@ if (process.argv.includes('--typography')) {
         lm.createTextTexture = style === 2 ? window.__productionTextTexture : function (text, color, fontSize) {
           const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
           const px = this._pixelRatio, pad = Math.ceil(fontSize * 0.3);
-          const setup = () => { ctx.font = `${style === 0 ? 600 : 400} ${fontSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`; ctx.textBaseline = 'top'; };
+          const setup = () => { ctx.font = style === 0
+            ? `600 ${fontSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`
+            : `400 ${fontSize}px system-ui, sans-serif`; ctx.textBaseline = 'top'; };
           setup(); canvas.width = Math.ceil(ctx.measureText(text).width) + pad * 2; canvas.height = fontSize + pad * 2; setup();
           const away = canvas.width + 64 * px;
           const shadow = (color, blur, dx, dy) => {
