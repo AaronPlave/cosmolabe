@@ -34,7 +34,7 @@ export function eventPageMetadata(page: ScriptEventResultPage, publicText: (s: s
       metrics: (e.metrics ?? []).filter(m => ['range', 'altitude', 'duration', 'radialHeightAboveReferenceSphere', 'heightAboveReferenceEllipsoid', 'heightAbovePhysicalTerrain'].includes(m.key) && ['km', 's'].includes(m.unit ?? '') && Number.isFinite(m.value))
         .map(m => ({ key: m.key, value: m.value, unit: m.unit })),
       // A range minimum is not by itself a flyby: say which criterion applies and whether this one meets it.
-      ...(e.kind === 'closest-approach' && e.bodies.target ? { encounter: classifyApproach(e.bodies.target, e.metrics?.find(m => m.key === 'range')?.value, page.query.definition?.query.params?.maxRangeKm as number | undefined) } : {}),
+      ...(e.kind === 'closest-approach' && e.bodies.target ? { encounter: classifyApproach([e.bodies.observer, e.bodies.target], e.metrics?.find(m => m.key === 'range')?.value, page.query.definition?.query.params?.maxRangeKm as number | undefined) } : {}),
     })) };
 }
 export function eventVisualizationMetadata(v: ScriptEventVisualization) {

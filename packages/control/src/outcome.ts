@@ -251,6 +251,7 @@ export function findEventResult(host: ViewerControl, query: string, id: string) 
   for (let offset = 0, page = 0; page < EVENT_PAGES; page++, offset += EVENT_PAGE) {
     let r: ReturnType<NonNullable<ViewerControl['listEventResults']>>;
     try { r = host.listEventResults(query, { offset, limit: EVENT_PAGE }); } catch { return undefined; }
+    if (!r) return undefined;
     const found = r.items.find(e => e.id === id);
     if (found || offset + EVENT_PAGE >= r.total || !r.items.length) return found;
   }
@@ -263,7 +264,7 @@ export function encounterOf(host: ViewerControl, query: string, id: string) {
   if (!event?.bodies.target) return null;
   let max: number | undefined;
   try { max = host.getEventQueryInfo?.(query).definition?.query.params?.maxRangeKm as number | undefined; } catch { max = undefined; }
-  return classifyApproach(event.bodies.target, event.metrics?.find(m => m.key === 'range')?.value, max);
+  return classifyApproach([event.bodies.observer, event.bodies.target], event.metrics?.find(m => m.key === 'range')?.value, max);
 }
 
 /**

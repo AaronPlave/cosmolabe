@@ -226,17 +226,17 @@ try {
           // nothing the model chose (window, range cap) is involved.
           window.__benchRange = (a, b, windows, step) => {
             const range = et => { const p = c.getObjectState(a, { time: { kind: 'et', et }, center: b })?.position; return p ? Math.hypot(...p) : NaN; };
-            let samples = 0, minima = 0, closestMinimumKm = null;
+            let samples = 0, minima = 0, closestMinimumKm = null, closestEt = null;
             let available = 0, minKm = null;
             for (const { start, end } of windows) {
               const n = Math.min(1_000_000, Math.ceil((end - start) / step));
               const r = Array.from({ length: n + 1 }, (_, i) => range(start + (end - start) * i / n));
-              for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1]) { minima++; closestMinimumKm = Math.min(closestMinimumKm ?? Infinity, r[i]); }
+              for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1]) { minima++; if (r[i] < (closestMinimumKm ?? Infinity)) { closestMinimumKm = r[i]; closestEt = start + (end - start) * i / n; } }
               samples += n + 1;
               // A loop, not spread: a 10-minute sample of years is hundreds of thousands of values.
               for (const v of r) if (Number.isFinite(v)) { available++; minKm = Math.min(minKm ?? Infinity, v); }
             }
-            return { windows, samples, available, minima, closestMinimumKm, minKm };
+            return { windows, samples, available, minima, closestMinimumKm, minKm, minEt: closestEt };
           };
         }, { test });
         const initial = await page.evaluate(() => window.__benchSnapshot());
@@ -276,7 +276,7 @@ try {
               const q = turn.eventQuery;
               if (q?.selectedEt !== undefined) q.selectedUtc = etToDate(q.selectedEt).toISOString();
               if (q?.window) q.windowUtc = { start: etToDate(q.window.start).toISOString(), end: etToDate(q.window.end).toISOString() };
-              if (q?.bodies?.target) q.soiKm = SPHERE_OF_INFLUENCE_KM[q.bodies.target] ?? null;
+              if (q?.bodies) q.soiKm = Math.max(0, ...Object.values(q.bodies).map(b => SPHERE_OF_INFLUENCE_KM[b] ?? 0)) || null;
             }
             if (test.truth && i === promptsOf(test).length - 1) {
               // Over the window the request implies, fixed by the case rather than by the model's query.

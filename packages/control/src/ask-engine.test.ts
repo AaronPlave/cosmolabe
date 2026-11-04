@@ -95,7 +95,7 @@ describe('scientific answers are grounded in published facts', () => {
     const r = await tools.call('getEventResultPage', { query: 'v1-neptune' });
     expect(r).toMatchObject({ ok: true, summary: expect.stringContaining("0 of 1 on this page are encounters by Neptune's sphere of influence (8.66e+7 km)"),
       data: { items: [{ encounter: { criterion: 'sphere-of-influence', encounter: false, thresholdKm: 8.66e7 } }] },
-      facts: [{ kind: 'event-result', target: 'Neptune', rangeKm: 3.48e9, encounter: false }, { kind: 'event-window' }] });
+      facts: [{ kind: 'event-result', target: 'Neptune', criterionBody: 'Neptune', rangeKm: 3.48e9, encounter: false }, { kind: 'event-window' }] });
     const mars = await tools.call('getEventResultPage', { query: 'psyche-mars' });
     expect(mars).toMatchObject({ facts: [{ encounter: true, rangeKm: 4500 }, { kind: 'event-window' }] });
   });
@@ -148,7 +148,7 @@ describe('scientific answers are grounded in published facts', () => {
   });
 
   it('checks distances, dates and flyby claims against the facts, and passes prose with nothing to check', () => {
-    const facts: ResultFact[] = [{ kind: 'event-result', query: 'q', id: 'e', observer: 'Psyche', target: 'Earth', utc: '2026-05-15T12:00:00.000Z', rangeKm: 1.8e8, altitudeKm: null, encounter: false, criterion: 'sphere-of-influence', thresholdKm: 9.25e5 },
+    const facts: ResultFact[] = [{ kind: 'event-result', query: 'q', id: 'e', observer: 'Psyche', target: 'Earth', utc: '2026-05-15T12:00:00.000Z', rangeKm: 1.8e8, altitudeKm: null, encounter: false, criterion: 'sphere-of-influence', criterionBody: 'Earth', thresholdKm: 9.25e5 },
       { kind: 'event-window', query: 'q', startUtc: '2023-10-13T00:00:00Z', endUtc: '2031-11-01T00:00:00Z', maxRangeKm: null }];
     expect(statedDistancesKm('about 1.2 AU, or 180 million km; 4,500 km; 1.8e8 km').map(d => Math.round(d.km))).toEqual([179517445, 180000000, 4500, 180000000]);
     expect(statedDates('on May 15, 2026 and 2031-11-01 and 3 March 2030').map(d => d.day)).toEqual(['2026-05-15', '2031-11-01', '2030-03-03']);

@@ -143,6 +143,8 @@ export interface EventResultFact {
   readonly altitudeKm: number | null;
   readonly encounter: boolean | null;
   readonly criterion: string | null;
+  /** The body whose sphere of influence the criterion uses. */
+  readonly criterionBody: string | null;
   readonly thresholdKm: number | null;
 }
 
@@ -870,11 +872,11 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         const metric = (key: string) => item.metrics.find(m => m.key === key && m.unit === 'km')?.value ?? null;
         const c = 'encounter' in item ? item.encounter : undefined;
         return { kind: 'event-result', query: item.reference.query, id: item.reference.id, observer: (item.bodies as Record<string, string>).observer ?? null, target: (item.bodies as Record<string, string>).target ?? null,
-          utc: 'utc' in item ? item.utc ?? null : null, rangeKm: metric('range'), altitudeKm: metric('altitude'), encounter: c?.encounter ?? null, criterion: c?.criterion ?? null, thresholdKm: c?.thresholdKm ?? null };
+          utc: 'utc' in item ? item.utc ?? null : null, rangeKm: metric('range'), altitudeKm: metric('altitude'), encounter: c?.encounter ?? null, criterion: c?.criterion ?? null, criterionBody: c?.body ?? null, thresholdKm: c?.thresholdKm ?? null };
       });
       if (window && data.query.definition) facts.push({ kind: 'event-window', query: data.query.definition.id, startUtc: window.start, endUtc: window.end, maxRangeKm: typeof data.query.definition.params.maxRangeKm === 'number' ? data.query.definition.params.maxRangeKm : null });
       const classified = facts.filter((f): f is EventResultFact => f.kind === 'event-result' && f.encounter !== null);
-      const encounters = classified.length ? ` ${classified.filter(f => f.encounter).length} of ${classified.length} on this page ${classified.filter(f => f.encounter).length === 1 ? 'is an encounter' : 'are encounters'} by ${classified[0].criterion === 'sphere-of-influence' ? `${classified[0].target}'s sphere of influence (${classified[0].thresholdKm?.toExponential(2)} km)` : 'the search\'s max range'}; the rest are distant range minima, not flybys.` : '';
+      const encounters = classified.length ? ` ${classified.filter(f => f.encounter).length} of ${classified.length} on this page ${classified.filter(f => f.encounter).length === 1 ? 'is an encounter' : 'are encounters'} by ${classified[0].criterion === 'sphere-of-influence' ? `${classified[0].criterionBody}'s sphere of influence (${classified[0].thresholdKm?.toExponential(2)} km)` : 'the search\'s max range'}; the rest are distant range minima, not flybys.` : '';
       return { ok: true, summary: `Run-scoped results${data.ranking ? `; compared all ${data.ranking.compared} measured candidates` : ''}.${window ? ` Searched window: ${window.start} through ${window.end}. Report these actual bounds; closest is within this window, never an all-time claim. ${data.query.definition?.params.scope === 'global' ? 'This is a deepest-only query: one returned global minimum does NOT mean only one local approach occurred.' : 'Counts describe the measured local candidates returned by this query.'}` : ''}${encounters}`, data, facts };
     },
     getEventVisualization: () => ({ ok: true, summary: 'Event visualization readback; partial is not drawn acceptance.', data: eventVisualizationMetadata(host.getEventVisualization!()) }),
