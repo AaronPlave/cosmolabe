@@ -2674,6 +2674,17 @@ export class UniverseRenderer {
     }
   }
 
+  /** Whether one object's trajectory is shown; null when it draws none. */
+  isTrajectoryVisible(name: string): boolean | null {
+    const lines = [...this.trajectoryLinesOf(name)];
+    return lines.length ? lines.every(l => l.isUserVisible) : null;
+  }
+
+  /** Whether one object's label is shown; null when it has none. */
+  isLabelVisible(name: string): boolean | null {
+    return this.labelManager?.isLabelVisible(name) ?? null;
+  }
+
   /** Show or hide **one object's** label. Silent when the object has none. */
   setLabelVisible(name: string, visible: boolean): void {
     this.labelManager?.setLabelVisible(name, visible);

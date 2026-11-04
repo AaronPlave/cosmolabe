@@ -388,6 +388,9 @@ export class TrajectoryLine extends THREE.Object3D {
     };
   }
 
+  /** The show/hide choice `setUserVisible` last made. */
+  get isUserVisible(): boolean { return this.userVisible; }
+
   setUserVisible(visible: boolean): void {
     this.userVisible = visible;
     this.visible = visible;

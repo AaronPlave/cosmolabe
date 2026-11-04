@@ -563,6 +563,10 @@ export function createViewerControl(deps: ViewerControlDeps = {}): Required<View
     listObjects: () => bodyNames(),
     listViewpoints: () => getRenderer()?.cameraController.getViewpoints().map((v) => v.name) ?? [],
     snapshot: () => snapshotScript(snapshotState()),
+    getViewerState: () => {
+      const r = getRenderer();
+      return { ...snapshotState(), objects: bodyNames().map(name => ({ name, trajectory: r?.isTrajectoryVisible(name) ?? null, label: r?.isLabelVisible(name) ?? null })) };
+    },
     getViewState: async () => (await import('./view-link')).captureViewState(),
     restoreViewState: async (input, opts = {}) => {
       inScene(opts.scene);

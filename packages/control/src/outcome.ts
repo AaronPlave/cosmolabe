@@ -59,6 +59,8 @@ export interface Predicate {
   readonly equals?: unknown;
   /** state: `equals` need only be contained in the value (the fields given), for a host that fills defaults. */
   readonly subset?: boolean;
+  /** state: numeric tolerance for a number `equals` (seconds, km). */
+  readonly within?: number;
   /** ready: a readiness request kind. */
   readonly kind?: 'assets' | 'imagery' | 'cube-base' | 'terrain';
   readonly body?: string;
@@ -434,7 +436,8 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         try { read = { value: h[p.read!].apply(host, [...(p.args ?? [])]) }; } catch { read = undefined; }
         // A path that leads nowhere reads as null (absent), so "removed" is `equals: null`.
         const value = read ? valueAt(read.value, p.path) ?? null : undefined;
-        return check(p, value === undefined ? null : p.subset ? contains(value, p.equals) : same(value, p.equals), `${p.read}${p.path ? ` ${p.path}` : ''} is ${value === undefined ? 'unreadable' : value === null ? 'absent' : JSON.stringify(value)?.slice(0, 120)}`);
+        const near = typeof p.within === 'number' && typeof value === 'number' && typeof p.equals === 'number' ? Math.abs(value - p.equals) <= p.within : null;
+        return check(p, value === undefined ? null : near ?? (p.subset ? contains(value, p.equals) : same(value, p.equals)), `${p.read}${p.path ? ` ${p.path}` : ''} is ${value === undefined ? 'unreadable' : value === null ? 'absent' : JSON.stringify(value)?.slice(0, 120)}`);
       }
       case 'ready': {
         if (!host.getReadiness) return check(p, null, 'readiness unobservable');

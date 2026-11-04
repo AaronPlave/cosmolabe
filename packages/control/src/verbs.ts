@@ -36,6 +36,7 @@ import type {
 } from './contracts.js';
 import { composeView } from './compose.js';
 import type { Predicate, StateDomain } from './outcome.js';
+import { etFromCalendarString } from '@cosmolabe/core';
 
 /**
  * The camera frames `setFrame` accepts.
@@ -431,7 +432,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'setFrame',
-    contract: opaque('camera', ['camera'], 'the camera frame has no read'),
+    contract: { namespace: 'camera', writes: ['camera'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'frame.mode', a.mode), ...(a.object ? [state('getViewerState', [], 'frame.body', a.object)] : [])] },
     params: [
       { name: 'mode', type: 'enum', values: FRAME_MODE_IDS },
       { name: 'object', type: 'object', optional: true },
@@ -445,7 +446,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'clearLookAt',
-    contract: opaque('camera', ['camera'], 'the look-at target has no read'),
+    contract: { namespace: 'camera', writes: ['camera'], idempotent: true, observes: ['getViewerState'], expect: () => [state('getViewerState', [], 'lookAt', null)] },
     params: [],
     category: 'Camera',
     method: 'clearLookAt',
@@ -549,7 +550,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'showTrajectory',
-    contract: opaque('display', ['display'], 'trajectory visibility has no read'),
+    contract: { namespace: 'display', writes: ['display'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], `objects[name=${s(a.object)}].trajectory`, a.visible)] },
     params: [
       { name: 'object', type: 'object' },
       { name: 'visible', type: 'boolean' },
@@ -562,7 +563,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'showLabel',
-    contract: opaque('display', ['display'], 'label visibility has no read'),
+    contract: { namespace: 'display', writes: ['display'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], `objects[name=${s(a.object)}].label`, a.visible)] },
     params: [
       { name: 'object', type: 'object' },
       { name: 'visible', type: 'boolean' },
@@ -575,7 +576,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'setLayer',
-    contract: opaque('display', ['display'], 'display layer state has no read'),
+    contract: { namespace: 'display', writes: ['display'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], `layers.${s(a.layer)}`, a.on)] },
     params: [
       { name: 'layer', type: 'enum', values: LAYER_IDS },
       { name: 'on', type: 'boolean' },
@@ -682,43 +683,53 @@ export const VERB_LIST: readonly VerbSpec[] = [
     invoke: (host, a) => host.setImageryOpacity!(str(a[0]), str(a[1]), num(a[2])),
   },
   {
-    name: 'showBodyGrid', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    name: 'showBodyGrid', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], `grid.perBody.${s(a.object)}.visible`, a.visible)] }, params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
     category: 'Display', method: 'showBodyGrid', resolvesName: 'object', help: 'Show or hide a body surface grid using shared viewer state.',
     invoke: (host, a) => host.showBodyGrid?.(str(a[0]), bool(a[1])),
   },
   {
-    name: 'showBodyGridLabels', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
+    name: 'showBodyGridLabels', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], `grid.perBody.${s(a.object)}.labels`, a.visible)] }, params: [{ name: 'object', type: 'object' }, { name: 'visible', type: 'boolean' }],
     category: 'Display', method: 'showBodyGridLabels', resolvesName: 'object', help: 'Show or hide one body’s coordinate labels independently of lines.',
     invoke: (host, a) => host.showBodyGridLabels?.(str(a[0]), bool(a[1])),
   },
   {
-    name: 'setGridScope', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'scope', type: 'enum', values: ['tracked', 'bodies', 'all'] }, { name: 'bodies', type: 'text', optional: true }],
+    name: 'setGridScope', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.scope', a.scope)] }, params: [{ name: 'scope', type: 'enum', values: ['tracked', 'bodies', 'all'] }, { name: 'bodies', type: 'text', optional: true }],
     category: 'Display', method: 'setGridScope', help: 'Grid target: tracked body, comma-separated pinned bodies, or all eligible bodies.',
     invoke: (host, a) => host.setGridScope?.(str(a[0]) as 'tracked' | 'bodies' | 'all', optStr(a[1])),
   },
   {
-    name: 'setGridDensity', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'density', type: 'enum', values: ['auto', 'manual'] }, { name: 'degrees', type: 'number', optional: true }],
+    name: 'setGridDensity', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.density', a.density), ...(a.degrees !== undefined ? [state('getViewerState', [], 'grid.spacingDeg', a.degrees)] : [])] }, params: [{ name: 'density', type: 'enum', values: ['auto', 'manual'] }, { name: 'degrees', type: 'number', optional: true }],
     category: 'Display', method: 'setGridDensity', help: 'Auto density or manual angular spacing in degrees.',
     invoke: (host, a) => host.setGridDensity?.(str(a[0]) as 'auto' | 'manual', optNum(a[1])),
   },
   {
-    name: 'setGridLabels', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridLabels',
+    name: 'setGridLabels', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.labels', a.visible)] }, params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridLabels',
     help: 'Show coordinate labels independently of grid lines.', invoke: (host, a) => host.setGridLabels?.(bool(a[0])),
   },
   {
-    name: 'setGridOpacity', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'opacity', type: 'number' }], category: 'Display', method: 'setGridOpacity',
+    name: 'setGridOpacity', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.opacity', a.opacity)] }, params: [{ name: 'opacity', type: 'number' }], category: 'Display', method: 'setGridOpacity',
     help: 'Grid lines and coordinate-caption opacity, from 0 to 1.', invoke: (host, a) => host.setGridOpacity?.(num(a[0])),
   },
   {
-    name: 'setGridCoordinateFrame', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridCoordinateFrame',
+    name: 'setGridCoordinateFrame', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.coordinateFrame', a.visible)] }, params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridCoordinateFrame',
     help: 'Place coordinate labels at viewport-border crossings in close overhead views; zoomed-out views retain surface labels.', invoke: (host, a) => host.setGridCoordinateFrame?.(bool(a[0])),
   },
   {
-    name: 'setGridMinorLines', contract: opaque('grids', ['grid'], 'grid settings have no read'), params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
+    name: 'setGridMinorLines', contract: { namespace: 'grids', writes: ['grid'], idempotent: true, observes: ['getViewerState'], expect: a => [state('getViewerState', [], 'grid.minorLines', a.visible)] }, params: [{ name: 'visible', type: 'boolean' }], category: 'Display', method: 'setGridMinorLines',
     help: 'Show fainter intermediate surface grid lines.', invoke: (host, a) => host.setGridMinorLines?.(bool(a[0])),
   },
 
   // ── Time ──
+  {
+    name: 'setTimelineWindow', params: [{ name: 'start', type: 'time' }, { name: 'end', type: 'time' }], category: 'Time', method: 'setTimelineWindow',
+    help: 'Show [start, end] on the timeline, growing its range if needed. Moves neither the clock nor the scene.',
+    contract: { namespace: 'time', writes: ['time'], idempotent: true, observes: ['getTimelineWindow'], expect: a => {
+      const et = (v: unknown) => typeof v === 'number' ? v : (() => { try { return etFromCalendarString(String(v)); } catch { return NaN; } })();
+      const [start, end] = [et(a.start), et(a.end)];
+      return Number.isFinite(start) && Number.isFinite(end) ? [{ p: 'state', read: 'getTimelineWindow', path: 'start', equals: start, within: 1 }, { p: 'state', read: 'getTimelineWindow', path: 'end', equals: end, within: 1 }] : [];
+    } },
+    invoke: (host, a) => host.setTimelineWindow!(time(a[0]), time(a[1])),
+  },
   {
     name: 'setTime',
     contract: { namespace: 'time', writes: ['time'], idempotent: true, expect: (a, h) => h.isPlaying() ? [] : [typeof a.when === 'number' ? { p: 'epoch', et: a.when } : { p: 'epoch', utc: s(a.when) }] },
@@ -772,7 +783,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'displayNote',
-    contract: opaque('display', ['display'], 'captions have no read'),
+    contract: { namespace: 'display', writes: ['display'], observes: ['getViewerState'], unobservable: 'a timed caption is an event, not view state', expect: a => a.seconds === undefined ? [state('getViewerState', [], 'note', s(a.text))] : [] },
     params: [
       { name: 'text', type: 'text' },
       { name: 'seconds', type: 'number', optional: true },

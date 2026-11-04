@@ -245,9 +245,9 @@ describe('verified receipts and partial workflows', () => {
   it('declares missing semantic readback instead of marking every UI feature verified', async () => {
     const tools = createCapabilityTools(new FakeViewer());
     const task = tools.begin();
-    await choose(task, 'grids.setGridOpacity');
-    expect(await task.call('setGridOpacity', { opacity: 0.5 })).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'grid settings have no read' },
-      receipt: { status: 'partial', verification: 'host-return', warnings: ['Not observable: grid settings have no read.'] } });
+    await choose(task, 'places.gotoCoordinates');
+    expect(await task.call('gotoCoordinates', { object: 'Titan', latitude: 1, longitude: 2 })).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'a surface coordinate view has no projection read' },
+      receipt: { status: 'partial', verification: 'host-return', warnings: ['Not observable: a surface coordinate view has no projection read.'] } });
     tools.dispose();
   });
 

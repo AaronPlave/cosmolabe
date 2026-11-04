@@ -673,6 +673,13 @@ export interface ViewerControl {
   /** The flight playing, or null when the camera is not being flown. */
   getFlight(): ScriptFlight | null;
   getCamera(): ScriptCamera;
+  /**
+   * The structured view state a snapshot serializes (#345): clock, selection,
+   * frame, look-at, display layers, grid, caption, imagery, appearance, and
+   * each object's trajectory and label visibility (null when it draws none).
+   * The read that lets display and camera-mode operations prove their result.
+   */
+  getViewerState?(): ViewerState;
   /** Floating scene origin, independent of tracking (ECLIPJ2000 axes). */
   getCameraReference?(): string | null;
   /**
@@ -908,6 +915,10 @@ export interface ScriptBookmark {
 }
 
 /** The state `snapshotScript` renders. Every field comes off the read side. */
+export interface ViewerState extends ViewerSnapshotState {
+  readonly objects: readonly { readonly name: string; readonly trajectory: boolean | null; readonly label: boolean | null }[];
+}
+
 export interface ViewerSnapshotState {
   /** Scene time in seconds past J2000. Used only when `timeText` is absent. */
   readonly time: number;

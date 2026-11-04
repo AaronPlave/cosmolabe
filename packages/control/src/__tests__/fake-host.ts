@@ -327,14 +327,30 @@ export class FakeViewer implements ViewerControl {
     return this.ok(this.known(name));
   }
 
+  /** Per-object trajectory and label visibility, as `getViewerState` reports it. */
+  display: Record<string, { trajectory: boolean; label: boolean }> = {};
   showTrajectory(name: string, visible: boolean): boolean {
     this.log('showTrajectory', name, visible);
+    if (this.known(name)) this.display[name] = { trajectory: visible, label: this.display[name]?.label ?? true };
     return this.ok(this.known(name));
   }
 
   showLabel(name: string, visible: boolean): boolean {
     this.log('showLabel', name, visible);
+    if (this.known(name)) this.display[name] = { label: visible, trajectory: this.display[name]?.trajectory ?? true };
     return this.ok(this.known(name));
+  }
+
+  timeline = { start: 0, end: 1000 };
+  getTimelineWindow() { return { ...this.timeline }; }
+  setTimelineWindow(start: ScriptTime, end: ScriptTime): boolean {
+    const et = (t: ScriptTime) => t.kind === 'et' ? t.et : etFromCalendarString(t.text);
+    this.timeline = { start: et(start), end: et(end) };
+    return this.timeline.end > this.timeline.start;
+  }
+
+  getViewerState(): import('../contracts.js').ViewerState {
+    return { ...this.snapshotState(), objects: this.objects.map(name => ({ name, trajectory: this.display[name]?.trajectory ?? true, label: this.display[name]?.label ?? true })) };
   }
 
   showBodyGrid(name: string, visible: boolean): boolean {

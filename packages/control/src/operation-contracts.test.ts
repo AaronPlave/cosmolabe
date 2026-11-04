@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { agentDefinitions } from './agent.js';
 import { createCapabilityTools } from './capabilities.js';
+import { capabilityCoverage } from './capability-coverage.js';
 import { parsePredicate, STATE_DOMAINS } from './outcome.js';
 import { registerVerb, VERBS, type VerbSpec } from './verbs.js';
 import type { ViewerControl } from './contracts.js';
@@ -20,9 +21,13 @@ const CALLS: Record<string, Record<string, unknown>> = {
   setObjectVisible: { object: 'Titan', visible: false },
   upsertMeasurement: { json: JSON.stringify({ id: 'm1', kind: 'distance', source: { kind: 'entity', bodyName: 'Titan' }, target: { kind: 'entity', bodyName: 'Saturn' }, vertex: null, visible: true }) },
   composeView: { anchor: 'Saturn', target: 'Titan' },
+  showTrajectory: { object: 'Titan', visible: false }, showLabel: { object: 'Titan', visible: false }, setLayer: { layer: 'grid', on: true },
+  setFrame: { mode: 'body-fixed', object: 'Titan' }, setGridOpacity: { opacity: 0.4 }, displayNote: { text: 'hello' },
+  setTimelineWindow: { start: 100, end: 900 },
 };
 /** Writes the fake's reads can observe: an honest host completes them. */
-const OBSERVED_BY_FAKE = ['select', 'track', 'frameObject', 'jumpTo', 'setPlaying', 'setTime', 'setTimeRate', 'setObjectVisible', 'upsertMeasurement'];
+const OBSERVED_BY_FAKE = ['select', 'track', 'frameObject', 'jumpTo', 'setPlaying', 'setTime', 'setTimeRate', 'setObjectVisible', 'upsertMeasurement',
+  'showTrajectory', 'showLabel', 'setLayer', 'setFrame', 'setGridOpacity', 'displayNote', 'setTimelineWindow'];
 
 /** A host that says yes to every write and changes nothing: its writes land on a throwaway copy. */
 function lyingHost(): FakeViewer {
@@ -49,7 +54,7 @@ describe('operation contracts', () => {
       if (spec) expect(c.writes.length > 0 || spec.category === 'Sequencing', `${def.name} declares no written domain`).toBe(true);
       if (c.writes.length) expect(!!c.expect !== !!c.unobservable || (!!c.expect && !!c.unobservable), `${def.name} must say how its result is observed, or why it cannot be`).toBe(true);
       // An unobservable write derives no predicate: nothing could ever call it verified.
-      if (c.unobservable) expect(c.expect?.({}, new FakeViewer()) ?? [], def.name).toEqual([]);
+      if (c.unobservable && !c.observes?.length) expect(c.expect?.({}, new FakeViewer()) ?? [], def.name).toEqual([]);
     }
   });
 
@@ -80,8 +85,15 @@ describe('operation contracts', () => {
   });
 
   it('an operation with no read is reported partial with its reason, never completed', async () => {
-    const r = await run(new FakeViewer(), 'showTrajectory', { object: 'Titan', visible: false });
-    expect(r).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'trajectory visibility has no read' }, receipt: { status: 'partial', warnings: ['Not observable: trajectory visibility has no read.'] } });
+    const r = await run(new FakeViewer(), 'gotoCoordinates', { object: 'Titan', latitude: 10, longitude: 20 });
+    expect(r).toMatchObject({ ok: true, outcome: { expected: [], unobservable: 'a surface coordinate view has no projection read' }, receipt: { status: 'partial', warnings: ['Not observable: a surface coordinate view has no projection read.'] } });
+  });
+
+  it('the inventory states its evidence; the writes with none are a known, reviewed set', () => {
+    const blind = capabilityCoverage().filter(r => r.status === 'registered' && 'evidence' in r && String(r.evidence).startsWith('unobservable')).map(r => r.operation);
+    expect(blind.sort()).toEqual(['activities.navigateActivity', 'bookmarks.restoreViewState', 'camera.circleCenterDown', 'camera.circleCenterLeft', 'camera.circleCenterRight', 'camera.circleCenterUp',
+      'camera.crane', 'camera.dolly', 'camera.setCamera', 'camera.viewpoint', 'capture.record', 'capture.screenshot', 'events.cancelEventQuery', 'events.openEventQuery',
+      'geographic.gotoGeographicFeature', 'places.gotoCoordinates', 'time.runTo']);
   });
 
   it('registering an operation without a contract is refused', () => {

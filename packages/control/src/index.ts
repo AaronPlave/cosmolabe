@@ -11,6 +11,7 @@ export type {
   ScriptAvailability,
   ScriptObjectState,
   ViewerSnapshotState,
+  ViewerState,
   CircleDirection,
   CoordinateNavigationOptions,
   FlightPath,
