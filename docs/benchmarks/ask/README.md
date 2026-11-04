@@ -33,7 +33,9 @@ ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=reliability ASK_BENCHMARK_ARM=A CL_VIEW
 ```
 
 `ASK_BENCHMARK_MODELS`, `ASK_BENCHMARK_MODES` and `ASK_BENCHMARK_CASES` narrow
-the matrix; the default is both models and both modes. Paid runs keep the raw-token
+the matrix; `ASK_BENCHMARK_PROXY_PORT` (default 8799) lets several harnesses run in
+parallel, each forwarding the page's endpoint to its own proxy. Wrap long runs in
+`caffeinate -i` so the machine cannot sleep mid-run; the default is both models and both modes. Paid runs keep the raw-token
 and estimated-dollar guards below. `.github/workflows/ask-live-benchmark.yml`
 runs the fixed-mode reliability suite weekly or on dispatch, only when the
 repository variable `ASK_LIVE_BENCHMARK` is `true` and the key secret is set.

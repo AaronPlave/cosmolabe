@@ -1,8 +1,8 @@
 # Ask reliability gate, 2026-11-03 (#345)
 
-Status: the deterministic gate and the outcome checks are in place. The paid A/B
-baseline has **not been run yet**. No success rate below is a model measurement,
-and none of the #345 targets is claimed as met.
+Status: the deterministic gate, the outcome checks and the paid A/B (run
+2026-11-04, [results below](#ab-results-2026-11-04)) are done. First-attempt success
+rose from 45% to 81% across both models and both tool modes, at lower cost.
 
 ## What a request is judged by now
 
@@ -65,12 +65,58 @@ every round.
 | Jargon in answers ("receipt", "projected centers…") | Prompt and tool summaries | Prompt bans the words; summaries now describe the view | n/a |
 | Psyche is drawn larger than its 0.5 m catalog radius, so anchor occlusion is underestimated | Renderer observability | Documented as a limit of sphere occlusion | #337 / #224 |
 
+## A/B results, 2026-11-04
+
+Arm A is the viewer at the merge base (`67bff6c2`, pre-#345); arm B is this branch
+(`5269d4ef`). Both ran from the same harness and judge, against the same catalogs, at the same
+time (four parallel workers: arm × model). The matrix is 8 tasks × 2 models (Sonnet 5.5,
+Haiku 5.5) × 2 tool modes (fixed, discovery) × 5 repetitions = 160 cells per arm. Each
+cell is a fresh scene and conversation, and success means first-attempt success judged from
+viewer state, never from the answer.
+
+| Model, mode | Arm A | Arm B | Rounds p50 A → B | Est. cost A → B |
+| --- | --- | --- | --- | --- |
+| Sonnet, fixed | 31/40, 78% (62–88%) | 39/40, 98% (87–100%) | 6 → 7 | $2.08 → $2.36 |
+| Sonnet, discovery | 9/40, 23% (12–38%) | 39/40, 98% (87–100%) | 16 → 8 | $3.94 → $2.48 |
+| Haiku, fixed | 22/40, 55% (40–69%) | 29/40, 73% (57–84%) | 7 → 7 | $0.15 → $0.17 |
+| Haiku, discovery | 10/40, 25% (14–40%) | 22/40, 55% (40–69%) | 12 → 10 | $0.22 → $0.21 |
+| **All** | **72/160, 45% (37–53%)** | **129/160, 81% (74–86%)** | | **$6.40 → $5.22** |
+
+Brackets are Wilson 95% intervals. Median latency fell from 27 s to 22 s and raw processed
+tokens from 28.8M to 24.8M.
+
+Per task (successes of 5; columns Sonnet fixed, Sonnet discovery, Haiku fixed, Haiku discovery):
+
+| Task | Arm A | Arm B |
+| --- | --- | --- |
+| voyager-jupiter | 5 0 5 0 | 5 5 5 5 |
+| cassini-mimas | 5 0 5 0 | 5 5 5 5 |
+| psyche-earth-all | 5 0 3 0 | 5 5 2 2 |
+| psyche-mars-closest | 5 0 4 0 | 5 5 5 2 |
+| mars-elevation | 5 4 4 5 | 4 5 5 5 |
+| ingenuity-pin-point | 0 0 0 0 | 5 5 2 1 |
+| psyche-mars-closeup (5 turns) | 1 0 0 0 | 5 5 5 1 |
+| voyager-neptune-none | 5 5 1 5 | 5 4 0 1 |
+
+How to read it:
+
+- **The reported failure is fixed for three of four configurations.** The five-turn Psyche/Mars close-up went from 1/20 to 16/20; Haiku in discovery mode is the exception (1/5).
+- **Discovery mode now works for event searches.** Arm A's discovery runs could not configure an Event Finder search (the definition shape was never shown; 89 "malformed definition" errors in the pilot), so every computed-encounter task failed there.
+- **Ingenuity is not a fair comparison.** The pre-#345 viewer cannot report a saved point's coordinates, so arm A's turn 2 is inconclusive by construction. Without that task the totals are 72/140 against 116/140.
+- **Regression: the Voyager 1/Neptune refusal** went from 16/20 to 10/20. In 7 of B's 10 failures the answer correctly says Voyager 1 never flew past Neptune, but then presents the distant 3.48e9 km range minimum, which the strict oracle counts as presenting an encounter. Counting "said no and showed the distant minimum" as a pass, the results are 19/20 against 17/20.
+- **False success rose from 3 to 7**, five of them Haiku listing Psyche–Earth range minima as flybys without saying none comes within 1 AU. The viewer's own end-of-request check contradicted 12 of B's answers; the panel shows that verdict beside them.
+
+Corrections made during the run, all applied to both arms:
+
+- The judge's camera probe omitted angular size and field of view, so every "legible" check failed.
+- Saved-point checks never read the feature's coordinates.
+- A 6-hour sample counted 5 Psyche–Earth range minima where a 10-minute sample and the event search both find 9.
+- `checkGoal` read only the first 100 results. Cassini–Mimas returns 484, so a correct closest-approach presentation read as "epoch unavailable" in Ask's own check and in the judge. The Cassini cells were rerun after the fix.
+- Cells lost to the machine sleeping overnight, or to a sampler stack overflow, were rerun. Cells that had already completed were kept; none was run twice.
+
+Cost of the whole exercise: $16.09 estimated, including the pilot, the interrupted overnight run and the Cassini rerun.
+
 ## Not done, and why
 
-- **The paid A/B baseline.** The live harness is ready: 8 tasks × 2 models × 2
-  modes, 5 repetitions, and arm A against a pre-#345 viewer. Its commands are in
-  the [README](README.md). It needs an operator-held key and a spend cap. Until it
-  runs, there is no first-attempt success rate, p50/p95 or cost to report.
-- **Arm C (selective screenshot review).** Not built. Structured composition plus
-  sphere occlusion settled every pilot case above. Build C only if arm B shows
-  failures that geometry cannot see.
+- **Factual review of answers.** The judge checks viewer state and a few answer properties (a stated refusal, the distance caveat); dates, ranges and windows in the prose are still `pending-review`.
+- **Arm C (selective screenshot review).** Not built. No arm B failure above needed pixels to explain it: each traced to an event-search setup, a refusal presentation or a missing caveat.
