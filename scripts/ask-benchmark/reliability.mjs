@@ -20,8 +20,8 @@ export const reliabilityCases = [
   { id: 'cassini-mimas', catalog: 'cassini-soi', prompt: 'show cassini at closest approach to mimas', event: { bodies: ['Cassini', 'Mimas'], pick: 'closest' },
     rubric: 'Closest of all measured candidates in the declared kernel window, not the first chronological one; states the window.' },
   { id: 'psyche-earth-all', catalog: 'psyche', prompt: 'show me all psyche flybys of earth', event: { bodies: ['Psyche', 'Earth'], all: true },
-    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', stepSeconds: 21600, noFlybyBeyondKm: 1.496e8 },
-    rubric: 'Every local minimum over the pair\'s kernel coverage, counted; deepest-only or a narrower window is not "all". After launch Psyche never comes within 1 AU of Earth (5 minima, closest 1.8e8 km), so the answer must say none is a close flyby.' },
+    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', stepSeconds: 600, noFlybyBeyondKm: 1.496e8 },
+    rubric: 'Every local minimum over the pair\'s kernel coverage, counted; deepest-only or a narrower window is not "all". After launch Psyche never comes within 1 AU of Earth (9 minima at a 10-minute sample, closest 1.8e8 km; a 6-hour sample misses 4), so the answer must say none is a close flyby.' },
   { id: 'psyche-mars-closest', catalog: 'psyche', prompt: 'show me the one where psyche is closest to mars', event: { bodies: ['Psyche', 'Mars'], pick: 'closest' },
     rubric: 'Range-ranked closest encounter (2026-05-15), paused, framed.' },
   { id: 'mars-elevation', catalog: 'ingenuity-jezero', prompt: 'color mars terrain by elevation', goal: { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' },
@@ -38,13 +38,21 @@ export const reliabilityCases = [
 
 export const promptsOf = test => test.turns ?? [test.prompt];
 
-/** The exact reads `checkGoal` makes for a goal, so a recorded host can answer them. */
-export function goalReads(goal) {
+/**
+ * The exact reads `checkGoal` makes for a goal, so a recorded host can answer
+ * them. Given the first pass's `recorded` entries, adds the reads that depend
+ * on them (the selected saved feature's layer).
+ */
+export function goalReads(goal, recorded = []) {
   switch (goal.kind) {
     case 'camera-composition': return [['getViewComposition', [[goal.anchor, ...goal.include]]]];
     case 'event-presentation': return [['getEventVisualization', []], ['getEventResultPage', [goal.query, { order: 'range-ascending', limit: 1 }]], ['listEventResults', [goal.query, { limit: 100 }]]];
     case 'surface-appearance': return [['getSurfaceAppearance', [goal.body]], ['getReadiness', [{ kind: 'terrain', body: goal.body }]]];
-    case 'ground-point': return [['projectGroundPoint', [goal.object, 'rendered']], ['getProbePoint', []], ['getSelectedGeographicFeature', []], ['listGeographicLayers', []]];
+    case 'ground-point': {
+      const sel = recorded.find(([m]) => m === 'getSelectedGeographicFeature')?.[2];
+      return [['projectGroundPoint', [goal.object, 'rendered']], ['getProbePoint', []], ['getSelectedGeographicFeature', []], ['listGeographicLayers', []],
+        ...(sel?.layer ? [['listGeographicFeatures', [sel.layer, { limit: 100 }]]] : [])];
+    }
     default: throw new Error(`unknown goal ${goal.kind}`);
   }
 }

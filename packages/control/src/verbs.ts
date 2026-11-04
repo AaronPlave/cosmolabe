@@ -535,7 +535,7 @@ export const VERB_LIST: readonly VerbSpec[] = [
   },
   {
     name: 'upsertEventQuery', sceneEdit: true, params: [{ name: 'definition', type: 'text' }], category: 'Analysis', method: 'upsertEventQuery',
-    help: 'Set up an Event Finder search. Create or replace a validated definition by stable ID; cached results are invalidated.',
+    help: 'Set up an Event Finder search. definition is JSON text {"id","label","enabled":true,"visible":true,"query":{"id","kind":"closest-approach","bodies":{"observer","target"},"window":{"start","end"} in ET seconds,"step" seconds,"abcorr":"NONE","params":{"scope":"local"|"global"}}}; roles, kinds and a supported window come from getEventSearchOptions. Create or replace by stable ID; cached results are invalidated.',
     invoke: (host, a) => host.upsertEventQuery!(data(a[0])),
   },
   {

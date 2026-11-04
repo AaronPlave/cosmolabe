@@ -176,9 +176,10 @@ try {
               const p = world.clone().project(cam), front = world.clone().applyMatrix4(cam.matrixWorldInverse).z < 0;
               let occlusion = null, nearest = Infinity;
               for (const o of spheres) if (o.name !== object && o.range < rangeKm && o.range < nearest && o.dir.angleTo(dir) < o.ang) { nearest = o.range; occlusion = { by: o.name, kind: o.dir.angleTo(dir) + ang <= o.ang ? 'full' : 'partial' }; }
-              return { object, available: true, drawEnabled: bm.visible, rangeKm, radiusKm, ndc: front ? [p.x, p.y] : null, inView: front && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1, occlusion };
+              return { object, available: true, drawEnabled: bm.visible, rangeKm, radiusKm, angularRadiusDeg: radiusKm ? ang * 180 / Math.PI : null,
+                ndc: front ? [p.x, p.y] : null, inView: front && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1, occlusion };
             });
-            return { et: r.timeController.et, playing: r.timeController.playing, tracked: r.cameraController.trackedBody?.body.name ?? null, objects };
+            return { fovDeg: cam.fov, aspect: cam.aspect, et: r.timeController.et, playing: r.timeController.playing, tracked: r.cameraController.trackedBody?.body.name ?? null, objects };
           };
           window.__benchReads = reads => reads.map(([method, args]) => {
             try { return [method, args, method === 'getViewComposition' ? window.__probeComposition(...args) : JSON.parse(JSON.stringify(c[method](...args) ?? null))]; }
@@ -200,7 +201,7 @@ try {
             let samples = 0, minima = 0, closestMinimumKm = null;
             const finite = [];
             for (const { start, end } of windows) {
-              const n = Math.min(20000, Math.ceil((end - start) / step));
+              const n = Math.min(1_000_000, Math.ceil((end - start) / step));
               const r = Array.from({ length: n + 1 }, (_, i) => range(start + (end - start) * i / n));
               for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1]) { minima++; closestMinimumKm = Math.min(closestMinimumKm ?? Infinity, r[i]); }
               samples += n + 1;
@@ -224,7 +225,9 @@ try {
             const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
               return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, verification: t.verification ?? null, unverified: !!t.unverified,
                 wrote: t.steps.some(s => s.result?.ok && !/^(describe|get|list|resolve|search|check|find)/.test((s.name === 'invokeCapability' ? s.input.id : s.name).split('.').at(-1))),
-                steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null })) }; });
+                steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
+                  // Failed calls keep what was sent and the public error, so a failure can be traced to its cause.
+                  ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; });
             turn.latencyMs = Math.round(performance.now() - turnStarted);
             if (test.composition?.epochTurn === i) context.epoch = await page.evaluate(() => window.cosmo.getTime());
             if (test.composition?.closeTurn === i) context.closeRangeKm = (await page.evaluate(n => window.__probeComposition([n]), test.composition.anchor)).objects[0].rangeKm;
@@ -242,7 +245,11 @@ try {
             const goal = turnGoal(test, i, context);
             if (goal) {
               turn.goal = goal;
-              turn.report = judgeTurn(goal, await page.evaluate(reads => window.__benchReads(reads), goalReads(goal)));
+              let entries = await page.evaluate(reads => window.__benchReads(reads), goalReads(goal));
+              // Reads that depend on what the first ones returned (the selected saved feature's layer).
+              const more = goalReads(goal, entries);
+              if (more.length > entries.length) entries = await page.evaluate(reads => window.__benchReads(reads), more);
+              turn.report = judgeTurn(goal, entries);
             }
             run.result.turns.push(turn);
             if (turn.status !== 'done') break; // a stopped conversation is the observation; do not keep spending

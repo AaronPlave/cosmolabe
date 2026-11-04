@@ -2,9 +2,10 @@ import { expect, it } from 'vitest';
 import { reliabilityCases, goalReads, recordedHost, turnGoal, judgeTurn, scoreReliability, classify, suspectedFalseSuccess, wilson, summarizeReliability } from './reliability.mjs';
 
 const closeup = reliabilityCases.find(c => c.id === 'psyche-mars-closeup');
-const probe = (marsInView, rangeKm = 0.06) => ({ et: 5, playing: false, tracked: 'Psyche', objects: [
-  { object: 'Psyche', available: true, inView: true, rangeKm, occlusion: null },
-  { object: 'Mars', available: true, inView: marsInView, rangeKm: 10_000, occlusion: null }] });
+// The shape the harness's own projection probe returns (benchmark-ask.mjs __probeComposition).
+const probe = (marsInView, rangeKm = 0.06, marsKm = 10_000) => ({ fovDeg: 45, aspect: 1.6, et: 5, playing: false, tracked: 'Psyche', objects: [
+  { object: 'Psyche', available: true, drawEnabled: true, inView: true, rangeKm, radiusKm: 0.0005, angularRadiusDeg: 0.5, ndc: [0, 0], occlusion: null },
+  { object: 'Mars', available: true, drawEnabled: true, inView: marsInView, rangeKm: marsKm, radiusKm: 3389.5, angularRadiusDeg: Math.asin(Math.min(1, 3389.5 / marsKm)) * 180 / Math.PI, ndc: marsInView ? [0.3, 0.2] : null, occlusion: null }] });
 
 it('covers the issue\'s literal requests across at least three catalogs, with negative and multi-turn cases', () => {
   const prompts = reliabilityCases.flatMap(c => c.turns ?? [c.prompt]);
@@ -22,8 +23,17 @@ it('judges the close-up from the harness probe: close AND Mars in view AND epoch
   const reads = good => goalReads(goal).map(([m, a]) => [m, a, probe(good)]);
   expect(judgeTurn(goal, reads(true)).status).toBe('met');
   expect(judgeTurn(goal, reads(false)).status).toBe('unmet');
+  // Mars 5.7 million km away is in frame but only a few pixels across.
+  expect(judgeTurn(goal, goalReads(goal).map(([m, a]) => [m, a, probe(true, 0.06, 5.7e6)])).status).toBe('partial');
   // Pulled back to show both is not "keep Psyche up close".
   expect(judgeTurn(goal, goalReads(goal).map(([m, a]) => [m, a, probe(true, 500)])).status).toBe('unmet');
+});
+
+it('reads the selected saved feature\'s coordinates in a second pass', () => {
+  const goal = { kind: 'ground-point', object: 'Ingenuity', mode: 'saved' };
+  expect(goalReads(goal).map(([m]) => m)).not.toContain('listGeographicFeatures');
+  const first = goalReads(goal).map(([m, a]) => [m, a, m === 'getSelectedGeographicFeature' ? { layer: 'notes', feature: 'f1' } : null]);
+  expect(goalReads(goal, first).at(-1)).toEqual(['listGeographicFeatures', ['notes', { limit: 100 }]]);
 });
 
 it('answers only recorded reads; anything unrecorded is unobservable', () => {
