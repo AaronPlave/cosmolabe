@@ -1,6 +1,8 @@
 # Ask reliability gate, 2026-11-03 (#345)
 
-Status: the deterministic gate, the outcome checks and the paid A/B (run
+Superseded by the final gate on PR #351's final design: [2026-11-04-final.md](2026-11-04-final.md).
+
+Status (2026-11-04, before the final design): the deterministic gate, the outcome checks and the paid A/B (run
 2026-11-04, [results below](#ab-results-2026-11-04)) are done. First-attempt success
 rose from 45% to 81% across both models and both tool modes, at lower cost.
 

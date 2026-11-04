@@ -1,15 +1,18 @@
 # Ask quality, latency and cost benchmark (#332)
 
 [2026-11-01 findings and measured limitations](2026-11-01-findings.md) ·
-[2026-11-03 reliability gate (#345)](2026-11-03-reliability.md).
+[2026-11-03 reliability gate (#345)](2026-11-03-reliability.md) ·
+[2026-11-04 final gate (#345)](2026-11-04-final.md).
 
 ## Reliability suite (#345)
 
-`scripts/ask-benchmark/reliability.mjs` adds eight user-level tasks across four
-catalogs (Voyagers, Cassini SOI, Psyche, Ingenuity/Jezero): computed flybys and
-closest approaches, all-minima versus deepest-only, a no-flyby refusal, terrain
-coloured by elevation, a pin then a saved point under Ingenuity, and the
-five-turn Psyche/Mars close-up. Multi-turn tasks run as one conversation in one
+`scripts/ask-benchmark/reliability.mjs` holds 22 user-level tasks across six
+catalogs, judged on viewer state (predicates over the harness's own reads and
+projection, closest approaches against independent range sampling) and on the
+answer text (stated distances, dates, counts, flyby claims, refusals). Live runs
+default to fixed mode; `ASK_BENCHMARK_CASES=critical` selects the issue's literal
+requests; `ASK_BENCHMARK_MAX_USD` caps each invocation; `rescore.mjs` re-judges
+saved reports without provider calls. Multi-turn tasks run as one conversation in one
 fresh scene; each turn is finished before the next is sent and judged on its
 own. A stopped conversation is the observation: the harness does not keep
 spending after a budget or rate stop.

@@ -159,8 +159,9 @@ export function dates(text) {
  */
 const flybyClaim = (text, subject, exempt) => {
   const sentences = text.replace(/["“][^"”]*["”]/g, '').split(/(?<=[.!?;])\s+/);
-  return sentences.find((s, i) => FLYBY.test(s) && !NEGATION.test(s) && (!subject || subject.test(s) || /\b(it|its|this|that)\b/i.test(s))
-    && !(exempt && (exempt.test(s) || exempt.test(sentences[i - 1] ?? ''))));
+  // A question ("show you that encounter?") offers; it does not claim.
+  return sentences.find((s, i) => FLYBY.test(s) && !NEGATION.test(s) && !/\?\s*$/.test(s) && (!subject || subject.test(s) || /\b(it|its|this|that)\b/i.test(s))
+    && !(exempt && [s, sentences[i - 1] ?? '', sentences[i - 2] ?? ''].some(x => exempt.test(x))));
 };
 const days = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
 
@@ -179,8 +180,10 @@ export function answerChecks(test, turns) {
     q?.selectedRangeKm, q?.selectedRangeKm && q.selectedRangeKm - (test.targetRadiusKm ?? 0), q?.selectedAltitudeKm, q?.soiKm, last?.measuredKm,
     ...facts.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm])].filter(v => typeof v === 'number' && v > 0);
   if (test.event || test.truth || test.measure) for (const d of distancesKm(reply)) if (!allowedKm.some(k => Math.abs(d.km - k) <= 0.05 * k + 1)) issues.push(`distance ${d.text}`);
+  // Dates inside quoted catalog names ("V2 Neptune (1989-08-25)") are labels, not claims.
+  const unquoted = reply.replace(/["“][^"”]*["”]/g, '');
   const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end, ...facts.map(f => f.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc])].filter(Boolean);
-  if (allowedDays.length) for (const d of dates(reply)) if (!allowedDays.some(k => days(k, d) <= 1)) issues.push(`date ${d}`);
+  if (allowedDays.length) for (const d of dates(unquoted)) if (!allowedDays.some(k => days(k, d) <= 1)) issues.push(`date ${d}`);
   if (test.noFlyby) { const claim = flybyClaim(reply, test.flybySubject, test.flybyExempt); if (claim) issues.push(`flyby claim: ${claim.slice(0, 100)}`); }
   if (test.noFlyby && test.event?.all && !NEGATION.test(reply)) issues.push('no caveat that these are not flybys');
   if (test.event?.all && truth) {
@@ -188,7 +191,7 @@ export function answerChecks(test, turns) {
     if (count) { const n = Number(count[1]) || WORDS[count[1].toLowerCase()]; if (n !== truth.minima) issues.push(`count ${n} (truth ${truth.minima})`); }
   }
   if (test.refusal && !(NEGATION.test(reply) && test.refusal.test(reply))) issues.push('does not say no');
-  if (test.declined && !NEGATION.test(reply)) issues.push('does not say the deletion did not happen');
+  if (test.declined && !(NEGATION.test(reply) || /\b(nothing|still|remains|kept|declined)\b/i.test(reply))) issues.push('does not say the deletion did not happen');
   if (test.synthetic && !/synthetic|demo|fictional|not (?:a )?real|illustrative/i.test(reply)) issues.push('does not say the site is synthetic');
   if (test.asks && !/\?/.test(reply)) issues.push('does not ask which');
   return { ok: issues.length === 0, issues };
@@ -274,7 +277,8 @@ export function percentile(values, q) {
 /** Per model × mode: first-attempt success with uncertainty, classes, failures, latency, tokens, cost. */
 export function summarizeReliability(report) {
   const groups = new Map();
-  for (const run of report.runs.filter(r => r.reliability)) {
+  // A harness budget stop is not an attempt: counted apart, not in the rate.
+  for (const run of report.runs.filter(r => r.reliability && r.classification !== 'budget-stopped')) {
     const id = `${run.arm}/${run.model}/${run.mode}`;
     if (!groups.has(id)) groups.set(id, []);
     groups.get(id).push(run);
