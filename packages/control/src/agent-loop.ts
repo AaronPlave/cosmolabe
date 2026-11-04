@@ -295,7 +295,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   const changes: string[] = [];
   const unobservable: string[] = [];
   const facts: ResultFact[] = [];
-  let wrote = false, repaired = false, checks = 0;
+  let wrote = false, repaired = false, cutOff = false, checks = 0;
   /** Slots whose verdict the model has seen since the last change. */
   const seen = new Set<string>();
   let report: GoalReport | null = null;
@@ -329,7 +329,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   /** checkGoal, wherever it sits: the loop holds what it states and answers it from the host's check of the whole goal. */
   const runCheck = (use: { name: string; input: unknown }): AgentToolResult => {
     if (++checks > 3) return { ok: false, code: 'refused', error: 'Three outcome checks already ran for this request. Report the observed state and the unmet part plainly.' };
-    const input = (callInput(use) ?? {}) as { require?: unknown; release?: unknown };
+    const raw = (callInput(use) ?? {}) as { require?: unknown; release?: unknown };
+    const parsed = (v: unknown) => { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return v; } };
+    const input = { require: parsed(raw.require), release: parsed(raw.release) };
     let incoming: Predicate[];
     try { incoming = (Array.isArray(input.require) ? input.require : []).map(parsePredicate); }
     catch (err) { return { ok: false, code: 'invalid-input', error: err instanceof Error ? err.message : String(err) }; }
@@ -380,6 +382,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       const uses = reply.content.filter((b): b is Extract<AgentContent, { type: 'tool_use' }> => b.type === 'tool_use');
       const answering = reply.stop !== 'tool_use' || uses.length === 0;
       const text = reply.content.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('\n').trim();
+      // A reply cut off at the output limit mid-call ran nothing: ask once for a shorter one.
+      if (reply.stop === 'max_tokens' && uses.length && !cutOff && step + 1 < maxSteps) {
+        cutOff = true;
+        messages[messages.length - 1] = { role: 'assistant', content: [{ type: 'text', text: '(reply cut off at the output limit)' }] };
+        messages.push({ role: 'user', content: [{ type: 'text', text: `${HOST_CHECK_PREFIX} Your last reply was cut off at the output limit, so nothing in it ran. Send the call again, shorter.` }] });
+        continue;
+      }
       if (!answering) {
         if (text) opts.onEvent?.({ type: 'text', text, final: false });
       } else {

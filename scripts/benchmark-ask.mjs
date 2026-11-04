@@ -202,24 +202,28 @@ try {
               if (offset + 100 >= r.total) break;
             }
             const metric = k => selectedEvent?.metrics?.find(m => m.key === k)?.value;
-            return { id, kind: q?.kind ?? null, bodies: q?.bodies ?? {}, window: q?.window ?? null, scope: q?.params?.scope ?? null, maxRangeKm: q?.params?.maxRangeKm ?? null,
+            return { id, kind: q?.kind ?? null, bodies: q?.bodies ?? {}, window: q?.window ?? null, step: q?.step ?? null, params: q?.params ?? {}, scope: q?.params?.scope ?? null, maxRangeKm: q?.params?.maxRangeKm ?? null,
               searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected && !v.playing,
               ...(selectedEvent ? { selectedEt: selectedEvent.temporality === 'instant' ? selectedEvent.et : (selectedEvent.start + selectedEvent.end) / 2, selectedRangeKm: metric('range'), selectedAltitudeKm: metric('altitude') } : {}) };
           };
           // Independent truth for "closest": coarse range sampling over the windows, then refinement around the minimum.
           window.__benchClosest = (a, b, windows) => {
             const range = et => { const p = c.getObjectState(a, { time: { kind: 'et', et }, center: b })?.position; return p ? Math.hypot(...p) : NaN; };
+            // Every coarse local minimum is refined by golden-section search: a fast flyby is a dip much narrower than the window.
             let best = { km: Infinity, et: null };
             for (const { start, end } of windows) {
-              const n = Math.min(20000, Math.max(100, Math.ceil((end - start) / 3600)));
-              for (let i = 0; i <= n; i++) { const et = start + (end - start) * i / n, km = range(et); if (km < best.km) best = { km, et }; }
+              const n = Math.min(40000, Math.max(200, Math.ceil((end - start) / 1800))), h = (end - start) / n;
+              const r = Array.from({ length: n + 1 }, (_, i) => range(start + h * i));
+              for (let i = 0; i <= n; i++) {
+                if (!(r[i] <= (r[i - 1] ?? Infinity) && r[i] <= (r[i + 1] ?? Infinity))) continue;
+                let a = Math.max(start, start + h * (i - 1)), b = Math.min(end, start + h * (i + 1));
+                const g = (Math.sqrt(5) - 1) / 2;
+                for (let k = 0; k < 60 && b - a > 0.01; k++) { const c = b - g * (b - a), d = a + g * (b - a); if (range(c) < range(d)) b = d; else a = c; }
+                const et = (a + b) / 2, km = range(et);
+                if (km < best.km) best = { km, et };
+              }
             }
-            if (best.et === null) return { minKm: null, minEt: null };
-            let span = windows.reduce((m, w) => Math.max(m, w.end - w.start), 0) / 20000 * 2;
-            for (let pass = 0; pass < 6 && span > 1; pass++, span /= 50) {
-              for (let i = -100; i <= 100; i++) { const et = best.et + span * i / 100, km = range(et); if (km < best.km) best = { km, et }; }
-            }
-            return { minKm: best.km, minEt: best.et };
+            return best.et === null ? { minKm: null, minEt: null } : { minKm: best.km, minEt: best.et };
           };
           // Independent ground truth: range between two objects sampled through the viewer's own
           // state reads over the given windows, its local minima counted. No Event Finder code and
@@ -238,7 +242,7 @@ try {
             }
             return { windows, samples, available, minima, closestMinimumKm, minKm, minEt: closestEt };
           };
-        }, { test });
+        }, { test: JSON.parse(JSON.stringify(test, (_k, v) => typeof v === 'function' || v instanceof RegExp ? undefined : v)) });
         const initial = await page.evaluate(() => window.__benchSnapshot());
         run.initialState = initial.stable;
         const started = performance.now();
@@ -262,7 +266,7 @@ try {
               await page.evaluate(ok => window.__askBench.answerAskApproval(ok), policy === 'approve');
             }
             const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
-              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, report: t.result.report } : null,
+              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, report: t.result.report, facts: t.result.facts } : null,
                 steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
                   ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; });
             turn.approvals = approvals;

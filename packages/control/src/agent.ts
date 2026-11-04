@@ -469,6 +469,40 @@ function typeOk(schema: AgentJsonSchema, value: unknown): boolean {
   });
 }
 
+const typesOf = (schema: AgentJsonSchema) => schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type as string];
+/**
+ * Undo the common ways a model mis-encodes a valid call, before validation:
+ * an optional field sent as null, a number or boolean sent as text, an array
+ * or object sent as JSON text, and a single JSON-text parameter (json,
+ * definition) sent as the object itself. Anything still wrong is refused by
+ * `violation` as before; nothing here guesses a value.
+ */
+export function normalizeInput(schema: AgentJsonSchema, value: unknown): unknown {
+  const types = typesOf(schema);
+  if (typeof value === 'string' && !types.includes('string')) {
+    if (types.includes('number') && /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(value.trim())) return Number(value);
+    if (types.includes('boolean') && /^(true|false)$/.test(value.trim())) return value.trim() === 'true';
+    if (types.includes('array') || types.includes('object')) {
+      try { const parsed = JSON.parse(value); if (typeOk(schema, parsed)) return normalizeInput(schema, parsed); } catch { /* left for validation to refuse */ }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return schema.items ? value.map(v => normalizeInput(schema.items!, v)) : value;
+  if (value && typeof value === 'object' && schema.properties) {
+    const props = schema.properties, required = schema.required ?? [];
+    const keys = Object.keys(props);
+    const text = keys.length === 1 && required.includes(keys[0]) && ['json', 'definition'].includes(keys[0]) && typesOf(props[keys[0]]).includes('string') ? keys[0] : null;
+    const entries = Object.entries(value);
+    if (text && entries.length && entries.every(([k]) => !Object.hasOwn(props, k))) return { [text]: JSON.stringify(value) };
+    // fromEntries keeps every own key (even "__proto__"), so validation still sees unknown fields.
+    return Object.fromEntries(entries.flatMap(([k, v]) => {
+      const sub = Object.hasOwn(props, k) ? props[k] : undefined;
+      return v === null && sub && !required.includes(k) && !typesOf(sub).includes('null') ? [] : [[k, sub ? normalizeInput(sub, v) : v]];
+    }));
+  }
+  return value;
+}
+
 /** The first way `value` violates `schema`, or null. */
 export function violation(schema: AgentJsonSchema, value: unknown, path: string): string | null {
   if (!typeOk(schema, value)) {
@@ -1025,7 +1059,8 @@ export function createAgentTools(host: ViewerControl, opts: AgentToolsOptions = 
         const s = suggest(name, list().map((t) => t.name));
         return { ok: false, code: 'unknown-tool', error: `no tool ${JSON.stringify(name)} on this viewer${s ? ` (did you mean ${JSON.stringify(s)}?)` : ''}` };
       }
-      const problem = violation(def.inputSchema, input ?? {}, 'input');
+      input = normalizeInput(def.inputSchema, input ?? {});
+      const problem = violation(def.inputSchema, input, 'input');
       if (problem) return { ok: false, code: 'invalid-input', error: problem };
       const refused = this.gate(def);
       if (refused) return refused;

@@ -244,3 +244,9 @@ describe('operations come and go without an Ask change', () => {
     expect(offered(tools).prompt).not.toContain('- composeView:');
   });
 });
+
+describe('reading stated numbers', () => {
+  it('reads decimals with thousands separators and spaced scientific notation whole', () => {
+    expect(statedDistancesKm('76,685.77 km; 1.997 × 10^8 km; 2.0e9 km').map(d => d.km)).toEqual([76685.77, 1.997e8, 2e9]);
+  });
+});

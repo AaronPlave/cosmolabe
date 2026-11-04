@@ -10,7 +10,7 @@ import type { EventResultFact, ResultFact } from './agent.js';
 const AU_KM = 1.495978707e8;
 const SCALE: Record<string, number> = { thousand: 1e3, million: 1e6, billion: 1e9 };
 /** "4,500 km", "3.48 billion kilometres", "1.2 AU", "1.8e8 km", "1.8 × 10^8 km". */
-const DISTANCE = /(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s*(?:e|×\s*10\^?)\s*([+-]?\d+))?\s*(thousand|million|billion)?\s*(km|kilomet(?:er|re)s?|AU|astronomical units?)\b/gi;
+const DISTANCE = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*(?:e|[×x]\s*10\^?)\s*([+-]?\d+))?\s*(thousand|million|billion)?\s*(km|kilomet(?:er|re)s?|AU|astronomical units?)\b/gi;
 const FLYBY = /\b(fly-?bys?|flew (?:past|by)|swing-?bys?|close (?:flyby|pass|encounter)|encounters?)\b/i;
 const NEGATED = /\b(no|not|never|none|neither|nor|without|isn'?t|aren'?t|wasn'?t|weren'?t|didn'?t|doesn'?t|don'?t|cannot|can'?t|rather than|only)\b/i;
 const DATE = /\b(\d{4})-(\d{2})-(\d{2})\b|\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b|\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g;

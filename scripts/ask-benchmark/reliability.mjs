@@ -135,7 +135,7 @@ const NEGATION = /\b(not|no|never|none|couldn'?t|cannot|can'?t|unable|unavailabl
 const FLYBY = /\b(fly-?bys?|flew (?:past|by)|swing-?bys?|close (?:flyby|pass|encounter)|encounters?)\b/i;
 const AU_KM = 1.495978707e8;
 const SCALE = { thousand: 1e3, million: 1e6, billion: 1e9 };
-const DISTANCE = /(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?:\s*(?:e|×\s*10\^?)\s*([+-]?\d+))?\s*(thousand|million|billion)?\s*(km|kilomet(?:er|re)s?|AU|astronomical units?)\b/gi;
+const DISTANCE = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*(?:e|[×x]\s*10\^?)\s*([+-]?\d+))?\s*(thousand|million|billion)?\s*(km|kilomet(?:er|re)s?|AU|astronomical units?)\b/gi;
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const DATE = /\b(\d{4})-(\d{2})-(\d{2})\b|\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b|\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g;
 const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
@@ -162,10 +162,13 @@ export function answerChecks(test, turns) {
   const last = turns.at(-1), reply = last?.reply ?? '';
   const issues = [];
   const truth = last?.truth, q = last?.eventQuery;
+  // Numbers the viewer published count when its closest result agrees with the harness's truth (the state checks say whether it does).
+  const facts = (last?.result?.facts ?? []).filter(f => f.kind === 'event-result');
   const allowedKm = [AU_KM, test.event?.thresholdKm, truth?.minKm, truth?.closestMinimumKm, truth && truth.minKm - (test.targetRadiusKm ?? 0),
-    q?.selectedRangeKm, q?.selectedRangeKm && q.selectedRangeKm - (test.targetRadiusKm ?? 0), q?.selectedAltitudeKm, q?.soiKm, last?.measuredKm].filter(v => typeof v === 'number' && v > 0);
+    q?.selectedRangeKm, q?.selectedRangeKm && q.selectedRangeKm - (test.targetRadiusKm ?? 0), q?.selectedAltitudeKm, q?.soiKm, last?.measuredKm,
+    ...facts.flatMap(f => [f.rangeKm, f.altitudeKm, f.thresholdKm])].filter(v => typeof v === 'number' && v > 0);
   if (test.event || test.truth || test.measure) for (const d of distancesKm(reply)) if (!allowedKm.some(k => Math.abs(d.km - k) <= 0.05 * k + 1)) issues.push(`distance ${d.text}`);
-  const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end].filter(Boolean);
+  const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end, ...facts.map(f => f.utc)].filter(Boolean);
   if (allowedDays.length) for (const d of dates(reply)) if (!allowedDays.some(k => days(k, d) <= 1)) issues.push(`date ${d}`);
   if (test.noFlyby) { const claim = flybyClaim(reply); if (claim) issues.push(`flyby claim: ${claim.slice(0, 100)}`); }
   if (test.noFlyby && test.event?.all && !NEGATION.test(reply)) issues.push('no caveat that these are not flybys');
@@ -191,10 +194,13 @@ export function scoreReliability(test, turns) {
     checks.participants = test.event.bodies.every(b => bodies.includes(b.toLowerCase()));
     if (test.event.pick === 'closest' && last?.truth) {
       // The presented result is the true closest approach: range within 1%, epoch within an hour of independent sampling.
-      checks.truthRange = typeof q?.selectedRangeKm === 'number' && Math.abs(q.selectedRangeKm - last.truth.minKm) <= 0.01 * last.truth.minKm;
-      checks.truthEpoch = typeof q?.selectedEt === 'number' && Math.abs(q.selectedEt - last.truth.minEt) <= 3600;
+      // Not farther than the closest the harness's own sampling finds (the solver may refine deeper); when they agree, at the same epoch.
+      checks.truthRange = typeof q?.selectedRangeKm === 'number' && q.selectedRangeKm <= 1.01 * last.truth.minKm;
+      checks.truthEpoch = typeof q?.selectedEt === 'number' && (Math.abs(q.selectedRangeKm - last.truth.minKm) > 0.01 * last.truth.minKm || Math.abs(q.selectedEt - last.truth.minEt) <= 3600);
     }
-    if (test.event.thresholdKm) checks.threshold = q?.presented === true && typeof q.selectedRangeKm === 'number' && q.selectedRangeKm <= test.event.thresholdKm;
+    // Within the threshold: a closest approach measured inside it, or a distance search whose own threshold is it.
+    if (test.event.thresholdKm) checks.threshold = q?.presented === true && ((typeof q.selectedRangeKm === 'number' && q.selectedRangeKm <= test.event.thresholdKm)
+      || (q.kind === 'distance-range' && typeof q.params?.distanceKm === 'number' && q.params.distanceKm <= test.event.thresholdKm && q.params.relation !== 'above'));
     if (test.event.all) {
       const truth = last?.truth;
       checks.allMinimaScope = !!q && (q.scope === 'local' || q.scope === null || q.scope === undefined);

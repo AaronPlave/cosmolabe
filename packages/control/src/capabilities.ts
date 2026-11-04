@@ -1,5 +1,5 @@
 /** Discoverable, instance-bound rendering of the existing control vocabulary (#328). */
-import { agentDefinitions, createAgentTools, violation, type AgentDefinition, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
+import { agentDefinitions, createAgentTools, normalizeInput, violation, type AgentDefinition, type AgentErrorCode, type AgentJsonSchema, type AgentTask, type AgentToolDef, type AgentToolResult, type AgentTools, type AgentToolsOptions } from './agent.js';
 import type { OperationContract } from './verbs.js';
 import type { StateDomain } from './outcome.js';
 import { eventVisualizationMetadata } from './event-agent-metadata.js';
@@ -271,6 +271,12 @@ export function createCapabilityTools(host: ViewerControl, opts: CapabilityTools
         if (bound.revision !== revision || bound.scene !== scope().scene) return fail('Scene changed; discover again', 'stale');
         // Hosts may invoke tasks concurrently; never interleave writes in a task.
         if (busy) return fail('Another operation is running in this task', 'refused');
+        const known = definitions().find(d => idOf(d) === name || d.name === name);
+        if (known) input = normalizeInput(known.inputSchema, input);
+        else if (name === 'invokeCapability' && input && typeof input === 'object') {
+          const target = definitions().find(d => idOf(d) === (input as { id?: unknown }).id);
+          if (target) input = { ...(input as object), input: normalizeInput(target.inputSchema, (input as { input?: unknown }).input ?? {}) };
+        }
         let serialized: string;
         try { serialized = JSON.stringify(input); } catch { return fail('Input must be JSON'); }
         if (!serialized || serialized.length > CAPABILITY_LIMITS.inputChars) return fail('Input exceeds JSON size budget');

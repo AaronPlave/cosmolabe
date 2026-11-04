@@ -77,8 +77,8 @@ describe('agent tools: discovery', () => {
         },
       });
       expect(fail(await tools.call(name, {})).code).toBe('invalid-input');
-      expect(fail(await tools.call(name, { degrees: '45' })).code).toBe('invalid-input');
-      expect(fail(await tools.call(name, { degrees: 45, seconds: '2' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 'forty-five' })).code).toBe('invalid-input');
+      expect(fail(await tools.call(name, { degrees: 45, seconds: 'two' })).code).toBe('invalid-input');
       expect(host.calls).toHaveLength(0);
       expect((await tools.call(name, { degrees: 45 })).ok).toBe(true);
       expect((await tools.call(name, { degrees: -30, seconds: 2 })).ok).toBe(true);
@@ -125,7 +125,7 @@ describe('agent tools: validation', () => {
   it('rejects unknown fields, missing fields, wrong types and bad enums before anything runs', async () => {
     expect(fail(await tools.call('select', { object: 'Titan', extra: 1 }))).toMatchObject({ code: 'invalid-input', error: expect.stringContaining('unknown field "extra"') });
     expect(fail(await tools.call('select', {}))).toMatchObject({ code: 'invalid-input', error: expect.stringContaining('missing "object"') });
-    expect(fail(await tools.call('setTimeRate', { rate: '10' }))).toMatchObject({ code: 'invalid-input', error: 'rate must be a number' });
+    expect(fail(await tools.call('setTimeRate', { rate: 'ten' }))).toMatchObject({ code: 'invalid-input', error: 'rate must be a number' });
     expect(fail(await tools.call('flyTo', { object: 'Titan', path: 'scenic' }))).toMatchObject({ code: 'invalid-input' });
     expect(fail(await tools.call('select', 'Titan'))).toMatchObject({ code: 'invalid-input' });
   });
@@ -831,5 +831,22 @@ describe('compact activity collections', () => {
       expect(page.activities.map((a: { durationSeconds: number | null }) => a.durationSeconds)).toEqual([108, null]);
     }
     tools.dispose();
+  });
+});
+
+describe('agent tools: mis-encoded model input', () => {
+  it('takes numbers, booleans, arrays and JSON-text parameters the way models often send them, and nothing else', async () => {
+    const host = new FakeViewer();
+    const tools = createAgentTools(host, { vocabulary: 'catalog', allowAuthoring: true });
+    expect(await tools.call('setTimeRate', { rate: '10' })).toMatchObject({ ok: true });
+    expect(host.rate).toBe(10);
+    expect(await tools.call('setPlaying', { on: 'false' })).toMatchObject({ ok: true });
+    host.tracked = 'Titan';
+    expect(await tools.call('frameObject', { object: null })).toMatchObject({ ok: true });
+    // A JSON-text parameter sent as the object itself.
+    expect(await tools.call('upsertMeasurement', { id: 'm', kind: 'distance', source: { kind: 'entity', bodyName: 'Titan' }, target: { kind: 'entity', bodyName: 'Saturn' }, vertex: null, visible: true })).toMatchObject({ ok: true });
+    expect(host.listMeasurements().map(m => m.id)).toEqual(['m']);
+    expect(fail(await tools.call('setTimeRate', { rate: '10x' })).code).toBe('invalid-input');
+    expect(fail(await tools.call('select', JSON.parse('{"object":"Titan","__proto__":{}}'))).code).toBe('invalid-input');
   });
 });
