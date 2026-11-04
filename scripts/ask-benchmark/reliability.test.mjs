@@ -116,3 +116,12 @@ it('reports success with a Wilson interval, per-task rates and per-check failure
   const [row] = summarizeReliability({ runs });
   expect(row).toMatchObject({ samples: 2, firstAttemptSuccess: 1, successRate: 0.5, failedChecks: { 't:goal': 1 }, perTask: { t: { n: 2, ok: 1 } }, rounds: { total: 4 }, estimatedUsd: 0.02, actualBilledUsd: null });
 });
+
+it('a refusal may state another spacecraft\'s real flyby, and a catalog name is not a claim', () => {
+  const v1 = task('voyager-neptune-none'), truth = { minKm: 3.48e9, minUtc: '1985-04-09T20:23:23Z' };
+  const reply = 'Voyager 1 did not fly past Neptune; its closest approach was 3,477,735,829 km on 1985-04-09, not a flyby. Voyager 2 did. Its closest approach was a flyby at 29,269 km.';
+  expect(answerChecks(v1, [{ reply, truth, result: { facts: [{ kind: 'event-result', rangeKm: 29269, utc: '1989-08-25T03:55:00Z' }] } }]).issues).toEqual([]);
+  expect(answerChecks(v1, [{ reply: 'Voyager 1 flew past Neptune at 3.48 billion km.', truth }]).issues).toEqual(expect.arrayContaining([expect.stringMatching(/^flyby claim/), 'does not say no']));
+  const pj = task('psyche-jupiter-none');
+  expect(answerChecks(pj, [{ reply: 'Jupiter is not in this scene. The scene does include a Mars flyby viewpoint.' }]).issues).toEqual([]);
+});

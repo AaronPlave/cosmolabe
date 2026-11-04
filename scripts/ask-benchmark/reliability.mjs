@@ -41,12 +41,12 @@ export const reliabilityCases = [
   { id: 'psyche-mars-threshold', catalog: 'psyche', turns: ['show me when psyche is within 10000km of mars'], event: { bodies: ['Psyche', 'Mars'], thresholdKm: 10000 },
     rubric: 'A 10,000 km search threshold, not a 10,000 km camera range: the presented result is within 10,000 km.' },
   { id: 'psyche-earth-all', catalog: 'psyche', turns: ['show me all psyche flybys of earth'], critical: true, event: { bodies: ['Psyche', 'Earth'], all: true },
-    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', mode: 'minima', stepSeconds: 600 }, noFlyby: true,
+    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', mode: 'minima', stepSeconds: 600 }, noFlyby: true, flybySubject: /earth/i,
     rubric: 'Every local minimum over the pair\'s kernel coverage (9 at a 10-minute sample, closest 1.8e8 km); none is a flyby, and the answer must say so.' },
-  { id: 'voyager-neptune-none', catalog: 'voyagers', turns: ['show me when voyager 1 flew past neptune'], critical: true, refusal: /neptune/i,
+  { id: 'voyager-neptune-none', catalog: 'voyagers', turns: ['show me when voyager 1 flew past neptune'], critical: true, refusal: /neptune/i, flybySubject: /neptune|voyager 1/i, flybyExempt: /voyager 2/i,
     truth: { bodies: ['Voyager 1', 'Neptune'], window: 'catalog', mode: 'closest' }, noFlyby: true,
     rubric: 'Voyager 1 never flew past Neptune: say so; never present the distant 3.5e9 km minimum as an encounter.' },
-  { id: 'psyche-jupiter-none', catalog: 'psyche', turns: ["show me psyche's flyby of jupiter"], refusal: /jupiter/i, noFlyby: true,
+  { id: 'psyche-jupiter-none', catalog: 'psyche', turns: ["show me psyche's flyby of jupiter"], refusal: /jupiter/i, noFlyby: true, flybySubject: /jupiter/i,
     rubric: 'Jupiter is not in this scene: say so; nothing presented.' },
   { id: 'mars-elevation', catalog: 'ingenuity-jezero', turns: ['color mars terrain by elevation'],
     goal: () => [{ p: 'state', read: 'getSurfaceAppearance', args: ['Mars'], path: 'settings.baseColor', equals: 'elevation' }, { p: 'ready', kind: 'terrain', body: 'Mars' }],
@@ -151,8 +151,17 @@ export function dates(text) {
     : m[4] ? `${m[6]}-${String(MONTHS.indexOf(m[4].toLowerCase()) + 1).padStart(2, '0')}-${m[5].padStart(2, '0')}`
       : `${m[9]}-${String(MONTHS.indexOf(m[8].toLowerCase()) + 1).padStart(2, '0')}-${m[7].padStart(2, '0')}`);
 }
-// Names quoted from the catalog ("Mars Flyby (2026-05-15)") are not claims.
-const flybyClaim = text => text.replace(/["“][^"”]*["”]/g, '').split(/(?<=[.!?;])\s+/).find(s => FLYBY.test(s) && !NEGATION.test(s));
+/**
+ * A sentence that presents a flyby of the task's subject. Names quoted from
+ * the catalog ("Mars Flyby (2026-05-15)") are not claims, and neither is a
+ * true statement about another spacecraft (`exempt`) in the same or the
+ * previous sentence ("Voyager 2 did. Its closest approach ... is a flyby").
+ */
+const flybyClaim = (text, subject, exempt) => {
+  const sentences = text.replace(/["“][^"”]*["”]/g, '').split(/(?<=[.!?;])\s+/);
+  return sentences.find((s, i) => FLYBY.test(s) && !NEGATION.test(s) && (!subject || subject.test(s) || /\b(it|its|this|that)\b/i.test(s))
+    && !(exempt && (exempt.test(s) || exempt.test(sentences[i - 1] ?? ''))));
+};
 const days = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
 
 /**
@@ -172,7 +181,7 @@ export function answerChecks(test, turns) {
   if (test.event || test.truth || test.measure) for (const d of distancesKm(reply)) if (!allowedKm.some(k => Math.abs(d.km - k) <= 0.05 * k + 1)) issues.push(`distance ${d.text}`);
   const allowedDays = [truth?.minUtc, q?.selectedUtc, q?.windowUtc?.start, q?.windowUtc?.end, ...facts.map(f => f.utc), ...windows.flatMap(w => [w.startUtc, w.endUtc])].filter(Boolean);
   if (allowedDays.length) for (const d of dates(reply)) if (!allowedDays.some(k => days(k, d) <= 1)) issues.push(`date ${d}`);
-  if (test.noFlyby) { const claim = flybyClaim(reply); if (claim) issues.push(`flyby claim: ${claim.slice(0, 100)}`); }
+  if (test.noFlyby) { const claim = flybyClaim(reply, test.flybySubject, test.flybyExempt); if (claim) issues.push(`flyby claim: ${claim.slice(0, 100)}`); }
   if (test.noFlyby && test.event?.all && !NEGATION.test(reply)) issues.push('no caveat that these are not flybys');
   if (test.event?.all && truth) {
     const count = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:local\s+)?(?:closest approaches|approaches|minima|passes|times|close approaches|range minima|(?:Earth )?fly-?bys|encounters)/i.exec(reply);
