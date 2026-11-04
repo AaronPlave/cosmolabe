@@ -65,6 +65,15 @@ describe('outcome checks', () => {
     expect(mergeGoal(earlier, later).conflict).toBeNull();
   });
 
+  it('event presentation finds the selected result on any page, not just the first 100', () => {
+    const many = Array.from({ length: 484 }, (_, i) => ({ id: `e${i}`, et: i, temporality: 'instant', bodies }));
+    const h = host({ ...events('e450'), getEventVisualization: () => visualization({ selected: { ...ref, id: 'e450' }, et: 450, renderer: { ...visualization().renderer!, selected: { query: 'psyche-mars', id: 'e450' } } }),
+      listEventResults: (_q, o) => ({ total: many.length, items: many.slice(o?.offset ?? 0, (o?.offset ?? 0) + (o?.limit ?? 100)) as never }) });
+    const result = checkGoal(h, eventGoal);
+    expect(result.checks.find(c => c.name === 'epoch')).toMatchObject({ ok: true });
+    expect(result.status).toBe('met');
+  });
+
   it('event presentation: closest selected, paused at its epoch and framed', () => {
     expect(checkGoal(events('e2'), eventGoal).status).toBe('met');
     const wrong = checkGoal(events('e1'), eventGoal);

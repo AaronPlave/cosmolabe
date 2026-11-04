@@ -4,7 +4,7 @@
  * never by the model's answer or a tool's `ok`. Camera composition is judged by
  * the harness's own projection probe, not by the viewer code under test.
  */
-import { checkGoal } from '@cosmolabe/control';
+import { checkGoal, EVENT_PAGE, EVENT_PAGES } from '@cosmolabe/control';
 
 const PSYCHE_CLOSEUP = [
   'show me when psyche is within 10000km of mars',
@@ -46,7 +46,13 @@ export const promptsOf = test => test.turns ?? [test.prompt];
 export function goalReads(goal, recorded = []) {
   switch (goal.kind) {
     case 'camera-composition': return [['getViewComposition', [[goal.anchor, ...goal.include]]]];
-    case 'event-presentation': return [['getEventVisualization', []], ['getEventResultPage', [goal.query, { order: 'range-ascending', limit: 1 }]], ['listEventResults', [goal.query, { limit: 100 }]]];
+    case 'event-presentation': {
+      // Every page checkGoal may walk to find the selected result, once the first page gives the total.
+      const total = recorded.find(([m, a]) => m === 'listEventResults' && a[1].offset === 0)?.[2]?.total ?? 0;
+      const pages = Math.min(EVENT_PAGES, Math.max(1, Math.ceil(total / EVENT_PAGE)));
+      return [['getEventVisualization', []], ['getEventResultPage', [goal.query, { order: 'range-ascending', limit: 1 }]],
+        ...Array.from({ length: pages }, (_, i) => ['listEventResults', [goal.query, { offset: i * EVENT_PAGE, limit: EVENT_PAGE }]])];
+    }
     case 'surface-appearance': return [['getSurfaceAppearance', [goal.body]], ['getReadiness', [{ kind: 'terrain', body: goal.body }]]];
     case 'ground-point': {
       const sel = recorded.find(([m]) => m === 'getSelectedGeographicFeature')?.[2];

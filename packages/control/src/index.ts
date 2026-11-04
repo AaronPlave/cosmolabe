@@ -80,7 +80,7 @@ export type {
 export { runAgent, compactHistory, AGENT_SYSTEM_PROMPT, AGENT_WIRE_VERSION, AgentTransportError } from './agent-loop.js';
 export { composeView } from './compose.js';
 export type { ComposeOutcome } from './compose.js';
-export { checkGoal, parseGoal } from './outcome.js';
+export { checkGoal, parseGoal, EVENT_PAGE, EVENT_PAGES } from './outcome.js';
 export type { AskGoal, GoalCheck, GoalReport } from './outcome.js';
 export type {
   AgentContent, AgentMessage, AgentRequest, AgentResponse, AgentUsage, AgentStop, AgentTransport, AgentEvent, AgentOutcome, AgentRunOptions, AgentRun,

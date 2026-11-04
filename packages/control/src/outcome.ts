@@ -132,6 +132,17 @@ export function mergeGoal(previous: AskGoal | undefined, next: AskGoal): { goal:
 /** Smallest centre-to-edge size, in vertical NDC, that reads as an object rather than a dot. */
 const LEGIBLE_NDC = 0.005;
 
+/** Results come 100 to a page; a search can return hundreds (Cassini–Mimas: 484), and the selected one may be on any page. */
+export const EVENT_PAGE = 100, EVENT_PAGES = 50;
+function findEvent(host: ViewerControl, query: string, id: string) {
+  for (let offset = 0, page = 0; page < EVENT_PAGES; page++, offset += EVENT_PAGE) {
+    const { total, items } = host.listEventResults!(query, { offset, limit: EVENT_PAGE });
+    const found = items.find(e => e.id === id);
+    if (found || offset + EVENT_PAGE >= total || !items.length) return found;
+  }
+  return undefined;
+}
+
 export function checkGoal(host: ViewerControl, goal: AskGoal): GoalReport {
   switch (goal.kind) {
     case 'camera-composition': {
@@ -163,7 +174,7 @@ export function checkGoal(host: ViewerControl, goal: AskGoal): GoalReport {
         const best = host.getEventResultPage?.(goal.query, { order: 'range-ascending', limit: 1 }).items[0];
         checks.push(check('closest', best ? !!sel && best.reference.id === sel.id : null, best ? `closest is ${best.reference.id}` : 'no ranked result'));
       }
-      const event = sel ? host.listEventResults(goal.query, { limit: 100 }).items.find(e => e.id === sel.id) : undefined;
+      const event = sel ? findEvent(host, goal.query, sel.id) : undefined;
       const inside = event ? event.temporality === 'instant' ? Math.abs(v.et - event.et) <= 1 : v.et >= event.start - 1 && v.et <= event.end + 1 : null;
       checks.push(check('epoch', inside, inside === null ? 'event epoch unavailable' : inside ? 'clock at the event' : 'clock away from the event'));
       checks.push(check('paused', !v.playing, v.playing ? 'playing' : 'paused'));
