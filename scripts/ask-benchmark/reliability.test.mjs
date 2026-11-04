@@ -65,13 +65,22 @@ it('reports success with a Wilson interval and per-check failures', () => {
 
 it('"all flybys" needs every local minimum an independent sample finds, not just some results', () => {
   const test = reliabilityCases.find(c => c.id === 'psyche-earth-all');
-  const turn = { status: 'done', reply: 'Found 2.', eventQuery: { bodies: { observer: 'Psyche', target: 'Earth' }, scope: 'local', searchComplete: true, total: 2 },
-    truth: { samples: 100, available: 100, minima: 3 } };
+  const coverage = { start: 0, end: 1e8 };
+  const turn = { status: 'done', reply: 'Found 2; none comes closer than 1.2 AU, so not a close flyby.', eventQuery: { bodies: { observer: 'Psyche', target: 'Earth' }, scope: 'local', window: coverage, searchComplete: true, total: 2 },
+    truth: { windows: [coverage], samples: 100, available: 100, minima: 3, closestMinimumKm: 1.8e8 } };
   expect(scoreReliability(test, [turn]).checks.completeMinima).toBe(false);
   turn.eventQuery.total = 3;
   expect(scoreReliability(test, [turn]).passed).toBe(true);
   turn.eventQuery.scope = 'global';
   expect(scoreReliability(test, [turn]).checks.allMinimaScope).toBe(false);
+  // Presenting distant minima as flybys is a false success.
+  expect(scoreReliability(test, [{ ...turn, reply: 'Here are all 3 Earth flybys.' }]).checks.distanceCaveat).toBe(false);
+  turn.eventQuery.scope = null; // the solver's LOCMIN default
+  expect(scoreReliability(test, [turn]).checks.allMinimaScope).toBe(true);
+  // A narrower window the model chose fails even when its count matches what that window holds.
+  turn.eventQuery.window = { start: 0, end: 5e7 };
+  expect(scoreReliability(test, [turn]).checks.coversWindow).toBe(false);
+  turn.eventQuery.window = coverage;
   delete turn.truth;
   expect(scoreReliability(test, [{ ...turn, eventQuery: { ...turn.eventQuery, scope: 'local' } }]).checks.completeMinima).toBe(false);
 });

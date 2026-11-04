@@ -15,7 +15,7 @@
  */
 import type { ScriptCancelSignal } from './contracts.js';
 import type { AgentTask, AgentToolDef, AgentToolResult, AgentTools } from './agent.js';
-import { goalKey, mergeGoal, parseGoal, type AskGoal, type GoalReport } from './outcome.js';
+import { goalKey, mergeGoal, ownsView, parseGoal, type AskGoal, type GoalReport } from './outcome.js';
 
 export type AgentContent =
   // `raw`: the provider's own block, for whatever translated it to send back verbatim.
@@ -132,6 +132,8 @@ export interface AgentRun {
    * or no goal applies. A reply that contradicts it is the answer's problem.
    */
   readonly verification: readonly GoalReport[] | null;
+  /** This request changed the view but never stated its own end state, even when asked once: not verified, whatever `verification` says of earlier goals. */
+  readonly unverified: boolean;
 }
 
 /** Marks the loop's own follow-up in a request; not a new request from the person. */
@@ -145,6 +147,8 @@ function actionName(use: { name: string; input: unknown }): string {
 const DISCOVERY_NAMES = new Set(['listCapabilities', 'describeCapabilities', 'getOperationResult']);
 /** Action names that only read. */
 const READ_ACTION = /^(describe|get|list|resolve|search|check|find)/;
+/** Writes a goal kind can observe (camera, clock, event, surface colour, ground point). Others, such as selection or labels, are not asked for a goal. */
+const GOAL_WRITE = /^(flyTo|jumpTo|frameObject|track|pointAtObject|circleCenter|dolly|composeView|setTime|setPlaying|presentEventResult|setSurfaceAppearance|pinGroundPoint|editAnnotation)/;
 
 /**
  * Condense finished requests to [person's words, answer + what the viewer did].
@@ -190,7 +194,7 @@ const COMMON_SYSTEM_PROMPT = `You operate a Cosmolabe space-mission viewer for t
 - If a tool says the person took over the camera, do not move the camera again in this request.
 - A conversation builds one view. Keep what earlier requests asked for (a close-up, a paused epoch, an object that must stay in view) unless the person drops it; never satisfy the newest request by silently undoing an earlier one. If two wishes cannot both hold, say which and offer the choice instead of switching back and forth.
 - To bring another object into a close-up ("rotate around X so I can see Y", "keep X close but show Y"), call composeView with X as anchor and Y as target: it swings the camera around X keeping distance, time and selection. Frame X first only when it is not already tracked. Do not alternate frameObject and pair framing, dolly in and out, or guess circleCenter angles. If composeView says X fills the view or Y is hidden behind something, give that tradeoff in one sentence and offer to move out.
-- Before acting on a request that changes the view, decide its end state; after acting, call checkGoal once with it. The viewer keeps earlier goals on the same subject and holds you to their constraints; when the person drops one ("zoom out", "go to another time"), list it in release. If the check is unmet on a specific point and one safe correction exists, make it and check once more; otherwise say plainly what holds and what does not. The viewer re-checks held goals after every change before your answer stands. Questions that change nothing need no goal check.
+- Before acting on a request that changes the view, decide its end state; after acting, call checkGoal once with it. The viewer keeps earlier goals on the same subject and holds you to their constraints; when the person drops one ("zoom out", "go to another time"), list it in release. A camera or event goal about a new subject ("now show Jupiter") replaces the earlier one. If the check is unmet on a specific point and one safe correction exists, make it and check once more; otherwise say plainly what holds and what does not. The viewer re-checks held goals after every change before your answer stands. Questions that change nothing need no goal check.
 - Where an activity happened comes from its record. Activity tools report a "site" with a "link": "direct reference" (the record points at the place), "name match" (the site's name equals a place's name and the record has no direct reference) or "none". Say which, in those words, and do not conclude a link from how a ref is spelled. A place's "fields" are its source's own attributes: cite them as the source's. Timing and position carry their provenance (estimated, bounded, reconstructed): say so briefly, and do not present an inferred landing as telemetry.
 - Before selection/clock/camera claims, use the matching read or describeScene and report only observed state. A too-large scene summary need not block a feasible task with targeted reads. A write that failed, or that the viewer does not report as in place, did not happen.
 - selectedObject describes only object selection; selectedActivity and selectedPlace are independent. Never say nothing is selected when either is present.
@@ -275,26 +279,36 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
   // goals; the loop merges earlier constraints in and re-checks before answering.
   const goals: Record<string, AskGoal> = { ...(opts.goals ?? {}) };
   const touched = new Set<string>();
-  let wrote = false, checkedSinceWrite = false, nudged = false;
+  let wrote = false, goalWrite = false, nudged = false;
+  /** Goals the model has checked since the last change: their verdict is already in front of it. */
+  const seen = new Set<string>();
   let verification: GoalReport[] | null = null;
-  const finish = (outcome: AgentOutcome): AgentRun => ({ messages, stats: stats(), outcome, goals: { ...goals }, verification });
-  /** The host's check of every goal this request touched (or, if it touched none, every standing goal). */
-  const verify = (): GoalReport[] | null => {
-    if (!opts.tools.verify) return null;
-    const keys = touched.size ? [...touched] : Object.keys(goals);
-    return keys.length ? keys.map(k => opts.tools.verify!(goals[k])) : null;
+  const finish = (outcome: AgentOutcome): AgentRun => ({ messages, stats: stats(), outcome, goals: { ...goals }, verification, unverified: goalWrite && !touched.size });
+  /** The host's check of every goal still held: this request's, and earlier ones a change here may have broken. */
+  const verify = (): { key: string; report: GoalReport }[] | null => {
+    const keys = Object.keys(goals);
+    return opts.tools.verify && keys.length ? keys.map(key => ({ key, report: opts.tools.verify!(goals[key]) })) : null;
   };
-  /** checkGoal input, wherever it sits, merged with earlier constraints on the same subject. */
-  const holdGoal = (use: { name: string; input: unknown }): { input: unknown; carried: string[] } | null => {
+  /**
+   * checkGoal input, wherever it sits, merged with earlier constraints on the
+   * same subject. A view goal about another subject retires the earlier view
+   * goal; independent goals (surface, ground) stay held.
+   */
+  const holdGoal = (use: { name: string; input: unknown }): { key: string; input: unknown; notes: string[] } | null => {
     const bridged = use.name === 'invokeCapability' && typeof (use.input as { id?: unknown })?.id === 'string' && (use.input as { id: string }).id.endsWith('.checkGoal');
     if (use.name !== 'checkGoal' && !bridged) return null;
     const raw = bridged ? (use.input as { input?: unknown }).input : use.input;
     let goal: AskGoal;
     try { goal = parseGoal(raw); } catch { return null; } // the tool reports the problem itself
-    const { goal: held, carried } = mergeGoal(goals[goalKey(goal)], goal);
-    goals[goalKey(held)] = held;
-    touched.add(goalKey(held));
-    return { input: bridged ? { ...(use.input as object), input: held } : held, carried };
+    const key = goalKey(goal);
+    const { goal: held, carried, conflict } = mergeGoal(goals[key], goal);
+    const retired = ownsView(held) ? Object.keys(goals).filter(k => k !== key && ownsView(goals[k])) : [];
+    for (const k of retired) delete goals[k];
+    goals[key] = held;
+    touched.add(key);
+    const notes = [...(carried.length ? [`Held to earlier constraints: ${carried.join(', ')}.`] : []),
+      ...(retired.length ? [`Replaces the earlier view goal ${retired.join(', ')}.`] : []), ...(conflict ? [`Conflict: ${conflict}.`] : [])];
+    return { key, input: bridged ? { ...(use.input as object), input: held } : held, notes };
   };
 
   try {
@@ -330,13 +344,21 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
         const outcome: AgentOutcome = reply.stop === 'max_tokens' ? { kind: 'max-tokens' } : reply.stop === 'refusal' ? { kind: 'refusal' } : { kind: 'done' };
         if (wrote && outcome.kind === 'done') {
           // An answer after a change stands only once the viewer has checked the end state.
-          verification = verify();
-          const failing = verification?.filter(r => r.status === 'unmet' || r.status === 'inconclusive') ?? [];
-          // The model did not see the result of its last change and the viewer says a held goal is not met:
-          // one more round to correct or to say so. A request with no goal yet is reported as unchecked.
-          if (!nudged && step + 1 < maxSteps && !checkedSinceWrite && failing.length) {
+          const checked = verify();
+          verification = checked?.map(c => c.report) ?? null;
+          // Failing held goals the model has not seen since its last change, including earlier
+          // goals on other subjects that this change may have broken.
+          const unseen = checked?.filter(c => (c.report.status === 'unmet' || c.report.status === 'inconclusive') && !seen.has(c.key)).map(c => c.report) ?? [];
+          // One more round, once: to state the end state of a change made without one, or to answer
+          // to an unseen failing goal. Otherwise the answer stands, marked unverified when it never stated a goal.
+          const missing = goalWrite && !touched.size;
+          if (!nudged && step + 1 < maxSteps && (missing || unseen.length)) {
             nudged = true;
-            messages.push({ role: 'user', content: [{ type: 'text', text: `${HOST_CHECK_PREFIX} The viewer reports: ${failing.map(r => `${r.kind} ${r.status} (${r.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')})`).join('; ')}. Make one safe correction if one exists; otherwise answer again saying plainly what holds and what does not.` }] });
+            const reports = unseen.length ? ` The viewer reports: ${unseen.map(r => `${r.kind} ${r.status} (${r.checks.filter(c => c.ok !== true).map(c => c.detail).join('; ')})`).join('; ')}.` : '';
+            const text = missing
+              ? `${HOST_CHECK_PREFIX} This request changed the view without stating its end state.${reports} If a checkGoal kind fits what the person asked for, call checkGoal with it (a camera or event goal about a new subject replaces the earlier one; release constraints the person dropped). If none fits, answer again saying the change was not checked.`
+              : `${HOST_CHECK_PREFIX}${reports} Make one safe correction if one exists; otherwise answer again saying plainly what holds and what does not.`;
+            messages.push({ role: 'user', content: [{ type: 'text', text }] });
             continue;
           }
         }
@@ -356,9 +378,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
           ? { ok: false, code: 'refused', error: 'An earlier action in this batch failed; later changes were not run. Correct the failure and replan from observed state.' }
           : await task.call(use.name, held ? held.input : use.input);
         if (held && result.ok) {
-          checkedSinceWrite = true;
-          if (held.carried.length) result = { ...result, summary: `${result.summary} Held to earlier constraints: ${held.carried.join(', ')}.` };
-        } else if (result.ok && !READ_ACTION.test(actionName(use)) && !DISCOVERY_NAMES.has(use.name)) { wrote = true; checkedSinceWrite = false; }
+          seen.add(held.key);
+          if (held.notes.length) result = { ...result, summary: `${result.summary} ${held.notes.join(' ')}` };
+        } else if (result.ok && !READ_ACTION.test(actionName(use)) && !DISCOVERY_NAMES.has(use.name)) {
+          wrote = true; seen.clear();
+          if (GOAL_WRITE.test(actionName(use))) goalWrite = true;
+        }
         if (!result.ok) batchFailed = true;
         opts.onEvent?.({ type: 'tool-result', id: use.id, name: use.name, result });
         const budget = opts.maxResultChars ?? (use.name === 'describeCapabilities' ? 16000 : maxChars);
@@ -366,7 +391,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
       }
       messages.push({ role: 'user', content: results });
     }
-    if (wrote) verification = verify();
+    if (wrote) verification = verify()?.map(c => c.report) ?? null;
     return finish(ended() ?? { kind: 'step-limit' });
   } finally {
     if (!opts.task) task.finish();

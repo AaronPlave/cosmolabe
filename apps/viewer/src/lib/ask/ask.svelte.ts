@@ -58,6 +58,8 @@ export interface AskTurn {
   stats: { rounds: number; rawTokens: number | null } | null;
   /** The viewer's own check of the end state after this request's last change; null when there was nothing to hold it to. */
   verification: readonly GoalReport[] | null;
+  /** The request changed the view and never stated its own end state: not verified, whatever earlier goals report. */
+  unverified: boolean;
 }
 
 /** What the viewer did for a request, counted from the steps' own results. */
@@ -122,10 +124,10 @@ const READ_ONLY = /^(describe|get|list|resolve|search|check|find|inspect)/;
  */
 export function checkNote(turn: AskTurn): { text: string; tone: 'warning' | 'muted' } | null {
   if (turn.status !== 'done' || !turn.steps.some(s => s.result?.ok && !READ_ONLY.test(actionName(s)))) return null;
-  if (!turn.verification) return { tone: 'muted', text: 'Not checked against the viewer.' };
-  const failing = turn.verification.filter(r => r.status !== 'met');
-  if (!failing.length) return null;
-  return { tone: 'warning', text: `Viewer check: ${failing.flatMap(r => r.checks.filter(c => c.ok !== true).map(c => c.detail)).join('; ')}.` };
+  const failing = turn.verification?.filter(r => r.status !== 'met') ?? [];
+  const unchecked = turn.unverified || !turn.verification ? 'This change was not checked against the viewer.' : '';
+  if (failing.length) return { tone: 'warning', text: `Viewer check: ${failing.flatMap(r => r.checks.filter(c => c.ok !== true).map(c => c.detail)).join('; ')}.${unchecked ? ` ${unchecked}` : ''}` };
+  return unchecked ? { tone: 'muted', text: unchecked } : null;
 }
 const actionName = (s: AskStep) => s.name === 'invokeCapability' && typeof (s.input as { id?: unknown })?.id === 'string'
   ? ((s.input as { id: string }).id.split('.').at(-1) ?? s.name) : s.name;
@@ -287,7 +289,7 @@ export async function submitAsk(prompt: string): Promise<void> {
 
   const mineConversation = conversation;
   conversationTurns++;
-  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, verification: null };
+  const turn: AskTurn = { id: ++turnSeq, prompt: text, fresh, steps: [], reply: '', notes: [], status: 'running', error: null, errorCode: null, stats: null, verification: null, unverified: false };
   ask.turns.push(turn);
   if (ask.turns.length > MAX_SHOWN) ask.turns.splice(0, ask.turns.length - MAX_SHOWN);
   const live = () => ask.turns.find((x) => x.id === turn.id);
@@ -317,7 +319,7 @@ export async function submitAsk(prompt: string): Promise<void> {
     },
   });
   running = run;
-  const { messages, outcome, stats, verification, goals: held } = await run;
+  const { messages, outcome, stats, verification, unverified, goals: held } = await run;
   mine.finish();
   if (conversation === mineConversation && historyScene === sceneId()) { history = [...messages]; goals = held; }
   const view = live();
@@ -325,6 +327,7 @@ export async function submitAsk(prompt: string): Promise<void> {
     view.status = outcome.kind;
     view.stats = { rounds: stats.rounds, rawTokens: stats.rawTokens };
     view.verification = verification;
+    view.unverified = unverified;
     view.error = outcome.kind === 'error' ? outcome.message : null;
     view.errorCode = outcome.kind === 'error' ? outcome.code ?? null : null;
     if (outcome.kind === 'error' && ['budget_exhausted', 'cost_budget_exhausted', 'rate_limited'].includes(outcome.code ?? '')) {

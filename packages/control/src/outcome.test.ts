@@ -29,10 +29,13 @@ const camera = { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars']
 describe('outcome checks', () => {
   it('validates goal shape before reading anything', () => {
     expect(() => parseGoal({ kind: 'camera-composition', anchor: 'Psyche' })).toThrow(/include/);
+    expect(() => parseGoal({ ...camera, include: ['A', 'B', 'C', 'D', 'E'] })).toThrow(/0-4/);
     expect(() => parseGoal({ kind: 'teleport' })).toThrow(/kind must be/);
     // Ready terrain alone must never count as "coloured by elevation".
     expect(() => parseGoal({ kind: 'surface-appearance', body: 'Mars' })).toThrow(/baseColor or palette/);
     expect(() => parseGoal({ ...camera, release: ['anchor'] })).toThrow(/release/);
+    // The anchor alone ("zoom into Psyche") is a goal too.
+    expect(parseGoal({ kind: 'camera-composition', anchor: 'Psyche', include: [], maxAnchorRangeKm: 0.1 }).kind).toBe('camera-composition');
     expect(parseGoal({ kind: 'ground-point', object: 'Ingenuity', mode: 'pin' }).kind).toBe('ground-point');
   });
 
@@ -55,6 +58,11 @@ describe('outcome checks', () => {
     // A looser range cannot replace a tighter one.
     expect(mergeGoal(earlier, { ...later, maxAnchorRangeKm: 50 } as AskGoal).goal).toMatchObject({ maxAnchorRangeKm: 0.1 });
     expect(mergeGoal({ ...camera, anchor: 'Mars' } as AskGoal, later).carried).toEqual([]);
+    // More than four objects is reported as a conflict, never trimmed.
+    const crowded = mergeGoal({ ...camera, include: ['Mars', 'Phobos', 'Deimos', 'Earth'] } as AskGoal, parseGoal({ ...camera, include: ['Sun'] }));
+    expect(crowded.goal).toMatchObject({ include: ['Sun', 'Mars', 'Phobos', 'Deimos', 'Earth'] });
+    expect(crowded.conflict).toMatch(/more than 4 objects; release include/);
+    expect(mergeGoal(earlier, later).conflict).toBeNull();
   });
 
   it('event presentation: closest selected, paused at its epoch and framed', () => {

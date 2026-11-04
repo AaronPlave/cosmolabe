@@ -70,7 +70,7 @@ export function parseGoal(input: unknown): AskGoal {
   switch (g.kind) {
     case 'camera-composition':
       need(text('anchor'), 'camera-composition needs anchor');
-      need(Array.isArray(g.include) && g.include.length > 0 && g.include.length <= 4 && g.include.every(n => typeof n === 'string'), 'camera-composition needs include: 1-4 object names');
+      need(Array.isArray(g.include) && g.include.length <= 4 && g.include.every(n => typeof n === 'string'), 'camera-composition needs include: 0-4 other object names');
       need(g.maxAnchorRangeKm === undefined || (typeof g.maxAnchorRangeKm === 'number' && g.maxAnchorRangeKm > 0), 'maxAnchorRangeKm must be positive');
       break;
     case 'event-presentation': need(text('query'), 'event-presentation needs query'); break;
@@ -84,6 +84,12 @@ export function parseGoal(input: unknown): AskGoal {
   }
   return g as unknown as AskGoal;
 }
+
+/**
+ * Goals that decide where the camera points. There is one camera, so a new one
+ * about a different subject replaces the old rather than standing beside it.
+ */
+export const ownsView = (goal: AskGoal): boolean => goal.kind === 'camera-composition' || goal.kind === 'event-presentation';
 
 /** What a goal is about: later goals with the same key inherit its constraints. */
 export function goalKey(goal: AskGoal): string {
@@ -100,24 +106,27 @@ export function goalKey(goal: AskGoal): string {
  * earlier request on the same subject set, unless this one names it in
  * `release`. A model can add constraints; it cannot silently lose one.
  */
-export function mergeGoal(previous: AskGoal | undefined, next: AskGoal): { goal: AskGoal; carried: string[] } {
-  if (!previous || goalKey(previous) !== goalKey(next)) return { goal: next, carried: [] };
+export function mergeGoal(previous: AskGoal | undefined, next: AskGoal): { goal: AskGoal; carried: string[]; conflict: string | null } {
+  if (!previous || goalKey(previous) !== goalKey(next)) return { goal: next, carried: [], conflict: null };
   const released = new Set<string>(next.release ?? []);
   const merged: Record<string, unknown> = { ...next };
   const carried: string[] = [];
+  let conflict: string | null = null;
   for (const [field, value] of Object.entries(previous)) {
     if (field === 'release' || released.has(field) || value === undefined) continue;
     const mine = merged[field];
     if (field === 'include' && Array.isArray(value)) {
       const union = [...new Set([...(mine as string[] ?? []), ...value as string[]])];
       if (union.length > (mine as string[] ?? []).length) carried.push(`include ${value.join(', ')}`);
-      merged.include = union.slice(0, 4);
+      // Kept whole: dropping one would lose a constraint silently. Too many to frame is the person's call.
+      merged.include = union;
+      if (union.length > 4) conflict = `${union.join(', ')} must all be in view, more than 4 objects; release include if the person no longer needs the earlier ones`;
     } else if (field === 'maxAnchorRangeKm' && typeof value === 'number') {
       if (mine === undefined || (mine as number) > value) { merged[field] = value; carried.push(`maxAnchorRangeKm ${value}`); }
     } else if (mine === undefined) { merged[field] = value; carried.push(`${field} ${JSON.stringify(value)}`); }
   }
   delete merged.release;
-  return { goal: merged as unknown as AskGoal, carried };
+  return { goal: merged as unknown as AskGoal, carried, conflict };
 }
 
 /** Smallest centre-to-edge size, in vertical NDC, that reads as an object rather than a dot. */

@@ -20,8 +20,8 @@ export const reliabilityCases = [
   { id: 'cassini-mimas', catalog: 'cassini-soi', prompt: 'show cassini at closest approach to mimas', event: { bodies: ['Cassini', 'Mimas'], pick: 'closest' },
     rubric: 'Closest of all measured candidates in the declared kernel window, not the first chronological one; states the window.' },
   { id: 'psyche-earth-all', catalog: 'psyche', prompt: 'show me all psyche flybys of earth', event: { bodies: ['Psyche', 'Earth'], all: true },
-    truth: { bodies: ['Psyche', 'Earth'], window: 'query', stepSeconds: 21600 },
-    rubric: 'Every local minimum in the supported window, counted; deepest-only is not "all".' },
+    truth: { bodies: ['Psyche', 'Earth'], window: 'coverage', stepSeconds: 21600, noFlybyBeyondKm: 1.496e8 },
+    rubric: 'Every local minimum over the pair\'s kernel coverage, counted; deepest-only or a narrower window is not "all". After launch Psyche never comes within 1 AU of Earth (5 minima, closest 1.8e8 km), so the answer must say none is a close flyby.' },
   { id: 'psyche-mars-closest', catalog: 'psyche', prompt: 'show me the one where psyche is closest to mars', event: { bodies: ['Psyche', 'Mars'], pick: 'closest' },
     rubric: 'Range-ranked closest encounter (2026-05-15), paused, framed.' },
   { id: 'mars-elevation', catalog: 'ingenuity-jezero', prompt: 'color mars terrain by elevation', goal: { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' },
@@ -87,10 +87,17 @@ export function scoreReliability(test, turns) {
     const bodies = Object.values(last?.eventQuery?.bodies ?? {}).map(b => String(b).toLowerCase());
     checks.participants = test.event.bodies.every(b => bodies.includes(b.toLowerCase()));
     if (test.event.all) {
-      // "All" means every local minimum in the searched window: not deepest-only, and as many as an independent sample finds.
-      checks.allMinimaScope = last?.eventQuery?.scope !== 'global';
-      checks.searchComplete = last?.eventQuery?.searchComplete === true;
-      checks.completeMinima = !!last?.truth && last.truth.available >= 0.99 * last.truth.samples && last.eventQuery?.total === last.truth.minima;
+      // "All" means every local minimum over the pair's whole supported coverage: not deepest-only, not a
+      // narrower window the model picked, and as many as an independent sample finds there.
+      const q = last?.eventQuery, truth = last?.truth;
+      // Unset scope is the solver's LOCMIN default (closest-approach.ts); only 'global' is deepest-only.
+      checks.allMinimaScope = !!q && (q.scope === 'local' || q.scope === null || q.scope === undefined);
+      checks.searchComplete = q?.searchComplete === true;
+      checks.coversWindow = !!q?.window && !!truth?.windows?.length && q.window.start <= Math.min(...truth.windows.map(w => w.start)) + test.truth.stepSeconds
+        && q.window.end >= Math.max(...truth.windows.map(w => w.end)) - test.truth.stepSeconds;
+      checks.completeMinima = !!truth && truth.available >= 0.99 * truth.samples && q?.total === truth.minima;
+      // Distant range minima are not flybys: when every one is beyond the threshold, the answer must say so.
+      if (test.truth.noFlybyBeyondKm) checks.distanceCaveat = !!truth && (truth.closestMinimumKm === null || truth.closestMinimumKm <= test.truth.noFlybyBeyondKm || NEGATION.test(last?.reply ?? ''));
     }
     else checks.goal = last?.report?.status === 'met';
   }
@@ -160,7 +167,7 @@ export function summarizeReliability(report) {
       wilson95: wilson(complete, runs.length), classes, failedChecks, suspectedFalseSuccess: runs.filter(r => r.suspectedFalseSuccess).length,
       // Answers given while the viewer's own end-of-request check said the goal did not hold.
       contradictedByViewerCheck: runs.filter(r => r.result?.turns?.some(t => t.status === 'done' && t.verification?.some(v => v.status === 'unmet'))).length,
-      unchecked: runs.filter(r => r.result?.turns?.some(t => t.status === 'done' && t.wrote && !t.verification)).length,
+      unchecked: runs.filter(r => r.result?.turns?.some(t => t.status === 'done' && t.wrote && (t.unverified || !t.verification))).length,
       rounds: { total: rounds.reduce((a, b) => a + b, 0), p50: percentile(rounds, 0.5), p95: percentile(rounds, 0.95) },
       latencyMs: { p50: percentile(latency, 0.5), p95: percentile(latency, 0.95) },
       rawTokens: { total: raw.filter(Number.isFinite).reduce((a, b) => a + b, 0), p50: percentile(raw, 0.5), p95: percentile(raw, 0.95) },

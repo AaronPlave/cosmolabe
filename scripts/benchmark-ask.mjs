@@ -193,15 +193,20 @@ try {
               searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected };
           };
           // Independent ground truth: range between two objects sampled through the viewer's own
-          // state reads, its local minima counted. No Event Finder code involved.
-          window.__benchRange = (a, b, start, end, step, maxRangeKm = null) => {
+          // state reads over the given windows, its local minima counted. No Event Finder code and
+          // nothing the model chose (window, range cap) is involved.
+          window.__benchRange = (a, b, windows, step) => {
             const range = et => { const p = c.getObjectState(a, { time: { kind: 'et', et }, center: b })?.position; return p ? Math.hypot(...p) : NaN; };
-            const n = Math.min(20000, Math.ceil((end - start) / step));
-            const r = Array.from({ length: n + 1 }, (_, i) => range(start + (end - start) * i / n));
-            let minima = 0;
-            for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1] && (maxRangeKm === null || r[i] <= maxRangeKm)) minima++;
-            const finite = r.filter(Number.isFinite);
-            return { samples: n + 1, available: finite.length, minima, minKm: finite.length ? Math.min(...finite) : null };
+            let samples = 0, minima = 0, closestMinimumKm = null;
+            const finite = [];
+            for (const { start, end } of windows) {
+              const n = Math.min(20000, Math.ceil((end - start) / step));
+              const r = Array.from({ length: n + 1 }, (_, i) => range(start + (end - start) * i / n));
+              for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1]) { minima++; closestMinimumKm = Math.min(closestMinimumKm ?? Infinity, r[i]); }
+              samples += n + 1;
+              finite.push(...r.filter(Number.isFinite));
+            }
+            return { windows, samples, available: finite.length, minima, closestMinimumKm, minKm: finite.length ? Math.min(...finite) : null };
           };
         }, { test });
         const initial = await page.evaluate(() => window.__benchSnapshot());
@@ -217,7 +222,7 @@ try {
             await page.getByRole('button', { name: 'Send request', exact: true }).click();
             await page.waitForFunction(n => window.__askBench.ask.turns.length === n && window.__askBench.ask.turns.at(-1).status !== 'running', i + 1, { timeout: 240000 });
             const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
-              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, verification: t.verification ?? null,
+              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, verification: t.verification ?? null, unverified: !!t.unverified,
                 wrote: t.steps.some(s => s.result?.ok && !/^(describe|get|list|resolve|search|check|find)/.test((s.name === 'invokeCapability' ? s.input.id : s.name).split('.').at(-1))),
                 steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null })) }; });
             turn.latencyMs = Math.round(performance.now() - turnStarted);
@@ -225,9 +230,14 @@ try {
             if (test.composition?.closeTurn === i) context.closeRangeKm = (await page.evaluate(n => window.__probeComposition([n]), test.composition.anchor)).objects[0].rangeKm;
             if (test.event || test.refusal) { turn.eventQuery = await page.evaluate(() => window.__benchEvent()); context.query = turn.eventQuery?.id; }
             if (test.truth && i === promptsOf(test).length - 1) {
-              // Over the searched window when there is one, else the catalog's window.
-              const w = test.truth.window === 'query' && turn.eventQuery?.window ? turn.eventQuery.window : await page.evaluate(() => window.cosmo.getEventSearchOptions().catalogWindow);
-              turn.truth = await page.evaluate(([t, w, max]) => window.__benchRange(t.bodies[0], t.bodies[1], w.start, w.end, t.stepSeconds, max), [test.truth, w, turn.eventQuery?.maxRangeKm ?? null]);
+              // Over the window the request implies, fixed by the case rather than by the model's query:
+              // every loaded-kernel coverage window of the pair inside the catalog, or the catalog's window.
+              const w = await page.evaluate(t => {
+                const o = window.cosmo.getEventSearchOptions(t.window === 'coverage' ? { kind: 'closest-approach', bodies: { observer: t.bodies[0], target: t.bodies[1] } } : undefined);
+                if (t.window !== 'coverage') return [o.catalogWindow];
+                return (o.coverage?.windows ?? []).map(x => ({ start: Math.max(x.start, o.catalogWindow.start), end: Math.min(x.end, o.catalogWindow.end) })).filter(x => x.end > x.start);
+              }, test.truth);
+              turn.truth = await page.evaluate(([t, w]) => window.__benchRange(t.bodies[0], t.bodies[1], w, t.stepSeconds), [test.truth, w]);
             }
             const goal = turnGoal(test, i, context);
             if (goal) {

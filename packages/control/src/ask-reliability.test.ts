@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeViewer } from './__tests__/fake-host.js';
 import { CURATED_AGENT_VERBS } from './agent.js';
 import { createCapabilityTools } from './capabilities.js';
-import { checkGoal } from './outcome.js';
+import { checkGoal, type AskGoal } from './outcome.js';
 import { compactHistory, runAgent, AgentTransportError, HOST_CHECK_PREFIX, type AgentContent, type AgentMessage, type AgentRequest, type AgentResponse } from './agent-loop.js';
 import { VERBS } from './verbs.js';
 
@@ -41,9 +41,12 @@ const SCRIPT: Record<string, AgentResponse[]> = {
   'show me when psyche is within 10000km of mars': [
     call(use('a1', 'invokeCapability', { id: 'time.setPlaying', input: { on: false } }), use('a2', 'invokeCapability', { id: 'time.setTime', input: { when: ENCOUNTER } })),
     say('Psyche is within 10,000 km of Mars for about 40 minutes; paused at the start.'),
+    // Asked by the viewer for an end state: none of the goal kinds fits a clock change alone.
+    say('Paused at the start of that window. The viewer has no check for a clock change on its own.'),
   ],
   'zoom into psyche': [
     call(use('b1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Psyche' } })),
+    call(use('b2', 'checkGoal', { kind: 'camera-composition', anchor: 'Psyche', include: [], maxAnchorRangeKm: 0.1 })),
     say('Zoomed in on Psyche.'),
   ],
   'frame the scene so psyche and mars are both in view': [
@@ -66,6 +69,18 @@ const SCRIPT: Record<string, AgentResponse[]> = {
     call(use('e2', 'checkGoal', { kind: 'camera-composition', anchor: 'Psyche', include: ['Mars'], et: ENCOUNTER })),
     say('Rotated around Psyche while staying close; Mars is in frame.'),
   ],
+  // A new subject: the Psyche close-up no longer applies; the Mars terrain colouring still does.
+  'now just show mars': [
+    call(use('g1', 'invokeCapability', { id: 'camera.frameObject', input: { object: 'Mars' } })),
+    call(use('g2', 'checkGoal', { kind: 'camera-composition', anchor: 'Mars', include: [] })),
+    say('Framed Mars.'),
+  ],
+  // Checks only the goal it was thinking of; the change broke an earlier one.
+  'start the clock': [
+    call(use('h1', 'invokeCapability', { id: 'time.setPlaying', input: { on: true } }), use('h2', 'checkGoal', { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' })),
+    say('The clock is running.'),
+    say('The clock is running, so the view is no longer held at the encounter.'),
+  ],
 };
 
 function scriptedModel(budget = Infinity) {
@@ -86,14 +101,18 @@ function scriptedModel(budget = Infinity) {
   return { transport, requests };
 }
 
-const FIVE = Object.keys(SCRIPT).filter(p => p !== 'pull way back');
+const FIVE = ['show me when psyche is within 10000km of mars', 'zoom into psyche', 'frame the scene so psyche and mars are both in view',
+  'but keep psyche up close', 'not true just need to rotate the camera around psyche to see mars'];
 
-async function converse(budget?: number, prompts: readonly string[] = FIVE) {
+async function converse(budget?: number, prompts: readonly string[] = FIVE, initialGoals: Record<string, AskGoal> = {}) {
   const host = new PsycheScene();
   const tools = createCapabilityTools(host, { surface: 'fixed' });
+  // The fake has no terrain: an earlier surface goal reads as held.
+  const verify = tools.verify!.bind(tools);
+  tools.verify = goal => goal.kind === 'surface-appearance' ? { kind: goal.kind, status: 'met', checks: [] } : verify(goal);
   const model = scriptedModel(budget);
   let history: readonly AgentMessage[] = [];
-  let goals = {};
+  let goals: Record<string, AskGoal> = initialGoals;
   const turns = [];
   for (const prompt of prompts) {
     const run = await runAgent({ transport: model.transport, tools, history, goals, prompt });
@@ -129,7 +148,7 @@ describe('Psyche/Mars five-turn close-up (#345)', () => {
   it('stays cheap: earlier turns are condensed, not replayed tool by tool', async () => {
     const { model, turns } = await converse();
     const stats = turns.map(t => t.stats);
-    expect(stats.map(s => s.rounds)).toEqual([2, 2, 3, 2, 3]);
+    expect(stats.map(s => s.rounds)).toEqual([3, 3, 3, 2, 3]);
     expect(stats.every(s => s.rawTokens !== null && s.rawTokens <= 3 * 9440)).toBe(true);
     const lastTurnFirstRequest = model.requests.at(-3)!;
     const priorResults = lastTurnFirstRequest.messages.slice(0, -1).flatMap(m => m.content).filter(c => c.type !== 'text');
@@ -146,7 +165,7 @@ describe('Psyche/Mars five-turn close-up (#345)', () => {
 
   it('on a hard budget stop, keeps every applied change and a valid, condensable history', async () => {
     // Enough for the first three turns and one round of the fourth.
-    const { host, turns } = await converse(70_000);
+    const { host, turns } = await converse(90_000);
     expect(turns.slice(0, 3).every(t => t.outcome.kind === 'done')).toBe(true);
     expect(turns.at(-1)!.outcome).toMatchObject({ kind: 'error', code: 'budget_exhausted' });
     // The composition made before the stop holds.
@@ -172,16 +191,47 @@ describe('the loop holds the conversation to its goals (#345 review)', () => {
     expect(run.outcome.kind).toBe('done');
     expect(run.verification?.[0]).toMatchObject({ status: 'unmet' });
     const nudge = model.requests.at(-1)!.messages.at(-1)!;
-    expect(nudge.content[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^\[Viewer check\] The viewer reports: camera-composition unmet \(.*limit 0.1/) });
+    expect(nudge.content[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^\[Viewer check\] This request changed the view without stating its end state\. The viewer reports: camera-composition unmet \(.*limit 0.1/) });
     expect(run.stats.rounds).toBe(3);
+    // It never stated a goal of its own: the answer stands, but not as verified.
+    expect(run.unverified).toBe(true);
     // The nudge is part of the same request when history is condensed.
     expect(compactHistory(run.messages)).toHaveLength(12);
   });
 
-  it('does not add a round when the change was already checked', async () => {
-    const { turns } = await converse();
-    expect(turns.map(t => t.stats.rounds)).toEqual([2, 2, 3, 2, 3]);
-    expect(turns.slice(0, 2).map(t => t.verification)).toEqual([null, null]);
+  it('asks once for the end state of a change made without one, and keeps it unverified when none fits', async () => {
+    const { turns, model } = await converse();
+    // Turn 1 set the clock with no goal: one extra round, then an honest unverified answer.
+    expect(turns[0].stats.rounds).toBe(3);
+    expect(turns[0]).toMatchObject({ unverified: true, verification: null });
+    expect(JSON.stringify(model.requests[2].messages.at(-1))).toMatch(/without stating its end state.*If none fits, answer again saying the change was not checked/);
+    // Turns that stated and checked their goal take no extra round.
+    expect(turns.map(t => t.stats.rounds)).toEqual([3, 3, 3, 2, 3]);
+    expect(turns.slice(1).map(t => t.unverified)).toEqual([false, false, false, false]);
+    expect(turns[1].verification?.map(v => v.status)).toEqual(['met']);
+  });
+
+  it('a new subject retires the earlier view goal but keeps independent ones', async () => {
+    const surface: AskGoal = { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' };
+    const { turns } = await converse(undefined, [...FIVE, 'now just show mars'], { 'surface:Mars': surface });
+    const run = turns.at(-1)!;
+    expect(Object.keys(run.goals).sort()).toEqual(['camera:Mars', 'surface:Mars']);
+    const summary = run.messages.flatMap(m => m.content).filter(c => c.type === 'tool_result').map(c => JSON.parse((c as { content: string }).content).summary).at(-1);
+    expect(summary).toMatch(/Replaces the earlier view goal camera:Psyche/);
+    // The stale close-up is not held against the new request.
+    expect(run.verification?.map(v => [v.kind, v.status])).toEqual([['surface-appearance', 'met'], ['camera-composition', 'met']]);
+    expect(run.stats.rounds).toBe(3);
+  });
+
+  it('re-checks earlier goals a change on another subject broke, even after the model checked its own', async () => {
+    const surface: AskGoal = { kind: 'surface-appearance', body: 'Mars', baseColor: 'elevation' };
+    const { turns, model } = await converse(undefined, [...FIVE, 'start the clock'], { 'surface:Mars': surface });
+    const run = turns.at(-1)!;
+    expect(run.verification?.find(v => v.kind === 'camera-composition')).toMatchObject({ status: 'unmet' });
+    const nudge = JSON.stringify(model.requests.at(-1)!.messages.at(-1));
+    expect(nudge).toMatch(/\[Viewer check\] The viewer reports: camera-composition unmet \(playing/);
+    expect(nudge).not.toMatch(/surface-appearance/);
+    expect(run.stats.rounds).toBe(3);
   });
 });
 
