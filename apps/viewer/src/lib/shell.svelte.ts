@@ -22,7 +22,7 @@
  *   touched most recently. It answers two questions with one list: which
  *   floating panel draws on top, and which surface Escape dismisses.
  */
-import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, MapPin, Aperture, MessageCircleQuestionMark } from 'lucide-svelte';
+import { Globe, Radar, Settings, Bug, Ruler, Terminal, Layers, LandPlot, MapPin, Aperture, MessageCircleQuestionMark } from 'lucide-svelte';
 import { clampFloat, type FloatRect, type Viewport } from './panel-geometry';
 import { resettable } from './session.svelte';
 
@@ -42,7 +42,7 @@ export type IconComponent = typeof Globe;
  * interactive measurement returns as its own tool rather than as a second
  * analysis entry point beside the timeline.
  */
-export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
+export const TOOL_IDS = ['catalog', 'navigate', 'layers', 'planner', 'events', 'measure', 'instrument', 'ask', 'script', 'display', 'debug'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -103,6 +103,9 @@ export const TOOLS: readonly ToolDef[] = [
   // Imagery and vector layers per body, in one place (#198). No shortcut: the
   // free letters are reserved for #15's keymap.
   { id: 'layers',  label: 'Surface layers', icon: Layers, presentation: 'panel', dock: 'left', width: 340 },
+  // Authoring surface data plans (#250): opt-in, never opened by default, and
+  // separate from Surface layers, which keeps everyday visibility and styling.
+  { id: 'planner', label: 'Surface planner', icon: LandPlot, presentation: 'panel', dock: 'left', width: 380 },
   { id: 'events',  label: 'Events',   icon: Radar,    presentation: 'panel',  dock: 'left',  width: 384 },
   { id: 'measure', label: 'Geometry', icon: Ruler, presentation: 'panel', dock: 'right', width: 344 },
   // The view from a physical instrument (#192): a second camera, not a
