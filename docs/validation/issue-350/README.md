@@ -43,17 +43,26 @@ the final typography is compared below.
 - **Bloom follows the drawing buffer.** The composer works at ratio 1 in device
   pixels, so its targets always equal the canvas. `setSize` is a no-op unless
   the buffer changed.
-- **Body-label typography tuned for the scene.** Semibold `ui-monospace`
-  (SF Mono / Menlo / Consolas), a tight dark ring (four 1 px offsets,
-  `#000000f2`, 0.5 px blur) plus a 2 px halo, each drawn shadow-only so the
-  fill lands once, and baseline opacity 0.92 (hover still brightens to 1).
+- **Restrained body-label typography.** Regular `system-ui` 400 with one
+  downward shadow (`#000000b3`, 1 CSS px blur and offset). The shadow is drawn
+  separately so the fill lands once. Baseline opacity stays 0.92 (hover still
+  brightens to 1). The four-offset ring and halo are removed.
 
-![Three body-label styles at actual size over Jezero imagery, a Jezero delta close-up and dark space, at DPR 1 and 2](body-label-typography.png)
+![Previous heavy monospace, light monospace, and chosen regular system-ui at actual size at DPR 1 and 2](body-label-typography.png)
 
-The `system-ui` style that suits the HTML place names read worst of the three
-over detailed terrain at 12 px. The old monospace was thin and low-contrast.
-Semibold monospace with a tight outline was the most legible on bright terrain
-and on black space alike, so body labels deliberately differ from place names.
+The latest real-monitor review found the previous semibold monospace and dark
+ring too chunky. This comparison uses the previous treatment, regular monospace
+with the short shadow, and regular system-ui with the same short shadow.
+Regular system-ui reduces Ingenuity's label box from about 74 to 56–61 CSS px
+(depending on DPR), without extra tracking or changing the font size. It looks
+cleaner beside Jezero and Neretva Vallis while retaining terrain contrast. The
+space rows use Earth's body label in the same catalog. DPR 2 captures are
+reduced to CSS dimensions for this actual-size comparison; inspect the original
+device-pixel captures from the acceptance run for sharpness.
+
+Reproduce with `node scripts/test-label-sharpness.mjs VIEWER_URL OUT_DIR --typography`.
+The comparison waits for the streamed Mars view to settle and uses the loaded
+production texture generator for the chosen column.
 
 Body labels stay WebGL sprites, so canvas-only screenshot and video capture,
 `OVERLAY_LAYER` exclusion from instrument views, and picking are unchanged.
@@ -98,9 +107,10 @@ reallocation when unchanged).
 ## Not verified
 
 - **Physical displays.** Runs used headless Chromium with ANGLE on Metal and
-  emulated DPR through CDP. Nobody dragged a window between a real external
-  monitor and a Retina panel. macOS reports DPR 1 or 2 on those, so the
-  fractional-DPR fix matters mainly on Windows/Linux scaling (125 %, 150 %).
+  emulated DPR through CDP. This revision has not been checked by dragging a
+  window between a real external monitor and a Retina panel. macOS reports
+  DPR 1 or 2 on those, so the fractional-DPR fix matters mainly on Windows/Linux
+  scaling (125 %, 150 %).
 - **The device-pixel-box path.** Emulated DPRs report
   `devicePixelContentBoxSize` in CSS pixels, so the test exercises the
   rounded-product fallback. Real Chromium and Firefox report device pixels;

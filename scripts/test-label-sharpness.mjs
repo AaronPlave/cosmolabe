@@ -4,6 +4,8 @@
  * (no `?test=1`: MSAA and bloom stay on).
  *
  *   node scripts/test-label-sharpness.mjs [VIEWER_URL] [OUT_DIR]
+ * Add --typography to write an actual-size scene comparison instead of the
+ * pixel-stability checks (previous heavy style, light mono, production style).
  *
  * The reported failure: on one low-DPR display, resizing the window flips the
  * Ingenuity body label between crisp and blurry. The checks look at rendered
@@ -238,6 +240,109 @@ async function compare(label, ref, g) {
     await saveGlyph(`${name}-glyph.png`, g.img);
     await savePng(`${name}-scene.png`, g.crop, 4);
   }
+}
+
+if (process.argv.includes('--typography')) {
+  const { default: sharp } = await import('sharp');
+  const tiles = [];
+  const styles = ['Previous: mono 600 + ring/halo', 'Mono 400 + short shadow', 'Chosen: system-ui 400 + short shadow'];
+  const tileW = 370, tileH = 240;
+  const scenes = [1, 2].flatMap((dpr) => ['overview', 'terrain', 'space'].map((scene) => ({ dpr, scene })));
+  for (const [row, { dpr, scene }] of scenes.entries()) {
+    const page = await openScene(dpr);
+    if (scene === 'space') {
+      await page.evaluate(() => {
+        window.cosmo.untrack(); window.cosmo.clearLookAt();
+        window.cosmo.gotoObject('Earth'); window.cosmo.dolly(1000000);
+      });
+      await waitFrames(page, 30);
+      await page.waitForFunction(() => window.renderer.labelManager.getScreenRects().some((r) => r.name === 'Earth'), null, { timeout: 30000 });
+    } else if (scene === 'terrain') {
+      await page.evaluate(() => {
+        const r = window.renderer, V = r.camera.position.constructor;
+        const body = r.getBodyMesh('Ingenuity').getWorldPosition(new V());
+        const mars = r.getBodyMesh('Mars').getWorldPosition(new V());
+        const radial = body.clone().sub(mars).normalize();
+        window.cosmo.untrack(); window.cosmo.clearLookAt();
+        const offset = radial.clone().multiplyScalar(15 * r.scaleFactor);
+        r.cameraController.controls.enableDamping = false;
+        r.cameraController.controls.target.copy(body);
+        r.camera.position.copy(body).add(offset);
+        r.camera.lookAt(body); r.camera.updateMatrixWorld(true);
+      });
+      await waitFrames(page, 45);
+    }
+    // Asset readiness alone does not establish drawn imagery. Wait for the
+    // streamed view to settle before comparing terrain contrast.
+    const idle = () => {
+      const t = window.renderer.getBodyMesh('Mars').terrainManager;
+      const n = t.metrics.network, i = t.cubeImageryStats;
+      return t.tiles.visibleTiles.size > 0 && n.queued + n.downloading + n.parsing === 0
+        && t.cubeStats.inFlight === 0 && i.inFlight === 0 && (i.queued === 0 || i.budgetLimited);
+    };
+    if (scene !== 'space') {
+      await page.waitForFunction(idle, null, { timeout: 180000 });
+      await page.waitForTimeout(1000);
+      await page.waitForFunction(idle, null, { timeout: 180000 });
+      console.log('Typography surface', scene, await page.evaluate(() => ({
+        terrain: window.cosmo.getSurfaceData('Mars').terrain.runtime,
+        imagery: window.cosmo.getImagery('Mars').layers.map(({ id, status, view }) => ({ id, status, view })),
+      })));
+    }
+    console.log('Typography renderer', await page.evaluate(() => {
+      const gl = window.renderer.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    }));
+    for (let col = 0; col < styles.length; col++) {
+      const dimensions = await page.evaluate(({ style, label }) => {
+        const lm = window.renderer.labelManager;
+        // The chosen column uses production rasterization. Other columns only
+        // replace the texture generator, leaving layout/rendering unchanged.
+        window.__productionTextTexture ??= lm.createTextTexture;
+        lm.createTextTexture = style === 2 ? window.__productionTextTexture : function (text, color, fontSize) {
+          const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+          const px = this._pixelRatio, pad = Math.ceil(fontSize * 0.3);
+          const setup = () => { ctx.font = `${style === 0 ? 600 : 400} ${fontSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`; ctx.textBaseline = 'top'; };
+          setup(); canvas.width = Math.ceil(ctx.measureText(text).width) + pad * 2; canvas.height = fontSize + pad * 2; setup();
+          const away = canvas.width + 64 * px;
+          const shadow = (color, blur, dx, dy) => {
+            ctx.shadowColor = color; ctx.shadowBlur = blur * px;
+            ctx.shadowOffsetX = away + dx * px; ctx.shadowOffsetY = dy * px;
+            ctx.fillText(text, pad - away, pad);
+          };
+          if (style === 0) {
+            for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) shadow('#000000f2', 0.5, dx, dy);
+            shadow('#000', 2, 0, 0);
+          } else shadow('#000000b3', 1, 0, 1);
+          ctx.shadowColor = 'transparent'; ctx.fillStyle = color; ctx.fillText(text, pad, pad);
+          const sample = this.getSprites()[0].material.map;
+          const texture = new sample.constructor(canvas);
+          texture.minFilter = sample.minFilter; texture.magFilter = sample.magFilter;
+          return texture;
+        };
+        for (const entry of lm.labels.values()) entry.texPixelRatio = -1;
+        lm.refreshTextures(devicePixelRatio);
+        window.renderer.renderFrame();
+        return lm.getScreenRects().find((r) => r.name === label);
+      }, { style: col, label: scene === 'space' ? 'Earth' : 'Ingenuity' });
+      await waitFrames(page, 10);
+      // Browser screenshot includes adjacent HTML place names. Integer DPRs
+      // can be reduced to CSS dimensions to present each scene at actual size.
+      const shot = await page.screenshot();
+      const x = Math.max(0, Math.min(1280 - tileW, Math.round((dimensions.x0 + dimensions.x1) / 2 - tileW / 2)));
+      const y = Math.max(0, Math.min(HEIGHT - tileH, Math.round(dimensions.y0 - tileH / 2)));
+      const crop = await sharp(shot).extract({ left: x * dpr, top: y * dpr, width: tileW * dpr, height: tileH * dpr }).resize(tileW, tileH).png().toBuffer();
+      tiles.push({ input: crop, left: col * tileW, top: row * (tileH + 32) + 32 });
+      console.log(`DPR ${dpr} ${scene} ${styles[col]}: label box ${(dimensions.x1 - dimensions.x0).toFixed(1)} CSS px`);
+    }
+    await page.close();
+  }
+  const labels = scenes.flatMap(({ dpr, scene }, row) => styles.map((style, col) => `<text x="${col * tileW + 8}" y="${row * (tileH + 32) + 21}" fill="white" font-size="11">DPR ${dpr}, ${scene}: ${style}</text>`)).join('');
+  tiles.push({ input: Buffer.from(`<svg width="${tileW * 3}" height="${(tileH + 32) * scenes.length}" xmlns="http://www.w3.org/2000/svg">${labels}</svg>`), left: 0, top: 0 });
+  await sharp({ create: { width: tileW * 3, height: (tileH + 32) * scenes.length, channels: 4, background: '#16191e' } }).composite(tiles).png().toFile(`${out}/body-label-typography.png`);
+  await browser.close();
+  process.exit(0);
 }
 
 for (const dpr of [1, 1.25, 1.5, 2]) {

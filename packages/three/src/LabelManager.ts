@@ -947,14 +947,12 @@ export class LabelManager {
   private createTextTexture(text: string, color: string, fontSize: number): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    // Instrument-style semibold monospace: chosen over system-ui (which suits
-    // the HTML place names) because it stays legible over detailed, moving
-    // terrain at 12 px. A tight dark ring plus a short halo give contrast on
-    // both bright terrain and black space without a heavy glow. Lengths are
-    // CSS px × the device-pixel ratio.
+    // Regular proportional type keeps small body labels compact. One short,
+    // downward shadow supplies terrain contrast without thickening every edge.
+    // Shadow lengths are CSS px × the device-pixel ratio.
     const px = this._pixelRatio;
     const setup = () => {
-      ctx.font = `600 ${fontSize}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+      ctx.font = `400 ${fontSize}px system-ui, sans-serif`;
       ctx.textBaseline = 'top';
     };
     setup();
@@ -973,8 +971,7 @@ export class LabelManager {
       ctx.shadowOffsetY = dy * px;
       ctx.fillText(text, padding - away, padding);
     };
-    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) shadow('#000000f2', 0.5, dx, dy);
-    shadow('#000', 2, 0, 0);
+    shadow('#000000b3', 1, 0, 1);
     ctx.shadowColor = 'transparent';
     ctx.fillStyle = color;
     ctx.fillText(text, padding, padding);
