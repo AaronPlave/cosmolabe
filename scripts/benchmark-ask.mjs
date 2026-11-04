@@ -8,18 +8,20 @@ import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { createProxy, anthropicProvider } from '../examples/ask-proxy/server.mjs';
 import { cases, scoreState, summarizeUsage, poseMatches, modelVisibleResults } from './ask-benchmark/cases.mjs';
-import { reliabilityCases, promptsOf, goalReads, turnGoal, judgeTurn, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
+import { reliabilityCases, promptsOf, turnPredicates, judge, scoreReliability, classify, suspectedFalseSuccess, summarizeReliability } from './ask-benchmark/reliability.mjs';
+import { etToDate, SPHERE_OF_INFLUENCE_KM } from '@cosmolabe/core';
 
 const list = (name, all) => (process.env[name] ? process.env[name].split(',').filter(v => all.includes(v)) : all);
 const models = list('ASK_BENCHMARK_MODELS', ['claude-sonnet-5-5', 'claude-haiku-5-5']);
-const modes = list('ASK_BENCHMARK_MODES', ['fixed', 'discovery']);
+const modes = list('ASK_BENCHMARK_MODES', ['fixed']);
 // A/B (#345): the arm is which viewer build answers (CL_VIEWER_URL). A = a pre-#345 checkout, B = this one.
 const arm = process.env.ASK_BENCHMARK_ARM ?? 'B';
-const suite = process.env.ASK_BENCHMARK_SUITE ?? 'all';
+const suite = process.env.ASK_BENCHMARK_SUITE ?? 'reliability';
 const repetitions = Number(process.env.ASK_BENCHMARK_REPETITIONS ?? 1);
 assert.ok(Number.isInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
 const pool = [...(suite === 'reliability' ? [] : cases), ...(suite === 'legacy' ? [] : reliabilityCases.map(c => ({ ...c, reliability: true })))];
-const selected = pool.filter(c => !process.env.ASK_BENCHMARK_CASES || process.env.ASK_BENCHMARK_CASES.split(',').includes(c.id));
+const wanted = process.env.ASK_BENCHMARK_CASES?.split(',');
+const selected = pool.filter(c => !wanted || wanted.includes(c.id) || (wanted.includes('critical') && c.critical));
 assert.ok(selected.length && models.length && modes.length);
 const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   started: new Date().toISOString(), arm, viewer: process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/', models, modes, repetitions, tasks: selected.map(c => c.id),
@@ -27,7 +29,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   initialState: 'Catalog default ET/viewpoint; deselected; rate 0 to freeze ET; playback on for pause/cancel tasks, paused otherwise',
   prompt: 'Unmodified shipped Ask prompts; max output 1536; thinking/effort unspecified (provider defaults); no fallback',
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
-  limits: { rawTokens: 8_000_000, estimatedUsd: 4, note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
+  limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
 if (process.env.ASK_BENCHMARK_LIVE !== '1') {
   console.log(JSON.stringify({ ...report, plan: selected }, null, 2));
@@ -192,8 +194,32 @@ try {
             if (!id) return null;
             const info = c.getEventQueryInfo(id), page = c.getEventResultPage(id, { limit: 1 });
             const q = info.definition?.query;
+            // The selected result's own measured numbers, on whichever page it sits.
+            let selectedEvent = null;
+            if (v.selected) for (let offset = 0; offset < 5000 && !selectedEvent; offset += 100) {
+              const r = c.listEventResults(v.selected.query, { offset, limit: 100 });
+              selectedEvent = r.items.find(e => e.id === v.selected.id) ?? null;
+              if (offset + 100 >= r.total) break;
+            }
+            const metric = k => selectedEvent?.metrics?.find(m => m.key === k)?.value;
             return { id, kind: q?.kind ?? null, bodies: q?.bodies ?? {}, window: q?.window ?? null, scope: q?.params?.scope ?? null, maxRangeKm: q?.params?.maxRangeKm ?? null,
-              searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected };
+              searchComplete: search.query === id && search.status === 'complete', total: page.total, presented: !!v.selected && !v.playing,
+              ...(selectedEvent ? { selectedEt: selectedEvent.temporality === 'instant' ? selectedEvent.et : (selectedEvent.start + selectedEvent.end) / 2, selectedRangeKm: metric('range'), selectedAltitudeKm: metric('altitude') } : {}) };
+          };
+          // Independent truth for "closest": coarse range sampling over the windows, then refinement around the minimum.
+          window.__benchClosest = (a, b, windows) => {
+            const range = et => { const p = c.getObjectState(a, { time: { kind: 'et', et }, center: b })?.position; return p ? Math.hypot(...p) : NaN; };
+            let best = { km: Infinity, et: null };
+            for (const { start, end } of windows) {
+              const n = Math.min(20000, Math.max(100, Math.ceil((end - start) / 3600)));
+              for (let i = 0; i <= n; i++) { const et = start + (end - start) * i / n, km = range(et); if (km < best.km) best = { km, et }; }
+            }
+            if (best.et === null) return { minKm: null, minEt: null };
+            let span = windows.reduce((m, w) => Math.max(m, w.end - w.start), 0) / 20000 * 2;
+            for (let pass = 0; pass < 6 && span > 1; pass++, span /= 50) {
+              for (let i = -100; i <= 100; i++) { const et = best.et + span * i / 100, km = range(et); if (km < best.km) best = { km, et }; }
+            }
+            return { minKm: best.km, minEt: best.et };
           };
           // Independent ground truth: range between two objects sampled through the viewer's own
           // state reads over the given windows, its local minima counted. No Event Finder code and
@@ -220,40 +246,59 @@ try {
           // Same conversation, fresh scene: each turn is sent, finished and judged before the next.
           const context = {};
           run.result = { turns: [] };
+          const methods = new Set(await page.evaluate(() => Object.keys(window.cosmo).filter(k => typeof window.cosmo[k] === 'function')));
+          const read = reads => page.evaluate(r => window.__benchReads(r), reads);
+          const policy = test.approvals ?? 'approve';
           for (const [i, prompt] of promptsOf(test).entries()) {
             const turnStarted = performance.now();
             await page.getByRole('textbox', { name: 'Request', exact: true }).fill(prompt);
             await page.getByRole('button', { name: 'Send request', exact: true }).click();
-            await page.waitForFunction(n => window.__askBench.ask.turns.length === n && window.__askBench.ask.turns.at(-1).status !== 'running', i + 1, { timeout: 240000 });
+            // The person answers approval prompts per the task's policy, through the panel's own approval path.
+            let approvals = 0;
+            for (;;) {
+              const state = await page.waitForFunction(n => { const a = window.__askBench; const done = a.ask.turns.length === n && a.ask.turns.at(-1).status !== 'running'; return done ? 'done' : a.askApproval.pending ? 'approval' : false; }, i + 1, { timeout: 240000 }).then(h => h.jsonValue());
+              if (state === 'done') break;
+              approvals++;
+              await page.evaluate(ok => window.__askBench.answerAskApproval(ok), policy === 'approve');
+            }
             const turn = await page.evaluate(() => { const t = window.__askBench.ask.turns.at(-1);
-              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, verification: t.verification ?? null, unverified: !!t.unverified,
-                wrote: t.steps.some(s => s.result?.ok && !/^(describe|get|list|resolve|search|check|find)/.test((s.name === 'invokeCapability' ? s.input.id : s.name).split('.').at(-1))),
+              return { prompt: t.prompt, status: t.status, errorCode: t.errorCode, reply: t.reply, stats: t.stats, result: t.result ? { status: t.result.status, unobservable: t.result.unobservable, changes: t.result.changes, answerIssues: t.result.answerIssues, report: t.result.report } : null,
                 steps: t.steps.map(s => ({ name: s.name === 'invokeCapability' ? s.input.id : s.name, ok: s.result?.ok ?? null, receipt: s.result?.receipt?.status ?? null, code: s.result && !s.result.ok ? s.result.code : null,
-                  // Failed calls keep what was sent and the public error, so a failure can be traced to its cause.
                   ...(s.result && !s.result.ok ? { input: JSON.stringify(s.name === 'invokeCapability' ? s.input.input : s.input).slice(0, 2000), error: String(s.result.error ?? '').slice(0, 1000) } : {}) })) }; });
+            turn.approvals = approvals;
             turn.latencyMs = Math.round(performance.now() - turnStarted);
             if (test.composition?.epochTurn === i) context.epoch = await page.evaluate(() => window.cosmo.getTime());
             if (test.composition?.closeTurn === i) context.closeRangeKm = (await page.evaluate(n => window.__probeComposition([n]), test.composition.anchor)).objects[0].rangeKm;
-            if (test.event || test.refusal) { turn.eventQuery = await page.evaluate(() => window.__benchEvent()); context.query = turn.eventQuery?.id; }
+            if (test.activity) context.activityStart = await page.evaluate(id => window.cosmo.listActivities().find(a => a.id === id)?.start, test.activity);
+            if (test.event || test.refusal) {
+              turn.eventQuery = await page.evaluate(() => window.__benchEvent());
+              context.query = turn.eventQuery?.id;
+              const q = turn.eventQuery;
+              if (q?.selectedEt !== undefined) q.selectedUtc = etToDate(q.selectedEt).toISOString();
+              if (q?.window) q.windowUtc = { start: etToDate(q.window.start).toISOString(), end: etToDate(q.window.end).toISOString() };
+              if (q?.bodies?.target) q.soiKm = SPHERE_OF_INFLUENCE_KM[q.bodies.target] ?? null;
+            }
             if (test.truth && i === promptsOf(test).length - 1) {
-              // Over the window the request implies, fixed by the case rather than by the model's query:
-              // every loaded-kernel coverage window of the pair inside the catalog, or the catalog's window.
+              // Over the window the request implies, fixed by the case rather than by the model's query.
               const w = await page.evaluate(t => {
                 const o = window.cosmo.getEventSearchOptions(t.window === 'coverage' ? { kind: 'closest-approach', bodies: { observer: t.bodies[0], target: t.bodies[1] } } : undefined);
                 if (t.window !== 'coverage') return [o.catalogWindow];
                 return (o.coverage?.windows ?? []).map(x => ({ start: Math.max(x.start, o.catalogWindow.start), end: Math.min(x.end, o.catalogWindow.end) })).filter(x => x.end > x.start);
               }, test.truth);
-              turn.truth = await page.evaluate(([t, w]) => window.__benchRange(t.bodies[0], t.bodies[1], w, t.stepSeconds), [test.truth, w]);
+              turn.truth = test.truth.mode === 'minima'
+                ? await page.evaluate(([t, w]) => window.__benchRange(t.bodies[0], t.bodies[1], w, t.stepSeconds), [test.truth, w])
+                : await page.evaluate(([t, w]) => window.__benchClosest(t.bodies[0], t.bodies[1], w), [test.truth, w]);
+              if (turn.truth?.minEt !== undefined && turn.truth.minEt !== null) turn.truth.minUtc = etToDate(turn.truth.minEt).toISOString();
             }
-            const goal = turnGoal(test, i, context);
-            if (goal) {
-              turn.goal = goal;
-              let entries = await page.evaluate(reads => window.__benchReads(reads), goalReads(goal));
-              // Reads that depend on what the first ones returned (the selected saved feature's layer).
-              const more = goalReads(goal, entries);
-              if (more.length > entries.length) entries = await page.evaluate(reads => window.__benchReads(reads), more);
-              turn.report = judgeTurn(goal, entries);
-            }
+            if (test.measure) Object.assign(turn, await page.evaluate(([a, b]) => {
+              const items = window.cosmo.listMeasurements?.() ?? [];
+              const ends = m => [m.source, m.target].map(e => e?.bodyName);
+              const p = window.cosmo.getObjectState(b, { center: a })?.position;
+              return { measurement: items.some(m => m.kind === 'distance' && m.visible !== false && ends(m).sort().join() === [a, b].sort().join()), measuredKm: p ? Math.hypot(...p) : null };
+            }, test.measure));
+            if (test.unchanged) { const now = await page.evaluate(() => window.__benchSnapshot()); turn.unchanged = JSON.stringify(now.stable) === JSON.stringify(initial.stable); }
+            const goal = turnPredicates(test, i, context);
+            if (goal) { turn.goal = goal; turn.report = await judge(goal, read, methods); }
             run.result.turns.push(turn);
             if (turn.status !== 'done') break; // a stopped conversation is the observation; do not keep spending
           }
