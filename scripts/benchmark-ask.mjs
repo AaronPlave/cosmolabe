@@ -67,6 +67,7 @@ function cellProxy(model, cellUsage) {
     onUsage: row => { const projected = { ...row, upstreamLatencyMs, outputCalls }; cellUsage.push(projected); allUsage.push(projected); },
   });
 }
+const proxyPort = Number(process.env.ASK_BENCHMARK_PROXY_PORT ?? 8799);
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   for (let repeat = 0; repeat < repetitions; repeat++) for (const [index, test] of selected.entries()) {
@@ -75,7 +76,7 @@ try {
     for (const { model, mode } of cells) {
       const cellUsage = [];
       const proxy = cellProxy(model, cellUsage);
-      await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(8799, '127.0.0.1', resolve); });
+      await new Promise((resolve, reject) => { proxy.once('error', reject); proxy.listen(proxyPort, '127.0.0.1', resolve); });
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
       const rounds = [];
@@ -97,7 +98,8 @@ try {
         rounds.push({ discoveryOffered: request.tools.some(t => t.name === 'listCapabilities'), tools: request.tools.length, schemaChars: JSON.stringify(request.tools).length,
           lastResultCodes: request.messages.at(-1)?.content.filter(c => c.type === 'tool_result').map(c => { try { return JSON.parse(c.content).code ?? null; } catch { return 'invalid-json'; } }) ?? [],
           describedSchemas: request.messages.flatMap(m => m.content).filter(c => c.type === 'tool_use' && c.name === 'describeCapabilities').length });
-        await route.continue();
+        // The page always calls its configured :8799 endpoint; each harness forwards to its own proxy port, so runs can go in parallel.
+        await route.continue({ url: `http://127.0.0.1:${proxyPort}/` });
       });
       const run = { task: test.id, repeat, model, mode, arm, ...(test.reliability ? { reliability: true } : {}), order: report.runs.length, rounds, result: null };
       report.runs.push(run);
@@ -199,15 +201,16 @@ try {
           window.__benchRange = (a, b, windows, step) => {
             const range = et => { const p = c.getObjectState(a, { time: { kind: 'et', et }, center: b })?.position; return p ? Math.hypot(...p) : NaN; };
             let samples = 0, minima = 0, closestMinimumKm = null;
-            const finite = [];
+            let available = 0, minKm = null;
             for (const { start, end } of windows) {
               const n = Math.min(1_000_000, Math.ceil((end - start) / step));
               const r = Array.from({ length: n + 1 }, (_, i) => range(start + (end - start) * i / n));
               for (let i = 1; i < n; i++) if (r[i] < r[i - 1] && r[i] <= r[i + 1]) { minima++; closestMinimumKm = Math.min(closestMinimumKm ?? Infinity, r[i]); }
               samples += n + 1;
-              finite.push(...r.filter(Number.isFinite));
+              // A loop, not spread: a 10-minute sample of years is hundreds of thousands of values.
+              for (const v of r) if (Number.isFinite(v)) { available++; minKm = Math.min(minKm ?? Infinity, v); }
             }
-            return { windows, samples, available: finite.length, minima, closestMinimumKm, minKm: finite.length ? Math.min(...finite) : null };
+            return { windows, samples, available, minima, closestMinimumKm, minKm };
           };
         }, { test });
         const initial = await page.evaluate(() => window.__benchSnapshot());
