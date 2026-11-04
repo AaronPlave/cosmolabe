@@ -331,53 +331,98 @@ export interface SurfacePlannerFeedback {
   requested: {
     regionId: string;
     geometry: unknown;
-    channels: { channel: SurfaceChannel; sourceIds: string[]; outputGsdM: number; targetMetByNativeSource: boolean | null; diagnostic: unknown }[];
+    channels: {
+      channel: SurfaceChannel; sourceIds: string[]; outputGsdM: number;
+      /** Reported physical accuracy per source; null where upstream evidence is absent. */
+      accuracyM: { sourceId: string; accuracyM: number | null }[];
+      targetMetByNativeSource: boolean | null; diagnostic: unknown;
+    }[];
   }[];
   products: {
     productId: string;
     sourceProofs: { sourceId: string }[];
-    continuousNativeCoverageStatus: 'proved-for-checked-requested-ROI-only' | 'not-proved-by-tile-availability';
-    publication: { status: 'not-published' | 'verified-local-http' | 'verified-hosted-http' };
+    continuousNativeCoverageStatus: typeof COVERAGE_STATUSES[number];
+    publication: { status: typeof PUBLICATION_STATUSES[number] };
   }[];
 }
 
-/** Shape-check planner feedback read from a file; fields the planner does not use are kept but not checked. */
+const PUBLICATION_STATUSES = ['not-published', 'verified-local-http', 'verified-hosted-http'] as const;
+const COVERAGE_STATUSES = ['proved-for-checked-requested-ROI-only', 'not-proved-by-tile-availability'] as const;
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const oneOf = <T extends string>(values: readonly T[], v: unknown): v is T => values.includes(v as T);
+
+/** Validate the planner-feedback fields the planner relies on; unknown enum values are refused, never read as success. */
 export function parseSurfacePlannerFeedback(data: unknown): SurfacePlannerFeedback {
-  const d = data as SurfacePlannerFeedback;
-  const ok = d?.version === 1 && d.kind === 'surface-planner-feedback' && typeof d.lockIdentity === 'string'
-    && Array.isArray(d.requested) && d.requested.every(r => typeof r?.regionId === 'string' && Array.isArray(r.channels)
-      && r.channels.every(c => (c?.channel === 'imagery' || c?.channel === 'elevation') && Array.isArray(c.sourceIds) && typeof c.outputGsdM === 'number'))
-    && Array.isArray(d.products) && d.products.every(p => typeof p?.productId === 'string' && Array.isArray(p.sourceProofs)
-      && typeof p.publication?.status === 'string');
-  if (!ok) planFail('schema', '$', 'Expected surface-build planner feedback v1');
-  return d;
+  const fail = (path: string, message: string): never => planFail('schema', path, message);
+  if (!isObject(data) || data.version !== 1 || data.kind !== 'surface-planner-feedback') fail('$', 'Expected surface-build planner feedback v1');
+  const d = data as Record<string, unknown>;
+  if (typeof d.lockIdentity !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(d.lockIdentity)) fail('$.lockIdentity', 'Expected a sha256 lock identity');
+  if (!Array.isArray(d.requested)) fail('$.requested', 'Expected an array');
+  (d.requested as unknown[]).forEach((r, i) => {
+    if (!isObject(r) || typeof r.regionId !== 'string' || !isObject(r.geometry) || !Array.isArray(r.channels)) fail(`$.requested[${i}]`, 'Expected regionId, geometry and channels');
+    (r as { channels: unknown[] }).channels.forEach((c, j) => {
+      const path = `$.requested[${i}].channels[${j}]`;
+      if (!isObject(c) || !oneOf(['imagery', 'elevation'], c.channel) || !Array.isArray(c.sourceIds) || !c.sourceIds.every(x => typeof x === 'string')
+        || typeof c.outputGsdM !== 'number' || !(c.targetMetByNativeSource === null || typeof c.targetMetByNativeSource === 'boolean')) fail(path, 'Malformed channel');
+      if (!Array.isArray((c as Record<string, unknown>).accuracyM) || !((c as Record<string, unknown>).accuracyM as unknown[]).every(a => isObject(a)
+        && typeof a.sourceId === 'string' && (a.accuracyM === null || (typeof a.accuracyM === 'number' && a.accuracyM > 0)))) fail(`${path}.accuracyM`, 'Expected per-source accuracy or null');
+    });
+  });
+  if (!Array.isArray(d.products)) fail('$.products', 'Expected an array');
+  (d.products as unknown[]).forEach((p, i) => {
+    const path = `$.products[${i}]`;
+    if (!isObject(p) || typeof p.productId !== 'string' || !Array.isArray(p.sourceProofs) || !p.sourceProofs.every(x => isObject(x) && typeof x.sourceId === 'string')) fail(path, 'Malformed product');
+    const q = p as Record<string, unknown>;
+    if (!oneOf(COVERAGE_STATUSES, q.continuousNativeCoverageStatus)) fail(`${path}.continuousNativeCoverageStatus`, `Unknown coverage status ${String(q.continuousNativeCoverageStatus)}`);
+    if (!isObject(q.publication) || !oneOf(PUBLICATION_STATUSES, q.publication.status)) fail(`${path}.publication.status`, `Unknown publication status ${String((q.publication as { status?: unknown })?.status)}`);
+  });
+  return data as unknown as SurfacePlannerFeedback;
 }
 
-export type SurfaceBuildStatus = 'published' | 'built' | 'coarser' | 'needs-build' | 'unknown';
+/**
+ * `published`: published, with coverage proved for the requested ROI and every
+ * requested target evidenced. `published-unproven`: published, but coverage or
+ * accuracy is not proved for this request; unknown is not success.
+ */
+export type SurfaceBuildStatus = 'published' | 'published-unproven' | 'built' | 'coarser' | 'needs-build' | 'unknown';
 
 /**
  * Whether a region's channel is already served by a build in `feedback`, or
- * would need a new one. A build matches only for the same region ID, the same
- * embedded geometry, output sampling at least as fine as requested and, when
- * given, the same selected sources. No feedback means unknown, never absent.
+ * would need a new one. Compatibility is per region, not by lock identity, so a
+ * reusable product still matches from another lock: same region ID, the same
+ * embedded geometry, output sampling at least as fine as requested, reported
+ * accuracy within any requested limit and, when given, the same selected
+ * sources. No feedback means unknown, never absent.
  */
 export function surfaceRegionBuildStatus(plan: DesiredSurfacePlan, feedback: SurfacePlannerFeedback | null, regionId: string,
   channel: SurfaceChannel, selectedSourceIds: readonly string[] | null = null): { status: SurfaceBuildStatus; detail: string } {
   if (!feedback) return { status: 'unknown', detail: 'No build feedback loaded; whether a published product exists is unknown.' };
   const region = plan.regions.find(r => r.id === regionId);
+  const target = region?.[channel];
   const requested = feedback.requested.find(r => r.regionId === regionId);
   const built = requested?.channels.find(c => c.channel === channel);
-  if (!region?.[channel] || !requested || !built) return { status: 'needs-build', detail: `The loaded build has no ${channel} for ${regionId}.` };
+  if (!region || !target || !requested || !built) return { status: 'needs-build', detail: `The loaded build has no ${channel} for ${regionId}.` };
   const copy = plan.layers.find(l => l.id === region.feature.layerId)?.geojson?.features.find(f => `${typeof f.id}:${f.id}` === region.feature.featureId);
   if (!copy || !same(copy.geometry, requested.geometry)) return { status: 'needs-build', detail: 'The region\'s shape differs from the built one.' };
-  if (built.outputGsdM > region[channel]!.gsdM) return { status: 'needs-build', detail: `Built at ${built.outputGsdM} m, coarser than the requested ${region[channel]!.gsdM} m.` };
+  if (built.outputGsdM > target.gsdM) return { status: 'needs-build', detail: `Built at ${built.outputGsdM} m, coarser than the requested ${target.gsdM} m.` };
   if (selectedSourceIds && !same([...selectedSourceIds].sort(), [...built.sourceIds].sort())) return { status: 'needs-build', detail: `Built from ${built.sourceIds.join(', ')}, not the selected sources.` };
+  const accuracies = built.sourceIds.map(id => built.accuracyM.find(a => a.sourceId === id)?.accuracyM ?? null);
+  if (target.accuracyM !== undefined && accuracies.some(a => a !== null && a > target.accuracyM!)) {
+    return { status: 'needs-build', detail: `Reported source accuracy ${Math.max(...accuracies.filter((a): a is number => a !== null))} m exceeds the requested ${target.accuracyM} m limit.` };
+  }
   const products = feedback.products.filter(p => p.sourceProofs.some(s => built.sourceIds.includes(s.sourceId)));
   if (!products.length) return { status: 'unknown', detail: 'The build feedback names no product for these sources.' };
   if (built.targetMetByNativeSource === false) return { status: 'coarser', detail: 'Built, but its native sources do not meet the target; coarser data was kept under the fallback policy.' };
-  const proof = products.every(p => p.continuousNativeCoverageStatus === 'proved-for-checked-requested-ROI-only')
-    ? 'continuous coverage proved for the ROI' : 'continuous coverage not proved by tile availability';
-  return products.every(p => p.publication.status !== 'not-published')
-    ? { status: 'published', detail: `Published (${products.map(p => p.publication.status === 'verified-hosted-http' ? 'hosted' : 'local').join(', ')}); ${proof}.` }
-    : { status: 'built', detail: `Built but not published; ${proof}.` };
+  const unproven = [
+    ...(products.every(p => p.continuousNativeCoverageStatus === 'proved-for-checked-requested-ROI-only') ? [] : ['continuous coverage of the ROI is not proved by tile availability']),
+    ...(built.targetMetByNativeSource === null ? ['whether native sources meet the target is unknown'] : []),
+    ...(target.accuracyM !== undefined && accuracies.some(a => a === null) ? [`source accuracy is unreported against the ${target.accuracyM} m limit`] : []),
+  ];
+  if (products.some(p => p.publication.status === 'not-published')) {
+    return { status: 'built', detail: `Built but not published${unproven.length ? `; ${unproven.join('; ')}` : ''}.` };
+  }
+  const where = products.map(p => p.publication.status === 'verified-hosted-http' ? 'hosted' : 'local').join(', ');
+  return unproven.length
+    ? { status: 'published-unproven', detail: `Published (${where}), but ${unproven.join('; ')}.` }
+    : { status: 'published', detail: `Published (${where}); coverage proved for the requested ROI.` };
 }

@@ -13,7 +13,8 @@
  * On the globe it shows, separately and only for the region in focus: the
  * desired ROIs (1), the selected candidates' archive footprints (2a) and the
  * confirmed valid / unknown / gap coverage of the selected products (2b), and
- * the built ROI a loaded #251 build-feedback file reports for it (3). Live tile
+ * the ROI a loaded #251 build-feedback file says a build was requested for (3);
+ * that is a requested build ROI, not observed achieved coverage. Live tile
  * residency (4) is not planner data and is never drawn as if it were.
  */
 import {
@@ -57,7 +58,7 @@ export const PLANNER_LEGEND = [
   { id: LAYER.verified, color: '#4cc38a', label: 'Confirmed valid', detail: 'Independently evidenced valid pixels of the selected sources.' },
   { id: LAYER.unknown, color: '#d9a03f', label: 'Validity unknown', detail: 'Inside a footprint, but pixel validity is not evidenced.' },
   { id: LAYER.gap, color: '#e5575c', label: 'Gap', detail: 'Not covered by the selected sources (not an archive-wide absence).' },
-  { id: LAYER.built, color: '#6aa8ff', label: 'Built product', detail: 'ROI an existing build reports for this region (from loaded build feedback); tile availability alone does not prove coverage.' },
+  { id: LAYER.built, color: '#6aa8ff', label: 'Requested build ROI', detail: 'The ROI a loaded build was requested for; not observed achieved valid coverage.' },
 ] as const;
 
 const STYLES: Record<string, GeographicLayerStyle> = {
@@ -488,7 +489,7 @@ export function installOverlay(): void {
     const geometry = planner.feedback?.data.requested.find(r => r.regionId === planner.focused)?.geometry;
     // Drawn only when the built ROI is this region's own shape, so it is in the plan's conventions.
     if (planner.showCoverage && geometry && built && built.status !== 'needs-build' && built.status !== 'unknown') {
-      const load = displayLoad({ id: LAYER.built, name: 'Planner · built product', body: plan.body, source: 'build-feedback', coordinates: plan.coordinates,
+      const load = displayLoad({ id: LAYER.built, name: 'Planner · requested build ROI', body: plan.body, source: 'build-feedback', coordinates: plan.coordinates,
         geojson: { type: 'FeatureCollection', features: [{ type: 'Feature', id: planner.focused!, properties: { name: `${planner.focused} (${built.status})` }, geometry: geometry as never }] } },
       color(LAYER.built));
       if (load) loads.push(load);
@@ -569,19 +570,39 @@ export async function lockText(): Promise<string> {
     sources: input.records.filter(r => ids.has(r.descriptor.id)).map(r => r.descriptor).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     selections,
     processing: { generator: { name: 'cosmolabe-surface-build', version: '1' }, fusion: 'residual-bias-none',
-      parameters: { caveats: ['Source selection authored in the surface planner; executor tiling, gates and profile are added by the build CLI (#251).'] } },
+      parameters: { caveats: ['Source selection authored in the surface planner. Planner handoff: an executor-compatible preparation step must add terrain, imagery and gate parameters, pinned source bytes and runtime bindings before build:surface (#251) can run it.'] } },
     output: { representation: 'tiled-raster-pyramid', formatVersion: 'cosmolabe-cube-1', tileSize: 256, gutter: 1, imageryEncoding: 'png', elevationEncoding: 'float32' } });
   await validateLockedSurfacePlan(lock);
   return pretty(lock);
+}
+
+/**
+ * What `npm run build:surface` needs that a lock lacks, as far as the planner
+ * can tell without the executor. The planner writes a core-valid handoff only;
+ * an executor-compatible preparation step adds the rest. Pinned source bytes
+ * and runtime bindings are checked only by the executor itself.
+ */
+export function lockPreparationGaps(lock: LockedSurfacePlan): string[] {
+  const d = lock.desired, p = lock.processing.parameters as Record<string, unknown> | undefined;
+  return [
+    ...(d.body === 'Mars' && d.frame === 'IAU_MARS' ? [] : ['the v1 executor builds bounded Mars (IAU_MARS) plans only']),
+    ...(d.coordinates.referenceShape.kind === 'sphere' && d.coordinates.latitude === 'planetocentric' && d.coordinates.longitudeDirection === 'east'
+      ? [] : ['a spherical, planetocentric, east-positive source map']),
+    ...(['terrain', 'imagery', 'gates'] as const).filter(k => p?.[k] === undefined).map(k => `processing.parameters.${k}`),
+  ];
 }
 
 export async function exportLock(): Promise<void> {
   try {
     const text = await lockText();
     download(`${fileBase(planner.plan!)}.lock.json`, text);
-    planner.base = (JSON.parse(text) as LockedSurfacePlan).desired;
+    const lock = JSON.parse(text) as LockedSurfacePlan;
+    planner.base = lock.desired;
     planner.lockedSelections = selectionKey();
-    planner.message = 'Exported the locked plan.';
+    const gaps = lockPreparationGaps(lock);
+    planner.message = gaps.length
+      ? `Exported the locked plan as a planner handoff. Not yet executable by build:surface; preparation must add: ${gaps.join('; ')}, plus pinned source bytes and runtime bindings.`
+      : 'Exported the locked plan. It carries executor parameters; build:surface still verifies pinned source bytes and runtime bindings.';
     planner.revision++;
   } catch (e) { planner.message = `Not lockable: ${describe(e)}`; }
 }

@@ -103,7 +103,8 @@
     return `${label}: ${area(a.adequateAreaM2)} adequate, ${area(a.unknownAreaM2)} unknown, ${area(a.unsatisfiedAreaM2)} short`;
   }
   const buildLabel: Record<string, string> = {
-    published: 'Published product suffices', built: 'Built, not published', coarser: 'Built below target', 'needs-build': 'Needs a new build', unknown: 'Unknown',
+    published: 'Published product suffices', 'published-unproven': 'Published; fit not proved', built: 'Built, not published',
+    coarser: 'Built below target', 'needs-build': 'Needs a new build', unknown: 'Unknown',
   };
   const coverageLabel: Record<string, string> = {
     'verified-complete': 'Valid pixels confirmed over the whole region', 'verified-partial': 'Valid pixels confirmed over part of the region',
@@ -384,6 +385,7 @@
     {/if}
   </dl>
   <p class="ui-meta text-text-muted">Uncalibrated scenario bounds (tile packing, compression, scratch). No build or download was performed.</p>
+  <p class="ui-meta text-text-muted">An exported lock is a planner handoff: it needs an executor preparation step (terrain, imagery and gate parameters, pinned source bytes, runtime bindings) before <code>build:surface</code> can run it.</p>
 {/snippet}
 
 <style>
@@ -439,7 +441,7 @@
   .estimate dd[data-budget='over'] { color: var(--color-error); }
   .estimate dd[data-budget='uncertain'] { color: var(--color-warning); }
   .estimate dd[data-build='published'] { color: var(--color-success, #4cc38a); }
-  .estimate dd[data-build='needs-build'], .estimate dd[data-build='coarser'] { color: var(--color-warning); }
+  .estimate dd[data-build='needs-build'], .estimate dd[data-build='coarser'], .estimate dd[data-build='published-unproven'] { color: var(--color-warning); }
   .problems summary { cursor: pointer; color: var(--color-text-secondary); }
   .problems li { overflow-wrap: anywhere; margin-top: 2px; }
   .problems li[data-severity='error'] { color: var(--color-error); }

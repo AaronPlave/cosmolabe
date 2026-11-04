@@ -8,7 +8,7 @@ import {
   addSurfacePlanRegion, createSurfacePlanDraft, parseGeographicGeoJson, resolveSurfacePlan, type GeographicCoordinates,
 } from '@cosmolabe/core';
 import {
-  chooseAlternative, importPlannerText, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
+  chooseAlternative, importPlannerText, lockPreparationGaps, lockText, planner, regionAlternatives, regionBuildStatus, run, selectedSourceIds, selectionChanged,
 } from './surface-planner.svelte';
 
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), 'utf8');
@@ -44,6 +44,9 @@ describe('surface planner store', () => {
     expect(regionBuildStatus('pilot', 'imagery')?.status).toBe('unknown');
     expect(await importPlannerText(read('docs/releases/surface-build-jezero/production-planner-feedback.json'), 'feedback.json')).toBe(true);
     expect(regionBuildStatus('pilot', 'imagery')?.status).toBe('published');
+    expect(regionBuildStatus('pilot', 'elevation')?.status).toBe('published-unproven');
+    // The prepared Jezero lock carries executor parameters.
+    expect(lockPreparationGaps(JSON.parse(text))).toEqual([]);
     // Per-region fidelity is assessed from the lock's own selections.
     await run();
     expect(Object.keys(planner.selectedFidelity ?? {}).sort()).toEqual(['context', 'pilot']);
@@ -78,6 +81,9 @@ describe('surface planner store', () => {
     await run();
     expect(selectionChanged()).toBe(true);
     const second = JSON.parse(await lockText());
+    // A planner-authored lock is a handoff: the executor's parameters and source map are still missing.
+    expect(lockPreparationGaps(second)).toEqual(expect.arrayContaining(['processing.parameters.terrain', 'processing.parameters.imagery', 'processing.parameters.gates',
+      'a spherical, planetocentric, east-positive source map']));
     expect(second.identity).not.toBe(first.identity);
     const pick = (lock: { selections: { regionId: string; channel: string; sourceIds: string[] }[] }, id: string) =>
       lock.selections.find(s => s.regionId === id && s.channel === 'imagery')!.sourceIds;

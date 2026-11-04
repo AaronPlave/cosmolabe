@@ -162,11 +162,30 @@ describe('surface planner authoring (#250)', () => {
     expect(surfaceRegionBuildStatus(plan, null, 'pilot', 'imagery').status).toBe('unknown');
     expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'imagery', ['hirise-ortho']).status).toBe('published');
     expect(surfaceRegionBuildStatus(plan, feedback, 'context', 'imagery').status).toBe('published');
+    // The real Jezero terrain is published, but its ROI coverage is not proved by tile availability: not success.
+    expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'elevation').status).toBe('published-unproven');
     expect(surfaceRegionBuildStatus(plan, feedback, 'pilot', 'imagery', ['other']).status).toBe('needs-build');
     expect(surfaceRegionBuildStatus(updateSurfacePlanRegion(plan, 'pilot', { imagery: { gsdM: 0.1 } }), feedback, 'pilot', 'imagery').status).toBe('needs-build');
     expect(surfaceRegionBuildStatus(plan, feedback, 'context', 'elevation').status).toBe('needs-build');
     const unpublished: SurfacePlannerFeedback = { ...feedback, products: feedback.products.map(p => ({ ...p, publication: { ...p.publication, status: 'not-published' as const } })) };
     expect(surfaceRegionBuildStatus(plan, unpublished, 'pilot', 'elevation').status).toBe('built');
+
+    // A stricter physical accuracy limit, with GSD, shape and sources unchanged.
+    const strict = updateSurfacePlanRegion(plan, 'pilot', { elevation: { gsdM: 100, accuracyM: 1 } });
+    const proved: SurfacePlannerFeedback = { ...feedback, products: feedback.products.map(p => ({ ...p, continuousNativeCoverageStatus: 'proved-for-checked-requested-ROI-only' as const })) };
+    expect(surfaceRegionBuildStatus(plan, proved, 'pilot', 'elevation').status).toBe('published');
+    // Unreported accuracy against a limit is unproven, not success.
+    expect(surfaceRegionBuildStatus(strict, proved, 'pilot', 'elevation')).toMatchObject({ status: 'published-unproven', detail: expect.stringContaining('accuracy is unreported') });
+    const withAccuracy = (m: number): SurfacePlannerFeedback => ({ ...proved, requested: proved.requested.map(r => ({ ...r,
+      channels: r.channels.map(c => ({ ...c, accuracyM: c.sourceIds.map(sourceId => ({ sourceId, accuracyM: m })) })) })) });
+    expect(surfaceRegionBuildStatus(strict, withAccuracy(2), 'pilot', 'elevation').status).toBe('needs-build');
+    expect(surfaceRegionBuildStatus(strict, withAccuracy(0.5), 'pilot', 'elevation').status).toBe('published');
+
+    // Unrecognized statuses and identities are refused, never read as published.
+    const raw = JSON.parse(readFileSync(new URL('../../../../docs/releases/surface-build-jezero/production-planner-feedback.json', import.meta.url), 'utf8'));
+    expect(() => parseSurfacePlannerFeedback({ ...raw, products: [{ ...raw.products[0], publication: { ...raw.products[0].publication, status: 'published' } }] })).toThrow(/publication status/);
+    expect(() => parseSurfacePlannerFeedback({ ...raw, products: [{ ...raw.products[0], continuousNativeCoverageStatus: 'full' }] })).toThrow(/coverage status/);
+    expect(() => parseSurfacePlannerFeedback({ ...raw, lockIdentity: 'abc' })).toThrow(/lock identity/);
     expect(() => parseSurfacePlannerFeedback({ kind: 'surface-planner-feedback' })).toThrow();
   });
 });

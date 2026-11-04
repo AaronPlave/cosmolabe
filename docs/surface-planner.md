@@ -44,9 +44,15 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    registration/datum/illumination warnings. Choosing one feeds the estimate.
    Optionally load a #251 build's `planner-feedback.json` (contract v1): each
    focused region then shows, per channel, whether a published product already
-   suffices, it was built but not published or below target, or it needs a new
-   build (different shape, coarser output or different selected sources).
-   Without feedback this is *unknown*, never absent.
+   suffices, is published but its fit is not proved, was built but not
+   published or below target, or it needs a new build (different shape,
+   coarser output, different selected sources, or reported accuracy outside a
+   stricter limit). *Suffices* requires coverage proved for the requested ROI
+   and every requested target evidenced; continuous coverage not proved by tile
+   availability, or accuracy unreported against a limit, is *not proved*, not
+   success. Compatibility is per region, not by lock identity, so a reusable
+   product still matches from another build. Unrecognized feedback statuses are
+   refused. Without feedback this is *unknown*, never absent.
 5. **Estimate and budget.** The #248 estimator reports imagery and physical
    terrain separately: area, hosted bytes and objects, raw download, peak work
    disk, fidelity (adequate / unknown / short area) and an optional
@@ -62,8 +68,14 @@ Surface layers stays in charge of everyday visibility, styling and probing.
    the chosen combinations and validates it with core; if the selections are
    not buildable under their metadata (unknown validity, datum transforms,
    partial coverage, an unmet `require-target`) the export is refused with the
-   reason. The lock's executor tiling, gates and profile are added by the
-   #251 build CLI. An imported lock re-exports unchanged until its plan, its
+   reason. **The exported lock is a planner handoff, not directly executable:**
+   `npm run build:surface` runs only a fully prepared lock, and does not fill in
+   what is missing. An executor-compatible preparation step must add
+   `processing.parameters.terrain`, `imagery` and `gates` (and a profile where
+   used), a supported Mars spherical planetocentric source map, pinned source
+   bytes and runtime bindings. On export the panel reports which of these the
+   lock lacks, as far as the planner can check; bytes and bindings are verified
+   only by the executor. An imported lock re-exports unchanged until its plan, its
    sources or its selection change. *Unsaved changes* and per-region dots mark
    desired-plan edits since the last import or export; *Sources not locked*
    marks a source choice that differs from the last locked plan.
@@ -80,7 +92,7 @@ that Surface layers does not list or search:
 | Confirmed valid (green) | Independently evidenced valid pixels of the chosen sources. |
 | Validity unknown (amber hatch) | Inside a footprint, but pixel validity is not evidenced. |
 | Gap (red hatch) | Not covered by the chosen sources — not an archive-wide absence. |
-| Built product (blue outline) | The ROI a loaded build's feedback reports for this region, drawn only when it is this region's own shape; tile availability alone does not prove coverage. |
+| Requested build ROI (blue outline) | The ROI a loaded build was requested for, drawn only when it is this region's own shape. Not observed achieved valid coverage. |
 
 Current tile residency is a separate quantity and is not drawn. Clicking a
 desired region on the globe focuses it; *Show this combination on the globe*
