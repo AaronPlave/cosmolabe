@@ -28,7 +28,6 @@ import { EVENT_ROLES } from '@cosmolabe/core';
  */
 import type {
   ScriptActivity,
-  ScriptEventReference,
   ScriptCancelSignal,
   ScriptEventMap,
   ScriptTime,

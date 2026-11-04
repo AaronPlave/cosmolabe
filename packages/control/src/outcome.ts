@@ -365,8 +365,8 @@ export function evaluate(host: ViewerControl, predicates: readonly Predicate[], 
         let ok: boolean | null = true;
         if (p.pick === 'closest') {
           const best = host.getEventResultPage ? try_(() => host.getEventResultPage!(p.query!, { order: 'range-ascending', limit: 1 }).items[0]) : undefined;
-          if (!best) ok = null, notes.push('no ranked result');
-          else if (best.reference.id !== sel.id) ok = false, notes.push(`closest is ${best.reference.id}`);
+          if (!best) { ok = null; notes.push('no ranked result'); }
+          else if (best.reference.id !== sel.id) { ok = false; notes.push(`closest is ${best.reference.id}`); }
         }
         if (p.encounter) {
           const c = encounterOf(host, p.query!, sel.id);
