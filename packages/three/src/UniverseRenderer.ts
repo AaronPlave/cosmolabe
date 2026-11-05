@@ -373,7 +373,12 @@ export class UniverseRenderer {
 
   private labelManager: LabelManager | null = null;
   private _devicePixelObserver: ResizeObserver | null = null;
-  private _devicePixelBox: ResizeObserverSize | null = null;
+  private _devicePixelBox: {
+    pixels: ResizeObserverSize;
+    cssWidth: number;
+    cssHeight: number;
+    dpr: number;
+  } | null = null;
   private readonly _labelBufferSize = new THREE.Vector2();
   private starField: StarField | null = null;
   private ambientLight: THREE.AmbientLight | null = null;
@@ -526,7 +531,15 @@ export class UniverseRenderer {
     // _syncBackingStore), which only a ResizeObserver reports.
     if (typeof ResizeObserver !== 'undefined') {
       this._devicePixelObserver = new ResizeObserver(([entry]) => {
-        this._devicePixelBox = entry?.devicePixelContentBoxSize?.[0] ?? null;
+        const pixels = entry?.devicePixelContentBoxSize?.[0];
+        this._devicePixelBox = pixels ? {
+          pixels,
+          // clientWidth/clientHeight are integer CSS pixels too. Keep the
+          // observed content size paired with its device-pixel measurement.
+          cssWidth: Math.round(entry.contentRect.width),
+          cssHeight: Math.round(entry.contentRect.height),
+          dpr: window.devicePixelRatio,
+        } : null;
       });
       try {
         this._devicePixelObserver.observe(canvas, { box: 'device-pixel-content-box' });
@@ -1734,7 +1747,13 @@ export class UniverseRenderer {
     if (Number.isFinite(dpr) && dpr > 0 && dpr !== this.renderer.getPixelRatio()) this.renderer.setPixelRatio(dpr);
     const pr = this.renderer.getPixelRatio();
     const canvas = this.renderer.domElement;
-    const box = this._devicePixelBox;
+    const observed = this._devicePixelBox;
+    // A frame can resize before ResizeObserver delivers the new measurement.
+    // Even a one-pixel-old box passes the DPR tolerance below, so only use an
+    // observation made for the current CSS size and DPR.
+    const box = observed?.cssWidth === canvas.clientWidth
+      && observed.cssHeight === canvas.clientHeight && observed.dpr === pr
+      ? observed.pixels : null;
     // Emulated DPRs (devtools, CDP) report the box in CSS pixels; trust it only
     // when it agrees with the DPR.
     const fit = (reported: number | undefined, css: number) =>
