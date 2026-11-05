@@ -27,7 +27,7 @@ const report = { version: 1, source: execFileSync('git', ['rev-parse', 'HEAD'], 
   started: new Date().toISOString(), arm, viewer: process.env.CL_VIEWER_URL ?? 'http://127.0.0.1:5299/', models, modes, repetitions, tasks: selected.map(c => c.id),
   renderer: 'Chromium SwiftShader; software WebGL, no physical GPU acceptance',
   initialState: 'Catalog default ET/viewpoint; deselected; rate 0 to freeze ET; playback on for pause/cancel tasks, paused otherwise',
-  prompt: 'Unmodified shipped Ask prompts; max output 1536; thinking/effort unspecified (provider defaults); no fallback',
+  prompt: `Unmodified shipped Ask prompts; max output 1536; effort ${process.env.ASK_BENCHMARK_EFFORT || 'unspecified (provider default)'}; no fallback`,
   cache: { enabled: true, ttl: '5m', warmth: 'uncontrolled shared provider cache; fresh browser/scene/conversation per cell', order: 'task outer; model/mode order reversed on alternating tasks and repetitions' },
   limits: { rawTokens: 8_000_000, estimatedUsd: Number(process.env.ASK_BENCHMARK_MAX_USD ?? 4), note: 'subsequent-request guards, not account limits; cancelled upstream usage may be unobservable' },
   actualBilling: 'Not observable through Messages API/key; actualBilledUsd stays null, including cancelled requests.', runs: [] };
@@ -56,7 +56,7 @@ function cellProxy(model, cellUsage) {
     } },
     // A fixed-model proxy per fresh cell. Closing it drains/aborts its requests
     // before the next cell; late usage cannot be attributed to another model.
-    model, maxTokens: 1536, perMinute: 1000, cache: true,
+    model, maxTokens: 1536, perMinute: 1000, cache: true, reasoningEffort: process.env.ASK_BENCHMARK_EFFORT || undefined,
     tokenBudget: report.limits.rawTokens, costBudgetUsd: report.limits.estimatedUsd,
     fetchImpl: async (url, options) => {
       const totals = summarizeUsage(allUsage);

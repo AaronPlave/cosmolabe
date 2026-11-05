@@ -39,7 +39,8 @@
  *   PORT               default 8787
  *   ASK_MODEL          default claude-sonnet-5-5 (anthropic) or gpt-5.1 (openai)
  *   MAX_TOKENS         per reply; default 4096
- *   ASK_REASONING_EFFORT  openai only; passed as `reasoning.effort` when set
+ *   ASK_REASONING_EFFORT  passed as `output_config.effort` (anthropic) or `reasoning.effort`
+ *                      (openai) when set; otherwise the model's default
  *   ASK_ANTHROPIC_FALLBACK  anthropic only; 1 enables the API's server-side
  *                      model fallback (a beta); default off
  *   RATE_PER_MINUTE    requests per client address per minute; default 20

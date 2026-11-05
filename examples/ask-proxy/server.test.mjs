@@ -49,6 +49,11 @@ describe('wire → Anthropic', () => {
     expect(JSON.stringify(body)).not.toContain('cache_control');
   });
 
+  it('sets the effort level only when configured to', () => {
+    expect(toAnthropicRequest(WIRE, LIMITS).body.output_config).toBeUndefined();
+    expect(toAnthropicRequest(WIRE, { ...LIMITS, reasoningEffort: 'low' }).body.output_config).toEqual({ effort: 'low' });
+  });
+
   it('requests provider-side model fallback only when configured to', () => {
     expect(toAnthropicRequest(WIRE, { ...LIMITS, fallback: true }).body.fallbacks).toBe('default');
     expect('fallbacks' in toAnthropicRequest(WIRE, { ...LIMITS, fallback: false }).body).toBe(false);
