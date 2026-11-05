@@ -1,8 +1,8 @@
 # Ask quality, latency and cost benchmark (#332)
 
 [2026-11-01 findings and measured limitations](2026-11-01-findings.md) ·
-[2026-11-03 reliability gate (#345)](2026-11-03-reliability.md) ·
-[2026-11-04 final gate (#345)](2026-11-04-final.md).
+[2026-11-04 final gate (#345)](2026-11-04-final.md) ·
+[2026-11-05 final pass (#345)](2026-11-05-final-pass.md).
 
 ## Reliability suite (#345)
 
@@ -35,6 +35,7 @@ ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=reliability ASK_BENCHMARK_REPETITIONS=5
 ASK_BENCHMARK_LIVE=1 ASK_BENCHMARK_SUITE=reliability ASK_BENCHMARK_ARM=A CL_VIEWER_URL=http://127.0.0.1:5298/ node scripts/benchmark-ask.mjs
 ```
 
+`ASK_BENCHMARK_EFFORT` sets the model's effort level (`output_config.effort`; unset uses its default).
 `ASK_BENCHMARK_MODELS`, `ASK_BENCHMARK_MODES` and `ASK_BENCHMARK_CASES` narrow
 the matrix; `ASK_BENCHMARK_PROXY_PORT` (default 8799) lets several harnesses run in
 parallel, each forwarding the page's endpoint to its own proxy. Wrap long runs in

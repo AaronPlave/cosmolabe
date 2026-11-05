@@ -167,7 +167,7 @@ VITE_ASK_ENDPOINT=http://127.0.0.1:8787 npm run dev
 | `ALLOW_ORIGIN` | Comma-separated origins allowed to call. Required. |
 | `ASK_MODEL` | Default `claude-sonnet-5-5` or `gpt-5.1`. |
 | `MAX_TOKENS` | Cap per reply. Default 4096. |
-| `ASK_REASONING_EFFORT` | OpenAI only: `reasoning.effort`, when set. |
+| `ASK_REASONING_EFFORT` | The model's effort level when set: `output_config.effort` (Anthropic) or `reasoning.effort` (OpenAI). Unset uses the model's default. |
 | `ASK_ANTHROPIC_FALLBACK` | Anthropic only: `1` enables the API's server-side model fallback (a beta). Default off. |
 | `RATE_PER_MINUTE` | Requests per client address. Default 20. |
 | `ASK_PROMPT_CACHE` | Anthropic only: `0` turns prompt caching off. Default on. |
