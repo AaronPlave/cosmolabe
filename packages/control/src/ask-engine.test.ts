@@ -315,12 +315,15 @@ describe('the Haiku misses of the final gate, replayed offline', () => {
     expect(run.goals).toContainEqual({ p: 'eventSelected', pick: 'closest', query: 'pm', id: 'pm-0', stated: true });
   });
 
-  it('a search named by its label instead of its ID is refused, not held where it can never be met', async () => {
+  it('intent about a search named by its label, or not created yet, binds to the request\'s own search instead of being held where it can never be met', async () => {
     const tools = createCapabilityTools(new TwoMinima(), { surface: 'fixed' });
-    const model = scripted([call(goal([{ p: 'eventRun', query: 'Psyche within 10000 km of Mars', whole: true }])), say('ok')]);
+    const model = scripted([call(goal([{ p: 'eventRun', query: 'Psyche within 10000 km of Mars', whole: true }]), use('2', 'checkGoal', { require: [{ p: 'eventFramed', query: 'nope' }] })), say('ok')]);
     const run = await runAgent({ transport: model.transport, tools, prompt: 'show me when psyche is within 10000km of mars' });
-    expect(errorOf(run, 'goal')).toMatch(/no search with ID "Psyche within 10000 km of Mars".*omit query/);
-    expect(run.goals).toEqual([]);
+    const summary = JSON.parse((run.messages.flatMap(m => m.content).find(c => c.type === 'tool_result' && c.toolUseId === 'goal') as { content: string }).content).summary;
+    expect(summary).toMatch(/No search has ID "Psyche within 10000 km of Mars" yet; held as the search this request runs/);
+    expect(run.goals).toEqual([{ p: 'eventRun', whole: true, stated: true }]);
+    // Other event predicates still need a real search.
+    expect(errorOf(run, '2')).toMatch(/no search with ID "nope"/);
   });
 
   it('"all": a search that misses part of the coverage fails the stated goal, and the answer must say so', async () => {

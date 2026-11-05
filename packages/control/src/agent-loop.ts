@@ -342,15 +342,24 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentRun> {
     const input = { require: parsed(raw.require), release: parsed(raw.release) };
     let incoming: Predicate[];
     try { incoming = (Array.isArray(input.require) ? input.require : []).map(parsePredicate); }
-    catch (err) { return { ok: false, code: 'invalid-input', error: err instanceof Error ? err.message : String(err) }; }
+    catch (err) { checks--; return { ok: false, code: 'invalid-input', error: err instanceof Error ? err.message : String(err) }; }
     // A goal is held only over reads that exist: an invented one could never be checked.
     const unknownRead = incoming.find(p => p.p === 'state' && opts.tools.readable && !opts.tools.readable(p.read!));
-    if (unknownRead) return { ok: false, code: 'invalid-input', error: `${unknownRead.read} is not a read on this viewer; state predicates read a registered get/list operation (e.g. getViewerState, getSurfaceAppearance) or use a typed predicate.` };
-    // A search is named by its exact ID, never its label; an unknown one could never be met.
-    const unknownSearch = incoming.find(p => p.query && opts.tools.verify?.([{ p: 'eventQuery', query: p.query }]).checks[0]?.ok === false);
-    if (unknownSearch) return { ok: false, code: 'invalid-input', error: `There is no search with ID "${unknownSearch.query}". Use the exact ID of a saved search, or omit query on eventSelected/eventRun to mean the search this request runs or presents.` };
+    if (unknownRead) { checks--; return { ok: false, code: 'invalid-input', error: `${unknownRead.read} is not a read on this viewer; state predicates read a registered get/list operation (e.g. getViewerState, getSurfaceAppearance) or use a typed predicate.` }; }
+    // A search the viewer does not have (a label, or one not created yet) could never be met under that name:
+    // intent about the request's own search binds to it instead; other event predicates must name a real one.
+    const exists = (query: string) => opts.tools.verify?.([{ p: 'eventQuery', query }]).checks[0]?.ok !== false;
+    const unbound: string[] = [];
+    incoming = incoming.map(p => {
+      if (!p.query || exists(p.query) || (p.p !== 'eventSelected' && p.p !== 'eventRun')) return p;
+      unbound.push(p.query);
+      const { query: _query, ...rest } = p;
+      return rest;
+    });
+    const unknownSearch = incoming.find(p => p.query && !exists(p.query));
+    if (unknownSearch) { checks--; return { ok: false, code: 'invalid-input', error: `There is no search with ID "${unknownSearch.query}"; use the exact ID of a saved search.` }; }
     const names = Array.isArray(input.release) ? input.release.filter((n): n is string => typeof n === 'string') : [];
-    const notes: string[] = [];
+    const notes: string[] = unbound.length ? [`No search has ID ${unbound.map(q => `"${q}"`).join(', ')} yet; held as the search this request runs or presents.`] : [];
     if (names.length) {
       const r = release(held, names);
       held = r.held;
