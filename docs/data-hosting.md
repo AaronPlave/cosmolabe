@@ -3,8 +3,14 @@
 The viewer's GitHub Pages site is limited to 1 GB, and the data the demos need
 has outgrown it: the fused Mars terrain is ~5.9 GB in ~711 k files, and the
 SPICE kernels are ~1.1 GB. These live in an object store instead — Cloudflare R2
-behind a custom domain — and the deployed catalogs point there. Nothing large
-goes in git or in the Pages artifact.
+behind a custom domain — and the deployed catalogs point there. Mission-specific
+viewer binary kernels are not tracked in Git/LFS; shared
+`de440s.bsp` stays as an explicit LFS exception. Local demos use the
+fetch scripts and deployed demos keep their versioned R2 pins; removing redundant
+repository copies does not delete historical LFS objects or change published
+builds. Small deterministic test fixtures are Git blobs; shared DE440s and the
+two large scientific oracles listed in [kernel documentation](../kernels/README.md) stay in
+LFS. Nothing large goes in the Pages artifact.
 
 Local development serves repository examples under `/test-catalogs/` from
 `apps/viewer/test-catalogs/`; relative catalog asset paths (for example

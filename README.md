@@ -54,6 +54,10 @@ npm --prefix apps/viewer run dev
 
 Open the URL printed by Vite. Analytical examples need no SPICE kernels; mission
 examples may need additional downloads, and generated terrain needs local setup.
+The full `npm test` suite still needs shared DE440s and two selectively fetched
+LFS scientific oracles plus the existing LRO and Cosmographia test data; see the commands in
+[contributing](CONTRIBUTING.md#development-setup). Mission-specific binary kernels are
+fetched or R2-hosted, while small test fixtures are committed directly.
 See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 [development commands](CONTRIBUTING.md).
 

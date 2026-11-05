@@ -7,6 +7,6 @@
   "kernels/test-data/cassini/cas_iss_v10.ti": "518c50a1c837f525e10ee71a97c9971ba419850ac05fcaa2df99cf3cddda5c68",
   "kernels/test-data/cassini/040629AP_SCPSE_04179_04185.bsp": "281ecea43ba77317830815d2b4647b56625b13aef1c6635bf6de5fb7f8dab901",
   "kernels/test-data/cassini/04183_04185ra.bc": "701f0d46c9d0864d8bbb0e64d1a994f599e0261dc7b103f3ebb967c0fb4d2c90",
-  "apps/viewer/test-catalogs/kernels/msl/MSL_76_SCLKSCET.00012.tsc": "ff2830a817b9c17e8c4487075b5a543cda719f932777a909c422204f13acf68c",
-  "apps/viewer/test-catalogs/kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc": "77f39b4bca8299dff3115a912fd0dc55b3428a15631fa3883b1b94331006f7db"
+  "kernels/test-data/msl/MSL_76_SCLKSCET.00012.tsc": "ff2830a817b9c17e8c4487075b5a543cda719f932777a909c422204f13acf68c",
+  "kernels/test-data/msl/msl_surf_rover_tlm_0449_0583_v1.bc": "77f39b4bca8299dff3115a912fd0dc55b3428a15631fa3883b1b94331006f7db"
 }

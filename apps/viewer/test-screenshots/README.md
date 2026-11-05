@@ -10,7 +10,7 @@ belt-and-suspenders for the GPU pipeline and runs separately because it needs a
 browser + a built viewer + the scene's SPICE kernels.
 
 **Not run in CI**, deliberately: it needs a browser, a full package + viewer
-build (~4 min), and the scenes' LFS-backed kernels. So this gate carries exactly
+build (~4 min), and the scenes' fetched or R2-hosted kernels. So this gate carries exactly
 the authority of whoever last ran it by hand — say so when citing it in a PR.
 
 ## How it works
@@ -96,8 +96,8 @@ npm --prefix apps/viewer i           # picks up playwright / pixelmatch / pngjs 
 npx playwright install chromium
 ```
 
-The scenes fetch their SPICE kernels at load time (some large + LFS-backed) —
-ensure `git lfs pull` has run.
+The scenes fetch their SPICE kernels at load time from local fetch-script output
+or pinned R2 builds. `git lfs pull` materializes models/textures and shared DE440s, not mission-specific kernels.
 
 ## Run the check
 
