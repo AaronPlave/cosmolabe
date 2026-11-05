@@ -1,3 +1,5 @@
+export type { SolarExposurePolicy } from './SolarRadiometry.js';
+
 // Main renderer
 export { UniverseRenderer } from './UniverseRenderer.js';
 export type { UniverseRendererOptions, SurfacePickResult, PhysicalPickSummary } from './UniverseRenderer.js';

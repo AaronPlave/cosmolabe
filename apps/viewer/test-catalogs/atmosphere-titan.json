@@ -1,0 +1,78 @@
+{
+  "name": "Exposure reference: Titan",
+  "defaultTime": "2024-07-04T12:00:00Z",
+  "defaultViewpoint": "Whole disc",
+  "items": [
+    {
+      "name": "Surface horizon",
+      "type": "Viewpoint",
+      "eye": [
+        2577,
+        0,
+        0
+      ],
+      "target": [
+        2577,
+        0,
+        1000
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Whole disc",
+      "type": "Viewpoint",
+      "eye": [
+        10300,
+        0,
+        0
+      ],
+      "target": [
+        0,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          1421179765.0,
+          0,
+          0.0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Titan",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 2575,
+        "atmosphere": "Titan"
+      }
+    }
+  ]
+}
