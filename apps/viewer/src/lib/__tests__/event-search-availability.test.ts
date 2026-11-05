@@ -336,15 +336,19 @@ describe('which demo catalogs cannot search at all', () => {
     'earth-moon.json',
     'geographic-vectors-earth-countries.json',
     'geographic-vectors-earth-overlay-comparison.json',
+    'geographic-vectors-gpu-bench.json',
     'geographic-vectors-jezero-dense.json',
     'geographic-vectors-jezero-terrain.json',
+    'geographic-vectors-mars-streamed.json',
     'geographic-vectors-shackleton-terrain.json',
     'geographic-vectors.json',
     'ingenuity-jezero.json',
     'inner-planets-keplerian.json',
     'iss.json',
+    'mars-cube-imagery-experiment.json',
     'mars-imagery-jezero.json',
     'moon-imagery-apollo15.json',
+    'planetary-places.json',
   ];
 
   it('is exactly the catalogs that furnish no kernels', async () => {

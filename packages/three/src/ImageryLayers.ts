@@ -14,6 +14,9 @@ import type { TerrainConfig, TerrainImageryConfig } from './TerrainManager.js';
  * so the catalog rules and layer bookkeeping are testable on their own.
  */
 
+/** Latitude semantics of the image source's geographic bounds. */
+export type ImageryLatitudeConvention = 'planetocentric' | 'geodetic';
+
 /** Where a layer sits in the stack. The base is the bottom layer and is always on. */
 export type ImageryLayerRole = 'base' | 'overlay';
 
@@ -40,6 +43,8 @@ export interface ImageryLayerInfo {
   opacity: number;
   /** Coverage `[west, south, east, north]` in degrees; null for global layers. */
   bounds: [number, number, number, number] | null;
+  /** Latitude convention of this source, independent of its supporting terrain. */
+  latitudeConvention: ImageryLatitudeConvention;
   /** First source zoom with data (regional products have none below it). */
   minZoom: number;
   /** Deepest source zoom. */
@@ -53,8 +58,25 @@ export interface ImageryLayerInfo {
   resolutionMeters: number | null;
   /** The full product name, for details. Null when the catalog gives none. */
   description: string | null;
+  /** Provider origin and explicit service identifiers; never a raw resource location. */
+  source: ImageryLayerSource;
   /** What the layer adds to the current view; null while it is not drawn, and for an imagery-only base. */
   view: ImageryLayerView | null;
+}
+
+/**
+ * The catalog's own identity for a layer's data, apart from its display name:
+ * explicit service identifiers may name the product. Raw resource locations
+ * are omitted: only an HTTP(S) provider origin is exposed.
+ */
+export interface ImageryLayerSource {
+  /** The source type as configured: `xyz`, `wms`, `wmts`, `tms`, `wmts-capabilities` or `cube`. */
+  readonly type: string;
+  /** HTTP(S) provider origin only; null for local, relative or non-HTTP resources. */
+  readonly endpoint: string | null;
+  /** The service's layer identifier (WMS, WMTS); null when the config has none. */
+  readonly layer: string | null;
+  readonly tileMatrixSet: string | null;
 }
 
 /** One overlay against the tiles in view, rather than the session's request counters. */
@@ -118,24 +140,25 @@ export function resolveGlobeSurfaceConfig(
   return streamable(merged) ? merged : null;
 }
 
-/**
- * A readable name for a layer the catalog did not name. Tile services put the
- * product name in the path: Trek and other WMTS REST endpoints as the segment
- * before the `1.0.0` version, ArcGIS as the segment before `MapServer`.
- */
+/** Use deliberate catalog labels or a provider host, never resource-path segments. */
 export function defaultLayerName(cfg: TerrainImageryConfig): string {
-  if (cfg.layer) return cfg.layer;
-  const path = cfg.url.split(/[?#]/)[0].split('/').filter(Boolean);
-  const version = path.findIndex((s) => /^\d+\.\d+\.\d+$/.test(s));
-  if (version > 0) return path[version - 1];
-  const mapServer = path.findIndex((s) => /^(Map|Image)Server$/i.test(s));
-  if (mapServer > 0) return path[mapServer - 1];
-  return hostOf(cfg.url) ?? cfg.url;
+  return cfg.layer || hostOf(cfg.url) || 'Imagery';
 }
 
 function hostOf(url: string): string | null {
   const m = /^[a-z][a-z\d+.-]*:\/\/([^/?#]+)/i.exec(url);
-  return m ? m[1] : null;
+  // `user:key@host` is a credential, not a host.
+  return m ? m[1].slice(m[1].lastIndexOf('@') + 1) : null;
+}
+
+/** Only an HTTP(S) provider origin is public; paths can contain private tokens too. */
+export function publicEndpoint(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -171,6 +194,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       visible: base || cfg.visible !== false,
       opacity: clampOpacity(cfg.opacity ?? 1),
       bounds: cfg.bounds ?? null,
+      latitudeConvention: cfg.type === 'cube' ? 'planetocentric' : 'geodetic',
       minZoom: cfg.minZoom ?? 0,
       maxLevel: (cfg.levels ?? 8) - 1,
       metersPerPixel: nativeMetersPerPixel(cfg, equatorialRadiusKm),
@@ -179,6 +203,7 @@ export function describeImageryLayers(configs: TerrainImageryConfig[], equatoria
       failedTiles: 0,
       resolutionMeters: cfg.resolutionMeters ?? null,
       description: cfg.description ?? null,
+      source: { type: cfg.type ?? 'xyz', endpoint: publicEndpoint(cfg.url), layer: cfg.layer ?? null, tileMatrixSet: cfg.tileMatrixSet ?? null },
       view: null,
     };
   });

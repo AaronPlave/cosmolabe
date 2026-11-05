@@ -1,0 +1,24 @@
+{
+  "verifiedHead": "5a1cfb1ff512dbd847b88533d50acab165122eaf",
+  "site": "Airfield B",
+  "sitePhysicalDiameterKm": null,
+  "crater": "Jezero",
+  "craterPhysicalDiameterKm": 47.521198,
+  "rangeKm": {
+    "genericAuto": 1016.8580000000002,
+    "pointOverhead": 0.5000000000003039,
+    "pointOblique": 0.5000000000003836,
+    "craterOverhead": 71.2817970000003
+  },
+  "surfaceRead": {
+    "count": 100,
+    "totalMs": 2.200000047683716
+  },
+  "manualTakeover": {
+    "ok": false,
+    "code": "interrupted",
+    "error": "the person moved the camera during this request; leaving the view to them"
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+  "errors": []
+}

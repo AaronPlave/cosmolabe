@@ -10,8 +10,8 @@ const NEAR_SURFACE_KM = 50;
  * Bounded ray query over whatever decoded terrain tiles a sampler currently holds.
  *
  * Not a general nearest-hit oracle: it probes only the tiles that cover where
- * the ray crosses the datum (and, for a near-surface observer, the ground below
- * it), finest first, through the shared per-tile `GlobeTileSurface` path. That
+ * the ray crosses the datum and estimated terrain height (plus the ground
+ * below a near-surface observer), finest first, through `GlobeTileSurface`. That
  * keeps per-ray cost to a handful of tiles instead of a scan of every resident
  * triangle, which the linear CPU proof cannot afford. Coverage is always
  * 'partial-product', so every answer is 'coarse' or 'unavailable' — callers
@@ -22,7 +22,7 @@ export class ResidentTerrainSurface implements PhysicalSurface {
   private readonly datumShape: ReferenceEllipsoidSurface;
   private readonly tileSurfaces = new Map<string, GlobeTileSurface>();
   /**
-   * Triangles handed to the per-tile linear intersector so far. Callers that
+   * Actual triangles tested by the per-tile intersector so far. Callers that
    * run in the render loop reset and read it to bound per-frame cost.
    */
   trianglesTested = 0;
@@ -44,29 +44,54 @@ export class ResidentTerrainSurface implements PhysicalSurface {
 
   intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
     const direction = normalizedRay(ray, options);
-    const probes: BodyFixedCartesian[] = [];
     const datumHit = this.datumShape.intersectRay({ ...ray, nearKm: 0, farKm: Math.max(ray.farKm, 0) }, options);
-    if (datumHit.kind === 'hit') probes.push(datumHit.position);
-    const originHeight = bodyFixedToGeodetic(ray.origin, this.sampler.datum).heightKm ?? Infinity;
-    if (originHeight < NEAR_SURFACE_KM) probes.push(ray.origin);
-    if (!probes.length) return { kind: 'unavailable', reason: 'partial-coverage', metadata: this.metadata };
-
-    let nearest: SurfaceHit | undefined;
     let queried = 0;
     const seen = new Set<string>();
-    for (const probe of probes) {
-      const { latDeg, lonDeg } = bodyFixedToGeodetic(probe, this.sampler.datum);
-      for (const id of this.tilesCovering(latDeg, lonDeg)) {
+    const queryTiles = (ids: readonly string[]): SurfaceHit | undefined => {
+      for (const id of ids) {
         if (seen.has(id)) continue;
-        if (queried++ >= this.maxTilesPerRay) break;
+        if (queried >= this.maxTilesPerRay) break;
+        queried++;
         seen.add(id);
-        const tile = this.sampler.getTile(id);
-        if (tile) this.trianglesTested += tile.kind === 'mesh' ? tile.indices.length / 3 : (tile.width - 1) * (tile.height - 1) * 2;
-        const result = this.tileSurface(id).intersectRay({ ...ray, direction }, options);
-        if (result.kind !== 'hit') continue;
-        if (!nearest || result.distanceKm < nearest.distanceKm) nearest = result;
-        break; // finest covering tile answered for this probe
+        const surface = this.tileSurface(id);
+        const result = surface.intersectRay({ ...ray, direction }, options);
+        this.trianglesTested += surface.trianglesTested;
+        if (result.kind === 'hit') return result; // finest covering tile answered
       }
+      return undefined;
+    };
+    const tilesAt = (point: BodyFixedCartesian) => {
+      const { latDeg, lonDeg } = bodyFixedToGeodetic(point, this.sampler.datum);
+      return this.tilesCovering(latDeg, lonDeg);
+    };
+
+    let nearest: SurfaceHit | undefined;
+    if (datumHit.kind === 'hit') {
+      const datumTiles = tilesAt(datumHit.position);
+      nearest = queryTiles(datumTiles.slice(0, 1));
+      // Only a missed finest tile needs height-guided discovery. An oblique
+      // ray can cross the datum in one tile and measured terrain in its neighbour.
+      // Heights locate candidates; the result must still come from real triangles.
+      const incidence = datumHit.normal[0] * direction[0] + datumHit.normal[1] * direction[1] + datumHit.normal[2] * direction[2];
+      if (!nearest && Math.abs(incidence) > 0.01) {
+        let probe = datumHit.position;
+        for (let i = 0; i < 2 && !nearest; i++) {
+          const { latDeg, lonDeg } = bodyFixedToGeodetic(probe, this.sampler.datum);
+          const height = this.sampler.sample(latDeg, lonDeg)?.elevationKm;
+          if (height == null) break;
+          const distance = datumHit.distanceKm + height / incidence;
+          if (distance < ray.nearKm || distance > ray.farKm) break;
+          probe = { xKm: ray.origin.xKm + direction[0] * distance,
+            yKm: ray.origin.yKm + direction[1] * distance, zKm: ray.origin.zKm + direction[2] * distance };
+          nearest = queryTiles(tilesAt(probe));
+        }
+      }
+      nearest ??= queryTiles(datumTiles);
+    }
+    const originHeight = bodyFixedToGeodetic(ray.origin, this.sampler.datum).heightKm ?? Infinity;
+    if (originHeight < NEAR_SURFACE_KM) {
+      const ground = queryTiles(tilesAt(ray.origin));
+      if (ground && (!nearest || ground.distanceKm < nearest.distanceKm)) nearest = ground;
     }
     this.pruneTileSurfaces();
     return nearest ?? { kind: 'unavailable', reason: queried ? 'partial-coverage' : 'not-resident', metadata: this.metadata };

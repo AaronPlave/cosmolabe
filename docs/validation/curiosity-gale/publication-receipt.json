@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "kind": "surface-publication-receipt",
+  "buildId": "235f3500dbc5863198d0620001022b4913174029696419ce94b1ed59d6db65a3",
+  "lockIdentity": "sha256:017bfbf12e141713556067dc3172e40959d7f9ae3301b3860a7723b25360b8d3",
+  "publicationIdentity": "011ebce5f8ad09e35f8e782152812c4754d6cc489a0458894e6864b46f3b7258",
+  "baseUrl": "https://data.aaronplave.com",
+  "localOnly": false,
+  "catalogPinned": false,
+  "verificationOrigins": [
+    "https://aaronplave.com",
+    "https://aaronplave.github.io",
+    "http://localhost:5173"
+  ],
+  "products": [
+    {
+      "productId": "terrain-207dcdb48c82b74acaad4fcb",
+      "kind": "cube-terrain",
+      "productIdentity": "207dcdb48c82b74acaad4fcb22452b064e995c1245115fe42a4916ef50b5209d",
+      "prefix": "cube-terrain/terrain-207dcdb48c82b74acaad4fcb/207dcdb48c82b74acaad4fcb22452b06/",
+      "inventorySha256": "4c6f09ba46f391841e80f20b672a7059821dde7242d54a5571218e24cf811d67",
+      "objects": 585,
+      "bytes": 51846127,
+      "verified": true,
+      "storageObjects": 587,
+      "storageBytes": 51873674,
+      "reused": false
+    },
+    {
+      "productId": "imagery-df467b18c609f3ac702aaeaf",
+      "kind": "cube-imagery",
+      "productIdentity": "df467b18c609f3ac702aaeaf84eb0668c68139afc2c8c34ea8bd0a49827a4582",
+      "prefix": "cube-imagery/imagery-df467b18c609f3ac702aaeaf/df467b18c609f3ac702aaeaf84eb0668/",
+      "inventorySha256": "59f0f6808561ddf5fd8f6d7f7d1dc4e0962e90ed8cab9bd3b582845f4e226de1",
+      "objects": 23,
+      "bytes": 12343371,
+      "verified": true,
+      "storageObjects": 25,
+      "storageBytes": 12345368,
+      "reused": false
+    },
+    {
+      "productId": "imagery-65a14eef13d9c08962ea5879",
+      "kind": "cube-imagery",
+      "productIdentity": "65a14eef13d9c08962ea5879f795274b2bf1bf1d9d24e90411e2df77c9de0237",
+      "prefix": "cube-imagery/imagery-65a14eef13d9c08962ea5879/65a14eef13d9c08962ea5879f795274b/",
+      "inventorySha256": "9b440177520ff8c9441c63ba09a16fbf8db002090e7d86fce76e0ee7551f2093",
+      "objects": 28,
+      "bytes": 12678309,
+      "verified": true,
+      "storageObjects": 30,
+      "storageBytes": 12680395,
+      "reused": false
+    }
+  ],
+  "objects": 636,
+  "bytes": 76867807,
+  "storageObjects": 642,
+  "storageBytes": 76899437,
+  "identity": "d417121ab6c7c0f6a31dfeec6af72f9eea9f313ff92d4168c041b6488e23394f"
+}

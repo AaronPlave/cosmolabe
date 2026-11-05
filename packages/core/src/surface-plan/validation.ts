@@ -144,7 +144,7 @@ export function validateSurfaceSources(v: unknown): SurfaceSourceDescriptor[] {
   const ids = new Set<string>();
   for (const [i, s] of v.entries()) {
     const p = `$.sources[${i}]`; object(s, p);
-    keys(s, ['id', 'productId', 'channel', 'body', 'frame', 'coordinates', 'footprint', 'nodata', 'nativeGsdM', 'accuracyM', 'projection', 'datum', 'asset', 'license'], p);
+    keys(s, ['id', 'productId', 'channel', 'body', 'frame', 'coordinates', 'footprint', 'nodata', 'nativeGsdM', 'accuracyM', 'projection', 'datum', 'asset', 'license', 'metadata'], p);
     for (const k of ['id', 'productId', 'body', 'frame', 'projection']) string(s[k], `${p}.${k}`);
     if (ids.has(s.id as string)) planFail('duplicate-id', p, 'Duplicate source ID'); ids.add(s.id as string);
     if (!['imagery', 'elevation'].includes(String(s.channel))) planFail('schema', `${p}.channel`, 'Expected imagery or elevation');
@@ -168,6 +168,7 @@ export function validateSurfaceSources(v: unknown): SurfaceSourceDescriptor[] {
     object(s.license, `${p}.license`); keys(s.license, ['name', 'attribution', 'url'], `${p}.license`);
     string(s.license.name, `${p}.license.name`); string(s.license.attribution, `${p}.license.attribution`);
     if (s.license.url !== undefined) string(s.license.url, `${p}.license.url`);
+    if (s.metadata !== undefined) validateSourceMetadata(s as unknown as SurfaceSourceDescriptor, p);
     if (s.footprint !== undefined) parseSurfaceSourceFootprint(s as unknown as SurfaceSourceDescriptor);
   }
   return v as unknown as SurfaceSourceDescriptor[];
@@ -185,6 +186,30 @@ export function parseSurfaceSourceFootprint(s: SurfaceSourceDescriptor): Geograp
   if (layer.skippedFeatures || !layer.features.length) planFail('invalid-source-footprint', path, layer.diagnostics.map(d => d.message).join('; ') || 'Empty footprint');
   if (layer.features.some(f => f.geometry.type !== 'Polygon' && f.geometry.type !== 'MultiPolygon')) planFail('unsupported-shape', path, 'Source footprints must be Polygon or MultiPolygon');
   return layer;
+}
+
+function areoidTransform(v: unknown, path: string): void {
+  object(v, path); keys(v, ['kind', 'areoid', 'outputDatum'], path);
+  if (v.kind !== 'areoid-radial') planFail('unsupported-transform', path, 'Expected identity or explicit areoid-radial conversion');
+  object(v.areoid, path + '.areoid'); keys(v.areoid, ['label', 'image'], path + '.areoid');
+  for (const role of ['label', 'image']) {
+    const a = v.areoid[role]; const p = `${path}.areoid.${role}`;
+    object(a, p); keys(a, ['url', 'retrieval', 'bytes', 'checksum'], p);
+    if (a.url === undefined && a.retrieval === undefined) planFail('schema', p, 'Datum asset requires URL or retrieval');
+    for (const k of ['url', 'retrieval']) if (a[k] !== undefined) string(a[k], p + '.' + k);
+    integer(a.bytes, p + '.bytes', 1);
+    object(a.checksum, p + '.checksum'); keys(a.checksum, ['algorithm', 'value'], p + '.checksum');
+    if (a.checksum.algorithm !== 'sha256' || !/^[a-f0-9]{64}$/.test(String(a.checksum.value)))
+      planFail('unpinned-source', p, 'Datum assets require SHA-256');
+  }
+  object(v.outputDatum, path + '.outputDatum');
+  keys(v.outputDatum, ['referenceShape', 'verticalDatum', 'heightConvention'], path + '.outputDatum');
+  // The existing Mars converter supports this axisymmetric IAU shape. This is
+  // an execution contract, not permission to relabel arbitrary vertical data.
+  const expected = { referenceShape: { kind: 'ellipsoid', radiiKm: [3396.19, 3396.19, 3376.2] },
+    verticalDatum: 'ellipsoid', heightConvention: 'geodetic-normal' };
+  if (serializeSurfacePlan(v.outputDatum) !== serializeSurfacePlan(expected))
+    planFail('unsupported-transform', path, 'areoid-radial requires the IAU Mars ellipsoid normal-height output datum');
 }
 
 export async function createLockedSurfacePlan(input: Omit<LockedSurfacePlan, 'identity' | 'desiredIdentity'>): Promise<LockedSurfacePlan> {
@@ -221,8 +246,16 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
     if (selected.has(key)) planFail('duplicate-id', p, 'Duplicate region/channel selection'); selected.add(key);
     positive(s.outputGsdM, `${p}.outputGsdM`);
     if (!['nearest', 'bilinear', 'cubic'].includes(String(s.resampling))) planFail('schema', p, 'Unsupported resampling');
-    array(s.transformations, `${p}.transformations`, 32); s.transformations.forEach(t => string(t, `${p}.transformations`));
-    if (s.transformations.length !== 1 || s.transformations[0] !== 'identity') planFail('unsupported-transform', `${p}.transformations`, 'v1 supports exactly ["identity"]; arbitrary or descriptive transforms are not executable');
+    array(s.transformations, `${p}.transformations`, 1);
+    const transform = s.transformations[0];
+    if (transform !== 'identity') {
+      if (typeof transform === 'string') planFail('unsupported-transform', p, 'Expected identity or explicit areoid-radial conversion');
+      areoidTransform(transform, `${p}.transformations[0]`);
+      if (s.channel !== 'elevation' || desired.body !== 'Mars' || desired.frame !== 'IAU_MARS'
+        || desired.coordinates.latitude !== 'planetocentric' || desired.coordinates.longitudeDirection !== 'east'
+        || serializeSurfacePlan(desired.coordinates.referenceShape) !== serializeSurfacePlan({ kind: 'sphere', radiusKm: 3396.19 }))
+        planFail('unsupported-transform', p, 'areoid-radial requires Mars planetocentric east-positive source coordinates on the 3396.19 km map sphere');
+    }
     const target = region[s.channel]!;
     const allowCoarser = region.fallback === 'allow-coarser';
     if (!allowCoarser && s.outputGsdM > target.gsdM) planFail('unmet-fidelity', `${p}.outputGsdM`, 'Output GSD exceeds the requested target without allow-coarser fallback');
@@ -238,16 +271,19 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
       if (!source || source.channel !== s.channel || source.body !== desired.body) planFail('unresolved-reference', p, 'Source must match channel and body');
       if (localIds.has(id)) planFail('duplicate-id', p, 'Duplicate source selection'); localIds.add(id); usedSources.add(source.id);
       if (source.frame !== desired.frame || serializeSurfacePlan(source.coordinates) !== serializeSurfacePlan(desired.coordinates)
-        || serializeSurfacePlan(source.datum) !== serializeSurfacePlan(geographicDatum(desired.coordinates))) {
-        planFail('unsupported-transform', p, `Identity cannot transform source ${source.id}: frame, coordinates and datum must match the desired plan`);
+        || serializeSurfacePlan(source.datum) !== serializeSurfacePlan(transform === 'identity' ? geographicDatum(desired.coordinates)
+          : { referenceShape: desired.coordinates.referenceShape, verticalDatum: 'areoid', heightConvention: 'radial' })) {
+        planFail('unsupported-transform', p, `Selected operation cannot transform source ${source.id}: frame, coordinates and datum must match its declared input contract`);
       }
-      if (source.nodata !== 'none') planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata; v1 locks require resolved, unmasked coverage`);
-      const footprint = parseSurfaceSourceFootprint(source)!;
+      if (source.nodata === 'unknown' || (source.nodata !== 'none' && !source.metadata?.validData))
+        planFail('unresolved-coverage', p, `Source ${source.id} has unknown/masked nodata without independently evidenced valid coverage`);
+      if (source.metadata && !source.metadata.validData) planFail('unresolved-coverage', p, 'Discovery sources require independently evidenced valid pixels before locking');
+      const footprint = parseSurfaceSourceFootprint(source.metadata?.validData ? { ...source, footprint: source.metadata.validData.geometry } : source)!;
       const geometry = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
       const overlap = intersectGeometry(roi, geometry);
       if (!overlap.length || surfaceAreaM2(overlap, desired.coordinates) <= 0) planFail('disjoint-source', p, `Source ${source.id} does not intersect the selected ROI with positive area`);
       coverage.push(overlap);
-      if ((allowCoarser || source.nativeGsdM! <= target.gsdM)
+      if ((allowCoarser || Math.max(source.nativeGsdM!, source.metadata?.rasterGsdM ?? 0) <= target.gsdM)
         && (target.accuracyM === undefined || (source.accuracyM !== null && source.accuracyM <= target.accuracyM))) adequateCoverage.push(overlap);
     }
     if (surfaceAreaM2(subtractGeometry(roi, unionGeometry(coverage)), desired.coordinates) > tolerance) planFail('insufficient-coverage', p, 'Selected footprints do not cover the ROI; partial/leave-unavailable builds need future explicit masking support');
@@ -268,4 +304,68 @@ export async function validateLockedSurfacePlan(v: unknown): Promise<LockedSurfa
   const { identity, ...payload } = v;
   if (v.desiredIdentity !== await surfacePlanIdentity(desired) || identity !== await surfacePlanIdentity(payload)) planFail('identity-mismatch', '$', 'Content changed: create a new lock identity');
   return v as unknown as LockedSurfacePlan;
+}
+
+/** Validate the shared optional provenance seam before discovery, estimates or locks consume it. */
+function validateSourceMetadata(source: SurfaceSourceDescriptor, path: string): void {
+  const m = source.metadata!;
+  const p = path + '.metadata';
+  object(m, p);
+  keys(m as unknown as Record<string, unknown>, ['evidenceUrl', 'labelUrl', 'confidence', 'unknowns', 'rasterGsdM',
+    'dataType', 'bands', 'acquisitionUtc', 'observationId', 'sourceProjection', 'sourceCoordinates', 'sourceDatum',
+    'registration', 'illumination', 'stereoProductIds', 'assets', 'reuse', 'validData', 'tiled'], p);
+  const https = (v: unknown, at: string) => { string(v, at); if (!/^https:\/\//.test(v as string)) planFail('schema', at, 'Expected HTTPS evidence URL'); };
+  https(m.evidenceUrl, p + '.evidenceUrl');
+  if (m.labelUrl !== undefined) https(m.labelUrl, p + '.labelUrl');
+  if (!['archive', 'label', 'verified-mask', 'unknown'].includes(m.confidence)) planFail('schema', p, 'Unknown confidence');
+  for (const k of ['unknowns', 'stereoProductIds'] as const) { array(m[k], p + '.' + k, 64, 0); m[k].forEach(v => string(v, p + '.' + k)); }
+  if (m.bands !== null) { array(m.bands, p + '.bands', 64, 1); m.bands.forEach(v => string(v, p + '.bands')); }
+  for (const k of ['dataType', 'acquisitionUtc', 'observationId', 'sourceProjection', 'sourceCoordinates', 'sourceDatum'] as const)
+    if (m[k] !== null) string(m[k], p + '.' + k);
+  if (m.rasterGsdM !== null) positive(m.rasterGsdM, p + '.rasterGsdM');
+  if (m.registration !== null) {
+    object(m.registration, p + '.registration'); string(m.registration.group, p + '.registration.group');
+    https(m.registration.evidenceUrl, p + '.registration.evidenceUrl');
+    if (m.registration.accuracyM !== null) positive(m.registration.accuracyM, p + '.registration.accuracyM');
+  }
+  if (m.illumination !== null) {
+    object(m.illumination, p + '.illumination');
+    for (const k of ['incidenceDeg', 'emissionDeg', 'phaseDeg'] as const)
+      if (m.illumination[k] !== null && (!Number.isFinite(m.illumination[k]) || m.illumination[k]! < 0 || m.illumination[k]! > 180))
+        planFail('schema', p, 'Illumination angles must be null or 0..180 degrees');
+    if (m.illumination.photometry !== null) string(m.illumination.photometry, p + '.illumination.photometry');
+  }
+  array(m.assets, p + '.assets', 64, 0);
+  for (const a of m.assets) {
+    object(a, p + '.assets'); https(a.url, p + '.assets.url');
+    if (!['raster', 'label', 'quality'].includes(a.role)) planFail('schema', p, 'Unknown asset role');
+    if (a.bytes !== null) integer(a.bytes, p + '.assets.bytes');
+    if (a.sizeEvidence !== null) string(a.sizeEvidence, p + '.assets.sizeEvidence');
+  }
+  object(m.reuse, p + '.reuse');
+  if (!['allowed', 'restricted', 'unknown'].includes(m.reuse.status)) planFail('schema', p, 'Unknown reuse status');
+  if (m.reuse.evidenceUrl !== null) https(m.reuse.evidenceUrl, p + '.reuse.evidenceUrl');
+  if (m.validData !== undefined) {
+    object(m.validData, p + '.validData');
+    https(m.validData.evidenceUrl, p + '.validData.evidenceUrl'); string(m.validData.method, p + '.validData.method');
+    if (!['complete-mask', 'known-valid-subset'].includes(m.validData.extent)) planFail('schema', p, 'Unknown valid-mask extent');
+    const mask = parseSurfaceSourceFootprint({ ...source, footprint: m.validData.geometry })!;
+    const footprint = parseSurfaceSourceFootprint(source);
+    if (m.validData.extent === 'complete-mask' && !footprint) planFail('schema', p, 'Complete mask requires product footprint');
+    if (footprint) {
+      const valid = unionGeometry(mask.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
+      const envelope = unionGeometry(footprint.features.map(f => surfaceFeatureGeometry(f, source.coordinates)));
+      if (surfaceAreaM2(subtractGeometry(valid, envelope), source.coordinates) > Math.max(1e-4, surfaceAreaM2(valid, source.coordinates) * 1e-8))
+        planFail('schema', p, 'Valid-pixel mask exceeds product footprint');
+    }
+  }
+  if (m.tiled !== undefined) {
+    const t = m.tiled; object(t, p + '.tiled');
+    if (!['xyz', 'wmts'].includes(t.scheme)) planFail('schema', p, 'Unknown tiled scheme');
+    for (const k of ['urlTemplate', 'grid', 'projection', 'coordinates', 'origin', 'order'] as const) string(t[k], p + '.tiled.' + k);
+    for (const k of ['ellipsoid', 'nodata', 'nativeResolution', 'identity', 'cors', 'access', 'usage'] as const)
+      if (t[k] !== null) string(t[k], p + '.tiled.' + k);
+    for (const k of ['tileWidth', 'tileHeight', 'minZoom', 'maxZoom'] as const) integer(t[k], p + '.tiled.' + k);
+    if (!t.tileWidth || !t.tileHeight || t.minZoom > t.maxZoom || t.maxZoom > 32) planFail('limits', p, 'Invalid tile grid bounds');
+  }
 }

@@ -186,8 +186,17 @@ function coerce(spec: VerbSpec, param: VerbParam, token: Token): Coerced {
     // Object and viewpoint names are passed **verbatim**: `Universe.getBody` is
     // an exact-match lookup on a `Map`, and folding case here would invent a
     // resolver that exists nowhere else in the system.
+    case 'activity':
     case 'object':
     case 'viewpoint':
+    case 'place':
+    case 'event-query':
+    case 'event-result':
+    case 'instrument':
+    case 'measurement':
+    case 'geographic-layer':
+    case 'geographic-feature':
+    case 'imagery':
     case 'text':
       if (token.kind === 'vector') return { ok: false, message: `${where} expected a name, got a vector` };
       return { ok: true, value: token.text };

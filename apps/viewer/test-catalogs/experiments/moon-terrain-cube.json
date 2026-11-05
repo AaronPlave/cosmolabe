@@ -85,8 +85,9 @@
         "name": "Moon"
       },
       "rotationModel": {
-        "type": "Builtin",
-        "name": "IAU_MOON"
+        "type": "Spice",
+        "bodyFrame": "MOON_ME_DE421",
+        "inertialFrame": "ECLIPJ2000"
       },
       "geometry": {
         "type": "Globe",
@@ -111,7 +112,8 @@
           },
           "cubeSphere": {
             "cpuGrids": "../data/moon-terrain-cube/cpu-grids.json"
-          }
+          },
+          "frame": "MOON_ME_DE421"
         }
       },
       "label": {
@@ -122,5 +124,8 @@
         ]
       }
     }
+  ],
+  "require": [
+    "../base/lunar-surface.json"
   ]
 }

@@ -1,3 +1,4 @@
+import type { SurfaceSourceMetadata } from './source-metadata.js';
 import type { GeographicCoordinates, GeographicGeometry, GeographicLayerDefinition, GeoPosition, JsonValue } from '../geographic/model.js';
 import type { TerrainDatum } from '../geographic/coordinates.js';
 
@@ -67,6 +68,21 @@ export interface SurfaceSourceDescriptor {
     bytes?: number;
   };
   license: { name: string; attribution: string; url?: string };
+  metadata?: SurfaceSourceMetadata;
+}
+
+/** Detached MEG016 inputs are pinned separately; neither a URL nor a label alone pins the datum. */
+export interface SurfaceDatumAsset {
+  url?: string;
+  retrieval?: string;
+  bytes: number;
+  checksum: { algorithm: 'sha256'; value: string };
+}
+export interface AreoidRadialTransform {
+  kind: 'areoid-radial';
+  /** Planetocentric radius = MEG016 radius + unchanged areoid topography. */
+  areoid: { label: SurfaceDatumAsset; image: SurfaceDatumAsset };
+  outputDatum: TerrainDatum;
 }
 
 /** Explicit, content-addressed build inputs. Estimation never produces this implicitly. */
@@ -84,8 +100,8 @@ export interface LockedSurfacePlan {
     sourceIds: string[];
     outputGsdM: number;
     resampling: 'nearest' | 'bilinear' | 'cubic';
-    /** v1 supports exactly ['identity']; source frame/coordinates/datum must match the desired plan. */
-    transformations: string[];
+    // Exactly one supported operation; arbitrary descriptive transforms remain invalid.
+    transformations: (string | AreoidRadialTransform)[];
   }[];
   processing: {
     generator: { name: string; version: string };

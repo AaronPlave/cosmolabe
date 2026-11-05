@@ -1,4 +1,5 @@
 import type { Vec3 } from '../spice-injection.js';
+import type { StateAvailability } from '../availability.js';
 
 export interface CartesianState {
   position: Vec3;
@@ -6,6 +7,9 @@ export interface CartesianState {
 }
 
 export interface Trajectory {
+  /** Interpolation-segment boundaries for numerical analysis. Times only;
+   * evaluating between them still goes through authoritative stateAt. */
+  samplingBreakpoints?(start: number, end: number): readonly number[];
   stateAt(et: number): CartesianState;
   readonly startTime?: number;
   readonly endTime?: number;
@@ -26,4 +30,9 @@ export interface Trajectory {
    * samples); the catalog's `trajectoryFrame` supplies it then.
    */
   readonly frame?: string;
+  /**
+   * Coverage-aware models say whether — and why not — `stateAt(et)` has data.
+   * Where this reports unavailable, `stateAt` returns NaN vectors.
+   */
+  availabilityAt?(et: number): StateAvailability;
 }

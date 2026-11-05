@@ -1,0 +1,65 @@
+{
+  "catalogs": [
+    {
+      "name": "ingenuity-jezero",
+      "activities": 72,
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 88,
+        "pageScroll": 0
+      }
+    },
+    {
+      "name": "moonfall-shackleton",
+      "activities": 24,
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    },
+    {
+      "name": "msl-dingo-gap",
+      "activities": 2,
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 134,
+        "pageScroll": 0
+      }
+    },
+    {
+      "name": "fixtures/mission-activities",
+      "activities": 4,
+      "geometry": {
+        "pageWidth": 390,
+        "viewport": 390,
+        "region": 253.1875,
+        "pageScroll": 0
+      }
+    }
+  ],
+  "gpu": {
+    "vendor": "WebKit",
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "antialias": true
+  },
+  "baseline": {
+    "records": 4,
+    "meanMs": 16.590833333631355,
+    "p95Ms": 17.69999998807907
+  },
+  "performance": {
+    "records": 10000,
+    "meanMs": 16.63083333323399,
+    "p95Ms": 17.600000023841858,
+    "marks": 168,
+    "options": 2
+  },
+  "javaScriptErrors": [],
+  "httpErrors": [],
+  "abortedRequests": 8,
+  "otherRequestFailures": []
+}

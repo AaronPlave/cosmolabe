@@ -1,0 +1,123 @@
+{
+  "kind": "mission-geometry-evidence",
+  "inputs": {
+    "camera-sis.pdf": {
+      "bytes": 19222290,
+      "sha256": "674153dba9789b31a2948185c38e2438b371c1ace236e2e854043da5ca2f1bfa"
+    },
+    "flight-log.pdf": {
+      "bytes": 548273,
+      "sha256": "dcf0b9e59eb8cb805e484c17f9cab8d56b5a03ca92f2facf708be59c45bf4e11"
+    },
+    "m2020_v04.tf": {
+      "bytes": 142335,
+      "sha256": "b48a472f95e3e895ec96f287090f8d262734e63e38617bc76cb0f36fc9537936"
+    },
+    "m2020_tp_ops.tf": {
+      "bytes": 3362,
+      "sha256": "b9781c2340acef659d6c9965e8b1cfbacffd39af3d2201fb88b84423652f9d83"
+    },
+    "spice-archive.html": {
+      "bytes": 47491,
+      "sha256": "80906efa84aefd745b8634df62ededd0de08f286f1757cc07f616937155052ad"
+    },
+    "best_tactical.csv": {
+      "bytes": 171404,
+      "sha256": "9da19e4f70287fe0d33ba716ff2169c10447c30c7a048583f730e4155226cde9"
+    },
+    "heli-inventory.csv": {
+      "bytes": 3350949,
+      "sha256": "ea0e43f1033c2477d1defc7952c1c43d3ffa76a964e8e7fc2181970a2d3e6018"
+    }
+  },
+  "cameraSis": {
+    "url": "https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_mission/document_camera/Mars2020_Camera_SIS.pdf",
+    "version": "3.7",
+    "sections": [
+      "20.9",
+      "20.11"
+    ],
+    "example": {
+      "flight": 12,
+      "image": "HNM_0174_0682390538_578FDR_N0120001HELI01649_0000LUJ01.IMG",
+      "helicopterInGroundM": [
+        -31.662721,
+        77.526172,
+        -10.522429
+      ],
+      "groundOriginInSite3M": [
+        -709.24329,
+        -680.69713,
+        -0.052
+      ],
+      "groundToSite3QuaternionWxyz": [
+        -0.9428806983295449,
+        0,
+        0,
+        0.3331305880845975
+      ],
+      "computedSite3M": [
+        -685.176,
+        -600.487,
+        -10.574
+      ],
+      "publishedPlanetocentricLat": 18.4330668171,
+      "publishedLonEast": 77.4402019369,
+      "estimatedAglFromExampleM": 10.24
+    },
+    "orbitalMap": {
+      "radiusM": 3396190,
+      "standardParallelDeg": 18.4663,
+      "latitude": "planetocentric",
+      "longitude": "east-positive",
+      "siteAxes": "north east down"
+    },
+    "frameCaveat": "Helicopter ground frame resets at GNC startup; its relationship to the rover site frame is managed on the ground per flight. Do not apply a single fabricated SF3 rigid transform to all flights."
+  },
+  "places": {
+    "url": "https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_rover_places/data_localizations/best_tactical.csv",
+    "site3": {
+      "frame": "SITE",
+      "site": "3",
+      "drive": "-1",
+      "pose": "-1",
+      "landing_x": "3.310",
+      "landing_y": "-1.408",
+      "landing_z": "0.189",
+      "northing": "1093299.695",
+      "easting": "4354494.086",
+      "planetocentric_latitude": "18.444627146",
+      "planetodetic_latitude": "18.346169209",
+      "longitude": "77.450885729",
+      "elevation": "-2569.910",
+      "map_pixel_line": "15081.22",
+      "map_pixel_sample": "54416.34",
+      "dem_pixel_line": "3770.30",
+      "dem_pixel_sample": "13604.09",
+      "roll": "0.000",
+      "pitch": "-0.000",
+      "yaw": "0.000",
+      "quat_s": "1.000000000",
+      "quat_v1": "0.000000000",
+      "quat_v2": "0.000000000",
+      "quat_v3": "0.000000000",
+      "areoid": "3394507.076",
+      "radius": "3391937.166",
+      "sclk": "0",
+      "sol": "-1"
+    },
+    "meg016AtSite3RadiusM": 3394506.53145064,
+    "meg016MinusPlacesAreoidM": -0.54454935994,
+    "interpretation": "Coarse 16-pixel/degree integer-metre MEG016 interpolation differs from published PLACES datum at this anchor by 0.545 m. No constant offset applied; this is not an absolute error bound."
+  },
+  "spice": {
+    "url": "https://naif.jpl.nasa.gov/pub/naif/pds/pds4/mars2020/mars2020_spice/document/spiceds_v001.html",
+    "ingenuityKernelsIncluded": false,
+    "frameKernel": "https://naif.jpl.nasa.gov/pub/naif/MARS2020/kernels/fk/m2020_tp_ops210303_iau2000_v1.tf",
+    "frameRealization": "The documented M2020_TOPO definition references the pck00010 IAU_MARS realization, with Gaussian latitude 18.64875816 and longitude 77.45088572; this is an orientation, not a full helicopter position series."
+  },
+  "clock": {
+    "epoch": "2000-01-01 12:00:00 ET (nominal SCLK epoch)",
+    "limitation": "Clock drift is documented; no per-flight MMGIS SCLK-to-ET calibration established. Preserve mission event numbers and expose approximate timing."
+  }
+}

@@ -1,3 +1,6 @@
+import { applyGraticuleToScene, type GraticuleUniforms } from './GraticuleShader.js';
+import { lunarProductFrame } from '@cosmolabe/core';
+
 import * as THREE from 'three';
 import { SurfaceAppearance, type SurfaceAppearanceSettings } from './SurfaceAppearance.js';
 import { TerrainContourLabels } from './TerrainContourLabels.js';
@@ -14,13 +17,16 @@ import { parseTileKey, sharedEdgeReport, tileKeyId, type TileKey } from './Terra
 import { clampOpacity, describeImageryLayers, imageryList, layerStatus, overlapsBounds, reorderedLayers, type ImageryLayerInfo, type ImageryLayerView } from './ImageryLayers.js';
 import { CubeGridSurface, CubeSphereGridSource, type CubeCoverage, type CubeGridSourceStats } from './surface/CubeSphereGrids.js';
 import type { SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
-import type { CubeFace } from './surface/CubeSphere.js';
-import { fetchWithRetry } from './fetchWithRetry.js';
+import { directionToCubeFace, type CubeFace } from './surface/CubeSphere.js';
+import { fetchWithRetry, fetchCompleteResponse } from './fetchWithRetry.js';
 import { CubeImageryLayer, type CubeImageryConfig, type CubeImageryStats } from './CubeImageryLayer.js';
+import { needsNearSurfaceDetail, radialCellRadius, radialCubeCoordinates, renderedCubeRadius, type NearSurfaceDetail } from './surface/CubeNavigation.js';
 
 export interface TerrainImageryConfig {
   /** Imagery source type. Default 'xyz'.
    *
+   *  - `'cube'`: preprocessed cube-face imagery.json; requires cubeSphere terrain.
+   *    Uses the same source controls with independent imagery blocks.
    *  - `'xyz'`, `'tms'`, `'wms'`, `'wmts'`: standard tile sources assuming
    *    a 2^z × (2^z or 2^(z-1)) tile-count progression per level.
    *  - `'wmts-capabilities'`: discovers tile grid + projection from the
@@ -29,7 +35,7 @@ export interface TerrainImageryConfig {
    *    2/3/5/10/20/40/80/160/320 columns per level). `url` is the
    *    GetCapabilities URL; `layer` + `tileMatrixSet` pick which layer
    *    and which matrix set inside the capabilities document. */
-  type?: 'xyz' | 'wms' | 'wmts' | 'tms' | 'wmts-capabilities';
+  type?: 'xyz' | 'wms' | 'wmts' | 'tms' | 'wmts-capabilities' | 'cube';
   /** Tile URL template (XYZ: {x},{y},{z} placeholders; WMS/TMS: base URL).
    *  For `'wmts-capabilities'`: URL of the GetCapabilities XML document. */
   url: string;
@@ -145,6 +151,9 @@ export interface TerrainConfig {
   datum?: Partial<Omit<TerrainDatum, 'referenceShape'>>;
   /** Provenance and stated vertical uncertainty for terrain samples. */
   sourceMetadata?: Partial<TerrainSourceMetadata>;
+  /** Physical frame shared by rendering and CPU queries. */
+  frame?: string;
+  bodyId?: string;
   /** Maximum number of decoded CPU terrain tiles retained for sampling. */
   samplerMaxTiles?: number;
   /** Quantized-mesh tile skirt length (m). Each tile edge gets a vertical
@@ -201,14 +210,20 @@ export interface TerrainConfig {
     residentLevel?: number;
     /** Finer grids retained (LRU). Default 2048. */
     maxDetailTiles?: number;
+    /** Physical refinement neighbourhood, independent of screen error. Metres;
+     * defaults: 500 m radius, 0.5 m declared geometric error, active within
+     * 5 km of the product's declared radial relief shell.
+     * This is a representation target, never a source-accuracy claim. */
+    nearSurface?: { radiusM?: number; maxErrorM?: number; altitudeM?: number };
     /**
      * Cube-face map imagery (`imagery.json` from `scripts/terrain/cube_imagery.py`)
      * draped at its own levels, independently of this product's geometry LOD; see
-     * `CubeImageryLayer`. Use instead of `imagery` for cube products: the
-     * overlay plugin maps through per-vertex longitude/latitude, which cannot
+     * `CubeImageryLayer`. Legacy single product, or shared budget/selection options
+     * for `Globe.imagery` layers of type `cube`. The geographic overlay plugin
+     * maps through per-vertex longitude/latitude, which cannot
      * register the tiles meeting at each pole (both are face centres).
      */
-    imagery?: CubeImageryConfig;
+    imagery?: Omit<CubeImageryConfig, 'url'> & { url?: string };
     /**
      * Draw the product's mixed-LOD skirts (default true). Each .glb lists its
      * surface triangles first (glTF primitive extras `surfaceTriangles`); false
@@ -280,11 +295,11 @@ export interface TerrainPerformanceMetrics {
   /** CPU height queries. Independent of rendered vertex count by construction. */
   sample: { count: number; lastMicros: number; meanMicros: number };
   /** `visible`: selected by any streaming camera; `drawn`: of those, left visible by the main-view draw cull. */
-  tiles: { active: number; visible: number; drawn: number; inCache: number; cpu: number };
+  tiles: { active: number; visible: number; drawn: number; loaded: number; inCache: number; cpu: number };
   network: { requests: number; queued: number; downloading: number; parsing: number; failed: number };
   memory: { cacheBytes: number; maxCacheBytes: number; geometryBytes: number; textureBytes: number };
   /** Imagery stack load. `requests`/`failed` count overlay fetches; in imagery-only mode the base layer's tiles are in `network`. */
-  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number };
+  imagery: { layers: number; activeOverlays: number; overlayResolution: number; requests: number; failed: number; cube?: CubeImageryStats };
 }
 
 /** Accumulates per-event wall time; `window` > 0 keeps only the most recent samples. */
@@ -612,13 +627,24 @@ const _camPos = /* @__PURE__ */ new THREE.Vector3();
 const _viewMat = /* @__PURE__ */ new THREE.Matrix4();
 const _bufferSize = /* @__PURE__ */ new THREE.Vector2();
 
+export interface SurfaceAppearanceStatus {
+  state: 'ready' | 'loading' | 'unsupported-product' | 'unsupported-reference' | 'validation-failed';
+  message: string;
+}
+
 export class TerrainManager {
   private readonly contourLabels = new TerrainContourLabels();
   private surfaceStyle: SurfaceAppearance | null;
   private readonly cubeScenes = new Set<THREE.Object3D>();
   private readonly cubeStyleCandidate: boolean;
   private cubeStyleHeightRange: readonly [number, number] | null = null;
+  private cubeStyleReferenceRadiusKm: number | null = null;
+  private appearanceStatus: SurfaceAppearanceStatus = { state: 'unsupported-product', message: 'Relief styles require a known planetary terrain product. Generic 3D Tiles and imagery-only surfaces are unsupported.' };
 
+  get surfaceAppearanceStatus(): SurfaceAppearanceStatus {
+    if (this.appearanceStatus.state === 'loading' && this.rootFailed) return { state: 'validation-failed', message: 'Terrain product metadata could not be loaded. Relief styles are unavailable.' };
+    return { ...this.appearanceStatus };
+  }
   get surfaceAppearance(): SurfaceAppearanceSettings | null { return this.surfaceStyle?.current ?? null; }
   get surfaceContourIntervalKm(): number | null { return this.surfaceStyle?.contourIntervalKm ?? null; }
   get surfaceAppearanceDatum(): TerrainDatum | null { return this.surfaceStyle?.datum ?? null; }
@@ -653,6 +679,7 @@ export class TerrainManager {
   private _overlayResolution: number;
   /** Tiles that loaded, and geometry/base-imagery tiles that failed, for the stream-failure fallback. */
   private loadedModels = 0;
+  private residentModels = new Set<THREE.Object3D>();
   /** Tile materials already customized. A virtual (split) tile hands back the
    *  same scene each time it reloads, and chaining the shader injections onto
    *  it again redefines every injected symbol, so the program fails to compile. */
@@ -673,7 +700,18 @@ export class TerrainManager {
   /** CPU-only sampler. It never reads renderer scene meshes during a query. */
   readonly sampler: TerrainSampler;
   /** Experimental cube-sphere CPU grids and their #148 ray surface, once the manifest loads. */
+  private cubeFrameReady = false;
+  private cubeFrameError: string | undefined;
+  get frameAvailability(): { kind: 'available' | 'unavailable'; frame?: string; reason?: string } {
+    if (this.config.cubeSphere && this.config.frame && !this.cubeFrameReady) return {
+      kind: 'unavailable', frame: this.config.frame, reason: this.cubeFrameError ?? 'Awaiting declared cube frame metadata',
+    };
+    return { kind: 'available', frame: this.config.frame };
+  }
+
   private cube: { source: CubeSphereGridSource; surface: CubeGridSurface } | null = null;
+  private nearSurfaceDetail: NearSurfaceDetail | null = null;
+  private nearSurfacePolicy = { radiusM: 500, maxErrorM: 0.5, altitudeM: 5000 };
   private readonly cubeConfigured: boolean;
   private cubeSkirts = true;
   private drawCulling = false;
@@ -735,7 +773,7 @@ export class TerrainManager {
   readonly showAtPixels: number;
 
   constructor(
-    config: TerrainConfig,
+    private readonly config: TerrainConfig,
     bodyRadii: number | [number, number, number],
     renderer: THREE.WebGLRenderer,
   ) {
@@ -774,15 +812,30 @@ export class TerrainManager {
     this.sampler.onEvict = (id) => this.dropCpuIndexes(id);
     this.cubeConfigured = !!config.cubeSphere;
     this.cubeStyleCandidate = config.type === '3dtiles' && !!config.cubeSphere;
+    if (this.surfaceStyle) this.appearanceStatus = { state: 'ready', message: '' };
+    else if (this.cubeStyleCandidate) this.appearanceStatus = { state: 'loading', message: 'Loading and validating terrain product metadata for relief styles…' };
+    else if (config.type === 'quantized-mesh') this.appearanceStatus = { state: 'unsupported-reference', message: 'This terrain product’s elevation reference is not supported by relief styles.' };
     this.cubeSkirts = config.cubeSphere?.skirts !== false;
     this.drawCulling = config.drawCulling ?? !!config.cubeSphere;
-    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
-    if (config.cubeSphere?.imagery) {
-      this.cubeImagery = new CubeImageryLayer(config.cubeSphere.imagery);
-      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', `Terrain: cube imagery unavailable (${config.cubeSphere?.imagery?.url})`, err));
-    }
     this.isImageryOnly = config.type === 'imagery';
     const imageryConfigs = imageryList(config.imagery);
+    const cubeSources = imageryConfigs.some(c => c.type === 'cube');
+    if (cubeSources && (!config.cubeSphere || !imageryConfigs.every(c => c.type === 'cube'))) throw new Error('Cube imagery sources require cubeSphere terrain and an entirely cube imagery stack');
+    if (config.cubeSphere?.imagery?.url && imageryConfigs.length > 0 && !cubeSources) {
+      throw new Error('Legacy cube imagery cannot be combined with geographic imagery; use an entirely cube imagery stack or remove cubeSphere.imagery.url');
+    }
+    if (config.cubeSphere) this.loadCubeGrids(config.cubeSphere, datum);
+    if (config.cubeSphere?.imagery?.url || cubeSources) {
+      const cubeConfig = config.cubeSphere?.imagery ?? {};
+      this.cubeImagery = new CubeImageryLayer({ ...cubeConfig, url: cubeConfig.url ?? imageryConfigs[0].url, ...(cubeSources ? { layers: imageryConfigs } : {}) }, { frame: config.frame, radiusKm: rxKm, horizonRadiusKm: () => {
+        const manifest = this.cube?.source.manifest;
+        // The new ellipsoidal imagery cull needs an emitted-mesh rounding
+        // bound as well as the explicit radial payload. Unknown means no cull.
+        if (manifest?.datum.referenceShape.kind === 'ellipsoid' && manifest.renderedLatticeRoundingBoundKm == null) return 0;
+        return this.cube?.surface.radialRenderedInnerRadiusKm ?? 0;
+      } });
+      this.cubeImagery.ready.catch((err) => this.warnOnce('cube-imagery', 'Terrain: cube imagery unavailable', err));
+    }
     this.layers = describeImageryLayers(imageryConfigs, rxKm);
     this.layers.forEach((l, i) => this.layerConfigs.set(l.id, imageryConfigs[i]));
     this._overlayResolution = config.overlayResolution ?? 256;
@@ -795,6 +848,23 @@ export class TerrainManager {
     // the tileset's layer.json / tileset.json.
     const constructWithoutUrl = this.isImageryOnly || config.type === 'cesium-ion';
     this.tiles = new TilesRenderer(constructWithoutUrl ? undefined : config.url);
+    if (this.cubeConfigured) {
+      this.nearSurfacePolicy = { ...this.nearSurfacePolicy, ...config.cubeSphere?.nearSurface };
+      if (Object.values(this.nearSurfacePolicy).some(v => !Number.isFinite(v) || v <= 0)) {
+        throw new Error('Cube near-surface policy requires positive finite metre values');
+      }
+      this.tiles.registerPlugin({
+        name: 'COSMOLABE_NEAR_SURFACE',
+        calculateTileViewError: (tile: { geometricError: number; engineData?: { boundingVolume?: { distanceToPoint(p: THREE.Vector3): number } } },
+          target: { inView: boolean; error: number; distance: number }) => {
+          if (!this.cube || !needsNearSurfaceDetail(tile.engineData?.boundingVolume, tile.geometricError, this.nearSurfaceDetail)) return false;
+          target.inView = true;
+          target.error = Infinity;
+          target.distance = tile.engineData!.boundingVolume!.distanceToPoint(this.nearSurfaceDetail!.eye);
+          return true;
+        },
+      } as never);
+    }
 
     // Upstream bug guard: multiple plugins (QuantizedMeshPlugin, ImageOverlayPlugin)
     // access tile.children.length in disposeTile without null checks. During LRU cache
@@ -963,7 +1033,7 @@ export class TerrainManager {
       // Imagery overlays: drape image tiles onto terrain geometry. Overlays
       // attach in stack order once all are constructed (capabilities-discovered
       // grids wait on a fetch) so tiles never load before their imagery.
-      if (imageryConfigs.length > 0) {
+      if (imageryConfigs.length > 0 && !this.cubeImagery) {
         this.registerOverlayPlugin(renderer, false);
         this._pluginReady = false;
         Promise.all(this.layers.filter((l) => l.visible).map((l) => this.prepareOverlay(l.id))).then((overlays) => {
@@ -1015,6 +1085,7 @@ export class TerrainManager {
     // Customize tile materials as they load
     this.tiles.addEventListener('load-model', (event: { scene: THREE.Object3D; tile: any }) => {
       this.loadedModels++;
+      this.residentModels.add(event.scene);
       this.customizeTileMaterial(event.scene, event.tile);
       if (this.cubeConfigured) {
         this.cubeScenes.add(event.scene);
@@ -1023,8 +1094,10 @@ export class TerrainManager {
       const address = this.cubeImagery ? cubeAddress(event.tile) : null;
       if (address) this.cubeImagery!.addTile(event.tile, event.scene, address);
       if (this.cubeConfigured) this.attachSurfaceStyle(event.scene);
+      this.applyGraticule(event.scene);
     });
     this.tiles.addEventListener('dispose-model', (event: { tile: any; scene: THREE.Object3D }) => {
+      this.residentModels.delete(event.scene);
       this.cubeScenes.delete(event.scene);
       if (event.scene) this.surfaceStyle?.forget(event.scene);
       this.cubeImagery?.removeTile(event.tile);
@@ -1163,8 +1236,12 @@ export class TerrainManager {
    * @param renderer WebGL renderer
    * @param bodyWorldPos World-space position of the body center (for coverage camera)
    */
-  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] = []): void {
+  viewUpdateSucceeded = false;
+
+  update(camera: THREE.Camera, renderer: THREE.WebGLRenderer, bodyWorldPos?: THREE.Vector3, labelObstacles: readonly ScreenRect[] | null = []): void {
+    this.viewUpdateSucceeded = false;
     if (this.disposed) return;
+    if (this.frameAvailability.kind === 'unavailable') { this.group.visible = false; return; }
 
     // Compute terrain-appropriate near/far from camera position.
     // The scene camera can have extreme near/far ratios (e.g. 1e-12 / 1e6)
@@ -1228,6 +1305,14 @@ export class TerrainManager {
     mv.frustum.planes[4].constant = Infinity;
     mv.frustum.planes[5].constant = Infinity;
     mv.eye.copy(_camPos).applyMatrix4(_viewMat.copy(group.matrixWorld).invert());
+    // The cube root is metres in the physical body-fixed frame. Use its
+    // actual origin/scale instead of a maximum display radius or a camera FOV.
+    // Coarse neighbours under and around the camera refine even behind it.
+    const cubeManifest = this.cube?.source.manifest;
+    const offsetM = mv.eye.length()-(cubeManifest?.geometry?.referenceRadiusKm ?? this.bodyRadiusKm)*1000;
+    this.nearSurfaceDetail = cubeManifest && offsetM >= cubeManifest.heightRangeKm[0]*1000-this.nearSurfacePolicy.altitudeM &&
+      offsetM <= cubeManifest.heightRangeKm[1]*1000+this.nearSurfacePolicy.altitudeM
+      ? { eye: mv.eye.clone(), radiusM: this.nearSurfacePolicy.radiusM, maxErrorM: this.nearSurfacePolicy.maxErrorM } : null;
 
     // Coverage cameras: ensure tiles load for the full visible hemisphere.
     // At close range (near surface), the terrain camera only sees ±45° from
@@ -1300,6 +1385,7 @@ export class TerrainManager {
       this.updateTiming.add(performance.now() - updateStart);
     } catch (e) {
       console.error('[Cosmolabe] tiles.update() crashed:', e);
+      return;
     }
     if (this.drawCulling) this.cullToMainView();
     this.surfaceStyle?.update();
@@ -1315,8 +1401,15 @@ export class TerrainManager {
       } catch (err) {
         // Imagery must never stop terrain streaming or the frame loop.
         this.warnOnce('cube-imagery-update', 'Terrain: cube imagery update failed', err);
+        return;
       }
     }
+    this.viewUpdateSucceeded = true;
+    if (labelObstacles) this.updateContourLabels(camera, renderer, labelObstacles);
+  }
+
+  /** Layout against the final camera after streaming and any clearance correction. */
+  updateContourLabels(camera: THREE.Camera, renderer: THREE.WebGLRenderer, labelObstacles: readonly ScreenRect[] = []): void {
     if (this.surfaceStyle) {
       const size = renderer.getSize(_bufferSize);
       const settings = this.surfaceStyle.current;
@@ -1350,6 +1443,11 @@ export class TerrainManager {
   showCulledTiles(): void {
     for (const scene of this.culledScenes) scene.visible = true;
     this.culledScenes.length = 0;
+  }
+
+  /** Re-apply this frame's main-view cull after an instrument pass showed every tile. */
+  recullToMainView(): void {
+    if (this.drawCulling) this.cullToMainView();
   }
 
   /** Turn the main-view draw cull on or off (`TerrainConfig.drawCulling`); takes effect from the next update. */
@@ -1390,16 +1488,45 @@ export class TerrainManager {
     return this.cubeImagery;
   }
 
+  get cubeImageryMetadata() { return this.cubeImagery?.productMetadata ?? null; }
+
   /** Cube imagery residency, requests and blocks, or null when the terrain has no cube imagery. */
   get cubeImageryStats(): CubeImageryStats | null {
     return this.cubeImagery?.stats ?? null;
   }
+
+  /**
+   * Revision of whichever CPU source answers `sample`: the cube grids when
+   * configured, the tile sampler otherwise. It changes whenever an answer
+   * may have: the cube source arriving or being dropped, and every grid it
+   * adds or evicts. A consumer that keeps something on the terrain (a
+   * surface-navigation anchor) re-samples when it moves.
+   */
+  get cpuRevision(): number {
+    return this.cubeConfigured ? this.cubeRevision : this.sampler.revision;
+  }
+  private cubeRevision = 0;
 
   /** CPU terrain query. Null means decoded data is not currently cached. */
   sample(latDeg: number, lonDeg: number, deriveNormal = false): TerrainSample | null {
     // Cube grids carry no derived normals; `normal` stays absent rather than invented.
     if (this.cubeConfigured) return this.cube?.source.sample(latDeg, lonDeg) ?? null;
     return this.sampler.sample(latDeg, lonDeg, deriveNormal);
+  }
+
+  /** Annotation planning reads resident coverage without changing CPU residency. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    return this.cubeConfigured ? this.cube?.source.sampleResident(latDeg, lonDeg) ?? null : this.sampler.sample(latDeg, lonDeg);
+  }
+
+  /** Analytical query of finest available physical CPU geometry, independent of
+   * camera LOD/residency. Missing grids never fall back to a reference shape. */
+  async requestAnalysisSample(latDeg: number, lonDeg: number): Promise<TerrainSample | null> {
+    const cube = this.cube;
+    if (!cube || this.frameAvailability.kind !== 'available') return null;
+    await cube.source.request(latDeg, lonDeg);
+    if (this.cube !== cube || cube.source.coverage(latDeg, lonDeg).state !== 'finest') return null;
+    return cube.source.sampleResident(latDeg, lonDeg);
   }
 
   sampleBodyFixed(point: BodyFixedCartesian, deriveNormal = false): TerrainSample | null {
@@ -1451,9 +1578,50 @@ export class TerrainManager {
     return result;
   }
 
+  /** Conservative radial ground for navigation while visual and CPU LODs load.
+   * Never changes scientific samples. Unknown/absent visible coverage remains
+   * null; skirts never become collision surfaces. Recompute against the active
+   * scenes every call, including immediately after a refinement or eviction.
+   */
+  navigationSurface(point: BodyFixedCartesian): { radiusKm: number | null; physicalRadiusKm: number | null;
+    renderedRadiusKm: number | null; discrepancyM: number | null; settled: boolean } | null {
+    if (!this.cube) return null;
+    const d = new THREE.Vector3(point.xKm, point.yKm, point.zKm).normalize();
+    const outer = this.bodyRadiusKm + 50;
+    const ray: SurfaceRay = { origin: { xKm: d.x*outer, yKm: d.y*outer, zKm: d.z*outer },
+      direction: [-d.x,-d.y,-d.z], nearKm: 0, farKm: 150 };
+    const resident = this.cube.source.sampler.finestResident(directionToCubeFace([d.x,d.y,d.z]));
+    const shape = this.cube.source.manifest.datum.referenceShape;
+    const referenceRadius = this.cube.source.manifest.geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : NaN);
+    const sampledRadius = resident ? radialCellRadius(resident.tile, resident.localU, resident.localV, d, referenceRadius, outer) : null;
+    const cellRadius = sampledRadius !== null && outer-sampledRadius <= ray.farKm ? sampledRadius : null;
+    const hit = cellRadius === null ? this.cube.surface.intersectRay(ray, { maxMeshErrorKm: this.nearSurfacePolicy.maxErrorM/1000 }) : null;
+    // This ray is radial: its cube coordinates never change through the shell.
+    // Avoid marching thousands of identical points every camera frame. Keep
+    // closed edge/face neighbours and the source's existing LRU/retry policy.
+    void Promise.all(radialCubeCoordinates(d, this.cube.source.manifest.maxLevel)
+      .map(coordinate => this.cube!.source.requestCoordinate(coordinate)))
+      .catch(err => this.warnOnce('cube-ray', 'Terrain: cube grid ray coverage failed', err));
+    const physical = cellRadius ?? (hit?.kind === 'hit' ? outer-hit.distanceKm : null);
+    const scenes: THREE.Object3D[] = [];
+    for (const tile of this.tiles.visibleTiles) {
+      const scene = (tile as unknown as { engineData?: { scene?: THREE.Object3D } }).engineData?.scene;
+      if (scene) scenes.push(scene);
+    }
+    const renderedM = renderedCubeRadius(scenes, this.tiles.group, d, outer*1000);
+    const rendered = renderedM === null ? null : renderedM/1000;
+    const discrepancyM = physical === null || rendered === null ? null : (rendered-physical)*1000;
+    const position = bodyFixedToGeodetic(point, this.cube.source.manifest.datum);
+    const coverage = this.cube.source.coverage(position.latDeg, position.lonDeg);
+    return { radiusKm: physical === null ? rendered : rendered === null ? physical : Math.max(physical, rendered),
+      physicalRadiusKm: physical, renderedRadiusKm: rendered, discrepancyM,
+      settled: coverage.state === 'finest' && discrepancyM !== null && Math.abs(discrepancyM) <= this.nearSurfacePolicy.maxErrorM };
+  }
+
   private loadCubeGrids(config: NonNullable<TerrainConfig['cubeSphere']>, datum: TerrainDatum): void {
-    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, signal: this.cubeGridsAbort.signal }).then((source) => {
-      if (this.disposed) return;
+    CubeSphereGridSource.fromUrl(config.cpuGrids, { ...config, fetch: fetchCompleteResponse, signal: this.cubeGridsAbort.signal }).then((source) => {
+      void source.ready.catch(() => {}); // Disposal during metadata rejection must not leave a detached rejection.
+      if (this.disposed) { source.dispose(); return; }
       // The grids carry their own datum; refuse any that disagrees with the body's.
       const a = source.manifest.datum.referenceShape, b = datum.referenceShape;
       const radii = (shape: TerrainDatum['referenceShape']) => shape.kind === 'sphere' ? [shape.radiusKm, shape.radiusKm, shape.radiusKm] : [...shape.radiiKm];
@@ -1461,9 +1629,17 @@ export class TerrainManager {
         a.kind !== b.kind || radii(a).some((r, i) => Math.abs(r - radii(b)[i]) > 1e-9)) {
         throw new Error(`cube grid datum ${JSON.stringify(source.manifest.datum.referenceShape)} does not match the body ${JSON.stringify(datum.referenceShape)}`);
       }
-      const surface = new CubeGridSurface(source, 'body', 'body-fixed');
-      source.onChange = (id) => surface.invalidate(id);
+      const frame = lunarProductFrame(source.manifest.coordinates?.frame, source.manifest.source.version);
+      if (this.config.frame && frame && frame !== this.config.frame) {
+        source.dispose();
+        throw new Error(`cube grid frame ${frame} does not match rendered frame ${this.config.frame}`);
+      }
+      if (this.config.frame && (!frame || frame === 'unspecified')) { source.dispose(); throw new Error('Cube grid frame is unknown'); }
+      this.cubeFrameReady = true;
+      const surface = new CubeGridSurface(source, this.config.bodyId ?? 'body', frame ?? this.config.frame ?? 'body-fixed');
+      source.onChange = (id) => { this.cubeRevision++; surface.invalidate(id); };
       this.cube = { source, surface };
+      this.cubeRevision++;
       // Geometry and grids must be one product revision (the builder writes the grids'
       // source version as the tileset's asset.tilesetVersion). Checked once the tileset
       // arrives, so CPU queries never wait on rendering; a mismatch drops the grids.
@@ -1473,23 +1649,51 @@ export class TerrainManager {
         // Only the known builder's Z-north, body-fixed metre product is eligible.
         // Config alone is insufficient: arbitrary 3D Tiles stay unsupported.
         const asset = (tileset as { asset?: { generator?: string } }).asset;
-        if (this.cubeStyleCandidate && version && version === source.manifest.source.version &&
-          /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
-          datum.referenceShape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
-          source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere') {
+        const knownBuilder = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(asset?.generator ?? '') &&
+          source.manifest.source.kind === 'height-grid' && !!source.manifest.source.id;
+        const shape = datum.referenceShape, geometry = source.manifest.geometry;
+        // On a sphere the equatorial reference radius is the sphere radius,
+        // so both known builder encodings describe the same radial heights.
+        const knownSphere = shape.kind === 'sphere' && datum.verticalDatum === 'reference-sphere' && datum.heightConvention === 'radial' &&
+          (!geometry || geometry.referenceRadiusKm === shape.radiusKm) &&
+          (source.manifest.grid.encoding === 'float32 little-endian, metres above the reference sphere' ||
+            source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius');
+        const generator = (source.manifest.source as typeof source.manifest.source & { generator?: { script?: string; sha256?: string } }).generator;
+        const ellipsoidBuilderKnown = /^scripts\/terrain\/dem\.py cube-(tile|error)(?: |$)/.test(generator?.script ?? '') && /^[a-f0-9]{64}$/.test(generator?.sha256 ?? '');
+        const normalEllipsoid = shape.kind === 'ellipsoid' && shape.radiiKm.every(r => Number.isFinite(r) && r > 0) &&
+          shape.radiiKm[0] === shape.radiiKm[1] && shape.radiiKm[2] <= shape.radiiKm[0] &&
+          datum.verticalDatum === 'ellipsoid' && datum.heightConvention === 'geodetic-normal' &&
+          geometry?.kind === 'radial-lattice' && geometry.referenceRadiusKm === shape.radiiKm[0] &&
+          source.manifest.grid.encoding === 'float32 little-endian, radial offset metres from equatorial reference radius';
+        if (this.cubeStyleCandidate) {
+          if (!knownBuilder) this.appearanceStatus = { state: 'unsupported-product', message: 'Relief styles are unsupported for this terrain product. Its planetary builder identity is not recognized.' };
+          else if (!version || version !== source.manifest.source.version) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain mesh and elevation-grid revisions could not be matched. Relief styles are unavailable.' };
+          else if (shape.kind === 'ellipsoid' && !ellipsoidBuilderKnown) this.appearanceStatus = { state: 'validation-failed', message: 'Terrain source and builder metadata could not be validated. Relief styles are unavailable.' };
+          else if (!knownSphere && !normalEllipsoid) this.appearanceStatus = { state: 'unsupported-reference', message: 'This known terrain product uses an unsupported elevation datum or payload encoding. Relief styles are unavailable.' };
+        }
+        if (this.cubeStyleCandidate && knownBuilder && version && version === source.manifest.source.version && (knownSphere || (normalEllipsoid && ellipsoidBuilderKnown))) {
           this.cubeStyleHeightRange = source.manifest.heightRangeKm;
+          this.cubeStyleReferenceRadiusKm = geometry?.referenceRadiusKm ?? (shape.kind === 'sphere' ? shape.radiusKm : null);
           this.surfaceStyle = new SurfaceAppearance(datum);
+          this.appearanceStatus = { state: 'ready', message: '' };
           if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = this.surfaceStyle; }
           for (const scene of this.cubeScenes) this.attachSurfaceStyle(scene);
         }
         if (version === undefined || version === source.manifest.source.version) return;
         this.cube = null;
+        this.cubeFrameReady = false;
+        this.cubeFrameError = 'Terrain geometry and CPU grid revisions disagree';
+        this.cubeRevision++;
         source.dispose();
         this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`,
           new Error(`grid revision ${source.manifest.source.version} does not match the tileset's ${version}`));
       });
       return source.ready;
-    }).catch((err) => this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err));
+    }).catch((err) => {
+      if (!this.cube) { this.cubeFrameReady = false; this.cubeFrameError = String(err); }
+      if (!this.disposed) this.rejectCubeSurfaceStyle('Terrain elevation metadata failed validation or could not be loaded. Relief styles are unavailable.');
+      this.warnOnce('cube-grids', `Terrain: cube-sphere CPU grids unavailable (${config.cpuGrids})`, err);
+    });
   }
 
   /** Call `fn` with the root tileset JSON now if it has loaded, else once it does. */
@@ -1510,6 +1714,7 @@ export class TerrainManager {
 
   /** The imagery stack, bottom → top, with each layer's current load health. */
   get imageryLayers(): ImageryLayerInfo[] {
+    if (this.cubeImagery && this.layers.length) return this.cubeImagery.imageryLayers;
     return this.layers.map((l) => ({
       ...l,
       bounds: l.bounds ? [...l.bounds] as [number, number, number, number] : null,
@@ -1562,6 +1767,7 @@ export class TerrainManager {
    * base layer, an unknown id, or the same state).
    */
   setImageryLayerVisible(id: string, visible: boolean): boolean {
+    if (this.cubeImagery) return this.cubeImagery.setLayerVisible(id, visible);
     const layer = this.layer(id);
     if (!layer || !layer.optional || !this.overlayPlugin || layer.visible === visible) return false;
     layer.visible = visible;
@@ -1583,6 +1789,7 @@ export class TerrainManager {
    * has no opacity.
    */
   setImageryLayerOpacity(id: string, opacity: number): boolean {
+    if (this.cubeImagery) return this.cubeImagery.setLayerOpacity(id, opacity);
     const layer = this.layer(id);
     if (!layer || (layer.role === 'base' && this.isImageryOnly)) return false;
     layer.opacity = clampOpacity(opacity);
@@ -1597,6 +1804,7 @@ export class TerrainManager {
    * fetched again.
    */
   moveImageryLayer(id: string, toIndex: number): boolean {
+    if (this.cubeImagery) return this.cubeImagery.moveLayer(id, toIndex);
     const next = reorderedLayers(this.layers, this.layers.findIndex((l) => l.id === id), toIndex);
     if (!next) return false;
     this.layers.splice(0, this.layers.length, ...next);
@@ -1627,6 +1835,7 @@ export class TerrainManager {
 
   /** Overlay fetches since start, across all layers. */
   get imageryRequests(): number {
+    if (this.cubeImagery) return this.cubeImagery.stats.requests;
     let n = 0;
     for (const l of this.layers) if (l.role === 'overlay' || !this.isImageryOnly) n += l.requests;
     return n;
@@ -1664,6 +1873,10 @@ export class TerrainManager {
    */
   isReadyToShow(now = performance.now()): boolean {
     if (!this._pluginReady || this.hasStreamFailed(now)) return false;
+    if (this.cubeImagery && (this.debugMode === 'none' || IMAGERY_DEBUG[this.debugMode])) {
+      const imagery = this.cubeImagery.stats;
+      if (!imagery.ready || !imagery.tiles || imagery.untexturedBlocks > 0 || imagery.baseUncoveredBlocks > 0) return false;
+    }
     const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
     if (!((stats.visible ?? 0) > 0)) { this.firstVisibleAt = 0; return false; }
     if (this.coverageTiles().some((t) => t.traversal?.inFrustum !== false && t.internal?.loadingState !== LOADED)) return false;
@@ -2086,12 +2299,41 @@ export class TerrainManager {
     return worst;
   }
 
+  /** Coverage within the configured product footprint, using the streamer's own
+   * replacement hierarchy. Never a statement about areas absent from that product. */
+  get viewCoverage() {
+    const coverage = this.coverageTiles().filter(t => t.traversal?.inFrustum !== false);
+    const missing = coverage.filter(t => t.internal?.loadingState !== LOADED).length;
+    const failed = coverage.filter(t => t.internal?.loadingState === FAILED).length;
+    const stats = (this.tiles as unknown as { stats?: Record<string, number> }).stats ?? {};
+    const pending = (stats.queued ?? 0) + (stats.downloading ?? 0) + (stats.parsing ?? 0);
+    // Visible parents can fill coverage while children refine. This is reported
+    // separately from coverage and never inferred from an empty request queue.
+    let targetLod = true;
+    for (const tile of this.tiles.visibleTiles) {
+      const t = tile as unknown as { traversal?: { error?: number }; engineData?: { scene?: THREE.Object3D | null } };
+      if (t.engineData?.scene && this.culledScenes.includes(t.engineData.scene)) continue;
+      if (!Number.isFinite(t.traversal?.error) || (t.traversal?.error ?? Infinity) > this.tiles.errorTarget) targetLod = false;
+    }
+    return { observed: this.viewUpdateSucceeded, coverageTiles: coverage.length, missing, failed,
+      pending, drawn: this.surfaceStatus.tiles.drawn, targetLod,
+      physical: !this.imageryOnly, frameAvailable: this.frameAvailability.kind !== 'unavailable' };
+  }
+
+  /** Constant-time residency/draw status, without geometry or texture traversal. */
+  get surfaceStatus() {
+    const stats = (this.tiles as any).stats ?? {};
+    return { tiles: { loaded: this.residentModels.size, cpu: this.cpuDiagnostics.tileCount,
+      drawn: Math.max(0, (stats.visible ?? 0) - this.culledScenes.length) },
+    network: { failed: stats.failed ?? 0 } };
+  }
+
   /** Terrain cost/load snapshot. See {@link TerrainPerformanceMetrics}. */
   get metrics(): TerrainPerformanceMetrics {
     const t = this.tiles as any;
     const stats = t.stats ?? {};
     const cache = t.lruCache ?? {};
-    let geometryBytes = 0, textureBytes = 0;
+    let geometryBytes = 0, textureBytes = 0, loadedModels = 0;
     const seenGeometry = new Set<THREE.BufferGeometry>();
     // Keyed by Source, not Texture: per-tile clones of one map (applyNormalMap)
     // share a Source, and three.js uploads a shared Source to the GPU once.
@@ -2113,6 +2355,7 @@ export class TerrainManager {
     // Every loaded model, not just `group`: the renderer detaches tiles that
     // leave the view but keeps their buffers cached until LRU disposal.
     this.tiles.forEachLoadedModel((scene: THREE.Object3D) => {
+      loadedModels++;
       scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -2129,13 +2372,14 @@ export class TerrainManager {
         for (const tex of overlayParams?.get(mesh)?.layerMaps.value ?? []) countTexture(tex);
       });
     });
+    this.cubeImagery?.forEachResidentTexture(countTexture);
     const d = this.cpuDiagnostics;
     return {
       update: this.updateTiming.value,
       parse: this.parseTiming.value,
       cpuDecode: this.decodeTiming.value,
       sample: { count: d.sampleCount, lastMicros: d.lastSampleMicros, meanMicros: d.meanSampleMicros },
-      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, inCache: stats.inCache ?? 0, cpu: d.tileCount },
+      tiles: { active: stats.active ?? 0, visible: stats.visible ?? 0, drawn: (stats.visible ?? 0) - this.culledScenes.length, loaded: loadedModels, inCache: stats.inCache ?? 0, cpu: d.tileCount },
       network: {
         requests: this.requestCount,
         queued: stats.queued ?? 0,
@@ -2145,11 +2389,12 @@ export class TerrainManager {
       },
       memory: { cacheBytes: cache.cachedBytes ?? 0, maxCacheBytes: cache.maxBytesSize ?? 0, geometryBytes, textureBytes },
       imagery: {
+        cube: this.cubeImagery?.stats,
         layers: this.layers.length,
-        activeOverlays: this.activeOverlays.size,
+        activeOverlays: this.cubeImagery ? this.cubeImagery.imageryLayers.filter(l => l.visible).length : this.activeOverlays.size,
         overlayResolution: this._overlayResolution,
         requests: this.imageryRequests,
-        failed: this.layers.reduce((n, l) => n + (l.role === 'overlay' || !this.isImageryOnly ? l.failedTiles : 0), 0),
+        failed: this.imageryLayers.reduce((n, l) => n + (l.role === 'overlay' || !this.isImageryOnly ? l.failedTiles : 0), 0),
       },
     };
   }
@@ -2161,6 +2406,7 @@ export class TerrainManager {
     this.decodeTiming.reset();
     this.sampler.resetTiming();
     this.requestCount = 0;
+    this.cubeImagery?.resetCounters();
   }
 
   dispose(): void {
@@ -2185,6 +2431,7 @@ export class TerrainManager {
     }
     this.normalMap?.dispose();
     this.tiles.dispose();
+    this.residentModels.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -2277,6 +2524,21 @@ export class TerrainManager {
   /**
    * Set material properties on a loaded tile, blend normals toward sphere, and apply normal map.
    */
+  private graticuleUniforms: GraticuleUniforms | null = null;
+  private gridBodyFromWorld: THREE.Matrix4 | null = null;
+
+  enableGraticule(uniforms: GraticuleUniforms, bodyFromWorld: THREE.Matrix4): void {
+    this.graticuleUniforms = uniforms;
+    this.gridBodyFromWorld = bodyFromWorld;
+    this.applyGraticule(this.group);
+  }
+
+  private applyGraticule(scene: THREE.Object3D): void {
+    const uniforms = this.graticuleUniforms, transform = this.gridBodyFromWorld;
+    if (!uniforms || !transform) return;
+    applyGraticuleToScene(scene, uniforms, transform);
+  }
+
   /** Enable eclipse shadow receiving on all current and future terrain tiles. */
   enableShadowReceiving(uniforms: ShadowUniforms): void {
     this.shadowUniforms = uniforms;
@@ -2356,6 +2618,7 @@ export class TerrainManager {
         const mat = new THREE.MeshStandardMaterial({
           map: basic.map,
           transparent: false,
+          side: this.cubeConfigured ? THREE.DoubleSide : basic.side,
           metalness: 0,
           roughness: 0.85,
         });
@@ -2402,6 +2665,10 @@ export class TerrainManager {
 
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of mats) {
+        // Physical terrain remains an occluder from below, too. Otherwise its
+        // culled top faces expose remote skirts as a misleading line forest.
+        // This changes rasterization only; lattice, normals and CPU stay exact.
+        if (this.cubeConfigured) mat.side = THREE.DoubleSide;
         this.customizedMaterials.add(mat);
         if ('roughness' in mat) (mat as THREE.MeshStandardMaterial).roughness = 0.85;
         if ('metalness' in mat) (mat as THREE.MeshStandardMaterial).metalness = 0;
@@ -2418,6 +2685,7 @@ export class TerrainManager {
       }
     });
 
+
     if (this.normalMap) {
       this.applyNormalMap(scene, tile);
     }
@@ -2427,7 +2695,7 @@ export class TerrainManager {
   private attachSurfaceStyle(scene: THREE.Object3D): void {
     if (!this.surfaceStyle) return;
     scene.traverse(child => {
-      if (!isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
+      if (!this.surfaceStyle || !isMesh(child) || child.name.startsWith('cube-imagery-block ')) return;
       const matrix = new THREE.Matrix4();
       // Mesh local metres -> body-fixed Z north. Include glTF's Y-up
       // conversion and all tile ancestors, exclude camera-relative tiles.group.
@@ -2439,24 +2707,39 @@ export class TerrainManager {
       }
       if (this.cubeConfigured) {
         const g = child.geometry, n = g.userData.surfaceTriangles;
-        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange) return;
+        const positions = g.getAttribute('position'), normals = g.getAttribute('normal');
+        const reject = () => this.rejectCubeSurfaceStyle('Terrain mesh validation failed for relief styles. Its topology, units or radial extent disagrees with the validated product.');
+        if (!Number.isSafeInteger(n) || n <= 0 || !g.index || 3 * n > g.index.count || !this.cubeStyleHeightRange ||
+          this.cubeStyleReferenceRadiusKm === null || !positions || positions.itemSize !== 3 || !normals || normals.itemSize !== 3 || normals.count !== positions.count) { reject(); return; }
         const scale = new THREE.Vector3().setFromMatrixScale(matrix);
-        if ([scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) return;
-        const point = new THREE.Vector3(), positions = g.getAttribute('position');
-        const radius = this.surfaceStyle!.datum.referenceShape;
-        if (radius.kind !== 'sphere') return;
+        if (matrix.determinant() <= 0 || [scale.x, scale.y, scale.z].some(v => !Number.isFinite(v) || Math.abs(v - 1) > 1e-6)) { reject(); return; }
+        const point = new THREE.Vector3();
         // Validate metre encoding against the product range on surface vertices;
         // skirts intentionally extend below it. Allow 1 m for float32 offsets.
         for (let i = 0; i < n * 3; i++) {
-          point.fromBufferAttribute(positions, g.index.getX(i)).applyMatrix4(matrix);
-          const height = point.length() * 0.001 - radius.radiusKm;
-          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) return;
+          const index = g.index.getX(i);
+          if (!Number.isSafeInteger(index) || index < 0 || index >= positions.count) { reject(); return; }
+          point.fromBufferAttribute(positions, index).applyMatrix4(matrix);
+          // The grid range bounds radial payload offsets, including on an
+          // ellipsoid. SurfaceAppearance computes geodetic-normal display
+          // heights separately with renderedHeightKm; never compare those here.
+          const height = point.length() * 0.001 - this.cubeStyleReferenceRadiusKm;
+          if (!Number.isFinite(height) || height < this.cubeStyleHeightRange[0] - 0.001 || height > this.cubeStyleHeightRange[1] + 0.001) { reject(); return; }
         }
       }
       // A detached cached QM root is still `visible=true`. It must not enter
       // style preparation, auto-spacing or labels with its stale world scale.
       this.surfaceStyle!.attach(child, matrix, scene);
     });
+  }
+
+  private rejectCubeSurfaceStyle(message: string): void {
+    if (this.surfaceStyle) this.surfaceStyle.set({ ...this.surfaceStyle.current, baseColor: 'imagery', hillshade: false, contours: false, contourLabels: false });
+    this.surfaceStyle = null;
+    this.cubeStyleHeightRange = null;
+    this.cubeStyleReferenceRadiusKm = null;
+    if (this.cubeImagery) { this.cubeImagery.invalidateBlocks(); this.cubeImagery.surfaceAppearance = null; }
+    this.appearanceStatus = { state: 'validation-failed', message };
   }
 
   /**

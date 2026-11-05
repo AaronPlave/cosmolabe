@@ -1,0 +1,54 @@
+Object = IsisCube
+  Object = Core
+    StartByte = 1032258
+    ^Core     = JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif
+    Format    = BandSequential
+
+    Group = Dimensions
+      Samples = 85600
+      Lines   = 85952
+      Bands   = 1
+    End_Group
+
+    Group = Pixels
+      Type       = UnsignedByte
+      ByteOrder  = Lsb
+      Base       = 0.0
+      Multiplier = 1.0
+    End_Group
+  End_Object
+
+  Group = Mapping
+    TargetName           = Mars
+    EquatorialRadius     = 3396190.0 <meters>
+    PolarRadius          = 3396190.0 <meters>
+    LatitudeType         = Planetocentric
+    LongitudeDirection   = PositiveEast
+    LongitudeDomain      = 180
+    MinimumLatitude      = 18.3067994496865651
+    MinimumLongitude     = 77.2229330769714153
+    MaximumLatitude      = 18.6693150068777456
+    MaximumLongitude     = 77.5839640209350847
+    ProjectionName       = Equirectangular
+    CenterLongitude      = 0.0
+    CenterLatitude       = 0.0
+    CenterLatitudeRadius = 3396190.0
+    UpperLeftCornerX     = 4577366.0
+    UpperLeftCornerY     = 1106618.0
+    PixelResolution      = 0.25 <meters/pixel>
+    Scale                = 237098.790093224874 <pixels/degree>
+  End_Group
+End_Object
+
+Object = Label
+  Bytes = 1458             
+End_Object
+
+Object = History
+  Name      = IsisCube
+  StartByte = 1
+  Bytes     = 455
+  ^History  = JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.Histor-
+              y.IsisCube
+End_Object
+End

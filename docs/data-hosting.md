@@ -12,6 +12,24 @@ Local development serves repository examples under `/test-catalogs/` from
 middleware still gunzips `.terrain` files on the fly. Viewer-owned assets are
 separate in `apps/viewer/public/`.
 
+Vite serves existing local files first. If a requested file is missing and belongs
+to a published managed dataset in `datasets.json`, Vite streams it from that
+dataset's pinned deployed build (`https://data.aaronplave.com` by default).
+Catalogs and relative manifest URLs stay on the local origin, so the fallback
+works on any dev-server port without browser CORS changes. This also applies to
+direct requests for CPU grids, tiles, imagery and kernels. An upstream 404 stays
+a 404; unpublished, local-only and unmanaged paths retain local-only behavior.
+Local fallback URLs use revalidation (`Cache-Control: no-cache`), so changing a
+pin does not leave year-cached responses at an unversioned local alias. No
+dataset inventory scan or large download is needed before starting a demo.
+
+Set `DATA_BASE_URL` to use another data host. For generating or debugging partial
+local products, use `DEV_DATA_MODE=local` to disable remote fallback and ensure
+missing output remains visible. Restart Vite after changing these environment
+settings or registry pins. Production catalog rewriting is unchanged. Partial
+local products should match their pinned build; use local-only mode when they do
+not, rather than mixing an experimental local product with published files.
+
 ## How the pieces fit
 
 ```

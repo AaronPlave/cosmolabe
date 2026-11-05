@@ -1,0 +1,28 @@
+{
+  "name": "NASA NSSDCA Apollo landing-site coordinates",
+  "geographicCoordinates": {
+    "latitude": "planetocentric",
+    "longitudeDirection": "east",
+    "longitudeDomain": "-180..180",
+    "referenceShape": {
+      "kind": "sphere",
+      "radiusKm": 1737.4
+    }
+  },
+  "geographicLayers": [
+    {
+      "id": "mission:apollo15-site",
+      "name": "NASA NSSDCA Apollo landing-site coordinates",
+      "body": "Moon",
+      "source": "apollo15-site.geojson",
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "NASA NSSDCA Apollo landing-site coordinates",
+        "sourceUrl": "https://nssdc.gsfc.nasa.gov/planetary/lunar/lunar_sites.html",
+        "geometrySemantics": "point-anchor-not-feature-boundary"
+      }
+    }
+  ]
+}

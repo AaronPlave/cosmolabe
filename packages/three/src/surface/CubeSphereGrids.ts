@@ -21,6 +21,7 @@ import {
 export interface CubeGridManifest {
   format: 'cosmolabe-cube-height-grid-1';
   datum: TerrainDatum;
+  coordinates?: { frame?: string; body?: string };
   /** Payload values are radial offsets from this radius, not datum heights.
    * Required for ellipsoidal products; public samples are ellipsoid-normal heights. */
   geometry?: { kind: 'radial-lattice'; referenceRadiusKm: number };
@@ -190,6 +191,13 @@ export class CubeSphereGridSource {
       return this.querySurface.sampleElevation(latDeg, lonDeg);
     }
     return this.sampler.sample(latDeg, lonDeg);
+  }
+
+  /** Read only already resident physical grids; annotations must not request detail. */
+  sampleResident(latDeg: number, lonDeg: number): TerrainSample | null {
+    if (!this.manifest.geometry) return this.sampler.sample(latDeg, lonDeg);
+    this.querySurface ??= new CubeGridSurface(this, '', 'body-fixed');
+    return this.querySurface.sampleElevation(latDeg, lonDeg, false);
   }
 
   /** Load the product's tile chain at a point, down to its deepest level. */
@@ -363,7 +371,7 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
   /** Forget a derived mesh when its grid changes or leaves. */
   invalidate(id: string): void { this.meshes.delete(id); }
 
-  sampleElevation(latDeg: number, lonDeg: number): TerrainSample | null {
+  sampleElevation(latDeg: number, lonDeg: number, requestCoverage = true): TerrainSample | null {
     if (!this.source.manifest.geometry) return this.source.sampler.sample(latDeg, lonDeg);
     // Validate coordinates and canonicalize poles/longitude before constructing a
     // normal ray. Intersect the Cartesian lattice, including its chord sag;
@@ -386,7 +394,7 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
     }
     const direction: SurfaceVector = [(zero.xKm - above.xKm) / extent, (zero.yKm - above.yKm) / extent, (zero.zKm - above.zKm) / extent];
     const ray: SurfaceRay = { origin: above, direction, nearKm: 0, farKm: 2 * extent };
-    void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
+    if (requestCoverage) void this.ensureRayCoverage(ray, { maxMeshErrorKm: 0 }, new AbortController().signal);
     const hit = this.intersectRay(ray, { maxMeshErrorKm: 0 });
     if (hit.kind !== 'hit') return null;
     return { position: { latDeg, lonDeg: wrapLon(lonDeg) }, elevationKm: extent - hit.distanceKm,
@@ -429,12 +437,22 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
    * horizon occluder for the draw cull.
    */
   get renderedInnerRadiusKm(): number {
-    // An ellipsoid-normal datum does not certify a sphere below the emitted
-    // terrain. Keep frustum culling and disable the horizon test for now.
     if (this.source.manifest.datum.referenceShape.kind !== 'sphere') return 0;
+    return this.radialRenderedInnerRadiusKm;
+  }
+
+  /** Conservative radial-storage bound used only by imagery request culling.
+   * It does not alter physical queries or the terrain renderer's selection.
+   */
+  get radialRenderedInnerRadiusKm(): number {
+    // This is a bound on Cartesian radial storage, not a relabeling of public
+    // geodetic-normal heights. Ellipsoidal products require an explicit radial
+    // lattice, whose offset range and reference radius certify the same bound.
+    if (this.source.manifest.datum.referenceShape.kind !== 'sphere' && !this.source.manifest.geometry) return 0;
     const { heightRangeKm, tiles, renderedMesh } = this.source.manifest;
     const deviationKm = renderedMesh ? tiles.reduce((m, t) => Math.max(m, t[5] ?? Infinity), 0) : 0;
-    return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm);
+    return Math.max(0, this.latticeInnerRadiusKm(Math.min(heightRangeKm[0], this.source.minHeightKm)) - deviationKm
+      - (this.source.manifest.renderedLatticeRoundingBoundKm ?? 0));
   }
 
   private point(ray: SurfaceRay, d: SurfaceVector, t: number): CubeFaceCoordinate {
@@ -522,7 +540,9 @@ export class CubeGridSurface implements PhysicalSurface, SurfaceQueryLoader {
       tried.add(id);
       const mesh = this.mesh(id, tile);
       for (let near = t0, attempt = 0; attempt < 64; attempt++) {
-        const hit = mesh.intersectRay({ ...ray, nearKm: near, farKm: result.best ? result.best.distanceKm : t1 }, options);
+        const far = result.best ? Math.min(result.best.distanceKm, t1) : t1;
+        if (near > far) break; // A rejected ancestor hit can exhaust the inclusive interval.
+        const hit = mesh.intersectRay({ ...ray, nearKm: near, farKm: far }, options);
         if (hit.kind !== 'hit') break;
         const p = hit.position, coordinate = directionToCubeFace([p.xKm, p.yKm, p.zKm]);
         const owner = this.source.sampler.finestResident(coordinate)?.tile;

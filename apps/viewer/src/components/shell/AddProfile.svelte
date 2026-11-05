@@ -52,7 +52,7 @@
     <Plus size={compact ? 14 : 12} /><span>Profile</span>
   </Popover.Trigger>
   <Popover.Portal>
-    <Popover.Content side="top" align="start" sideOffset={6} class="w-80 max-w-[calc(100vw-16px)] p-3">
+    <Popover.Content side="top" align="start" sideOffset={6} class="w-80 max-w-[calc(100cqw-16px)] p-3">
       {#if open}
         <ProfileConfig initial={seed()} submitLabel="Add" onSubmit={add} />
       {/if}

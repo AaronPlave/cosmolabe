@@ -1,0 +1,116 @@
+{
+  "dtm.lbl": {
+    "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.lbl",
+    "status": 200,
+    "headers": {
+      "Content-Length": "1502",
+      "Accept-Ranges": "bytes",
+      "Date": "Sat, 24 Oct 2026 13:06:15 GMT",
+      "Last-Modified": "Thu, 10 Nov 2022 21:35:04 GMT",
+      "ETag": "\"66267a908f31bf7bd87f5e923b853ce8\"",
+      "x-amz-version-id": "null",
+      "Content-Type": "binary/octet-stream"
+    },
+    "bytesRead": 1502,
+    "sha256": "2a5e50ea40f1965359f3fb8d3b316e69243b77cf63f435629be58163bca7efd7"
+  },
+  "ortho.lbl": {
+    "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.lbl",
+    "status": 200,
+    "headers": {
+      "Content-Length": "1458",
+      "Accept-Ranges": "bytes",
+      "Date": "Sat, 24 Oct 2026 13:06:15 GMT",
+      "Last-Modified": "Thu, 10 Nov 2022 21:40:46 GMT",
+      "ETag": "\"13d890db4662851c669977dd322f0b88\"",
+      "x-amz-version-id": "null",
+      "Content-Type": "binary/octet-stream"
+    },
+    "bytesRead": 1458,
+    "sha256": "bae9b7686951ba3ce580152b71bde1d5fcce0e09cfae724a9d49dc5084b64988"
+  },
+  "ctx.lbl": {
+    "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.lbl",
+    "status": 200,
+    "headers": {
+      "Content-Length": "1439",
+      "Accept-Ranges": "bytes",
+      "Date": "Sat, 24 Oct 2026 13:06:15 GMT",
+      "Last-Modified": "Thu, 10 Nov 2022 20:44:07 GMT",
+      "ETag": "\"823f2f8a9f335068279d99d5b14d4750\"",
+      "x-amz-version-id": "null",
+      "Content-Type": "binary/octet-stream"
+    },
+    "bytesRead": 1439,
+    "sha256": "a425525be2695ed727daf179563a5898cb2131691e8b21993426764abcf617ca"
+  },
+  "ortho-head": {
+    "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/HiRISE/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first.tif",
+    "status": 200,
+    "headers": {
+      "Date": "Sat, 24 Oct 2026 13:06:16 GMT",
+      "Last-Modified": "Thu, 10 Nov 2022 21:40:51 GMT",
+      "ETag": "\"755fa7c86ddfeca7e2dd582fbd50e4ce-878\"",
+      "x-amz-version-id": "null",
+      "Accept-Ranges": "bytes",
+      "Content-Length": "7358523457",
+      "Content-Type": "image/tiff"
+    },
+    "bytesRead": 0,
+    "sha256": null
+  },
+  "ctx-head": {
+    "url": "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0.tif",
+    "status": 200,
+    "headers": {
+      "Date": "Sat, 24 Oct 2026 13:06:16 GMT",
+      "Last-Modified": "Thu, 10 Nov 2022 20:44:10 GMT",
+      "ETag": "\"cac84bedfe03710ff76aa4895b19715b-5\"",
+      "x-amz-version-id": "null",
+      "Accept-Ranges": "bytes",
+      "Content-Length": "36269402",
+      "Content-Type": "image/tiff"
+    },
+    "bytesRead": 0,
+    "sha256": null
+  },
+  "waypoints.json": {
+    "url": "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/m20_heli_waypoints.json",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Length": "65499",
+      "Last-Modified": "Mon, 11 May 2026 21:15:40 GMT",
+      "x-amz-version-id": "JZqXl7Yr3h1dXbNq1iywrqprrzIWRtcZ",
+      "Accept-Ranges": "bytes",
+      "Date": "Sat, 24 Oct 2026 13:06:16 GMT",
+      "ETag": "\"c04bc4b5335a35068170509ddaa7972f\""
+    },
+    "bytesRead": 65499,
+    "sha256": "457b536b6851259d2dfd1ee75c076ca95f4ad7f5f1cbd49c880564c3cf5d787b"
+  },
+  "paths.json": {
+    "url": "https://mars.nasa.gov/mmgis-maps/M20/Layers/json/m20_heli_flight_path.json",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Length": "2303889",
+      "Last-Modified": "Mon, 11 May 2026 21:15:43 GMT",
+      "x-amz-version-id": "5unEZWz2H_Wms3_G8VVpV_hOvT1g7rdn",
+      "Accept-Ranges": "bytes",
+      "Date": "Sat, 24 Oct 2026 13:06:16 GMT",
+      "ETag": "\"edbabdd150adc04b23bb13ba5dd8f9c6\""
+    },
+    "bytesRead": 2303889,
+    "sha256": "f0b19df6290a4d26c6618188d8986774b01c509e3d98841e410e8168f868240a"
+  },
+  "mmgis-config.json": {
+    "url": "https://mars.nasa.gov/mmgis-maps/M20/config.json",
+    "error": "HTTP Error 403: Forbidden"
+  },
+  "mmgis-public-api": {
+    "url": "https://mars.nasa.gov/maps/api/configure/get?mission=M20",
+    "status": 200,
+    "sha256": "5d06da50f101d3b5d381744347ed3f879fe0daa8ee8843510d5ceac86ec344f0"
+  }
+}

@@ -1,5 +1,7 @@
 {
   "name": "Apollo 15 imagery (no terrain)",
+  "defaultGeographicNames": ["Moon"],
+  "require": ["places/moon.json", "places/apollo15-site.json"],
   "version": "1.1",
   "description": "Streamed imagery pilot (#123): the global LROC WAC mosaic with a bounded 50 cm/px LROC NAC mosaic of the Apollo 15 site at Hadley Rille, on the lunar ellipsoid with no physical terrain.",
   "defaultTime": "2024-07-21T10:00:00Z",

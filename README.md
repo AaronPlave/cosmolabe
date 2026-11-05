@@ -100,7 +100,10 @@ local source metadata.
 
 ## Architecture and embedding
 
-Use the standalone viewer, or embed the TypeScript packages in your own application.
+Use the standalone viewer, embed its complete workspace in any web page — with
+spacecraft state, activities, time and selection supplied by the host
+([embedding guide](docs/embedding.md), [reference host](examples/embed-host)) —
+or build on the TypeScript packages directly.
 The viewer combines a queryable universe model with injected SPICE/frame services
 and a renderer; core and control have no rendering or DOM dependencies.
 

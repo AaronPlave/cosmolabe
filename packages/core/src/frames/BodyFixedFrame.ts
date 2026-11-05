@@ -9,7 +9,7 @@ export class BodyFixedFrame implements Frame {
     private readonly bodyName: string,
     private readonly rotation: RotationModel,
   ) {
-    this.name = `IAU_${bodyName.toUpperCase()}`;
+    this.name = rotation.bodyFixedFrame ?? `IAU_${bodyName.toUpperCase()}`;
   }
 
   toInertial(et: number): RotationMatrix {

@@ -11,6 +11,7 @@ import { fetchCatalogSource, loadCatalogSources, type CatalogSourceState } from 
 import {
   catalogSourceDeployment, nextSourceParam, sourceParamValues, withSourceParams,
 } from './deployment';
+import { resettable } from './session.svelte';
 
 const deployment = catalogSourceDeployment();
 
@@ -32,6 +33,7 @@ export const catalogs = $state({
   /** The last load that failed, for whichever surface is on screen to say so. */
   loadError: null as string | null,
 });
+resettable(catalogs);
 
 let started: Promise<CatalogSourceState[]> | null = null;
 

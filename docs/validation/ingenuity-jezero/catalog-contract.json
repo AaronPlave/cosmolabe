@@ -1,0 +1,29 @@
+{
+  "kind": "ingenuity-catalog-preservation",
+  "baselineCommit": "70899b98e7bfe218c81e0c73ef7494924ebf9152",
+  "unchangedMissionContractSha256": "fd13ded15c949ac404dc983cef13c9c950f9dd19f1829a1922dc3b837d80f136",
+  "unchangedArcCount": 72,
+  "unchangedArcsSha256": "133361d1f61a4d646751f809de70977a85ec699046065757fa65e76181902874",
+  "allowedChanges": [
+    "Mars terrain",
+    "four independent Mars imagery configurations",
+    "catalog and selected Ingenuity model description",
+    "catalog version 1.1 to 1.2",
+    "explicit Ingenuity 300-second body-fixed plot policy with 0.05-second cache interval"
+  ],
+  "preserved": [
+    "mission time",
+    "72 arc identities, sources and epochs",
+    "viewpoints",
+    "model, rotation and controls",
+    "non-terrain mission bodies"
+  ],
+  "passed": true,
+  "plotPolicy": {
+    "duration": "300s",
+    "frame": "BodyFixed",
+    "sampleInterval": "0.05s",
+    "reason": "Render observed horizontal paths with estimated altitude/time in the current Mars frame; cap plots at actual flight data coverage, while retaining parked body routing."
+  },
+  "contractNormalization": "Remove catalog version/description, Mars terrain/imagery, Ingenuity description/trajectoryPlot; compare all other fields recursively with baseline."
+}

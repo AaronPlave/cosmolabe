@@ -1,5 +1,5 @@
 import {
-  surfacePointEndpoint, type SurfacePoint, bodyFixedFrameName, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
+  surfacePointEndpoint, type SurfacePoint, endpointLabel, frameAvailability, formatSpatialDistance, formatSpatialSpeed, referenceRelationship, referenceVectorLabel, relationshipVectors,
   resolveSpatialRelationship, type ReferenceRequest, type ReferenceVector, type SpatialEndpoint, type SpatialRelationship,
 } from '@cosmolabe/core';
 import { ViewStateError } from '@cosmolabe/control';
@@ -9,8 +9,10 @@ import { openTool } from './shell.svelte';
 import type { UniverseRenderer } from '@cosmolabe/three';
 import { cancelAppearancePick } from './surface-appearance-pick.svelte';
 import { getCurrentRenderer, getUniverse } from './loader';
-import { excludeFromProbe, setProbeActive, vs } from './viewer-state.svelte';
+import { excludeFromProbe, setProbeActive, vs, emit, onViewerEvent } from './viewer-state.svelte';
+import { workspaceNode } from './workspace.svelte';
 import { definitionEndpoints, validateMeasurementLinkState, validateMeasurementReferences, type MeasurementDefinition, type MeasurementLinkState } from './measurement-link-state';
+import { resettable } from './session.svelte';
 export type { MeasurementDefinition } from './measurement-link-state';
 
 export type Slot = 'source' | 'target' | 'vertex';
@@ -47,6 +49,7 @@ export const measurements = $state({
   selectedId: null as string | null,
   hoveredId: null as string | null,
 });
+resettable(measurements);
 
 export function cloneEndpoint(endpoint: SpatialEndpoint): SpatialEndpoint {
   if (endpoint.kind === 'surface-point') return surfacePointEndpoint(endpoint.point, endpoint.label);
@@ -104,7 +107,7 @@ function defaultDraftFrame(): void {
   if (measurements.draftKind !== 'axes' || !origin || origin.kind === 'coordinate') return;
   if (measurements.draftFrame && measurements.draftFrame !== autoFrame) return;
   const bodyName = origin.kind === 'surface-point' ? origin.point.bodyName : origin.bodyName;
-  const frame = getUniverse()?.getBody(bodyName)?.rotation ? bodyFixedFrameName(bodyName) : 'ECLIPJ2000';
+  const frame = getUniverse()?.getBody(bodyName)?.rotation ? getUniverse()!.frames.bodyFixedFrameFor(bodyName) : 'ECLIPJ2000';
   if (measurements.draftFrame !== frame) measurements.draftFrame = frame;
   autoFrame = frame;
 }
@@ -118,7 +121,10 @@ export function applyMeasurementFields(): void {
     const endpoint = measurements.draft[slot];
     if (JSON.stringify(item[slot]) !== JSON.stringify(endpoint)) item[slot] = endpoint && cloneEndpoint(endpoint);
   }
-  if (measurements.draftFrame) item.frame = measurements.draftFrame; else delete item.frame;
+  if (measurements.draftFrame) item.frame = measurements.draftFrame;
+  // Deleting even an absent property invalidates Svelte's proxy iteration
+  // dependencies. The panel effect reads the definition, so only delete once.
+  else if ('frame' in item) delete item.frame;
   for (const operand of ['first', 'second'] as const) {
     const vector = measurements.draftOperands[operand];
     if (JSON.stringify(item[operand] ?? null) !== JSON.stringify(vector)) item[operand] = vector && cloneVector(vector);
@@ -131,10 +137,13 @@ export function renderedMeasurements(): SpatialRelationship[] {
     return valid ? [{ ...valid, selected: item.id === measurements.selectedId, hovered: item.id === measurements.hoveredId, editing: item.id === measurements.editingId }] : [];
   });
 }
+let lastNotification = '';
 export function syncMeasurements(): void {
   defaultDraftFrame();
   const renderer = getCurrentRenderer();
   const rendered = renderedMeasurements();
+  const notification = JSON.stringify([measurements.items, measurements.selectedId]);
+  if (notification !== lastNotification) { lastNotification = notification; emit('measurements', {}); }
   renderer?.setSpatialRelationships(rendered);
   const selected = measurements.items.find(item => item.id === measurements.editingId);
   renderer?.setSpatialDraftEndpoints(selected && relationship(selected) ? []
@@ -186,9 +195,22 @@ export function restoreSharedMeasurements(input: MeasurementLinkState | undefine
   if (state.selected) selectMeasurement(state.selected);
   syncMeasurements();
 }
+/** Install already validated host definitions without discarding the person's creation draft. */
+export function installMeasurementDefinitions(state: MeasurementLinkState): void {
+  applyMeasurementFields();
+  const selected = state.selected ?? null;
+  const keptDraft = measurements.editingId ? suspendedDraft : snapshot();
+  measurements.editingId = null;
+  measurements.selectedId = null;
+  measurements.items = state.items;
+  if (keptDraft) restore(keptDraft);
+  if (selected) selectMeasurement(selected);
+  else if (!keptDraft) resetMeasurementDraft();
+  syncMeasurements();
+}
 export function openMeasurementEditor(id: string): void {
   selectMeasurement(id); openTool('measure');
-  requestAnimationFrame(() => document.querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
+  requestAnimationFrame(() => workspaceNode().querySelector('[data-measurement-editor]')?.scrollIntoView({ block: 'nearest' }));
 }
 export function hoverMeasurement(id: string | null): void {
   if (measurements.hoveredId === id) return;
@@ -206,7 +228,8 @@ export function addMeasurement(item: SpatialRelationship): void {
  */
 export function showReference(request: ReferenceRequest): string {
   applyMeasurementFields();
-  const item = definition(referenceRelationship(request, crypto.randomUUID()));
+  const resolvedRequest = request.kind === 'bodyAxes' ? { kind: 'frameAxes' as const, frame: getUniverse()?.frames.bodyFixedFrameFor(request.object) ?? `IAU_${request.object.toUpperCase()}`, origin: request.object } : request;
+  const item = definition(referenceRelationship(resolvedRequest, crypto.randomUUID()));
   const colored = item.kind !== 'axes';
   if (colored) item.color = colors[measurements.nextColor % colors.length];
   measurements.items.push(item); if (colored) measurements.nextColor++;
@@ -419,3 +442,6 @@ export function measureFromHere(point: SurfacePoint): void {
   openTool('measure');
   startMeasurementPick('target', 'surface');
 }
+
+// Dispose scene-owned definitions even when replacement loading fails.
+onViewerEvent('unload', resetMeasurementsForScene);

@@ -6,7 +6,10 @@ import type { GeographicFeatureRef } from '../geographic/GeographicIndex.js';
 /** Renderer events extend core Universe events with 3D-specific events. */
 export interface RendererEventMap extends UniverseEventMap {
   'geographic:click': GeographicFeatureRef;
+  'geographic:dblclick': GeographicFeatureRef;
   'geographic:hover': GeographicFeatureRef | null;
+  /** The selected feature changed: a scene click, a host's `setSelected`, or a hide/filter/unload that removed it. */
+  'geographic:select': GeographicFeatureRef | null;
   /**
    * Emitted immediately on a single-click of a body (no debounce — selection
    * shouldn't feel laggy). Note: a double-click will fire `body:click` once or
@@ -33,6 +36,12 @@ export interface RendererEventMap extends UniverseEventMap {
   'probe:hover': SurfacePoint | null;
   /** Point Probe: the pinned point changed (a click or tap pinned one, or it was cleared with null). */
   'probe:pin': SurfacePoint | null;
+  /**
+   * The active instrument view's sensor changed through `setInstrumentView`, or
+   * was cleared with null. Not emitted for the temporary activation the
+   * full-canvas Instrument camera mode makes on its own.
+   */
+  'instrument:sensor': { sensor: string | null };
   'camera:targetChanged': { bodyName: string | null };
   'renderer:resize': { width: number; height: number };
   /** Initial model/texture/trajectory-cache work progressing. `total` grows while

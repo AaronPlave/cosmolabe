@@ -10,6 +10,7 @@ export type GeographicGeometry<P> =
 
 /** Planetary extension to GeoJSON: angles are degrees; tuple order is longitude, latitude, Z. */
 export interface GeographicCoordinates {
+  frame?: string;
   latitude: 'planetocentric' | 'planetographic';
   longitudeDirection: 'east' | 'west';
   longitudeDomain: '-180..180' | '0..360';
@@ -34,7 +35,8 @@ export interface GeographicLayerDefinition {
 }
 
 export interface GeographicSource {
-  kind: 'catalog' | 'local-file';
+  /** `user`: a layer authored or edited in this session (see editing.ts), never a catalog's data. */
+  kind: 'catalog' | 'local-file' | 'user';
   /** Absolute URL for hosted sources; file path/name for local sources. */
   identity: string;
   catalog?: string;
@@ -65,8 +67,12 @@ export interface GeographicLayer {
   name: string;
   body: string;
   frame: string;
-  /** No editing ownership is implied by importing a file. Authored edits need a separate overlay. */
-  ownership: 'catalog' | 'transient';
+  /**
+   * No editing ownership is implied by importing a file: `catalog` and
+   * `transient` layers are read-only. `user` layers are authored or are working
+   * copies of a read-only layer, which itself stays unchanged.
+   */
+  ownership: 'catalog' | 'transient' | 'user';
   definition: GeographicLayerDefinition;
   source: GeographicSource;
   coordinates: GeographicCoordinates;

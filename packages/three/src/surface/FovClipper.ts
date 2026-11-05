@@ -211,8 +211,8 @@ const GOLDEN = (Math.sqrt(5) - 1) / 2;
 
 /**
  * Where, strictly inside (ta, tb), could a candidate's surface cross the
- * perimeter even though both endpoints miss? Returns the parameter of closest
- * approach for the first candidate whose shape that approach enters, or null.
+ * perimeter even though both endpoints miss? Yields the parameter of closest
+ * approach for each candidate whose bound that approach enters.
  *
  * The test is made in the candidate's reference-ellipsoid space (body-fixed,
  * divided by the radii), where the shape is a unit sphere: a ray hits it iff
@@ -221,12 +221,13 @@ const GOLDEN = (Math.sqrt(5) - 1) / 2;
  * is the ray most likely to hit. That makes the probe exact for reference
  * shapes regardless of how short the interval is, and costs one ray per
  * interval per candidate. Terrain/mesh candidates use the same search with the
- * shape inflated to their bounding radius, so a probe is only a best guess there.
+ * shape inflated to their bounding radius plus up to three fixed interior probes;
+ * these bounded samples cannot guarantee finding arbitrarily narrow terrain hits.
  */
-function probeParam(
+function* probeParams(
   origin: Vec3, directionAt: (t: number) => Vec3, ta: number, tb: number, a: Vec3, b: Vec3,
   candidates: readonly FovSurfaceCandidate[], maxRangeKm: number,
-): number | null {
+): Generator<number> {
   for (const c of candidates) {
     const rel: Vec3 = [c.centerKm[0] - origin[0], c.centerKm[1] - origin[1], c.centerKm[2] - origin[2]];
     const dist = Math.hypot(...rel);
@@ -259,12 +260,21 @@ function probeParam(
       else { lo = x1; x1 = x2; f1 = f2; x2 = lo + GOLDEN * (hi - lo); f2 = angleAt(x2); }
     }
     const t = (lo + hi) / 2;
-    // A minimum at an endpoint means that (missing) endpoint was the best chance.
+    // For an analytic shape, an endpoint minimum leaves no crossing to probe.
     const edge = 1e-6 * (tb - ta);
-    if (t - ta <= edge || tb - t <= edge) continue;
-    if (angleAt(t) < threshold) return t;
+    if (angleAt(t) >= threshold) continue;
+    if (t - ta > edge && tb - t > edge) yield t;
+    // Terrain/meshes need not be convex: closest approach to their enclosing
+    // shape can miss a depression while an off-center ray hits a ridge. Test
+    // three fixed interior locations as well, without recursing on failed rays.
+    // This is bounded rendering sampling, not exhaustive footprint discovery.
+    if (c.surfaces.some(s => !(s instanceof ReferenceEllipsoidSurface))) {
+      for (const fraction of [0.25, 0.5, 0.75]) {
+        const extra = ta + fraction * (tb - ta);
+        if (Math.abs(extra - t) > edge) yield extra;
+      }
+    }
   }
-  return null;
 }
 
 /**
@@ -297,13 +307,24 @@ export function clipFovPerimeter(
     if (budget <= 0) return;
     const transition = !sameState(a, b);
     const smooth = !transition && a.hit != null;
-    const probe = !transition && !smooth && candidates.length > 0
-      ? probeParam(originKm, directionAt, ta, tb, a.direction, b.direction, candidates, maxRange)
-      : null;
-    if (!transition && !smooth && probe == null) return;
     if (depth >= (smooth ? o.maxSmoothDepth : o.maxTransitionDepth)) return;
-    const tm = probe ?? (ta + tb) / 2;
-    const m = sample(tm, false);
+    let tm = (ta + tb) / 2;
+    let m: FovPerimeterSample | undefined;
+    if (!transition && !smooth) {
+      // A bound can overlap while the physical surface does not (inflated
+      // terrain bounds, missing coverage, or a hit beyond maxRange). An all-miss
+      // bounded set of probes supplies no crossing to refine: recursively probing
+      // both halves would grow an all-miss interval to the entire sample cap.
+      // Keep trying other candidates so a loose bound cannot hide a real grazer.
+      for (const t of probeParams(originKm, directionAt, ta, tb, a.direction, b.direction, candidates, maxRange)) {
+        if (budget <= 0) return;
+        const probe = sample(t, false);
+        if (probe.hit) { tm = t; m = probe; break; }
+      }
+      if (!m) return;
+    } else {
+      m = sample(tm, false);
+    }
     if (smooth && sameState(a, m)) {
       const pa = endpoint(a), pb = endpoint(b);
       const rangeError = Math.abs(m.distanceKm - (a.distanceKm + b.distanceKm) / 2);

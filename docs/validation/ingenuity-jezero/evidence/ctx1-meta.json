@@ -1,0 +1,162 @@
+{
+  "currentVersion": 10.9,
+  "serviceDescription": "Mars MRO CTX uncontrolled mosaic, arcgis.com service",
+  "mapName": "CTX",
+  "description": "This is an uncontrolled Context Camera (CTX) mosaic that the Murray Lab at Caltech has created. The CTX camera, as managed by Malin Space Science Systems (MASS), has attained near global coverage of Mars at the scale of ~5 m/pixel. All data used in the construction of this CTX global mosaic have been publicly released and are freely available via the NASA Planetary Data System. The Murray Lab/Caltech grants free use of the beta01 version of the mosaic for all purposes. Data credit should be to: NASA/JPL/MSSS/The Murray Lab. This tiled web service, hosted by Esri, uses a lossy JPEG format for storage",
+  "copyrightText": "Source: NASA/JPL/MSSS/Caltech Murray Lab/Esri",
+  "supportsDynamicLayers": false,
+  "layers": [],
+  "tables": [],
+  "spatialReference": {
+    "wkid": 104971,
+    "latestWkid": 104971,
+    "wkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"D_Mars_2000_Sphere\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190.0,0.0]],PRIMEM[\"Reference_Meridian\",0.0],UNIT[\"Degree\",0.0174532925199433]]"
+  },
+  "singleFusedMapCache": true,
+  "tileInfo": {
+    "rows": 512,
+    "cols": 512,
+    "dpi": 96,
+    "format": "PNG",
+    "origin": {
+      "x": -180,
+      "y": 90
+    },
+    "spatialReference": {
+      "wkid": 104971,
+      "latestWkid": 104971,
+      "wkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"D_Mars_2000_Sphere\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190.0,0.0]],PRIMEM[\"Reference_Meridian\",0.0],UNIT[\"Degree\",0.0174532925199433]]"
+    },
+    "lods": [
+      {
+        "level": 0,
+        "resolution": 0.3515625,
+        "scale": 78760513.40037410070042624245
+      },
+      {
+        "level": 1,
+        "resolution": 0.17578125,
+        "scale": 39380256.70018705035021312122
+      },
+      {
+        "level": 2,
+        "resolution": 0.87890625e-1,
+        "scale": 19690128.35009352517510656061
+      },
+      {
+        "level": 3,
+        "resolution": 0.43945312e-1,
+        "scale": 9845064.17504676258755328030
+      },
+      {
+        "level": 4,
+        "resolution": 0.2197265625e-1,
+        "scale": 4922532.08752338129377664015
+      },
+      {
+        "level": 5,
+        "resolution": 0.10986328125e-1,
+        "scale": 2461266.04376169064688832007
+      },
+      {
+        "level": 6,
+        "resolution": 0.54931640625e-2,
+        "scale": 1230633.02188084532344416003
+      },
+      {
+        "level": 7,
+        "resolution": 0.274658203125e-2,
+        "scale": 615316.51094042266172208001
+      },
+      {
+        "level": 8,
+        "resolution": 0.1373291015625e-2,
+        "scale": 307658.25547021133086104000
+      },
+      {
+        "level": 9,
+        "resolution": 0.6866455078125e-3,
+        "scale": 153829.12773510566543052000
+      },
+      {
+        "level": 10,
+        "resolution": 0.34332275390625e-3,
+        "scale": 76914.56386755283271526000
+      },
+      {
+        "level": 11,
+        "resolution": 0.171661376953125e-3,
+        "scale": 38457.28193377641635763000
+      },
+      {
+        "level": 12,
+        "resolution": 0.858306884765625e-4,
+        "scale": 19228.64096688820817881500
+      },
+      {
+        "level": 13,
+        "resolution": 0.4291534423828125e-4,
+        "scale": 9614.32048344410408940750
+      },
+      {
+        "level": 14,
+        "resolution": 0.21457672119140625e-4,
+        "scale": 4807.16024172205204470375
+      },
+      {
+        "level": 15,
+        "resolution": 0.107288360595703125e-4,
+        "scale": 2403.58012086102602235187
+      },
+      {
+        "level": 16,
+        "resolution": 0.536441802978515625e-5,
+        "scale": 1201.79006043051301117593
+      },
+      {
+        "level": 17,
+        "resolution": 0.2682209014892578125e-5,
+        "scale": 600.89503021525650558796
+      }
+    ]
+  },
+  "initialExtent": {
+    "xmin": -179.99999999,
+    "ymin": -89.99999999,
+    "xmax": 179.99999999,
+    "ymax": 89.99999999,
+    "spatialReference": {
+      "wkid": 104971,
+      "latestWkid": 104971,
+      "wkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"D_Mars_2000_Sphere\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190.0,0.0]],PRIMEM[\"Reference_Meridian\",0.0],UNIT[\"Degree\",0.0174532925199433]]"
+    }
+  },
+  "fullExtent": {
+    "xmin": -180,
+    "ymin": -90,
+    "xmax": 180,
+    "ymax": 90,
+    "spatialReference": {
+      "wkid": 104971,
+      "latestWkid": 104971,
+      "wkt": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"D_Mars_2000_Sphere\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190.0,0.0]],PRIMEM[\"Reference_Meridian\",0.0],UNIT[\"Degree\",0.0174532925199433]]"
+    }
+  },
+  "minScale": 0,
+  "maxScale": 0,
+  "units": "esriMeters",
+  "supportedImageFormatTypes": "PNG",
+  "documentInfo": {
+    "Title": "Mars CTX Imagery",
+    "Author": "Esri",
+    "Comments": "",
+    "Subject": "imagery, satellite, Mars, CTX",
+    "Category": "imageryBaseMapsMarsCover (Imagery, basemaps)",
+    "AntialiasingMode": "None",
+    "TextAntialiasingMode": "Force",
+    "Keywords": "Mars, Global, CTX, MRO, MSSS, Context Camera, Murray Lab"
+  },
+  "capabilities": "Map, TilesOnly",
+  "supportedQueryFormats": "JSON",
+  "exportTilesAllowed": false
+}

@@ -25,7 +25,7 @@ function fixture() {
     _surfaceRaycaster: new THREE.Raycaster(), _surfaceTileRaycaster: new THREE.Raycaster(),
     renderer: { domElement: { clientWidth: 800, clientHeight: 800, style: {} } },
   }) as UniverseRenderer;
-  return { renderer, active, hidden };
+  return { renderer, active, hidden, body };
 }
 
 describe('appearance integration with shared surface discovery', () => {
@@ -38,6 +38,33 @@ describe('appearance integration with shared surface discovery', () => {
     hidden.visible = false;
     const cast = (renderer as unknown as { _castSurfaces(): { worldPoint: THREE.Vector3 } })._castSurfaces();
     expect(cast.worldPoint.z).toBeCloseTo(1);
+  });
+
+  it('discovers cube points through a nearer visible visual-only reconstruction', () => {
+    const { renderer, body } = fixture();
+    const reconstruction = new THREE.Group();
+    const triangle = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial());
+    triangle.position.z = 3; reconstruction.add(triangle); reconstruction.updateMatrixWorld(true);
+    // This would have won the old tileScene cast at z=3 over the cube at z=1.
+    const setCameraRelativeTransform = vi.fn(() => {
+      reconstruction.position.copy(renderer.camera.position).negate();
+      reconstruction.updateMatrixWorld(true);
+    });
+    body.getSurfaceOverlays = () => [{ group: reconstruction, physicalQueryPolicy: 'visual-only',
+      setCameraRelativeTransform }] as never;
+    const seen: any[] = [];
+    Object.assign(renderer, { _surfacePointFromHit: (hit: any) => { seen.push(hit); return { source: hit.source }; } });
+    const internal = renderer as unknown as { _discoverSurface(x: number, y: number, sample?: boolean): any };
+    for (const sample of [false, true]) {
+      const result = internal._discoverSurface(0, 0, sample);
+      expect(result.ray.source).toBe('terrain');
+      expect(result.ray.worldPoint.z).toBeCloseTo(1);
+      expect(result.cameraRangeKm).toBeCloseTo(9);
+    }
+    expect(seen).toHaveLength(2);
+    expect(setCameraRelativeTransform).not.toHaveBeenCalled();
+    expect(reconstruction.visible).toBe(true);
+    expect(triangle.visible).toBe(true);
   });
 
   it('can preview rendered geometry without CPU sampling or coverage requests', () => {

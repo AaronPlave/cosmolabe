@@ -9,6 +9,7 @@ import {
   type FovBoundaryShape, type FovPerimeterSample, type FovSurfaceCandidate, type Vec3,
 } from '../surface/FovClipper.js';
 import { ReferenceEllipsoidSurface } from '../surface/ReferenceEllipsoidSurface.js';
+import { GlobeTileSurface } from '../surface/GlobeTileSurface.js';
 import { ResidentTerrainSurface } from '../surface/ResidentTerrainSurface.js';
 import { concaveSurface } from './fixtures/concaveSurface.js';
 
@@ -126,6 +127,72 @@ describe('FOV clipping against physical surfaces', () => {
     const near = clip([0, 0, 0], [0, 0, -1], circular(10), [place(8.2)], 20000);
     expect(near.every(s => s.hit === null)).toBe(true);
     expect(near.length).toBeLessThanOrEqual(34);
+  });
+
+  it.each([
+    { altitudeKm: 76.7, fovDeg: 0.4 }, // LRO at the reported epoch: datum beyond range
+    { altitudeKm: 53, fovDeg: 60 }, // observer in range, oblique perimeter beyond it
+  ])('bounds failed probes at $altitudeKm km altitude with a $fovDeg degree FOV', ({ altitudeKm, fovDeg }) => {
+    // The padded terrain bound overlaps the ray within 60 km, but the actual
+    // lunar datum does not. Neither case has any crossing to refine.
+    const radius = 1737.4;
+    const moon = sphere('Moon', [0, 0, 0], radius);
+    moon.boundingRadiusKm *= 1.01;
+    const shape = circular(fovDeg);
+    let evaluations = 0;
+    const samples = clipFovPerimeter([0, 0, radius + altitudeKm], t => {
+      evaluations++;
+      const d = fovBoundaryDirection(shape, t);
+      return [d[0], d[1], -d[2]];
+    }, fovBaseParams(shape), [moon], { maxRangeKm: 60 });
+    expect(samples.every(s => s.hit === null && s.distanceKm === 60)).toBe(true);
+    expect(samples).toHaveLength(32);
+    // At most one golden-section search and one failed ray per base interval,
+    // rather than exhausting 4096 samples and ~285,000 direction evaluations.
+    expect(evaluations).toBeLessThan(2000);
+  });
+
+  it('finds an off-center physical ridge when base rays and closest approach miss', () => {
+    const reference = sphere('terrain', [0, 0, -10], 0.1);
+    const ridge = new CpuMeshSurface({
+      ...reference.surfaces[0].metadata,
+      source: { id: 'ridge', kind: 'height-grid' }, coverage: 'partial-product',
+    }, {
+      // Body-fixed triangle: world z=-9, centred on t=0.125, away
+      // from closest approach at t=0.25. No interpolated/fabricated hit.
+      positionsKm: new Float64Array([-1.2, -0.1, 1, -1.05, -0.1, 1, -1.125, 0.1, 1]),
+      indices: new Uint32Array([0, 1, 2]),
+    }, { meshDeviationBoundKm: null });
+    const terrain = { ...reference, boundingRadiusKm: 2, surfaces: [ridge, ...reference.surfaces] };
+    const directionAt = (t: number): Vec3 => [t - 0.25, 0, -1];
+    const samples = clipFovPerimeter([0, 0, 0], directionAt, [0, 0.5], [terrain], { maxRangeKm: 9.5 });
+    expect(samples.filter(s => s.base).every(s => !s.hit)).toBe(true);
+    expect(resolveFovRay([0, 0, 0], normalize(directionAt(0.25)), [terrain], 9.5)).toBeNull();
+    expect(samples.some(s => s.hit?.source === 'terrain')).toBe(true);
+    expect(samples.length).toBeLessThan(128);
+
+    // Same padded bounds, no resident ridge: failed searches remain bounded.
+    const empty = { ...terrain, surfaces: [{ ...ridge, metadata: ridge.metadata,
+      intersectRay: () => ({ kind: 'unavailable' as const, reason: 'not-resident' as const, metadata: ridge.metadata }),
+    }, ...reference.surfaces] };
+    let evaluations = 0;
+    const misses = clipFovPerimeter([0, 0, 0], t => { evaluations++; return directionAt(t); }, [0, 0.5], [empty], { maxRangeKm: 9.5 });
+    expect(misses).toHaveLength(2);
+    expect(evaluations).toBeLessThan(150);
+  });
+
+  it('still probes other bodies after a padded candidate produces no hit', () => {
+    const toWorld = pointing([0, 0, -1]);
+    const off = 7.98 * Math.PI / 180, az = 5.625 * Math.PI / 180;
+    const d = toWorld([Math.sin(off) * Math.cos(az), Math.sin(off) * Math.sin(az), Math.cos(off)]);
+    const grazer = sphere('grazer', [d[0] * 10000, d[1] * 10000, d[2] * 10000], 10000 * Math.sin(3 * Math.PI / 180));
+    const padded = sphere('padded', [0, 0, -10000], 1);
+    padded.boundingRadiusKm = 2000;
+    const samples = clip([0, 0, 0], [0, 0, -1], circular(10), [padded, grazer], 20000);
+    expect(samples.filter(s => s.base).every(s => s.hit === null)).toBe(true);
+    expect(samples.some(s => s.hit?.candidateId === 'grazer')).toBe(true);
+    expect(samples.some(s => s.hit?.candidateId === 'padded')).toBe(false);
+    expect(samples.length).toBeLessThan(256);
   });
 
   it('probes exactly against a rotated reference ellipsoid, not its bounding sphere', () => {
@@ -250,6 +317,39 @@ describe('FOV clipping against resident terrain', () => {
     const nadir: Vec3 = [groundPos.xKm - above.xKm, groundPos.yKm - above.yKm, groundPos.zKm - above.zKm];
     return { sampler, candidate, origin, nadir, ground };
   }
+
+  it.each([
+    { heightKm: -4, datumLon: 0.1, originY: -20 },
+    { heightKm: 4, datumLon: 0.9, originY: 20 },
+  ])('finds a neighbouring tile when terrain at $heightKm km shifts an oblique hit past a boundary', ({ heightKm, datumLon, originY }) => {
+    const datum: TerrainDatum = { referenceShape: { kind: 'sphere', radiusKm: 100 }, verticalDatum: 'reference-sphere', heightConvention: 'radial' };
+    const sampler = new TerrainSampler(datum, { id: 'offset-terrain', kind: 'height-grid' });
+    for (const [id, westDeg, eastDeg] of [['west', datumLon - 1, datumLon + 0.4], ['east', datumLon + 0.4, datumLon + 2]] as const) {
+      sampler.addTile({ id, westDeg, eastDeg, southDeg: -1, northDeg: 1,
+        width: 3, height: 3, elevationsKm: new Float64Array(9).fill(heightKm) });
+    }
+    const target = geodeticToBodyFixed({ latDeg: 0, lonDeg: datumLon, heightKm: 0 }, datum);
+    const ray = { origin: { xKm: 160, yKm: originY, zKm: 0 },
+      direction: [target.xKm - 160, target.yKm - originY, 0] as Vec3, nearKm: 0, farKm: 100 };
+    // The datum crossing is in west, but only east contains the physical ray hit.
+    expect(new GlobeTileSurface(sampler, 'west', 'Moon', 'FIXED').intersectRay(ray, options).kind).toBe('unavailable');
+    const expected = new GlobeTileSurface(sampler, 'east', 'Moon', 'FIXED').intersectRay(ray, options);
+    expect(expected.kind).toBe('hit');
+    const terrain = new ResidentTerrainSurface(sampler, 'Moon', 'FIXED');
+    const actual = terrain.intersectRay(ray, options);
+    expect(actual).toEqual(expected);
+    expect(actual).toMatchObject({ kind: 'hit', tileId: 'east', detail: 'coarse' });
+    // Height estimates only locate candidate tiles: absent geometry remains unavailable.
+    sampler.removeTile('east');
+    expect(terrain.intersectRay(ray, options).kind).toBe('unavailable');
+  });
+
+  it('avoids height lookups when the finest datum tile already resolves the ray', () => {
+    const { sampler, candidate, origin, nadir } = marsTerrain();
+    const samplesBefore = sampler.diagnostics.sampleCount;
+    expect(resolveFovRay(origin, nadir, [candidate], 1000)).toMatchObject({ source: 'terrain' });
+    expect(sampler.diagnostics.sampleCount).toBe(samplesBefore);
+  });
 
   it('clips at terrain through the shared physical-surface path and keeps it coarse', () => {
     const { candidate, origin, nadir } = marsTerrain();

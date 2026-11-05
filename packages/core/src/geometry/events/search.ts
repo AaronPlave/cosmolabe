@@ -17,6 +17,7 @@ import {
 } from './types.js';
 
 export interface EventSearchOptions {
+  trajectoryAnalysis?: import('./registry.js').EventKindContext['trajectoryAnalysis'];
   registry: EventKindRegistry;
   provider: GeometryFinderProvider;
   /** Whole-search progress, available only when the provider reports it. */
@@ -49,11 +50,13 @@ export function eventGeometry<P>(
 }
 
 export class EventSearch {
+  private readonly trajectoryAnalysis?: EventSearchOptions['trajectoryAnalysis'];
   private readonly registry: EventKindRegistry;
   private readonly provider: GeometryFinderProvider;
   private readonly onProgress?: (fraction: number) => void;
 
   constructor(options: EventSearchOptions) {
+    this.trajectoryAnalysis = options.trajectoryAnalysis;
     this.registry = options.registry;
     this.provider = options.provider;
     this.onProgress = options.onProgress;
@@ -82,7 +85,10 @@ export class EventSearch {
     if (specific) return this.fault(query, specific);
 
     let sequence = 0;
+    const faults: EventSearchFault[] = [];
     const ctx = {
+      trajectoryAnalysis: this.trajectoryAnalysis,
+      reportFault: (fault: EventSearchFault) => faults.push(fault),
       provider: this.provider,
       nextEventId: () => `${query.id}:${sequence++}`,
     };
@@ -132,8 +138,10 @@ export class EventSearch {
       : events;
 
     if (stamped.length > 0) {
-      return { ok: true, queryId: query.id, events: stamped.sort(compareEvents) };
+      const hint = [kind.resultNotice,...faults.map(f => f.message)].filter(Boolean).join(' ');
+      return { ok: true, queryId: query.id, events: stamped.sort(compareEvents), ...(faults.length ? { faults } : {}), ...(hint ? { hint } : {}) };
     }
+    if (faults.length) return this.fault(query, faults[0]);
 
     // "Nothing matched" is an answer, and some kinds can say why. The
     // explanation is strictly a bonus: one that throws leaves the empty result

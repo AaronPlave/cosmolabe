@@ -138,6 +138,7 @@ export function probeCalloutLines(point: SurfacePoint, detail: 'preview' | 'pinn
   return [
     point.bodyName,
     coords,
+    ...(point.placement === 'semantic' ? ['Programmatic point · display precision is not accuracy'] : []),
     point.altitude.km !== null && point.altitude.datum
       ? `${formatHeight(point.altitude.km)} · ${describeDatum(point.altitude.datum)}`
       : `Radial distance ${Math.hypot(...point.bodyFixedPositionKm).toFixed(3)} km · altitude unavailable`,
@@ -193,6 +194,7 @@ export class PointProbeOverlay {
 
   get hovered(): SurfacePoint | null { return this.hover; }
   get pinned(): SurfacePoint | null { return this.pin; }
+  get pinnedVisible(): boolean { return !!this.pin && this.pinMarker.visible; }
 
   setHover(point: SurfacePoint | null): void {
     this.hover = point;

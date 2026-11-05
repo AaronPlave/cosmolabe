@@ -35,7 +35,7 @@
       : current < 0 ? navigable.length - 1 : Math.max(0, current - 1);
     activeName = navigable[index].name;
     await tick();
-    const row = document.getElementById(optionId(activeName));
+    const row = list?.querySelector<HTMLElement>(`#${CSS.escape(optionId(activeName))}`);
     if (!row || !list) return;
     // Scroll only on keyboard navigation, and only this list (never the page/panel).
     const bounds = row.getBoundingClientRect(), viewport = list.getBoundingClientRect();
@@ -52,7 +52,7 @@
     <span class="min-w-0 truncate" title={selected?.label ?? value}>{selected?.label ?? (value || 'Select frame…')}</span>
     <ChevronsUpDown size={13} class="shrink-0 text-text-muted"/>
   </Popover.Trigger>
-  <Popover.Content align="start" sideOffset={4} onOpenAutoFocus={event => { event.preventDefault(); input?.focus(); }} class="w-[320px] max-w-[calc(100vw-24px)] rounded border border-border-strong bg-surface-2 p-1">
+  <Popover.Content align="start" sideOffset={4} onOpenAutoFocus={event => { event.preventDefault(); input?.focus(); }} class="w-[320px] max-w-[calc(100cqw-24px)] rounded border border-border-strong bg-surface-2 p-1">
     <input bind:this={input} bind:value={query} oninput={() => activeName = ''} onkeydown={navigate}
       role="combobox" aria-label="Search frames" aria-autocomplete="list" aria-expanded={open}
       aria-controls={`${id}-list`} aria-activedescendant={activeName ? optionId(activeName) : undefined}

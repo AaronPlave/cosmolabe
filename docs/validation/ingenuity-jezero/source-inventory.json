@@ -1,0 +1,98 @@
+{
+  "base": {
+    "file": "Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif",
+    "bytes": 11384463908,
+    "sha256": "e8bfe4c3b9dee9d5fdb8c4d49798869654e552e7b154712c9e12d6d117464419",
+    "size": [
+      106694,
+      53347
+    ],
+    "bands": 1,
+    "dataType": "Int16",
+    "geotransform": [
+      -180.0,
+      0.003374120830641,
+      0.0,
+      90.0,
+      0.0,
+      -0.003374120830641
+    ],
+    "projection": "GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU_IAG\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST]]",
+    "nodata": -32768.0,
+    "maskFlags": 8,
+    "absoluteAccuracyM": null,
+    "localBinding": "scripts/build-mars-terrain/data/source/Mars_HRSC_MOLA_BlendDEM_Global_200mp_v2.tif"
+  },
+  "detail": {
+    "file": "JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif",
+    "bytes": 1839545409,
+    "sha256": "44c3819caa33922b06f7a8228534d1e32ab4087aca85144136d825c371c747d8",
+    "size": [
+      21400,
+      21488
+    ],
+    "bands": 1,
+    "dataType": "Float32",
+    "geotransform": [
+      4577366.0,
+      1.0,
+      0.0,
+      1106618.0,
+      0.0,
+      -1.0
+    ],
+    "projection": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+    "nodata": -3.4028226550889045e+38,
+    "maskFlags": 8,
+    "absoluteAccuracyM": null,
+    "localBinding": "scripts/build-mars-terrain/data/source/JEZ_hirise_soc_006_DTM_MOLAtopography_DeltaGeoid_1m_Eqc_latTs0_lon0_blend40.tif"
+  },
+  "hirise-ortho": {
+    "file": "hirise-ortho.tif",
+    "bytes": 7358523457,
+    "sha256": "83f3faeabc87ba54db9af278611bd070494a0b0d43757108c871c763943e80d9",
+    "size": [
+      85600,
+      85952
+    ],
+    "bands": 1,
+    "dataType": "Byte",
+    "geotransform": [
+      4577366.0,
+      0.25,
+      0.0,
+      1106618.0,
+      0.0,
+      -0.25
+    ],
+    "projection": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"D_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+    "nodata": 0.0,
+    "maskFlags": 8,
+    "absoluteAccuracyM": null,
+    "localBinding": "work/ingenuity-246/upstream/hirise-ortho.tif"
+  },
+  "jezero-ctx": {
+    "file": "jezero-ctx.tif",
+    "bytes": 36269402,
+    "sha256": "842b457afee7c2672022b66e3f60be836c6d52e99474015bfd9ced60099b8615",
+    "size": [
+      5322,
+      5040
+    ],
+    "bands": 1,
+    "dataType": "Byte",
+    "geotransform": [
+      4573663.250853,
+      6.0,
+      0.0,
+      1109693.140188,
+      0.0,
+      -6.0
+    ],
+    "projection": "PROJCS[\"Equirectangular Mars 2000 Sphere IAU\",GEOGCS[\"GCS_Mars_2000_Sphere\",DATUM[\"Mars_2000_(Sphere)\",SPHEROID[\"Mars_2000_Sphere_IAU\",3396190,0]],PRIMEM[\"Reference_Meridian\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Equirectangular\"],PARAMETER[\"standard_parallel_1\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+    "nodata": 0.0,
+    "maskFlags": 8,
+    "absoluteAccuracyM": null,
+    "localBinding": "work/ingenuity-246/upstream/jezero-ctx.tif"
+  }
+}

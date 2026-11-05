@@ -1,0 +1,146 @@
+{
+  "name": "Geographic vector GPU benchmark",
+  "description": "Reproducible scenes for the geographic vector pass's GPU cost (scripts/benchmark-geographic-gpu.mjs): one point, one small polygon and 200 annotations at Jezero, close and whole-disk views.",
+  "defaultViewpoint": "Jezero close",
+  "geographicLayers": [
+    {
+      "id": "bench-point",
+      "name": "One point",
+      "body": "Mars",
+      "source": "geographic/bench-point.geojson",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "color": "#e69f00"
+      },
+      "provenance": {
+        "kind": "gpu-benchmark"
+      }
+    },
+    {
+      "id": "bench-polygon",
+      "name": "One small polygon",
+      "body": "Mars",
+      "source": "geographic/bench-polygon.geojson",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "color": "#e69f00"
+      },
+      "provenance": {
+        "kind": "gpu-benchmark"
+      }
+    },
+    {
+      "id": "bench-many",
+      "name": "200 annotations",
+      "body": "Mars",
+      "source": "geographic/bench-many.geojson",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "0..360",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "color": "#e69f00"
+      },
+      "provenance": {
+        "kind": "gpu-benchmark"
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Jezero close",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3440,
+      "latitude": 18.45,
+      "longitude": 77.45
+    },
+    {
+      "name": "Mars disk",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 12000,
+      "latitude": 18.45,
+      "longitude": 77.45
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          20000000,
+          100000000,
+          20000000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ]
+      }
+    }
+  ]
+}

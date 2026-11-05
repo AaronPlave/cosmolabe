@@ -21,6 +21,41 @@ function marker(overrides: Partial<EventMarker> = {}): EventMarker {
 afterEach(() => vi.restoreAllMocks());
 
 describe('EventMarkers', () => {
+  it('reads draw-enabled selected geometry without counting unavailable, occluded or hidden glyphs', () => {
+    let available = false;
+    const group = new EventMarkers(body, { sampleAvailable: () => available });
+    group.setMarkers([marker({ selected: true })]);
+    group.update(1, [0, 0, 0], (_name, et) => [et, 0, 0], [0, 100]);
+    expect(group.visibilityFor('e1', 'q1')).toEqual({ glyphs: 0, spans: 0 });
+    available = true;
+    group.update(1, [0, 0, 0], (_name, et) => [et, 0, 0], [0, 100]);
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(1);
+    expect(group.visibilityFor('e1', 'different-query').glyphs).toBe(0);
+    group.applyAnchorOpacity(() => 0);
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(0);
+    group.applyAnchorOpacity(() => 1);
+    group.visible = false;
+    expect(group.visibilityFor('e1', 'q1').glyphs).toBe(0);
+    group.dispose();
+  });
+  it('keeps cached glyphs and span anchors registered as a local plot rotates and translates', () => {
+    const transform = new THREE.Matrix4().makeRotationZ(Math.PI/2).setPosition(10,20,30);
+    const positions = new Float32Array([1,0,0,2,0,0,3,0,0]);
+    const group = new EventMarkers(body,{depthTest:true,path:()=>[{positions,times:new Float64Array([10,15,20]),count:3}],transform:()=>transform});
+    group.setMarkers([marker({temporality:'interval',startEt:10,endEt:20,selected:true})]);
+    const resolve=vi.fn((_name:string,t:number):[number,number,number]=>[1+(t-10)/5,0,0]);
+    group.update(1,[0,0,0],resolve,[10,20]);
+    expect(group.anchorAt('e1','q1',15)?.toArray()).toEqual([10,22,30]);
+    const sprites=group.children.filter(c=>c instanceof THREE.Sprite);
+    expect(sprites.some(s=>s.position.distanceTo(new THREE.Vector3(10,22,30))<1e-10)).toBe(true);
+    expect((sprites[0] as THREE.Sprite).material.depthTest).toBe(true);
+    const calls=resolve.mock.calls.length;transform.makeRotationZ(Math.PI).setPosition(40,50,60);
+    group.update(1,[0,0,0],resolve,[10,20]);
+    expect(resolve.mock.calls.length).toBe(calls); // cached native positions remain valid
+    expect(group.anchorAt('e1','q1',15)?.distanceTo(new THREE.Vector3(38,50,60))).toBeLessThan(1e-10);
+    expect(sprites.some(s=>s.position.distanceTo(new THREE.Vector3(38,50,60))<1e-10)).toBe(true);group.dispose();
+  });
+
   it('fades a whole glyph across a planet limb and hides it well behind the body', () => {
     const camera = new THREE.Vector3(0, 0, 10);
     const center = new THREE.Vector3();
@@ -760,13 +795,28 @@ describe('events on the future lead (#105)', () => {
     Object.assign(renderer, {
       universe, scene: new THREE.Scene(), _markerScene: new THREE.Scene(),
       trajectoryLines: new Map(lines.map((line, arc) => [`Craft__arc${arc}`, line])),
-      eventMarkerGroups: new Map(), bodyMeshes: new Map(), _eventPreview: null,
+      eventMarkerGroups: new Map(), trajectoryPlotFrames: new WeakMap(), bodyMeshes: new Map(), _eventPreview: null,
+      timeController: { et: day / 2 }, _eventObservedEt: day / 2,
+      camera: new THREE.PerspectiveCamera(), renderer: { domElement: { clientWidth: 800, clientHeight: 600 } },
     });
     const event: GeometryEvent = {
       id: 'future', queryId: 'q', kind: 'distance-range', temporality: 'interval',
       start: 2 * day + 7200, end: 2 * day + 10800, bodies: { observer: 'Craft' }, label: '',
     };
     renderer.setEventResults([event], event);
+    expect(renderer.getEventVisualization()).toMatchObject({ observedEt: null, selected: { query: 'q', id: 'future' }, visibleGlyphs: 0 });
+    const observation = renderer as unknown as { _eventObservedEt: number; _eventObservedView: string; viewObservationSignature(): string };
+    observation._eventObservedEt = day / 2;
+    observation._eventObservedView = observation.viewObservationSignature();
+    expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
+    (renderer.timeController as unknown as { et: number }).et = day / 2 + 1;
+    expect(renderer.getEventVisualization().observedEt).toBe(day / 2);
+    renderer.camera.position.x++;
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
+    observation._eventObservedView = observation.viewObservationSignature();
+    renderer.camera.fov++;
+    renderer.camera.updateProjectionMatrix();
+    expect(renderer.getEventVisualization().observedEt).toBeNull();
     for (const line of lines) line.update(day / 2, 1);
     expect(lines[0].leadWindows()).toEqual([{ start: day / 2, end: day / 2 + 1800, kind: 'continuous' }]);
     expect(lines[1].leadWindows()).toEqual([]);

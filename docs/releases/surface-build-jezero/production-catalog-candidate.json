@@ -1,0 +1,262 @@
+{
+  "version": 1,
+  "kind": "surface-catalog-candidate",
+  "publicationIdentity": "6452b87375212a652903c625ec8787d088d5b3688ee59bc974b8092ddf550a99",
+  "before": {
+    "name": "Real Mars surface build pilot",
+    "description": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.",
+    "defaultTime": "2021-04-19T07:34:00Z",
+    "defaultViewpoint": "Native detail",
+    "items": [
+      {
+        "name": "Native detail",
+        "type": "Viewpoint",
+        "center": "Mars",
+        "frame": "BodyFixed",
+        "eye": [
+          699.1306769215588,
+          3140.865519674032,
+          1073.1972746815018
+        ],
+        "target": [
+          699.1203836097903,
+          3140.8192766624115,
+          1073.181286197861
+        ],
+        "up": [
+          -0.06947768316891598,
+          -0.31213057394786425,
+          0.9474953067685647
+        ],
+        "fov": 45
+      },
+      {
+        "name": "Sun",
+        "class": "star",
+        "trajectory": {
+          "type": "FixedPoint",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "geometry": {
+          "type": "Globe",
+          "radius": 695700
+        }
+      },
+      {
+        "name": "Mars",
+        "class": "planet",
+        "center": "Sun",
+        "trajectory": {
+          "type": "Builtin",
+          "name": "Mars"
+        },
+        "rotationModel": {
+          "type": "Builtin",
+          "name": "IAU_MARS"
+        },
+        "geometry": {
+          "type": "Globe",
+          "radii": [
+            3396.19,
+            3396.19,
+            3376.2
+          ],
+          "terrain": {
+            "type": "3dtiles",
+            "url": "../data/surface-build-jezero/terrain-4cfdc5d9806de0ee40605ecd/tileset-measured.json",
+            "errorTarget": 2,
+            "fadeDurationMs": 0,
+            "datum": {
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal"
+            },
+            "sourceMetadata": {
+              "id": "Mars MOLA/HRSC + Jezero residual + MEG016 areoid radius",
+              "kind": "height-grid"
+            },
+            "cubeSphere": {
+              "cpuGrids": "../data/surface-build-jezero/terrain-4cfdc5d9806de0ee40605ecd/cpu-grids.json",
+              "imagery": {
+                "maxScreenTexelError": 1
+              }
+            }
+          },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "imagery-7b4f6169271a5140b1b1c5cd",
+              "name": "HiRISE ortho — coarse fallback",
+              "description": "Same observed 512 m HiRISE crop. Hiding native detail reveals this crop at coarser resolution; this is not a global Mars basemap.",
+              "url": "../data/surface-build-jezero/imagery-7b4f6169271a5140b1b1c5cd/imagery.json",
+              "visible": true,
+              "opacity": 1,
+              "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE",
+              "resolutionMeters": 0.25
+            },
+            {
+              "type": "cube",
+              "id": "imagery-19a3928769be6186f9ea2fdd",
+              "name": "HiRISE ortho — native detail",
+              "description": "Same observed 512 m HiRISE crop. Hiding native detail reveals this crop at coarser resolution; this is not a global Mars basemap.",
+              "url": "../data/surface-build-jezero/imagery-19a3928769be6186f9ea2fdd/imagery.json",
+              "visible": true,
+              "opacity": 1,
+              "bounds": [
+                77.44647702664388,
+                18.44038511660434,
+                77.45511477633124,
+                18.449022866291692
+              ],
+              "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE",
+              "resolutionMeters": 0.25
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "beforeIdentity": "10e4efa8a1d17fc4d61bba3d5c6634ad8fdfd4a4cbc149e34f310088d3d94b2a",
+  "after": {
+    "name": "Real Mars surface build pilot",
+    "description": "Bounded real Mars source pilot passed supported local gates. Absolute source geolocation/accuracy remain unknown. Publication requires a separately verified receipt; no mission placement is changed.",
+    "defaultTime": "2021-04-19T07:34:00Z",
+    "defaultViewpoint": "Native detail",
+    "items": [
+      {
+        "name": "Native detail",
+        "type": "Viewpoint",
+        "center": "Mars",
+        "frame": "BodyFixed",
+        "eye": [
+          699.1306769215588,
+          3140.865519674032,
+          1073.1972746815018
+        ],
+        "target": [
+          699.1203836097903,
+          3140.8192766624115,
+          1073.181286197861
+        ],
+        "up": [
+          -0.06947768316891598,
+          -0.31213057394786425,
+          0.9474953067685647
+        ],
+        "fov": 45
+      },
+      {
+        "name": "Sun",
+        "class": "star",
+        "trajectory": {
+          "type": "FixedPoint",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "geometry": {
+          "type": "Globe",
+          "radius": 695700
+        }
+      },
+      {
+        "name": "Mars",
+        "class": "planet",
+        "center": "Sun",
+        "trajectory": {
+          "type": "Builtin",
+          "name": "Mars"
+        },
+        "rotationModel": {
+          "type": "Builtin",
+          "name": "IAU_MARS"
+        },
+        "geometry": {
+          "type": "Globe",
+          "radii": [
+            3396.19,
+            3396.19,
+            3376.2
+          ],
+          "terrain": {
+            "type": "3dtiles",
+            "url": "https://data.aaronplave.com/cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/tileset-measured.json",
+            "errorTarget": 2,
+            "fadeDurationMs": 0,
+            "datum": {
+              "verticalDatum": "ellipsoid",
+              "heightConvention": "geodetic-normal"
+            },
+            "sourceMetadata": {
+              "id": "Mars MOLA/HRSC + Jezero residual + MEG016 areoid radius",
+              "kind": "height-grid"
+            },
+            "cubeSphere": {
+              "cpuGrids": "https://data.aaronplave.com/cube-terrain/terrain-4cfdc5d9806de0ee40605ecd/4cfdc5d9806de0ee40605ecd27c138f9/cpu-grids.json",
+              "imagery": {
+                "maxScreenTexelError": 1
+              }
+            }
+          },
+          "imagery": [
+            {
+              "type": "cube",
+              "id": "imagery-7b4f6169271a5140b1b1c5cd",
+              "name": "HiRISE ortho — coarse fallback",
+              "description": "Same observed 512 m HiRISE crop. Hiding native detail reveals this crop at coarser resolution; this is not a global Mars basemap.",
+              "url": "https://data.aaronplave.com/cube-imagery/imagery-7b4f6169271a5140b1b1c5cd/7b4f6169271a5140b1b1c5cd43e4070a/imagery.json",
+              "visible": true,
+              "opacity": 1,
+              "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE",
+              "resolutionMeters": 0.25
+            },
+            {
+              "type": "cube",
+              "id": "imagery-19a3928769be6186f9ea2fdd",
+              "name": "HiRISE ortho — native detail",
+              "description": "Same observed 512 m HiRISE crop. Hiding native detail reveals this crop at coarser resolution; this is not a global Mars basemap.",
+              "url": "https://data.aaronplave.com/cube-imagery/imagery-19a3928769be6186f9ea2fdd/19a3928769be6186f9ea2fdd2725eb8b/imagery.json",
+              "visible": true,
+              "opacity": 1,
+              "bounds": [
+                77.44647702664388,
+                18.44038511660434,
+                77.45511477633124,
+                18.449022866291692
+              ],
+              "attribution": "NASA/USGS MOLA, MEX HRSC and Mars 2020 TRN HiRISE",
+              "resolutionMeters": 0.25
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "afterIdentity": "49510c3254af426f1e5fedb35eb68942cdbef6443c590fe04b28637289af422f",
+  "datasets": {
+    "terrain-4cfdc5d9806de0ee40605ecd": {
+      "kind": "cube-terrain",
+      "name": "terrain-4cfdc5d9806de0ee40605ecd",
+      "build": "4cfdc5d9806de0ee40605ecd27c138f9",
+      "catalogPrefix": "data/surface-build-jezero/terrain-4cfdc5d9806de0ee40605ecd/"
+    },
+    "imagery-7b4f6169271a5140b1b1c5cd": {
+      "kind": "cube-imagery",
+      "name": "imagery-7b4f6169271a5140b1b1c5cd",
+      "build": "7b4f6169271a5140b1b1c5cd43e4070a",
+      "catalogPrefix": "data/surface-build-jezero/imagery-7b4f6169271a5140b1b1c5cd/"
+    },
+    "imagery-19a3928769be6186f9ea2fdd": {
+      "kind": "cube-imagery",
+      "name": "imagery-19a3928769be6186f9ea2fdd",
+      "build": "19a3928769be6186f9ea2fdd2725eb8b",
+      "catalogPrefix": "data/surface-build-jezero/imagery-19a3928769be6186f9ea2fdd/"
+    }
+  },
+  "identity": "a3038a1e19e81bce59fd3938f4c7631df9cc3f853cc69e3e4d33f3820ee1a899"
+}

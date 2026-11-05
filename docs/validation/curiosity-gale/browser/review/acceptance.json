@@ -1,0 +1,728 @@
+{
+  "kind": "issue-247-review-working-tree-captures",
+  "note": "Captured after review fixes; exact pushed-head reruns and CI are reported in PR #299. Earlier browser/acceptance.json remains historical evidence.",
+  "focusedTests": 119,
+  "staticChecks": [
+    "package build",
+    "test and viewer typecheck",
+    "Svelte check",
+    "changed TypeScript lint"
+  ],
+  "solarGpu": [
+    "test-sun-viewer-gpu: pass (SwiftShader)",
+    "test-sun-terrain-gpu: pass (SwiftShader)"
+  ],
+  "occlusion": {
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "rows": [
+      {
+        "x": 0,
+        "y": 1.2,
+        "clear": {
+          "green": 13935,
+          "blue": 0,
+          "red": 0
+        },
+        "covered": {
+          "green": 6968,
+          "blue": 74190,
+          "red": 0
+        },
+        "withoutSite": {
+          "green": 0,
+          "blue": 73542,
+          "red": 1278
+        },
+        "source": "ellipsoid",
+        "underlyingSource": "ellipsoid",
+        "pickDifference": 0
+      },
+      {
+        "x": 0.15,
+        "y": 1.05,
+        "clear": {
+          "green": 13351,
+          "blue": 0,
+          "red": 0
+        },
+        "covered": {
+          "green": 11635,
+          "blue": 70509,
+          "red": 0
+        },
+        "withoutSite": {
+          "green": 0,
+          "blue": 70604,
+          "red": 1260
+        },
+        "source": null,
+        "underlyingSource": null,
+        "pickDifference": 0
+      }
+    ],
+    "passed": true
+  },
+  "localized": {
+    "passed": true,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "errors": [],
+    "states": [
+      {
+        "utc": "2014-01-29T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.383479287409,
+          2287.5715380359034,
+          -273.5582891173243
+        ],
+        "errorM": 9.880826167118711e-06,
+        "attitudeMatrixMaxError": 4.440892098500626e-16
+      },
+      {
+        "utc": "2014-02-01T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.3693835835443,
+          2287.5908918990644,
+          -273.53264940174233
+        ],
+        "errorM": 1.0268822426611545e-05,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-05T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.3671972995976,
+          2287.5927444586987,
+          -273.5354466371987
+        ],
+        "errorM": 7.751087824925952e-06,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-08T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.361633336184,
+          2287.5972389010926,
+          -273.53487745602604
+        ],
+        "errorM": 5.3184041323940735e-06,
+        "attitudeMatrixMaxError": 4.0245584642661925e-16
+      },
+      {
+        "utc": "2014-01-30T16:05:36.470",
+        "bodyFixedKm": [
+          -2488.369383572265,
+          2287.590891898476,
+          -273.53264940483245
+        ],
+        "errorM": 3.0671801352832665e-06,
+        "attitudeMatrixMaxError": 3.3306690738754696e-16
+      }
+    ],
+    "cacheBefore": 100919674,
+    "cacheAfterEviction": 0,
+    "views": [
+      {
+        "name": "Mars Orbit",
+        "cameraToRoverKm": 17591.3479098937
+      },
+      {
+        "name": "Dingo Gap Approach",
+        "cameraToRoverKm": 8.853658785934117
+      },
+      {
+        "name": "Curiosity Surface",
+        "cameraToRoverKm": 0.5
+      },
+      {
+        "name": "Curiosity Close-up",
+        "cameraToRoverKm": 0.020000000000000004
+      },
+      {
+        "name": "Dingo Gap Daylight",
+        "cameraToRoverKm": 0.30036161906166026
+      }
+    ]
+  },
+  "telemetry": {
+    "passed": true,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "errors": [],
+    "states": [
+      {
+        "utc": "2014-01-29T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.3215391939407,
+          2287.6584359403982,
+          -273.6100779531479
+        ],
+        "errorM": 5.818455676144063e-06,
+        "attitudeMatrixMaxError": 4.440892098500626e-16
+      },
+      {
+        "utc": "2014-02-01T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.307365636181,
+          2287.6767729446815,
+          -273.5833430261009
+        ],
+        "errorM": 1.6952170660132215e-05,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-05T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.305332314118,
+          2287.6792231499535,
+          -273.58620935433373
+        ],
+        "errorM": 6.4114042334781236e-06,
+        "attitudeMatrixMaxError": 2.220446049250313e-16
+      },
+      {
+        "utc": "2014-02-08T12:00:00Z",
+        "bodyFixedKm": [
+          -2488.300433046981,
+          2287.683707903343,
+          -273.58568603377455
+        ],
+        "errorM": 9.054767106523292e-06,
+        "attitudeMatrixMaxError": 4.0245584642661925e-16
+      }
+    ],
+    "cacheBefore": 40122508,
+    "cacheAfterEviction": 0,
+    "views": [
+      {
+        "name": "Mars Orbit",
+        "cameraToRoverKm": 17591.316428170147
+      },
+      {
+        "name": "Dingo Gap Approach",
+        "cameraToRoverKm": 8.837442011341368
+      },
+      {
+        "name": "Curiosity Surface",
+        "cameraToRoverKm": 0.5
+      },
+      {
+        "name": "Curiosity Close-up",
+        "cameraToRoverKm": 0.020000000000000004
+      },
+      {
+        "name": "Dingo Gap Daylight",
+        "cameraToRoverKm": 0.3078089166947762
+      }
+    ]
+  },
+  "hosted": {
+    "passed": true,
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Max, Unspecified Version)",
+    "errors": [],
+    "reloadTransformStable": true,
+    "views": [
+      {
+        "view": "Mars Orbit",
+        "cameraToRoverKm": 17591.316428167105,
+        "models": [
+          0
+        ]
+      },
+      {
+        "view": "Dingo Gap Approach",
+        "cameraToRoverKm": 8.83744202324991,
+        "models": [
+          1
+        ]
+      },
+      {
+        "view": "Curiosity Close-up",
+        "cameraToRoverKm": 0.019999999999999997,
+        "models": [
+          31
+        ]
+      },
+      {
+        "view": "Dingo Gap Daylight",
+        "cameraToRoverKm": 0.3078089166947762,
+        "models": [
+          49
+        ]
+      }
+    ],
+    "coldBrowserCache": true,
+    "catalogInterception": false,
+    "navigation": [
+      {
+        "northM": -300,
+        "source": "height-grid",
+        "radiusKm": 3391.1579750084707,
+        "clearanceM": 49.999999574993126
+      },
+      {
+        "northM": -100,
+        "source": "height-grid",
+        "radiusKm": 3391.1486755232822,
+        "clearanceM": 50.00000000154614
+      },
+      {
+        "northM": 0,
+        "source": "height-grid",
+        "radiusKm": 3391.1467493930404,
+        "clearanceM": 49.999999664578354
+      },
+      {
+        "northM": 100,
+        "source": "height-grid",
+        "radiusKm": 3391.145960786397,
+        "clearanceM": 50.00000000154614
+      },
+      {
+        "northM": 300,
+        "source": "height-grid",
+        "radiusKm": 3391.1488604829683,
+        "clearanceM": 49.99999972142177
+      }
+    ],
+    "controls": [
+      {
+        "id": "viking",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global \u00b7 Viking",
+            "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "role": "base",
+            "optional": false,
+            "visible": true,
+            "opacity": 0.35,
+            "bounds": null,
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 7,
+            "metersPerPixel": 51.821746826171875,
+            "status": "ok",
+            "requests": 22,
+            "failedTiles": 0,
+            "resolutionMeters": 325.60563825058347,
+            "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
+            "view": {
+              "inCoverage": true,
+              "zoomLevel": 2,
+              "missingTiles": 0,
+              "degradedTiles": 0,
+              "cacheFull": false
+            }
+          },
+          {
+            "id": "gale-ctx",
+            "name": "Gale \u00b7 CTX",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": false,
+            "opacity": 0.6,
+            "bounds": [
+              135.18,
+              -6.57,
+              139.24,
+              -2.81
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 9,
+            "metersPerPixel": 12.955436706542969,
+            "status": "ok",
+            "requests": 25,
+            "failedTiles": 0,
+            "resolutionMeters": 20.350352390661467,
+            "description": "Gale CTX BlockAdj service, retained as an independent finite cube layer. Available grid interval about 20.35m; output spacing about 12.96m. Native instrument resolution and absolute registration are separate.",
+            "view": null
+          },
+          {
+            "id": "curiosity-hirise",
+            "name": "Curiosity \u00b7 HiRISE",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": false,
+            "opacity": 1,
+            "bounds": [
+              137.12,
+              -4.95,
+              137.73,
+              -4.25
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 12,
+            "metersPerPixel": 1.619429588317871,
+            "status": "ok",
+            "requests": 26,
+            "failedTiles": 0,
+            "resolutionMeters": 1.2718970244163417,
+            "description": "Curiosity HiRISE mosaic service, retained as an independent finite cube layer. Available grid interval about 1.27m; output spacing about 1.62m. No high-resolution elevation is inferred from this imagery.",
+            "view": null
+          }
+        ]
+      },
+      {
+        "id": "gale-ctx",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global \u00b7 Viking",
+            "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "role": "base",
+            "optional": false,
+            "visible": true,
+            "opacity": 0.35,
+            "bounds": null,
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 7,
+            "metersPerPixel": 51.821746826171875,
+            "status": "ok",
+            "requests": 22,
+            "failedTiles": 0,
+            "resolutionMeters": 325.60563825058347,
+            "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
+            "view": {
+              "inCoverage": true,
+              "zoomLevel": 2,
+              "missingTiles": 0,
+              "degradedTiles": 0,
+              "cacheFull": false
+            }
+          },
+          {
+            "id": "curiosity-hirise",
+            "name": "Curiosity \u00b7 HiRISE",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": false,
+            "opacity": 1,
+            "bounds": [
+              137.12,
+              -4.95,
+              137.73,
+              -4.25
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 12,
+            "metersPerPixel": 1.619429588317871,
+            "status": "ok",
+            "requests": 26,
+            "failedTiles": 0,
+            "resolutionMeters": 1.2718970244163417,
+            "description": "Curiosity HiRISE mosaic service, retained as an independent finite cube layer. Available grid interval about 1.27m; output spacing about 1.62m. No high-resolution elevation is inferred from this imagery.",
+            "view": null
+          },
+          {
+            "id": "gale-ctx",
+            "name": "Gale \u00b7 CTX",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": true,
+            "opacity": 0.35,
+            "bounds": [
+              135.18,
+              -6.57,
+              139.24,
+              -2.81
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 9,
+            "metersPerPixel": 12.955436706542969,
+            "status": "ok",
+            "requests": 41,
+            "failedTiles": 0,
+            "resolutionMeters": 20.350352390661467,
+            "description": "Gale CTX BlockAdj service, retained as an independent finite cube layer. Available grid interval about 20.35m; output spacing about 12.96m. Native instrument resolution and absolute registration are separate.",
+            "view": {
+              "inCoverage": true,
+              "zoomLevel": 9,
+              "missingTiles": 0,
+              "degradedTiles": 0,
+              "cacheFull": false
+            }
+          }
+        ]
+      },
+      {
+        "id": "curiosity-hirise",
+        "imagery": [
+          {
+            "id": "viking",
+            "name": "Global \u00b7 Viking",
+            "attribution": "NASA Trek / USGS Viking MDIM 2.1",
+            "role": "base",
+            "optional": false,
+            "visible": true,
+            "opacity": 0.35,
+            "bounds": null,
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 7,
+            "metersPerPixel": 51.821746826171875,
+            "status": "ok",
+            "requests": 22,
+            "failedTiles": 0,
+            "resolutionMeters": 325.60563825058347,
+            "description": "Viking MDIM 2.1 color mosaic; nominal original 232 m, available service grid 325.61 m at equator",
+            "view": {
+              "inCoverage": true,
+              "zoomLevel": 2,
+              "missingTiles": 0,
+              "degradedTiles": 0,
+              "cacheFull": false
+            }
+          },
+          {
+            "id": "gale-ctx",
+            "name": "Gale \u00b7 CTX",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": false,
+            "opacity": 0.35,
+            "bounds": [
+              135.18,
+              -6.57,
+              139.24,
+              -2.81
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 9,
+            "metersPerPixel": 12.955436706542969,
+            "status": "ok",
+            "requests": 41,
+            "failedTiles": 0,
+            "resolutionMeters": 20.350352390661467,
+            "description": "Gale CTX BlockAdj service, retained as an independent finite cube layer. Available grid interval about 20.35m; output spacing about 12.96m. Native instrument resolution and absolute registration are separate.",
+            "view": null
+          },
+          {
+            "id": "curiosity-hirise",
+            "name": "Curiosity \u00b7 HiRISE",
+            "attribution": "NASA Trek / NASA/JPL-Caltech/USGS",
+            "role": "overlay",
+            "optional": true,
+            "visible": true,
+            "opacity": 0.35,
+            "bounds": [
+              137.12,
+              -4.95,
+              137.73,
+              -4.25
+            ],
+            "latitudeConvention": "planetocentric",
+            "minZoom": 0,
+            "maxLevel": 12,
+            "metersPerPixel": 1.619429588317871,
+            "status": "ok",
+            "requests": 47,
+            "failedTiles": 0,
+            "resolutionMeters": 1.2718970244163417,
+            "description": "Curiosity HiRISE mosaic service, retained as an independent finite cube layer. Available grid interval about 1.27m; output spacing about 1.62m. No high-resolution elevation is inferred from this imagery.",
+            "view": {
+              "inCoverage": true,
+              "zoomLevel": 12,
+              "missingTiles": 0,
+              "degradedTiles": 0,
+              "cacheFull": false
+            }
+          }
+        ]
+      }
+    ],
+    "regressions": [
+      {
+        "catalog": "ingenuity-jezero",
+        "view": null,
+        "assets": {
+          "total": 2,
+          "settled": 2,
+          "loaded": 2,
+          "failed": 0,
+          "failures": [],
+          "stillPending": [],
+          "timedOut": false,
+          "durationMs": 196.5
+        },
+        "cube": {
+          "residentTiles": 126,
+          "detailTiles": 38,
+          "requests": 164,
+          "bytes": 2771600,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-e7a6cf73d237-g2-m15-b66ee59ba"
+        },
+        "imagery": {
+          "version": "cube-imagery-xyz-f88b78acaf5f93ab",
+          "ready": true,
+          "textures": 87,
+          "pinnedTextures": 6,
+          "textureBytes": 467803023,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 1006632960,
+          "requests": 87,
+          "bytes": 106641455,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 21,
+          "splitTiles": 0,
+          "blocks": 110,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "0": 10,
+            "1": 10,
+            "2": 34,
+            "3": 16,
+            "4": 13,
+            "5": 2,
+            "6": 10
+          },
+          "wantedLevels": {
+            "0": 6,
+            "1": 14,
+            "2": 22,
+            "3": 4,
+            "4": 9,
+            "5": 2,
+            "6": 10
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 6,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 0.5,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 22544724,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 1025801326,
+          "uploadMs": 177.1000002026558,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "finiteCamera": true,
+        "surface": "streamed"
+      },
+      {
+        "catalog": "moonfall-shackleton",
+        "view": "Polaris-A Close-up",
+        "assets": {
+          "total": 8,
+          "settled": 8,
+          "loaded": 8,
+          "failed": 0,
+          "failures": [],
+          "stillPending": [],
+          "timedOut": false,
+          "durationMs": 2743.399999976158
+        },
+        "cube": {
+          "residentTiles": 126,
+          "detailTiles": 93,
+          "requests": 219,
+          "bytes": 3701100,
+          "failed": 0,
+          "inFlight": 0,
+          "version": "cube-fused-79895697c6b6-g3-m12-b6747ec9d"
+        },
+        "imagery": {
+          "version": "cube-imagery-composite-3f34a19541af7710",
+          "ready": true,
+          "textures": 249,
+          "pinnedTextures": 30,
+          "textureBytes": 92556288,
+          "inFlight": 0,
+          "failedTiles": 0,
+          "maxTextureBytes": 536870912,
+          "requests": 249,
+          "bytes": 5262143,
+          "failures": 0,
+          "aborted": 0,
+          "evicted": 0,
+          "blockBuildMs": 0,
+          "count": 0,
+          "budgetLimited": false,
+          "queued": 0,
+          "tiles": 38,
+          "splitTiles": 0,
+          "blocks": 157,
+          "extraDraws": 0,
+          "displayedLevels": {
+            "4": 4,
+            "5": 17,
+            "6": 21,
+            "7": 25,
+            "8": 14,
+            "9": 21,
+            "10": 20,
+            "11": 29
+          },
+          "wantedLevels": {
+            "4": 6,
+            "5": 22,
+            "6": 21,
+            "7": 22,
+            "8": 19,
+            "9": 19,
+            "10": 25,
+            "11": 21
+          },
+          "fallbackBlocks": 0,
+          "failedBlocks": 0,
+          "untexturedBlocks": 0,
+          "baseUncoveredBlocks": 0,
+          "maxDisplayedLevel": 11,
+          "committedGroups": 0,
+          "waitingGroups": 0,
+          "updateMs": 1.699999988079071,
+          "blockGeometryBytes": 0,
+          "transitionTextureBytes": 1486848,
+          "protectedOverBudgetBytes": 0,
+          "gpuAllocatedBytes": 538255360,
+          "uploadMs": 228.90000009536743,
+          "gpuError": null,
+          "inheritedGlErrors": []
+        },
+        "finiteCamera": true,
+        "surface": "streamed"
+      }
+    ],
+    "transportFailures": [
+      {
+        "url": "https://data.aaronplave.com/cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/tiles/nx/2/0/2.png",
+        "reason": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://data.aaronplave.com/cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/tiles/nx/2/0/3.png",
+        "reason": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://data.aaronplave.com/cube-imagery/imagery-df467b18c609f3ac702aaeaf/df467b18c609f3ac702aaeaf84eb0668/tiles/nx/2/1/3.png",
+        "reason": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://data.aaronplave.com/cube-imagery/imagery-04513d4681559e949e39e30f/04513d4681559e949e39e30fcaaaec3f/tiles/py/1/0/1.png",
+        "reason": "net::ERR_ABORTED"
+      }
+    ]
+  }
+}

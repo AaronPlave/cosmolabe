@@ -1,0 +1,142 @@
+{
+  "name": "MSL Curiosity at Dingo Gap",
+  "defaultGeographicNames": ["Mars"],
+  "defaultTime": "2014-02-05T12:00:00Z",
+  "require": ["base/naif.json", "places/mars.json", "places/msl-sites.json"],
+  "spiceKernels": [
+    "kernels/msl/msl.tf",
+    "kernels/msl/msl_tp_ops120808_iau2000_v1.tf",
+    "kernels/msl/MSL_76_SCLKSCET.00012.tsc",
+    "kernels/msl/msl_ls_ops120808_iau2000_v1.bsp",
+    "kernels/msl/msl_surf_rover_loc_0000_2003_v1.bsp",
+    "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bsp",
+    "kernels/msl/msl_surf_rover_tlm_0449_0583_v1.bc",
+    { "url": "kernels/msl/mar099s.bsp", "label": "Mars satellite ephemeris", "size": 64000000 }
+  ],
+  "items": [
+    {
+      "name": "Mars Orbit",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 15000,
+      "latitude": 20,
+      "longitude": 0
+    },
+    {
+      "name": "Dingo Gap Approach",
+      "type": "Viewpoint",
+      "center": "Mars",
+      "distance": 3400,
+      "latitude": -5,
+      "longitude": 137
+    },
+    {
+      "name": "Curiosity Surface",
+      "type": "Viewpoint",
+      "center": "Curiosity",
+      "distance": 0.5,
+      "latitude": 45,
+      "longitude": 90
+    },
+    {
+      "name": "Curiosity Close-up",
+      "type": "Viewpoint",
+      "center": "Curiosity",
+      "distance": 0.02,
+      "latitude": 30,
+      "longitude": 45
+    },
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": { "type": "FixedPoint", "position": [0, 0, 0] },
+      "geometry": { "type": "Globe", "radius": 695000 },
+      "label": { "color": [1.0, 0.9, 0.3] }
+    },
+    {
+      "name": "Earth",
+      "class": "planet",
+      "center": "Sun",
+      "trajectory": { "type": "Builtin", "name": "EMB" },
+      "geometry": { "type": "Globe", "radius": 6378, "atmosphere": "Earth" },
+      "label": { "color": [0.4, 0.6, 1.0] }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "center": "Sun",
+      "trajectoryFrame": "J2000",
+      "trajectory": { "type": "Builtin", "name": "Mars" },
+      "rotationModel": { "type": "Builtin", "name": "IAU_MARS" },
+      "geometry": {
+        "type": "Globe",
+        "radii": [3396.19, 3396.19, 3376.2],
+        "baseMap": "textures/mars.dds",
+        "terrain": {
+          "type": "quantized-mesh",
+          "url": "https://marshub.s3.amazonaws.com/mars_v14/",
+          "referenceRadiusOffsetKm": 8.765,
+          "errorTarget": 1,
+          "imagery": [
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+              "levels": 7
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 12,
+              "bounds": [135.18, -6.57, 139.24, -2.81],
+              "minZoom": 4
+            },
+            {
+              "url": "https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+              "levels": 16,
+              "bounds": [137.12, -4.95, 137.73, -4.25],
+              "minZoom": 8
+            }
+          ]
+        },
+        "surfaceTiles": [
+          {
+            "name": "Dingo Gap",
+            "url": "https://raw.githubusercontent.com/NASA-AMMOS/3DTilesSampleData/master/msl-dingo-gap/0528_0260184_to_s64o256/0528_0260184_to_s64o256/0528_0260184_to_s64o256_tileset.json",
+            "lat": -4.5895,
+            "lon": 137.4417,
+            "altitudeOffset": -4.5
+          }
+        ],
+        "atmosphere": "Mars"
+      },
+      "label": { "color": [0.9, 0.4, 0.2] },
+      "items": [
+        {
+          "name": "Curiosity",
+          "class": "spacecraft",
+          "naifId": -76,
+          "center": "Mars",
+          "trajectoryFrame": "J2000",
+          "trajectory": {
+            "type": "Spice",
+            "target": "-76",
+            "center": "MARS"
+          },
+          "rotationModel": {
+            "type": "Spice",
+            "bodyFrame": "MSL_ROVER"
+          },
+          "geometry": {
+            "type": "Mesh",
+            "source": "models/Curiosity_static.glb",
+            "size": 0.003,
+            "surfaceLock": true,
+            "meshRotation": [0.7071, -0.7071, 0, 0]
+          },
+          "label": { "color": [0.3, 0.9, 0.3] },
+          "trajectoryPlot": {
+            "visible": false
+          }
+        }
+      ]
+    }
+  ]
+}

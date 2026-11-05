@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { geographicStatusPosition, geographicStatusText } from '../geographic/GeographicStatus.js';
+import { geographicStatusPosition, geographicStatusText, geographicSurfaceNote } from '../geographic/GeographicStatus.js';
 
 describe('geographic status presentation', () => {
-  it('scopes terrain information to named body modes and calls out unverified coverage', () => {
-    expect(geographicStatusText([], 0)).toBe('');
-    expect(geographicStatusText([], 2)).toBe('Vector base · 2 limitations');
+  it('shows only actionable problems over the scene', () => {
+    expect(geographicStatusText(0)).toBe('');
+    expect(geographicStatusText(1)).toBe('Surface vectors · 1 problem');
+    expect(geographicStatusText(2)).toBe('Surface vectors · 2 problems');
+  });
+
+  it('describes each body\'s drawing surface for the layer details, calling out unverified coverage', () => {
     const status = { bodyName: 'Mars', layerIds: ['a'], features: 1, primitives: 1,
       bodySurfaceMode: 'terrain-streaming' as const, featureTerrainCoverage: 'not-assessed' as const,
       accuracy: 'rendered-triangles; source uncertainty unknown' as const };
-    expect(geographicStatusText([status, status, { ...status, bodyName: 'Moon', bodySurfaceMode: 'reference-globe' }], 1))
-      .toBe('Vector base · Mars: terrain mode (coverage unverified), Moon: reference globe · 1 limitation');
+    expect(geographicSurfaceNote([status], 'Mars')).toMatch(/streamed terrain.*not checked/);
+    expect(geographicSurfaceNote([{ ...status, bodySurfaceMode: 'reference-globe' }], 'Mars')).toMatch(/reference globe/);
+    expect(geographicSurfaceNote([status], 'Moon')).toBeNull();
   });
 
   it('avoids top controls and bottom timeline on desktop and mobile', () => {

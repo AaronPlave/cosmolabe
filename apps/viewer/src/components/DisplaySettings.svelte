@@ -1,11 +1,15 @@
 <script lang="ts">
-  import { vs, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+  import { presentationControl } from '../lib/presentation-control';
+  import { ANGULAR_GRID_STEPS } from '@cosmolabe/control';
+  import { vs, setGridSettings, setDisplayOption, setFov, setLighting, setCameraMode, applyViewpoint, flyToTracked } from '../lib/viewer-state.svelte';
+
   import { getRenderer } from '../lib/viewer-state.svelte';
   import { exportCameraView, importCameraViewFromFile } from '../lib/camera-view-io';
   import { takeScreenshot, isRecordingVideo, toggleVideoRecording } from '../lib/capture';
   import { CameraModeName } from '@cosmolabe/three';
   import { Save, Navigation, Download, Upload, Camera, Video, Square } from 'lucide-svelte';
-  import { toolDef } from '../lib/shell.svelte';
+  import { toolDef, openTool, closeTool, isToolOpen } from '../lib/shell.svelte';
+  import GeographicNames from './GeographicNames.svelte';
   import InstrumentPanel from './shell/InstrumentPanel.svelte';
   import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
   import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -21,18 +25,23 @@
   let viewpoints = $state<{ name: string }[]>([]);
   let selectedViewpoint = $state('');
   let vpCounter = $state(0);
-  let sensors = $state<string[]>([]);
-  let activeInstrument = $state('');
   let recording = $state(false);
 
   $effect(() => {
     const r = getRenderer();
     if (!r) return;
     viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
-    sensors = r.getSensorNames();
-    activeInstrument = r.activeInstrumentView ?? '';
     recording = isRecordingVideo(r);
   });
+
+  // Followed per frame like the Instrument view window, so a scene bound after
+  // this panel opened still lists its sensors. Joined so a quiet frame changes
+  // nothing downstream.
+  const sensorList = $derived.by(() => {
+    void vs.frameTick;
+    return getRenderer()?.getSensorNames().join('\n') ?? '';
+  });
+  const sensors = $derived(sensorList ? sensorList.split('\n') : []);
 
   // A permalink or host can change FOV while this panel is already open.
   // Read the same live projection the renderer uses, including wheel gestures.
@@ -55,11 +64,9 @@
     <!-- Toggle rows -->
     {#each [
       { key: 'trajectories' as const, label: 'Trajectories', shortcut: 'T', value: vs.showTrajectories },
-      { key: 'labels' as const, label: 'Labels', shortcut: 'L', value: vs.showLabels },
       { key: 'grid' as const, label: 'Grid', shortcut: 'G', value: vs.showGrid },
       { key: 'axes' as const, label: 'Axes', shortcut: 'X', value: vs.showAxes },
       { key: 'sensors' as const, label: 'Sensors', shortcut: '', value: vs.showSensors },
-      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
       { key: 'debug' as const, label: 'Debug stats', shortcut: '', value: debugActive },
     ] as opt}
       <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
@@ -71,6 +78,81 @@
       </label>
     {/each}
 
+    <Separator class="my-1" />
+    <div class="ui-section-label px-3 py-1">Labels</div>
+    {#each [
+      { key: 'labels' as const, label: 'Body labels', shortcut: 'L', value: vs.showLabels },
+      { key: 'sensorLabels' as const, label: 'Sensor labels', shortcut: '', value: vs.showSensorLabels },
+    ] as opt}
+      <label class="option-row ui-body flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-surface-3 transition-colors">
+        <Checkbox checked={opt.value} onCheckedChange={() => setDisplayOption(opt.key, !opt.value)} class="h-3.5 w-3.5" />
+        <span class="flex-1 text-text-primary">{opt.label}</span>
+        {#if opt.shortcut}<span class="ui-meta bg-surface-3 px-1 py-px rounded">{opt.shortcut}</span>{/if}
+      </label>
+    {/each}
+    <GeographicNames />
+
+    <Separator class="my-1" />
+
+    <div class="px-3 py-1 space-y-2">
+      <div class="ui-section-label">Surface grid</div>
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.labels} onCheckedChange={() => setGridSettings({ labels: !vs.grid.labels })} class="h-3.5 w-3.5" />
+        <span>Coordinate labels</span>
+      </label>
+      <label class="ui-body flex items-center gap-2">
+        <span>Opacity</span>
+        <input aria-label="Grid opacity" aria-describedby="grid-opacity-help" type="range" class="fov-slider flex-1 min-w-0"
+          min="0" max="100" step="1" value={Math.round(vs.grid.opacity * 100)}
+          oninput={e => setGridSettings({ opacity: Number(e.currentTarget.value) / 100 })} />
+        <span class="ui-readout min-w-8 text-right">{Math.round(vs.grid.opacity * 100)}%</span>
+      </label>
+      <p id="grid-opacity-help" class="ui-meta text-text-secondary">Fades grid lines and coordinate labels together.</p>
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Target</span>
+        <select aria-label="Grid target" class="ui-control bg-surface-3 rounded" value={vs.grid.scope}
+          onchange={e => setGridSettings({ scope: e.currentTarget.value as 'tracked' | 'bodies' | 'all', perBody: {} })}>
+          <option value="tracked">Tracked body</option><option value="bodies">Chosen bodies</option><option value="all">All eligible bodies</option>
+        </select>
+      </label>
+      {#if vs.grid.scope === 'bodies'}
+        <label class="ui-body block">Body names
+          <input class="ui-control w-full bg-surface-3 rounded px-1" aria-label="Grid body names" placeholder="Earth, Moon"
+            value={vs.grid.bodies.join(', ')} onchange={e => setGridSettings({ bodies: e.currentTarget.value.split(',').map(s => s.trim()).filter(Boolean) })} />
+        </label>
+      {/if}
+      <label class="ui-body flex items-center justify-between gap-2">
+        <span>Density</span>
+        <select aria-label="Grid density" class="ui-control bg-surface-3 rounded" value={vs.grid.density}
+          onchange={e => setGridSettings({ density: e.currentTarget.value as 'auto' | 'manual' })}>
+          <option value="auto">Auto</option><option value="manual">Manual</option>
+        </select>
+      </label>
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center justify-between gap-2">Spacing (degrees)
+          <select aria-label="Grid angular spacing" class="ui-control w-18 bg-surface-3 rounded"
+            value={vs.grid.spacingDeg} onchange={e => setGridSettings({ spacingDeg: Number(e.currentTarget.value) })}>
+            {#each ANGULAR_GRID_STEPS as step}<option value={step}>{step}°</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if vs.grid.density === 'manual'}
+        <label class="ui-body flex items-center gap-2">
+          <Checkbox checked={vs.grid.minorLines} onCheckedChange={() => setGridSettings({ minorLines: !vs.grid.minorLines })} class="h-3.5 w-3.5" />
+          <span>Minor lines</span>
+        </label>
+      {:else}
+        <p class="ui-meta text-text-secondary">Major lines carry labels; lighter lines divide each cell.</p>
+      {/if}
+      <label class="ui-body flex items-center gap-2">
+        <Checkbox checked={vs.grid.coordinateFrame} onCheckedChange={() => setGridSettings({ coordinateFrame: !vs.grid.coordinateFrame })} class="h-3.5 w-3.5" />
+        <span>Labels at viewport border</span>
+      </label>
+      <p class="ui-meta text-text-secondary">In close overhead views, labels move to ticks where grid lines cross the screen border. Turn off for labels at fixed geographic sites on the surface. Zoomed-out views keep surface labels.</p>
+      <details class="ui-meta text-text-secondary"><summary>Coordinates and surface</summary>
+        <p>East-positive longitude (E/W), geodetic latitude on spheres and rotational ellipsoids. Triaxial bodies use planetocentric latitude. Lines follow the rendered surface and its current level of detail. Triaxial globes use a planetocentric reference surface. Mesh-body grids and DSK draping are unavailable.</p>
+      </details>
+    </div>
     <Separator class="my-1" />
 
     <!-- Lighting -->
@@ -137,7 +219,7 @@
             if (r) {
               vpCounter++;
               const name = `Saved ${vpCounter}`;
-              r.cameraController.saveViewpoint(name);
+              presentationControl.saveBookmark(name);
               viewpoints = r.cameraController.getViewpoints().map(v => ({ name: v.name }));
               selectedViewpoint = name;
             }
@@ -183,8 +265,14 @@
         <span class="flex-1 text-text-primary">Instrument</span>
         <select
           class="ui-control bg-surface-3 text-text-primary border border-border rounded px-1.5 py-0.5 cursor-pointer outline-none max-w-28"
-          bind:value={activeInstrument}
-          onchange={() => { getRenderer()?.setInstrumentView(activeInstrument || null, { marginX: 16, marginY: 60 }); }}
+          value={isToolOpen('instrument') ? (vs.instrumentSensor ?? '') : ''}
+          onchange={(e) => {
+            // The same window the `I` key opens; Off closes it.
+            const name = (e.target as HTMLSelectElement).value;
+            if (!name) { closeTool('instrument'); return; }
+            vs.instrumentSensor = name;
+            openTool('instrument');
+          }}
         >
           <option value="">Off</option>
           {#each sensors as name}<option value={name}>{name}</option>{/each}

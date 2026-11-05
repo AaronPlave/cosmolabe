@@ -1696,7 +1696,7 @@ def cmd_cube_tile(args):
     if areoid_path and ds.GetFileList():
         inputs['areoidFiles'] = [{'file': os.path.basename(p), 'sha256': file_sha256(p)} for p in sorted(ds.GetFileList())]
     body = getattr(args, 'body', None) or ('Moon' if a == c else 'unspecified')
-    frame = getattr(args, 'frame', None) or ('IAU_MOON' if body == 'Moon' else 'unspecified')
+    frame = getattr(args, 'frame', None) or 'unspecified'
     build = {'generator': generator_hash, 'global_level': args.global_level, 'region': args.region, 'skirt_cells': args.skirt_cells,
              'ellipsoid': args.ellipsoid, 'simplify': args.simplify, 'sourceConvention': convention, 'body': body, 'frame': frame, 'inputs': inputs}
     build_hash = hashlib.sha256(json.dumps(build, sort_keys=True).encode()).hexdigest()

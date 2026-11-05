@@ -52,8 +52,10 @@ Mars dataset exists: check the pinned build in
 
 ## Capture
 
-Start a dedicated dev server (the capture script imports the viewer's development
-modules to set analysis/panel state):
+Start a dedicated dev server. Event queries/results, measurement definitions,
+and timeline windows use the public `ViewerControl` port. Development-module
+imports remain for panel layout and continuous profiles, which have separate
+feature contracts:
 
 ```sh
 npm --prefix apps/viewer run dev -- --host 127.0.0.1 --port 5199 --strictPort

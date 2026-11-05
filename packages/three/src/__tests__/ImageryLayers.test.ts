@@ -57,9 +57,9 @@ describe('resolveGlobeSurfaceConfig', () => {
 });
 
 describe('describeImageryLayers', () => {
-  it('names layers after the product in the tile URL', () => {
-    expect(defaultLayerName({ url: VIKING })).toBe('Mars_Viking_MDIM21_ClrMosaic_global_232m');
-    expect(defaultLayerName({ url: CTX })).toBe('CTX');
+  it('names layers from explicit labels or provider hosts, never URL paths', () => {
+    expect(defaultLayerName({ url: VIKING })).toBe('trek.nasa.gov');
+    expect(defaultLayerName({ url: CTX })).toBe('astro.arcgis.com');
     expect(defaultLayerName({ url: 'https://tiles.example.org/{z}/{x}/{y}.png' })).toBe('tiles.example.org');
     expect(defaultLayerName({ type: 'wmts-capabilities', url: 'https://gibs/x.xml', layer: 'BlueMarble' })).toBe('BlueMarble');
   });
@@ -80,6 +80,25 @@ describe('describeImageryLayers', () => {
     expect(layers[1]).toMatchObject({ minZoom: 5, maxLevel: 13, bounds: null });
     expect(layers[2].opacity).toBe(1);
     expect(layers[2].bounds).toEqual([77.22, 18.31, 77.58, 18.67]);
+  });
+
+  it("names each layer's source without anything that could be a credential", () => {
+    const [a, b, c] = describeImageryLayers([
+      { type: 'wmts-capabilities', url: 'https://user:secret@gibs.example/private-token/1.0.0/caps.xml?api_key=abc#frag', layer: 'BlueMarble', tileMatrixSet: '500m' },
+      { url: 'https://tiles.example/mars/{z}/{x}/{y}.png?token=xyz' },
+      { type: 'cube', url: '/private/private-token/imagery.json' },
+    ], MARS_EQ_KM);
+    expect(a.source).toEqual({ type: 'wmts-capabilities', endpoint: 'https://gibs.example', layer: 'BlueMarble', tileMatrixSet: '500m' });
+    expect(a.attribution).toBe('gibs.example'); // not user:secret@gibs.example
+    expect(b.source).toEqual({ type: 'xyz', endpoint: 'https://tiles.example', layer: null, tileMatrixSet: null });
+    expect(c.source).toEqual({ type: 'cube', endpoint: null, layer: null, tileMatrixSet: null });
+    expect(JSON.stringify([a, b, c])).not.toMatch(/secret|private-token|api_key|token=/);
+  });
+
+  it.each(['file:///Users/private-token/map.json', 'data:private-token', 'blob:https://example.test/private-token', 'relative/private-token.json', 'not a URL'])('omits non-provider locations: %s', (url) => {
+    const [layer] = describeImageryLayers([{ url }], MARS_EQ_KM);
+    expect(layer.source.endpoint).toBeNull();
+    expect(layer.name).not.toContain('private-token');
   });
 
   it('keeps ids unique', () => {
@@ -154,6 +173,12 @@ describe('TerrainManager imagery layer controls', () => {
   type Plugin = { overlays: Array<{ opacity: number }>; overlayInfo: Map<object, { order: number }> };
   const plugin = (tm: TerrainManager) => (tm.tiles as unknown as { getPluginByName(n: string): Plugin }).getPluginByName('IMAGE_OVERLAY_PLUGIN');
   const dispatch = (tm: TerrainManager, e: Record<string, unknown>) => (tm.tiles as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(e);
+
+  it('rejects legacy cube imagery combined with a geographic stack explicitly', () => {
+    expect(() => make({ type: '3dtiles', url: 'https://example.invalid/tileset.json',
+      cubeSphere: { cpuGrids: 'https://example.invalid/grids.json', imagery: { url: 'https://example.invalid/imagery.json' } },
+    })).toThrow('Legacy cube imagery cannot be combined with geographic imagery');
+  });
 
   it('only builds overlays for layers that start on', async () => {
     const tm = make();
@@ -369,6 +394,24 @@ describe('TerrainManager imagery layer controls', () => {
       return tm;
     };
 
+    it('keeps the static surface until visible cube blocks have resident imagery', async () => {
+      const tm = await withRoot(tile(4));
+      const stats = { ready: true, tiles: 1, untexturedBlocks: 1, baseUncoveredBlocks: 0 };
+      Object.defineProperty(tm, 'cubeImagery', { value: { stats }, configurable: true });
+      expect(tm.isReadyToShow(10_000)).toBe(false);
+      stats.untexturedBlocks = 0;
+      expect(tm.isReadyToShow(10_001)).toBe(true);
+      stats.baseUncoveredBlocks = 1; // valid base manifest, missing base texture
+      expect(tm.isReadyToShow(10_002)).toBe(false);
+      stats.baseUncoveredBlocks = 0;
+      expect(tm.isReadyToShow(10_003)).toBe(true);
+      // Resident optional pixels cannot compensate for a failed mandatory base.
+      stats.ready = false;
+      expect(tm.isReadyToShow(10_002)).toBe(false);
+      Object.defineProperty(tm, 'cubeImagery', { value: null });
+      tm.dispose();
+    });
+
     it('falls back when one root tile loads and the other fails', async () => {
       const tm = await withRoot(tile(4), tile(-1));
       dispatch(tm, { type: 'load-model', scene: new THREE.Group(), tile: {} });
@@ -478,3 +521,8 @@ describe('fallBackToParentTiles', () => {
     }
   });
 });
+
+ it('describes source latitude independently of terrain', () => {
+   const layers = describeImageryLayers([{type: 'cube', url: 'cube/imagery.json'}, {type: 'xyz', url: VIKING}], MARS_EQ_KM);
+   expect(layers.map(layer => layer.latitudeConvention)).toEqual(['planetocentric', 'geodetic']);
+ });

@@ -1,0 +1,132 @@
+{
+  "name": "Mars and Moon places",
+  "description": "USGS/IAU Gazetteer snapshots with 11,138 real place anchors. Body positions are illustrative. Search names with Ctrl/Command K; geographic names start enabled for both bodies and can be changed in Display. Includes an explicitly synthetic user site to demonstrate mixed provenance.",
+  "defaultViewpoint": "Mars places orbit",
+  "geographicLayers": [
+    {
+      "id": "example-user-sites",
+      "name": "Example user sites (synthetic)",
+      "body": "Mars",
+      "source": "places/user-sites.geojson",
+      "coordinates": {
+        "latitude": "planetocentric",
+        "longitudeDirection": "east",
+        "longitudeDomain": "-180..180",
+        "referenceShape": {
+          "kind": "ellipsoid",
+          "radiiKm": [
+            3396.19,
+            3396.19,
+            3376.2
+          ]
+        }
+      },
+      "display": {
+        "visible": false
+      },
+      "provenance": {
+        "attribution": "Cosmolabe synthetic catalog example; not a mission observation"
+      }
+    }
+  ],
+  "items": [
+    {
+      "name": "Sun",
+      "class": "star",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          20000000,
+          100000000,
+          20000000
+        ]
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 695000
+      }
+    },
+    {
+      "name": "Mars",
+      "class": "planet",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radii": [
+          3396.19,
+          3396.19,
+          3376.2
+        ],
+        "baseMap": "textures/mars.dds"
+      }
+    },
+    {
+      "name": "Moon",
+      "class": "moon",
+      "trajectory": {
+        "type": "FixedPoint",
+        "position": [
+          12000,
+          0,
+          0
+        ]
+      },
+      "rotationModel": {
+        "type": "Fixed",
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "inertialFrame": "ECLIPJ2000"
+      },
+      "geometry": {
+        "type": "Globe",
+        "radius": 1737.4,
+        "baseMap": "textures/moon-2k.jpg"
+      }
+    },
+    {
+      "type": "Viewpoint",
+      "name": "Mars places orbit",
+      "center": "Mars",
+      "distance": 10000,
+      "latitude": 18.38,
+      "longitude": 77.58
+    },
+    {
+      "type": "Viewpoint",
+      "name": "Moon places orbit",
+      "center": "Moon",
+      "distance": 4500,
+      "latitude": -89.655,
+      "longitude": 129.174
+    }
+  ],
+  "require": [
+    "places/mars.json",
+    "places/moon.json"
+  ],
+  "defaultGeographicNames": [
+    "Mars",
+    "Moon"
+  ]
+}

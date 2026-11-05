@@ -188,8 +188,8 @@
     transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
-    width: min(1120px, 88vw);
-    max-height: min(820px, 84vh);
+    width: min(1120px, 88cqw);
+    max-height: min(820px, 84cqh);
     border: 1px solid var(--color-chrome-border);
     border-radius: 10px;
     background:
@@ -343,7 +343,7 @@
     gap: 8px;
   }
   .add-input {
-    width: min(22rem, 60vw);
+    width: min(22rem, 60cqw);
     height: 28px;
     padding: 0 10px;
     border: 1px solid var(--color-border-default);

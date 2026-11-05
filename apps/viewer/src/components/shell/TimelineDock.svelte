@@ -31,6 +31,8 @@
   import { untrack } from 'svelte';
   import ProfileLanes from './ProfileLanes.svelte';
   import EventLane from './EventLane.svelte';
+  import MissionActivityTimeline from './MissionActivityTimeline.svelte';
+  import { activitySeries } from '../../lib/mission-activities';
   import AddProfile from './AddProfile.svelte';
   import SelectedEventInspector from './SelectedEventInspector.svelte';
   import RangeControl from '../RangeControl.svelte';
@@ -40,7 +42,7 @@
   import {
     ef, previewEvent, selectEvent, syncOccultationGeometryAtTime, configuredEventQueries, isSelectedEvent, selectedEventOf,
   } from '../../lib/event-finder.svelte';
-  import { analysisContext, visibleTimelineEvents } from '../../lib/analysis.svelte';
+  import { allTimelineEvents, visibleTimelineEvents } from '../../lib/analysis.svelte';
   import {
     activeEventsAtTime, eventCalloutLines, eventContainsTime, eventTimelineFractions,
   } from '../../lib/event-query';
@@ -52,6 +54,7 @@
   import * as Popover from '$lib/components/ui/popover';
   import Input from '$lib/components/ui/input/input.svelte';
   import Button from '$lib/components/ui/button/button.svelte';
+  import { layerRoot, toWorkspace, workspaceSize } from '../../lib/workspace.svelte';
 
   interface Props {
     /** Render bare, for a parent that supplies the surrounding chrome. */
@@ -121,6 +124,9 @@
   // their eye toggle) so they can be shown again from here; disabled ones are
   // out of the analysis entirely and have nothing to draw.
   let eventLanes = $derived(configuredEventQueries().filter((item) => item.enabled));
+  const missionActivitySeries = $derived.by(() => {
+    return activitySeries(vs.activities);
+  });
 
   // ── Transport overview ──
   //
@@ -130,7 +136,7 @@
   // Exact distinctions are the lanes'. Past three families, bands get too
   // thin to read and the overview becomes a density instead.
   const MAX_BANDS = 3;
-  let eventMarkers = $derived.by(() => {
+  const eventGeometry = $derived.by(() => {
     const range = { start: vs.scrubMin, end: vs.scrubMax };
     const drawn = visibleTimelineEvents().flatMap((event) => {
       // Events outside the window are dropped rather than clamped to an edge,
@@ -138,7 +144,20 @@
       const span = eventTimelineFractions(event, range);
       return span ? [{ event, span }] : [];
     });
-    const families = eventLanes.map((q) => q.id).filter((id) => drawn.some((d) => d.event.queryId === id));
+    // Dense mission metadata gets bounded overview representatives. Exact records
+    // remain discoverable through the native activity chooser and control port.
+    const activityBins = new Map<string, typeof drawn[number]>();
+    const ordinary = drawn.filter(d => d.event.kind !== 'mission-activity');
+    for (const d of drawn) if (d.event.kind === 'mission-activity') {
+      const bin = Math.max(0, Math.min(199, Math.floor(d.span.start * 200)));
+      const key = `${d.event.queryId}:${bin}`;
+      if (!activityBins.has(key)) activityBins.set(key, d);
+    }
+    const bounded = [...ordinary, ...activityBins.values()];
+    return { drawn: bounded, families: [...new Set(bounded.map(d => d.event.queryId))] };
+  });
+  let eventMarkers = $derived.by(() => {
+    const { drawn, families } = eventGeometry;
     return drawn.map(({ event, span }) => ({
       id: eventKey(event),
       queryId: event.queryId,
@@ -284,17 +303,21 @@
   let calloutSize = $state({ w: 0, h: 0 });
   const callout = $derived.by(() => {
     if (!hoveredEvent || !timeline.anchor) return null;
+    // Only the activity already shown in the inspector is redundant. Other
+    // activities still preview independently of selection (ID + query ID).
+    if (hoveredEvent.kind === 'mission-activity' && isSelectedEvent(hoveredEvent)) return null;
     const [title, ...rest] = eventCalloutLines(hoveredEvent, { utc: etToUtcString, selected: true });
     const lines = rest.flatMap((line) => line.split(' · '));
     const half = (calloutSize.w || 200) / 2;
-    const x = Math.max(half + 8, Math.min(window.innerWidth - half - 8, timeline.anchor.x));
-    const below = timeline.anchor.y - (calloutSize.h || 60) - 8 < 8;
-    return { title, lines, x, y: below ? timeline.anchor.y + 24 : timeline.anchor.y, below, kind: hoveredEvent.kind, state: hoveredEvent.state };
+    const anchor = toWorkspace(timeline.anchor.x, timeline.anchor.y);
+    const x = Math.max(half + 8, Math.min(workspaceSize().width - half - 8, anchor.x));
+    const below = anchor.y - (calloutSize.h || 60) - 8 < 8;
+    return { title, lines, x, y: below ? anchor.y + 24 : anchor.y, below, kind: hoveredEvent.kind, state: hoveredEvent.state };
   });
 
   /** Moves an element to the end of the page, out of every clipping ancestor. */
   function portal(node: HTMLElement) {
-    document.body.appendChild(node);
+    layerRoot().appendChild(node);
     return { destroy: () => node.remove() };
   }
 
@@ -357,7 +380,7 @@
   // selection is global, and `visible` is about timeline presentation only.
   // Hiding a lane keeps its selected event (and its inspector); disabling
   // the search clears it (`setConfiguredQueryEnabled`).
-  const selectedEvent = $derived(selectedEventOf(analysisContext().eventResults));
+  const selectedEvent = $derived(selectedEventOf(allTimelineEvents()));
 
   // ── Selected-event inspector ──
   //
@@ -384,13 +407,16 @@
   const inspector = $derived.by(() => {
     const event = selectedEvent;
     if (!event) return null;
+    // The compact Ask sheet needs its answer and input unobscured. Selection
+    // remains intact; the activity inspector returns when the sheet is closed.
+    if (compact && shell.activeSheet === 'ask' && isToolOpen('ask')) return null;
     if (isToolOpen('events') && ef.configuredId === event.queryId) return null;
     const span = eventTimelineFractions(event, { start: vs.scrubMin, end: vs.scrubMax });
     const f = span ? (span.start + span.end) / 2 : timelineFraction(eventStart(event)) < 0 ? 0 : 1;
     // Desktop: above the dock and its edge handle. A phone: above the
     // floating dock (inset 8 px from the bottom).
     const bottom = shell.chromeBottom + (compact ? 16 : 20);
-    return { event, x: trackBox.left + f * trackBox.width, bottom };
+    return { event, x: toWorkspace(trackBox.left + f * trackBox.width, 0).x, bottom };
   });
 
   // ── Active events, collapsed ──
@@ -467,10 +493,10 @@
   const regionSize = $derived(
     timeline.laneHeight != null
       ? ` height: ${timeline.laneHeight}px; max-height: none;`
-      : timeline.laneFit ? ' max-height: 58vh;' : '',
+      : timeline.laneFit ? ' max-height: 58cqh;' : '',
   );
   function maxLaneHeight() {
-    return Math.round(window.innerHeight * 0.58);
+    return Math.round(workspaceSize().height * 0.58);
   }
   function onResizeStart(e: PointerEvent) {
     if (e.button !== 0 || !regionEl) return;
@@ -706,7 +732,7 @@
           {#each clock as line}<span class="clock-line">{line}</span>{/each}
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content side="top" sideOffset={8} class="w-80 max-w-[calc(100vw-16px)] p-3">
+          <Popover.Content side="top" sideOffset={8} class="w-80 max-w-[calc(100cqw-16px)] p-3">
             <div class="flex flex-col gap-2">
               <span class="ui-label">Go to time</span>
               <div class="flex gap-1.5">
@@ -759,6 +785,10 @@
     {/if}
   </div>
 
+  {#if !expanded && vs.activities.length}
+    <MissionActivityTimeline items={vs.activities} label="activity" {expanded} wide={wideLanes} {axis} />
+  {/if}
+
   {#if expanded}
     <!-- The shared-axis region: event lanes, then continuous profiles, all
          drawn on the track's extent and window. Fits its rows, up to a third
@@ -768,6 +798,10 @@
       class="lane-region"
       style="--tl-gutter: {axis.left}px; --tl-axis: {axis.width}px; --tl-rail-end: {axis.railEnd}px;{regionSize}"
     >
+      {#if !vs.activities.length}<p class="px-2 py-1 text-xs text-text-secondary">{vs.activityMetadataAvailable ? 'No activities in supplied metadata' : 'No activity records supplied · operation state unknown'}</p>{/if}
+      {#each missionActivitySeries as series (series.body + series.label)}
+        <MissionActivityTimeline items={series.items} label={series.label} {expanded} wide={wideLanes} {axis} />
+      {/each}
       {#each eventLanes as item (item.id)}
         <EventLane {item} wide={wideLanes} />
       {/each}
@@ -926,7 +960,7 @@
     z-index: var(--tl-z-callout);
     font-family: var(--font-sans);
     width: max-content;
-    max-width: min(420px, calc(100vw - 16px));
+    max-width: min(420px, calc(100cqw - 16px));
     padding: 5px 8px;
     border: 1px solid var(--color-chrome-border);
     border-radius: 4px;
@@ -973,7 +1007,7 @@
      content, so the controls and clock line up with the track itself. */
   .transport.gridded {
     display: grid;
-    grid-template-columns: clamp(260px, 22vw, 320px) minmax(0, 1fr) auto;
+    grid-template-columns: clamp(260px, 22cqw, 320px) minmax(0, 1fr) auto;
     grid-template-areas:
       'controls track clock'
       'add caption .';
@@ -1057,7 +1091,7 @@
     /* Vertical swipes scroll; horizontal ones are the surface's, gaps between
        rows included. */
     touch-action: pan-y;
-    max-height: 38vh;
+    max-height: 38cqh;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1093,7 +1127,7 @@
       justify-content: center;
     }
     .lane-region {
-      max-height: 30vh;
+      max-height: 30cqh;
     }
   }
 </style>

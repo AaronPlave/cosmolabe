@@ -1,0 +1,54 @@
+name: New issue relationship hygiene
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/new-issue-relationships.yml
+      - scripts/ingest-issue-relationships.mjs
+      - scripts/ingest-issue-relationships.test.mjs
+  issues:
+    types: [opened, edited, reopened]
+  schedule:
+    # Weekly fallback for issues created by Actions or integrations that don't trigger issue events.
+    - cron: '27 16 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test relationship declarations
+        run: node --test scripts/ingest-issue-relationships.test.mjs
+
+  sync:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: issue-relationships-${{ github.event.issue.number || 'audit' }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply relationships declared on new or edited issue
+        if: github.event_name == 'issues'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ingest-issue-relationships.mjs
+      - name: Audit issues created after the 2026-10-30 backfill
+        if: github.event_name != 'issues'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ingest-issue-relationships.mjs --audit

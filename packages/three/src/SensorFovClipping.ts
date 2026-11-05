@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BodyMesh } from './BodyMesh.js';
 import type { SensorFovClipper } from './SensorFrustum.js';
 import { clipFovPerimeter, type FovPerimeterSample, type FovSurfaceCandidate } from './surface/FovClipper.js';
-import type { PhysicalSurface, PhysicalSurfaceMetadata, SurfaceIntersection } from './surface/PhysicalSurface.js';
+import type { PhysicalSurface, PhysicalSurfaceMetadata, SurfaceIntersection, SurfaceQueryOptions, SurfaceRay } from './surface/PhysicalSurface.js';
 import { ReferenceEllipsoidSurface } from './surface/ReferenceEllipsoidSurface.js';
 import { ResidentTerrainSurface } from './surface/ResidentTerrainSurface.js';
 
@@ -14,12 +14,10 @@ import { ResidentTerrainSurface } from './surface/ResidentTerrainSurface.js';
 const TERRAIN_BOUNDING_MARGIN = 0.01;
 
 /**
- * Per-frame cap on terrain triangles tested across all sensors (~30 ns each on
- * the linear per-tile intersector, so a few ms). Checked per sensor, so a sensor
- * is clipped against terrain entirely or not at all — never a seam mid-perimeter.
- * Sensors past the cap fall back to their reference shapes for that frame,
- * reported as `fallback` in the clip summary. Production terrain needs the BVH
- * the #148 ADR anticipates; this keeps the proof intersector out of frame drops.
+ * Per-frame cap on actual terrain triangle tests across all sensors. A query
+ * may finish its current tile; once spent, uncached queries abort the sensor's
+ * terrain pass and retry its entire perimeter against reference shapes. Shared
+ * ray results remain usable without spending additional triangle budget.
  */
 const TERRAIN_TRIANGLE_BUDGET = 100_000;
 
@@ -30,6 +28,27 @@ const _m = new THREE.Matrix4();
 class DeferredTerrain implements PhysicalSurface {
   constructor(readonly metadata: PhysicalSurfaceMetadata) {}
   intersectRay(): SurfaceIntersection { return { kind: 'unavailable', reason: 'budget', metadata: this.metadata }; }
+}
+
+const TERRAIN_BUDGET_EXCEEDED = Symbol('terrain-budget-exceeded');
+
+/** Per-frame sharing: overlapping instruments often cast exactly the same rays. */
+class CachedTerrain implements PhysicalSurface {
+  readonly metadata: PhysicalSurfaceMetadata;
+  private readonly rays = new Map<string, SurfaceIntersection>();
+  constructor(private readonly surface: ResidentTerrainSurface, private readonly canQuery: () => boolean) {
+    this.metadata = surface.metadata;
+  }
+  intersectRay(ray: SurfaceRay, options: SurfaceQueryOptions): SurfaceIntersection {
+    const { xKm, yKm, zKm } = ray.origin;
+    const key = `${xKm},${yKm},${zKm}|${ray.direction.join(',')}|${ray.nearKm}|${ray.farKm}|${options.maxMeshErrorKm}`;
+    const cached = this.rays.get(key);
+    if (cached) return cached;
+    if (!this.canQuery()) throw TERRAIN_BUDGET_EXCEEDED;
+    const result = this.surface.intersectRay(ray, options);
+    if (this.rays.size < 4096) this.rays.set(key, result);
+    return result;
+  }
 }
 
 interface BodySurfaces {
@@ -87,12 +106,15 @@ export class SensorFovClipping {
 
       bm.bodyToWorldQuaternion(_q);
       const e = _m.makeRotationFromQuaternion(_q).elements; // column-major
+      const terrain = hasTerrain
+        ? new CachedTerrain(entry.terrain!, () => this.terrainTrianglesThisFrame() < TERRAIN_TRIANGLE_BUDGET)
+        : null;
       const candidate: FovSurfaceCandidate = {
         id: body.name,
         centerKm: [abs[0] - originAbsPos[0], abs[1] - originAbsPos[1], abs[2] - originAbsPos[2]],
         bodyToWorld: [e[0], e[4], e[8], e[1], e[5], e[9], e[2], e[6], e[10]],
         boundingRadiusKm: entry.reference.boundingRadiusKm * (hasTerrain ? 1 + TERRAIN_BOUNDING_MARGIN : 1),
-        surfaces: hasTerrain ? [entry.terrain!, entry.reference] : [entry.reference],
+        surfaces: terrain ? [terrain, entry.reference] : [entry.reference],
       };
       candidates.push(candidate);
       if (hasTerrain) {
@@ -116,12 +138,19 @@ export class SensorFovClipping {
       const key = `${this.frameKey}|${pointingKey}|${originKm.join(',')}|${maxRangeKm}|${baseParams.length}`;
       const cached = this.cache.get(sensorBodyName);
       if (cached?.key === key) return cached.samples;
-      const withTerrain = this.terrainTrianglesThisFrame() < TERRAIN_TRIANGLE_BUDGET;
-      const pool = withTerrain ? this.candidates : this.deferredCandidates;
-      const samples = clipFovPerimeter(originKm, directionAt, baseParams, pool.filter(c => c.id !== sensorBodyName), { maxRangeKm });
-      // A deferred result is only this frame's stand-in; retry terrain next frame.
-      if (withTerrain) this.cache.set(sensorBodyName, { key, samples });
-      else this.cache.delete(sensorBodyName);
+      const pool = this.candidates.filter(c => c.id !== sensorBodyName);
+      try {
+        const samples = clipFovPerimeter(originKm, directionAt, baseParams, pool, { maxRangeKm });
+        this.cache.set(sensorBodyName, { key, samples });
+        return samples;
+      } catch (error) {
+        if (error !== TERRAIN_BUDGET_EXCEEDED) throw error;
+      }
+      // Discard the partial pass: one perimeter must never mix budget fallback
+      // with terrain. Cached rays can still serve later overlapping instruments.
+      this.cache.delete(sensorBodyName);
+      const samples = clipFovPerimeter(originKm, directionAt, baseParams,
+        this.deferredCandidates.filter(c => c.id !== sensorBodyName), { maxRangeKm });
       return samples;
     };
   }

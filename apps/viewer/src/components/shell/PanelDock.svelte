@@ -15,6 +15,7 @@
    * to keep the scene primary.
    */
   import type { Snippet } from 'svelte';
+  import { shell } from '../../lib/shell.svelte';
 
   interface Props {
     side: 'left' | 'right' | 'sheet';
@@ -39,7 +40,7 @@
 {#if side === 'sheet'}
   <!-- Even with an instrument open, more of a phone remains scene than sheet.
        Long instruments scroll inside the shared panel body. -->
-  <div class="pointer-events-none absolute z-15 flex max-h-[42%] flex-col gap-2 overflow-hidden" {style}>
+  <div class="pointer-events-none absolute z-15 flex max-h-[42%] flex-col gap-2 overflow-hidden" {style} bind:clientHeight={shell.sheetHeight} data-sheet>
     {@render children()}
   </div>
 {:else}

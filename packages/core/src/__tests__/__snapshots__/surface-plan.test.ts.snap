@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`source evidence and locked builds > keeps synthetic Mars examples reproducible without implying HiRISE coverage 1`] = `
-"Surface data plan — source-aware (estimator 1.1.0)
+"Surface data plan — source-aware (estimator 1.1.1)
 Desired snapshot: sha256:9b08c015d32a94b1701eed9e5f33baa04835f771ed05f5d8d99744e5459f7139
 Source metadata: sha256:33425d14f2d7196b84a0120c4be1fd3a5c51875e93ec68c81b4c9c0428d8903c
 Physical source fidelity: unsatisfied; bands 0 satisfied, 0 partial, 3 unsatisfied, 3 unknown (separate from storage budget).
