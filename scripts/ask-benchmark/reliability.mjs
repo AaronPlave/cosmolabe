@@ -144,7 +144,7 @@ export async function judge(predicates, read, methods) {
 
 // ── Answer checks: the harness's own, against its own truth ──
 
-const NEGATION = /\b(not|no|never|none|couldn'?t|cannot|can'?t|unable|unavailable|hidden|isn'?t|wasn'?t|didn'?t|doesn'?t|only partly|partial)\b/i;
+const NEGATION = /\b(not|no|never|none|couldn'?t|cannot|can'?t|unable|unavailable|hidden|isn'?t|wasn'?t|didn'?t|doesn'?t|haven'?t|hasn'?t|only partly|partial)\b/i;
 const FLYBY = /\b(fly-?bys?|flew (?:past|by)|swing-?bys?|close (?:flyby|pass|encounter)|encounters?)\b/i;
 const AU_KM = 1.495978707e8;
 const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };

@@ -111,3 +111,41 @@ Sonnet at `effort: low` passed every hard task it finished (8/8), including the 
 - **Sample sizes are small.** Haiku had 5 repetitions per hard task and Sonnet 2. None of these numbers is a statistically proven rate; the per-task counts above are what was observed.
 - **Discovery mode** is covered offline only, as before.
 - **Harness host load.** One Haiku batch was stopped partway because two unrelated browser processes had saturated the CPU and the viewer timed out loading scenes. Its runs are not counted; the batch was re-run.
+
+## Release review follow-up (2026-11-05)
+
+The release review asked for Haiku as the default, Sonnet only where a small deterministic policy says so, three correctness fixes, and no large new benchmark.
+
+**Model routing.**
+- The proxy now answers with Haiku by default (`ASK_MODEL`). It uses Sonnet (`ASK_ESCALATION_MODEL`) only when the viewer asks for escalation. The client can ask for escalation but never name a model.
+- The policy is `runAgent`'s `escalate` option. The default, `escalateDestructive`, routes a change whose contract marks its input destructive: deletion, replacement, whole-state restore.
+- Routing happens only before a request's first change. The proposed change is dropped unrun, and the same round is asked of Sonnet, which keeps the request. Once a change has run, the request stays on its model, so nothing partly done is replayed.
+- A host replaces the policy, or disables it with `() => null`.
+- The result records why a request was routed (`escalated`), and the panel shows it.
+
+**"Place a point".** The person did not ask for selection, so the benchmark no longer requires it. The `editAnnotation` notes say to select a point only when the person asks. `featureUnder` takes the selected point, or else the nearest in the annotation layer; selection stays `featureSelected`'s to require.
+
+**Correctness.**
+- **`eventRun {whole:true}`** is met only when the solver can promise "every" result:
+  - a local search, not a deepest-only one, which is now unmet;
+  - a step no coarser than the event kind's default step (the shortest event it should not miss);
+  - one exact coverage window, spanned to within a step.
+  A coarser step, disjoint or estimated coverage, and unknown coverage are inconclusive. Negative tests cover each case.
+- **`legible`** now fails an object fully hidden behind a nearer body, using the same occlusion test as `inView`.
+- **Verified for the changes vs verified for the request.** `RequestResult.intentStated` says whether the request stated what the person asked for. With `require: []`, a `verified` result covers each change's own result only, and the panel says so: "Each change checked in the viewer; the request as a whole was not stated, so not checked."
+
+**Live check:** commit `394063ff`, Haiku with Sonnet escalation, estimated $0.10 for this round. The first batch's viewer served a stale build of `@cosmolabe/control`, so its pin-then-point runs were rerun on a fresh build and are not counted.
+
+| Task | Result | Note |
+| --- | --- | --- |
+| bookmark-delete-declined | 3/3 | Turn 1 ran on Haiku. Turn 2, the deletion, was routed to Sonnet before it ran; the approval was asked and declined, and the bookmark remained. |
+| psyche-earth-all | 6/6 | Haiku only. The search used the kind's 1-hour step over the single coverage window. |
+| ingenuity-pin-point | 2/3 | Haiku only. In the miss, Haiku asked whether "a point" meant another pin or a saved point, and changed nothing. |
+
+The rescoring also recognises "haven't" as a negation, so a clarifying question is no longer counted as a false success.
+
+**Spend.** The whole review, including this round, is an estimated **$0.95** against the $2.00 ceiling. A routed request costs one discarded Haiku round, about $0.001 here. Haiku runs on these tasks cost $0.002–$0.006 each. The routed deletion turns cost $0.006–$0.031, nearly all of it Sonnet.
+
+**Release decision, revised.** Haiku is the default. Sonnet answers only requests the routing policy names, decided before any change. Nothing is replayed after partial execution. Evidence for Haiku on its own is the tables above and the final-pass results. Its remaining measured misses are two:
+- **"Closest" (1/5):** Haiku read "Psyche" as the asteroid 16 Psyche, not the spacecraft, and Ask reported the result as verified. The viewer checked the search it ran, but it cannot check which body the person meant. This is the residual risk of a Haiku default: an interpretation error with a confident answer.
+- **"Place a point" (1/3):** Haiku asked a clarifying question and changed nothing.
