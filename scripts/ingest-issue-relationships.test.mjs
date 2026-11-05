@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parseIssueRelationships as parse } from './ingest-issue-relationships.mjs';
 
 test('explicitly independent issue', () => {
@@ -27,7 +28,7 @@ test('reject self and duplicate relations', () => {
 });
 
 test('CLI accesses Node process.env without helper shadowing', () => {
-  const { status, stderr } = spawnSync(process.execPath, [new URL('./ingest-issue-relationships.mjs', import.meta.url)], {
+  const { status, stderr } = spawnSync(process.execPath, [fileURLToPath(new URL('./ingest-issue-relationships.mjs', import.meta.url))], {
     env: {},
     encoding: 'utf8',
   });
