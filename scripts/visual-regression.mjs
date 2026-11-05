@@ -497,11 +497,13 @@ async function main() {
           if (EXPOSURE && (assetSummary?.failed > 0 || assetSummary?.timedOut)) {
             throw new Error('Reference capture requires all initial assets');
           }
-          writeFileSync(join(OUT_DIR, `${label}.json`), JSON.stringify({
-            catalog: scene.catalog, viewpoint: vp, viewport: VIEWPORT, deviceScaleFactor: 1,
-            exposure: result.metadata, gpu: result.gpu, captureReadbackMs: result.times,
-            assets: assetSummary,
-          }, null, 2) + '\n');
+          if (EXPOSURE || CAPTURE_ONLY) {
+            writeFileSync(join(OUT_DIR, `${label}.json`), JSON.stringify({
+              catalog: scene.catalog, viewpoint: vp, viewport: VIEWPORT, deviceScaleFactor: 1,
+              exposure: result.metadata, gpu: result.gpu, captureReadbackMs: result.times,
+              assets: assetSummary,
+            }, null, 2) + '\n');
+          }
           dataUrl = result.png;
           if (PROFILE) {
             const samples = result.times.slice(1).sort((a, b) => a - b);
