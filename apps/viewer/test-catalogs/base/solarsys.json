@@ -23,6 +23,14 @@
       "longitude": -45
     },
     {
+      "name": "Earth–Moon System",
+      "type": "Viewpoint",
+      "center": "Earth",
+      "distance": 900000,
+      "latitude": 35,
+      "longitude": 0
+    },
+    {
       "name": "View from Earth",
       "type": "Viewpoint",
       "center": "Earth",

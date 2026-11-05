@@ -129,6 +129,15 @@ jobs:
           --allow-unpublished terrain/mars-terrain-fused
           --allow-unpublished kernels/rosetta
 
+      - name: Inventory public listings versus shipped examples
+        run: node scripts/catalog-inventory.mjs --dist apps/viewer/dist > /tmp/catalog-bundle-inventory.json
+
+      - name: Retain catalog serving inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-bundle-inventory
+          path: /tmp/catalog-bundle-inventory.json
+
       - name: Verify hosted data
         # Fetches the manifests, sample terrain tiles and every kernel the
         # deployed catalogs depend on, from the Pages origin's point of view.

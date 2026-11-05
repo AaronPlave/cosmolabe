@@ -68,7 +68,8 @@ See [asset prerequisites](docs/viewer-overview.md#local-setup-and-assets) and
 | Psyche | An interplanetary cruise trajectory |
 | Earth–Moon Scripted Tour | Scripted camera, time and display changes |
 
-Browse the [full catalog index](apps/viewer/test-catalogs/index.json) or
+Browse the [12 public experiences](apps/viewer/test-catalogs/index.json),
+[developer examples and regression fixtures](apps/viewer/test-catalogs/README.md), or
 [configure another catalog source](docs/catalog-sources.md).
 
 ## Gallery

@@ -659,7 +659,7 @@ An unknown trajectory or rotation `type` is reported the same way, unless a cust
 
 ## More examples
 
-The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. They are listed on the viewer's home screen and catalog browser by `test-catalogs/index.json`; see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
+The `apps/viewer/test-catalogs/` directory contains end-to-end catalogs you can copy from. The curated public experiences are listed on the viewer's home screen and catalog browser by `test-catalogs/index.json`; technical examples and regression fixtures have a separate opt-in `dev-index.json` (see [the fixture guide](../apps/viewer/test-catalogs/README.md)); see [catalog-sources.md](catalog-sources.md) for how a deployment chooses which catalogs it offers.
 
 | File | What it shows |
 |---|---|
